@@ -1,0 +1,67 @@
+services:
+  app:
+    build:
+      context: ./trpg-remix-app
+      dockerfile: Dockerfile
+    container_name: TRPG-CLIENT
+    working_dir: /usr/src/app
+    volumes:
+      - ./trpg-remix-app:/usr/src/app:cached
+      - /usr/src/app/node_modules # ホストとコンテナでキャッシュを分離
+    develop:
+      watch:
+      - action: sync
+        path: ./src
+        target: /app/src
+    ports:
+      - "5173:5173" # ホストとコンテナのポートを一致させる
+    environment:
+      NODE_ENV: development
+      SERVER_DOMAIN: https://nginx.io/api
+      HOST_DOMAIN: https://localhost
+      CHOKIDAR_USEPOLLING: true
+    command: "pnpm run dev --host" # Remixアプリを外部ホストにバインド
+    networks:
+      - app-network
+
+  nestjs:
+    build:
+      context: ./TRPG-SERVER  # NestJSプロジェクトのパス
+      dockerfile: Dockerfile
+    container_name: TRPG-SERVER
+    working_dir: /usr/src/app
+    volumes:
+      - ./TRPG-SERVER:/usr/src/app:cached
+      - /usr/src/app/node_modules # node_modulesを分離
+    ports:
+      - "3000:3000" # NestJSのデフォルトポート
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+    develop:
+      watch:
+      - action: sync
+        path: ./src
+        target: /app/src
+    command: "npm run start:dev" # 本番モードでNestJSを起動
+    networks:
+      - app-network
+  nginx.io:
+    image: nginx:alpine
+    container_name: nginx.io
+    ports:
+      - "80:80"  # HTTP用
+      - "443:443"  # HTTPS用
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/cert:/etc/nginx/cert  # SSL証明書をマウント
+    logging:
+      driver: "none" 
+    networks:
+      - app-network
+    depends_on:
+      - app
+      - nestjs
+networks:
+  app-network:
+    driver: bridge

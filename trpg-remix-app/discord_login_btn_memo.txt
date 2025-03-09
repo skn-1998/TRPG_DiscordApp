@@ -1,0 +1,44 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #7289da;
+    margin: 0;
+}
+
+.container {
+    text-align: center;
+}
+
+.discord-button {
+    display: inline-block;
+    padding: 15px 25px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+    background-color: #5865f2;
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+}
+
+.discord-button:hover {
+    background-color: #4752c4;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Login Button</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <a href="YOUR_OAUTH2_URL_HERE" class="discord-button">Login with Discord</a>
+    </div>
+</body>
+</html>
