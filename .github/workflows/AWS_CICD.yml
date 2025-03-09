@@ -2,9 +2,11 @@ name: CI/CD Pipeline to AWS Lightsail
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: 
+    - main
+    - develop
+  # pull_request:
+  #   branches: [ "main" ]
 
 jobs:
   # =================================================
@@ -58,7 +60,7 @@ jobs:
   # =================================================
   deploy:
     # needs: build-and-test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out code
@@ -75,7 +77,7 @@ jobs:
       - name: Deploy to Lightsail
         run: |
           # Lightsail インスタンスの Public IP or ドメイン名
-          SSH_HOST=${{ secrets.IPADRESS}}
+          SSH_HOST=${{ secrets.IPADRESS }}
           SSH_USER="ubuntu"
 
           ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
