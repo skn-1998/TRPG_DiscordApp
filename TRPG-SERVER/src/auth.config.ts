@@ -1,0 +1,1 @@
+export const redirect_url:string = 'https://localhost/login'

@@ -1,0 +1,22 @@
+### POST request for authentication
+POST https://discordapp.com/api/oauth2/token HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+client_id=1192835520741515414&client_secret=4EqcfnE7sxfXPQbeweNRuPny6ZE-LZkL&grant_type=authorization_code&code=XbeknTiqIF14HFbEJlwN7K49htkyAw&redirect_uri=http://localhost:5173/login
+
+
+### GET request to Discord API
+GET https://discordapp.com/api/users/@me HTTP/1.1
+Authorization: Bearer ImV5SmhiR2NpT2lKSVV6STFOaUlzSW5SNWNDSTZJa3BYVkNKOS5leUpwWVhRaU9qRTNNamc0TVRJd016QXNJbVY0Y0NJNk1UY3lPRGd4TlRZek1IMC5LZzNRbHUyS2pVd2tCdy1xWi1CdVpzbWRGN3dKNEZ2VEd6NHYtSWlmMGZnIg%3D%3D
+
+
+###
+POST  http://localhost:3000/auth/login HTTP/1.1
+Content-Type: application/json
+
+{
+    "code":"172rln7JXTGwA3Uu8AHlCwxmgSiZbX"
+}
+
+###
+GET  http://localhost:3000/characters HTTP/1.1
