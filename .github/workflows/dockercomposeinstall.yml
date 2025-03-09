@@ -2,7 +2,7 @@ name: Install Docker Compose
 on:
   push:
     branches: ["main"]
-  run: |
+run: |
     sudo apt-get update && sudo apt-get install -y curl
 
     # 1) 既にインストールされている docker-compose を削除（衝突を避ける）
