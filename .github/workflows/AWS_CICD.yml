@@ -47,11 +47,11 @@ jobs:
 
   #     - name: Docker Compose Build & Test
   #       run: |
-  #         docker compose up -d --build
+  #         docker-compose up -d --build
   #         # ここでテスト実行(例: appサービスにnpm testがあると想定)
-  #         docker compose exec app npm install
-  #         docker compose exec app npm test
-  #         docker compose down
+  #         docker-compose exec app npm install
+  #         docker-compose exec app npm test
+  #         docker-compose down
 
 
   # =================================================
@@ -84,6 +84,6 @@ jobs:
             cd workspace
 
             # 最新のイメージをpullしてコンテナを再起動
-            docker compose pull
-            docker compose up -d
+            docker-compose pull
+            docker-compose up -d
           ENDSSH
