@@ -1,23 +1,32 @@
 name: Install Docker Compose
 on:
   push:
-    branches: ["main"]
-run: |
-    sudo apt-get update && sudo apt-get install -y curl
+    branches:
+      - main
+      - develop
 
-    # 1) 既にインストールされている docker-compose を削除（衝突を避ける）
-    sudo apt-get remove -y docker-compose || true
+jobs:
+  install-docker-compose:
+    name: Install Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl
 
-    # 2) Compose v2 の最新リリースを指定
-    #   例: v2.15.1 の場合（定期的に更新してください）
-    COMPOSE_VERSION="v2.15.1"
+          # 1) 既にインストールされている docker-compose を削除（衝突を避ける）
+          sudo apt-get remove -y docker-compose || true
 
-    # 3) バイナリをダウンロード & 配置
-    sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
-      -o /usr/local/bin/docker-compose
+          # 2) Compose v2 の最新リリースを指定
+          #   例: v2.15.1 の場合（定期的に更新してください）
+          COMPOSE_VERSION="v2.15.1"
 
-    # 4) 実行権限付与
-    sudo chmod +x /usr/local/bin/docker-compose
+          # 3) バイナリをダウンロード & 配置
+          sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
+            -o /usr/local/bin/docker-compose
 
-    # 5) バージョン確認
-    docker-compose version
+          # 4) 実行権限付与
+          sudo chmod +x /usr/local/bin/docker-compose
+
+          # 5) バージョン確認
+          docker-compose version

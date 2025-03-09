@@ -22,7 +22,7 @@ jobs:
       - name: Install Docker Compose plugin
         run: |
           sudo apt-get update
-          sudo apt-get install -y docker-compose-plugin
+          # sudo apt-get install -y docker-compose-plugin
 
       - name: Docker Compose Build & Test
         run: |
@@ -59,7 +59,7 @@ jobs:
           SSH_USER="ubuntu"
 
           ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
-            cd /path/to/your/docker-compose-directory
+            cd /workspace
 
             # 最新のイメージをpullしてコンテナを再起動
             docker compose pull
