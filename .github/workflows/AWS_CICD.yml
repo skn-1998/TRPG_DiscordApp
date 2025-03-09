@@ -11,7 +11,7 @@ jobs:
   # 1) Build & Test (Docker Compose でアプリをテスト)
   # =================================================
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -22,7 +22,7 @@ jobs:
       - name: Install Docker Compose plugin
         run: |
           sudo apt-get update
-          # sudo apt-get install -y docker-compose-plugin
+          sudo apt-get install -y docker-compose-plugin
 
       - name: Docker Compose Build & Test
         run: |
@@ -38,7 +38,7 @@ jobs:
   #    push-image が成功したら実行
   # =================================================
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Check out code
