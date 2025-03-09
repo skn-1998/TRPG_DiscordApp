@@ -3,6 +3,7 @@ name: hoge
 on:
   push:
     branches:
+      - main
       - develop
 
 jobs:
