@@ -79,8 +79,7 @@ jobs:
           SSH_USER="ubuntu"
 
           ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
-            mkdir workspace
-            cd /workspace
+            cd workspace
 
             # 最新のイメージをpullしてコンテナを再起動
             docker compose pull
