@@ -81,7 +81,11 @@ jobs:
           SSH_USER="ubuntu"
 
           ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
-            cd workspace
+            pwd
+            ls
+            cd workspace/TRPG_DiscordApp
+            pwd
+            ls
 
             # 最新のイメージをpullしてコンテナを再起動
             docker-compose pull
