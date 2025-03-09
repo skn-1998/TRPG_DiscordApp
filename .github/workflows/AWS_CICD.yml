@@ -1,6 +1,7 @@
 name: CI/CD Pipeline to AWS Lightsail
 
 on:
+  workflow_dispatch:
   push:
     branches: 
     - main
@@ -88,6 +89,7 @@ jobs:
             ls
 
             # 最新のイメージをpullしてコンテナを再起動
-            docker-compose pull
-            docker-compose up -d
+            docker compose version
+            docker compose pull
+            docker compose up -d
           ENDSSH
