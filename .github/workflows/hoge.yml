@@ -1,0 +1,14 @@
+name: hoge
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  hoge:
+    name: Run hoge
+    runs-on: ubuntu-latest
+    steps:
+      - name: echo hoge
+        run: echo hoge
