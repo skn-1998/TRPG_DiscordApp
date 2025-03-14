@@ -79,14 +79,10 @@ jobs:
         run: |
           # Lightsail インスタンスの Public IP or ドメイン名
           SSH_HOST=${{ secrets.IPADRESS }}
-          SSH_USER="ubuntu"
+          SSH_USER="ec2-user"
 
           ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
-            pwd
-            ls
             cd workspace/TRPG_DiscordApp
-            pwd
-            ls
 
             # 最新のイメージをpullしてコンテナを再起動
             docker compose version
