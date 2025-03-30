@@ -33,7 +33,7 @@ export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
   }
 }
 
-export async function validateJWTLoader({ request }: LoaderFunctionArgs): Promise<TypedResponse> {
+export async function validateJWT({ request }: LoaderFunctionArgs): Promise<object> {
   // リクエストからCookieを取得
   const cookie = request.headers.get('Cookie') || ''
 
@@ -68,10 +68,10 @@ export async function validateJWTLoader({ request }: LoaderFunctionArgs): Promis
       // JWTが無効ならリダイレクト
       return redirect('/login')
     }
-
+    console.log(response.data)
     // JWTが有効ならそのままページを表示
     // return null // user情報を送る？
-    return json(response.data)
+    return response.data
 
   } catch(err) {
     console.log(CustomError(err))
