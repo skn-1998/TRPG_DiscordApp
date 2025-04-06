@@ -1,1 +1,1 @@
-export * from './components/character'
+export * from './components/characterCreate'
