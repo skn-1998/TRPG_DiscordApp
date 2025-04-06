@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 // src/character/character.controller.ts
-import { Controller, Get, Body, Patch, Param, Delete, Post,Headers } from '@nestjs/common';
+import { Controller, Get, Body, Patch, Param, Delete, Post, Headers, UnauthorizedException } from '@nestjs/common';
 import { CharacterService } from './character.service';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { AuthService } from 'src/auth/auth.service';
@@ -21,21 +21,52 @@ export class CharacterController {
   }
 
   @Post('create')
-  async CreateCharacter(@Body('TRPGName') TRPGName: string,@Body('DiscordChannelId') DiscordChannelId:string){
-    return await this.characterService.create(TRPGName,DiscordChannelId)
+  async CreateCharacter(
+    @Headers('Authorization') authorization: string,
+    @Body('TRPGName') TRPGName: string,
+    @Body('DiscordChannelId') DiscordChannelId: string
+  ) {
+    if (!authorization) {
+      throw new UnauthorizedException('認証が必要です');
+    }
+    const token = await this.authService.parseJwt(authorization);
+    return await this.characterService.create(TRPGName, token.DiscordUserId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  async findOne(
+    @Headers('Authorization') authorization: string,
+    @Param('id') id: string
+  ) {
+    if (!authorization) {
+      throw new UnauthorizedException('認証が必要です');
+    }
+    await this.authService.parseJwt(authorization);
     return this.characterService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCharacterDto: UpdateCharacterDto) {
+  async update(
+    @Headers('Authorization') authorization: string,
+    @Param('id') id: string,
+    @Body() updateCharacterDto: UpdateCharacterDto
+  ) {
+    if (!authorization) {
+      throw new UnauthorizedException('認証が必要です');
+    }
+    await this.authService.parseJwt(authorization);
     return this.characterService.update(id, updateCharacterDto);
   }
+
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(
+    @Headers('Authorization') authorization: string,
+    @Param('id') id: string
+  ) {
+    if (!authorization) {
+      throw new UnauthorizedException('認証が必要です');
+    }
+    await this.authService.parseJwt(authorization);
     return this.characterService.remove(id);
   }
 }

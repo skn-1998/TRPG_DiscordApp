@@ -5,9 +5,10 @@ import { AnyItem } from 'dynamoose/dist/Item';
 const { Schema } = dynamoose;
 
 export interface Character extends AnyItem {
-  name: string
   characterId: string
-  userId: string
+  characterName: string
+  TRPGName: string
+  discordUserId: string
   discordChannelId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   status: Record<string, any>
@@ -24,8 +25,10 @@ const CharacterSchema = new Schema({
     type: String,
     hashKey: true,
   },
+  discordUserId:String,
   discordChannelID: String,
-  name: String,
+  TRPGName: String,
+  characterName: String,
   status: {
     type: Object,
     default: {},
@@ -44,6 +47,6 @@ const CharacterSchema = new Schema({
 
 export const CharacterModel = dynamoose.model<Character>('Character', CharacterSchema,
   {
-    tableName:'trpg-character'
+    tableName:'trpg-charactertable'
   }
 );
