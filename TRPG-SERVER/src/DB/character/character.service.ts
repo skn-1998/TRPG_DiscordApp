@@ -18,11 +18,13 @@ export class CharacterService {
       parameter:{}
     }
     try {
+      console.log('Creating character with DTO:', JSON.stringify(createCharacterDto, null, 2));
       const character = new CharacterModel(createCharacterDto)
       await character.save();
       return character
 
     } catch (error:unknown) {
+      console.error('Error creating character:', error);
       if(error instanceof Error)
       {
         throw new Error(error.message)
