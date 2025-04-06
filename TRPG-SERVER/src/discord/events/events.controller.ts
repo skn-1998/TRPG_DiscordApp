@@ -8,7 +8,8 @@ import {
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
   NonThreadGuildBasedChannel,
-  ChannelType
+  ChannelType,
+  AuditLogEvent
 } from 'discord.js'
 import { ChangeCharaInfoService } from './select/change-chara-info.service'
 import { CharacterChannelService } from './select/character-channel.service'
@@ -108,7 +109,7 @@ export class EventsController {
         if (!(channel.type === ChannelType.GuildText)) return
         if (channel.parentId === categoryId) {
           this.charaInfoButtonService.createButton(channel)
-          this.characterService.create("",channel.name,channel.id)
+          this.characterService.create(channel.name,channel.id)
           
         }
       }

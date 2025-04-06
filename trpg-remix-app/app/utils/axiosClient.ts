@@ -33,7 +33,7 @@ export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
   }
 }
 
-export async function validateJWTLoader({ request }: LoaderFunctionArgs): Promise<TypedResponse> {
+export async function validateJWT({ request }: LoaderFunctionArgs): Promise<object> {
   // リクエストからCookieを取得
   const cookie = request.headers.get('Cookie') || ''
 
@@ -51,7 +51,7 @@ export async function validateJWTLoader({ request }: LoaderFunctionArgs): Promis
   const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
   const verifyUrl = `${corsServerDomain}/trpg-user` // JWT検証用のAPIエンドポイント
 
-  console.log(`verifyUrl: ${verifyUrl}`)
+  // console.log(`verifyUrl: ${verifyUrl}`)
 
   const headers = {
     'Content-Type': 'application/json',
@@ -68,10 +68,10 @@ export async function validateJWTLoader({ request }: LoaderFunctionArgs): Promis
       // JWTが無効ならリダイレクト
       return redirect('/login')
     }
-
+    // console.log(response.data)
     // JWTが有効ならそのままページを表示
     // return null // user情報を送る？
-    return json(response.data)
+    return response.data
 
   } catch(err) {
     console.log(CustomError(err))
