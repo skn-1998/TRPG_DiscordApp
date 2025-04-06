@@ -9,10 +9,11 @@ import { QueryResponse } from 'dynamoose/dist/ItemRetriever';
 @Injectable()
 export class CharacterService {
   async   create(TRPGName:string,characterName:string,discordUserId:string = ""):Promise<Item & Character> {
+    console.log("Test")
     const createCharacterDto: CreateCharacterDto = {
       characterId:crypto.randomUUID(),
-      characterName:characterName,
-      TRPGName:TRPGName,
+      characterName:characterName || "",
+      TRPGName:TRPGName || "",
       discordUserId:discordUserId,
       discordChannelId:"",
       skill:{},
@@ -21,9 +22,7 @@ export class CharacterService {
     }
     try {
       const character = new CharacterModel(createCharacterDto)
-      console.log(character.name)
       await character.save();
-      console.log(character.name+character.userId)
       return character
 
     } catch (error:unknown) {

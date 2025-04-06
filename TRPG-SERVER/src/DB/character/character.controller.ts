@@ -29,7 +29,7 @@ export class CharacterController {
     if (!authorization) {
       throw new UnauthorizedException('認証が必要です');
     }
-    const token = await this.authService.parseJwt(authorization);
+    const token = await this.authService.validateToken(authorization);
     return await this.characterService.create(TRPGName, token.DiscordUserId);
   }
 
