@@ -8,11 +8,13 @@ import { QueryResponse } from 'dynamoose/dist/ItemRetriever';
 
 @Injectable()
 export class CharacterService {
-  async   create(name:string,discordUserId:string = ""):Promise<Item & Character> {
+  async   create(TRPGName:string,characterName:string,discordUserId:string = ""):Promise<Item & Character> {
     const createCharacterDto: CreateCharacterDto = {
       characterId:crypto.randomUUID(),
-      name:"",
+      characterName:characterName,
+      TRPGName:TRPGName,
       discordUserId:discordUserId,
+      discordChannelId:"",
       skill:{},
       status:{},
       parameter:{}
@@ -23,6 +25,7 @@ export class CharacterService {
       return character
 
     } catch (error:unknown) {
+      console.error('Error creating character:', error);
       if(error instanceof Error)
       {
         throw new Error(error.message)
@@ -31,7 +34,6 @@ export class CharacterService {
         throw new Error("Unknown Error")
       }
     }
-
   }
 
   async findHavingAll(DiscordUserId:string): Promise<QueryResponse<Character>> {
