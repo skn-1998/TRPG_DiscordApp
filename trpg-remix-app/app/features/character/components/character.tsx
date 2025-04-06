@@ -1,30 +1,29 @@
 import { Button } from '@mantine/core'
-import { json, LoaderFunctionArgs } from '@remix-run/node'
-import { useLoaderData, useOutletContext } from '@remix-run/react'
+import { useOutletContext } from '@remix-run/react'
 import axios from 'axios'
-import { validateJWT } from '~/utils/axiosClient'
 import { CustomError } from '~/utils/customError'
-// import 'dotenv/config'
-import type { loader as parentLoader } from '~/routes/_user.user'
 
 export function Character() {
-  const data = useOutletContext<ReturnType<typeof parentLoader>>()
+  const outletContextData = useOutletContext<{ data: any, cookie: string }>()
+
+  const jwtCookie = outletContextData.cookie.split(';').find(cookie => cookie.trim().startsWith('jwt='))
+    if (!jwtCookie) {
+      throw new Error('no jwtCookie')
+    }
+  const jwt = jwtCookie.split('=')[1]
 
   async function clickHandler(){
     console.log('clicked!')
     const corsServerDomain = 'http://localhost:3000'
-    // console.log(corsServerDomain)
     try
     {
-      // const res = await axios.get(`${corsServerDomain}/characters`,{headers: {'Content-Type': 'application/json'}, withCredentials: true })
-      const res = await axios.post(`${corsServerDomain}/characters/create`, { TRPGName: 'Cthulhu', DiscordChannelId: '584423849811247105' }, { headers: {'Content-Type': 'application/json'}, withCredentials: true })
-      console.log('res res:' + res)
+      const res = await axios.post(`${corsServerDomain}/characters/create`, { TRPGName: 'Cthulhu' }, { headers: {'Content-Type': 'application/json', Authorization: `Bearer ${jwt}`}, withCredentials: true })
+      console.log('--- res ---')
+      console.log(res)
     }catch(Error)
     {
       CustomError(Error)
     }
-    // const res = await axios.get('/trpg-user')
-    // const res = 'axios post の予定'
   }
 
   return (
