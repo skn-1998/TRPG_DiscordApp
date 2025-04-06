@@ -109,7 +109,7 @@ export class EventsController {
         if (!(channel.type === ChannelType.GuildText)) return
         if (channel.parentId === categoryId) {
           this.charaInfoButtonService.createButton(channel)
-          this.characterService.create(channel.name,channel.id)
+          this.characterService.create("",channel.name,channel.id)
           
         }
       }
