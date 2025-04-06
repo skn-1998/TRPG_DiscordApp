@@ -1,5 +1,5 @@
 # ベースイメージとしてNode.jsを使用
-FROM node:18
+FROM node:22
 
 # pnpmをグローバルにインストール
 RUN npm install -g pnpm
