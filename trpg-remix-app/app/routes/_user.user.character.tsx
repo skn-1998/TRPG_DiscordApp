@@ -7,10 +7,14 @@ export default function User() {
   // 親ルート(User.tsx)の loader が返す型情報を取得
   const data = useOutletContext<ReturnType<typeof parentLoader>>()
 
+  // console.log('--- aaa ---')
+  // console.log(data)
+  // console.log('--- aaa end ---')
+
   return (<>
     <div>characterPage</div>
-    <div>data: {JSON.stringify(data)}</div>
+    <div>data: </div>
+    <Outlet  context={data} />
     <Character />
-    <Outlet />
   </>)
 }
