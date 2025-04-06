@@ -1,6 +1,6 @@
 // src/character/character.service.ts
 import { Injectable } from '@nestjs/common';
-import {  Character, CharacterModel } from './models/character.model';
+import { Character, CharacterModel } from './models/character.model';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { Item } from 'dynamoose/dist/Item';
@@ -20,13 +20,17 @@ export class CharacterService {
     try {
       console.log('Creating character with DTO:', JSON.stringify(createCharacterDto, null, 2));
       const character = new CharacterModel(createCharacterDto)
+      console.log(character.name)
       await character.save();
+      console.log(character.name+character.userId)
       return character
 
     } catch (error:unknown) {
       console.error('Error creating character:', error);
       if(error instanceof Error)
       {
+        console.log("this err is occur")
+        console.log(error.message)
         throw new Error(error.message)
       }else
       {

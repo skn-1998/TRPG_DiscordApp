@@ -51,7 +51,7 @@ export async function validateJWT({ request }: LoaderFunctionArgs): Promise<obje
   const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
   const verifyUrl = `${corsServerDomain}/trpg-user` // JWT検証用のAPIエンドポイント
 
-  console.log(`verifyUrl: ${verifyUrl}`)
+  // console.log(`verifyUrl: ${verifyUrl}`)
 
   const headers = {
     'Content-Type': 'application/json',
@@ -68,7 +68,7 @@ export async function validateJWT({ request }: LoaderFunctionArgs): Promise<obje
       // JWTが無効ならリダイレクト
       return redirect('/login')
     }
-    console.log(response.data)
+    // console.log(response.data)
     // JWTが有効ならそのままページを表示
     // return null // user情報を送る？
     return response.data
