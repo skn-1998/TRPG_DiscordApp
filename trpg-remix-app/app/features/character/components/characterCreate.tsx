@@ -5,10 +5,12 @@ import { CustomError } from '~/utils/customError'
 import { Select } from '@mantine/core'
 import gameSystemList from '~/static/gameSystemList.json'
 import { useState } from 'react'
+import _ from 'lodash'
 
-const gameSystemListID = gameSystemList.map(e => ({ value: e.ID, label: e.NAME }))
+const _gameSystemList = _.sortBy(gameSystemList, ['SORT_KEY'])
+const gameSystemListID = _gameSystemList.map(e => ({ value: e.ID, label: e.NAME }))
 
-export function Character() {
+export function CharacterCreate() {
   const outletContextData = useOutletContext<{ data: any, cookie: string }>()
 
   const jwtCookie = outletContextData.cookie.split(';').find(cookie => cookie.trim().startsWith('jwt='))
@@ -57,6 +59,10 @@ export function Character() {
         nothingFoundMessage="Nothing found..."
         value={TRPGSystemValue ? TRPGSystemValue.value : null}
         onChange={(_value, option) => setTRPGSystemValue(option)}
+        // maxDropdownHeight={500}
+        withScrollArea={false}
+        styles={{ dropdown: { maxHeight: 500, overflowY: 'auto' } }}
+        mt="md"
       />
     </>
   )
