@@ -40,9 +40,8 @@ services:
       PORT: 3000
     develop:
       watch:
-      - action: sync
-        path: ./src
-        target: /app/src
+        - action: rebuild
+          path: ./TRPG-SERVER
     command: "npm run start:dev" # 本番モードでNestJSを起動
     networks:
       - app-network
