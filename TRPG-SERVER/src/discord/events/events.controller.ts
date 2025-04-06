@@ -118,7 +118,6 @@ export class EventsController {
           if(auditLog)
           {
             const creatorId = auditLog.executorId
-          // channel.createInvite
 
             this.characterService.create(channel.name,creatorId)
           }

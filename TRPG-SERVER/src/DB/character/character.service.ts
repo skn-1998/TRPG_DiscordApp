@@ -13,6 +13,7 @@ export class CharacterService {
       characterId:crypto.randomUUID(),
       name:"",
       discordUserId:discordUserId,
+      discordChannelId:"",
       skill:{},
       status:{},
       parameter:{}
@@ -22,9 +23,8 @@ export class CharacterService {
       const character = new CharacterModel(createCharacterDto)
       console.log(character.name)
       await character.save();
-      console.log(character.name+character.userId)
+      console.log(character.name+character.discordUserId)
       return character
-
     } catch (error:unknown) {
       console.error('Error creating character:', error);
       if(error instanceof Error)
@@ -37,7 +37,6 @@ export class CharacterService {
         throw new Error("Unknown Error")
       }
     }
-
   }
 
   async findHavingAll(DiscordUserId:string): Promise<QueryResponse<Character>> {

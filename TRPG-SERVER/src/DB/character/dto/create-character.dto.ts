@@ -9,6 +9,9 @@ export class CreateCharacterDto {
   readonly discordUserId: string;
 
   @IsString()
+  readonly discordChannelId: string;
+
+  @IsString()
   readonly name: string;
 
   readonly status: object = {};
