@@ -10,9 +10,9 @@ services:
       - /usr/src/app/node_modules # ホストとコンテナでキャッシュを分離
     develop:
       watch:
-      - action: sync
-        path: ./src
-        target: /app/src
+        - action: sync
+          path: ./src
+          target: /app/src
     ports:
       - "5173:5173" # ホストとコンテナのポートを一致させる
     environment:
@@ -38,7 +38,6 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-      CHOKIDAR_USEPOLLING: "true"
     command: "npm run start:dev"
     networks:
       - app-network
