@@ -1,1 +1,1 @@
-export const redirect_url:string = 'https://localhost/login'
+export const redirect_url = process.env.REDIRECT_URL || 'http://localhost:3000';

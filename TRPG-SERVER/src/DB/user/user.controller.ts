@@ -3,7 +3,7 @@
 import { Controller, Get, Body, Patch, Param, Delete,Headers } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { AuthService } from 'src/auth/auth.service';
+import { AuthService } from '../../auth/auth.service';
 
 @Controller('trpg-user')
 export class UserController {

@@ -13,6 +13,7 @@ import {
   getParentChannelTopic
 } from './roll-dice.service'
 import { diceFromContextMenuConfig } from 'src/discord/commands/commands.list'
+import { handleError } from '../../utils/discord.utils';
 
 @Injectable()
 export class DiceFromContextMenuService implements discordContextMenuType {
@@ -41,11 +42,8 @@ export class DiceFromContextMenuService implements discordContextMenuType {
         return
       }
       await interaction.reply(diceResult.text)
-    } catch (e) {
-      await interaction.reply(
-        'エラーが発生しました。ログを確認してください' + '\n' + command
-      )
-      console.log(e)
+    } catch (error) {
+      await handleError(interaction, error);
     }
   }
 }
