@@ -26,24 +26,20 @@ services:
 
   nestjs:
     build:
-      context: ./TRPG-SERVER  # NestJSプロジェクトのパス
+      context: ./TRPG-SERVER
       dockerfile: Dockerfile
     container_name: TRPG-SERVER
     working_dir: /usr/src/app
     volumes:
       - ./TRPG-SERVER:/usr/src/app:cached
-      - /usr/src/app/node_modules # node_modulesを分離
+      - /usr/src/app/node_modules
     ports:
-      - "3000:3000" # NestJSのデフォルトポート
+      - "3000:3000"
     environment:
       NODE_ENV: development
       PORT: 3000
-    develop:
-      watch:
-      - action: sync
-        path: ./src
-        target: /app/src
-    command: "npm run start:dev" # 本番モードでNestJSを起動
+      CHOKIDAR_USEPOLLING: "true"
+    command: "npm run start:dev"
     networks:
       - app-network
   nginx.io:
