@@ -1,80 +1,64 @@
-// import 'dotenv'
-import { LoaderFunctionArgs, redirect, json, TypedResponse } from '@remix-run/node'
-import axios from 'axios'
-import https from 'https'
-import { CustomError } from './customError'
-
-const agent = new https.Agent({
-  rejectUnauthorized: false
-})
+import { LoaderFunctionArgs, redirect } from '@remix-run/node';
+import axios from 'axios';
+import https from 'https';
+import { CustomError } from './customError';
 
 export type TRPGUser = {
-  message?: string,
-  DiscordUserId: string,
-  userName: string,
-  token?: string
-  characterId?:string[]
-}
+  message?: string;
+  DiscordUserId: string;
+  userName: string;
+  token?: string;
+  characterId?: string[];
+};
 
-export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
+// 共通のaxiosインスタンスを作成
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+const createAxiosInstance = (baseURL: string) => {
+  return axios.create({
+    baseURL,
+    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    withCredentials: true,
+  });
+};
+
+const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000';
+const axiosInstance = createAxiosInstance(corsServerDomain);
+
+export const loginOrRegisterUser = async (code: string): Promise<TRPGUser> => {
   try {
-    const headers = { 'Content-Type': 'application/json' }
-    const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
-    // ログインかjwtを発行して登録
-    const res = await axios.post(
-      `${corsServerDomain}/auth/login`,
-      { code },
-      { headers, httpsAgent: agent, withCredentials: true }
-    )
-    // ユーザー情報(discordUserId, userName)等を返す
-    return res.data
+    const response = await axiosInstance.post('/auth/login', { code });
+    return response.data;
   } catch (err: unknown) {
-    throw new Error(CustomError(err))
+    throw new Error(CustomError(err));
   }
-}
+};
 
-export async function validateJWT({ request }: LoaderFunctionArgs): Promise<object> {
-  // リクエストからCookieを取得
-  const cookie = request.headers.get('Cookie') || ''
-
-  // JWT Cookieが存在するか確認
-  const jwtCookie = cookie.split(';').find(cookie => cookie.trim().startsWith('jwt='))
-  // console.log(jwtCookie)
+export const validateJWT = async ({ request }: LoaderFunctionArgs): Promise<object | null> => {
+  const cookie = request.headers.get('Cookie') || '';
+  const jwtCookie = cookie.split(';').find((cookie) => cookie.trim().startsWith('jwt='));
 
   if (!jwtCookie) {
-    // Cookieが存在しなければログインページにリダイレクト
-    return redirect('/login')
+    return redirect('/login');
   }
-  // JWTの有効性をサーバーに問い合わせる
-  const jwt = jwtCookie.split('=')[1]
 
-  const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
-  const verifyUrl = `${corsServerDomain}/trpg-user` // JWT検証用のAPIエンドポイント
-
-  // console.log(`verifyUrl: ${verifyUrl}`)
-
-  const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${jwt}`
-  }
+  const jwt = jwtCookie.split('=')[1];
+  const verifyUrl = '/trpg-user'; // JWT検証用のAPIエンドポイント
 
   try {
-    // console.log(jwt)
-    const response = await axios.get(verifyUrl, { headers, httpsAgent: agent, withCredentials: true })
-    // console.log(response)
-    // console.log('--- response end ---')
+    const response = await axiosInstance.get(verifyUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
 
     if (!response.data) {
-      // JWTが無効ならリダイレクト
-      return redirect('/login')
+      return redirect('/login');
     }
-    // console.log(response.data)
-    // JWTが有効ならそのままページを表示
-    // return null // user情報を送る？
-    return response.data
 
-  } catch(err) {
-    console.log(CustomError(err))
-    return redirect('/login')
+    return response.data;
+  } catch (err: unknown) {
+    console.error(CustomError(err));
+    return redirect('/login');
   }
-}
+};
