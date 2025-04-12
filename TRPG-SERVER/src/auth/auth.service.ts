@@ -1,4 +1,3 @@
-import { HttpService } from '@nestjs/axios';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { firstValueFrom, lastValueFrom } from 'rxjs';
@@ -9,12 +8,14 @@ import { UserService } from 'src/DB/user/user.service';
 import { TRPGUser } from 'src/DB/user/models/user.model';
 import _ from 'lodash';
 import { JWTTokenModel } from './auth.token.model';
+import { CustomHttpService } from './http.service';
+import { HttpServiceInterface } from './interfaces/http.interface';
 
 
 @Injectable()
 export class AuthService {
   // eslint-disable-next-line no-unused-vars
-  constructor(private readonly jwtService: JwtService,private readonly httpService: HttpService,readonly userService:UserService) {}
+  constructor(private readonly jwtService: JwtService,private readonly httpService: CustomHttpService,readonly userService:UserService) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async validateUser(accessToken: string, refreshToken: string, profile: any): Promise<any> {
@@ -120,7 +121,6 @@ export class AuthService {
       const res = await lastValueFrom(
 
         this.httpService.post(url, params, { headers })
-      
       );
       console.log(res.data)
       return res.data;

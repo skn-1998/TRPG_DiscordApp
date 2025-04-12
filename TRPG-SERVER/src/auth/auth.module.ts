@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { CustomHttpService } from './http.service';
 import { AuthController } from './auth.controller';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -8,7 +9,6 @@ import { DiscordStrategy } from './auth.strategy';
 import { HttpModule } from '@nestjs/axios';
 import { configureDynamoose } from 'src/dynamoose.config';
 import { UserModule } from 'src/DB/user/user.module';
-import { CharacterModule } from 'src/DB/character/character.module';
 
 
 if (!process.env.JWT_SECRET) {
@@ -30,7 +30,7 @@ if (!process.env.JWT_SECRET) {
     }),
     HttpModule
   ],
-  providers: [AuthService,DiscordStrategy],
+  providers: [AuthService, DiscordStrategy, CustomHttpService],
   controllers: [AuthController],
   exports:[AuthService]
 })
@@ -40,5 +40,3 @@ export class AuthModule {
   }
 
 }
-
-

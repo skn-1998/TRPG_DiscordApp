@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { DiseButtonService } from './dise-button.service'
+import { DiceButtonService } from './dice-button.service'
 
-describe('DiseButtonService', () => {
-  let service: DiseButtonService
+describe('DiceButtonService', () => {
+  let service: DiceButtonService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DiseButtonService]
+      providers: [DiceButtonService]
     }).compile()
 
-    service = module.get<DiseButtonService>(DiseButtonService)
+    service = module.get<DiceButtonService>(DiceButtonService)
   })
 
   it('should be defined', () => {

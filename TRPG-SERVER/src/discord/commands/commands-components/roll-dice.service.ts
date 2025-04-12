@@ -10,6 +10,7 @@ import dice from 'src/discord/utils/dice'
 import { loadJsonFile } from 'src/discord/utils/loadJsonFile'
 import { GameSystemJSON } from './select-game-system.service'
 import { rollDiceConfig } from 'src/discord/commands/commands.list'
+import { handleError } from '../../utils/discord.utils';
 
 const gameSystemList = loadJsonFile(
   'src/discord/static/gameSystemList.json'
@@ -48,11 +49,8 @@ export class RollDiceService implements discordCommandType {
         return
       }
       await interaction.reply(diceResult.text)
-    } catch (e) {
-      await interaction.reply(
-        'エラーが発生しました。ログを確認してください' + '\n' + command
-      )
-      console.log(e)
+    } catch (error) {
+      await handleError(interaction, error);
     }
   }
 }

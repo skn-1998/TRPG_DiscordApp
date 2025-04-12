@@ -9,6 +9,7 @@ import {
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'
 import { CharacterChannelService } from 'src/discord/events/select/character-channel.service'
+import { handleError } from 'src/discord/utils/discord.utils'
 
 @Injectable()
 export class CharacterThreadService implements discordCommandType {
@@ -33,17 +34,5 @@ export class CharacterThreadService implements discordCommandType {
     } catch (error) {
       await handleError(interaction, error)
     }
-  }
-}
-
-async function handleError(
-  interaction: CommandInteraction,
-  error: unknown
-): Promise<void> {
-  if (error instanceof Error) {
-    console.error('エラーが発生しました:', error.message)
-    await interaction.reply('An error has occurred:  ' + error.message)
-  } else {
-    console.error('未知のエラーが発生しました')
   }
 }
