@@ -4,12 +4,12 @@ import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { redirect_url } from 'src/auth.config';
 import { URLSearchParams } from 'url';
 
-import { UserService } from 'src/DB/user/user.service';
-import { TRPGUser } from 'src/DB/user/models/user.model';
+import { UserService } from 'src/domains/user/user.service';
+import { User } from 'src/domains/user/models/user.model';
 import _ from 'lodash';
 import { JWTTokenModel } from './auth.token.model';
 import { CustomHttpService } from './http.service';
-import { HttpServiceInterface } from './interfaces/http.interface';
+import { getErrorMessage } from 'src/utils/error-helpers';
 
 
 @Injectable()
@@ -33,15 +33,17 @@ export class AuthService {
       const token = await this.parseJwt(jwt);
       return token; 
     } catch (error) {
-      console.error('JWT verification failed:', error.message);
-      throw new UnauthorizedException('Invalid token');
+      throw getErrorMessage(error)
     }
   }
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async generateJwt(user: TRPGUser): Promise<string> {
-    const payload:JWTTokenModel = { username: user.name, DiscordUserId: user.DiscordUserId };
+  async generateJwt(user: Partial<User>): Promise<string> {
+    if (!user.name || !user.discordUserId) {
+      throw new Error('ユーザー名とDiscordユーザーIDは必須です');
+    }
+    const payload: JWTTokenModel = { username: user.name, discordUserId: user.discordUserId };
     return this.jwtService.sign(payload);
   }
 
@@ -51,40 +53,42 @@ export class AuthService {
       console.log('jwt: ', jwt)
       return jwt
     }catch (error){
-      console.error('JWT verification error: ', error.message);
-      console.error('Token: ', token);
-      throw new UnauthorizedException("Invalid token")
+      throw getErrorMessage(error)
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async signInAndRegisterUserInfo(user:TRPGUser):Promise<any>{
+  async signInAndRegisterUserInfo(user: Partial<User>): Promise<any> {
     //ユーザーID検証 
-    // 1.User.DiscordUserIdで情報検索
+    // 1.User.discordUserIdで情報検索
     // 2.存在しない場合 新しく登録
     // 3.存在する場合スキップ
     console.log(user);
-    if(_.isNull(user.DiscordUserId) || _.isUndefined(user.DiscordUserId))
+    if(_.isNull(user.discordUserId) || _.isUndefined(user.discordUserId))
     {
       console.log("discordId is Null")
     }
 
     try
     {
-      const userInfo = await this.userService.findOne(user.DiscordUserId)
+      const userInfo = await this.userService.findOne(user.discordUserId)
 
-      if(_.isNil(userInfo))
+      if(_.isNil(userInfo) && user.name && user.discordUserId)
       {
         console.log("ユーザー作成")
-        const userData = await this.userService.create(user.name,user.DiscordUserId)
+        const createUserDto = {
+          name: user.name,
+          discordUserId: user.discordUserId,
+          characterIds: []
+        };
+        const userData = await this.userService.create(createUserDto);
         console.log(userData)
       }
 
     }
     catch(error)
     {
-      console.log("Error is occurred\n" + error.message)
-      console.log(error)
+      throw getErrorMessage(error)
     }
     
   }

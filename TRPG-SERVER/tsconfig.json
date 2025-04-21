@@ -11,7 +11,13 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "src/*": ["./src/*"]
+      "src/*": ["./src/*"],
+      "@app/*": ["./src/*"],
+      "@config/*": ["./src/config/*"],
+      "@domains/*": ["./src/domains/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@discord/*": ["./src/discord/*"],
+      "@middleware/*": ["./src/middleware/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -22,6 +28,21 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "resolveJsonModule": true
-  }
+    "resolveJsonModule": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "typeRoots": ["./node_modules/@types", "./src/types"]
+  },
+  "include": [
+    "src/**/*",
+    "src/config/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules", 
+    "dist", 
+    "test", 
+    "src/**/*.spec.ts"
+  ]
 }

@@ -1,30 +1,32 @@
 import { Injectable } from '@nestjs/common'
-import { CacheType, ChannelType, EmbedBuilder, ModalBuilder, ModalSubmitInteraction } from 'discord.js'
+import { CacheType, ChannelType, EmbedBuilder, Message, ModalBuilder, ModalSubmitInteraction } from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
 import { eventSelectButtonType } from '../events.list'
-import _, { initial, isEmpty, isNull, isUndefined } from 'lodash'
+import _, { isEmpty, isNull, isUndefined } from 'lodash'
 import { convertCharacterInfoToJson, convertCharacterJsonToString, filterAndFormatInput } from 'src/discord/utils/convertToJSON'
-import { CharacterService } from 'src/DB/character/character.service'
-import { UpdatePrimary } from 'src/DB/character/models/character.model'
+import { CharacterService } from 'src/domains/character/character.service'
 
 @Injectable()
 export class AddCharaInfoService implements discordModalType {
   private _characterInfoConfig: eventSelectButtonType
-  constructor() {
-    
-  }
+  
+  constructor(
+    private readonly characterService: CharacterService
+  ) {}
+  
   initialSetting(config: eventSelectButtonType) {
     this._characterInfoConfig = config
     return this
   }
+  
   get data(): ModalBuilder {
     return new ModalBuilder()
       .setCustomId(this._characterInfoConfig.customId)
       .setTitle('キャラクター情報追加')
   }
+  
   async execute(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {
     const channel = interaction.channel
-    const characterService = new CharacterService();
 
     await interaction.deferUpdate()
     const regex = /status|skill|parameter/
@@ -56,30 +58,51 @@ export class AddCharaInfoService implements discordModalType {
       return
     }
     if (channel?.type !== ChannelType.GuildText) return console.log('')
-    await characterService.update(
+    console.log(channel.id)
+    await this.characterService.updateByChannelId(
       channel.id,
-      convertCharacterInfoToJson(createCharaInfo),
+      {[updatePrimary]:convertCharacterInfoToJson(createCharaInfo)},
     )
-    console.log(await characterService.findOne(channel.id))
+    console.log(await this.characterService.findByChannelId(channel.id))
     if (isNull(interaction.channelId)) return
-    const characterInfo = await characterService.findOne(interaction.id)
+    const characterInfo = await this.characterService.findByChannelId(channel.id)
     if (isUndefined(characterInfo)) return
+    console.log(  convertCharacterJsonToString(characterInfo, 'status'))
     const characterInfoText = [
       convertCharacterJsonToString(characterInfo, 'status'),
       convertCharacterJsonToString(characterInfo, 'parameter'),
       convertCharacterJsonToString(characterInfo, 'skill')
-    ].join('/n')
+    ].join('\n')
     const embed = new EmbedBuilder()
       .setTitle(channel.name)
       .setDescription(characterInfoText)
-    if (characterInfo.messageID) {
-      const message = await channel.messages.fetch(characterInfo.messageID)
-      if (message.editable) {
-        message.edit({ embeds: [embed] })
+
+    // チャンネル内のメッセージを取得（最新100件）
+    try {
+      const messages = await channel.messages.fetch({ limit: 100 });
+      
+      // ボットが送信した埋め込みメッセージを検索
+      const botEmbedMessages = messages
+        .filter(msg => 
+          msg.author.bot && 
+          msg.embeds.length > 0 && 
+          msg.embeds[0].title === channel.name
+        )
+        .sort((a, b) => b.createdTimestamp - a.createdTimestamp); // 新しい順にソート
+      
+      const latestEmbedMessage = botEmbedMessages.first();
+      
+      if (latestEmbedMessage && latestEmbedMessage.editable) {
+        // 既存のメッセージを編集
+        await latestEmbedMessage.edit({ embeds: [embed] });
       } else {
+        // 既存のメッセージがないか編集できない場合は新しいメッセージを送信
+        await interaction.channel?.send({ embeds: [embed] });
       }
-    } else {
-      await interaction.channel?.send({ embeds: [embed] })
+    } catch (error) {
+      console.error('メッセージの検索または編集中にエラーが発生しました:', error);
+      // エラーの場合は新しいメッセージを送信
+      await interaction.channel?.send({ embeds: [embed] });
     }
   }
 }

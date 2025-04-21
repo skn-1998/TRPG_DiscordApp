@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { Controller } from '@nestjs/common'
 import { CharaInfoButtonService } from './button/chara-info-button.service'
 import { DiceButtonService } from './button/dice-button.service'
@@ -9,7 +10,9 @@ import {
   ModalSubmitInteraction,
   NonThreadGuildBasedChannel,
   ChannelType,
-  AuditLogEvent
+  Interaction,
+  CacheType,
+  AnySelectMenuInteraction,
 } from 'discord.js'
 import { ChangeCharaInfoService } from './select/change-chara-info.service'
 import { CharacterChannelService } from './select/character-channel.service'
@@ -26,61 +29,42 @@ import {
 import { discordInteractionType } from '../discord.type'
 import { isUndefined } from 'lodash'
 import { getChannelIdByName } from '../utils/searchChannelID'
-import { CharacterService } from 'src/DB/character/character.service'
+import { CharacterService } from 'src/domains/character/character.service'
+import { AppConfigService } from 'src/config/config.service'
 
 @Controller('events')
 export class EventsController {
-  // private charaInfoButtonService: CharaInfoButtonService
-  // private diceButtonService: DiceButtonService
-  // private addCharaInfoService: AddCharaInfoService
-  // private changeCharaInfoService: ChangeCharaInfoService
-  // private characterChannelService: CharacterChannelService
   constructor(
     private charaInfoButtonService: CharaInfoButtonService,
     private diceButtonService: DiceButtonService,
     private addCharaInfoService: AddCharaInfoService,
     private changeCharaInfoService: ChangeCharaInfoService,
     private characterChannelService: CharacterChannelService,
-    private characterService: CharacterService
-  ) {
-    // this.charaInfoButtonService = charaInfoButtonService
-    // this.diceButtonService = diceButtonService
-    // this.addCharaInfoService = addCharaInfoService
-    // this.changeCharaInfoService = changeCharaInfoService
-    // this.characterChannelService = characterChannelService
-  }
+    private characterService: CharacterService,
+    private appConfigService: AppConfigService
+  ) {}
+  
   private client: Client
   private interaction:
     | ButtonInteraction
-    | StringSelectMenuInteraction
+    | AnySelectMenuInteraction
     | ModalSubmitInteraction
-  handleCommand(client: Client) {
+
+  handleCommand(client: Client): void {
     this.client = client
-    this.handleButton()
-    this.handleSelectMenu()
-    this.handleModal()
+    // イベントリスナーの登録は行わない（EventManagerServiceに委譲）
+    this.handleChannelCreate(client)
   }
-  handleSelectMenu() {
-    this.client.on(
-      Events.InteractionCreate,
-      async (interaction: StringSelectMenuInteraction) => {
-        if (!interaction.isStringSelectMenu) return
-        this.interaction = interaction
-        this.doEvents(
-          this.characterChannelService,
-          selectCharacterChannelConfig
-        )
-        this.doEvents(this.changeCharaInfoService, addCharacterInfoConfig)
-        this.doEvents(this.changeCharaInfoService, changeCharacterInfoConfig)
-      }
-    )
-  }
-  handleButton():void {
-    this.client.on(
-      Events.InteractionCreate,
-      async (interaction: ButtonInteraction) => {
-        if (!interaction.isButton()) return
-        this.interaction = interaction
+
+  // インタラクションハンドラー - 外部から呼び出される
+  async handleInteraction(
+    interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
+  ): Promise<void> {
+    this.interaction = interaction;
+    
+    try {
+      // ボタンインタラクションの処理
+      if (interaction.isButton()) {
         await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
         await this.doEvents(
           this.charaInfoButtonService,
@@ -88,33 +72,59 @@ export class EventsController {
         )
         await this.doEvents(this.diceButtonService, diceButtonConfig)
       }
-    )
-  }
-  handleModal(): void {
-    this.client.on(
-      Events.InteractionCreate,
-      async (interaction: ModalSubmitInteraction) => {
-        if (!interaction.isModalSubmit()) return
-        this.interaction = interaction
+      
+      // セレクトメニューインタラクションの処理
+      else if (interaction.isStringSelectMenu()) {
+        await this.doEvents(
+          this.characterChannelService,
+          selectCharacterChannelConfig
+        )
+        await this.doEvents(this.changeCharaInfoService, addCharacterInfoConfig)
+        await this.doEvents(this.changeCharaInfoService, changeCharacterInfoConfig)
+      }
+      
+      // モーダルインタラクションの処理
+      else if (interaction.isModalSubmit()) {
         await this.doEvents(this.addCharaInfoService, addCharacterInfoConfig)
         await this.doEvents(this.addCharaInfoService, changeCharacterInfoConfig)
       }
-    )
+    } catch (error) {
+      console.error('Interaction handling error:', error);
+    }
   }
-  handleChannelCreate(): void {
-    this.client.on(
+
+  handleChannelCreate(client: Client): void {
+    console.log("create")
+    this.client = client; // Set the client property
+    
+    client.on(
       Events.ChannelCreate,
       async (channel: NonThreadGuildBasedChannel): Promise<void> => {
-        const categoryId = getChannelIdByName(channel.guild, 'キャラクター')
+        const characterCategory = this.appConfigService.get('discord.characterCategory')
+        const categoryId = getChannelIdByName(channel.guild, characterCategory)
+        console.log('Channel created:', channel.name, 'Parent ID:', channel.parentId, 'Target category ID:', categoryId)
         if (!(channel.type === ChannelType.GuildText)) return
         if (channel.parentId === categoryId) {
+          console.log('Creating character for channel:', channel.name)
           this.charaInfoButtonService.createButton(channel)
-          this.characterService.create("",channel.name,channel.id)
           
+          // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
+          this.characterService.create({
+            TRPGName: "", 
+            characterName: channel.name,
+            discordChannelId: channel.id,
+            discordUserId: "" 
+          }).then(character => {
+            console.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`);
+            console.log('注意: TRPGNameとdiscordUserIdは後で設定してください。現在は空の状態です。');
+          }).catch(error => {
+            console.error('キャラクター作成エラー:', error);
+          });
         }
       }
     )
   }
+
   async doEvents(
     discordClass: discordInteractionType,
     config?: eventSelectButtonType | eventType | eventButtonType

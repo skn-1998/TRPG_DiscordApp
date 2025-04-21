@@ -33,6 +33,20 @@ export class CommandsService {
     this.commandsController = commandsController
   }
 
+  /**
+   * 登録されているすべてのコマンドを取得
+   * @returns コマンドの配列
+   */
+  getCommands() {
+    return [
+      this.characterThreadService,
+      this.rollDiceService,
+      this.selectGameSystemService,
+      this.userDefinedDiceService,
+      this.diceFromContextMenuService
+    ].filter(service => service);
+  }
+
   loadClient(client: Client): void {
     this.commandsController.handleCommand(client)
     this.commandsController.handleAutoComplete(client)
