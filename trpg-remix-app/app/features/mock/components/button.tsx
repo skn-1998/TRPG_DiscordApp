@@ -1,4 +1,4 @@
-import { Group ,Button, useMantineColorScheme, useMantineTheme } from '@mantine/core'
+import { Group, Button, useMantineColorScheme, useMantineTheme, DEFAULT_THEME } from '@mantine/core'
 
 
 export function MockButton () {
@@ -7,7 +7,7 @@ export function MockButton () {
 
   return (<>
     <Group>
-      <Button onClick={() => console.log(theme)}>Console theme Object</Button>
+      <Button onClick={() => console.log(DEFAULT_THEME, theme)}>Console theme Object</Button>
       <Button onClick={() => setColorScheme('light')}>Light</Button>
       <Button onClick={() => setColorScheme('dark')}>Dark</Button>
       <Button onClick={() => setColorScheme('auto')}>Auto</Button>

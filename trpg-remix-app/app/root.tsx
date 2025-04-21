@@ -58,7 +58,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        {/* <MantineProvider theme={theme}> */}
+          {children}
+        {/* </MantineProvider> */}
         <ScrollRestoration />
         <Scripts />
       </body>
