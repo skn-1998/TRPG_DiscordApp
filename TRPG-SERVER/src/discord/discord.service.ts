@@ -6,6 +6,8 @@ import { Client, GatewayIntentBits, Events } from 'discord.js'
 import 'dotenv/config'
 import { EventsService } from './events/events.service'
 import { CommandsService } from './commands/commands.service'
+import { CharacterService } from 'src/domains/character/character.service'
+import { AppConfigService } from 'src/config/config.service'
 
 @Injectable()
 export class DiscordService implements OnModuleInit {
@@ -18,21 +20,32 @@ export class DiscordService implements OnModuleInit {
   })
 
   // eslint-disable-next-line no-unused-vars
-  constructor(private eventsService:EventsService, private commandsService: CommandsService) {}
+  constructor(
+    private eventsService: EventsService, 
+    private commandsService: CommandsService,
+    private characterService: CharacterService,
+    private appConfigService: AppConfigService
+  ) {}
 
   async onModuleInit(): Promise<void> {
     this.client.once(Events.ClientReady, readyClient => {
       console.log(`Ready! Logged in as ${readyClient.user.tag}`)
     })
 
-    this.client.on(Events.InteractionCreate, async interaction => {
-      if (!interaction.isCommand()) return
-    })
+    // 空のインタラクションリスナーを削除（EventManagerServiceが処理するため）
+    // this.client.on(Events.InteractionCreate, async interaction => {
+    //   if (!interaction.isCommand()) return
+    // })
+
+    // CharacterServiceをclientに設定
+    this.client['characterService'] = this.characterService;
 
     this.commandsService.loadClient(this.client)
     this.eventsService.loadClient(this.client)
 
-    this.client.login(process.env.TOKEN)
+    // 型安全に設定にアクセス
+    const token = this.appConfigService.get('discord.token')
+    this.client.login(token)
     // registerCommand(this.client)
     // registerEvents(this.client)
   }

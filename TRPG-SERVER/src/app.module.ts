@@ -1,19 +1,28 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
+import { UserModule } from './domains/user/user.module'
+import { CharacterModule } from './domains/character/character.module'
+import { AuthModule } from './domains/auth/auth.module'
+import { CorsMiddleware } from './middleware/cors.middleware'
+import { DatabaseModule } from './core/database/database.module'
+import { AppConfigModule } from './config/config.module'
 import { DiscordModule } from './discord/discord.module'
-import { CharacterModule } from './DB/character/character.module';
-import { UserModule } from './DB/user/user.module';
-import { AuthModule } from './auth/auth.module';
-import { CorsMiddleware } from './middleware/cors.middleware';
+
 @Module({
-  imports: [DiscordModule, CharacterModule, UserModule, AuthModule],
+  imports: [
+    AppConfigModule,
+    DatabaseModule,
+    CharacterModule, 
+    UserModule, 
+    AuthModule,
+    DiscordModule
+  ],
   controllers: [AppController],
   providers: [AppService]
 })
 export class AppModule implements NestModule {
-  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-  configure(consumer: MiddlewareConsumer) {
+  configure(consumer: MiddlewareConsumer): void {
     consumer.apply(CorsMiddleware).forRoutes('*');
   }
 }

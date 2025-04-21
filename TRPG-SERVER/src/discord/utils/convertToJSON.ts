@@ -1,5 +1,5 @@
-import { sortBy } from "lodash"
-import { Character, UpdatePrimary } from "src/DB/character/models/character.model"
+import { isNil, sortBy, update } from "lodash"
+import { Character, UpdatePrimary } from "src/domains/character/models/character.model"
 
 type characterInfo = {
   name: string
@@ -50,7 +50,30 @@ export function convertCharacterInfoToJson(
   return result
 }
 
-export function convertCharacterJsonToString(data:Character,updatePrimary:UpdatePrimary):string{
-  const sortedArray = sortBy(data[updatePrimary],[(status)=>{return status.index}])
-  return sortedArray.map(status=>`${status.name}:${status.value}`).join('\n')
+export function convertCharacterJsonToString(data: Character, updatePrimary: UpdatePrimary): string {
+  // Record<string, unknown>型から配列に変換して型安全に処理
+
+  const recordData = data?.[updatePrimary] as Record<string, unknown>;
+  if(isNil(recordData)) return ''
+
+  console.log(JSON.stringify(recordData))
+  if (!recordData || typeof recordData !== 'object') {
+    return '';
+  }
+  
+  // オブジェクトを配列に変換
+  const dataArray = Object.entries(recordData).map(([key, value]) => {
+    // 型安全に処理
+    const item = value as unknown as { name?: string; value?: number; index?: number };
+    return { 
+      name: item.name || key, 
+      value: item.value || 0,
+      index: item.index || 0
+    };
+  });
+  
+  // ソート処理
+  const sortedArray = sortBy(dataArray, [(status) => status.index]);
+  // 文字列に変換
+  return sortedArray.map(status => `${status.name}:${status.value}`).join('\n');
 }

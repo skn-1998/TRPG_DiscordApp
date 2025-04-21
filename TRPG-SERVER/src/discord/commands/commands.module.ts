@@ -7,8 +7,12 @@ import { SelectGameSystemService } from './commands-components/select-game-syste
 import { UserDefinedDiceService } from './commands-components/user-defined-dice.service'
 import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
 import { CommandsService } from './commands.service'
+import { EventsModule } from '../events/events.module'
 
 @Module({
+  imports: [
+    EventsModule
+  ],
   providers: [
     CharacterThreadService,
     RollDiceService,

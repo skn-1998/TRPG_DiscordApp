@@ -4,7 +4,8 @@ import {
   Interaction,
   Events,
   CommandInteraction,
-  AutocompleteInteraction
+  AutocompleteInteraction,
+  CacheType
 } from 'discord.js'
 import {
   commandType,
@@ -71,7 +72,7 @@ export class CommandsController {
     this.client = client
     this.client.on(
       Events.InteractionCreate,
-      async (interaction: AutocompleteInteraction) => {
+      async (interaction: Interaction<CacheType>) => {
         if (!interaction.isAutocomplete()) return
         this.interaction = interaction
 

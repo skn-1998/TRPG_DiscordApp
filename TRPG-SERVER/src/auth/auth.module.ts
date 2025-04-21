@@ -7,8 +7,7 @@ import { JwtModule } from '@nestjs/jwt';
 import 'dotenv/config'
 import { DiscordStrategy } from './auth.strategy';
 import { HttpModule } from '@nestjs/axios';
-import { configureDynamoose } from 'src/dynamoose.config';
-import { UserModule } from 'src/DB/user/user.module';
+import { UserModule } from 'src/domains/user/user.module';
 
 
 if (!process.env.JWT_SECRET) {
@@ -34,9 +33,4 @@ if (!process.env.JWT_SECRET) {
   controllers: [AuthController],
   exports:[AuthService]
 })
-export class AuthModule {
-  constructor() {
-    configureDynamoose();
-  }
-
-}
+export class AuthModule {}
