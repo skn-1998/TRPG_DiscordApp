@@ -14,6 +14,19 @@ const baseColor: MantineColorsTuple = [
   "#4d6057"
 ]
 
+const mainColor: MantineColorsTuple = [
+  "#f5f5f5",
+  "#e7e7e7",
+  "#cdcdcd",
+  "#b2b2b2",
+  "#9a9a9a",
+  "#8b8b8b",
+  "#848484",
+  "#717171",
+  "#656565",
+  "#575757"
+]
+
 const accentColor: MantineColorsTuple = [
   '#f5eeff',
   '#e4dbf6',
@@ -28,8 +41,10 @@ const accentColor: MantineColorsTuple = [
 ]
 
 const theme = createTheme({
+  primaryColor: 'accent',
   colors: {
     base: baseColor,
+    main: mainColor,
     accent: accentColor
   }
 })
@@ -37,7 +52,7 @@ const theme = createTheme({
 export default function Mock() {
   return (
     <>
-      <MantineProvider theme={theme}>
+      <MantineProvider theme={theme} defaultColorScheme="dark">
         <Outlet />
       </MantineProvider>
     </>
