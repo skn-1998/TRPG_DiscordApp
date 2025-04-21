@@ -13,6 +13,7 @@ import {
   Interaction,
   CacheType,
   AnySelectMenuInteraction,
+  AuditLogEvent,
 } from 'discord.js'
 import { ChangeCharaInfoService } from './select/change-chara-info.service'
 import { CharacterChannelService } from './select/character-channel.service'
@@ -108,15 +109,42 @@ export class EventsController {
           console.log('Creating character for channel:', channel.name)
           this.charaInfoButtonService.createButton(channel)
           
+          // チャンネル作成者のIDを取得
+          let creatorId = "";
+          try {
+            // Audit Logsを取得（CHANNEL_CREATEアクションのみ、より多くのエントリを取得）
+            const fetchedLogs = await channel.guild.fetchAuditLogs({
+              limit: 10, // より多くのログを取得
+              type: AuditLogEvent.ChannelCreate,
+            });
+            
+            // 該当チャンネルに関するログエントリを検索
+            const logEntry = fetchedLogs.entries.find(entry => 
+              entry.target.id === channel.id
+            );
+            
+            // 該当するログが見つかった場合
+            if (logEntry) {
+              creatorId = logEntry.executor.id;
+              console.log(`チャンネル作成者ID: ${creatorId}`);
+            } else {
+              console.log(`チャンネル ${channel.name} の作成者を特定できませんでした`);
+            }
+          } catch (error) {
+            console.error('Audit logs取得エラー:', error);
+          }
+          
           // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
           this.characterService.create({
             TRPGName: "", 
             characterName: channel.name,
             discordChannelId: channel.id,
-            discordUserId: "" 
+            discordUserId: creatorId // チャンネル作成者のIDを設定
           }).then(character => {
             console.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`);
-            console.log('注意: TRPGNameとdiscordUserIdは後で設定してください。現在は空の状態です。');
+            if (!creatorId) {
+              console.log('注意: discordUserIdは取得できませんでした。後で設定してください。');
+            }
           }).catch(error => {
             console.error('キャラクター作成エラー:', error);
           });
