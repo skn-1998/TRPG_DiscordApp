@@ -1,4 +1,4 @@
-import { useMantineTheme, Flex, Text, useMantineColorScheme, useComputedColorScheme } from '@mantine/core'
+import { useMantineTheme, Flex, Text, Button } from '@mantine/core'
 
 function ColorBox (props: { colorName: string, index: number }){
   const theme = useMantineTheme()
@@ -9,11 +9,12 @@ function ColorBox (props: { colorName: string, index: number }){
       bg={color}
       mih={60}
       miw={70}
+      maw={70}
       p={4}
       justify="center"
       align="center"
       direction="column"
-      style={{ borderRadius: theme.radius.md }}
+      style={{ borderRadius: theme.radius.md, overflow: 'hidden' }}
       fz="sm"
     >
       <Text c='white' ta="center" component="span">{`${colorName}.${index}`}</Text>
@@ -36,14 +37,24 @@ function ColorBoxBlock (props: { colorName: string }) {
   </>)
 }
 
-const baseColorBox = (<ColorBoxBlock colorName='base' />)
-const mainColorBox = (<ColorBoxBlock colorName='main' />)
-const accentColorBox = (<ColorBoxBlock colorName='accent' />)
+function ColorButton (props: { colorName: string }) {
+  return (<>
+  <Flex
+      gap={4}
+      justify="flex-start"
+      align="center"
+      direction="row"
+      wrap="wrap"
+  >
+    <Button miw={100} color={props.colorName}>{props.colorName}</Button>
+    <Button miw={100} color={props.colorName} variant="outline">outline</Button>
+    <Button miw={100} color={props.colorName} variant="light">light</Button>
+  </Flex>
+  </>)
+}
 
 export function ColorSample () {
-  const { colorScheme } = useMantineColorScheme()
-  const _colorScheme = useComputedColorScheme()
-  // console.log(colorScheme, _colorScheme)
+  const theme = useMantineTheme()
 
   return (<>
   <Flex
@@ -52,10 +63,45 @@ export function ColorSample () {
     align="flex-start"
     direction="column"
     wrap="wrap"
+    p={4}
   >
-    {baseColorBox}
-    {mainColorBox}
-    {accentColorBox}
+    <ColorBoxBlock colorName='main' />
+    <ColorBoxBlock colorName='accent' />
+    <ColorBoxBlock colorName='sub' />
+    <ColorBoxBlock colorName='comp' />
+    <ColorBoxBlock colorName='subComp' />
+  </Flex>
+  <Flex
+      gap={4}
+      justify="flex-start"
+      align="flex-start"
+      direction="column"
+      wrap="wrap"
+      p={4}
+      w="max-content"
+      style={{ borderRadius: theme.radius.md }}
+  >
+    <ColorButton colorName='main' />
+    <ColorButton colorName='accent' />
+    <ColorButton colorName='sub' />
+    <ColorButton colorName='comp' />
+    <ColorButton colorName='subComp' />
+  </Flex>
+  <Flex
+      gap={4}
+      justify="flex-start"
+      align="flex-start"
+      direction="column"
+      wrap="wrap"
+      bg='main'
+      p={4}
+      w="max-content"
+      style={{ borderRadius: theme.radius.md }}
+  >
+    <ColorButton colorName='accent' />
+    <ColorButton colorName='sub' />
+    <ColorButton colorName='comp' />
+    <ColorButton colorName='subComp' />
   </Flex>
   </>)
 }
