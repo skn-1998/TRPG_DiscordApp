@@ -6,7 +6,7 @@ export function MockButton () {
   const theme = useMantineTheme()
 
   return (<>
-    <Group>
+    <Group p={4}>
       <Button onClick={() => console.log(DEFAULT_THEME, theme)}>Console theme Object</Button>
       <Button onClick={() => setColorScheme('light')}>Light</Button>
       <Button onClick={() => setColorScheme('dark')}>Dark</Button>
