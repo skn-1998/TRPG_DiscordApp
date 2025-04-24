@@ -1,36 +1,35 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { CustomHttpService } from './http.service';
-import { AuthController } from './auth.controller';
-import { PassportModule } from '@nestjs/passport';
-import { JwtModule } from '@nestjs/jwt';
+import { forwardRef, Module } from '@nestjs/common'
+import { AuthService } from './auth.service'
+import { CustomHttpService } from './http.service'
+import { AuthController } from './auth.controller'
+import { PassportModule } from '@nestjs/passport'
+import { JwtModule } from '@nestjs/jwt'
 import 'dotenv/config'
-import { DiscordStrategy } from './auth.strategy';
-import { HttpModule } from '@nestjs/axios';
-import { UserModule } from 'src/domains/user/user.module';
-
+import { DiscordStrategy } from './auth.strategy'
+import { HttpModule } from '@nestjs/axios'
+import { UserModule } from 'src/domains/user/user.module'
 
 if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined');
+  throw new Error('JWT_SECRET is not defined')
 }
 @Module({
-  imports:[
+  imports: [
     PassportModule,
     forwardRef(() => UserModule),
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: {
         expiresIn: '1h',
-        algorithm: 'HS256',
+        algorithm: 'HS256'
       },
       verifyOptions: {
-        algorithms: ['HS256'], // 使用するアルゴリズムを明示
-      },
+        algorithms: ['HS256'] // 使用するアルゴリズムを明示
+      }
     }),
     HttpModule
   ],
   providers: [AuthService, DiscordStrategy, CustomHttpService],
   controllers: [AuthController],
-  exports:[AuthService]
+  exports: [AuthService]
 })
 export class AuthModule {}

@@ -1,7 +1,6 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, NestMiddleware } from '@nestjs/common'
+import { Request, Response, NextFunction } from 'express'
 import 'dotenv/config'
-
 
 @Injectable()
 export class CorsMiddleware implements NestMiddleware {
@@ -13,6 +12,6 @@ export class CorsMiddleware implements NestMiddleware {
     //   'Access-Control-Allow-Headers',
     //   'Origin, X-Requested-With, Content-Type, Accept',
     // );
-    next();
+    next()
   }
 }

@@ -1,13 +1,7 @@
 import { UserDefinedDiceTable } from 'bcdice'
 
-export const tableDice = (
-  channelName: string,
-  contents: string[],
-  isDirect: boolean
-): string | undefined => {
-  const text = isDirect
-    ? contents[0]
-    : createTaleDiceText(channelName, contents)
+export const tableDice = (channelName: string, contents: string[], isDirect: boolean): string | undefined => {
+  const text = isDirect ? contents[0] : createTaleDiceText(channelName, contents)
 
   const table = new UserDefinedDiceTable(text)
   return table.roll()?.text

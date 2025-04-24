@@ -5,22 +5,22 @@ export interface JwtTokenPayload {
   /**
    * ユーザー名
    */
-  username: string;
-  
+  username: string
+
   /**
    * DiscordユーザーID
    */
-  discordUserId: string;
-  
+  discordUserId: string
+
   /**
    * トークン発行日時（タイムスタンプ）
    * JWT標準フィールド
    */
-  iat?: number;
-  
+  iat?: number
+
   /**
    * トークン有効期限（タイムスタンプ）
    * JWT標準フィールド
    */
-  exp?: number;
-} 
+  exp?: number
+}

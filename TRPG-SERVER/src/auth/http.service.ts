@@ -1,9 +1,9 @@
-import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
-import { Observable, catchError, throwError } from 'rxjs';
-import { AxiosResponse, AxiosRequestConfig, AxiosError } from 'axios';
-import { HttpServiceInterface } from './interfaces/http.interface';
-import { getErrorMessage } from '../utils/error-helpers';
+import { HttpService } from '@nestjs/axios'
+import { Injectable, Logger } from '@nestjs/common'
+import { Observable, catchError, throwError } from 'rxjs'
+import { AxiosResponse, AxiosRequestConfig, AxiosError } from 'axios'
+import { HttpServiceInterface } from './interfaces/http.interface'
+import { getErrorMessage } from '../utils/error-helpers'
 
 /**
  * AxiosエラーかどうかをチェックするType Guard
@@ -16,7 +16,7 @@ export function isAxiosError<T = unknown>(error: unknown): error is AxiosError<T
     error !== null &&
     'isAxiosError' in error &&
     (error as Record<string, unknown>).isAxiosError === true
-  );
+  )
 }
 
 /**
@@ -25,8 +25,8 @@ export function isAxiosError<T = unknown>(error: unknown): error is AxiosError<T
  */
 @Injectable()
 export class CustomHttpService implements HttpServiceInterface {
-  private readonly logger = new Logger(CustomHttpService.name);
-  
+  private readonly logger = new Logger(CustomHttpService.name)
+
   constructor(private readonly httpService: HttpService) {}
 
   /**
@@ -39,14 +39,16 @@ export class CustomHttpService implements HttpServiceInterface {
     return this.httpService.get<T>(url, config).pipe(
       catchError((error: unknown) => {
         if (isAxiosError(error)) {
-          this.logger.error(`HTTP GETリクエストエラー: ${url}, ステータス: ${error.response?.status}, メッセージ: ${error.message}`);
-          return throwError(() => error);
+          this.logger.error(
+            `HTTP GETリクエストエラー: ${url}, ステータス: ${error.response?.status}, メッセージ: ${error.message}`
+          )
+          return throwError(() => error)
         }
-        
-        this.logger.error(`HTTP GETリクエスト未定義エラー: ${url}, ${getErrorMessage(error)}`);
-        return throwError(() => new Error(getErrorMessage(error)));
+
+        this.logger.error(`HTTP GETリクエスト未定義エラー: ${url}, ${getErrorMessage(error)}`)
+        return throwError(() => new Error(getErrorMessage(error)))
       })
-    );
+    )
   }
 
   /**
@@ -60,13 +62,15 @@ export class CustomHttpService implements HttpServiceInterface {
     return this.httpService.post<T>(url, data, config).pipe(
       catchError((error: unknown) => {
         if (isAxiosError(error)) {
-          this.logger.error(`HTTP POSTリクエストエラー: ${url}, ステータス: ${error.response?.status}, メッセージ: ${error.message}`);
-          return throwError(() => error);
+          this.logger.error(
+            `HTTP POSTリクエストエラー: ${url}, ステータス: ${error.response?.status}, メッセージ: ${error.message}`
+          )
+          return throwError(() => error)
         }
-        
-        this.logger.error(`HTTP POSTリクエスト未定義エラー: ${url}, ${getErrorMessage(error)}`);
-        return throwError(() => new Error(getErrorMessage(error)));
+
+        this.logger.error(`HTTP POSTリクエスト未定義エラー: ${url}, ${getErrorMessage(error)}`)
+        return throwError(() => new Error(getErrorMessage(error)))
       })
-    );
+    )
   }
 }

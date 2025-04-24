@@ -1,4 +1,4 @@
-import { Repository } from '../interfaces/repository.interface';
+import { Repository } from '../interfaces/repository.interface'
 
 /**
  * リポジトリモック作成のためのファクトリ
@@ -15,8 +15,8 @@ export class RepositoryMockFactory {
       findById: jest.fn(),
       findAll: jest.fn(),
       update: jest.fn(),
-      remove: jest.fn(),
-    } as jest.Mocked<Repository<T, ID>>;
+      remove: jest.fn()
+    } as jest.Mocked<Repository<T, ID>>
   }
 
   /**
@@ -29,8 +29,8 @@ export class RepositoryMockFactory {
       findById: jest.fn().mockResolvedValue(null),
       findAll: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue(null),
-      remove: jest.fn().mockResolvedValue(undefined),
-    } as jest.Mocked<Repository<T, ID>>;
+      remove: jest.fn().mockResolvedValue(undefined)
+    } as jest.Mocked<Repository<T, ID>>
   }
 
   /**
@@ -44,7 +44,7 @@ export class RepositoryMockFactory {
       findById: jest.fn().mockResolvedValue(mockData),
       findAll: jest.fn().mockResolvedValue([mockData]),
       update: jest.fn().mockResolvedValue(mockData),
-      remove: jest.fn().mockResolvedValue(undefined),
-    } as jest.Mocked<Repository<T, ID>>;
+      remove: jest.fn().mockResolvedValue(undefined)
+    } as jest.Mocked<Repository<T, ID>>
   }
-} 
+}

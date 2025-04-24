@@ -20,10 +20,10 @@ export class CharacterService {
   async create(createCharacterDto: PartialInputCharacterDto): Promise<Character> {
     // 必要なデータの取得
     const { TRPGName, characterName, discordUserId, discordChannelId } = createCharacterDto
-    
+
     // キャラクターIDがない場合は生成
-    const characterId = createCharacterDto.characterId || uuidv4();
-    
+    const characterId = createCharacterDto.characterId || uuidv4()
+
     const character: Partial<Character> = {
       characterId,
       TRPGName,
@@ -32,9 +32,9 @@ export class CharacterService {
       discordChannelId,
       status: createCharacterDto.status || {},
       skill: createCharacterDto.skill || {},
-      parameter: createCharacterDto.parameter || {},
+      parameter: createCharacterDto.parameter || {}
     }
-    
+
     return this.characterRepository.create(character)
   }
 
@@ -86,12 +86,8 @@ export class CharacterService {
    * @param field 更新するフィールド
    * @param data 更新するデータ
    */
-  async updateField(
-    id: string,
-    field: UpdatePrimary,
-    data: Record<string, unknown>,
-  ): Promise<Character | null> {
-    return this.characterRepository.updateField(id, field, data);
+  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<Character | null> {
+    return this.characterRepository.updateField(id, field, data)
   }
 
   /**
@@ -103,9 +99,9 @@ export class CharacterService {
   async updateFieldByChannelId(
     channelId: string,
     field: UpdatePrimary,
-    data: Record<string, unknown>,
+    data: Record<string, unknown>
   ): Promise<Character | null> {
-    return this.characterRepository.updateFieldByChannelId(channelId, field, data);
+    return this.characterRepository.updateFieldByChannelId(channelId, field, data)
   }
 
   /**
@@ -123,4 +119,4 @@ export class CharacterService {
   async removeByChannelId(channelId: string): Promise<void> {
     await this.characterRepository.removeByChannelId(channelId)
   }
-} 
+}

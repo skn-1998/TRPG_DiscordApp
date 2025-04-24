@@ -1,19 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { discordContextMenuType } from 'src/discord/discord.type'
-import {
-  ContextMenuCommandBuilder,
-  ApplicationCommandType,
-  CommandInteraction,
-  ChannelType
-} from 'discord.js'
+import { ContextMenuCommandBuilder, ApplicationCommandType, CommandInteraction, ChannelType } from 'discord.js'
 import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'
-import {
-  getGameSystemIdFromTopic,
-  getParentChannelTopic
-} from './roll-dice.service'
+import { getGameSystemIdFromTopic, getParentChannelTopic } from './roll-dice.service'
 import { diceFromContextMenuConfig } from 'src/discord/commands/commands.list'
-import { handleError } from '../../utils/discord.utils';
+import { handleError } from '../../utils/discord.utils'
 
 @Injectable()
 export class DiceFromContextMenuService implements discordContextMenuType {
@@ -26,10 +18,7 @@ export class DiceFromContextMenuService implements discordContextMenuType {
     if (isNull(interaction.channel)) return
 
     const channel = interaction.channel
-    const topic =
-      channel.type === ChannelType.GuildText
-        ? channel.topic
-        : getParentChannelTopic(interaction)
+    const topic = channel.type === ChannelType.GuildText ? channel.topic : getParentChannelTopic(interaction)
     const gameSystemId = getGameSystemIdFromTopic(topic)
 
     const message = interaction.targetMessage
@@ -43,7 +32,7 @@ export class DiceFromContextMenuService implements discordContextMenuType {
       }
       await interaction.reply(diceResult.text)
     } catch (error) {
-      await handleError(interaction, error);
+      await handleError(interaction, error)
     }
   }
 }

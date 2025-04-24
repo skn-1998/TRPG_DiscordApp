@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { discordCommandType } from 'src/discord/discord.type'
-import {
-  CommandInteraction,
-  SlashCommandBuilder,
-  AutocompleteInteraction
-} from 'discord.js'
+import { CommandInteraction, SlashCommandBuilder, AutocompleteInteraction } from 'discord.js'
 import { loadJsonFile } from 'src/discord/utils/loadJsonFile'
 import Fuse from 'fuse.js'
 import moji from 'moji'
@@ -24,9 +20,7 @@ const options = {
   keys: ['NAME']
 }
 
-const gameSystemList = loadJsonFile(
-  'src/discord/static/gameSystemList.json'
-) as GameSystemJSON[]
+const gameSystemList = loadJsonFile('src/discord/static/gameSystemList.json') as GameSystemJSON[]
 
 const CATEGORY_NAME = 'ダイスロールチャンネル'
 
@@ -42,19 +36,15 @@ export class SelectGameSystemService implements discordCommandType {
   public data = new SlashCommandBuilder()
     .setName(selectGameSystemConfig.name)
     .setDescription(selectGameSystemConfig.description)
-    .addStringOption(option =>
+    .addStringOption((option) =>
       option
         .setName('gamesystem')
         .setDescription('キーワードを入力してゲームシステムを検索')
         .setAutocomplete(true)
         .setRequired(true)
     )
-    .addStringOption(option =>
-      option
-        .setName('channel-name')
-        .setDescription(
-          '作成するチャンネルの名前 ※デフォルトはゲームシステム名'
-        )
+    .addStringOption((option) =>
+      option.setName('channel-name').setDescription('作成するチャンネルの名前 ※デフォルトはゲームシステム名')
     )
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
@@ -65,16 +55,10 @@ export class SelectGameSystemService implements discordCommandType {
     }
     // Fuse.search() に長い文字列渡すと重くなるため200にslice
     const gameSystemSearchText = convertSearchText(focusedValue.slice(0, 200))
-    const gameSystemSearchObj = gameSystemSearchText.map(e => ({ NAME: e }))
-    const gameSystemSearchResults = this.fuse
-      .search({ $or: gameSystemSearchObj })
-      .map(e => e.item)
+    const gameSystemSearchObj = gameSystemSearchText.map((e) => ({ NAME: e }))
+    const gameSystemSearchResults = this.fuse.search({ $or: gameSystemSearchObj }).map((e) => e.item)
     // Discordの選択肢は25個までしか渡せないため25にslice
-    await interaction.respond(
-      gameSystemSearchResults
-        .slice(0, 25)
-        .map(e => ({ name: e.NAME, value: e.ID }))
-    )
+    await interaction.respond(gameSystemSearchResults.slice(0, 25).map((e) => ({ name: e.NAME, value: e.ID })))
   }
 
   async execute(interaction: CommandInteraction): Promise<void> {
@@ -82,14 +66,10 @@ export class SelectGameSystemService implements discordCommandType {
 
     const inputGameSystem = interaction.options.getString('gamesystem', true)
 
-    const gameSystem = gameSystemList.find(
-      e => e.ID === inputGameSystem || e.NAME === inputGameSystem
-    )
+    const gameSystem = gameSystemList.find((e) => e.ID === inputGameSystem || e.NAME === inputGameSystem)
 
     if (!gameSystem) {
-      await interaction.reply(
-        `ゲームシステムが見つかりませんでした : ${inputGameSystem}`
-      )
+      await interaction.reply(`ゲームシステムが見つかりませんでした : ${inputGameSystem}`)
       return
     }
 
@@ -97,8 +77,7 @@ export class SelectGameSystemService implements discordCommandType {
     const channelName = inputChannelName ? inputChannelName : gameSystem.NAME
 
     const gameSystemCategory =
-      getCategory(interaction.guild, CATEGORY_NAME) ||
-      (await createCategory(interaction.guild, CATEGORY_NAME))
+      getCategory(interaction.guild, CATEGORY_NAME) || (await createCategory(interaction.guild, CATEGORY_NAME))
 
     const topic = `ここでは「${gameSystem.NAME}」のダイスが振れます\nID:${gameSystem.ID}\n※チャンネルトピックは変更しないでください ゲームシステムを認識できなくなる可能性があります`
 

@@ -1,5 +1,4 @@
-export interface JWTTokenModel
-{
-    username: string;
-    discordUserId: string;
+export interface JWTTokenModel {
+  username: string
+  discordUserId: string
 }

@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Run this command first:
+# cp pre-commit .git/hooks
+
+cd ./trpg-remix-app
+pnpm run format
+cd ../
+cd ./TRPG-SERVER
+pnpm run format
+cd ../
+git add .

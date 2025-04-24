@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { User } from './models/user.model';
-import { UserRepository } from './repositories/user.repository';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { Injectable } from '@nestjs/common'
+import { User } from './models/user.model'
+import { UserRepository } from './repositories/user.repository'
+import { CreateUserDto } from './dto/create-user.dto'
+import { UpdateUserDto } from './dto/update-user.dto'
 
 /**
  * ユーザーサービス
@@ -16,14 +16,14 @@ export class UserService {
    * @param createUserDto ユーザー作成DTO
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
-    return this.userRepository.create(createUserDto);
+    return this.userRepository.create(createUserDto)
   }
 
   /**
    * すべてのユーザーを取得する
    */
   async findAll(): Promise<User[]> {
-    return this.userRepository.findAll();
+    return this.userRepository.findAll()
   }
 
   /**
@@ -31,7 +31,7 @@ export class UserService {
    * @param discordUserId DiscordユーザーID
    */
   async findOne(discordUserId: string): Promise<User | null> {
-    return this.userRepository.findById(discordUserId);
+    return this.userRepository.findById(discordUserId)
   }
 
   /**
@@ -40,7 +40,7 @@ export class UserService {
    * @returns ユーザーまたはnull
    */
   async findByDiscordId(discordUserId: string): Promise<User | null> {
-    return this.userRepository.findByDiscordId(discordUserId);
+    return this.userRepository.findByDiscordId(discordUserId)
   }
 
   /**
@@ -49,7 +49,7 @@ export class UserService {
    * @param updateUserDto 更新データ
    */
   async update(discordUserId: string, updateUserDto: UpdateUserDto): Promise<User | null> {
-    return this.userRepository.update(discordUserId, updateUserDto);
+    return this.userRepository.update(discordUserId, updateUserDto)
   }
 
   /**
@@ -58,7 +58,7 @@ export class UserService {
    * @param characterId 追加するキャラクターID
    */
   async addCharacterId(discordUserId: string, characterId: string): Promise<User | null> {
-    return this.userRepository.addCharacterId(discordUserId, characterId);
+    return this.userRepository.addCharacterId(discordUserId, characterId)
   }
 
   /**
@@ -67,7 +67,7 @@ export class UserService {
    * @param characterId 削除するキャラクターID
    */
   async removeCharacterId(discordUserId: string, characterId: string): Promise<User | null> {
-    return this.userRepository.removeCharacterId(discordUserId, characterId);
+    return this.userRepository.removeCharacterId(discordUserId, characterId)
   }
 
   /**
@@ -75,6 +75,6 @@ export class UserService {
    * @param discordUserId DiscordユーザーID
    */
   async remove(discordUserId: string): Promise<void> {
-    await this.userRepository.remove(discordUserId);
+    await this.userRepository.remove(discordUserId)
   }
-} 
+}

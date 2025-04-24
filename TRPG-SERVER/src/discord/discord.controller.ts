@@ -12,14 +12,14 @@ export class DiscordController {
     private readonly _discordService: DiscordService,
     private readonly commandsController: CommandsController
   ) {
-    this.initializeServices();
+    this.initializeServices()
   }
 
   /**
    * 関連サービスの初期化
    */
   private initializeServices(): void {
-    console.log(`Discord service initialized: ${this._discordService ? 'success' : 'failed'}`);
+    console.log(`Discord service initialized: ${this._discordService ? 'success' : 'failed'}`)
   }
 
   handleCommand(client: Client) {

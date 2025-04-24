@@ -1,12 +1,12 @@
-import { 
-  Channel, 
-  ChannelType, 
-  Client, 
-  Guild, 
+import {
+  Channel,
+  ChannelType,
+  Client,
+  Guild,
   CategoryChannel,
   TextChannel,
   GuildChannelCreateOptions
-} from 'discord.js';
+} from 'discord.js'
 
 /**
  * 指定されたカテゴリを取得する
@@ -16,21 +16,21 @@ import {
  * @returns カテゴリチャンネル、または見つからない場合はnull
  */
 export async function getCategory(
-  client: Client, 
-  guildId: string, 
+  client: Client,
+  guildId: string,
   categoryName: string
 ): Promise<CategoryChannel | null> {
-  const guild = client.guilds.cache.get(guildId);
-  
+  const guild = client.guilds.cache.get(guildId)
+
   if (!guild) {
-    throw new Error(`サーバーID ${guildId} が見つかりません`);
+    throw new Error(`サーバーID ${guildId} が見つかりません`)
   }
-  
+
   const categories = guild.channels.cache.filter(
-    channel => channel.type === ChannelType.GuildCategory && channel.name === categoryName
-  );
-  
-  return categories.first() as CategoryChannel | null;
+    (channel) => channel.type === ChannelType.GuildCategory && channel.name === categoryName
+  )
+
+  return categories.first() as CategoryChannel | null
 }
 
 /**
@@ -39,14 +39,11 @@ export async function getCategory(
  * @param categoryName カテゴリ名
  * @returns 作成されたカテゴリチャンネル
  */
-export async function createCategory(
-  guild: Guild,
-  categoryName: string
-): Promise<CategoryChannel> {
+export async function createCategory(guild: Guild, categoryName: string): Promise<CategoryChannel> {
   return guild.channels.create({
     name: categoryName,
     type: ChannelType.GuildCategory
-  });
+  })
 }
 
 /**
@@ -55,11 +52,8 @@ export async function createCategory(
  * @param channelId チャンネルID
  * @returns チャンネル、または見つからない場合はnull
  */
-export async function findChannelById(
-  client: Client,
-  channelId: string
-): Promise<Channel | null> {
-  return client.channels.cache.get(channelId) || null;
+export async function findChannelById(client: Client, channelId: string): Promise<Channel | null> {
+  return client.channels.cache.get(channelId) || null
 }
 
 /**
@@ -75,5 +69,5 @@ export async function createTextChannel(
   return guild.channels.create({
     ...options,
     type: ChannelType.GuildText
-  }) as Promise<TextChannel>;
-} 
+  }) as Promise<TextChannel>
+}

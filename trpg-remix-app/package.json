@@ -12,10 +12,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "format": "prettier-eslint --write \"**/*.{js,jsx,ts,tsx,json,md,html}\""
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,html}\""
   },
   "dependencies": {
-    "@mantine/colors-generator": "^7.17.4",
     "@mantine/core": "^7.8.0",
     "@mantine/form": "^7.8.0",
     "@mantine/hooks": "^7.8.0",
@@ -27,10 +26,8 @@
     "@remix-run/serve": "^2.8.1",
     "@tabler/icons-react": "^3.2.0",
     "axios": "^1.7.3",
-    "chroma-js": "^3.1.2",
     "cookie": "^1.0.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
     "isbot": "^4.1.0",
     "lodash": "^4.17.21",
     "react": "^18.2.0",

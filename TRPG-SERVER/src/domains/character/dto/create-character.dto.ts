@@ -4,8 +4,8 @@ import { IsOptional, IsString } from 'class-validator'
  * キャラクター属性の型定義
  */
 export type CharacterAttribute = {
-  [key: string]: string | number | boolean | null | undefined;
-};
+  [key: string]: string | number | boolean | null | undefined
+}
 
 /**
  * キャラクター作成DTO
@@ -68,4 +68,4 @@ export class PartialInputCharacterDto {
 
   @IsOptional()
   readonly skill?: CharacterAttribute
-} 
+}

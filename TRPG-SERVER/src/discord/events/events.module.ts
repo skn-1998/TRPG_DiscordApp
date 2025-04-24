@@ -20,7 +20,7 @@ import { DiscordModule } from '../discord.module'
     CharacterChannelService,
     EventsController
   ],
-  exports:[
+  exports: [
     EventsService,
     CharacterChannelService,
     CharaInfoButtonService,
@@ -28,9 +28,6 @@ import { DiscordModule } from '../discord.module'
     AddCharaInfoService,
     ChangeCharaInfoService
   ],
-  imports:[
-    CharacterModule,
-    forwardRef(() => DiscordModule)
-  ],
+  imports: [CharacterModule, forwardRef(() => DiscordModule)]
 })
 export class EventsModule {}

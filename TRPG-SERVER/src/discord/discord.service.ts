@@ -12,23 +12,19 @@ import { AppConfigService } from 'src/config/config.service'
 @Injectable()
 export class DiscordService implements OnModuleInit {
   private client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
   })
 
   // eslint-disable-next-line no-unused-vars
   constructor(
-    private eventsService: EventsService, 
+    private eventsService: EventsService,
     private commandsService: CommandsService,
     private characterService: CharacterService,
     private appConfigService: AppConfigService
   ) {}
 
   async onModuleInit(): Promise<void> {
-    this.client.once(Events.ClientReady, readyClient => {
+    this.client.once(Events.ClientReady, (readyClient) => {
       console.log(`Ready! Logged in as ${readyClient.user.tag}`)
     })
 
@@ -38,7 +34,7 @@ export class DiscordService implements OnModuleInit {
     // })
 
     // CharacterServiceをclientに設定
-    this.client['characterService'] = this.characterService;
+    this.client['characterService'] = this.characterService
 
     this.commandsService.loadClient(this.client)
     this.eventsService.loadClient(this.client)
