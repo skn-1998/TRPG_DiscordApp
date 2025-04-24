@@ -1,4 +1,4 @@
-import { DiceResult, rollDice } from './dice.util';
+import { DiceResult, rollDice } from './dice.util'
 
 /**
  * テーブル項目
@@ -7,17 +7,17 @@ export interface TableEntry {
   /**
    * 最小値
    */
-  min: number;
-  
+  min: number
+
   /**
    * 最大値
    */
-  max: number;
-  
+  max: number
+
   /**
    * テーブル項目の内容
    */
-  content: string;
+  content: string
 }
 
 /**
@@ -27,12 +27,12 @@ export interface TableRollResult {
   /**
    * ダイスロール結果
    */
-  diceResult: DiceResult;
-  
+  diceResult: DiceResult
+
   /**
    * 選択されたテーブル項目
    */
-  tableEntry: TableEntry;
+  tableEntry: TableEntry
 }
 
 /**
@@ -42,25 +42,19 @@ export interface TableRollResult {
  * @param diceFaces ダイスの面数
  * @returns テーブルロール結果
  */
-export function rollOnTable(
-  table: TableEntry[], 
-  diceCount: number, 
-  diceFaces: number
-): TableRollResult {
+export function rollOnTable(table: TableEntry[], diceCount: number, diceFaces: number): TableRollResult {
   // ダイスをロール
-  const diceResult = rollDice(diceCount, diceFaces);
-  
+  const diceResult = rollDice(diceCount, diceFaces)
+
   // 出目に対応する項目を探す
-  const tableEntry = table.find(
-    entry => diceResult.total >= entry.min && diceResult.total <= entry.max
-  );
-  
+  const tableEntry = table.find((entry) => diceResult.total >= entry.min && diceResult.total <= entry.max)
+
   if (!tableEntry) {
-    throw new Error(`テーブルに ${diceResult.total} の結果に対応する項目がありません`);
+    throw new Error(`テーブルに ${diceResult.total} の結果に対応する項目がありません`)
   }
-  
+
   return {
     diceResult,
     tableEntry
-  };
-} 
+  }
+}

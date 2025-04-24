@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CharacterService } from './character.service';
-import { PartialInputCharacterDto } from './dto/create-character.dto';
-import { UpdateCharacterDto } from './dto/update-character.dto';
-import { Character } from './models/character.model';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, UnauthorizedException } from '@nestjs/common'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { CharacterService } from './character.service'
+import { PartialInputCharacterDto } from './dto/create-character.dto'
+import { UpdateCharacterDto } from './dto/update-character.dto'
+import { Character } from './models/character.model'
 
 /**
  * キャラクターコントローラー
@@ -21,21 +21,18 @@ export class CharacterController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
-  async create(
-    @Body() characterData: PartialInputCharacterDto,
-    @Req() req: any
-  ): Promise<Character> {
+  async create(@Body() characterData: PartialInputCharacterDto, @Req() req: any): Promise<Character> {
     if (!req.user || !req.user.userId) {
-      throw new UnauthorizedException('認証トークンがありません');
+      throw new UnauthorizedException('認証トークンがありません')
     }
-    
+
     // 新しいDTOオブジェクトを作成してユーザーIDを設定
     const createCharacterDto: PartialInputCharacterDto = {
       ...characterData,
       discordUserId: req.user.userId
-    };
-    
-    return this.characterService.create(createCharacterDto);
+    }
+
+    return this.characterService.create(createCharacterDto)
   }
 
   /**
@@ -47,10 +44,10 @@ export class CharacterController {
   @UseGuards(JwtAuthGuard)
   async findAll(@Req() req: any): Promise<Character[]> {
     if (!req.user || !req.user.userId) {
-      throw new UnauthorizedException('認証トークンがありません');
+      throw new UnauthorizedException('認証トークンがありません')
     }
-    
-    return this.characterService.findHavingAll(req.user.userId);
+
+    return this.characterService.findHavingAll(req.user.userId)
   }
 
   /**
@@ -61,7 +58,7 @@ export class CharacterController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<Character> {
-    return this.characterService.findOne(id);
+    return this.characterService.findOne(id)
   }
 
   /**
@@ -72,11 +69,8 @@ export class CharacterController {
    */
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(
-    @Param('id') id: string,
-    @Body() updateCharacterDto: UpdateCharacterDto
-  ): Promise<Character> {
-    return this.characterService.update(id, updateCharacterDto);
+  async update(@Param('id') id: string, @Body() updateCharacterDto: UpdateCharacterDto): Promise<Character> {
+    return this.characterService.update(id, updateCharacterDto)
   }
 
   /**
@@ -86,6 +80,6 @@ export class CharacterController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string): Promise<void> {
-    return this.characterService.remove(id);
+    return this.characterService.remove(id)
   }
-} 
+}

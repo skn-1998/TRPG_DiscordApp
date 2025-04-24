@@ -15,7 +15,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">{children}</MantineProvider>
+        <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
+          {children}
+        </MantineProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

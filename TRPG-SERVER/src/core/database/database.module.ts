@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
-import { AppConfigService } from '../../config/config.service';
+import { Module } from '@nestjs/common'
+import { MongooseModule } from '@nestjs/mongoose'
+import { ConfigModule } from '@nestjs/config'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * データベース接続を管理するモジュール
@@ -12,9 +12,9 @@ import { AppConfigService } from '../../config/config.service';
     MongooseModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: (appConfigService: AppConfigService) => ({
-        uri: appConfigService.get('database.mongoUri'),
-      }),
-    }),
-  ],
+        uri: appConfigService.get('database.mongoUri')
+      })
+    })
+  ]
 })
-export class DatabaseModule {} 
+export class DatabaseModule {}

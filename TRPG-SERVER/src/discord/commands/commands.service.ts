@@ -44,7 +44,7 @@ export class CommandsService {
       this.selectGameSystemService,
       this.userDefinedDiceService,
       this.diceFromContextMenuService
-    ].filter(service => service);
+    ].filter((service) => service)
   }
 
   loadClient(client: Client): void {
@@ -52,9 +52,9 @@ export class CommandsService {
     this.commandsController.handleAutoComplete(client)
   }
 
-  private rest = new REST({ version: '10' }).setToken(process.env.TOKEN ?? '');
-  private APPLICATIONID: string = process.env.DISCORD_APPLICATIONID ?? '';
-  private GUILDID: string = process.env.GUILDID ?? '';
+  private rest = new REST({ version: '10' }).setToken(process.env.TOKEN ?? '')
+  private APPLICATIONID: string = process.env.DISCORD_APPLICATIONID ?? ''
+  private GUILDID: string = process.env.GUILDID ?? ''
 
   async onModuleInit(): Promise<void> {
     const commands = [
@@ -65,15 +65,12 @@ export class CommandsService {
       this.diceFromContextMenuService.data.toJSON()
     ]
     try {
-      await this.rest.put(
-        Routes.applicationGuildCommands(this.APPLICATIONID, this.GUILDID),
-        { body: commands }
-      )
-      console.log('コマンドの登録が完了しました。');
+      await this.rest.put(Routes.applicationGuildCommands(this.APPLICATIONID, this.GUILDID), { body: commands })
+      console.log('コマンドの登録が完了しました。')
     } catch (error) {
-      console.error('コマンド登録エラー:', error);
+      console.error('コマンド登録エラー:', error)
       if (error instanceof Error) {
-        console.error('エラーメッセージ:', error.message);
+        console.error('エラーメッセージ:', error.message)
       }
     }
   }

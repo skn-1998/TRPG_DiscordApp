@@ -1,12 +1,5 @@
 import { Controller } from '@nestjs/common'
-import {
-  Client,
-  Interaction,
-  Events,
-  CommandInteraction,
-  AutocompleteInteraction,
-  CacheType
-} from 'discord.js'
+import { Client, Interaction, Events, CommandInteraction, AutocompleteInteraction, CacheType } from 'discord.js'
 import {
   commandType,
   createCharacterThreadConfig,
@@ -50,39 +43,27 @@ export class CommandsController {
 
   handleCommand(client: Client): void {
     this.client = client
-    this.client.on(
-      Events.InteractionCreate,
-      async (interaction: Interaction) => {
-        if (!interaction.isCommand()) return
-        this.interaction = interaction
+    this.client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+      if (!interaction.isCommand()) return
+      this.interaction = interaction
 
-        this.doEvents(this.characterThreadService, createCharacterThreadConfig)
-        this.doEvents(this.rollDiceService, rollDiceConfig)
-        this.doEvents(this.selectGameSystemService, selectGameSystemConfig)
-        this.doEvents(this.userDefinedDiceService, userDefinedDiceConfig)
-        this.doEvents(
-          this.diceFromContextMenuService,
-          diceFromContextMenuConfig
-        )
-      }
-    )
+      this.doEvents(this.characterThreadService, createCharacterThreadConfig)
+      this.doEvents(this.rollDiceService, rollDiceConfig)
+      this.doEvents(this.selectGameSystemService, selectGameSystemConfig)
+      this.doEvents(this.userDefinedDiceService, userDefinedDiceConfig)
+      this.doEvents(this.diceFromContextMenuService, diceFromContextMenuConfig)
+    })
   }
 
   handleAutoComplete(client: Client): void {
     this.client = client
-    this.client.on(
-      Events.InteractionCreate,
-      async (interaction: Interaction<CacheType>) => {
-        if (!interaction.isAutocomplete()) return
-        this.interaction = interaction
+    this.client.on(Events.InteractionCreate, async (interaction: Interaction<CacheType>) => {
+      if (!interaction.isAutocomplete()) return
+      this.interaction = interaction
 
-        this.doAutoComplete(
-          this.selectGameSystemService,
-          selectGameSystemConfig
-        )
-        this.doAutoComplete(this.userDefinedDiceService, userDefinedDiceConfig)
-      }
-    )
+      this.doAutoComplete(this.selectGameSystemService, selectGameSystemConfig)
+      this.doAutoComplete(this.userDefinedDiceService, userDefinedDiceConfig)
+    })
   }
 
   async doEvents(

@@ -7,9 +7,9 @@ import {
   ButtonInteraction,
   ModalSubmitInteraction,
   AnySelectMenuInteraction,
-  ContextMenuCommandBuilder,
-} from 'discord.js';
-import { DiscordInteraction } from './discord-interaction.interface';
+  ContextMenuCommandBuilder
+} from 'discord.js'
+import { DiscordInteraction } from './discord-interaction.interface'
 
 /**
  * スラッシュコマンドのインターフェース
@@ -18,13 +18,13 @@ export interface DiscordCommand extends DiscordInteraction {
   /**
    * スラッシュコマンドのデータ
    */
-  data: Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>;
-  
+  data: Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>
+
   /**
    * コマンドの実行処理
    * @param interaction コマンドの相互作用オブジェクト
    */
-  execute(interaction: CommandInteraction): Promise<void>;
+  execute(interaction: CommandInteraction): Promise<void>
 }
 
 /**
@@ -34,13 +34,13 @@ export interface DiscordContextMenu extends DiscordInteraction {
   /**
    * コンテキストメニューコマンドのデータ
    */
-  data: ContextMenuCommandBuilder;
-  
+  data: ContextMenuCommandBuilder
+
   /**
    * コンテキストメニューの実行処理
    * @param interaction コマンドの相互作用オブジェクト
    */
-  execute(interaction: CommandInteraction): Promise<void>;
+  execute(interaction: CommandInteraction): Promise<void>
 }
 
 /**
@@ -50,13 +50,13 @@ export interface DiscordButton extends DiscordInteraction {
   /**
    * ボタンのデータ
    */
-  data: ButtonBuilder;
-  
+  data: ButtonBuilder
+
   /**
    * ボタンの実行処理
    * @param interaction ボタンの相互作用オブジェクト
    */
-  execute(interaction: ButtonInteraction): Promise<void>;
+  execute(interaction: ButtonInteraction): Promise<void>
 }
 
 /**
@@ -66,15 +66,15 @@ export interface DiscordSelectMenu extends DiscordInteraction {
   /**
    * セレクトメニューのデータ
    */
-  data: StringSelectMenuBuilder;
-  
+  data: StringSelectMenuBuilder
+
   /**
    * セレクトメニューの実行処理
    * @param interaction セレクトメニューの相互作用オブジェクト
    * @param config 追加設定（オプション）
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  execute(interaction: AnySelectMenuInteraction, config?: any): Promise<void>;
+  execute(interaction: AnySelectMenuInteraction, config?: any): Promise<void>
 }
 
 /**
@@ -84,11 +84,11 @@ export interface DiscordModal extends DiscordInteraction {
   /**
    * モーダルのデータ
    */
-  data: ModalBuilder;
-  
+  data: ModalBuilder
+
   /**
    * モーダルの実行処理
    * @param interaction モーダルの相互作用オブジェクト
    */
-  execute(interaction: ModalSubmitInteraction): Promise<void>;
-} 
+  execute(interaction: ModalSubmitInteraction): Promise<void>
+}

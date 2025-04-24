@@ -1,11 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import {
-  ButtonBuilder,
-  ButtonInteraction,
-  ButtonStyle,
-  CacheType,
-  ChannelType
-} from 'discord.js'
+import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ChannelType } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { diceButtonConfig } from '../events.list'
 import { isNull } from 'lodash'
@@ -23,9 +17,7 @@ export class DiceButtonService implements discordButtonType {
     if (interaction.channel?.type != ChannelType.PublicThread) return
     if (isNull(interaction.channel.parentId)) return
     // console.log(interaction)
-    const channel = await interaction.client.channels.cache.get(
-      interaction.channel.parentId
-    )
+    const channel = await interaction.client.channels.cache.get(interaction.channel.parentId)
     interaction.deferUpdate()
     if (channel && channel.type == ChannelType.GuildText) {
       channel.send(diceRoll.text)

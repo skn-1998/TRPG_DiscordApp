@@ -1,10 +1,10 @@
 import { json, LoaderFunctionArgs } from '@remix-run/node'
 import { loginOrRegisterUser } from '~/utils/axiosClient'
-import { redirect } from "@remix-run/node"
+import { redirect } from '@remix-run/node'
 import _ from 'lodash'
 import cookie from 'cookie'
 import { CustomError } from '~/utils/customError'
-const {isUndefined} = _;
+const { isUndefined } = _
 
 export async function loginLoader({ request }: LoaderFunctionArgs) {
   const client_id = process.env.DISCORD_APPLICATIONID
@@ -17,8 +17,8 @@ export async function loginLoader({ request }: LoaderFunctionArgs) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code') || ''
   if (code !== '') {
-    const userInfo = (await loginOrRegisterUser(code))
-    if(isUndefined(userInfo.token)) throw new Error("jwtToken is not Exist")
+    const userInfo = await loginOrRegisterUser(code)
+    if (isUndefined(userInfo.token)) throw new Error('jwtToken is not Exist')
     const cookieHeader = saveJwtToken(userInfo.token)
     return redirect('/user', {
       status: 301,
@@ -31,19 +31,14 @@ export async function loginLoader({ request }: LoaderFunctionArgs) {
   return json({ discordAuthUrl })
 }
 
-
-
 export type header = {
   'Set-Cookie': string
   'Content-Type': 'application/json'
 }
 
-
-export function saveJwtToken(jwt:string):header
-{
-  try{
-    
-    const cookieHeader =  cookie.serialize('jwt', jwt, {
+export function saveJwtToken(jwt: string): header {
+  try {
+    const cookieHeader = cookie.serialize('jwt', jwt, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',

@@ -10,19 +10,12 @@ import { AppConfigModule } from './config/config.module'
 import { DiscordModule } from './discord/discord.module'
 
 @Module({
-  imports: [
-    AppConfigModule,
-    DatabaseModule,
-    CharacterModule, 
-    UserModule, 
-    AuthModule,
-    DiscordModule
-  ],
+  imports: [AppConfigModule, DatabaseModule, CharacterModule, UserModule, AuthModule, DiscordModule],
   controllers: [AppController],
   providers: [AppService]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(CorsMiddleware).forRoutes('*');
+    consumer.apply(CorsMiddleware).forRoutes('*')
   }
 }

@@ -5,37 +5,37 @@ export interface UserDefinedDice {
   /**
    * ユーザーID
    */
-  userId: string;
-  
+  userId: string
+
   /**
    * サーバーID
    */
-  guildId: string;
-  
+  guildId: string
+
   /**
    * ダイス名
    */
-  name: string;
-  
+  name: string
+
   /**
    * ダイスコマンド
    */
-  command: string;
-  
+  command: string
+
   /**
    * 説明
    */
-  description?: string;
-  
+  description?: string
+
   /**
    * 作成日時
    */
-  createdAt: Date;
-  
+  createdAt: Date
+
   /**
    * 更新日時
    */
-  updatedAt: Date;
+  updatedAt: Date
 }
 
 /**
@@ -45,27 +45,27 @@ export interface CreateUserDefinedDiceDto {
   /**
    * ユーザーID
    */
-  userId: string;
-  
+  userId: string
+
   /**
    * サーバーID
    */
-  guildId: string;
-  
+  guildId: string
+
   /**
    * ダイス名
    */
-  name: string;
-  
+  name: string
+
   /**
    * ダイスコマンド
    */
-  command: string;
-  
+  command: string
+
   /**
    * 説明
    */
-  description?: string;
+  description?: string
 }
 
 /**
@@ -75,10 +75,10 @@ export interface UpdateUserDefinedDiceDto {
   /**
    * ダイスコマンド
    */
-  command?: string;
-  
+  command?: string
+
   /**
    * 説明
    */
-  description?: string;
-} 
+  description?: string
+}
