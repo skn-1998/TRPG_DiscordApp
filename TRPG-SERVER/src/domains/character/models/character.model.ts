@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { CharacterAttribute } from '../dto/create-character.dto';
 
 /**
  * キャラクタードキュメント
@@ -27,17 +28,22 @@ export class Character {
     discordChannelId: string;
 
   @Prop({ type: Object, default: {} })
-    status: Record<string, unknown>;
+    status: Record<string,CharacterAttribute> | Record<string, unknown>;
 
   @Prop({ type: Object, default: {} })
-    skill: Record<string, unknown>;
+    skill?:  Record<string,CharacterAttribute> | Record<string, unknown>;
 
   @Prop({ type: Object, default: {} })
-    parameter: Record<string, unknown>;
+    parameter?:  Record<string,CharacterAttribute> | Record<string, unknown>;
+
+  @Prop({ type: Object, default: {} })
+    item?:  Record<string,CharacterAttribute> | Record<string, unknown>;
   
-  @Prop()
-    messageID?: string;
+  @Prop({ type: Object, default: {} })
+    description?:  Record<string,CharacterAttribute> | Record<string, unknown>;
 }
+
+
 
 /**
  * 更新可能なプライマリフィールド

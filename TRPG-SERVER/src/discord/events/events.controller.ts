@@ -6,12 +6,9 @@ import {
   Client,
   Events,
   ButtonInteraction,
-  StringSelectMenuInteraction,
   ModalSubmitInteraction,
   NonThreadGuildBasedChannel,
   ChannelType,
-  Interaction,
-  CacheType,
   AnySelectMenuInteraction,
   AuditLogEvent,
 } from 'discord.js'

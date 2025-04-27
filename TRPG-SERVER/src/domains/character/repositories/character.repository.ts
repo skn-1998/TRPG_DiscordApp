@@ -37,6 +37,14 @@ export class CharacterRepository implements Repository<Character, string> {
   }
 
   /**
+   * キャラクター名で検索する
+   * @param name キャラクター名
+   */
+  async findByName(name: string): Promise<Character | null> {
+    return this.characterModel.findOne({ characterName: name }).exec();
+  }
+
+  /**
    * ChannelIDによってキャラクターを検索する
    * @param channelId DiscordチャンネルID
    */
