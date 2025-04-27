@@ -4,6 +4,7 @@ import { CharacterService } from './character.service';
 import { PartialInputCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { Character } from './models/character.model';
+import { AuthGuard } from '@nestjs/passport';
 
 /**
  * キャラクターコントローラー
@@ -21,8 +22,10 @@ export class CharacterController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard('discord'))
   async create(
     @Body() characterData: PartialInputCharacterDto,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Req() req: any
   ): Promise<Character> {
     if (!req.user || !req.user.userId) {
@@ -44,7 +47,9 @@ export class CharacterController {
    * @returns キャラクターの配列
    */
   @Get()
+  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async findAll(@Req() req: any): Promise<Character[]> {
     if (!req.user || !req.user.userId) {
       throw new UnauthorizedException('認証トークンがありません');
@@ -59,6 +64,7 @@ export class CharacterController {
    * @returns キャラクター
    */
   @Get(':id')
+  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<Character> {
     return this.characterService.findOne(id);
@@ -71,6 +77,7 @@ export class CharacterController {
    * @returns 更新されたキャラクター
    */
   @Put(':id')
+  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async update(
     @Param('id') id: string,
@@ -84,6 +91,7 @@ export class CharacterController {
    * @param id キャラクターID
    */
   @Delete(':id')
+  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string): Promise<void> {
     return this.characterService.remove(id);

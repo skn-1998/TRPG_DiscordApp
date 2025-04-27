@@ -68,4 +68,10 @@ export class PartialInputCharacterDto {
 
   @IsOptional()
   readonly skill?: CharacterAttribute
+
+  @IsOptional()
+  readonly item?: CharacterAttribute
+
+  @IsOptional()
+  readonly description?: CharacterAttribute
 } 

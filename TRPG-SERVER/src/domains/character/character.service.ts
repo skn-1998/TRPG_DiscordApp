@@ -55,6 +55,14 @@ export class CharacterService {
   }
 
   /**
+   * キャラクター名で特定のキャラクターを取得する
+   * @param name キャラクター名
+   */
+  async findByName(name: string): Promise<Character | null> {
+    return this.characterRepository.findByName(name);
+  }
+
+  /**
    * チャンネルIDで特定のキャラクターを取得する
    * @param channelId DiscordチャンネルID
    */
