@@ -9,7 +9,6 @@ import {
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
-import { isNull, isUndefined } from 'lodash'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
 
 @Injectable()
@@ -19,7 +18,7 @@ export class CharacterTabButtonsService implements discordButtonType {
   // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
   // 実際には動的に生成されるためここでは最小限のものを提供
   public data = new ButtonBuilder()
-    .setCustomId('character-tab-basic')
+    .setCustomId('character-tab*')
     .setLabel('基本情報')
     .setStyle(ButtonStyle.Primary)
   
@@ -30,27 +29,17 @@ export class CharacterTabButtonsService implements discordButtonType {
     try {
       // ボタンのカスタムIDを解析して、どのタブが選択されたかを特定
       const customId = interaction.customId;
-      const tabType = customId.replace('character-tab-', '');
-      
+      const _temp = customId.replace('character-tab*', '');
+      const channelId = _temp.split('*')[0]
+      const tabType = _temp.split('*')[1] 
       // スレッドチャンネルであることを確認
       if (!interaction.channel || !(interaction.channel instanceof ThreadChannel)) {
         await interaction.reply({ content: 'このコマンドはスレッド内でのみ使用できます', ephemeral: true });
         return;
       }
       
-      // 親チャンネルのIDを取得
-      const parentChannelId = interaction.channel.parentId;
-      if (isNull(parentChannelId)) {
-        await interaction.reply({ content: '親チャンネルが見つかりません', ephemeral: true });
-        return;
-      }
-      
-      // キャラクター情報を取得
-      const character = await this.characterService.findByChannelId(parentChannelId);
-      if (isUndefined(character)) {
-        await interaction.reply({ content: 'キャラクター情報が見つかりません', ephemeral: true });
-        return;
-      }
+ 
+      const character = await this.characterService.findByChannelId(channelId)
       
       // 応答中であることを示す
       await interaction.deferReply();

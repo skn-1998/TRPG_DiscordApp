@@ -22,14 +22,17 @@ import {
   diceButtonConfig,
   eventSelectButtonType,
   eventType,
-  eventButtonType
+  eventButtonType,
+  characterTabButtonsConfig,
+  characterDiceButtonsConfig
 } from './events.list'
 import { discordInteractionType } from '../discord.type'
 import { isUndefined } from 'lodash'
 import { getChannelIdByName } from '../utils/searchChannelID'
 import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
-
+import { CharacterTabButtonsService } from './button/character-tab-buttons.service'
+import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
 @Controller('events')
 export class EventsController {
   constructor(
@@ -39,7 +42,9 @@ export class EventsController {
     private changeCharaInfoService: ChangeCharaInfoService,
     private characterChannelService: CharacterChannelService,
     private characterService: CharacterService,
-    private appConfigService: AppConfigService
+    private appConfigService: AppConfigService,
+    private characterTabButtonsService: CharacterTabButtonsService,
+    private characterDiceButtonsService: CharacterDiceButtonsService
   ) {}
   
   private client: Client
@@ -63,12 +68,15 @@ export class EventsController {
     try {
       // ボタンインタラクションの処理
       if (interaction.isButton()) {
+        console.log(interaction.customId+"id")
         await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
         await this.doEvents(
           this.charaInfoButtonService,
           changeCharacterInfoConfig
         )
         await this.doEvents(this.diceButtonService, diceButtonConfig)
+        await this.doEvents(this.characterTabButtonsService, characterTabButtonsConfig)
+        await this.doEvents(this.characterDiceButtonsService, characterDiceButtonsConfig)
       }
       
       // セレクトメニューインタラクションの処理
@@ -90,6 +98,7 @@ export class EventsController {
       console.error('Interaction handling error:', error);
     }
   }
+
 
   handleChannelCreate(client: Client): void {
     console.log("create")
@@ -152,11 +161,13 @@ export class EventsController {
 
   async doEvents(
     discordClass: discordInteractionType,
-    config?: eventSelectButtonType | eventType | eventButtonType
+    config?: eventSelectButtonType | eventType | eventButtonType,
   ): Promise<void> {
     if (isUndefined(config.customId)) return
     if (this.interaction?.customId === config.customId) {
-      console.log(config, discordClass)
+      await discordClass.execute(this.interaction, config)
+    }
+    if(this.interaction?.customId.includes("*") && this.interaction?.customId.includes(config.customId)){
       await discordClass.execute(this.interaction, config)
     }
   }

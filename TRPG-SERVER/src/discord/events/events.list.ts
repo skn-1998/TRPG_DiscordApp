@@ -46,3 +46,16 @@ export const diceButtonConfig: eventButtonType = {
   customId: 'dice_button',
   label: '1d100',
 };
+
+// キャラクタータブボタンイベントの設定
+export const characterTabButtonsConfig: eventButtonType = {
+  customId: 'character-tab*',
+  label: 'キャラクタータブ',
+};
+
+// キャラクターダイスボタンイベントの設定
+export const characterDiceButtonsConfig: eventButtonType = {
+  customId: 'roll*',
+  label: 'ダイスロール',
+};
+

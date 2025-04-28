@@ -27,7 +27,7 @@ export class CustomDiceModalService implements discordModalType {
         await interaction.reply({ 
           content: '無効なダイスコマンドです。正しい形式（例: 1d100, 2d6+3）で入力してください。',
           ephemeral: true 
-        });
+        }); 
         return;
       }
       

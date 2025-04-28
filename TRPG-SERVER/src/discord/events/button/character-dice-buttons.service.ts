@@ -8,7 +8,9 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  EmbedBuilder,
+  ColorResolvable
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
@@ -35,13 +37,13 @@ export class CharacterDiceButtonsService implements discordButtonType {
       const customId = interaction.customId;
       
       // カスタムダイスロールの場合
-      if (customId === 'roll-custom') {
+      if (customId === 'roll*custom') {
         await this.handleCustomDiceRoll(interaction);
         return;
       }
       
       // 通常のスキルロールまたはダイスロールの処理
-      const rollInfo = customId.replace('roll-', '').split('-');
+      const rollInfo = customId.replace('roll*', '');
       
       // diceRollのフォーマットを判断
       let diceCommand: string;
@@ -49,14 +51,14 @@ export class CharacterDiceButtonsService implements discordButtonType {
       let skillValue: number | null = null;
       
       // スキルロールか通常のダイスロールかを判断
-      if (rollInfo.length >= 2 && !rollInfo[0].startsWith('1d') && !rollInfo[0].startsWith('2d')) {
+      if (rollInfo.includes('_')) {
         // スキルロール
-        skillName = rollInfo[0];
-        skillValue = parseInt(rollInfo[1], 10);
-        diceCommand = '1d100';
+        skillName = rollInfo.replace('_', '').split('-')[0];
+        skillValue = Number(rollInfo.replace('_', '').split('-')[1]);
+        diceCommand = '1d100' + "<" +  skillValue;
+        console.log(diceCommand)
       } else {
-        // 通常のダイスロール
-        diceCommand = rollInfo[0];
+        diceCommand = rollInfo;
       }
       
       // ダイスロールを実行
@@ -67,49 +69,68 @@ export class CharacterDiceButtonsService implements discordButtonType {
       }
       
       // スキルロールの場合は成功/失敗判定を行う
-      let resultMessage = diceResult.text || `${diceCommand}の結果: 不明`;
-      
+      const resultMessage = diceResult.text || `${diceCommand}の結果: 不明`;
+      const result  = diceResult.rands.reduce((acc, curr) => acc+curr[0], 0)
+      console.log(result)
       if (skillName && skillValue !== null && diceResult.text) {
         // ダイス目を数値として抽出
-        const diceResultMatch = diceResult.text.match(/\d+/);
+        const diceResultMatch = diceResult.text
+
         const rollValue = diceResultMatch ? parseInt(diceResultMatch[0], 10) : 0;
         
         if (rollValue > 0) {
           let successStatus: string;
+          let embedColor: ColorResolvable;
           
-          if (rollValue <= Math.floor(skillValue * 0.05)) {
-            successStatus = '**クリティカル成功**！';
-          } else if (rollValue <= Math.floor(skillValue * 0.2)) {
-            successStatus = '**スペシャル成功**！';
-          } else if (rollValue <= skillValue) {
-            successStatus = '**成功**';
-          } else if (rollValue >= 96 && skillValue < 50) {
-            successStatus = '**致命的失敗**...';
-          } else if (rollValue >= 100) {
-            successStatus = '**致命的失敗**...';
+          if (diceResult.critical) {
+            successStatus = 'クリティカル成功！';
+            embedColor = '#FFD700'; // ゴールド
+          } else if (diceResult.success) {
+            successStatus = '成功';
+            embedColor = '#00FF00'; // 緑
+          } else if (diceResult.fumble) {
+            successStatus = '致命的失敗...';
+            embedColor = '#800080'; // 紫
+          } else if (diceResult.failure) {
+            successStatus = '失敗';
+            embedColor = '#FF0000'; // 赤
           } else {
-            successStatus = '**失敗**';
+            successStatus = '判定不明';
+            embedColor = '#808080'; // グレー
           }
           
-          resultMessage = `🎲 **${skillName}** ロール: ${rollValue} [${successStatus}] (技能値: ${skillValue}%)`;
+          // Embedを作成
+          const embed = new EmbedBuilder()
+            .setColor(embedColor)
+            .setTitle(`🎲 ${skillName} ロール`)
+            .setDescription(`結果: ${rollValue}\n**${successStatus}**\n技能値: ${skillValue}%`);
+
+          // テキストメッセージの代わりにEmbedを送信
+          await interaction.reply({ embeds: [embed] });
+          return;
         }
       }
       
+      // 通常のダイスロールの場合（スキル判定でない場合）やスキル判定でもrollValueが0以下の場合
+      const embed = new EmbedBuilder()
+        .setColor('#0099FF')
+        .setDescription(resultMessage);
+      
       // スレッドのチャンネルタイプ確認
       if (interaction.channel?.type !== ChannelType.PublicThread) {
-        await interaction.reply({ content: resultMessage });
+        await interaction.reply({ embeds: [embed] });
         return;
       }
       
       // 親チャンネルIDの確認
       const parentChannelId = interaction.channel.parentId;
       if (isNull(parentChannelId)) {
-        await interaction.reply({ content: resultMessage });
+        await interaction.reply({ embeds: [embed] });
         return;
       }
       
       // インタラクションに応答
-      await interaction.reply({ content: resultMessage });
+      await interaction.reply({ embeds: [embed] });
       
     } catch (error) {
       console.error('ダイスボタン処理エラー:', error);
