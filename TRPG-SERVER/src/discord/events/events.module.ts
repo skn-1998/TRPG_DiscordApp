@@ -8,7 +8,8 @@ import { ChangeCharaInfoService } from './select/change-chara-info.service'
 import { CharacterChannelService } from './select/character-channel.service'
 import { CharacterModule } from 'src/domains/character/character.module'
 import { DiscordModule } from '../discord.module'
-
+import { CharacterTabButtonsService } from './button/character-tab-buttons.service'
+import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
 @Module({
   controllers: [EventsController],
   providers: [
@@ -18,7 +19,9 @@ import { DiscordModule } from '../discord.module'
     AddCharaInfoService,
     ChangeCharaInfoService,
     CharacterChannelService,
-    EventsController
+    EventsController,
+    CharacterTabButtonsService,
+    CharacterDiceButtonsService
   ],
   exports:[
     EventsService,
@@ -26,7 +29,9 @@ import { DiscordModule } from '../discord.module'
     CharaInfoButtonService,
     DiceButtonService,
     AddCharaInfoService,
-    ChangeCharaInfoService
+    ChangeCharaInfoService,
+    CharacterTabButtonsService,
+    CharacterDiceButtonsService
   ],
   imports:[
     CharacterModule,

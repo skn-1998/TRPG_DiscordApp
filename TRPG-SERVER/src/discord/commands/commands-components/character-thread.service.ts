@@ -9,7 +9,6 @@ import {
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'
 import { CharacterChannelService } from 'src/discord/events/select/character-channel.service'
-import { handleError } from 'src/discord/utils/discord.utils'
 
 @Injectable()
 export class CharacterThreadService implements discordCommandType {

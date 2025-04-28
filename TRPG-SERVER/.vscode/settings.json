@@ -3,6 +3,7 @@
     "APPLICATIONID",
     "Chara",
     "CLIENTSECRET",
-    "GUILDID"
+    "GUILDID",
+    "Repliable"
   ]
 }

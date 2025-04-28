@@ -4,23 +4,21 @@ import {
   AnySelectMenuInteraction,
   ButtonBuilder,
   ButtonStyle,
-  ChannelSelectMenuBuilder,
   ChannelType,
   CommandInteraction,
   EmbedBuilder,
-  GuildBasedChannel,
-  SlashCommandBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   TextChannel,
   ThreadChannel
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
-import _, { isUndefined, sortBy } from 'lodash'
+import _, { isNull, isUndefined } from 'lodash'
 import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
+import { getChannelIdByName } from 'src/discord/utils/searchChannelID'
 
 @Injectable()
 export class CharacterChannelService implements discordSelectMenuType {
@@ -65,9 +63,9 @@ export class CharacterChannelService implements discordSelectMenuType {
     }
 
     try {
-      const targetChannel = await interaction.guild.channels.fetch(
-        interaction.values[0]
-      )
+      const targetChannel = interaction.channel
+      const characterChannelId =interaction.values[0]
+      const character = await this.characterService.findByChannelId(characterChannelId)
       if (_.isNil(targetChannel) || !targetChannel.isTextBased()) {
         if (!interaction.replied) {
           await interaction.reply({ content: 'チャンネルが見つかりませんでした', ephemeral: true })
@@ -79,10 +77,10 @@ export class CharacterChannelService implements discordSelectMenuType {
       if (targetChannel instanceof TextChannel) {
         // TextChannelとして処理を続行
         const thread = await targetChannel.threads.create({
-          name: `${targetChannel.name}の部屋`,
+          name: `${character.characterName}の部屋`,
           type: ChannelType.PublicThread
         })
-        await this.postThreadCreationReply(interaction, thread, targetChannel)
+        await this.postThreadCreationReply(interaction, thread, character)
         try {
           await this.deleteSelectMenu(interaction)
         } catch (deleteError) {
@@ -390,30 +388,38 @@ export class CharacterChannelService implements discordSelectMenuType {
    */
   async createDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
     try {
+      if(character.discordUserId == null) return
+      console.log(character.discordUserId)
+      // const customId = `character-tab*${character.discordChannelId}*`
+      // const basic = `character-tab*${character.discordChannelId}*basic`
+      // const status = `character-tab*${character.discordChannelId}*status`
+      // const skills = `character-tab*${character.discordChannelId}*skills`
+      // const items = `character-tab*${character.discordChannelId}*items`
+      // const desc = `character-tab*${character.discordChannelId}*desc`
       // カテゴリボタン（タブボタン）
-      const categoryButtons = new ActionRowBuilder<ButtonBuilder>()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId('character-tab-basic')
-            .setLabel('基本情報')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('character-tab-status')
-            .setLabel('ステータス')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('character-tab-skills')
-            .setLabel('スキル')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('character-tab-items')
-            .setLabel('アイテム')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('character-tab-desc')
-            .setLabel('背景設定')
-            .setStyle(ButtonStyle.Primary)
-        );
+      // const categoryButtons = new ActionRowBuilder<ButtonBuilder>()
+      //   .addComponents(
+      //     new ButtonBuilder()
+      //       .setCustomId(basic)
+      //       .setLabel('基本情報')
+      //       .setStyle(ButtonStyle.Primary),
+      //     new ButtonBuilder()
+      //       .setCustomId(status)
+      //       .setLabel('ステータス')
+      //       .setStyle(ButtonStyle.Primary),
+      //     new ButtonBuilder()
+      //       .setCustomId(skills)
+      //       .setLabel('スキル')
+      //       .setStyle(ButtonStyle.Primary),
+      //     new ButtonBuilder()
+      //       .setCustomId(items)
+      //       .setLabel('アイテム')
+      //       .setStyle(ButtonStyle.Primary),
+      //     new ButtonBuilder()
+      //       .setCustomId(desc)
+      //       .setLabel('背景設定')
+      //       .setStyle(ButtonStyle.Primary)
+      //   );
       
       // スキルロールボタン（上位5件のスキル）
       const skillButtons = new ActionRowBuilder<ButtonBuilder>();
@@ -425,10 +431,12 @@ export class CharacterChannelService implements discordSelectMenuType {
           .slice(0, 5); // 上位5件を取得
         
         skillItems.forEach((skill, index) => {
-          if (index < 5) { // 最大5つまでボタンを作成
+          if(isNull(skill.value.value)) return
+          if (index < 5) { // 最大5つま
+          // でボタンを作成
             skillButtons.addComponents(
               new ButtonBuilder()
-                .setCustomId(`roll-${skill.name}-${skill.value.value}`)
+                .setCustomId(`roll*_${skill.name}-${skill.value.value}`)
                 .setLabel(`${skill.name}(${skill.value.value}%)`)
                 .setStyle(ButtonStyle.Secondary)
             );
@@ -438,53 +446,51 @@ export class CharacterChannelService implements discordSelectMenuType {
       
       // 能力値ロールボタン
       const abilityButtons = new ActionRowBuilder<ButtonBuilder>();
+
+      const abilityItems = Object.entries(character.parameter)
+        .map(([name, value]) => ({ name, value:value as CharacterAttribute }))
+        .sort((a, b) => Number(b.value.name) - Number(a.value.value)) // 値が大きい順にソート
+        .slice(0, 5); // 上位5件を取得
       
-      if (character.parameter) {
-        // STR, DEX, POWなど主要な能力値
-        const keyAbilities = ['STR', 'DEX', 'POW', 'INT', 'CON'];
-        keyAbilities.forEach(ability => {
-          const value = character.parameter[ability] as CharacterAttribute;
-          if (value) {
-            abilityButtons.addComponents(
-              new ButtonBuilder()
-                .setCustomId(`roll-${ability}-${value.value}`)
-                .setLabel(`${ability}(${value.value})`)
-                .setStyle(ButtonStyle.Success)
-            );
-          }
-        });
-      }
-      
+      abilityItems.forEach((ability) => {
+        if(isNull(ability.value.value)) return
+        abilityButtons.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`roll*_${ability.name}-${ability.value.value}`)
+            .setLabel(`${ability.name}(${ability.value.value})`)
+            .setStyle(ButtonStyle.Success)
+        );
+      });
       // 一般的なダイスロールボタン
       const diceButtons = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('roll-1d100')
+            .setCustomId('roll*1d100')
             .setLabel('1D100')
             .setStyle(ButtonStyle.Danger),
           new ButtonBuilder()
-            .setCustomId('roll-1d20')
+            .setCustomId('roll*1d20')
             .setLabel('1D20')
             .setStyle(ButtonStyle.Danger),
           new ButtonBuilder()
-            .setCustomId('roll-1d6')
+            .setCustomId('roll*1d6')
             .setLabel('1D6')
             .setStyle(ButtonStyle.Danger),
           new ButtonBuilder()
-            .setCustomId('roll-2d6')
+            .setCustomId('roll*2d6')
             .setLabel('2D6')
             .setStyle(ButtonStyle.Danger),
           new ButtonBuilder()
-            .setCustomId('roll-custom')
+            .setCustomId('roll*custom')
             .setLabel('カスタム')
             .setStyle(ButtonStyle.Danger)
         );
       
       // ボタンをスレッドに投稿
-      await thread.send({
-        content: '**操作メニュー**',
-        components: [categoryButtons]
-      });
+      // await thread.send({
+      //   content: '**操作メニュー**',
+      //   components: [categoryButtons]
+      // });
       
       await thread.send({
         content: '**技能ロール**',
@@ -510,7 +516,7 @@ export class CharacterChannelService implements discordSelectMenuType {
   async postThreadCreationReply(
     interaction: AnySelectMenuInteraction,
     thread: ThreadChannel,
-    channel: GuildBasedChannel
+    character: Character
   ): Promise<void> {
     try {
       if (!interaction.replied) {
@@ -518,7 +524,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       }
       await thread.send(`Welcome to ${thread.name}`);
       
-      const character = await this.characterService.findByChannelId(channel.id);
+      // const character = await this.characterService.findByChannelId(channel.id);
       if (isUndefined(character)) {
         return;
       }
