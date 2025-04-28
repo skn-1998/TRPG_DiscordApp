@@ -5,27 +5,27 @@ export interface GameSystem {
   /**
    * システムID
    */
-  id: string;
-  
+  id: string
+
   /**
    * システム名
    */
-  name: string;
-  
+  name: string
+
   /**
    * システムの説明
    */
-  description?: string;
-  
+  description?: string
+
   /**
    * デフォルトのダイスコマンド
    */
-  defaultDiceCommand?: string;
-  
+  defaultDiceCommand?: string
+
   /**
    * カスタムダイステーブル
    */
-  customTables?: Record<string, GameSystemTable>;
+  customTables?: Record<string, GameSystemTable>
 }
 
 /**
@@ -35,22 +35,22 @@ export interface GameSystemTable {
   /**
    * テーブル名
    */
-  name: string;
-  
+  name: string
+
   /**
    * テーブルの説明
    */
-  description?: string;
-  
+  description?: string
+
   /**
    * テーブルに使用するダイス（例: 2d6）
    */
-  dice: string;
-  
+  dice: string
+
   /**
    * テーブル項目
    */
-  entries: GameSystemTableEntry[];
+  entries: GameSystemTableEntry[]
 }
 
 /**
@@ -60,15 +60,15 @@ export interface GameSystemTableEntry {
   /**
    * 最小値
    */
-  min: number;
-  
+  min: number
+
   /**
    * 最大値
    */
-  max: number;
-  
+  max: number
+
   /**
    * テーブル項目の内容
    */
-  content: string;
-} 
+  content: string
+}

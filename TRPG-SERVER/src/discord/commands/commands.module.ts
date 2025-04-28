@@ -10,9 +10,7 @@ import { CommandsService } from './commands.service'
 import { EventsModule } from '../events/events.module'
 
 @Module({
-  imports: [
-    EventsModule
-  ],
+  imports: [EventsModule],
   providers: [
     CharacterThreadService,
     RollDiceService,

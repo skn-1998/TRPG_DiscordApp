@@ -9,7 +9,6 @@ export const loader = async (args: LoaderFunctionArgs) => {
   try {
     const cookie = args.request.headers.get('Cookie') || ''
     return { data, cookie }
-
   } catch (error) {
     CustomError(error)
   }

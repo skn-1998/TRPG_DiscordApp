@@ -1,4 +1,4 @@
-import { Client } from 'discord.js';
+import { Client } from 'discord.js'
 
 /**
  * Discordクライアントインターフェース
@@ -9,26 +9,26 @@ export interface DiscordClientInterface {
    * Discordクライアントを取得する
    * @returns Discordクライアント
    */
-  getClient(): Client;
-  
+  getClient(): Client
+
   /**
    * クライアントの初期化を行う
    */
-  initialize(): Promise<void>;
-  
+  initialize(): Promise<void>
+
   /**
    * イベントハンドラを登録する
    * @param event イベント名
    * @param handler イベントハンドラ
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  on(event: string, handler: (...args: any[]) => void): void;
-  
+  on(event: string, handler: (...args: any[]) => void): void
+
   /**
    * 一度だけ実行されるイベントハンドラを登録する
    * @param event イベント名
    * @param handler イベントハンドラ
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  once(event: string, handler: (...args: any[]) => void): void;
-} 
+  once(event: string, handler: (...args: any[]) => void): void
+}

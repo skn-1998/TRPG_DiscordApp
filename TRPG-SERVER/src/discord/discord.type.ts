@@ -15,7 +15,10 @@ import { eventSelectButtonType, eventType } from './events/events.list'
 export interface discordInteractionType {
   // eslint-disable-next-line no-unused-vars
   autocomplete?(interaction: AutocompleteInteraction): Promise<void>
-  execute(interaction: CommandInteraction | ButtonInteraction | ModalSubmitInteraction | AnySelectMenuInteraction, config?: eventType): Promise<void>;
+  execute(
+    interaction: CommandInteraction | ButtonInteraction | ModalSubmitInteraction | AnySelectMenuInteraction,
+    config?: eventType
+  ): Promise<void>
 }
 
 export interface discordCommandType extends discordInteractionType {
@@ -32,10 +35,7 @@ export interface discordContextMenuType extends discordInteractionType {
 
 export interface discordSelectMenuType extends discordInteractionType {
   // eslint-disable-next-line no-unused-vars
-  execute(
-    interaction: AnySelectMenuInteraction,
-    config?: eventSelectButtonType
-  ): Promise<void>
+  execute(interaction: AnySelectMenuInteraction, config?: eventSelectButtonType): Promise<void>
   data: SelectMenuBuilder
 }
 

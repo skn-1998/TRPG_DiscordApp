@@ -1,5 +1,5 @@
-import { registerAs } from '@nestjs/config';
-import { env } from './environment';
+import { registerAs } from '@nestjs/config'
+import { env } from './environment'
 
 /**
  * Discord関連の設定
@@ -9,12 +9,12 @@ export const DiscordConfig = registerAs('discord', () => ({
    * DiscordボットトークンAPI
    */
   token: env.TOKEN,
-  
+
   /**
    * DiscordアプリケーションID
    */
   applicationId: env.DISCORD_APPLICATIONID,
-  
+
   /**
    * Discord API接続設定
    */
@@ -22,9 +22,9 @@ export const DiscordConfig = registerAs('discord', () => ({
     /**
      * Discord GuildID
      */
-    id: env.GUILDID,
+    id: env.GUILDID
   },
-  
+
   /**
    * カテゴリー名設定
    */
@@ -32,6 +32,6 @@ export const DiscordConfig = registerAs('discord', () => ({
     /**
      * キャラクターカテゴリー名
      */
-    character: 'キャラクター',
-  },
-})); 
+    character: 'キャラクター'
+  }
+}))

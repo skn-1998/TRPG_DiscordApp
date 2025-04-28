@@ -1,14 +1,14 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator'
 
 export class CreateUserDto {
   @IsString()
-  readonly discordUserId: string;
+  readonly discordUserId: string
 
   @IsString()
-  readonly name: string;
+  readonly name: string
 
   @IsArray()
-  @IsString({each: true})
+  @IsString({ each: true })
   @IsOptional()
-  readonly characterIds?: string[];
-} 
+  readonly characterIds?: string[]
+}
