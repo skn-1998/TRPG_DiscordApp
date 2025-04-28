@@ -1,4 +1,4 @@
-import { MantineColorsTuple, createTheme, colorsTuple } from '@mantine/core'
+import { MantineColorsTuple, createTheme, colorsTuple, DEFAULT_THEME } from '@mantine/core'
 import generateColors from './utils/generateColors'
 
 const primaryShade = 5
@@ -20,7 +20,8 @@ const theme = createTheme({
     subComp: subComplementaryColor,
     bg: bgColor
   },
-  primaryShade
+  primaryShade,
+  fontFamily: `Noto Sans JP, ${DEFAULT_THEME.fontFamily}`
 })
 
 export default theme
