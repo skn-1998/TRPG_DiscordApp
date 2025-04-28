@@ -41,13 +41,13 @@ function ColorButton(props: { colorName: string }) {
   return (
     <>
       <Flex gap={4} justify="flex-start" align="center" direction="row" wrap="wrap">
-        <Button miw={100} color={props.colorName}>
+        <Button miw={120} color={props.colorName}>
           {props.colorName}
         </Button>
-        <Button miw={100} color={props.colorName} variant="outline">
+        <Button miw={120} color={props.colorName} variant="outline">
           outline
         </Button>
-        <Button miw={100} color={props.colorName} variant="light">
+        <Button miw={120} color={props.colorName} variant="light">
           light
         </Button>
       </Flex>
