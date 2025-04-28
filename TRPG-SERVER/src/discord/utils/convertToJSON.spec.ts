@@ -3,8 +3,8 @@ import { Character } from '../../domains/character/models/character.model'
 
 describe('convertToJSON', () => {
   // テスト用に未使用変数を追加
-  const unusedVariable = 'このテスト変数は使われていません';
-  
+  const unusedVariable = 'このテスト変数は使われていません'
+
   describe('filterAndFormatInput', () => {
     it('有効なKEY:VALUE形式のみを抽出する', () => {
       const input = `HP:100
@@ -22,7 +22,7 @@ toolong:1234567890123456789
 MP:20
 STR:30
 DEX:20`
-      
+
       expect(filterAndFormatInput(input)).toBe(expected)
     })
 
@@ -37,7 +37,7 @@ Invalid: text
 toolong:1234567890123456789
 :10
 10:`
-      
+
       expect(filterAndFormatInput(input)).toBe('')
     })
   })
@@ -48,14 +48,14 @@ toolong:1234567890123456789
 MP:20
 STR:30
 DEX:20`
-      
+
       const expected = {
-        'HP': { name: 'HP', value: 100, index: 0 },
-        'MP': { name: 'MP', value: 20, index: 1 },
-        'STR': { name: 'STR', value: 30, index: 2 },
-        'DEX': { name: 'DEX', value: 20, index: 3 }
+        HP: { name: 'HP', value: 100, index: 0 },
+        MP: { name: 'MP', value: 20, index: 1 },
+        STR: { name: 'STR', value: 30, index: 2 },
+        DEX: { name: 'DEX', value: 20, index: 3 }
       }
-      
+
       expect(convertCharacterInfoToJson(input)).toEqual(expected)
     })
 
@@ -66,14 +66,14 @@ MP:20
 Invalid: text
 STR:30
 DEX:20`
-      
+
       const expected = {
-        'HP': { name: 'HP', value: 100, index: 0 },
-        'MP': { name: 'MP', value: 20, index: 1 },
-        'STR': { name: 'STR', value: 30, index: 2 },
-        'DEX': { name: 'DEX', value: 20, index: 3 }
+        HP: { name: 'HP', value: 100, index: 0 },
+        MP: { name: 'MP', value: 20, index: 1 },
+        STR: { name: 'STR', value: 30, index: 2 },
+        DEX: { name: 'DEX', value: 20, index: 3 }
       }
-      
+
       expect(convertCharacterInfoToJson(input)).toEqual(expected)
     })
 
@@ -91,21 +91,21 @@ DEX:20`
         TRPGName: 'Test TRPG',
         characterName: 'Test Character',
         status: {
-          'HP': 100,
-          'MP': 20
+          HP: 100,
+          MP: 20
         },
         parameter: {
-          'STR': 30,
-          'DEX': 20
+          STR: 30,
+          DEX: 20
         },
         skill: {}
       }
-      
+
       const expectedStatus = `HP:100
 MP:20`
       const expectedParameter = `STR:30
 DEX:20`
-      
+
       expect(convertCharacterJsonToString(character, 'status')).toBe(expectedStatus)
       expect(convertCharacterJsonToString(character, 'parameter')).toBe(expectedParameter)
     })
@@ -121,8 +121,8 @@ DEX:20`
         parameter: {},
         skill: {}
       }
-      
+
       expect(convertCharacterJsonToString(character, 'status')).toBe('')
     })
   })
-}) 
+})

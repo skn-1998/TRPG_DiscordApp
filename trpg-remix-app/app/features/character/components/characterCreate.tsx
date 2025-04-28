@@ -8,20 +8,20 @@ import { useState } from 'react'
 import _ from 'lodash'
 
 const _gameSystemList = _.sortBy(gameSystemList, ['SORT_KEY'])
-const gameSystemListID = _gameSystemList.map(e => ({ value: e.ID, label: e.NAME }))
+const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
 
 export function CharacterCreate() {
-  const outletContextData = useOutletContext<{ data: any, cookie: string }>()
+  const outletContextData = useOutletContext<{ data: any; cookie: string }>()
 
-  const jwtCookie = outletContextData.cookie.split(';').find(cookie => cookie.trim().startsWith('jwt='))
-    if (!jwtCookie) {
-      throw new Error('no jwtCookie')
-    }
+  const jwtCookie = outletContextData.cookie.split(';').find((cookie) => cookie.trim().startsWith('jwt='))
+  if (!jwtCookie) {
+    throw new Error('no jwtCookie')
+  }
   const jwt = jwtCookie.split('=')[1]
 
-  const headers = {'Content-Type': 'application/json', Authorization: `Bearer ${jwt}`}
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }
 
-  async function clickHandler(){
+  async function clickHandler() {
     console.log('clicked!')
     const corsServerDomain = 'http://localhost:3000'
 
@@ -30,15 +30,15 @@ export function CharacterCreate() {
       return
     }
 
-    try
-    {
-      const res = await axios.post(`${corsServerDomain}/characters/create`,
+    try {
+      const res = await axios.post(
+        `${corsServerDomain}/characters/create`,
         { TRPGName: TRPGSystemValue.value },
-        { headers , withCredentials: true })
+        { headers, withCredentials: true }
+      )
       console.log('--- res ---')
       console.log(res)
-    }catch(Error)
-    {
+    } catch (Error) {
       CustomError(Error)
     }
   }
@@ -47,9 +47,7 @@ export function CharacterCreate() {
 
   return (
     <>
-      <div>
-        Character create page
-      </div>
+      <div>Character create page</div>
       <Button onClick={clickHandler}>create character</Button>
       <Select
         label="TRPG System"

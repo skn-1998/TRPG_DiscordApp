@@ -5,32 +5,32 @@ export interface DiscordUserProfile {
   /**
    * DiscordユーザーID
    */
-  id: string;
-  
+  id: string
+
   /**
    * ユーザー名
    */
-  username: string;
-  
+  username: string
+
   /**
    * アバターハッシュ
    */
-  avatar?: string;
-  
+  avatar?: string
+
   /**
    * Discordの識別子
    */
-  discriminator?: string;
-  
+  discriminator?: string
+
   /**
    * メールアドレス（スコープに含まれる場合）
    */
-  email?: string;
-  
+  email?: string
+
   /**
    * メール検証済みフラグ
    */
-  verified?: boolean;
+  verified?: boolean
 }
 
 /**
@@ -40,25 +40,25 @@ export interface DiscordAuthResponse {
   /**
    * アクセストークン
    */
-  access_token: string;
-  
+  access_token: string
+
   /**
    * トークンタイプ（通常は "Bearer"）
    */
-  token_type: string;
-  
+  token_type: string
+
   /**
    * トークン有効期限（秒）
    */
-  expires_in: number;
-  
+  expires_in: number
+
   /**
    * リフレッシュトークン
    */
-  refresh_token: string;
-  
+  refresh_token: string
+
   /**
    * スコープ
    */
-  scope: string;
-} 
+  scope: string
+}

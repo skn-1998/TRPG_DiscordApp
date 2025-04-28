@@ -9,15 +9,13 @@
  * @param error 未知のエラー
  * @returns エラーがメッセージプロパティを持つ場合true
  */
-export function isErrorWithMessage(
-  error: unknown
-): error is { message: string } {
+export function isErrorWithMessage(error: unknown): error is { message: string } {
   return (
     typeof error === 'object' &&
     error !== null &&
     'message' in error &&
     typeof (error as Record<string, unknown>).message === 'string'
-  );
+  )
 }
 
 /**
@@ -25,23 +23,21 @@ export function isErrorWithMessage(
  * @param error 未知のエラー
  * @returns エラーがコードプロパティを持つ場合true
  */
-export function isErrorWithCode(
-  error: unknown
-): error is { code: string | number } {
+export function isErrorWithCode(error: unknown): error is { code: string | number } {
   return (
     typeof error === 'object' &&
     error !== null &&
     'code' in error &&
-    (typeof (error as Record<string, unknown>).code === 'string' || 
-     typeof (error as Record<string, unknown>).code === 'number')
-  );
+    (typeof (error as Record<string, unknown>).code === 'string' ||
+      typeof (error as Record<string, unknown>).code === 'number')
+  )
 }
 
 // MongoDBエラー型を定義
 interface MongoDbError {
-  name: string;
-  code?: number;
-  keyValue?: Record<string, any>;
+  name: string
+  code?: number
+  keyValue?: Record<string, any>
 }
 
 /**
@@ -49,23 +45,17 @@ interface MongoDbError {
  * @param error 未知のエラー
  * @returns MongoDBエラーの場合true
  */
-export function isMongoError(
-  error: unknown
-): error is MongoDbError {
+export function isMongoError(error: unknown): error is MongoDbError {
   if (typeof error !== 'object' || error === null || !('name' in error)) {
-    return false;
+    return false
   }
-  
-  const errorName = (error as { name: unknown }).name;
+
+  const errorName = (error as { name: unknown }).name
   if (typeof errorName !== 'string') {
-    return false;
+    return false
   }
-  
-  return (
-    errorName === 'MongoError' ||
-    errorName === 'MongoServerError' ||
-    errorName.startsWith('Mongo')
-  );
+
+  return errorName === 'MongoError' || errorName === 'MongoServerError' || errorName.startsWith('Mongo')
 }
 
 /**
@@ -75,10 +65,10 @@ export function isMongoError(
  */
 export function isDuplicateKeyError(error: unknown): boolean {
   if (!isMongoError(error)) {
-    return false;
+    return false
   }
-  
-  return error.code === 11000 && error.keyValue !== undefined;
+
+  return error.code === 11000 && error.keyValue !== undefined
 }
 
 /**
@@ -88,21 +78,21 @@ export function isDuplicateKeyError(error: unknown): boolean {
  */
 export function getErrorMessage(error: unknown): string {
   if (isErrorWithMessage(error)) {
-    return error.message;
+    return error.message
   }
 
   if (isDuplicateKeyError(error) && isMongoError(error)) {
-    const keyValueObj = error.keyValue || {};
-    const duplicatedKey = Object.keys(keyValueObj)[0] || '不明なキー';
-    const duplicatedValue = keyValueObj[duplicatedKey];
-    return `重複エラー: ${duplicatedKey}=${duplicatedValue} は既に使用されています。`;
+    const keyValueObj = error.keyValue || {}
+    const duplicatedKey = Object.keys(keyValueObj)[0] || '不明なキー'
+    const duplicatedValue = keyValueObj[duplicatedKey]
+    return `重複エラー: ${duplicatedKey}=${duplicatedValue} は既に使用されています。`
   }
 
   if (isMongoError(error)) {
-    return `データベースエラー: ${error.name} ${error.code || ''}`;
+    return `データベースエラー: ${error.name} ${error.code || ''}`
   }
 
-  return '不明なエラーが発生しました';
+  return '不明なエラーが発生しました'
 }
 
 /**
@@ -112,16 +102,16 @@ export function getErrorMessage(error: unknown): string {
  */
 export function formatError(error: unknown): string {
   if (typeof error === 'string') {
-    return error;
+    return error
   }
-  
+
   if (isErrorWithMessage(error)) {
-    return error.message;
+    return error.message
   }
-  
+
   try {
-    return JSON.stringify(error, null, 2);
+    return JSON.stringify(error, null, 2)
   } catch {
-    return String(error);
+    return String(error)
   }
-} 
+}

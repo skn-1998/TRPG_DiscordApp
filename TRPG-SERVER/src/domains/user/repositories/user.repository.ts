@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Repository } from 'src/core/interfaces/repository.interface';
-import { User, USER_MODEL, UserDocument } from '../models/user.model';
+import { Injectable } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
+import { Repository } from 'src/core/interfaces/repository.interface'
+import { User, USER_MODEL, UserDocument } from '../models/user.model'
 
 /**
  * ユーザーリポジトリの実装
@@ -11,7 +11,7 @@ import { User, USER_MODEL, UserDocument } from '../models/user.model';
 export class UserRepository implements Repository<User, string> {
   constructor(
     @InjectModel(USER_MODEL)
-    private readonly userModel: Model<UserDocument>,
+    private readonly userModel: Model<UserDocument>
   ) {}
 
   /**
@@ -19,8 +19,8 @@ export class UserRepository implements Repository<User, string> {
    * @param entity ユーザーデータ
    */
   async create(entity: Partial<User>): Promise<User> {
-    const createdUser = new this.userModel(entity);
-    return createdUser.save();
+    const createdUser = new this.userModel(entity)
+    return createdUser.save()
   }
 
   /**
@@ -28,7 +28,7 @@ export class UserRepository implements Repository<User, string> {
    * @param id DiscordユーザーID
    */
   async findById(id: string): Promise<User | null> {
-    return this.userModel.findOne({ discordUserId: id }).exec();
+    return this.userModel.findOne({ discordUserId: id }).exec()
   }
 
   /**
@@ -36,7 +36,7 @@ export class UserRepository implements Repository<User, string> {
    * @param discordUserId DiscordユーザーID
    */
   async findByDiscordId(discordUserId: string): Promise<User | null> {
-    return this.userModel.findOne({ discordUserId }).exec();
+    return this.userModel.findOne({ discordUserId }).exec()
   }
 
   /**
@@ -44,7 +44,7 @@ export class UserRepository implements Repository<User, string> {
    * @param filter フィルター条件
    */
   async findAll(filter?: Partial<User>): Promise<User[]> {
-    return this.userModel.find(filter || {}).exec();
+    return this.userModel.find(filter || {}).exec()
   }
 
   /**
@@ -53,9 +53,7 @@ export class UserRepository implements Repository<User, string> {
    * @param updateData 更新するデータ
    */
   async update(id: string, updateData: Partial<User>): Promise<User | null> {
-    return this.userModel
-      .findOneAndUpdate({ discordUserId: id }, updateData, { new: true })
-      .exec();
+    return this.userModel.findOneAndUpdate({ discordUserId: id }, updateData, { new: true }).exec()
   }
 
   /**
@@ -63,7 +61,7 @@ export class UserRepository implements Repository<User, string> {
    * @param id DiscordユーザーID
    */
   async remove(id: string): Promise<void> {
-    await this.userModel.deleteOne({ discordUserId: id }).exec();
+    await this.userModel.deleteOne({ discordUserId: id }).exec()
   }
 
   /**
@@ -73,12 +71,8 @@ export class UserRepository implements Repository<User, string> {
    */
   async addCharacterId(userId: string, characterId: string): Promise<User | null> {
     return this.userModel
-      .findOneAndUpdate(
-        { discordUserId: userId },
-        { $addToSet: { characterIds: characterId } },
-        { new: true }
-      )
-      .exec();
+      .findOneAndUpdate({ discordUserId: userId }, { $addToSet: { characterIds: characterId } }, { new: true })
+      .exec()
   }
 
   /**
@@ -88,11 +82,7 @@ export class UserRepository implements Repository<User, string> {
    */
   async removeCharacterId(userId: string, characterId: string): Promise<User | null> {
     return this.userModel
-      .findOneAndUpdate(
-        { discordUserId: userId },
-        { $pull: { characterIds: characterId } },
-        { new: true }
-      )
-      .exec();
+      .findOneAndUpdate({ discordUserId: userId }, { $pull: { characterIds: characterId } }, { new: true })
+      .exec()
   }
-} 
+}

@@ -5,17 +5,17 @@ export interface DiceResult {
   /**
    * 合計値
    */
-  total: number;
-  
+  total: number
+
   /**
    * 各ダイスの出目
    */
-  rolls: number[];
-  
+  rolls: number[]
+
   /**
    * ダイスの種類（例: 2d6）
    */
-  diceType: string;
+  diceType: string
 }
 
 /**
@@ -25,20 +25,20 @@ export interface DiceResult {
  * @returns ダイスロール結果
  */
 export function rollDice(diceCount: number, diceFaces: number): DiceResult {
-  const rolls: number[] = [];
-  let total = 0;
-  
+  const rolls: number[] = []
+  let total = 0
+
   for (let i = 0; i < diceCount; i++) {
-    const roll = Math.floor(Math.random() * diceFaces) + 1;
-    rolls.push(roll);
-    total += roll;
+    const roll = Math.floor(Math.random() * diceFaces) + 1
+    rolls.push(roll)
+    total += roll
   }
-  
+
   return {
     total,
     rolls,
     diceType: `${diceCount}d${diceFaces}`
-  };
+  }
 }
 
 /**
@@ -47,18 +47,18 @@ export function rollDice(diceCount: number, diceFaces: number): DiceResult {
  * @returns [ダイスの数, ダイスの面数] または null（無効な表記の場合）
  */
 export function parseDiceNotation(diceNotation: string): [number, number] | null {
-  const match = diceNotation.toLowerCase().match(/^(\d+)d(\d+)$/);
-  
+  const match = diceNotation.toLowerCase().match(/^(\d+)d(\d+)$/)
+
   if (!match) {
-    return null;
+    return null
   }
-  
-  const diceCount = parseInt(match[1], 10);
-  const diceFaces = parseInt(match[2], 10);
-  
+
+  const diceCount = parseInt(match[1], 10)
+  const diceFaces = parseInt(match[2], 10)
+
   if (diceCount <= 0 || diceFaces <= 0) {
-    return null;
+    return null
   }
-  
-  return [diceCount, diceFaces];
-} 
+
+  return [diceCount, diceFaces]
+}

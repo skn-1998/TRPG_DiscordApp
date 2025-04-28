@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, VerifyCallback } from 'passport-discord';
-import { AuthService } from './services/auth.service';
-import { DiscordUserProfile } from './models/discord-user.model';
+import { Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { PassportStrategy } from '@nestjs/passport'
+import { Strategy, VerifyCallback } from 'passport-discord'
+import { AuthService } from './services/auth.service'
+import { DiscordUserProfile } from './models/discord-user.model'
 
 /**
  * Discord OAuth2認証ストラテジー
@@ -19,10 +19,10 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
       clientSecret: _configService.get<string>('DISCORD_SECRET'),
       callbackURL: _configService.get<string>('DISCORD_CALLBACK_URL') || 'http://localhost:3000/auth/discord/callback',
       scope: ['identify', 'email']
-    });
-    
+    })
+
     // configServiceが使用されていることをTypeScriptコンパイラに示すためのダミー処理
-    this.logConfig();
+    this.logConfig()
   }
 
   /**
@@ -30,9 +30,9 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
    * TypeScriptコンパイラが未使用変数警告を出さないようにするためのメソッド
    */
   private logConfig(): void {
-    const applicationId = this._configService.get<string>('DISCORD_APPLICATIONID');
+    const applicationId = this._configService.get<string>('DISCORD_APPLICATIONID')
     if (!applicationId) {
-      console.log('Warning: DISCORD_APPLICATIONID is not configured');
+      console.log('Warning: DISCORD_APPLICATIONID is not configured')
     }
   }
 
@@ -44,16 +44,16 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
    * @param done コールバック関数
    */
   async validate(
-    accessToken: string, 
-    refreshToken: string, 
-    profile: DiscordUserProfile, 
+    accessToken: string,
+    refreshToken: string,
+    profile: DiscordUserProfile,
     done: VerifyCallback
   ): Promise<void> {
     try {
-      const user = await this.authService.validateDiscordUser(accessToken, refreshToken, profile);
-      done(null, user);
+      const user = await this.authService.validateDiscordUser(accessToken, refreshToken, profile)
+      done(null, user)
     } catch (error) {
-      done(error, null);
+      done(error, null)
     }
   }
-} 
+}

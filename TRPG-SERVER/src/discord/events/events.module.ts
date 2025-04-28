@@ -23,7 +23,7 @@ import { CharacterDiceButtonsService } from './button/character-dice-buttons.ser
     CharacterTabButtonsService,
     CharacterDiceButtonsService
   ],
-  exports:[
+  exports: [
     EventsService,
     CharacterChannelService,
     CharaInfoButtonService,
@@ -33,9 +33,6 @@ import { CharacterDiceButtonsService } from './button/character-dice-buttons.ser
     CharacterTabButtonsService,
     CharacterDiceButtonsService
   ],
-  imports:[
-    CharacterModule,
-    forwardRef(() => DiscordModule)
-  ],
+  imports: [CharacterModule, forwardRef(() => DiscordModule)]
 })
 export class EventsModule {}

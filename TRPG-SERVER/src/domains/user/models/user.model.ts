@@ -4,7 +4,7 @@ import { Document } from 'mongoose'
 /**
  * ユーザードキュメント
  */
-export type UserDocument = User & Document;
+export type UserDocument = User & Document
 
 /**
  * ユーザースキーマ定義
@@ -12,13 +12,13 @@ export type UserDocument = User & Document;
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, unique: true })
-    discordUserId: string
+  discordUserId: string
 
   @Prop({ required: true })
-    name: string
+  name: string
 
   @Prop({ type: [String], default: [] })
-    characterIds: string[]
+  characterIds: string[]
 }
 
 /**
@@ -34,4 +34,4 @@ export const USER_MODEL = 'User'
 /**
  * コレクション名
  */
-export const USER_COLLECTION = 'trpg-usertable' 
+export const USER_COLLECTION = 'trpg-usertable'
