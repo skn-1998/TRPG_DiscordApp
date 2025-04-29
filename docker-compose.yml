@@ -38,7 +38,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-    command: "npm run start:dev"
+    command: "pnpm run start:dev"
     networks:
       - app-network
   nginx.io:

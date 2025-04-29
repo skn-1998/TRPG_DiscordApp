@@ -65,7 +65,7 @@ export class EventsController {
     try {
       // ボタンインタラクションの処理
       if (interaction.isButton()) {
-        console.log(interaction.customId+"id")
+        console.log(interaction.customId + 'id')
         await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
         await this.doEvents(this.charaInfoButtonService, changeCharacterInfoConfig)
         await this.doEvents(this.diceButtonService, diceButtonConfig)
@@ -89,7 +89,6 @@ export class EventsController {
       console.error('Interaction handling error:', error)
     }
   }
-
 
   handleChannelCreate(client: Client): void {
     console.log('create')
@@ -150,13 +149,13 @@ export class EventsController {
 
   async doEvents(
     discordClass: discordInteractionType,
-    config?: eventSelectButtonType | eventType | eventButtonType,
+    config?: eventSelectButtonType | eventType | eventButtonType
   ): Promise<void> {
     if (isUndefined(config.customId)) return
     if (this.interaction?.customId === config.customId) {
       await discordClass.execute(this.interaction, config)
     }
-    if(this.interaction?.customId.includes("*") && this.interaction?.customId.includes(config.customId)){
+    if (this.interaction?.customId.includes('*') && this.interaction?.customId.includes(config.customId)) {
       await discordClass.execute(this.interaction, config)
     }
   }

@@ -22,7 +22,7 @@ const createAxiosInstance = (baseURL: string) => {
 }
 
 const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
-const axiosInstance = createAxiosInstance(corsServerDomain)
+export const axiosInstance = createAxiosInstance(corsServerDomain)
 
 export const loginOrRegisterUser = async (code: string): Promise<TRPGUser> => {
   try {

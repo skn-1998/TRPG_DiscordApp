@@ -59,7 +59,7 @@ export class CharacterService {
    * @param name キャラクター名
    */
   async findByName(name: string): Promise<Character | null> {
-    return this.characterRepository.findByName(name);
+    return this.characterRepository.findByName(name)
   }
 
   /**
