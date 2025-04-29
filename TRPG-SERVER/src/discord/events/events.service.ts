@@ -74,14 +74,23 @@ export class EventsService implements OnModuleInit {
     interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
   ): Promise<boolean> {
     try {
+      // 応答済みのインタラクションは処理しない
+      if (interaction.replied || interaction.deferred) {
+        this.logger.warn(
+          `インタラクション(ID: ${interaction.id})は既に応答済みです。EventsControllerへの委譲をスキップします。`
+        )
+        return true // すでに処理済みとみなす
+      }
+
       if (this.eventsController) {
+        this.logger.log(`インタラクション(ID: ${interaction.id})をEventsControllerに委譲します。`)
         await this.eventsController.handleInteraction(interaction)
         return true // 処理成功
       }
       this.logger.warn('インタラクション処理のためのEventsControllerが利用できません。')
       return false // コントローラーが利用できない
     } catch (error) {
-      this.logger.error('EventsServiceでのハンドリングエラー:', error)
+      this.logger.error(`EventsServiceでのハンドリングエラー(ID: ${interaction.id}):`, error)
       return false // エラーが発生した
     }
   }

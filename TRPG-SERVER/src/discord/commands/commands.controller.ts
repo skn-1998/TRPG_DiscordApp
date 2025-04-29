@@ -1,5 +1,5 @@
-import { Controller } from '@nestjs/common'
-import { Client, Interaction, Events, CommandInteraction, AutocompleteInteraction, CacheType } from 'discord.js'
+import { Controller, Logger } from '@nestjs/common'
+import { Client, Interaction, CommandInteraction, AutocompleteInteraction, CacheType } from 'discord.js'
 import {
   commandType,
   createCharacterThreadConfig,
@@ -18,6 +18,7 @@ import { isUndefined } from 'lodash'
 
 @Controller('commands')
 export class CommandsController {
+  private readonly logger = new Logger(CommandsController.name)
   private characterThreadService: CharacterThreadService
   private rollDiceService: RollDiceService
   private selectGameSystemService: SelectGameSystemService
@@ -41,29 +42,55 @@ export class CommandsController {
   private client: Client
   private interaction: CommandInteraction | AutocompleteInteraction
 
+  /**
+   * Discord クライアントを設定する
+   * 注意：InteractionCreateイベントリスナーは登録しない（EventManagerServiceに委任）
+   * @param client Discord クライアント
+   */
   handleCommand(client: Client): void {
+    this.logger.log('コマンドコントローラーにクライアントを設定')
     this.client = client
-    this.client.on(Events.InteractionCreate, async (interaction: Interaction) => {
-      if (!interaction.isCommand()) return
-      this.interaction = interaction
-
-      this.doEvents(this.characterThreadService, createCharacterThreadConfig)
-      this.doEvents(this.rollDiceService, rollDiceConfig)
-      this.doEvents(this.selectGameSystemService, selectGameSystemConfig)
-      this.doEvents(this.userDefinedDiceService, userDefinedDiceConfig)
-      this.doEvents(this.diceFromContextMenuService, diceFromContextMenuConfig)
-    })
+    // InteractionCreateイベントリスナーの登録はもう行わない（EventManagerServiceに委任）
   }
 
+  /**
+   * Discord クライアントを設定する（オートコンプリート用）
+   * 注意：InteractionCreateイベントリスナーは登録しない（EventManagerServiceに委任）
+   * @param client Discord クライアント
+   */
   handleAutoComplete(client: Client): void {
+    this.logger.log('オートコンプリートコントローラーにクライアントを設定')
     this.client = client
-    this.client.on(Events.InteractionCreate, async (interaction: Interaction<CacheType>) => {
-      if (!interaction.isAutocomplete()) return
-      this.interaction = interaction
+    // InteractionCreateイベントリスナーの登録はもう行わない（EventManagerServiceに委任）
+  }
 
-      this.doAutoComplete(this.selectGameSystemService, selectGameSystemConfig)
-      this.doAutoComplete(this.userDefinedDiceService, userDefinedDiceConfig)
-    })
+  /**
+   * コマンドインタラクションを処理する
+   * EventManagerServiceから直接呼び出される
+   * @param interaction コマンドインタラクション
+   */
+  async handleInteraction(interaction: CommandInteraction): Promise<void> {
+    this.logger.log(`コマンド処理: ${interaction.commandName} (ID: ${interaction.id})`)
+    this.interaction = interaction
+
+    await this.doEvents(this.characterThreadService, createCharacterThreadConfig)
+    await this.doEvents(this.rollDiceService, rollDiceConfig)
+    await this.doEvents(this.selectGameSystemService, selectGameSystemConfig)
+    await this.doEvents(this.userDefinedDiceService, userDefinedDiceConfig)
+    await this.doEvents(this.diceFromContextMenuService, diceFromContextMenuConfig)
+  }
+
+  /**
+   * オートコンプリートインタラクションを処理する
+   * EventManagerServiceから直接呼び出される
+   * @param interaction オートコンプリートインタラクション
+   */
+  async handleAutocompleteInteraction(interaction: AutocompleteInteraction): Promise<void> {
+    this.logger.log(`オートコンプリート処理: ${interaction.commandName} (ID: ${interaction.id})`)
+    this.interaction = interaction
+
+    await this.doAutoComplete(this.selectGameSystemService, selectGameSystemConfig)
+    await this.doAutoComplete(this.userDefinedDiceService, userDefinedDiceConfig)
   }
 
   async doEvents(
