@@ -13,18 +13,18 @@ import { CharacterChannelService } from 'src/discord/events/select/character-cha
 @Injectable()
 export class CharacterThreadService implements discordCommandType {
   constructor(private readonly characterChannelService: CharacterChannelService) {}
-  
+
   public data = new SlashCommandBuilder()
     .setName(createCharacterThreadConfig.name)
     .setDescription(createCharacterThreadConfig.description)
-  
+
   async execute(interaction: CommandInteraction<CacheType>): Promise<void> {
     if (!interaction.isChatInputCommand()) return
 
     try {
       const selectChannel = this.characterChannelService.getAndSetChannelOption(interaction)
       const selectChannelRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectChannel)
-      
+
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'キャラクターを選択',

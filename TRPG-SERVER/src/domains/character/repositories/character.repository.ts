@@ -36,7 +36,7 @@ export class CharacterRepository implements Repository<Character, string> {
    * @param name キャラクター名
    */
   async findByName(name: string): Promise<Character | null> {
-    return this.characterModel.findOne({ characterName: name }).exec();
+    return this.characterModel.findOne({ characterName: name }).exec()
   }
 
   /**
