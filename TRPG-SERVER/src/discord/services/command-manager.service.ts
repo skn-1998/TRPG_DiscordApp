@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Client, REST, Routes, Interaction, AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
-
+import { CommandsController } from '../commands/commands.controller'
 /**
  * コマンドマネージャーサービス
  * Discord Bot のコマンド管理、登録、実行を担当
@@ -16,7 +16,8 @@ export class CommandManagerService implements OnModuleInit {
 
   constructor(
     private readonly discordClientService: DiscordClientService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly commandsController: CommandsController
   ) {
     this.rest = new REST({ version: '10' }).setToken(this.configService.get<string>('discord.token'))
   }
@@ -96,20 +97,7 @@ export class CommandManagerService implements OnModuleInit {
    * @param interaction オートコンプリート相互作用
    */
   async handleAutocompleteInteraction(interaction: AutocompleteInteraction): Promise<void> {
-    const command = this.getCommand(interaction.commandName)
-
-    if (!command || !command.autocomplete) {
-      return
-    }
-
-    try {
-      await command.autocomplete(interaction)
-    } catch (error) {
-      this.logger.error(`オートコンプリート「${interaction.commandName}」の実行中にエラーが発生しました`)
-      if (error instanceof Error) {
-        this.logger.error(error.message)
-      }
-    }
+    await this.commandsController.handleAutocompleteInteraction(interaction)
   }
 
   /**
