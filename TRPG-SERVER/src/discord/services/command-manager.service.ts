@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Client, REST, Routes, Events, Interaction, AutocompleteInteraction, CommandInteraction } from 'discord.js'
+import { Client, REST, Routes, Interaction, AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 
@@ -25,8 +25,6 @@ export class CommandManagerService implements OnModuleInit {
    * モジュール初期化時に呼び出される
    */
   async onModuleInit(): Promise<void> {
-    const client = this.discordClientService.getClient()
-    this.setupEventHandlers(client)
     await this.registerCommands()
   }
 
@@ -57,31 +55,10 @@ export class CommandManagerService implements OnModuleInit {
   }
 
   /**
-   * イベントハンドラをセットアップする
-   * @param client Discordクライアント
-   */
-  private setupEventHandlers(client: Client): void {
-    client.on(Events.InteractionCreate, async (interaction: Interaction) => {
-      try {
-        if (interaction.isCommand()) {
-          await this.handleCommandInteraction(interaction)
-        } else if (interaction.isAutocomplete()) {
-          await this.handleAutocompleteInteraction(interaction)
-        }
-      } catch (error) {
-        this.logger.error('相互作用の処理中にエラーが発生しました')
-        if (error instanceof Error) {
-          this.logger.error(error.message)
-        }
-      }
-    })
-  }
-
-  /**
    * コマンド相互作用を処理する
    * @param interaction コマンド相互作用
    */
-  private async handleCommandInteraction(interaction: CommandInteraction): Promise<void> {
+  async handleCommandInteraction(interaction: CommandInteraction): Promise<void> {
     const command = this.getCommand(interaction.commandName)
 
     if (!command) {
@@ -118,7 +95,7 @@ export class CommandManagerService implements OnModuleInit {
    * オートコンプリート相互作用を処理する
    * @param interaction オートコンプリート相互作用
    */
-  private async handleAutocompleteInteraction(interaction: AutocompleteInteraction): Promise<void> {
+  async handleAutocompleteInteraction(interaction: AutocompleteInteraction): Promise<void> {
     const command = this.getCommand(interaction.commandName)
 
     if (!command || !command.autocomplete) {
