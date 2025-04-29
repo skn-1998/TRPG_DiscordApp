@@ -10,7 +10,8 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   EmbedBuilder,
-  ColorResolvable
+  ColorResolvable,
+  Colors
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
@@ -59,7 +60,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
       }
 
       // ダイスロールを実行
-      const diceResult = await dice(diceCommand)
+      const diceResult = await dice(diceCommand, 'Cthulhu')
       if (isNull(diceResult)) {
         await interaction.reply({ content: 'ダイスロールに失敗しました', ephemeral: true })
         return
@@ -68,64 +69,42 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // スキルロールの場合は成功/失敗判定を行う
       const resultMessage = diceResult.text || `${diceCommand}の結果: 不明`
       const result = diceResult.rands.reduce((acc, curr) => acc + curr[0], 0)
-      console.log(result)
-      if (skillName && skillValue !== null && diceResult.text) {
-        // ダイス目を数値として抽出
-        const diceResultMatch = diceResult.text
+      // ダイス目を数値として抽出
 
-        const rollValue = diceResultMatch ? parseInt(diceResultMatch[0], 10) : 0
-
-        if (rollValue > 0) {
-          let successStatus: string
-          let embedColor: ColorResolvable
-
-          if (diceResult.critical) {
-            successStatus = 'クリティカル成功！'
-            embedColor = '#FFD700' // ゴールド
-          } else if (diceResult.success) {
-            successStatus = '成功'
-            embedColor = '#00FF00' // 緑
-          } else if (diceResult.fumble) {
-            successStatus = '致命的失敗...'
-            embedColor = '#800080' // 紫
-          } else if (diceResult.failure) {
-            successStatus = '失敗'
-            embedColor = '#FF0000' // 赤
-          } else {
-            successStatus = '判定不明'
-            embedColor = '#808080' // グレー
-          }
-
-          // Embedを作成
-          const embed = new EmbedBuilder()
-            .setColor(embedColor)
-            .setTitle(`🎲 ${skillName} ロール`)
-            .setDescription(`結果: ${rollValue}\n**${successStatus}**\n技能値: ${skillValue}%`)
-
-          // テキストメッセージの代わりにEmbedを送信
-          await interaction.reply({ embeds: [embed] })
-          return
+      const rollValue = result
+      if (rollValue > 0) {
+        let embedColor: ColorResolvable
+        if (diceResult.critical || result < 5) {
+          embedColor = Colors.Gold // ゴールド
+        } else if (diceResult.fumble || result > 95) {
+          embedColor = Colors.Purple // 紫
+        } else if (diceResult.success) {
+          embedColor = Colors.Green // 緑
+        } else if (diceResult.failure) {
+          embedColor = Colors.Red // 赤
+        } else {
+          embedColor = '#808080' // グレー
         }
-      }
+        // Embedを作成
+        const embed = new EmbedBuilder().setColor(embedColor).setDescription(`${diceResult.text}`)
 
-      // 通常のダイスロールの場合（スキル判定でない場合）やスキル判定でもrollValueが0以下の場合
-      const embed = new EmbedBuilder().setColor('#0099FF').setDescription(resultMessage)
+        // スレッドのチャンネルタイプ確認
+        if (interaction.channel?.type === ChannelType.PublicThread) {
+          // 親チャンネルにもメッセージを送信
+          const parentChannelId = interaction.channel.parentId
+          if (parentChannelId) {
+            const parentChannel = await interaction.client.channels.fetch(parentChannelId)
+            if (parentChannel && parentChannel.isTextBased()) {
+              console.log(parentChannel)
+              await parentChannel.send({ embeds: [embed] })
+            }
+          }
+        }
 
-      // スレッドのチャンネルタイプ確認
-      if (interaction.channel?.type !== ChannelType.PublicThread) {
-        await interaction.reply({ embeds: [embed] })
+        // ボタンの応答を完了させる
+        await interaction.deferUpdate()
         return
       }
-
-      // 親チャンネルIDの確認
-      const parentChannelId = interaction.channel.parentId
-      if (isNull(parentChannelId)) {
-        await interaction.reply({ embeds: [embed] })
-        return
-      }
-
-      // インタラクションに応答
-      await interaction.reply({ embeds: [embed] })
     } catch (error) {
       console.error('ダイスボタン処理エラー:', error)
 

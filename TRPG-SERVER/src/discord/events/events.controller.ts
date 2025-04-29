@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { Controller } from '@nestjs/common'
+import { Controller, Logger } from '@nestjs/common'
 import { CharaInfoButtonService } from './button/chara-info-button.service'
 import { DiceButtonService } from './button/dice-button.service'
 import {
@@ -35,6 +35,8 @@ import { CharacterTabButtonsService } from './button/character-tab-buttons.servi
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
 @Controller('events')
 export class EventsController {
+  private readonly logger = new Logger(EventsController.name)
+
   constructor(
     private charaInfoButtonService: CharaInfoButtonService,
     private diceButtonService: DiceButtonService,
@@ -60,12 +62,21 @@ export class EventsController {
   async handleInteraction(
     interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
   ): Promise<void> {
+    // 応答済みのインタラクションは処理しない
+    if (interaction.replied || interaction.deferred) {
+      this.logger.warn(`インタラクション(ID: ${interaction.id})は既に応答済みです。処理をスキップします。`)
+      return
+    }
+
+    this.logger.log(
+      `インタラクション処理開始: Type=${interaction.type}, ID=${interaction.id}, CustomID=${interaction.customId}`
+    )
     this.interaction = interaction
 
     try {
       // ボタンインタラクションの処理
       if (interaction.isButton()) {
-        console.log(interaction.customId + 'id')
+        this.logger.debug(`ボタン処理: ${interaction.customId}`)
         await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
         await this.doEvents(this.charaInfoButtonService, changeCharacterInfoConfig)
         await this.doEvents(this.diceButtonService, diceButtonConfig)
@@ -75,6 +86,7 @@ export class EventsController {
 
       // セレクトメニューインタラクションの処理
       else if (interaction.isStringSelectMenu()) {
+        this.logger.debug(`セレクトメニュー処理: ${interaction.customId}`)
         await this.doEvents(this.characterChannelService, selectCharacterChannelConfig)
         await this.doEvents(this.changeCharaInfoService, addCharacterInfoConfig)
         await this.doEvents(this.changeCharaInfoService, changeCharacterInfoConfig)
@@ -82,25 +94,49 @@ export class EventsController {
 
       // モーダルインタラクションの処理
       else if (interaction.isModalSubmit()) {
+        this.logger.debug(`モーダル処理: ${interaction.customId}`)
         await this.doEvents(this.addCharaInfoService, addCharacterInfoConfig)
         await this.doEvents(this.addCharaInfoService, changeCharacterInfoConfig)
       }
+
+      // インタラクションが応答されなかった場合
+      if (!(interaction.replied || interaction.deferred)) {
+        this.logger.warn(
+          `インタラクション(ID: ${interaction.id}, CustomID=${interaction.customId})に対して応答が行われませんでした。`
+        )
+      } else {
+        this.logger.log(`インタラクション処理完了: ID=${interaction.id}`)
+      }
     } catch (error) {
-      console.error('Interaction handling error:', error)
+      this.logger.error(`インタラクション処理エラー(ID: ${interaction.id}):`, error)
+
+      // エラー発生時に未応答の場合は応答する
+      if (!(interaction.replied || interaction.deferred)) {
+        try {
+          await interaction.reply({
+            content: '処理中にエラーが発生しました。しばらく経ってから再度お試しください。',
+            ephemeral: true
+          })
+        } catch (replyError) {
+          this.logger.error('エラー応答中にさらにエラーが発生しました:', replyError)
+        }
+      }
     }
   }
 
   handleChannelCreate(client: Client): void {
-    console.log('create')
+    this.logger.log('チャンネル作成イベントリスナーを登録します')
     this.client = client // Set the client property
 
     client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel): Promise<void> => {
       const characterCategory = this.appConfigService.get('discord.characterCategory')
       const categoryId = getChannelIdByName(channel.guild, characterCategory)
-      console.log('Channel created:', channel.name, 'Parent ID:', channel.parentId, 'Target category ID:', categoryId)
+      this.logger.log(
+        `チャンネル作成: ${channel.name}, Parent ID: ${channel.parentId}, Target category ID: ${categoryId}`
+      )
       if (!(channel.type === ChannelType.GuildText)) return
       if (channel.parentId === categoryId) {
-        console.log('Creating character for channel:', channel.name)
+        this.logger.log(`キャラクターチャンネルを作成: ${channel.name}`)
         this.charaInfoButtonService.createButton(channel)
 
         // チャンネル作成者のIDを取得
@@ -118,12 +154,12 @@ export class EventsController {
           // 該当するログが見つかった場合
           if (logEntry) {
             creatorId = logEntry.executor.id
-            console.log(`チャンネル作成者ID: ${creatorId}`)
+            this.logger.log(`チャンネル作成者ID: ${creatorId}`)
           } else {
-            console.log(`チャンネル ${channel.name} の作成者を特定できませんでした`)
+            this.logger.warn(`チャンネル ${channel.name} の作成者を特定できませんでした`)
           }
         } catch (error) {
-          console.error('Audit logs取得エラー:', error)
+          this.logger.error('Audit logs取得エラー:', error)
         }
 
         // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
@@ -135,13 +171,13 @@ export class EventsController {
             discordUserId: creatorId // チャンネル作成者のIDを設定
           })
           .then((character) => {
-            console.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`)
+            this.logger.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`)
             if (!creatorId) {
-              console.log('注意: discordUserIdは取得できませんでした。後で設定してください。')
+              this.logger.warn('注意: discordUserIdは取得できませんでした。後で設定してください。')
             }
           })
           .catch((error) => {
-            console.error('キャラクター作成エラー:', error)
+            this.logger.error('キャラクター作成エラー:', error)
           })
       }
     })
@@ -152,10 +188,18 @@ export class EventsController {
     config?: eventSelectButtonType | eventType | eventButtonType
   ): Promise<void> {
     if (isUndefined(config.customId)) return
+
+    // 応答済みのインタラクションは処理しない
+    if (this.interaction.replied || this.interaction.deferred) {
+      return
+    }
+
     if (this.interaction?.customId === config.customId) {
+      this.logger.debug(`イベント実行: ${config.customId}`)
       await discordClass.execute(this.interaction, config)
     }
     if (this.interaction?.customId.includes('*') && this.interaction?.customId.includes(config.customId)) {
+      this.logger.debug(`ワイルドカードイベント実行: ${this.interaction.customId} (マッチ: ${config.customId})`)
       await discordClass.execute(this.interaction, config)
     }
   }
