@@ -21,6 +21,6 @@ import { EventsModule } from '../events/events.module'
     CommandsService
   ],
   controllers: [CommandsController],
-  exports: [CommandsService]
+  exports: [CommandsService, CommandsController]
 })
 export class CommandsModule {}

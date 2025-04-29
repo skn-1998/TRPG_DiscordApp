@@ -20,7 +20,7 @@ export class CharacterThreadService implements discordCommandType {
 
   async execute(interaction: CommandInteraction<CacheType>): Promise<void> {
     if (!interaction.isChatInputCommand()) return
-
+    console.log('キャラクター選択コマンド実行')
     try {
       const selectChannel = this.characterChannelService.getAndSetChannelOption(interaction)
       const selectChannelRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectChannel)
