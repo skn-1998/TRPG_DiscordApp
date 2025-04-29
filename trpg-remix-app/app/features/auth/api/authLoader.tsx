@@ -9,8 +9,7 @@ const { isUndefined } = _
 export async function loginLoader({ request }: LoaderFunctionArgs) {
   const client_id = process.env.DISCORD_APPLICATIONID
 
-  // const redirect_url = (process.env.HOST_DOMAIN || 'http://localhost') + '/login'
-  const redirect_url = (process.env.HOST_DOMAIN || 'http://localhost:5173') + '/login'
+  const redirect_url = `${process.env.HOST_DOMAIN || 'http://localhost:5173'}/login`
   const redirect_uri = encodeURIComponent(redirect_url)
   const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`
 
