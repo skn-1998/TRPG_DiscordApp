@@ -73,33 +73,18 @@ export class EventManagerService implements OnModuleInit {
         let interactionHandled = false
 
         // ボタン、モーダル、セレクトメニューのインタラクションをEventsServiceに委譲
-        if (interaction.isButton() || interaction.isModalSubmit() || interaction.isAnySelectMenu()) {
-          // EventsServiceを通してコントローラーにインタラクションを委譲
-          try {
-            if (interaction.isButton()) {
-              interactionHandled = await this.eventsService.handleInteraction(interaction)
-            } else if (interaction.isModalSubmit()) {
-              interactionHandled = await this.eventsService.handleInteraction(interaction)
-            } else if (interaction.isStringSelectMenu()) {
-              interactionHandled = await this.eventsService.handleInteraction(interaction)
-            }
-          } catch (error) {
-            this.logger.error('EventsServiceでの処理中にエラーが発生しました')
-            this.logger.error(error)
-            interactionHandled = false
+        // EventsServiceを通してコントローラーにインタラクションを委譲
+        try {
+          if (interaction.isButton() || interaction.isModalSubmit() || interaction.isAnySelectMenu()) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            interactionHandled = await this.eventsService.handleInteraction(interaction)
           }
-
-          // フォールバック処理：EventsServiceが処理しなかった場合
-          if (!interactionHandled && !interaction.replied && !interaction.deferred) {
-            if (interaction.isButton()) {
-              await this.handleButtonInteraction(interaction)
-            } else if (interaction.isModalSubmit()) {
-              await this.handleModalInteraction(interaction)
-            } else if (interaction.isAnySelectMenu()) {
-              await this.handleSelectMenuInteraction(interaction)
-            }
-          }
+        } catch (error) {
+          this.logger.error('EventsServiceでの処理中にエラーが発生しました')
+          this.logger.error(error)
         }
+
+        // フォールバック処理：EventsServiceが処理しなかった場合
       } catch (error) {
         this.logger.error('相互作用の処理中にエラーが発生しました')
         if (error instanceof Error) {
