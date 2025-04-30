@@ -32,6 +32,11 @@ export const AuthConfig = registerAs('auth', () => ({
     /**
      * 認証後リダイレクト先URL
      */
-    callbackUrl: `${env.FRONTEND_URL}/auth/discord/callback`
+    callbackUrl: `${env.FRONTEND_URL}/auth/discord/callback`,
+
+    /**
+     * Discord認証リダイレクト先URL
+     */
+    redirectUri: `${env.FRONTEND_URL}/login`
   }
 }))
