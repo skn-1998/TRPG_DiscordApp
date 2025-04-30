@@ -8,6 +8,8 @@ import { User } from '../../user/models/user.model'
 import { HttpClientService } from './http.service'
 import { JwtTokenPayload } from '../models/auth.token.model'
 import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.model'
+import axios from 'axios'
+import { AppConfigService } from 'src/config/config.service'
 
 /**
  * 認証サービス
@@ -21,7 +23,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly httpService: HttpClientService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   /**
@@ -151,15 +154,17 @@ export class AuthService {
    * @returns Discord認証レスポンス
    */
   async authenticate(code: string): Promise<DiscordAuthResponse> {
-    const url = 'https://discordapp.com/api/oauth2/token'
-    const redirectUri = this.configService.get<string>('DISCORD_REDIRECT_URI')
+    const url = 'https://discord.com/api/oauth2/token'
+    const redirectUri = this.appConfigService.get('app.frontendUrl') + '/login'
 
     const params = new URLSearchParams()
-    params.append('client_id', this.configService.get<string>('DISCORD_APPLICATIONID'))
-    params.append('client_secret', this.configService.get<string>('DISCORD_SECRET'))
+    params.append('client_id', this.appConfigService.get('discord.applicationId'))
+    params.append('client_secret', this.appConfigService.get('discord.secret'))
     params.append('grant_type', 'authorization_code')
     params.append('code', code)
     params.append('redirect_uri', redirectUri)
+
+    this.logger.debug(`認証リクエスト: redirect_uri=${redirectUri}`)
 
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -171,7 +176,11 @@ export class AuthService {
       this.logger.debug('Discord認証成功')
       return response.data
     } catch (error) {
-      this.logger.error(`Discord認証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      if (axios.isAxiosError(error) && error.response) {
+        this.logger.error(`Discord認証エラー: ${error.message}, レスポンス: ${JSON.stringify(error.response.data)}`)
+      } else {
+        this.logger.error(`Discord認証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      }
       throw new Error(`認証に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`)
     }
   }

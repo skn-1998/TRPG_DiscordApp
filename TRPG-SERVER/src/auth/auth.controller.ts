@@ -26,7 +26,6 @@ export class AuthController {
   ) {}
 
   @Get('discord')
-  @UseGuards(AuthGuard('discord'))
   async discordLogin(): Promise<void> {
     // このルートはリダイレクトするために空のままでOK
   }
