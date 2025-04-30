@@ -6,6 +6,7 @@ import cors from 'cors'
 import { AppConfigService } from './config/config.service'
 import { Logger } from '@nestjs/common'
 import { DiscordService } from './discord/discord.service'
+import { getErrorMessage } from './utils/error-helpers'
 
 async function bootstrap() {
   try {
@@ -39,13 +40,12 @@ async function bootstrap() {
       discordService.initializeDiscord().catch((err) => {
         Logger.error(`Discordの初期化中にエラーが発生しました: ${err.message}`)
       })
-    } catch (discordError: any) {
+    } catch (discordError: unknown) {
       // Discordの初期化は失敗してもアプリケーションは続行する
-      Logger.error(`Discord初期化の準備中にエラーが発生しました: ${discordError.message}`)
+      getErrorMessage(discordError)
     }
-  } catch (error: any) {
-    Logger.error(`アプリケーションの起動に失敗しました: ${error.message}`)
-    Logger.error(error.stack)
+  } catch (error: unknown) {
+    getErrorMessage(error)
     // エラーが発生した場合はプロセスを終了
     process.exit(1)
   }
