@@ -67,7 +67,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
       }
 
       // スキルロールの場合は成功/失敗判定を行う
-      const resultMessage = diceResult.text || `${diceCommand}の結果: 不明`
+      // const resultMessage = diceResult.text || `${diceCommand}の結果: 不明`
       const result = diceResult.rands.reduce((acc, curr) => acc + curr[0], 0)
       // ダイス目を数値として抽出
 
@@ -85,8 +85,12 @@ export class CharacterDiceButtonsService implements discordButtonType {
         } else {
           embedColor = '#808080' // グレー
         }
+
+        const characterName = interaction.channel.name
         // Embedを作成
-        const embed = new EmbedBuilder().setColor(embedColor).setDescription(`${diceResult.text}`)
+        const embed = new EmbedBuilder()
+          .setColor(embedColor)
+          .setDescription(`${characterName}:${skillName}:${diceResult.text}`)
 
         // スレッドのチャンネルタイプ確認
         if (interaction.channel?.type === ChannelType.PublicThread) {
@@ -94,7 +98,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
           const parentChannelId = interaction.channel.parentId
           if (parentChannelId) {
             const parentChannel = await interaction.client.channels.fetch(parentChannelId)
-            if (parentChannel && parentChannel.isTextBased()) {
+            if (parentChannel && parentChannel.isTextBased() && parentChannel.isSendable()) {
               console.log(parentChannel)
               await parentChannel.send({ embeds: [embed] })
             }

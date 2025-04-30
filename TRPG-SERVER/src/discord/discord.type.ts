@@ -8,7 +8,8 @@ import {
   ContextMenuCommandBuilder,
   AnySelectMenuInteraction,
   ButtonInteraction,
-  ModalSubmitInteraction
+  ModalSubmitInteraction,
+  SlashCommandOptionsOnlyBuilder
 } from 'discord.js'
 import { eventSelectButtonType, eventType } from './events/events.list'
 
@@ -24,7 +25,10 @@ export interface discordInteractionType {
 export interface discordCommandType extends discordInteractionType {
   // eslint-disable-next-line no-unused-vars
   execute(interaction: CommandInteraction): Promise<void>
-  data: Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>
+  data:
+    | SlashCommandBuilder
+    | Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>
+    | SlashCommandOptionsOnlyBuilder
 }
 
 export interface discordContextMenuType extends discordInteractionType {

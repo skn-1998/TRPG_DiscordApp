@@ -123,7 +123,7 @@ export class CharacterChannelService implements discordSelectMenuType {
 
       // スレッドを作成
       const thread = await targetChannel.threads.create({
-        name: `${character.characterName}の部屋`,
+        name: `${character.characterName}`,
         type: ChannelType.PublicThread
       })
 
