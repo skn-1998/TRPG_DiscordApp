@@ -17,7 +17,7 @@ services:
       - "5173:5173" # ホストとコンテナのポートを一致させる
     environment:
       NODE_ENV: development
-      SERVER_DOMAIN: https://nginx.io/api
+      # SERVER_DOMAIN: https://nginx.io/api
       HOST_DOMAIN: https://localhost
       CHOKIDAR_USEPOLLING: true
     command: "pnpm run dev --host" # Remixアプリを外部ホストにバインド

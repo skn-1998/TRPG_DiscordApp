@@ -29,9 +29,10 @@ import { DiscordButton, DiscordModal, DiscordSelectMenu } from './interfaces/dis
  * すべてのイベントリスナーを一元管理
  */
 @Injectable()
-export class DiscordService implements OnModuleInit {
+export class DiscordService {
   private readonly logger = new Logger(DiscordService.name)
   private client: Client
+  private initialized = false
 
   // インタラクション登録用のマップ（EventManagerServiceから移行）
   private readonly buttons = new Map<string, DiscordButton>()
@@ -53,9 +54,14 @@ export class DiscordService implements OnModuleInit {
   }
 
   /**
-   * モジュール初期化時に呼び出される
+   * アプリケーション起動後に明示的に呼び出す必要があります
+   * Webサーバーの起動を妨げないよう、OnModuleInitから切り離しました
    */
-  async onModuleInit(): Promise<void> {
+  async initializeDiscord(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
     this.logger.log('Discord初期化を開始します...')
 
     try {
@@ -74,13 +80,10 @@ export class DiscordService implements OnModuleInit {
       // すべてのインタラクションイベントを一元管理
       this.setupInteractionEventHandler()
 
-      // Discord接続
-      const token = this.appConfigService.get('discord.token')
-      if (!token) {
-        throw new Error('Discord BOTトークンが設定されていません')
-      }
+      // Discord Client初期化を呼び出し
+      await this.discordClientService.initializeClient()
 
-      await this.client.login(token)
+      this.initialized = true
       this.logger.log('Discord初期化が完了しました')
     } catch (error) {
       this.logger.error('Discord初期化に失敗しました', error)
