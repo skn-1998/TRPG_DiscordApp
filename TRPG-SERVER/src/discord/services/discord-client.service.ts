@@ -9,9 +9,10 @@ import { DiscordClientInterface } from '../interfaces/discord-client.interface'
  * Discordとの接続・通信を管理
  */
 @Injectable()
-export class DiscordClientService implements DiscordClientInterface, OnModuleInit {
+export class DiscordClientService implements DiscordClientInterface {
   private readonly logger = new Logger(DiscordClientService.name)
   private readonly client: Client
+  private initialized = false
 
   constructor(private readonly configService: AppConfigService) {
     const clientOptions: ClientOptions = {
@@ -27,13 +28,19 @@ export class DiscordClientService implements DiscordClientInterface, OnModuleIni
   }
 
   /**
-   * モジュール初期化時に呼び出される
+   * モジュール初期化後に明示的に呼び出す必要があります
+   * Webサーバーの起動を妨げないよう、OnModuleInitから切り離しました
    */
-  async onModuleInit(): Promise<void> {
+  async initializeClient(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
     this.logger.log('Discordクライアントを初期化しています...')
 
     try {
       await this.initialize()
+      this.initialized = true
       this.logger.log('Discordクライアントの初期化が完了しました')
     } catch (error) {
       this.logger.error('Discordクライアントの初期化に失敗しました')
