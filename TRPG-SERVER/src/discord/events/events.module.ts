@@ -10,6 +10,9 @@ import { CharacterModule } from 'src/domains/character/character.module'
 import { DiscordModule } from '../discord.module'
 import { CharacterTabButtonsService } from './button/character-tab-buttons.service'
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
+import { ChannelCreateService } from './channel/character-channel-create.service'
+import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
+import { DiceRollModule } from 'src/domains/dice-roll/dice-roll.module'
 @Module({
   controllers: [EventsController],
   providers: [
@@ -21,7 +24,9 @@ import { CharacterDiceButtonsService } from './button/character-dice-buttons.ser
     CharacterChannelService,
     EventsController,
     CharacterTabButtonsService,
-    CharacterDiceButtonsService
+    CharacterDiceButtonsService,
+    ChannelCreateService,
+    DiceRollChannelCreateService
   ],
   exports: [
     EventsService,
@@ -31,8 +36,10 @@ import { CharacterDiceButtonsService } from './button/character-dice-buttons.ser
     AddCharaInfoService,
     ChangeCharaInfoService,
     CharacterTabButtonsService,
-    CharacterDiceButtonsService
+    CharacterDiceButtonsService,
+    ChannelCreateService,
+    DiceRollChannelCreateService
   ],
-  imports: [CharacterModule, forwardRef(() => DiscordModule)]
+  imports: [CharacterModule, forwardRef(() => DiscordModule), DiceRollModule]
 })
 export class EventsModule {}

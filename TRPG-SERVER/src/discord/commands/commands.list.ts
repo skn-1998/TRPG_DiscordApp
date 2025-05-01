@@ -6,7 +6,7 @@ export type commandType = {
 }
 
 export const createCharacterThreadConfig: commandType = {
-  name: 'chara',
+  name: 'create-character-thread',
   description: 'キャラクター用のダイスロールスレッドを作成'
 }
 

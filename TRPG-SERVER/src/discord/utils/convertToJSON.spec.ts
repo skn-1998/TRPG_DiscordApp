@@ -88,7 +88,7 @@ DEX:20`
         characterId: 'test-id',
         discordUserId: 'discord-user-id',
         discordChannelId: 'discord-channel-id',
-        TRPGName: 'Test TRPG',
+        TRPGId: 'Test TRPG',
         characterName: 'Test Character',
         status: {
           HP: 100,
@@ -115,7 +115,7 @@ DEX:20`
         characterId: 'test-id',
         discordUserId: 'discord-user-id',
         discordChannelId: 'discord-channel-id',
-        TRPGName: 'Test TRPG',
+        TRPGId: 'Test TRPG',
         characterName: 'Test Character',
         status: {},
         parameter: {},

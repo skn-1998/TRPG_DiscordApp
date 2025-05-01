@@ -10,7 +10,9 @@ import {
   NonThreadGuildBasedChannel,
   ChannelType,
   AnySelectMenuInteraction,
-  AuditLogEvent
+  AuditLogEvent,
+  BaseGuildTextChannel,
+  TextChannel
 } from 'discord.js'
 import { ChangeCharaInfoService } from './select/change-chara-info.service'
 import { CharacterChannelService } from './select/character-channel.service'
@@ -28,11 +30,17 @@ import {
 } from './events.list'
 import { discordInteractionType } from '../discord.type'
 import { isUndefined } from 'lodash'
-import { getChannelIdByName } from '../utils/searchChannelID'
 import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
 import { CharacterTabButtonsService } from './button/character-tab-buttons.service'
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
+import { ChannelCreateService } from './channel/character-channel-create.service'
+import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
+// システムイベントハンドラーの型定義
+export type systemEventHandlerType = {
+  execute: (channel: TextChannel, config: string) => void
+}
+
 @Controller('events')
 export class EventsController {
   private readonly logger = new Logger(EventsController.name)
@@ -46,7 +54,9 @@ export class EventsController {
     private characterService: CharacterService,
     private appConfigService: AppConfigService,
     private characterTabButtonsService: CharacterTabButtonsService,
-    private characterDiceButtonsService: CharacterDiceButtonsService
+    private characterDiceButtonsService: CharacterDiceButtonsService,
+    private channelCreateHandler: ChannelCreateService,
+    private diceRollChannelCreateHandler: DiceRollChannelCreateService
   ) {}
 
   private client: Client
@@ -125,62 +135,31 @@ export class EventsController {
   }
 
   handleChannelCreate(client: Client): void {
-    this.logger.log('チャンネル作成イベントリスナーを登録します')
-    this.client = client // Set the client property
-
+    this.logger.log('チャンネル作成ハンドラーを呼び出します')
+    this.client = client
     client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel): Promise<void> => {
-      const characterCategory = this.appConfigService.get('discord.characterCategory')
-      const categoryId = getChannelIdByName(channel.guild, characterCategory)
-      this.logger.log(
-        `チャンネル作成: ${channel.name}, Parent ID: ${channel.parentId}, Target category ID: ${categoryId}`
-      )
       if (!(channel.type === ChannelType.GuildText)) return
-      if (channel.parentId === categoryId) {
-        this.logger.log(`キャラクターチャンネルを作成: ${channel.name}`)
-        this.charaInfoButtonService.createButton(channel)
 
-        // チャンネル作成者のIDを取得
-        let creatorId = ''
-        try {
-          // Audit Logsを取得（CHANNEL_CREATEアクションのみ、より多くのエントリを取得）
-          const fetchedLogs = await channel.guild.fetchAuditLogs({
-            limit: 10, // より多くのログを取得
-            type: AuditLogEvent.ChannelCreate
-          })
-
-          // 該当チャンネルに関するログエントリを検索
-          const logEntry = fetchedLogs.entries.find((entry) => entry.target.id === channel.id)
-
-          // 該当するログが見つかった場合
-          if (logEntry) {
-            creatorId = logEntry.executor.id
-            this.logger.log(`チャンネル作成者ID: ${creatorId}`)
-          } else {
-            this.logger.warn(`チャンネル ${channel.name} の作成者を特定できませんでした`)
-          }
-        } catch (error) {
-          this.logger.error('Audit logs取得エラー:', error)
-        }
-
-        // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
-        this.characterService
-          .create({
-            TRPGName: '',
-            characterName: channel.name,
-            discordChannelId: channel.id,
-            discordUserId: creatorId // チャンネル作成者のIDを設定
-          })
-          .then((character) => {
-            this.logger.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`)
-            if (!creatorId) {
-              this.logger.warn('注意: discordUserIdは取得できませんでした。後で設定してください。')
-            }
-          })
-          .catch((error) => {
-            this.logger.error('キャラクター作成エラー:', error)
-          })
-      }
+      this.doSystemEvent(this.channelCreateHandler, this.appConfigService.get('discord.characterCategory'), channel)
+      this.doSystemEvent(
+        this.diceRollChannelCreateHandler,
+        this.appConfigService.get('discord.diceRollCategory'),
+        channel
+      )
     })
+  }
+  /**
+   * システムイベントハンドラーを呼び出す
+   * @param handler イベントハンドラー
+   * @param config イベント設定
+   * @param client Discordクライアント
+   */
+  doSystemEvent(handler: systemEventHandlerType, categoryId: string, channel: TextChannel): void {
+    this.logger.debug(`システムイベント実行: ${categoryId}`)
+    console.log(channel.parent.name)
+    if (channel.parent.name === categoryId) {
+      handler.execute(channel, categoryId)
+    }
   }
 
   async doEvents(

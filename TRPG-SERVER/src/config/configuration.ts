@@ -72,7 +72,9 @@ export const generateAppConfig = () => {
       // Discord GuildID
       guildId: process.env.GUILDID,
       // キャラクターカテゴリー名
-      characterCategory: convertOrDefault(process.env.CHARACTER_CATEGORY, 'キャラクター')
+      characterCategory: convertOrDefault(process.env.CHARACTER_CATEGORY, 'キャラクター'),
+      // ダイスロールカテゴリー名
+      diceRollCategory: convertOrDefault(process.env.DICE_ROLL_CATEGORY, 'ダイスロールチャンネル')
     },
 
     // 認証設定

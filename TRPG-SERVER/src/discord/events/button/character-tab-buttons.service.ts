@@ -45,7 +45,7 @@ export class CharacterTabButtonsService implements discordButtonType {
             .addFields(
               { name: '名前', value: character.characterName || '未設定', inline: true },
               { name: '職業', value: character.description?.['職業']?.toString() || '未設定', inline: true },
-              { name: 'システム', value: character.TRPGName || '未設定', inline: true },
+              { name: 'システム', value: character.TRPGId || '未設定', inline: true },
               { name: '年齢', value: character.description?.['年齢']?.toString() || '未設定', inline: true }
             )
 

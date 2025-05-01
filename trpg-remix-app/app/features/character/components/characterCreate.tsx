@@ -33,7 +33,7 @@ export function CharacterCreate() {
     try {
       const res = await axios.post(
         `${corsServerDomain}/characters/create`,
-        { TRPGName: TRPGSystemValue.value },
+        { TRPGId: TRPGSystemValue.value },
         { headers, withCredentials: true }
       )
       console.log('--- res ---')
