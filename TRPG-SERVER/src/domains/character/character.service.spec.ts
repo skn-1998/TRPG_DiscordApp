@@ -18,7 +18,7 @@ describe('CharacterService', () => {
   const mockCharacter: Character = {
     characterId: 'test-character-id',
     characterName: 'Test Character',
-    TRPGName: 'Test TRPG',
+    TRPGId: 'Test TRPG',
     discordUserId: 'test-discord-id',
     discordChannelId: 'test-channel-id',
     status: {},
@@ -54,7 +54,7 @@ describe('CharacterService', () => {
   describe('create', () => {
     it('should create a character', async () => {
       const createCharacterDto: CreateCharacterDto = {
-        TRPGName: 'Test TRPG',
+        TRPGId: 'Test TRPG',
         characterName: 'Test Character',
         discordUserId: 'test-discord-id',
         discordChannelId: 'test-channel-id',
@@ -66,7 +66,7 @@ describe('CharacterService', () => {
 
       const expectedCharacter = {
         characterId: 'test-uuid',
-        TRPGName: 'Test TRPG',
+        TRPGId: 'Test TRPG',
         characterName: 'Test Character',
         discordUserId: 'test-discord-id',
         discordChannelId: 'test-channel-id',

@@ -11,7 +11,8 @@ import {
   ActionRowBuilder,
   EmbedBuilder,
   ColorResolvable,
-  Colors
+  Colors,
+  TextChannel
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
@@ -97,10 +98,37 @@ export class CharacterDiceButtonsService implements discordButtonType {
           // 親チャンネルにもメッセージを送信
           const parentChannelId = interaction.channel.parentId
           if (parentChannelId) {
-            const parentChannel = await interaction.client.channels.fetch(parentChannelId)
-            if (parentChannel && parentChannel.isTextBased() && parentChannel.isSendable()) {
+            const parentChannel = (await interaction.client.channels.fetch(parentChannelId)) as TextChannel
+            if (parentChannel && parentChannel.isTextBased()) {
               console.log(parentChannel)
-              await parentChannel.send({ embeds: [embed] })
+              const topic = parentChannel.topic
+              if (topic.includes('embedId')) {
+                const embedIdLine = /^.*embedId:\d+.*$/m.exec(topic)[0] || ''
+                const embedId = embedIdLine.split(':')[1]
+                const textMessage = await parentChannel.messages.fetch(embedId)
+                if (textMessage && textMessage.embeds.length > 0) {
+                  // 現在のエンベッドを取得
+                  const currentEmbed = textMessage.embeds[0]
+
+                  // 現在の説明文を取得（nullの場合は空文字列で初期化）
+                  const currentDescription = currentEmbed.description || ''
+
+                  // 新しいコンテンツを追加（最後に改行して追加）
+                  const newDescription =
+                    currentDescription +
+                    (currentDescription ? '\n' : '') + // 既存の内容がある場合のみ改行を追加
+                    `+${characterName}:${skillName}:${diceResult.text}`
+
+                  // 新しい説明文でエンベッドを更新
+                  const updatedEmbed = new EmbedBuilder(currentEmbed.data).setDescription(newDescription)
+                  await textMessage.edit({ embeds: [updatedEmbed] })
+                } else {
+                  await parentChannel.send({ embeds: [embed] })
+                }
+              } else {
+                const textMessage = await parentChannel.send({ embeds: [embed] })
+                await parentChannel.setTopic(`${topic}\nembedId:${textMessage.id}`)
+              }
             }
           }
         }

@@ -9,7 +9,8 @@ import {
   AnySelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
-  SlashCommandOptionsOnlyBuilder
+  SlashCommandOptionsOnlyBuilder,
+  TextChannel
 } from 'discord.js'
 import { eventSelectButtonType, eventType } from './events/events.list'
 
@@ -53,4 +54,10 @@ export interface discordModalType extends discordInteractionType {
   // eslint-disable-next-line no-unused-vars
   execute(interaction: ModalSubmitInteraction): Promise<void>
   data: ModalBuilder
+}
+
+export interface discordChannelType {
+  // eslint-disable-next-line no-unused-vars
+  execute(interaction: TextChannel): Promise<void>
+  data: TextChannel
 }

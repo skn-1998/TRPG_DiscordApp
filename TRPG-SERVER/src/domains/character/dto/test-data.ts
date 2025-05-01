@@ -8,7 +8,7 @@ export const cthulhuTestCharacter: PartialInputCharacterDto = {
   discordUserId: '123456789012345678',
   discordChannelId: '987654321098765432',
   characterName: 'はげ田ふか男',
-  TRPGName: 'クトゥルフ神話TRPG',
+  TRPGId: 'クトゥルフ神話TRPG',
   status: {
     HP: 12,
     MP: 9,
