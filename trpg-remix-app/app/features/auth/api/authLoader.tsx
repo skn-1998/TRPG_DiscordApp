@@ -1,4 +1,4 @@
-import { json, LoaderFunctionArgs } from '@remix-run/node'
+import { createCookie, json, LoaderFunctionArgs } from '@remix-run/node'
 import { loginOrRegisterUser } from '~/utils/axiosClient'
 import { redirect } from '@remix-run/node'
 import _ from 'lodash'
@@ -10,6 +10,7 @@ export async function loginLoader({ request }: LoaderFunctionArgs) {
   const client_id = process.env.DISCORD_APPLICATIONID
 
   const redirect_url = `${process.env.HOST_DOMAIN || 'http://localhost:5173'}/login`
+  console.log('redirect_url: ' + redirect_url)
   const redirect_uri = encodeURIComponent(redirect_url)
   const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`
 
