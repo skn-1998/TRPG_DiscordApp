@@ -29,7 +29,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   async findOne(@Headers('Authorization') authorization: string) {
     const token = await this.authService.parseJwt(authorization)
-    return this.userService.findByDiscordId(token.discordUserId)
+    return await this.userService.findByDiscordId(token.discordUserId)
   }
 
   @Put(':discordUserId')

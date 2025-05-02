@@ -9,6 +9,9 @@ import { UpdateUserDto } from './dto/update-user.dto'
  */
 @Injectable()
 export class UserService {
+  validateToken(authorization: string) {
+    throw new Error('Method not implemented.')
+  }
   constructor(private readonly userRepository: UserRepository) {}
 
   /**
@@ -40,7 +43,7 @@ export class UserService {
    * @returns ユーザーまたはnull
    */
   async findByDiscordId(discordUserId: string): Promise<User | null> {
-    return this.userRepository.findByDiscordId(discordUserId)
+    return await this.userRepository.findByDiscordId(discordUserId)
   }
 
   /**

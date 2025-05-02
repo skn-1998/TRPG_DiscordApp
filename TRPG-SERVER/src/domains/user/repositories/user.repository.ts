@@ -36,7 +36,7 @@ export class UserRepository implements Repository<User, string> {
    * @param discordUserId DiscordユーザーID
    */
   async findByDiscordId(discordUserId: string): Promise<User | null> {
-    return this.userModel.findOne({ discordUserId }).exec()
+    return await this.userModel.findOne({ discordUserId }).exec()
   }
 
   /**
