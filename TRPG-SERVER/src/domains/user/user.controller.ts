@@ -23,14 +23,6 @@ export class UserController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all users' })
-  @ApiResponse({ status: 200, description: 'Return all users.', type: [User] })
-  @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.userService.findAll()
-  }
-
-  @Get(':discordUserId')
   @ApiOperation({ summary: 'Get a user by Discord ID' })
   @ApiResponse({ status: 200, description: 'Return the user.', type: User })
   @ApiResponse({ status: 404, description: 'User not found.' })
