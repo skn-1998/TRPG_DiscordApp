@@ -13,7 +13,8 @@ import { DiscordModule } from './discord/discord.module'
 @Module({
   imports: [AppConfigModule, DatabaseModule, CharacterModule, UserModule, AuthModule, DiceRollModule, DiscordModule],
   controllers: [AppController],
-  providers: [AppService]
+  providers: [AppService],
+  exports: [AppService]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

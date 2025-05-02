@@ -4,7 +4,6 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true,
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
       {
@@ -12,7 +11,6 @@
         "outDir": "dist"
       }
     ],
-    "watchAssets": true,
-    "excludes": ["src/DB/**/*", "src/db/**/*"]
+    "watchAssets": true
   }
 }

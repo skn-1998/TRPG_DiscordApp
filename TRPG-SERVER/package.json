@@ -1,7 +1,7 @@
 {
-  "name": "nest-test",
+  "name": "trpg-server",
   "version": "0.0.1",
-  "description": "",
+  "description": "TRPG Server Application",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -10,15 +10,15 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "cross-env NODE_OPTIONS=--enable-source-maps nest start --watch",
-    "start:debug": "cross-env NODE_OPTIONS=--enable-source-maps nest start --debug --watch",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix --ignore-pattern \"src/DB/**/*\" --ignore-pattern \"src/domains/discord/**/*\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "cross-env NODE_ENV=test TEST_DB_NAME=trpg_test_db jest --config ./test/jest-e2e.json --runInBand --forceExit",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix --ignore-pattern \"src/DB/**/*\" --ignore-pattern \"src/domains/discord/**/*\"",
     "clean": "rimraf dist && rimraf .eslintcache && rimraf tsconfig.tsbuildinfo",
     "clean:build": "npm run clean && npm run build"
   },
@@ -35,6 +35,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^7.3.1",
+    "@nestjs/typeorm": "^11.0.0",
     "@types/uuid": "^10.0.0",
     "axios": "^1.7.2",
     "bcdice": "^4.6.0",
@@ -50,11 +51,13 @@
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "moji": "^0.5.1",
-    "mongoose": "^8.13.2",
+    "mongoose": "^8.14.0",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
+    "pg": "^8.15.6",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
+    "typeorm": "^0.3.22",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -87,44 +90,5 @@
     "webpack": "^5.99.6",
     "webpack-cli": "^6.0.1",
     "webpack-node-externals": "^3.0.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node",
-    "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1",
-      "^@app/(.*)$": "<rootDir>/$1",
-      "^@config/(.*)$": "<rootDir>/config/$1",
-      "^@domains/(.*)$": "<rootDir>/domains/$1",
-      "^@auth/(.*)$": "<rootDir>/auth/$1",
-      "^@discord/(.*)$": "<rootDir>/discord/$1",
-      "^@middleware/(.*)$": "<rootDir>/middleware/$1"
-    },
-    "moduleDirectories": [
-      "node_modules",
-      "src",
-      "../node_modules"
-    ],
-    "modulePaths": [
-      "<rootDir>"
-    ],
-    "testPathIgnorePatterns": [
-      "/node_modules/",
-      "/src/db/",
-      "/src/DB/"
-    ]
   }
 }

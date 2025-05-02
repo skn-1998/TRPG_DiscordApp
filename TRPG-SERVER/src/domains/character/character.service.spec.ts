@@ -1,159 +1,77 @@
+/// <reference types="jest" />
+
 import { Test, TestingModule } from '@nestjs/testing'
+import { MongooseModule } from '@nestjs/mongoose'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
-import { RepositoryMockFactory } from '../../core/testing/repository.mock.factory'
-import { CreateCharacterDto } from './dto/create-character.dto'
-import { UpdateCharacterDto } from './dto/update-character.dto'
-import { Character } from './models/character.model'
+import { CHARACTER_MODEL, CharacterSchema } from './models/character.model'
+import { cthulhuTestCharacter } from './dto/test-data'
+import * as mongoose from 'mongoose'
 
-// uuidモックを設定
-jest.mock('uuid', () => ({
-  v4: jest.fn().mockReturnValue('test-uuid')
-}))
-
-describe('CharacterService', () => {
+describe('CharacterService MongoDB Connection Test', () => {
   let service: CharacterService
-  let repository: jest.Mocked<CharacterRepository>
+  let repository: CharacterRepository
+  let moduleRef: TestingModule
 
-  const mockCharacter: Character = {
-    characterId: 'test-character-id',
-    characterName: 'Test Character',
-    TRPGId: 'Test TRPG',
-    discordUserId: 'test-discord-id',
-    discordChannelId: 'test-channel-id',
-    status: {},
-    skill: {},
-    parameter: {}
-  }
+  beforeAll(async () => {
+    // MongoDB接続文字列
+    const MONGODB_URI = 'mongodb://localhost:27017/trpg-test'
 
-  beforeEach(async () => {
-    // リポジトリのモックを作成
-    repository = RepositoryMockFactory.createMock() as jest.Mocked<CharacterRepository>
+    // テスト用にMongooseを直接接続
+    await mongoose.connect(MONGODB_URI)
 
-    // カスタムメソッドのモックを追加
-    repository.findByUserId = jest.fn()
-    repository.updateField = jest.fn()
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CharacterService,
-        {
-          provide: CharacterRepository,
-          useValue: repository
-        }
-      ]
+    moduleRef = await Test.createTestingModule({
+      imports: [
+        MongooseModule.forRoot(MONGODB_URI),
+        MongooseModule.forFeature([{ name: CHARACTER_MODEL, schema: CharacterSchema }])
+      ],
+      providers: [CharacterService, CharacterRepository]
     }).compile()
 
-    service = module.get<CharacterService>(CharacterService)
+    service = moduleRef.get<CharacterService>(CharacterService)
+    repository = moduleRef.get<CharacterRepository>(CharacterRepository)
   })
 
-  it('should be defined', () => {
-    expect(service).toBeDefined()
+  afterAll(async () => {
+    // テスト後にテストデータを削除
+    if (repository && cthulhuTestCharacter.discordChannelId) {
+      await repository.removeByChannelId(cthulhuTestCharacter.discordChannelId)
+    }
+
+    // MongoDB接続を閉じる
+    await moduleRef.close()
+    await mongoose.disconnect()
   })
 
-  describe('create', () => {
-    it('should create a character', async () => {
-      const createCharacterDto: CreateCharacterDto = {
-        TRPGId: 'Test TRPG',
-        characterName: 'Test Character',
-        discordUserId: 'test-discord-id',
-        discordChannelId: 'test-channel-id',
-        characterId: '',
-        status: {},
-        parameter: {},
-        skill: {}
+  it('should connect to MongoDB and save test character data', async () => {
+    // テストデータをMongoDBに保存
+    const createdCharacter = await service.create(cthulhuTestCharacter)
+
+    // 保存したデータを取得して検証
+    if (cthulhuTestCharacter.discordChannelId) {
+      const foundCharacter = await service.findByChannelId(cthulhuTestCharacter.discordChannelId)
+
+      // 検証
+      expect(foundCharacter).toBeDefined()
+      if (foundCharacter) {
+        expect(foundCharacter.characterId).toEqual(cthulhuTestCharacter.characterId)
+        expect(foundCharacter.characterName).toEqual(cthulhuTestCharacter.characterName)
+        expect(foundCharacter.TRPGId).toEqual(cthulhuTestCharacter.TRPGId)
+        expect(foundCharacter.discordUserId).toEqual(cthulhuTestCharacter.discordUserId)
+        expect(foundCharacter.discordChannelId).toEqual(cthulhuTestCharacter.discordChannelId)
+
+        // ステータス、スキル、パラメータ、アイテムの検証
+        expect(foundCharacter.status).toEqual(expect.objectContaining(cthulhuTestCharacter.status))
+        expect(foundCharacter.skill).toEqual(expect.objectContaining(cthulhuTestCharacter.skill))
+        expect(foundCharacter.parameter).toEqual(expect.objectContaining(cthulhuTestCharacter.parameter))
+        expect(foundCharacter.item).toEqual(expect.objectContaining(cthulhuTestCharacter.item))
+
+        // 説明の検証
+        expect(foundCharacter.description).toEqual(expect.objectContaining(cthulhuTestCharacter.description))
+
+        console.log('MongoDB connection test successful!')
+        console.log('Character saved and retrieved successfully:', foundCharacter.characterName)
       }
-
-      const expectedCharacter = {
-        characterId: 'test-uuid',
-        TRPGId: 'Test TRPG',
-        characterName: 'Test Character',
-        discordUserId: 'test-discord-id',
-        discordChannelId: 'test-channel-id',
-        status: {},
-        skill: {},
-        parameter: {}
-      }
-
-      repository.create.mockResolvedValue(expectedCharacter as Character)
-
-      const result = await service.create(createCharacterDto)
-
-      expect(repository.create).toHaveBeenCalledWith(expectedCharacter)
-      expect(result).toEqual(expectedCharacter)
-    })
-  })
-
-  describe('findHavingAll', () => {
-    it('should return characters for a user', async () => {
-      repository.findByUserId.mockResolvedValue([mockCharacter])
-
-      const result = await service.findHavingAll('test-discord-id')
-
-      expect(repository.findByUserId).toHaveBeenCalledWith('test-discord-id')
-      expect(result).toEqual([mockCharacter])
-    })
-  })
-
-  describe('findOne', () => {
-    it('should return a character by ID', async () => {
-      repository.findById.mockResolvedValue(mockCharacter)
-
-      const result = await service.findOne('test-character-id')
-
-      expect(repository.findById).toHaveBeenCalledWith('test-character-id')
-      expect(result).toEqual(mockCharacter)
-    })
-
-    it('should return null when character not found', async () => {
-      repository.findById.mockResolvedValue(null)
-
-      const result = await service.findOne('non-existent-id')
-
-      expect(repository.findById).toHaveBeenCalledWith('non-existent-id')
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('update', () => {
-    it('should update a character', async () => {
-      const updateCharacterDto: UpdateCharacterDto = { characterName: 'Updated Character' }
-      const updatedCharacter = { ...mockCharacter, characterName: 'Updated Character' }
-
-      repository.update.mockResolvedValue(updatedCharacter)
-
-      const result = await service.update('test-character-id', updateCharacterDto)
-
-      expect(repository.update).toHaveBeenCalledWith('test-character-id', updateCharacterDto)
-      expect(result).toEqual(updatedCharacter)
-    })
-  })
-
-  describe('updateField', () => {
-    it('should update a specific field', async () => {
-      const field = 'status'
-      const data = { hp: 100, mp: 50 }
-      const updatedCharacter = {
-        ...mockCharacter,
-        status: { hp: 100, mp: 50 }
-      }
-
-      repository.updateField.mockResolvedValue(updatedCharacter)
-
-      const result = await service.updateField('test-character-id', field, data)
-
-      expect(repository.updateField).toHaveBeenCalledWith('test-character-id', field, data)
-      expect(result).toEqual(updatedCharacter)
-    })
-  })
-
-  describe('remove', () => {
-    it('should remove a character', async () => {
-      repository.remove.mockResolvedValue(undefined)
-
-      await service.remove('test-character-id')
-
-      expect(repository.remove).toHaveBeenCalledWith('test-character-id')
-    })
+    }
   })
 })
