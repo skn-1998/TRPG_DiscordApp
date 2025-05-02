@@ -1,14 +1,19 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, Patch } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Delete, Put, Patch, UseGuards, Headers } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger'
 import { UserService } from './user.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { User } from './models/user.model'
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'
+import { AuthService } from 'src/auth/auth.service'
 
 @ApiTags('users')
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
@@ -20,6 +25,7 @@ export class UserController {
   @Get()
   @ApiOperation({ summary: 'Get all users' })
   @ApiResponse({ status: 200, description: 'Return all users.', type: [User] })
+  @UseGuards(JwtAuthGuard)
   findAll() {
     return this.userService.findAll()
   }
@@ -28,8 +34,10 @@ export class UserController {
   @ApiOperation({ summary: 'Get a user by Discord ID' })
   @ApiResponse({ status: 200, description: 'Return the user.', type: User })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  findOne(@Param('discordUserId') discordUserId: string) {
-    return this.userService.findByDiscordId(discordUserId)
+  @UseGuards(JwtAuthGuard)
+  async findOne(@Headers('Authorization') authorization: string) {
+    const token = await this.authService.parseJwt(authorization)
+    return this.userService.findByDiscordId(token.discordUserId)
   }
 
   @Put(':discordUserId')

@@ -1,3 +1,4 @@
+/* eslint-disable indent */
 import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator'
 
 /**

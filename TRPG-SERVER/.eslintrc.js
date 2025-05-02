@@ -1,7 +1,7 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: ['./tsconfig.json'],
+    project: ['./tsconfig.json', './tsconfig.e2e.json'],
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
@@ -57,7 +57,23 @@ module.exports = {
     {
       files: ['**/*.spec.ts'],
       parserOptions: {
-        project: './tsconfig.spec.json'
+        project: ['./tsconfig.spec.json']
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        'no-unused-vars': 'off'
+      }
+    },
+    {
+      // E2Eテスト用の設定
+      files: ['test/**/*.e2e-spec.ts'],
+      parserOptions: {
+        project: ['./tsconfig.e2e.json']
       },
       rules: {
         '@typescript-eslint/no-explicit-any': 'off',
