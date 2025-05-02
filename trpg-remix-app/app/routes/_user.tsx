@@ -3,8 +3,8 @@ import { UserPageNav } from '../features/users'
 
 export default function User() {
   return (
-    <div color="#ffffff">
-      <UserPageNav />
+    <div>
+      {/* <UserPageNav /> */}
       <Outlet />
     </div>
   )
