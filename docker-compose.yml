@@ -20,7 +20,7 @@ services:
       SERVER_DOMAIN: https://nginx.io/api
       HOST_DOMAIN: https://localhost
       CHOKIDAR_USEPOLLING: true
-    command: "pnpm run dev --host" # Remixアプリを外部ホストにバインド
+    command: "pnpm install && pnpm run dev --host" # Remixアプリを外部ホストにバインド
     networks:
       - app-network
 
@@ -39,7 +39,7 @@ services:
       NODE_ENV: development
       FRONTEND_URL: https://localhost
       PORT: 3000
-    command: "pnpm run start:dev"
+    command: "pnpm install && pnpm run start:dev"
     networks:
       - app-network
   nginx.io:
