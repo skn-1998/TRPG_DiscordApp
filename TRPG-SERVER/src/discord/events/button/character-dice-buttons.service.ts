@@ -16,12 +16,28 @@ import {
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
+import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'
+import { PartialInputDiceRollTextDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
+import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.interface'
+import { OnEvent } from '@nestjs/event-emitter'
+import { v4 as uuidv4 } from 'uuid'
 
 @Injectable()
 export class CharacterDiceButtonsService implements discordButtonType {
-  constructor(private readonly characterService: CharacterService) {}
+  // 最後のEmbed更新時間を保持するMap（チャンネルIDをキーに）
+  private lastEmbedUpdateTime = new Map<string, number>()
+
+  // 更新間隔の最小値（ミリ秒）
+  private readonly MIN_UPDATE_INTERVAL = 2000 // 2秒
+
+  constructor(
+    private readonly characterService: CharacterService,
+    private readonly diceRollService: DiceRollService,
+    private readonly paginationService: DiceRollPaginationService
+  ) {}
 
   // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
   // 実際には動的に生成されるためここでは最小限のものを提供
@@ -41,6 +57,9 @@ export class CharacterDiceButtonsService implements discordButtonType {
         return
       }
 
+      // 操作中を示す
+      await interaction.deferUpdate()
+
       // 通常のスキルロールまたはダイスロールの処理
       const rollInfo = customId.replace('roll*', '')
 
@@ -52,10 +71,10 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // スキルロールか通常のダイスロールかを判断
       if (rollInfo.includes('_')) {
         // スキルロール
-        skillName = rollInfo.replace('_', '').split('-')[0]
-        skillValue = Number(rollInfo.replace('_', '').split('-')[1])
+        const parts = rollInfo.replace('_', '').split('-')
+        skillName = parts[0]
+        skillValue = Number(parts[1])
         diceCommand = '1d100' + '<' + skillValue
-        console.log(diceCommand)
       } else {
         diceCommand = rollInfo
       }
@@ -63,85 +82,69 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // ダイスロールを実行
       const diceResult = await dice(diceCommand, 'Cthulhu')
       if (isNull(diceResult)) {
-        await interaction.reply({ content: 'ダイスロールに失敗しました', ephemeral: true })
+        await interaction.followUp({
+          content: '🎲 ダイスロールに失敗しました。正しいコマンド形式か確認してください。',
+          ephemeral: true
+        })
         return
       }
 
       // スキルロールの場合は成功/失敗判定を行う
-      // const resultMessage = diceResult.text || `${diceCommand}の結果: 不明`
       const result = diceResult.rands.reduce((acc, curr) => acc + curr[0], 0)
       // ダイス目を数値として抽出
 
       const rollValue = result
       if (rollValue > 0) {
-        let embedColor: ColorResolvable
-        if (diceResult.critical || result < 5) {
-          embedColor = Colors.Gold // ゴールド
-        } else if (diceResult.fumble || result > 95) {
-          embedColor = Colors.Purple // 紫
-        } else if (diceResult.success) {
-          embedColor = Colors.Green // 緑
-        } else if (diceResult.failure) {
-          embedColor = Colors.Red // 赤
-        } else {
-          embedColor = '#808080' // グレー
-        }
-
         const characterName = interaction.channel.name
+
+        // 結果に応じた表示スタイルを取得
+        const { embedColor, resultEmoji } = this.getResultStyle(diceResult, result)
+
+        // 結果メッセージを作成
+        const resultText = this.formatResultText(resultEmoji, characterName, skillName, diceResult.text)
+
         // Embedを作成
-        const embed = new EmbedBuilder()
-          .setColor(embedColor)
-          .setDescription(`${characterName}:${skillName}:${diceResult.text}`)
+        const embed = new EmbedBuilder().setColor(embedColor).setDescription(resultText).setTimestamp() // タイムスタンプを追加
 
         // スレッドのチャンネルタイプ確認
         if (interaction.channel?.type === ChannelType.PublicThread) {
           // 親チャンネルにもメッセージを送信
           const parentChannelId = interaction.channel.parentId
           if (parentChannelId) {
-            const parentChannel = (await interaction.client.channels.fetch(parentChannelId)) as TextChannel
-            if (parentChannel && parentChannel.isTextBased()) {
-              console.log(parentChannel)
-              const topic = parentChannel.topic
-              if (topic.includes('embedId')) {
-                const embedIdLine = /^.*embedId:\d+.*$/m.exec(topic)[0] || ''
-                const embedId = embedIdLine.split(':')[1]
-                const textMessage = await parentChannel.messages.fetch(embedId)
-                if (textMessage && textMessage.embeds.length > 0) {
-                  // 現在のエンベッドを取得
-                  const currentEmbed = textMessage.embeds[0]
-
-                  // 現在の説明文を取得（nullの場合は空文字列で初期化）
-                  const currentDescription = currentEmbed.description || ''
-
-                  // 新しいコンテンツを追加（最後に改行して追加）
-                  const newDescription =
-                    currentDescription +
-                    (currentDescription ? '\n' : '') + // 既存の内容がある場合のみ改行を追加
-                    `+${characterName}:${skillName}:${diceResult.text}`
-
-                  // 新しい説明文でエンベッドを更新
-                  const updatedEmbed = new EmbedBuilder(currentEmbed.data).setDescription(newDescription)
-                  await textMessage.edit({ embeds: [updatedEmbed] })
-                } else {
-                  await parentChannel.send({ embeds: [embed] })
-                }
-              } else {
-                const textMessage = await parentChannel.send({ embeds: [embed] })
-                await parentChannel.setTopic(`${topic}\nembedId:${textMessage.id}`)
-              }
+            // await this.handleParentChannelMessage(
+            //   interaction,
+            //   parentChannelId,
+            //   embed,
+            //   characterName,
+            //   resultText,
+            //   result,
+            //   diceCommand
+            // )
+            const diceResultData: DiceRollRequest = {
+              characterName: characterName,
+              skillName: skillName,
+              notation: diceCommand
             }
+            this.handleDiceRoll(interaction, diceResultData)
           }
         }
 
-        // ボタンの応答を完了させる
-        await interaction.deferUpdate()
         return
+      } else {
+        await interaction.followUp({
+          content: '🎲 ダイスロールの結果が不正です。もう一度お試しください。',
+          ephemeral: true
+        })
       }
     } catch (error) {
       console.error('ダイスボタン処理エラー:', error)
 
       // エラーが発生した場合、通知
-      await interaction.reply({ content: 'エラーが発生しました。もう一度お試しください。', ephemeral: true })
+      try {
+        await interaction.followUp({ content: '⚠️ エラーが発生しました。もう一度お試しください。', ephemeral: true })
+      } catch (replyError) {
+        console.error('エラー応答に失敗:', replyError)
+      }
     }
   }
 
@@ -156,9 +159,9 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // ダイスコマンド入力フィールド
       const diceCommandInput = new TextInputBuilder()
         .setCustomId('dice-command')
-        .setLabel('ダイスコマンド（例: 2d6+3, 1d100）')
+        .setLabel('ダイスコマンド')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('1d100')
+        .setPlaceholder('例: 2d6+3, 1d100')
         .setRequired(true)
         .setMinLength(1)
         .setMaxLength(20)
@@ -168,7 +171,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
         .setCustomId('dice-comment')
         .setLabel('コメント（任意）')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('任意のコメント')
+        .setPlaceholder('例: 攻撃ロール、調査判定など')
         .setRequired(false)
         .setMaxLength(50)
 
@@ -183,7 +186,614 @@ export class CharacterDiceButtonsService implements discordButtonType {
       await interaction.showModal(modal)
     } catch (error) {
       console.error('カスタムダイスモーダル作成エラー:', error)
-      await interaction.reply({ content: 'エラーが発生しました。もう一度お試しください。', ephemeral: true })
+      await interaction.reply({
+        content: '⚠️ カスタムダイスモーダルの表示中にエラーが発生しました。もう一度お試しください。',
+        ephemeral: true
+      })
+    }
+  }
+
+  /**
+   * ダイスロール結果に応じた色と絵文字を取得
+   */
+  private getResultStyle(
+    diceResult: { critical?: boolean; fumble?: boolean; success?: boolean; failure?: boolean },
+    result: number
+  ): { embedColor: ColorResolvable; resultEmoji: string } {
+    let resultEmoji: string
+    let embedColor: ColorResolvable = Colors.White
+
+    if (diceResult.critical || result < 5) {
+      resultEmoji = '🌟 ' // クリティカル
+      embedColor = Colors.Gold
+    } else if (diceResult.fumble || result > 95) {
+      resultEmoji = '💥' // ファンブル
+      embedColor = Colors.Red
+    } else if (diceResult.success) {
+      resultEmoji = '✅' // 成功
+      embedColor = Colors.Green
+    } else if (diceResult.failure) {
+      resultEmoji = '❌' // 失敗
+      embedColor = Colors.Grey
+    } else {
+      resultEmoji = '🎲' // 普通のロール
+      embedColor = Colors.Blue
+    }
+
+    return { embedColor: Colors.White, resultEmoji }
+  }
+
+  /**
+   * 結果テキストをフォーマット
+   */
+  private formatResultText(
+    resultEmoji: string,
+    characterName: string,
+    skillName: string | null,
+    diceText: string
+  ): string {
+    if (skillName) {
+      return `${resultEmoji}**${characterName}** の **${skillName}** ロール：${diceText}`
+    } else {
+      return `${resultEmoji}**${characterName}**：${diceText}`
+    }
+  }
+
+  /**
+   * ダイスロール結果を保存
+   */
+  private saveRollResult(
+    characterName: string,
+    resultText: string,
+    result: number,
+    diceCommand: string,
+    discordChannelId: string
+  ): Promise<void> {
+    return new Promise(async (resolve) => {
+      try {
+        const character = await this.characterService.findByName(characterName)
+
+        // キャラクターが見つからない場合はエラーログを出力して処理を中断
+        if (!character) {
+          console.error(`キャラクター "${characterName}" が見つかりません。ダイスロール結果の保存をスキップします。`)
+          return resolve()
+        }
+
+        const text: PartialInputDiceRollTextDto = {
+          characterId: character.characterId,
+          text: resultText,
+          result: result,
+          diceRoll: diceCommand,
+          discordChannelId: discordChannelId
+        }
+
+        // 保存処理をPromiseで開始して待たない（バックグラウンド処理）
+        this.diceRollService
+          .createText(text)
+          .then(() => {
+            // キャッシュ無効化も非同期に実行
+            this.paginationService.invalidateCache(discordChannelId)
+          })
+          .catch((error) => {
+            console.error('ダイスロール結果の保存に失敗しました:', error)
+          })
+
+        // 即時resolve（保存完了を待たない）
+        resolve()
+      } catch (error) {
+        console.error('ダイスロール結果の保存に失敗しました:', error)
+        resolve() // エラー時もresolve
+      }
+    })
+  }
+
+  /**
+   * 親チャンネルへのメッセージ送信処理
+   */
+  private async handleParentChannelMessage(
+    interaction: ButtonInteraction,
+    parentChannelId: string,
+    embed: EmbedBuilder,
+    characterName: string,
+    resultText: string,
+    result: number,
+    diceCommand: string
+  ): Promise<void> {
+    // 処理のタイムアウト設定（10秒）
+    const timeout = setTimeout(() => {
+      console.log(`インタラクション処理がタイムアウトしました: ${interaction.id}`)
+    }, 10000)
+
+    try {
+      // 親チャンネルを取得
+      const parentChannel = (await interaction.client.channels.fetch(parentChannelId)) as TextChannel
+      if (!parentChannel || !parentChannel.isTextBased()) {
+        console.error('親チャンネルが見つからないか、テキストチャンネルではありません')
+        clearTimeout(timeout)
+        return
+      }
+
+      // 並列処理で効率化
+      const [channelData] = await Promise.all([
+        // チャンネルデータを取得
+        this.diceRollService.findChannelByChannelId(parentChannelId),
+        // ダイスロール結果を保存（バックグラウンドで非同期実行）
+        this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
+      ])
+
+      // 前回の更新からの経過時間をチェック
+      const now = Date.now()
+      const lastUpdate = this.lastEmbedUpdateTime.get(parentChannelId) || 0
+      const timeSinceLastUpdate = now - lastUpdate
+
+      // 前回の更新から一定時間経っていない場合はスキップ
+      if (timeSinceLastUpdate < this.MIN_UPDATE_INTERVAL) {
+        console.log(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`)
+        clearTimeout(timeout)
+        return
+      }
+
+      // 更新時間を記録
+      this.lastEmbedUpdateTime.set(parentChannelId, now)
+
+      // ページネーション表示を作成（非同期で開始して結果を待たない）
+      console.log('ページネーション表示を作成します')
+      this.createPaginatedDiceRoll(interaction, parentChannel, parentChannelId)
+        .catch((error) => {
+          console.error('ページネーション表示の作成に失敗しました:', error)
+        })
+        .finally(() => {
+          clearTimeout(timeout)
+        })
+    } catch (error) {
+      console.error('親チャンネルへのメッセージ送信中にエラーが発生しました:', error)
+      clearTimeout(timeout)
+    }
+  }
+
+  /**
+   * ページネーション付きのダイスロール履歴メッセージを作成
+   */
+  private async createPaginatedDiceRoll(
+    interaction: ButtonInteraction,
+    parentChannel: TextChannel,
+    channelId: string
+  ): Promise<void> {
+    // 競合を避けるためのロック機構
+    const lockKey = `pagination_lock_${channelId}`
+    if (this[lockKey]) {
+      console.log(`ページネーション処理が既に進行中です: ${channelId}`)
+      return
+    }
+
+    // ロックを設定
+    this[lockKey] = true
+
+    // 最大5秒後に強制的にロックを解除
+    const lockTimeout = setTimeout(() => {
+      this[lockKey] = false
+      console.log(`ページネーションロックを強制解除: ${channelId}`)
+    }, 5000)
+
+    // 処理開始時間
+    const startTime = Date.now()
+    console.log(`[Performance] ページネーション表示処理開始: channelId=${channelId}`)
+
+    try {
+      // キャラクターを特定（スレッド名からキャラクター名を取得）
+      let characterId: string | undefined = undefined
+      let characterName: string | undefined = undefined
+
+      if (interaction.channel && interaction.channel.name) {
+        characterName = interaction.channel.name
+        // このキャラクター情報取得は非同期で行うが、結果を待たずに先に進む
+        this.characterService
+          .findByName(characterName)
+          .then((character) => {
+            if (character) {
+              characterId = character.characterId
+            }
+          })
+          .catch((error) => {
+            console.error('キャラクター情報の取得に失敗:', error)
+          })
+      }
+
+      // チャンネルデータを取得
+      const dbQueryStartTime = Date.now()
+      const channelData = await this.diceRollService.findChannelByChannelId(channelId)
+      const dbQueryTime = Date.now() - dbQueryStartTime
+      console.log(`[Performance] チャンネルデータ取得完了: channelId=${channelId}, 所要時間=${dbQueryTime}ms`)
+
+      // ページネーション生成開始時間
+      const pageGenStartTime = Date.now()
+
+      // ページネーションサービスを使用して履歴からEmbedを作成
+      // 常に全キャラクターのデータを表示するため、characterIdはundefinedを渡す
+      const pages = await this.paginationService.createPaginatedEmbeds(channelId, undefined)
+
+      const pageGenTime = Date.now() - pageGenStartTime
+      console.log(`[Performance] ページネーション生成完了: ページ数=${pages.length}, 所要時間=${pageGenTime}ms`)
+
+      // channelData.embedIdが存在する場合は既存のメッセージを編集
+      if (channelData?.embedId) {
+        try {
+          const fetchStartTime = Date.now()
+          const existingMessage = await parentChannel.messages.fetch(channelData.embedId)
+          const fetchTime = Date.now() - fetchStartTime
+          console.log(`[Performance] 既存メッセージ取得: 所要時間=${fetchTime}ms`)
+
+          if (existingMessage) {
+            // ページネーション状態を保存
+            const paginationState = {
+              pages,
+              totalPages: pages.length,
+              currentPage: 0,
+              characterId: undefined,
+              messageId: existingMessage.id
+            }
+
+            this.paginationService.savePaginationState(channelId, existingMessage.id, paginationState)
+
+            // ページネーションコントロール生成開始時間
+            const controlsStartTime = Date.now()
+
+            // ページネーションコントロールを作成
+            const controls = await this.paginationService.createPaginationControls(
+              existingMessage.id,
+              channelId,
+              pages.length
+            )
+
+            const controlsTime = Date.now() - controlsStartTime
+            console.log(`[Performance] コントロール生成完了: 所要時間=${controlsTime}ms`)
+
+            // メッセージ編集開始時間
+            const editStartTime = Date.now()
+
+            // メッセージを更新して即座に完了
+            await existingMessage.edit({
+              content: null,
+              embeds: [pages[0]],
+              components: controls
+            })
+
+            const editTime = Date.now() - editStartTime
+            console.log(`[Performance] メッセージ編集完了: 所要時間=${editTime}ms`)
+
+            const totalTime = Date.now() - startTime
+            console.log(`[Performance] ページネーション表示処理完了(既存メッセージ編集): 総所要時間=${totalTime}ms`)
+
+            // ロックを解除
+            clearTimeout(lockTimeout)
+            this[lockKey] = false
+            return
+          }
+        } catch (error) {
+          console.error('既存メッセージの編集に失敗:', error)
+        }
+      }
+
+      // 既存のメッセージがない場合や編集に失敗した場合は新しいメッセージを作成
+      const sendStartTime = Date.now()
+      const newMessage = await parentChannel.send({
+        content: '🎲 ダイスロール履歴を読み込み中...'
+      })
+      const sendTime = Date.now() - sendStartTime
+      console.log(`[Performance] 新規メッセージ送信: 所要時間=${sendTime}ms`)
+
+      if (pages.length === 0) {
+        // ダイスロール履歴がない場合は空の履歴ページを作成
+        const emptyEmbed = new EmbedBuilder()
+          .setTitle('ダイスロール履歴')
+          .setDescription('ダイスロール履歴がありません。ダイスを振ってデータを記録しましょう。')
+          .setColor('#0099ff')
+          .setTimestamp()
+
+        // ページネーション状態を保存
+        const paginationState = {
+          pages: [emptyEmbed],
+          totalPages: 1,
+          currentPage: 0,
+          characterId: undefined,
+          messageId: newMessage.id
+        }
+
+        this.paginationService.savePaginationState(channelId, newMessage.id, paginationState)
+
+        // キャラクターセレクトメニューを含むコントロールを作成
+        const controls = await this.paginationService.createPaginationControls(newMessage.id, channelId, 1)
+
+        // 一度に全てのデータを編集
+        await newMessage.edit({
+          content: null,
+          embeds: [emptyEmbed],
+          components: controls
+        })
+
+        // 新しいEmbedIDをチャンネルに紐づける（バックグラウンド処理）
+        this.diceRollService
+          .updateEmbed(newMessage.id, {
+            embedId: newMessage.id,
+            discordChannelId: channelId
+          })
+          .catch((error) => {
+            console.error('Embed IDの更新に失敗:', error)
+          })
+
+        const totalTime = Date.now() - startTime
+        console.log(`[Performance] ページネーション表示処理完了(空ページ): 総所要時間=${totalTime}ms`)
+
+        // ロックを解除
+        clearTimeout(lockTimeout)
+        this[lockKey] = false
+        return
+      }
+
+      // ページネーション状態を保存
+      const paginationState = {
+        pages,
+        totalPages: pages.length,
+        currentPage: 0,
+        characterId: undefined,
+        messageId: newMessage.id
+      }
+
+      this.paginationService.savePaginationState(channelId, newMessage.id, paginationState)
+
+      // ページネーションコントロール生成開始時間
+      const controlsStartTime = Date.now()
+
+      // ページネーションコントロールを作成
+      const controls = await this.paginationService.createPaginationControls(newMessage.id, channelId, pages.length)
+
+      const controlsTime = Date.now() - controlsStartTime
+      console.log(`[Performance] コントロール生成完了: 所要時間=${controlsTime}ms`)
+
+      // コントロールが存在することを確認
+      if (!controls || controls.length === 0) {
+        console.error('ページネーションコントロールの作成に失敗しました')
+
+        // コントロールを再作成（強制的にボタンだけでも表示）
+        const fallbackControls = this.createFallbackControls(newMessage.id, channelId)
+
+        // エラーの場合でもEmbedとナビゲーションボタンだけは表示
+        const editStartTime = Date.now()
+        await newMessage.edit({
+          content: null,
+          embeds: [pages[0]],
+          components: fallbackControls
+        })
+        const editTime = Date.now() - editStartTime
+        console.log(`[Performance] フォールバックコントロール編集完了: 所要時間=${editTime}ms`)
+      } else {
+        // メッセージを更新して履歴とコントロールを表示
+        const editStartTime = Date.now()
+        await newMessage.edit({
+          content: null,
+          embeds: [pages[0]],
+          components: controls
+        })
+        const editTime = Date.now() - editStartTime
+        console.log(`[Performance] メッセージ編集完了: 所要時間=${editTime}ms`)
+      }
+
+      // 新しいEmbedIDをチャンネルに紐づける（バックグラウンド処理）
+      this.diceRollService
+        .updateEmbed(newMessage.id, {
+          embedId: newMessage.id,
+          discordChannelId: channelId
+        })
+        .catch((error) => {
+          console.error('Embed IDの更新に失敗:', error)
+        })
+
+      const totalTime = Date.now() - startTime
+      console.log(
+        `[Performance] ページネーション表示処理完了(新規メッセージ): 総所要時間=${totalTime}ms, ページ数=${pages.length}${characterName ? `, キャラクター=${characterName}` : ''}`
+      )
+
+      console.log(
+        `ダイスロール履歴ページネーション作成: ${pages.length}ページ${characterName ? ` (${characterName})` : ''}`
+      )
+    } catch (error) {
+      console.error('ページネーション作成エラー:', error)
+      // エラー時は親チャンネルに通知
+      try {
+        await parentChannel.send({
+          content: '⚠️ ダイスロール履歴の表示中にエラーが発生しました。',
+          components: []
+        })
+      } catch (sendError) {
+        console.error('エラー通知の送信に失敗:', sendError)
+      }
+    } finally {
+      // 最後に必ずロックを解除
+      clearTimeout(lockTimeout)
+      this[lockKey] = false
+    }
+  }
+
+  /**
+   * フォールバック用の最小限のコントロールを作成
+   */
+  private createFallbackControls(messageId: string, channelId: string): ActionRowBuilder<ButtonBuilder>[] {
+    // 基本的なナビゲーションボタン
+    const prevButton = new ButtonBuilder()
+      .setCustomId(`dice-prev*${messageId}*${channelId}`)
+      .setLabel('◀ 前へ')
+      .setStyle(ButtonStyle.Primary)
+
+    const pageInfoButton = new ButtonBuilder()
+      .setCustomId(`dice-page-info*${messageId}*${channelId}`)
+      .setLabel('ページ 1')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true)
+
+    const nextButton = new ButtonBuilder()
+      .setCustomId(`dice-next*${messageId}*${channelId}`)
+      .setLabel('次へ ▶')
+      .setStyle(ButtonStyle.Primary)
+
+    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, pageInfoButton, nextButton)
+
+    return [buttonRow]
+  }
+
+  @OnEvent('diceRoll')
+  public async handleDiceRoll(interaction: ButtonInteraction, req: DiceRollRequest): Promise<void> {
+    try {
+      const { user, channel } = interaction
+      if (!channel?.isTextBased()) return
+
+      // テキストチャンネルを確認
+      const parentChannel = channel as TextChannel
+      const channelId = parentChannel.id
+
+      // ユーザーとキャラクター情報を取得
+      const characterId = req.characterId
+
+      // 即時応答用の一時リプライを送信
+      await interaction.deferReply({ ephemeral: false })
+
+      // ダイスロールを実行
+      const result = await this.diceRollService.processDiceRoll({
+        discordUserId: user.id,
+        characterId: characterId,
+        diceNotation: req.notation,
+        discordChannelId: channelId,
+        discordMessageId: interaction.message.id,
+        characterName: req.characterName,
+        characterImageUrl: req.imageUrl,
+        skillName: req.skillName,
+        // 成功値が指定されていれば設定
+        targetValue: req.targetValue ? parseInt(req.targetValue) : undefined
+      })
+
+      // シンプルなテキストメッセージとして結果を表示
+      const rollResultText = this.formatDiceRollResultAsText(result, req)
+      await interaction.editReply(rollResultText)
+
+      // データは保存するが、Embedの更新は行わない
+      // ダイスロール結果のみをデータベースに保存（バックグラウンド処理）
+      this.diceRollService
+        .createText({
+          textId: uuidv4(),
+          discordChannelId: channelId,
+          characterId: characterId,
+          result: result.result,
+          diceRoll: req.notation,
+          text: `${req.characterName ? `${req.characterName}の` : ''}${req.skillName ? `${req.skillName}` : ''}ロール結果: ${result.result}`
+        })
+        .catch((error) => {
+          console.error('ダイスロール履歴の保存に失敗:', error)
+        })
+
+      /* 以下の処理は一時的にコメントアウト
+      // ダイスロール履歴を非同期で更新（バックグラウンド処理）
+      this.updateDiceRollHistoryAsync(interaction, parentChannel, channelId);
+      
+      // ダイスロール履歴Embedを更新
+      const channelData = await this.diceRollService.getChannelData(channelId);
+      
+      if (channelData?.embedId) {
+        // embedIdが保存されている場合、そのメッセージを編集
+        this.updateExistingEmbed(interaction, parentChannel, channelId);
+      } else {
+        // 新しくページネーションを作成
+        this.createPaginatedDiceRoll(interaction, parentChannel, channelId);
+      }
+      */
+    } catch (error) {
+      console.error('ダイスロール処理エラー:', error)
+      await interaction.editReply('ダイスロールの処理中にエラーが発生しました。')
+    }
+  }
+
+  // ダイスロール結果をテキスト形式でフォーマットする新しい関数
+  private formatDiceRollResultAsText(result: DiceRollResult, req: DiceRollRequest): string {
+    let text = '🎲 **ダイスロール結果**\n\n'
+
+    // キャラクター情報
+    if (req.characterName) {
+      text += `**キャラクター**: ${req.characterName}\n`
+    }
+
+    // スキル名と目標値
+    if (req.skillName) {
+      text += `**スキル**: ${req.skillName}`
+      if (req.targetValue) {
+        text += ` (目標値: ${req.targetValue})`
+      }
+      text += '\n'
+    }
+
+    // ダイス記法と結果
+    text += `**ダイス**: ${req.notation}\n`
+    text += `**結果**: ${result.result}\n`
+
+    // 成功判定の結果
+    if (result.success !== undefined) {
+      text += `**判定**: ${this.getSuccessText(result.success)}\n`
+    }
+
+    // タイムスタンプ
+    text += `\n_${new Date().toLocaleTimeString()}_`
+
+    return text
+  }
+
+  // 成功度をテキストに変換
+  private getSuccessText(success: number): string {
+    switch (success) {
+      case 1:
+        return '成功'
+      case 2:
+        return 'ハード成功'
+      case 3:
+        return 'イクストリーム成功'
+      case 4:
+        return 'クリティカル'
+      case -1:
+        return '失敗'
+      case -2:
+        return 'ファンブル'
+      default:
+        return '不明'
+    }
+  }
+
+  // 履歴更新をバックグラウンドで実行する関数
+  private async updateDiceRollHistoryAsync(
+    interaction: ButtonInteraction,
+    parentChannel: TextChannel,
+    channelId: string
+  ): Promise<void> {
+    try {
+      // 新しくページネーションを更新（完全に非同期で実行）
+      const channelData = await this.diceRollService.getChannelData(channelId)
+
+      if (channelData?.embedId) {
+        // 直近の更新から2秒以上経過していたら更新
+        const lastUpdate = this.lastEmbedUpdateTime.get(channelId) || 0
+        const now = Date.now()
+        const timeSinceLastUpdate = now - lastUpdate
+
+        if (timeSinceLastUpdate >= this.MIN_UPDATE_INTERVAL) {
+          this.lastEmbedUpdateTime.set(channelId, now)
+
+          // 履歴更新処理を実行（エラーをキャッチするが特に通知はしない）
+          // 本来はupdateExistingEmbedメソッドを呼び出す
+          // 今回はテスト実装のため省略
+          // this.updateExistingEmbed(interaction, parentChannel, channelId)
+          //   .catch(err => console.error('履歴更新エラー:', err));
+        } else {
+          console.log(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`)
+        }
+      }
+    } catch (error) {
+      // エラーはログに記録するだけで、ユーザーには通知しない
+      console.error('履歴更新非同期処理エラー:', error)
     }
   }
 }
