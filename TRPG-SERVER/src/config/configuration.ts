@@ -1,6 +1,35 @@
 /**
  * 型安全な設定値を生成するための関数群と設定値の型定義
+ * リファクタリング済み: 新しい環境変数バリデーションシステムを使用
  */
+
+import { EnvironmentValidator } from './environment.validator'
+import { EnvironmentSchema } from './schemas/environment.schema'
+
+/**
+ * 検証済み環境変数のキャッシュ
+ */
+let validatedEnvironment: EnvironmentSchema | null = null
+
+/**
+ * 環境変数を検証して取得
+ */
+function getValidatedEnvironment(): EnvironmentSchema {
+  if (validatedEnvironment) {
+    return validatedEnvironment
+  }
+
+  const validation = EnvironmentValidator.validate()
+
+  if (!validation.success) {
+    console.error('🚨 環境変数の検証に失敗しました:')
+    console.error(EnvironmentValidator.formatErrors(validation.errors!))
+    process.exit(1)
+  }
+
+  validatedEnvironment = validation.data!
+  return validatedEnvironment
+}
 
 /**
  * 文字列変換またはデフォルト値を返す
@@ -33,56 +62,50 @@ const convertBooleanOrDefault = (raw: string | undefined, defaultValue: boolean)
 
 /**
  * アプリケーション設定値を生成する
+ * 新しいバリデーションシステムを使用して型安全性を確保
  */
 export const generateAppConfig = () => {
-  // 必須環境変数の検証
-  const requiredVars = ['TOKEN', 'DISCORD_APPLICATIONID', 'DISCORD_SECRET', 'JWT_SECRET', 'MONGODB_URI']
-
-  const missingVars = requiredVars.filter((varName) => !process.env[varName])
-
-  if (missingVars.length > 0) {
-    console.error(`必須環境変数が設定されていません: ${missingVars.join(', ')}`)
-    process.exit(1)
-  }
+  const env = getValidatedEnvironment()
 
   return {
     // アプリケーション設定
     app: {
-      environment: convertOrDefault(process.env.NODE_ENV, 'development'),
-      port: convertIntOrDefault(process.env.PORT, 3000),
-      frontendUrl: convertOrDefault(process.env.FRONTEND_URL, 'http://localhost:5173')
+      environment: env.NODE_ENV,
+      port: env.PORT,
+      frontendUrl: env.FRONTEND_URL!
     },
 
     // データベース設定
     database: {
       // [必須] MongoDB接続URI
-      mongoUri: process.env.MONGODB_URI,
+      mongoUri: env.MONGODB_URI,
       // ログを出力するかどうか
-      logging: convertBooleanOrDefault(process.env.DB_LOGGING, false)
+      logging: env.DB_LOGGING!
     },
 
     // Discord設定
     discord: {
       // [必須] Discordトークン
-      token: process.env.TOKEN,
+      token: env.TOKEN,
       // [必須] DiscordアプリケーションID
-      applicationId: process.env.DISCORD_APPLICATIONID,
+      applicationId: env.DISCORD_APPLICATIONID,
       // [必須] Discordシークレット
-      secret: process.env.DISCORD_SECRET,
+      secret: env.DISCORD_SECRET,
       // Discord GuildID
-      guildId: process.env.GUILDID,
+      guildId: env.GUILDID,
       // キャラクターカテゴリー名
-      characterCategory: convertOrDefault(process.env.CHARACTER_CATEGORY, 'キャラクター'),
+      characterCategory: env.CHARACTER_CATEGORY!,
       // ダイスロールカテゴリー名
-      diceRollCategory: convertOrDefault(process.env.DICE_ROLL_CATEGORY, 'ダイスロールチャンネル')
+      diceRollCategory: env.DICE_ROLL_CATEGORY!
     },
 
     // 認証設定
     auth: {
       // [必須] JWT署名用の秘密鍵
-      jwtSecret: process.env.JWT_SECRET,
+      jwtSecret: env.JWT_SECRET,
       // JWTトークンの有効期限（秒）
-      jwtExpiresIn: convertIntOrDefault(process.env.JWT_EXPIRES_IN, 86400) // デフォルト24時間
+      jwtExpiresIn: env.JWT_EXPIRES_IN!,
+      redirectUrl: env.REDIRECT_URL!
     }
   }
 }
@@ -92,3 +115,10 @@ export const generateAppConfig = () => {
  * generateAppConfig関数の戻り値から型を自動生成
  */
 export type AppConfig = ReturnType<typeof generateAppConfig>
+
+/**
+ * 環境変数の再検証（テスト用）
+ */
+export function revalidateEnvironment(): void {
+  validatedEnvironment = null
+}
