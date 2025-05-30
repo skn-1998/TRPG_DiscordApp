@@ -33,6 +33,9 @@ export class DiceRollText {
   @Prop({ required: false })
   TRPGId: string
 
+  @Prop({ type: Boolean, default: false })
+  isSecret: boolean
+
   @Prop({ type: Date, default: Date.now })
   createdAt: Date
 }

@@ -79,6 +79,17 @@ export class DiceRollChannelRepository implements Repository<DiceRollChannel, st
   }
 
   /**
+   * エンベッドIDをダイスロールチャンネルに追加する
+   * @param channelId DiscordチャンネルID
+   * @param embedId エンベッドID
+   */
+  async addEmbedId(channelId: string, embedId: string): Promise<DiceRollChannel | null> {
+    return this.diceRollChannelModel
+      .findOneAndUpdate({ discordChannelId: channelId }, { embedId: embedId }, { new: true })
+      .exec()
+  }
+
+  /**
    * ダイスロールチャンネルを削除する
    * @param channelId DiscordチャンネルID
    */

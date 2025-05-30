@@ -17,7 +17,7 @@ export class CreateDiceRollTextDto {
   @IsOptional()
   characterId?: string
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
   result: number
 

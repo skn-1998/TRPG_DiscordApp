@@ -225,6 +225,8 @@ export class DiceRollPaginationService {
       page.setFooter({
         text: `Page ${index + 1}/${pages.length}`
       })
+      // タイムスタンプも追加（オプション）
+      page.setTimestamp()
     })
     return pages
   }
@@ -247,30 +249,52 @@ export class DiceRollPaginationService {
     // 総ページ数が0の場合でも最低限のコントロールは作成
     const effectiveTotalPages = Math.max(1, totalPages)
 
-    // ナビゲーションボタン
+    // ページネーションボタン（画像スタイルに合わせて）
+    const firstPageButton = new ButtonBuilder()
+      .setCustomId(`dice-first*${messageId}*${channelId}`)
+      .setLabel('<<')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage <= 0 || effectiveTotalPages <= 1)
+
     const prevButton = new ButtonBuilder()
       .setCustomId(`dice-prev*${messageId}*${channelId}`)
-      .setLabel('◀ 前へ')
-      .setStyle(ButtonStyle.Primary)
+      .setLabel('<')
+      .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage <= 0 || effectiveTotalPages <= 1)
 
     const nextButton = new ButtonBuilder()
       .setCustomId(`dice-next*${messageId}*${channelId}`)
-      .setLabel('次へ ▶')
-      .setStyle(ButtonStyle.Primary)
+      .setLabel('>')
+      .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= effectiveTotalPages - 1 || effectiveTotalPages <= 1)
 
-    // 現在のページ/総ページ数を表示するボタン（クリックできないスタイル）
-    const pageInfoButton = new ButtonBuilder()
-      .setCustomId(`dice-page-info*${messageId}*${channelId}`)
-      .setLabel(`${currentPage + 1} / ${effectiveTotalPages}`)
+    const lastPageButton = new ButtonBuilder()
+      .setCustomId(`dice-last*${messageId}*${channelId}`)
+      .setLabel('>>')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
+      .setDisabled(currentPage >= effectiveTotalPages - 1 || effectiveTotalPages <= 1)
 
-    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, pageInfoButton, nextButton)
+    // キャンセルボタン
+    const cancelButton = new ButtonBuilder()
+      .setCustomId(`dice-cancel*${messageId}*${channelId}`)
+      .setLabel('cancel')
+      .setStyle(ButtonStyle.Danger)
+
+    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      firstPageButton,
+      prevButton,
+      nextButton,
+      lastPageButton,
+      cancelButton
+    )
 
     // ボタン行を追加
     rows.push(buttonRow)
+
+    // ページ選択用のセレクトメニュー（ページ数が多い場合）
+    if (effectiveTotalPages > 1) {
+      await this.addPageSelectMenu(rows, messageId, channelId, currentPage, effectiveTotalPages)
+    }
 
     try {
       // キャラクター選択メニュー生成
@@ -282,6 +306,59 @@ export class DiceRollPaginationService {
 
     // 最低でもボタン行が含まれているはず
     return rows
+  }
+
+  /**
+   * ページ選択用のセレクトメニューを追加
+   */
+  private async addPageSelectMenu(
+    rows: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[],
+    messageId: string,
+    channelId: string,
+    currentPage: number,
+    totalPages: number
+  ): Promise<void> {
+    const pageOptions = []
+
+    // 最大25個まで（Discordの制限）
+    const maxOptions = Math.min(totalPages, 25)
+
+    for (let i = 0; i < maxOptions; i++) {
+      pageOptions.push({
+        label: `Page ${i + 1}`,
+        value: i.toString(),
+        description: `${i + 1}/${totalPages}ページ目に移動`,
+        default: i === currentPage
+      })
+    }
+
+    // 25ページを超える場合は「次のページ」「前のページ」オプションを追加
+    if (totalPages > 25) {
+      if (currentPage >= 25) {
+        pageOptions.push({
+          label: '前の25ページ',
+          value: 'prev-25',
+          description: '前の25ページ分を表示'
+        })
+      }
+      if (currentPage < totalPages - 25) {
+        pageOptions.push({
+          label: '次の25ページ',
+          value: 'next-25',
+          description: '次の25ページ分を表示'
+        })
+      }
+    }
+
+    if (pageOptions.length > 1) {
+      const pageSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`dice-page-select*${messageId}*${channelId}`)
+        .setPlaceholder(`Page ${currentPage + 1}/${totalPages}`)
+        .addOptions(pageOptions)
+
+      const pageSelectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(pageSelectMenu)
+      rows.push(pageSelectRow)
+    }
   }
 
   /**
@@ -451,22 +528,85 @@ export class DiceRollPaginationService {
   }
 
   /**
-   * ページを更新（前へ/次へ）
+   * ページを更新（前へ/次へ/最初/最後）
    */
-  updatePage(channelId: string, messageId: string, direction: 'prev' | 'next'): EmbedBuilder | null {
+  updatePage(channelId: string, messageId: string, direction: 'prev' | 'next' | 'first' | 'last'): EmbedBuilder | null {
     const state = this.getPaginationState(channelId, messageId)
     if (!state) return null
 
-    if (direction === 'prev' && state.currentPage > 0) {
-      state.currentPage--
-    } else if (direction === 'next' && state.currentPage < state.totalPages - 1) {
-      state.currentPage++
-    } else {
-      return null // 変更なし
+    const oldPage = state.currentPage
+
+    switch (direction) {
+      case 'first':
+        state.currentPage = 0
+        break
+      case 'last':
+        state.currentPage = state.totalPages - 1
+        break
+      case 'prev':
+        if (state.currentPage > 0) {
+          state.currentPage--
+        } else {
+          return null // 変更なし
+        }
+        break
+      case 'next':
+        if (state.currentPage < state.totalPages - 1) {
+          state.currentPage++
+        } else {
+          return null // 変更なし
+        }
+        break
+      default:
+        return null
     }
 
+    // ページが実際に変更された場合のみ状態を保存
+    if (oldPage !== state.currentPage) {
+      this.savePaginationState(channelId, messageId, state)
+      return state.pages[state.currentPage]
+    }
+
+    return null
+  }
+
+  /**
+   * 特定のページに移動
+   */
+  jumpToPage(channelId: string, messageId: string, pageNumber: number): EmbedBuilder | null {
+    const state = this.getPaginationState(channelId, messageId)
+    if (!state) return null
+
+    // ページ番号の妥当性チェック
+    if (pageNumber < 0 || pageNumber >= state.totalPages) {
+      return null
+    }
+
+    // 現在のページと同じ場合は何もしない
+    if (state.currentPage === pageNumber) {
+      return null
+    }
+
+    state.currentPage = pageNumber
     this.savePaginationState(channelId, messageId, state)
     return state.pages[state.currentPage]
+  }
+
+  /**
+   * ページネーションをキャンセル（削除）
+   */
+  cancelPagination(channelId: string, messageId: string): boolean {
+    if (this.paginationState[channelId]?.[messageId]) {
+      delete this.paginationState[channelId][messageId]
+
+      // チャンネル内に他のページネーションがない場合はチャンネルごと削除
+      if (Object.keys(this.paginationState[channelId]).length === 0) {
+        delete this.paginationState[channelId]
+      }
+
+      return true
+    }
+    return false
   }
 
   /**

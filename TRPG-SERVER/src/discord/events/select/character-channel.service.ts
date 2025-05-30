@@ -18,7 +18,6 @@ import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
-import { getChannelIdByName } from 'src/discord/utils/searchChannelID'
 
 @Injectable()
 export class CharacterChannelService implements discordSelectMenuType {
@@ -71,7 +70,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       if (targetChannel instanceof TextChannel) {
         // TextChannelとして処理を続行
         const thread = await targetChannel.threads.create({
-          name: `${character.characterName}の部屋`,
+          name: `${character.characterName}`,
           type: ChannelType.PublicThread
         })
         await this.postThreadCreationReply(interaction, thread, character)

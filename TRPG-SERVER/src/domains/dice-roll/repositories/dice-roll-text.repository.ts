@@ -36,7 +36,18 @@ export class DiceRollTextRepository implements Repository<DiceRollText, string> 
    * @param channelId DiscordチャンネルID
    */
   async findByChannelId(channelId: string): Promise<DiceRollText[]> {
-    return this.diceRollTextModel.find({ discordChannelId: channelId }).exec()
+    console.log(`[Performance] MongoDB: findByChannelIdの実行開始 - channelId=${channelId}`)
+    const startTime = Date.now()
+    try {
+      const result = await this.diceRollTextModel.find({ discordChannelId: channelId }).exec()
+      const duration = Date.now() - startTime
+      console.log(`[Performance] MongoDB: findByChannelId完了 - 件数=${result.length}, 所要時間=${duration}ms`)
+      return result
+    } catch (error) {
+      const duration = Date.now() - startTime
+      console.error(`[Performance] MongoDB: findByChannelIdエラー - 所要時間=${duration}ms, エラー=`, error)
+      throw error
+    }
   }
 
   /**

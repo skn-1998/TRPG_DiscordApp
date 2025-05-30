@@ -4,6 +4,7 @@ import {
   commandType,
   createCharacterThreadConfig,
   diceFromContextMenuConfig,
+  diceResultConfig,
   rollDiceConfig,
   selectGameSystemConfig,
   userDefinedDiceConfig
@@ -15,6 +16,7 @@ import { UserDefinedDiceService } from '../commands/commands-components/user-def
 import { DiceFromContextMenuService } from '../commands/commands-components/dice-from-context-menu.service'
 import { discordCommandType, discordContextMenuType } from '../discord.type'
 import { isUndefined } from 'lodash'
+import { DiceResultService } from './commands-components/dice-result.service'
 
 @Controller('commands')
 export class CommandsController {
@@ -24,19 +26,21 @@ export class CommandsController {
   private selectGameSystemService: SelectGameSystemService
   private userDefinedDiceService: UserDefinedDiceService
   private diceFromContextMenuService: DiceFromContextMenuService
-
+  private diceResultService: DiceResultService
   constructor(
     characterThreadService: CharacterThreadService,
     rollDiceService: RollDiceService,
     selectGameSystemService: SelectGameSystemService,
     userDefinedDiceService: UserDefinedDiceService,
-    diceFromContextMenuService: DiceFromContextMenuService
+    diceFromContextMenuService: DiceFromContextMenuService,
+    diceResultService: DiceResultService
   ) {
     this.characterThreadService = characterThreadService
     this.rollDiceService = rollDiceService
     this.selectGameSystemService = selectGameSystemService
     this.userDefinedDiceService = userDefinedDiceService
     this.diceFromContextMenuService = diceFromContextMenuService
+    this.diceResultService = diceResultService
   }
 
   private client: Client
@@ -78,6 +82,7 @@ export class CommandsController {
     await this.doEvents(this.selectGameSystemService, selectGameSystemConfig)
     await this.doEvents(this.userDefinedDiceService, userDefinedDiceConfig)
     await this.doEvents(this.diceFromContextMenuService, diceFromContextMenuConfig)
+    await this.doEvents(this.diceResultService, diceResultConfig)
   }
 
   /**

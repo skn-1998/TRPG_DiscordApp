@@ -7,6 +7,7 @@ import { DiceFromContextMenuService } from './commands-components/dice-from-cont
 import { RollDiceService } from './commands-components/roll-dice.service'
 import { SelectGameSystemService } from './commands-components/select-game-system.service'
 import { UserDefinedDiceService } from './commands-components/user-defined-dice.service'
+import { DiceResultService } from './commands-components/dice-result.service'
 
 @Injectable()
 export class CommandsService {
@@ -16,6 +17,7 @@ export class CommandsService {
   private userDefinedDiceService: UserDefinedDiceService
   private diceFromContextMenuService: DiceFromContextMenuService
   private commandsController: CommandsController
+  private diceResultService: DiceResultService
 
   constructor(
     characterThreadService: CharacterThreadService,
@@ -23,7 +25,8 @@ export class CommandsService {
     selectGameSystemService: SelectGameSystemService,
     userDefinedDiceService: UserDefinedDiceService,
     commandsController: CommandsController,
-    diceFromContextMenuService: DiceFromContextMenuService
+    diceFromContextMenuService: DiceFromContextMenuService,
+    diceResultService: DiceResultService
   ) {
     this.characterThreadService = characterThreadService
     this.rollDiceService = rollDiceService
@@ -31,6 +34,7 @@ export class CommandsService {
     this.userDefinedDiceService = userDefinedDiceService
     this.diceFromContextMenuService = diceFromContextMenuService
     this.commandsController = commandsController
+    this.diceResultService = diceResultService
   }
 
   /**
@@ -43,7 +47,8 @@ export class CommandsService {
       this.rollDiceService,
       this.selectGameSystemService,
       this.userDefinedDiceService,
-      this.diceFromContextMenuService
+      this.diceFromContextMenuService,
+      this.diceResultService
     ].filter((service) => service)
   }
 
@@ -52,26 +57,6 @@ export class CommandsService {
     this.commandsController.handleAutoComplete(client)
   }
 
-  private rest = new REST({ version: '10' }).setToken(process.env.TOKEN ?? '')
-  private APPLICATIONID: string = process.env.DISCORD_APPLICATIONID ?? ''
-  private GUILDID: string = process.env.GUILDID ?? ''
-
-  async onModuleInit(): Promise<void> {
-    const commands = [
-      this.characterThreadService.data.toJSON(),
-      this.rollDiceService.data.toJSON(),
-      this.selectGameSystemService.data.toJSON(),
-      this.userDefinedDiceService.data.toJSON(),
-      this.diceFromContextMenuService.data.toJSON()
-    ]
-    try {
-      await this.rest.put(Routes.applicationGuildCommands(this.APPLICATIONID, this.GUILDID), { body: commands })
-      console.log('コマンドの登録が完了しました。')
-    } catch (error) {
-      console.error('コマンド登録エラー:', error)
-      if (error instanceof Error) {
-        console.error('エラーメッセージ:', error.message)
-      }
-    }
-  }
+  // 重複したコマンド登録処理を削除
+  // CommandManagerServiceで一元管理されるため不要
 }

@@ -54,8 +54,7 @@ export class DiscordService {
   }
 
   /**
-   * アプリケーション起動後に明示的に呼び出す必要があります
-   * Webサーバーの起動を妨げないよう、OnModuleInitから切り離しました
+   * Discordサービスを初期化する
    */
   async initializeDiscord(): Promise<void> {
     if (this.initialized) {

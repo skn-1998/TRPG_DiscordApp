@@ -4,14 +4,14 @@ import { discordButtonType } from 'src/discord/discord.type'
 import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
 
 @Injectable()
-export class DicePagePrevButtonService implements discordButtonType {
+export class DicePageFirstButtonService implements discordButtonType {
   // ButtonBuilderのインスタンス
-  public data = new ButtonBuilder().setCustomId('dice-prev*').setLabel('<').setStyle(ButtonStyle.Secondary)
+  public data = new ButtonBuilder().setCustomId('dice-first*').setLabel('<<').setStyle(ButtonStyle.Secondary)
 
   constructor(private readonly paginationService: DiceRollPaginationService) {}
 
   /**
-   * 前ページボタンがクリックされたときの処理
+   * 最初のページボタンがクリックされたときの処理
    */
   async execute(interaction: ButtonInteraction<CacheType>): Promise<void> {
     try {
@@ -31,12 +31,12 @@ export class DicePagePrevButtonService implements discordButtonType {
         return
       }
 
-      // 前のページを取得
-      const newPage = this.paginationService.updatePage(channelId, messageId, 'prev')
+      // 最初のページを取得
+      const newPage = this.paginationService.updatePage(channelId, messageId, 'first')
       if (!newPage) {
         // ページ更新に失敗した場合や変更がない場合は通知
         await interaction.followUp({
-          content: '最初のページです。これ以上前のページはありません。',
+          content: '既に最初のページです。',
           ephemeral: true
         })
         return
@@ -53,7 +53,7 @@ export class DicePagePrevButtonService implements discordButtonType {
         return
       }
 
-      // ページネーションコントロールを更新（ボタンの有効/無効状態の更新のため）
+      // ページネーションコントロールを更新
       const controls = await this.paginationService.createPaginationControls(messageId, channelId, state.totalPages)
 
       // メッセージを更新
@@ -62,7 +62,7 @@ export class DicePagePrevButtonService implements discordButtonType {
         components: controls
       })
     } catch (error) {
-      console.error('Error handling previous page button:', error)
+      console.error('Error handling first page button:', error)
 
       // エラー時のフォールバック
       try {

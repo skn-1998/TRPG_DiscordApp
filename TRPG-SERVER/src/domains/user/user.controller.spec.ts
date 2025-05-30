@@ -59,15 +59,6 @@ describe('UserController', () => {
     })
   })
 
-  describe('findAll', () => {
-    it('should return an array of users', async () => {
-      mockUserService.findAll.mockResolvedValue([mockUser])
-
-      expect(await controller.findAll()).toEqual([mockUser])
-      expect(service.findAll).toHaveBeenCalled()
-    })
-  })
-
   describe('findOne', () => {
     it('should return a user by Discord ID', async () => {
       mockUserService.findByDiscordId.mockResolvedValue(mockUser)

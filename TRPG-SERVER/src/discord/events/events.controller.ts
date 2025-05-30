@@ -26,7 +26,14 @@ import {
   eventType,
   eventButtonType,
   characterTabButtonsConfig,
-  characterDiceButtonsConfig
+  characterDiceButtonsConfig,
+  dicePagePrevButtonConfig,
+  dicePageNextButtonConfig,
+  dicePageFirstButtonConfig,
+  dicePageLastButtonConfig,
+  dicePageCancelButtonConfig,
+  diceCharacterSelectConfig,
+  dicePageSelectConfig
 } from './events.list'
 import { discordInteractionType } from '../discord.type'
 import { isUndefined } from 'lodash'
@@ -36,6 +43,13 @@ import { CharacterTabButtonsService } from './button/character-tab-buttons.servi
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
 import { ChannelCreateService } from './channel/character-channel-create.service'
 import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
+import { DicePagePrevButtonService } from './button/dice-page-prev-button.service'
+import { DicePageNextButtonService } from './button/dice-page-next-button.service'
+import { DicePageFirstButtonService } from './button/dice-page-first-button.service'
+import { DicePageLastButtonService } from './button/dice-page-last-button.service'
+import { DicePageCancelButtonService } from './button/dice-page-cancel-button.service'
+import { DiceCharacterSelectService } from './select/dice-character-select.service'
+import { DicePageSelectMenuService } from './select-menu/dice-page-select-menu.service'
 // システムイベントハンドラーの型定義
 export type systemEventHandlerType = {
   execute: (channel: TextChannel, config: string) => void
@@ -56,7 +70,14 @@ export class EventsController {
     private characterTabButtonsService: CharacterTabButtonsService,
     private characterDiceButtonsService: CharacterDiceButtonsService,
     private channelCreateHandler: ChannelCreateService,
-    private diceRollChannelCreateHandler: DiceRollChannelCreateService
+    private diceRollChannelCreateHandler: DiceRollChannelCreateService,
+    private dicePagePrevButtonService: DicePagePrevButtonService,
+    private dicePageNextButtonService: DicePageNextButtonService,
+    private dicePageFirstButtonService: DicePageFirstButtonService,
+    private dicePageLastButtonService: DicePageLastButtonService,
+    private dicePageCancelButtonService: DicePageCancelButtonService,
+    private diceCharacterSelectService: DiceCharacterSelectService,
+    private dicePageSelectMenuService: DicePageSelectMenuService
   ) {}
 
   private client: Client
@@ -87,19 +108,30 @@ export class EventsController {
       // ボタンインタラクションの処理
       if (interaction.isButton()) {
         this.logger.debug(`ボタン処理: ${interaction.customId}`)
+
+        // 通常のボタン処理
         await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
         await this.doEvents(this.charaInfoButtonService, changeCharacterInfoConfig)
         await this.doEvents(this.diceButtonService, diceButtonConfig)
         await this.doEvents(this.characterTabButtonsService, characterTabButtonsConfig)
         await this.doEvents(this.characterDiceButtonsService, characterDiceButtonsConfig)
+        await this.doEvents(this.dicePagePrevButtonService, dicePagePrevButtonConfig)
+        await this.doEvents(this.dicePageNextButtonService, dicePageNextButtonConfig)
+        await this.doEvents(this.dicePageFirstButtonService, dicePageFirstButtonConfig)
+        await this.doEvents(this.dicePageLastButtonService, dicePageLastButtonConfig)
+        await this.doEvents(this.dicePageCancelButtonService, dicePageCancelButtonConfig)
       }
 
       // セレクトメニューインタラクションの処理
       else if (interaction.isStringSelectMenu()) {
         this.logger.debug(`セレクトメニュー処理: ${interaction.customId}`)
+
+        // 通常のセレクトメニュー処理
         await this.doEvents(this.characterChannelService, selectCharacterChannelConfig)
         await this.doEvents(this.changeCharaInfoService, addCharacterInfoConfig)
         await this.doEvents(this.changeCharaInfoService, changeCharacterInfoConfig)
+        await this.doEvents(this.diceCharacterSelectService, diceCharacterSelectConfig)
+        await this.doEvents(this.dicePageSelectMenuService, dicePageSelectConfig)
       }
 
       // モーダルインタラクションの処理
@@ -156,8 +188,9 @@ export class EventsController {
    */
   doSystemEvent(handler: systemEventHandlerType, categoryId: string, channel: TextChannel): void {
     this.logger.debug(`システムイベント実行: ${categoryId}`)
-    console.log(channel.parent.name)
+    console.log(channel.parent.name + categoryId)
     if (channel.parent.name === categoryId) {
+      console.log(channel.parent.name)
       handler.execute(channel, categoryId)
     }
   }

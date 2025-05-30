@@ -26,7 +26,8 @@ export class CommandManagerService implements OnModuleInit {
    * モジュール初期化時に呼び出される
    */
   async onModuleInit(): Promise<void> {
-    await this.registerCommands()
+    // コマンド登録は DiscordCommandRegistrationService 完了後に手動で呼び出す
+    // await this.registerCommands()
   }
 
   /**
@@ -101,6 +102,13 @@ export class CommandManagerService implements OnModuleInit {
   }
 
   /**
+   * Discord APIにコマンドを登録する（外部から呼び出し可能）
+   */
+  async registerCommandsToDiscord(): Promise<void> {
+    await this.registerCommands()
+  }
+
+  /**
    * コマンドをDiscordに登録する
    */
   private async registerCommands(): Promise<void> {
@@ -112,6 +120,7 @@ export class CommandManagerService implements OnModuleInit {
     try {
       const applicationId = this.configService.get<string>('discord.applicationId')
       const guildId = this.configService.get<string>('discord.guildId')
+      console.log(applicationId, guildId)
 
       if (!applicationId) {
         throw new Error('Discord Application IDが設定されていません')
