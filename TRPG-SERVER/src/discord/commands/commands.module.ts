@@ -8,7 +8,7 @@ import { UserDefinedDiceService } from './commands-components/user-defined-dice.
 import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
 import { CommandsService } from './commands.service'
 import { EventsModule } from '../events/events.module'
-
+import { DiceResultService } from './commands-components/dice-result.service'
 @Module({
   imports: [EventsModule],
   providers: [
@@ -18,7 +18,8 @@ import { EventsModule } from '../events/events.module'
     UserDefinedDiceService,
     DiceFromContextMenuService,
     CommandsController,
-    CommandsService
+    CommandsService,
+    DiceResultService
   ],
   controllers: [CommandsController],
   exports: [CommandsService, CommandsController]

@@ -13,6 +13,16 @@ import { CharacterDiceButtonsService } from './button/character-dice-buttons.ser
 import { ChannelCreateService } from './channel/character-channel-create.service'
 import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
 import { DiceRollModule } from 'src/domains/dice-roll/dice-roll.module'
+import { DiceRollPaginationService } from '../components/pagination/dice-roll-pagination.service'
+import { DicePagePrevButtonService } from './button/dice-page-prev-button.service'
+import { DicePageNextButtonService } from './button/dice-page-next-button.service'
+import { DicePageFirstButtonService } from './button/dice-page-first-button.service'
+import { DicePageLastButtonService } from './button/dice-page-last-button.service'
+import { DicePageCancelButtonService } from './button/dice-page-cancel-button.service'
+import { DiceCharacterSelectService } from './select/dice-character-select.service'
+import { DicePageSelectMenuService } from './select-menu/dice-page-select-menu.service'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+
 @Module({
   controllers: [EventsController],
   providers: [
@@ -26,7 +36,15 @@ import { DiceRollModule } from 'src/domains/dice-roll/dice-roll.module'
     CharacterTabButtonsService,
     CharacterDiceButtonsService,
     ChannelCreateService,
-    DiceRollChannelCreateService
+    DiceRollChannelCreateService,
+    DiceRollPaginationService,
+    DicePagePrevButtonService,
+    DicePageNextButtonService,
+    DicePageFirstButtonService,
+    DicePageLastButtonService,
+    DicePageCancelButtonService,
+    DiceCharacterSelectService,
+    DicePageSelectMenuService
   ],
   exports: [
     EventsService,
@@ -38,8 +56,16 @@ import { DiceRollModule } from 'src/domains/dice-roll/dice-roll.module'
     CharacterTabButtonsService,
     CharacterDiceButtonsService,
     ChannelCreateService,
-    DiceRollChannelCreateService
+    DiceRollChannelCreateService,
+    DiceRollPaginationService,
+    DicePagePrevButtonService,
+    DicePageNextButtonService,
+    DicePageFirstButtonService,
+    DicePageLastButtonService,
+    DicePageCancelButtonService,
+    DiceCharacterSelectService,
+    DicePageSelectMenuService
   ],
-  imports: [CharacterModule, forwardRef(() => DiscordModule), DiceRollModule]
+  imports: [CharacterModule, forwardRef(() => DiscordModule), DiceRollModule, EventEmitterModule]
 })
 export class EventsModule {}

@@ -6,7 +6,7 @@ import { DiceRollPaginationService } from 'src/discord/components/pagination/dic
 @Injectable()
 export class DicePageNextButtonService implements discordButtonType {
   // ButtonBuilderのインスタンス
-  public data = new ButtonBuilder().setCustomId('dice-next*').setLabel('次へ ▶').setStyle(ButtonStyle.Primary)
+  public data = new ButtonBuilder().setCustomId('dice-next*').setLabel('>').setStyle(ButtonStyle.Secondary)
 
   constructor(private readonly paginationService: DiceRollPaginationService) {}
 

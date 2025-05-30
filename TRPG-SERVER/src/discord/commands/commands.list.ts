@@ -26,6 +26,11 @@ export const userDefinedDiceConfig: commandType = {
 }
 
 export const diceFromContextMenuConfig: commandType = {
-  name: 'このメッセージのコマンドでダイスを振る',
-  description: ''
+  name: 'dice-from-context-menu',
+  description: 'このメッセージのコマンドでダイスを振る'
+}
+
+export const diceResultConfig: commandType = {
+  name: 'dice-result',
+  description: 'ダイスロール結果を表示'
 }

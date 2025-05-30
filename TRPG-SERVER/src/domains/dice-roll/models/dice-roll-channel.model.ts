@@ -1,5 +1,6 @@
 /* eslint-disable indent */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { IsOptional } from 'class-validator'
 import { Document } from 'mongoose'
 
 /**
@@ -21,11 +22,11 @@ export class DiceRollChannel {
   @Prop({ type: [String], default: [] })
   textIds: string[]
 
-  @Prop({ type: String, default: [] })
+  @Prop({ type: String, default: '' })
   embedId: string
 
-  @Prop({ type: Boolean, default: false })
-  isSecret: boolean
+  @Prop({ type: String, default: '' })
+  TRPGId?: string
 }
 /**
  * ダイスロールチャンネルスキーマファクトリ

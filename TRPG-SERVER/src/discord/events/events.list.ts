@@ -58,3 +58,45 @@ export const characterDiceButtonsConfig: eventButtonType = {
   customId: 'roll*',
   label: 'ダイスロール'
 }
+
+// ダイスページ前ボタンイベントの設定
+export const dicePagePrevButtonConfig: eventButtonType = {
+  customId: 'dice-prev*',
+  label: '前ページ'
+}
+
+// ダイスページ次ボタンイベントの設定
+export const dicePageNextButtonConfig: eventButtonType = {
+  customId: 'dice-next*',
+  label: '次ページ'
+}
+
+// ダイスページ最初ボタンイベントの設定
+export const dicePageFirstButtonConfig: eventButtonType = {
+  customId: 'dice-first*',
+  label: '最初のページ'
+}
+
+// ダイスページ最後ボタンイベントの設定
+export const dicePageLastButtonConfig: eventButtonType = {
+  customId: 'dice-last*',
+  label: '最後のページ'
+}
+
+// ダイスページキャンセルボタンイベントの設定
+export const dicePageCancelButtonConfig: eventButtonType = {
+  customId: 'dice-cancel*',
+  label: 'キャンセル'
+}
+
+// キャラクター選択メニューイベントの設定
+export const diceCharacterSelectConfig: eventSelectType = {
+  customId: 'dice-char-select*',
+  placeholder: 'キャラクターを選択'
+}
+
+// ページ選択メニューイベントの設定
+export const dicePageSelectConfig: eventSelectType = {
+  customId: 'dice-page-select*',
+  placeholder: 'ページを選択'
+}

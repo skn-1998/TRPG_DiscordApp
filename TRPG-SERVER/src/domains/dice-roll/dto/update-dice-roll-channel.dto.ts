@@ -14,4 +14,12 @@ export class UpdateDiceRollChannelDto {
   @IsString({ each: true })
   @IsOptional()
   textIds?: string[]
+
+  @IsString()
+  @IsOptional()
+  embedId?: string
+
+  @IsString()
+  @IsOptional()
+  discordChannelId?: string
 }

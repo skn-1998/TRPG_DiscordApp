@@ -24,6 +24,9 @@ export class DiscordCommandRegistrationService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     this.logger.log('Discordコマンドを登録します...')
     this.registerCommands()
+
+    // コマンド登録完了後にDiscord APIに登録
+    await this.commandManagerService.registerCommandsToDiscord()
   }
 
   /**

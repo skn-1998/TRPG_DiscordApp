@@ -44,4 +44,8 @@ export class PartialInputDiceRollChannelDto {
   @IsString()
   @IsOptional()
   TRPGId?: string
+
+  @IsString()
+  @IsOptional()
+  embedId?: string
 }

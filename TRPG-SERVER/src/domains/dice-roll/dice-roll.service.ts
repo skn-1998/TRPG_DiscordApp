@@ -48,9 +48,9 @@ export class DiceRollService {
    */
   async createText(createDiceRollTextDto: PartialInputDiceRollTextDto): Promise<DiceRollText> {
     // チャンネルを取得または作成
-    const channel = await this.createOrGetChannel({
-      discordChannelId: createDiceRollTextDto.discordChannelId
-    })
+    // const channel = await this.createOrGetChannel({
+    //   discordChannelId: createDiceRollTextDto.discordChannelId
+    // })
 
     // テキストIDがない場合は生成
     const textId = createDiceRollTextDto.textId || uuidv4()
@@ -60,20 +60,23 @@ export class DiceRollService {
       textId,
       discordChannelId: createDiceRollTextDto.discordChannelId,
       characterId: createDiceRollTextDto.characterId,
-      result: createDiceRollTextDto.result,
       diceRoll: createDiceRollTextDto.diceRoll,
       text: createDiceRollTextDto.text,
+      result: createDiceRollTextDto.result,
       createdAt: new Date()
     }
 
     const createdText = await this.diceRollTextRepository.create(text)
 
     // チャンネルにテキストIDを追加
-    await this.diceRollChannelRepository.addTextId(channel.discordChannelId, textId)
+    await this.diceRollChannelRepository.addTextId(createDiceRollTextDto.discordChannelId, textId)
 
     // キャラクターIDがある場合、チャンネルにキャラクターIDを追加
     if (createDiceRollTextDto.characterId) {
-      await this.diceRollChannelRepository.addCharacterId(channel.discordChannelId, createDiceRollTextDto.characterId)
+      await this.diceRollChannelRepository.addCharacterId(
+        createDiceRollTextDto.discordChannelId,
+        createDiceRollTextDto.characterId
+      )
     }
 
     return createdText
@@ -121,6 +124,10 @@ export class DiceRollService {
     updateDiceRollChannelDto: UpdateDiceRollChannelDto
   ): Promise<DiceRollChannel | null> {
     return this.diceRollChannelRepository.update(channelId, updateDiceRollChannelDto)
+  }
+
+  async updateEmbed(embedId: string, channel: UpdateDiceRollChannelDto): Promise<DiceRollChannel | null> {
+    return this.diceRollChannelRepository.addEmbedId(channel.discordChannelId, embedId)
   }
 
   /**
