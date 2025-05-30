@@ -1,7 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { firstValueFrom, lastValueFrom } from 'rxjs'
-import { redirect_url } from 'src/auth.config'
 import { URLSearchParams } from 'url'
 
 import { UserService } from 'src/domains/user/user.service'
@@ -10,6 +9,7 @@ import _ from 'lodash'
 import { JWTTokenModel } from './auth.token.model'
 import { CustomHttpService } from './http.service'
 import { getErrorMessage } from 'src/utils/error-helpers'
+import { AppConfigService } from 'src/config/config.service'
 
 @Injectable()
 export class AuthService {
@@ -17,7 +17,8 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly httpService: CustomHttpService,
-    readonly userService: UserService
+    readonly userService: UserService,
+    private readonly configService: AppConfigService
   ) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,14 +102,16 @@ export class AuthService {
   async authenticate(code: string): Promise<any> {
     const url = 'https://discordapp.com/api/oauth2/token'
     const params = new URLSearchParams()
+    const redirectUrl = this.configService.get('auth.redirectUrl')
+
     console.log(
-      process.env.DISCORD_APPLICATIONID + ':' + process.env.DISCORD_SECRET + code + 'authorization_code' + redirect_url
+      process.env.DISCORD_APPLICATIONID + ':' + process.env.DISCORD_SECRET + code + 'authorization_code' + redirectUrl
     )
     params.append('client_id', process.env.DISCORD_APPLICATIONID)
     params.append('client_secret', process.env.DISCORD_SECRET)
     params.append('grant_type', 'authorization_code')
     params.append('code', code)
-    params.append('redirect_uri', redirect_url)
+    params.append('redirect_uri', redirectUrl)
 
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded'

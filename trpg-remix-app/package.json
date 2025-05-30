@@ -21,9 +21,9 @@
     "@mantine/modals": "^7.8.0",
     "@mantine/notifications": "^7.8.0",
     "@mantine/nprogress": "^7.8.0",
-    "@remix-run/node": "^2.8.1",
-    "@remix-run/react": "^2.8.1",
-    "@remix-run/serve": "^2.8.1",
+    "@remix-run/node": "^2.16.8",
+    "@remix-run/react": "^2.16.8",
+    "@remix-run/serve": "^2.16.8",
     "@tabler/icons-react": "^3.2.0",
     "axios": "^1.7.3",
     "cookie": "^1.0.1",
@@ -34,7 +34,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@remix-run/dev": "^2.8.1",
+    "@remix-run/dev": "^2.16.8",
     "@types/jest": "^29.5.12",
     "@types/lodash": "^4.17.0",
     "@types/react": "^18.2.20",

@@ -6,6 +6,7 @@ import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { AppConfigService } from 'src/config/config.service'
 import { PartialInputDiceRollChannelDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'
 import { CharacterService } from 'src/domains/character/character.service'
+import { generateAppConfig } from 'src/config/configuration'
 
 @Injectable()
 export class ChannelCreateService {
@@ -53,7 +54,7 @@ export class ChannelCreateService {
       }
 
       // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
-      this.characterService
+      await this.characterService
         .create({
           TRPGId: '',
           characterName: channel.name,
@@ -64,6 +65,8 @@ export class ChannelCreateService {
           this.logger.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`)
           if (!creatorId) {
             this.logger.warn('注意: discordUserIdは取得できませんでした。後で設定してください。')
+            const clientUrl = generateAppConfig().app.frontendUrl
+            // const url = clientUrl + '/'
           }
         })
         .catch((error) => {
