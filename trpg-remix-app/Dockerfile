@@ -10,11 +10,14 @@ WORKDIR /usr/src/app
 # パッケージ定義ファイルをコピー
 COPY package.json pnpm-lock.yaml ./
 
-RUN pnpm install
+# 依存関係を事前にインストール
+RUN pnpm install --frozen-lockfile
 
+# アプリケーションコードをコピー
+COPY . .
 
 # ポートをExpose
 EXPOSE 5173
 
-
-CMD ["pnpm", "run", "dev"]
+# 開発モードで起動
+CMD ["sh", "-c", "pnpm install && pnpm run dev --host"]
