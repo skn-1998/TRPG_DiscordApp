@@ -1,4 +1,4 @@
-import { Button, ComboboxItem } from '@mantine/core'
+import { Button, ComboboxItem, OptionsFilter } from '@mantine/core'
 import { useOutletContext } from '@remix-run/react'
 import axios from 'axios'
 import { CustomError } from '~/utils/customError'
@@ -6,40 +6,50 @@ import { Select } from '@mantine/core'
 import gameSystemList from '~/static/gameSystemList.json'
 import { useState } from 'react'
 import _ from 'lodash'
+import Fuse from 'fuse.js'
+import moji from 'moji'
+import convertRomanToKana from '~/utils/convertRomanToKana'
 
-const _gameSystemList = _.sortBy(gameSystemList, ['SORT_KEY'])
+export type GameSystemJSON = {
+  ID: string
+  NAME: string
+  SORT_KEY: string
+  HELP_MESSAGE: string
+  PRIORITY?: number
+}
+
+const fuseOptions = {
+  threshold: 0.4,
+  keys: ['NAME']
+}
+
+const _gameSystemList = _.sortBy(gameSystemList, ['PRIORITY', 'SORT_KEY'])
+
+const fuse = new Fuse<GameSystemJSON>(_gameSystemList, fuseOptions)
+
 const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
 
+export function convertSearchText(str: string) {
+  const hiragana = moji(str).convert('KK', 'HG').toString()
+  const katakana = moji(str).convert('HG', 'KK').toString()
+  const katakanaFromRoman = convertRomanToKana(str)
+  return [str, hiragana, katakana, katakanaFromRoman]
+}
+
+const optionsFilter: OptionsFilter = ({ options, search }) => {
+  const splittedSearch = search.toLowerCase().trim().split(' ')
+  return (options as ComboboxItem[]).filter((option) => {
+    const words = option.label.toLowerCase().trim().split(' ')
+    return splittedSearch.every((searchWord) => words.some((word) => word.includes(searchWord)))
+  })
+}
+
 export function CharacterCreate() {
-  const outletContextData = useOutletContext<{ data: any; cookie: string }>()
-
-  const jwtCookie = outletContextData.cookie.split(';').find((cookie) => cookie.trim().startsWith('jwt='))
-  if (!jwtCookie) {
-    throw new Error('no jwtCookie')
-  }
-  const jwt = jwtCookie.split('=')[1]
-
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }
-
   async function clickHandler() {
     console.log('clicked!')
-    const corsServerDomain = 'http://localhost:3000'
-
     if (!TRPGSystemValue) {
       console.log('no select TRPG System')
       return
-    }
-
-    try {
-      const res = await axios.post(
-        `${corsServerDomain}/characters/create`,
-        { TRPGId: TRPGSystemValue.value },
-        { headers, withCredentials: true }
-      )
-      console.log('--- res ---')
-      console.log(res)
-    } catch (Error) {
-      CustomError(Error)
     }
   }
 
@@ -61,6 +71,7 @@ export function CharacterCreate() {
         withScrollArea={false}
         styles={{ dropdown: { maxHeight: 500, overflowY: 'auto' } }}
         mt="md"
+        filter={optionsFilter}
       />
     </>
   )
