@@ -3,12 +3,20 @@ import { Select } from '@mantine/core'
 import gameSystemList from '~/static/gameSystemList.json'
 import { useState } from 'react'
 import _ from 'lodash'
+import Fuse from 'fuse.js'
 import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
 import { createCharacter } from '../api/character.service'
 import { GameSystemJSON } from '~/lib/types'
 
+const fuseOptions = {
+  threshold: 0.4,
+  keys: ['NAME']
+}
+
 const _gameSystemList = _.sortBy(gameSystemList, ['PRIORITY', 'SORT_KEY'])
+
+const fuse = new Fuse<GameSystemJSON>(_gameSystemList, fuseOptions)
 
 const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
 
@@ -112,6 +120,13 @@ export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
         loading={isLoading}
       >
         {isLoading ? 'Creating...' : 'Create Character'}
+      </Button>
+      <Button
+        onClick={() => {
+          console.log('Aaaaaaaaaaaa')
+        }}
+      >
+        aaaa
       </Button>
 
       <Select
