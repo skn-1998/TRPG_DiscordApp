@@ -107,7 +107,7 @@ export const generateAppConfig = () => {
       jwtExpiresIn: env.JWT_EXPIRES_IN!,
       redirectUrl: env.REDIRECT_URL!
     }
-  }
+  } as const
 }
 
 /**
@@ -115,6 +115,26 @@ export const generateAppConfig = () => {
  * generateAppConfig関数の戻り値から型を自動生成
  */
 export type AppConfig = ReturnType<typeof generateAppConfig>
+
+/**
+ * 利用可能な設定パスの型定義
+ * IntelliSenseで予測変換される設定パス
+ */
+export type ConfigPaths =
+  | 'app.environment'
+  | 'app.port'
+  | 'app.frontendUrl'
+  | 'database.mongoUri'
+  | 'database.logging'
+  | 'discord.token'
+  | 'discord.applicationId'
+  | 'discord.secret'
+  | 'discord.guildId'
+  | 'discord.characterCategory'
+  | 'discord.diceRollCategory'
+  | 'auth.jwtSecret'
+  | 'auth.jwtExpiresIn'
+  | 'auth.redirectUrl'
 
 /**
  * 環境変数の再検証（テスト用）

@@ -40,7 +40,6 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
   JWT_EXPIRES_IN: 86400, // 24時間
   DB_LOGGING: false,
   FRONTEND_URL: 'http://localhost:5173',
-  REDIRECT_URL: 'http://localhost:3000',
   CHARACTER_CATEGORY: 'キャラクター',
   DICE_ROLL_CATEGORY: 'ダイスロールチャンネル'
 } as const

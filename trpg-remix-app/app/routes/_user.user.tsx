@@ -1,5 +1,5 @@
 import { Outlet, useLoaderData } from '@remix-run/react'
-import { validateJWT } from '~/utils/axiosClient'
+import { validateJWT } from '~/features/auth'
 import { LoaderFunctionArgs } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
 
