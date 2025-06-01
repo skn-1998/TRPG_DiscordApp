@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { AuditLogEvent, Client, TextChannel } from 'discord.js'
+import { ActionRowBuilder, AuditLogEvent, Client, SelectMenuBuilder, TextChannel } from 'discord.js'
 import { CharaInfoButtonService } from '../button/chara-info-button.service'
 import { getChannelIdByName } from '../../utils/searchChannelID'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
@@ -7,6 +7,7 @@ import { AppConfigService } from 'src/config/config.service'
 import { PartialInputDiceRollChannelDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'
 import { CharacterService } from 'src/domains/character/character.service'
 import { generateAppConfig } from 'src/config/configuration'
+import { ChangeCharaInfoService } from '../select/change-chara-info.service'
 
 @Injectable()
 export class ChannelCreateService {
@@ -15,7 +16,8 @@ export class ChannelCreateService {
 
   constructor(
     private readonly appConfigService: AppConfigService,
-    private readonly characterService: CharacterService
+    private readonly characterService: CharacterService,
+    private readonly changeCharaInfoService: ChangeCharaInfoService
   ) {}
   data: TextChannel
 
@@ -65,9 +67,14 @@ export class ChannelCreateService {
           this.logger.log(`キャラクター「${character.characterName}」が作成されました。ID: ${character.characterId}`)
           if (!creatorId) {
             this.logger.warn('注意: discordUserIdは取得できませんでした。後で設定してください。')
-            const clientUrl = generateAppConfig().app.frontendUrl
-            // const url = clientUrl + '/'
           }
+          const clientUrl = generateAppConfig().app.frontendUrl
+          const url = clientUrl + '/characters/' + character.characterId
+          const select = new ActionRowBuilder<SelectMenuBuilder>().addComponents(this.changeCharaInfoService.data)
+          channel.send({
+            content: url,
+            components: [select]
+          })
         })
         .catch((error) => {
           this.logger.error('キャラクター作成エラー:', error)
