@@ -1,12 +1,12 @@
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import cookie from 'cookie'
 import { CustomError } from './customError'
-import { axiosInstance } from './axiosClient'
+import { apiClient } from '~/lib/api-client'
 
 export type ApiOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   endpoint: string
-  data?: any
+  data?: unknown
 }
 
 export async function corsApiWithJwt({ request }: ActionFunctionArgs, options: ApiOptions) {
@@ -34,22 +34,22 @@ export async function corsApiWithJwt({ request }: ActionFunctionArgs, options: A
 
     switch (_method) {
       case 'GET':
-        response = await axiosInstance.get(endpoint, { headers })
+        response = await apiClient.get(endpoint, { headers })
         break
       case 'POST':
-        response = await axiosInstance.post(endpoint, data, { headers })
+        response = await apiClient.post(endpoint, data, { headers })
         break
       case 'PUT':
-        response = await axiosInstance.put(endpoint, data, { headers })
+        response = await apiClient.put(endpoint, data, { headers })
         break
       case 'DELETE':
-        response = await axiosInstance.delete(endpoint, { headers, data })
+        response = await apiClient.delete(endpoint, { headers, data })
         break
       case 'PATCH':
-        response = await axiosInstance.patch(endpoint, data, { headers })
+        response = await apiClient.patch(endpoint, data, { headers })
         break
       default:
-        response = await axiosInstance.get(endpoint, { headers })
+        response = await apiClient.get(endpoint, { headers })
     }
 
     return response.data

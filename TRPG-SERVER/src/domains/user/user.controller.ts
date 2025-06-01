@@ -28,7 +28,7 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'User not found.' })
   @UseGuards(JwtAuthGuard)
   async findOne(@Headers('Authorization') authorization: string) {
-    const token = await this.authService.parseJwt(authorization)
+    const token = await this.authService.validateToken(authorization)
     return await this.userService.findByDiscordId(token.discordUserId)
   }
 
