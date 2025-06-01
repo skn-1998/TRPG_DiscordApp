@@ -102,13 +102,18 @@ export class AuthService {
   async authenticate(code: string): Promise<any> {
     const url = 'https://discordapp.com/api/oauth2/token'
     const params = new URLSearchParams()
-    const redirectUrl = this.configService.get('auth.redirectUrl')
+    const redirectUrl = this.configService.get('app.frontendUrl') + '/login'
 
     console.log(
-      process.env.DISCORD_APPLICATIONID + ':' + process.env.DISCORD_SECRET + code + 'authorization_code' + redirectUrl
+      this.configService.get('discord.applicationId') +
+        ':' +
+        this.configService.get('discord.secret') +
+        code +
+        'authorization_code' +
+        redirectUrl
     )
-    params.append('client_id', process.env.DISCORD_APPLICATIONID)
-    params.append('client_secret', process.env.DISCORD_SECRET)
+    params.append('client_id', this.configService.get('discord.applicationId'))
+    params.append('client_secret', this.configService.get('discord.secret'))
     params.append('grant_type', 'authorization_code')
     params.append('code', code)
     params.append('redirect_uri', redirectUrl)
