@@ -29,19 +29,36 @@ const fuse = new Fuse<GameSystemJSON>(_gameSystemList, fuseOptions)
 
 const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
 
+function hiraganaToKatakana(str: string) {
+  const result = moji(str).convert('KK', 'HG').toString()
+  return result
+}
+
+function katakanaToHiragana(str: string) {
+  const result = moji(str).convert('HG', 'KK').toString()
+  return result
+}
+
 export function convertSearchText(str: string) {
-  const hiragana = moji(str).convert('KK', 'HG').toString()
-  const katakana = moji(str).convert('HG', 'KK').toString()
-  const katakanaFromRoman = convertRomanToKana(str)
-  return [str, hiragana, katakana, katakanaFromRoman]
+  const hiragana = hiraganaToKatakana(str)
+  const katakana = katakanaToHiragana(str)
+  const katakanaFromRoman = katakanaToHiragana(convertRomanToKana(str))
+  const hiraganaFromRoman = hiraganaToKatakana(katakanaFromRoman)
+  return [str, hiragana, katakana, katakanaFromRoman, hiraganaFromRoman]
 }
 
 const optionsFilter: OptionsFilter = ({ options, search }) => {
-  const splittedSearch = search.toLowerCase().trim().split(' ')
-  return (options as ComboboxItem[]).filter((option) => {
-    const words = option.label.toLowerCase().trim().split(' ')
-    return splittedSearch.every((searchWord) => words.some((word) => word.includes(searchWord)))
-  })
+  console.log(search)
+  const gameSystemSearchText = convertSearchText(search.slice(0, 200))
+  const gameSystemSearchObj = gameSystemSearchText.map((e) => ({ NAME: e }))
+  const gameSystemSearchResults = fuse.search({ $or: gameSystemSearchObj }).map((e) => e.item)
+  const formattedResult = gameSystemSearchResults.map((e) => ({ value: e.ID, label: e.NAME }))
+  return formattedResult
+  // const splittedSearch = search.toLowerCase().trim().split(' ')
+  // return (options as ComboboxItem[]).filter((option) => {
+  //   const words = option.label.toLowerCase().trim().split(' ')
+  //   return splittedSearch.every((searchWord) => words.some((word) => word.includes(searchWord)))
+  // })
 }
 
 export function CharacterCreate() {
