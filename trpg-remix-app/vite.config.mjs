@@ -20,13 +20,5 @@ export default defineConfig({
       routes: async (defineRoutes) => flatRoutes('routes', defineRoutes)
     }),
     tsconfigPaths()
-  ],
-  optimizeDeps: {
-    include: ['@remix-run/node', '@remix-run/react', 'cookie', 'lodash', 'axios', 'fuse.js'],
-    force: true
-  },
-  server: {
-    host: '0.0.0.0',
-    port: 5173
-  }
-})
+  ]
+}) 
