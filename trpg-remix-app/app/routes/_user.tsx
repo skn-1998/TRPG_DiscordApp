@@ -4,7 +4,7 @@ import { UserPageNav } from '../features/users'
 export default function User() {
   return (
     <div>
-      {/* <UserPageNav /> */}
+      <UserPageNav />
       <Outlet />
     </div>
   )
