@@ -1,19 +1,36 @@
 import axios from 'axios'
-import https from 'https'
+
+// Node.js環境でのみhttpsをインポート
+let httpsAgent: any = undefined
+if (typeof process !== 'undefined' && process.versions?.node) {
+  try {
+    const https = require('https')
+    httpsAgent = new https.Agent({ rejectUnauthorized: false })
+  } catch (error) {
+    console.log('Running in browser environment, skipping https agent')
+  }
+}
 
 // 共通のaxiosインスタンスを作成
 const createAxiosInstance = (baseURL: string) => {
-  return axios.create({
+  const config: any = {
     baseURL,
-    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
     withCredentials: true,
     headers: {
       'Content-Type': 'application/json'
     }
-  })
+  }
+
+  // Node.js環境でのみhttpsAgentを設定
+  if (httpsAgent) {
+    config.httpsAgent = httpsAgent
+  }
+
+  return axios.create(config)
 }
 
-const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
+const corsServerDomain =
+  typeof process !== 'undefined' && process.env?.SERVER_DOMAIN ? process.env.SERVER_DOMAIN : 'http://localhost:3000'
 console.log('corsServerDomain: ' + corsServerDomain)
 
 export const apiClient = createAxiosInstance(corsServerDomain)

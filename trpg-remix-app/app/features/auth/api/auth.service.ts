@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { LoaderFunctionArgs, redirect } from '@remix-run/node'
 import { apiClient, createAuthenticatedRequest } from '~/lib/api-client'
 import { TRPGUser, LoginRequest, CookieHeader } from '~/lib/types'
@@ -9,26 +10,19 @@ export function generateDiscordAuthUrl(): string {
   // 一時的なテスト用のハードコード値
   const client_id = process.env.DISCORD_APPLICATIONID || 'TEST_CLIENT_ID'
   const redirect_url = `${process.env.HOST_DOMAIN || 'http://localhost:5173'}/login`
-  console.log('🔧 Debug - client_id:', client_id)
-  console.log('🔧 Debug - redirect_url:', redirect_url)
 
   const redirect_uri = encodeURIComponent(redirect_url)
   const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`
 
-  console.log('🔧 Debug - Generated Discord Auth URL:', discordAuthUrl)
   return discordAuthUrl
 }
 
 // ユーザーログイン/登録
 export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
   try {
-    console.log('before login')
     const response = await apiClient.post<TRPGUser>('/auth/login', { code } as LoginRequest)
-    console.log('after login')
     return response.data
   } catch (err: unknown) {
-    console.log('login catch error')
-
     // Axiosエラーの詳細情報を出力
     if (err && typeof err === 'object' && 'response' in err) {
       const axiosErr = err as { response?: { status?: number; data?: unknown; headers?: unknown }; config?: unknown }
