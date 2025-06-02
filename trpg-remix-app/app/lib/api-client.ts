@@ -1,14 +1,9 @@
 import axios from 'axios'
 
-// Node.js環境でのみhttpsをインポート
-let httpsAgent: any = undefined
+// Node.js環境でSSL証明書検証を無効化
 if (typeof process !== 'undefined' && process.versions?.node) {
-  try {
-    const https = require('https')
-    httpsAgent = new https.Agent({ rejectUnauthorized: false })
-  } catch (error) {
-    console.log('Running in browser environment, skipping https agent')
-  }
+  process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+  console.log('SSL certificate verification disabled for Node.js environment')
 }
 
 // 共通のaxiosインスタンスを作成
@@ -21,9 +16,19 @@ const createAxiosInstance = (baseURL: string) => {
     }
   }
 
-  // Node.js環境でのみhttpsAgentを設定
-  if (httpsAgent) {
-    config.httpsAgent = httpsAgent
+  // Node.js環境でのみhttpsAgentを設定（SSL証明書検証を無効化）
+  try {
+    // Node.js環境かつrequireが利用可能な場合のみ
+    if (typeof process !== 'undefined' && process.versions?.node && typeof require !== 'undefined') {
+      const https = eval('require')('https')
+      config.httpsAgent = new https.Agent({
+        rejectUnauthorized: false
+      })
+      console.log('Using HTTPS agent with rejectUnauthorized: false')
+    }
+  } catch (error) {
+    // ブラウザ環境やVite環境では無視
+    console.log('Skipping HTTPS agent configuration (browser/Vite environment)')
   }
 
   return axios.create(config)
