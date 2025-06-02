@@ -20,5 +20,13 @@ export default defineConfig({
       routes: async (defineRoutes) => flatRoutes('routes', defineRoutes)
     }),
     tsconfigPaths()
-  ]
+  ],
+  server: {
+    strictPort: true,
+    hmr: {
+      clientPort: 5173,
+      host: 'localhost',
+      protocol: 'ws'
+    }
+  }
 })
