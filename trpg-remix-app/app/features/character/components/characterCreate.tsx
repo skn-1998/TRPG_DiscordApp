@@ -39,7 +39,6 @@ export function convertSearchText(str: string) {
 }
 
 const optionsFilter: OptionsFilter = ({ options, search }) => {
-  console.log(search)
   const gameSystemSearchText = convertSearchText(search.slice(0, 200))
   const gameSystemSearchObj = gameSystemSearchText.map((e) => ({ NAME: e }))
   const gameSystemSearchResults = fuse.search({ $or: gameSystemSearchObj }).map((e) => e.item)
