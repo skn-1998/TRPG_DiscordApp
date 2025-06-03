@@ -38,16 +38,20 @@ export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
   }
 }
 
-// JWT検証
-export async function validateJWT({ request }: LoaderFunctionArgs): Promise<object | null> {
+export function getJwtFromRequest(request: Request): string | null {
   const cookieHeader = request.headers.get('Cookie') || ''
   const jwtCookie = cookieHeader.split(';').find((cookie) => cookie.trim().startsWith('jwt='))
-
-  if (!jwtCookie) {
-    return redirect('/login')
-  }
-
+  if (!jwtCookie) return null
   const jwt = jwtCookie.split('=')[1]
+  return jwt
+}
+
+// JWT検証
+export async function validateJwt({ request }: LoaderFunctionArgs): Promise<object | null> {
+  const jwt = getJwtFromRequest(request)
+
+  if (!jwt) return redirect('/login')
+
   const verifyUrl = '/users'
 
   try {

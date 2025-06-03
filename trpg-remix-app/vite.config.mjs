@@ -25,6 +25,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    strictPort: true,
+    hmr: {
+      clientPort: 5173,
+      host: 'localhost',
+      protocol: 'ws'
+    },
     watch: {
       usePolling: true, // Docker環境では常にポーリングを使用
       interval: 1000, // ポーリング間隔を調整

@@ -8,6 +8,10 @@ import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
 import { createCharacter } from '../api/character.service'
 import { GameSystemJSON } from '~/lib/types'
+import { ActionFunctionArgs, json } from '@remix-run/node'
+import { CustomError } from '~/utils/customError'
+import axios from 'axios'
+import { getJwtFromRequest } from '~/features/auth'
 
 const fuseOptions = {
   threshold: 0.4,
@@ -39,7 +43,6 @@ export function convertSearchText(str: string) {
 }
 
 const optionsFilter: OptionsFilter = ({ options, search }) => {
-  console.log(search)
   const gameSystemSearchText = convertSearchText(search.slice(0, 200))
   const gameSystemSearchObj = gameSystemSearchText.map((e) => ({ NAME: e }))
   const gameSystemSearchResults = fuse.search({ $or: gameSystemSearchObj }).map((e) => e.item)
@@ -57,7 +60,27 @@ interface CharacterCreateProps {
   userId?: string
 }
 
-export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
+export async function action(args: ActionFunctionArgs) {
+  console.log('action')
+  const { request, context, params } = args
+
+  try {
+    const body = await request.formData()
+    console.log(...body.entries())
+  } catch (error) {
+    console.log(CustomError(error))
+  }
+
+  const data = await createCharacter(
+    { name: 'characterName', gameSystemId: 'Pathfinder', userId: 'sample' },
+    'sample_jwt'
+  )
+  console.log(data)
+
+  return data
+}
+
+export function CharacterCreate() {
   const [TRPGSystemValue, setTRPGSystemValue] = useState<ComboboxItem | null>(null)
   const [characterName, setCharacterName] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -75,22 +98,20 @@ export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
       return
     }
 
-    if (!jwt || !userId) {
-      console.log('no jwt or userId')
-      return
-    }
-
     setIsLoading(true)
 
     try {
+      const formData = new FormData()
       const characterData = {
         name: characterName,
         gameSystemId: TRPGSystemValue.value,
-        userId: userId
+        userId: ''
       }
+      formData.append('characterData', JSON.stringify(characterData))
 
-      const newCharacter = await createCharacter(characterData, jwt)
-      console.log('Character created:', newCharacter)
+      // const newCharacter = await createCharacter(characterData, jwt)
+      const res = await axios.post('/character', formData)
+      console.log('Character created:', res)
 
       // キャラクター作成成功後の処理（リダイレクトなど）
       // TODO: 成功時の処理を実装
@@ -120,13 +141,6 @@ export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
         loading={isLoading}
       >
         {isLoading ? 'Creating...' : 'Create Character'}
-      </Button>
-      <Button
-        onClick={() => {
-          console.log('Aaaaaaaaaaaa')
-        }}
-      >
-        aaaa
       </Button>
 
       <Select
