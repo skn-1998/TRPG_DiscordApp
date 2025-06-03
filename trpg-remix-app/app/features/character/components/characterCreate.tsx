@@ -8,6 +8,9 @@ import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
 import { createCharacter } from '../api/character.service'
 import { GameSystemJSON } from '~/lib/types'
+import { ActionFunctionArgs, json } from '@remix-run/node'
+import { CustomError } from '~/utils/customError'
+import { corsApiWithJwt } from '~/utils/corsApiWithJwt'
 
 const fuseOptions = {
   threshold: 0.4,
@@ -54,6 +57,25 @@ const optionsFilter: OptionsFilter = ({ options, search }) => {
 interface CharacterCreateProps {
   jwt?: string
   userId?: string
+}
+
+export async function action(args: ActionFunctionArgs) {
+  console.log('action')
+  const { request, context, params } = args
+
+  try {
+    const body = await request.formData()
+    console.log(...body.entries())
+  } catch (error) {
+    console.log(CustomError(error))
+  }
+
+  const result = await corsApiWithJwt(args, { method: 'GET', endpoint: '/character' })
+  console.log(result)
+  const data = await corsApiWithJwt(args, { endpoint: '/character/create', data: { TRPGName: 'DiceBot' } })
+  console.log(data)
+
+  return json({ test: 'this is test data.' })
 }
 
 export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
@@ -119,13 +141,6 @@ export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
         loading={isLoading}
       >
         {isLoading ? 'Creating...' : 'Create Character'}
-      </Button>
-      <Button
-        onClick={() => {
-          console.log('Aaaaaaaaaaaa')
-        }}
-      >
-        aaaa
       </Button>
 
       <Select
