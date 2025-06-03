@@ -76,7 +76,7 @@ const character = await createCharacter(data, jwt)
 
 ```typescript
 // 認証
-import { loginOrRegisterUser, validateJWT } from '~/features/auth'
+import { loginOrRegisterUser, validateJwt } from '~/features/auth'
 
 // キャラクター
 import { createCharacter, getCharacter, getUserCharacters } from '~/features/character'

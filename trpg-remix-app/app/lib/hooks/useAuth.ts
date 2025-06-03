@@ -10,7 +10,7 @@ export function useAuth() {
     const checkAuth = async () => {
       try {
         setIsLoading(true)
-        // Note: validateJWTはLoaderFunctionArgsを必要とするため、
+        // Note: validateJwtはLoaderFunctionArgsを必要とするため、
         // クライアントサイドでは別のアプローチが必要
         // ここではプレースホルダーとして記載
         setError(null)

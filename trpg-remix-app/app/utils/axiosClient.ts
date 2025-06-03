@@ -15,7 +15,7 @@
 
 // 後方互換性のための一時的な再エクスポート（まもなく削除予定）
 export { apiClient as axiosInstance } from '~/lib/api-client'
-export { loginOrRegisterUser, validateJWT } from '~/features/auth'
+export { loginOrRegisterUser, validateJwt } from '~/features/auth'
 export type { TRPGUser } from '~/lib/types'
 
 console.warn('⚠️ utils/axiosClient.ts は非推奨です。新しいfeature-based architectureを使用してください。')
