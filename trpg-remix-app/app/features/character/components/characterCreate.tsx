@@ -10,7 +10,8 @@ import { createCharacter } from '../api/character.service'
 import { GameSystemJSON } from '~/lib/types'
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
-import { corsApiWithJwt } from '~/utils/corsApiWithJwt'
+import axios from 'axios'
+import { getJwtFromRequest } from '~/features/auth'
 
 const fuseOptions = {
   threshold: 0.4,
@@ -70,15 +71,16 @@ export async function action(args: ActionFunctionArgs) {
     console.log(CustomError(error))
   }
 
-  const result = await corsApiWithJwt(args, { method: 'GET', endpoint: '/character' })
-  console.log(result)
-  const data = await corsApiWithJwt(args, { endpoint: '/character/create', data: { TRPGName: 'DiceBot' } })
+  const data = await createCharacter(
+    { name: 'characterName', gameSystemId: 'Pathfinder', userId: 'sample' },
+    'sample_jwt'
+  )
   console.log(data)
 
-  return json({ test: 'this is test data.' })
+  return data
 }
 
-export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
+export function CharacterCreate() {
   const [TRPGSystemValue, setTRPGSystemValue] = useState<ComboboxItem | null>(null)
   const [characterName, setCharacterName] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -96,22 +98,20 @@ export function CharacterCreate({ jwt, userId }: CharacterCreateProps) {
       return
     }
 
-    if (!jwt || !userId) {
-      console.log('no jwt or userId')
-      return
-    }
-
     setIsLoading(true)
 
     try {
+      const formData = new FormData()
       const characterData = {
         name: characterName,
         gameSystemId: TRPGSystemValue.value,
-        userId: userId
+        userId: ''
       }
+      formData.append('characterData', JSON.stringify(characterData))
 
-      const newCharacter = await createCharacter(characterData, jwt)
-      console.log('Character created:', newCharacter)
+      // const newCharacter = await createCharacter(characterData, jwt)
+      const res = await axios.post('/character', formData)
+      console.log('Character created:', res)
 
       // キャラクター作成成功後の処理（リダイレクトなど）
       // TODO: 成功時の処理を実装
