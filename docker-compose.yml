@@ -3,31 +3,38 @@ services:
     build:
       context: ./trpg-remix-app
       dockerfile: Dockerfile
+      target: development  # 開発環境用のステージを指定
     container_name: TRPG-CLIENT
     working_dir: /usr/src/app
     volumes:
       - ./trpg-remix-app:/usr/src/app:cached
-      - app_node_modules:/usr/src/app/node_modules # 名前付きボリュームでnode_modulesを管理
-    develop:
-      watch:
-        - action: sync
-          path: ./src
-          target: /app/src
+      - app_node_modules:/usr/src/app/node_modules
+      - app_vite_cache:/usr/src/app/node_modules/.vite  # Viteキャッシュ用ボリューム
     ports:
-      - "5173:5173" # ホストとコンテナのポートを一致させる
+      - "5173:5173"
     environment:
       NODE_ENV: development
       SERVER_DOMAIN: https://nginx.io/api
       HOST_DOMAIN: https://localhost
-      CHOKIDAR_USEPOLLING: true
-    command: sh -c "pnpm install --frozen-lockfile && pnpm run dev --host" # Remixアプリを外部ホストにバインド
+      # ファイル監視の最適化
+      CHOKIDAR_USEPOLLING: "false"  # Vite設定で制御するため無効化
+      CHOKIDAR_INTERVAL: "1000"
+      VITE_HMR_PORT: "5173"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s  # 初回起動時間を考慮
     networks:
       - app-network
+    restart: unless-stopped
 
   nestjs:
     build:
       context: ./TRPG-SERVER
       dockerfile: Dockerfile
+      target: development  # 開発環境用のステージを指定
     container_name: TRPG-SERVER
     working_dir: /usr/src/app
     volumes:
@@ -39,30 +46,48 @@ services:
       NODE_ENV: development
       FRONTEND_URL: https://localhost
       PORT: 3000
-    command: sh -c "pnpm install --frozen-lockfile && pnpm run start:dev"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       - app-network
-  nginx.io:
+    restart: unless-stopped
+
+  nginx:
     image: nginx:alpine
     container_name: nginx.io
     ports:
-      - "80:80"  # HTTP用
-      - "443:443"  # HTTPS用
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/cert:/etc/nginx/cert  # SSL証明書をマウント
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/cert:/etc/nginx/cert:ro
     logging:
       driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - app-network
     depends_on:
-      - app
-      - nestjs
+      app:
+        condition: service_healthy
+      nestjs:
+        condition: service_healthy
+    restart: unless-stopped
+
 networks:
   app-network:
     driver: bridge
+    name: trpg-network
 
-# 名前付きボリュームを追加
 volumes:
   app_node_modules:
+    name: trpg-app-node-modules
+  app_vite_cache:
+    name: trpg-app-vite-cache
   nestjs_node_modules:
+    name: trpg-nestjs-node-modules
