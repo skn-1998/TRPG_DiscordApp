@@ -11,7 +11,7 @@ import { GameSystemJSON } from '~/lib/types'
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
 import axios from 'axios'
-import { getJwtFromRequest } from '~/features/auth'
+import { getJwtFromRequest, validateJwt, userData } from '~/features/auth'
 
 const fuseOptions = {
   threshold: 0.4,
@@ -60,20 +60,23 @@ export async function action(args: ActionFunctionArgs) {
   console.log('action')
   const { request, context, params } = args
 
-  try {
-    const body = await request.formData()
-    console.log(...body.entries())
-  } catch (error) {
-    console.log(CustomError(error))
+  const body = await request.formData()
+
+  if (body.has('characterData')) {
+    const _characterData = body.get('characterData') as string
+    const characterData = JSON.parse(_characterData)
+    const validated = (await validateJwt(args)) as userData
+    console.log('validated', validated)
+
+    const userId = validated?._id ? validated?._id : ''
+
+    const jwt = getJwtFromRequest(request)
+
+    const data = await createCharacter({ ...characterData, userId }, jwt || 'no jwt')
+    console.log(data)
   }
 
-  const data = await createCharacter(
-    { name: 'characterName', gameSystemId: 'Pathfinder', userId: 'sample' },
-    'sample_jwt'
-  )
-  console.log(data)
-
-  return data
+  return 'test'
 }
 
 export function CharacterCreate() {

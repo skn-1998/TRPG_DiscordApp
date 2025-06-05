@@ -34,8 +34,7 @@ const createAxiosInstance = (baseURL: string) => {
   return axios.create(config)
 }
 
-const corsServerDomain =
-  typeof process !== 'undefined' && process.env?.SERVER_DOMAIN ? process.env.SERVER_DOMAIN : 'http://localhost:3000'
+const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
 console.log('corsServerDomain: ' + corsServerDomain)
 
 export const apiClient = createAxiosInstance(corsServerDomain)
