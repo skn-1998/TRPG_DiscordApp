@@ -53,4 +53,6 @@ out/
 .netlify
 
 # Environment variables
-.env 
+.env
+
+.pnpm-store/
