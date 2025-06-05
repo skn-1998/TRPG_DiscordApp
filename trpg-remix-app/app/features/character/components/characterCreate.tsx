@@ -11,11 +11,11 @@ import { GameSystemJSON } from '~/lib/types'
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
 import axios from 'axios'
-import { getJwtFromRequest } from '~/features/auth'
+import { getJwtFromRequest, validateJwt, userData } from '~/features/auth'
 
 const fuseOptions = {
   threshold: 0.4,
-  keys: ['NAME']
+  keys: ['SEARCH_KEY_KANJI', 'SEARCH_KEY_HIRAGANA']
 }
 
 const _gameSystemList = _.sortBy(gameSystemList, ['PRIORITY', 'SORT_KEY'])
@@ -24,35 +24,31 @@ const fuse = new Fuse<GameSystemJSON>(_gameSystemList, fuseOptions)
 
 const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
 
-function hiraganaToKatakana(str: string) {
-  const result = moji(str).convert('KK', 'HG').toString()
-  return result
-}
-
-function katakanaToHiragana(str: string) {
-  const result = moji(str).convert('HG', 'KK').toString()
-  return result
-}
-
 export function convertSearchText(str: string) {
-  const hiragana = hiraganaToKatakana(str)
-  const katakana = katakanaToHiragana(str)
-  const katakanaFromRoman = katakanaToHiragana(convertRomanToKana(str))
-  const hiraganaFromRoman = hiraganaToKatakana(katakanaFromRoman)
-  return [str, hiragana, katakana, katakanaFromRoman, hiraganaFromRoman]
+  const _str = str.trim()
+  // 全角英数・全角スペースを半角に
+  const HE = moji(_str).convert('ZS', 'HS').convert('ZE', 'HE').toString()
+  // ローマ字をカタカナに
+  const KKfromRoman = convertRomanToKana(HE)
+  // カタカナをひらがなに統一 ローマ字(英字)はそのまま
+  const convertedWithRoman = moji(HE).convert('KK', 'HG').toString()
+  // ローマ字をカタカナにしてからひらがなに統一
+  const convertedAllHG = moji(KKfromRoman).convert('KK', 'HG').toString()
+  return [convertedWithRoman, convertedAllHG]
 }
 
 const optionsFilter: OptionsFilter = ({ options, search }) => {
-  const gameSystemSearchText = convertSearchText(search.slice(0, 200))
-  const gameSystemSearchObj = gameSystemSearchText.map((e) => ({ NAME: e }))
-  const gameSystemSearchResults = fuse.search({ $or: gameSystemSearchObj }).map((e) => e.item)
+  const _search = search.trim()
+  if (_search === '') return gameSystemListID
+  const gameSystemSearchText = convertSearchText(_search.slice(0, 200))
+  const gameSystemSearchArr_KANJI = gameSystemSearchText.map((e) => ({ SEARCH_KEY_KANJI: e }))
+  const gameSystemSearchArr_HIRAGANA = gameSystemSearchText.map((e) => ({ SEARCH_KEY_HIRAGANA: e }))
+  const gameSystemSearchArr = [...gameSystemSearchArr_KANJI, ...gameSystemSearchArr_HIRAGANA]
+  const _gameSystemSearchResults = fuse.search({ $or: gameSystemSearchArr }).map((e) => e.item)
+  // const gameSystemSearchResults = _.sortBy(_gameSystemSearchResults, ['PRIORITY'])
+  const gameSystemSearchResults = _gameSystemSearchResults
   const formattedResult = gameSystemSearchResults.map((e) => ({ value: e.ID, label: e.NAME }))
   return formattedResult
-  // const splittedSearch = search.toLowerCase().trim().split(' ')
-  // return (options as ComboboxItem[]).filter((option) => {
-  //   const words = option.label.toLowerCase().trim().split(' ')
-  //   return splittedSearch.every((searchWord) => words.some((word) => word.includes(searchWord)))
-  // })
 }
 
 interface CharacterCreateProps {
@@ -64,20 +60,23 @@ export async function action(args: ActionFunctionArgs) {
   console.log('action')
   const { request, context, params } = args
 
-  try {
-    const body = await request.formData()
-    console.log(...body.entries())
-  } catch (error) {
-    console.log(CustomError(error))
+  const body = await request.formData()
+
+  if (body.has('characterData')) {
+    const _characterData = body.get('characterData') as string
+    const characterData = JSON.parse(_characterData)
+    const validated = (await validateJwt(args)) as userData
+    console.log('validated', validated)
+
+    const userId = validated?._id ? validated?._id : ''
+
+    const jwt = getJwtFromRequest(request)
+
+    const data = await createCharacter({ ...characterData, userId }, jwt || 'no jwt')
+    console.log(data)
   }
 
-  const data = await createCharacter(
-    { name: 'characterName', gameSystemId: 'Pathfinder', userId: 'sample' },
-    'sample_jwt'
-  )
-  console.log(data)
-
-  return data
+  return 'test'
 }
 
 export function CharacterCreate() {

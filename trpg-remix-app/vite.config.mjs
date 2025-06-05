@@ -3,6 +3,7 @@ import { installGlobals } from '@remix-run/node'
 import { defineConfig } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { flatRoutes } from 'remix-flat-routes'
+import env from 'vite-plugin-env-compatible'
 
 installGlobals()
 
@@ -19,7 +20,8 @@ export default defineConfig({
       ignoredRouteFiles: ['**/*'],
       routes: async (defineRoutes) => flatRoutes('routes', defineRoutes)
     }),
-    tsconfigPaths()
+    tsconfigPaths(),
+    env({ prefix: '', mountedPath: 'process.env' })
   ],
   server: {
     strictPort: true,
