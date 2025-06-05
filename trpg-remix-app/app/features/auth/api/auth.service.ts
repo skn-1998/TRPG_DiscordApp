@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { LoaderFunctionArgs, redirect } from '@remix-run/node'
+import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
 import { apiClient, createAuthenticatedRequest } from '~/lib/api-client'
 import { TRPGUser, LoginRequest, CookieHeader } from '~/lib/types'
 import { CustomError } from '~/utils/customError'
@@ -46,8 +46,18 @@ export function getJwtFromRequest(request: Request): string | null {
   return jwt
 }
 
+export interface userData {
+  _id: string
+  discordUserId: string
+  name: string
+  characterIds: string[]
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
 // JWT検証
-export async function validateJwt({ request }: LoaderFunctionArgs): Promise<object | null> {
+export async function validateJwt({ request }: LoaderFunctionArgs): Promise<TypedResponse<never> | userData | null> {
   const jwt = getJwtFromRequest(request)
 
   if (!jwt) return redirect('/login')
