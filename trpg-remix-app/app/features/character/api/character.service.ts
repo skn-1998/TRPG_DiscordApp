@@ -8,7 +8,7 @@ export async function createCharacter(
   jwt: string
 ): Promise<Character> {
   try {
-    const response = await apiClient.post<Character>('/characters', characterData, createAuthenticatedRequest(jwt))
+    const response = await apiClient.post<Character>('/character', characterData, createAuthenticatedRequest(jwt))
     return response.data
   } catch (err: unknown) {
     throw new Error(CustomError(err))
@@ -28,7 +28,7 @@ export async function getCharacter(characterId: string, jwt: string): Promise<Ch
 // ユーザーのキャラクター一覧取得
 export async function getUserCharacters(jwt: string): Promise<Character[]> {
   try {
-    const response = await apiClient.get<Character[]>('/user/characters', createAuthenticatedRequest(jwt))
+    const response = await apiClient.get<Character[]>('/character', createAuthenticatedRequest(jwt))
     return response.data
   } catch (err: unknown) {
     throw new Error(CustomError(err))
