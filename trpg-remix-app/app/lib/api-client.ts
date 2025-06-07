@@ -8,6 +8,7 @@ if (typeof process !== 'undefined' && process.versions?.node) {
 
 // 共通のaxiosインスタンスを作成
 const createAxiosInstance = (baseURL: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const config: any = {
     baseURL,
     withCredentials: true,

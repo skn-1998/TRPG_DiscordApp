@@ -35,7 +35,7 @@ export class CharacterService {
       parameter: createCharacterDto.parameter || {}
     }
 
-    return this.characterRepository.create(character)
+    return await this.characterRepository.create(character)
   }
 
   /**
