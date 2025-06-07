@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { configService } from '../config'
 
 // Node.js環境でSSL証明書検証を無効化
 if (typeof process !== 'undefined' && process.versions?.node) {
@@ -35,10 +36,11 @@ const createAxiosInstance = (baseURL: string) => {
   return axios.create(config)
 }
 
-const corsServerDomain = process.env.SERVER_DOMAIN || 'http://localhost:3000'
-console.log('corsServerDomain: ' + corsServerDomain)
+// 設定システムからAPIベースURLを取得
+const apiBaseUrl = configService.get('api.baseUrl') as string
+console.log('API Base URL:', apiBaseUrl)
 
-export const apiClient = createAxiosInstance(corsServerDomain)
+export const apiClient = createAxiosInstance(apiBaseUrl)
 
 // JWT付きリクエスト用のヘルパー
 export const createAuthenticatedRequest = (jwt: string) => {

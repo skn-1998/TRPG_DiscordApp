@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, UnauthorizedException } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Put,
+  UseGuards,
+  Req,
+  UnauthorizedException,
+  Header
+} from '@nestjs/common'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { PartialInputCharacterDto } from './dto/create-character.dto'
@@ -22,7 +34,7 @@ export class CharacterController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseGuards(AuthGuard('discord'))
+  @Header('Content-Type', 'application/json')
   async create(
     @Body() characterData: PartialInputCharacterDto,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,13 +44,16 @@ export class CharacterController {
       throw new UnauthorizedException('認証トークンがありません')
     }
 
+    console.log(characterData)
+
     // 新しいDTOオブジェクトを作成してユーザーIDを設定
     const createCharacterDto: PartialInputCharacterDto = {
       ...characterData,
       discordUserId: req.user.userId
     }
-
-    return await this.characterService.create(createCharacterDto)
+    const character = await this.characterService.create(createCharacterDto)
+    console.log(character)
+    return character
   }
 
   /**
@@ -47,7 +62,6 @@ export class CharacterController {
    * @returns キャラクターの配列
    */
   @Get()
-  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async findAll(@Req() req: any): Promise<Character[]> {
@@ -64,7 +78,6 @@ export class CharacterController {
    * @returns キャラクター
    */
   @Get(':id')
-  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<Character> {
     return this.characterService.findOne(id)
@@ -77,7 +90,6 @@ export class CharacterController {
    * @returns 更新されたキャラクター
    */
   @Put(':id')
-  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async update(@Param('id') id: string, @Body() updateCharacterDto: UpdateCharacterDto): Promise<Character> {
     return this.characterService.update(id, updateCharacterDto)
@@ -88,7 +100,6 @@ export class CharacterController {
    * @param id キャラクターID
    */
   @Delete(':id')
-  @UseGuards(AuthGuard('discord'))
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string): Promise<void> {
     return this.characterService.remove(id)

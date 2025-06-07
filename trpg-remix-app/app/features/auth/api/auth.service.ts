@@ -3,16 +3,17 @@ import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
 import { apiClient, createAuthenticatedRequest } from '../../../lib/api-client'
 import { TRPGUser, LoginRequest, CookieHeader } from '../../../lib/types'
 import { CustomError } from '../../../utils/customError'
+import { configService } from '../../../config'
 import cookie from 'cookie'
 
 // Discord OAuth認証URLを生成
 export function generateDiscordAuthUrl(): string {
-  // 一時的なテスト用のハードコード値
-  const client_id = process.env.DISCORD_APPLICATIONID || 'TEST_CLIENT_ID'
-  const redirect_url = `${process.env.HOST_DOMAIN || 'http://localhost:5173'}/login`
+  const applicationId = configService.get('discord.applicationId') as string
+  const serverDomain = configService.get('server.hostDomain') as string
+  const redirectUri = `${serverDomain}/login`
 
-  const redirect_uri = encodeURIComponent(redirect_url)
-  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=identify`
+  const encodedRedirectUri = encodeURIComponent(redirectUri)
+  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${applicationId}&response_type=code&redirect_uri=${encodedRedirectUri}&scope=identify`
 
   return discordAuthUrl
 }
@@ -85,12 +86,15 @@ export async function validateJwt({ request }: LoaderFunctionArgs): Promise<Type
 // JWTをCookieに保存
 export function saveJwtToken(jwt: string): CookieHeader {
   try {
+    const isProduction = configService.isProduction()
+    const jwtExpiresIn = 60 * 60 * 24 * 7 // 7日間
+
     const cookieHeader = cookie.serialize('jwt', jwt, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7
+      maxAge: jwtExpiresIn
     })
 
     const cookieHeaders: CookieHeader = {
