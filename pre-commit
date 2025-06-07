@@ -2,11 +2,17 @@
 
 # Run this command first:
 # cp pre-commit .git/hooks
+# chmod +x .git/hooks/pre-commit
 
-cd ./trpg-remix-app
-pnpm run format
-cd ../
-cd ./TRPG-SERVER
-pnpm run format
-cd ../
+PACKAGE_DIRS=("trpg-remix-app" "TRPG-SERVER")
+
+for dir in "${PACKAGE_DIRS[@]}"; do
+    echo "Formatting files in $dir..."
+    if ! (cd "$dir" && pnpm run format); then
+        echo "Error: Formatting failed in $dir"
+        exit 1
+    fi
+done
+
 git add .
+echo "pre-commit completed."
