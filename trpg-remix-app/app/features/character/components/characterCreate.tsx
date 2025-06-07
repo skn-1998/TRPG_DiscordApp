@@ -6,7 +6,7 @@ import _ from 'lodash'
 import Fuse from 'fuse.js'
 import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
-import { createCharacter } from '../api/character.service'
+import { createCharacter, getUserCharacters } from '../api/character.service'
 import { GameSystemJSON } from '~/lib/types'
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
@@ -73,7 +73,12 @@ export async function action(args: ActionFunctionArgs) {
     const jwt = getJwtFromRequest(request)
 
     const data = await createCharacter({ ...characterData, userId }, jwt || 'no jwt')
+    console.log('--------------------------------------')
     console.log(data)
+    console.log('--------------------------------------')
+
+    // const getData = await getUserCharacters(jwt || 'no jwt')
+    // console.log(getData)
   }
 
   return 'test'
