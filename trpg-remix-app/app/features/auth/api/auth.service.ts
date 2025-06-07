@@ -9,8 +9,8 @@ import cookie from 'cookie'
 // Discord OAuth認証URLを生成
 export function generateDiscordAuthUrl(): string {
   const applicationId = configService.get('discord.applicationId') as string
-  const serverDomain = configService.get('server.hostDomain') as string
-  const redirectUri = `${serverDomain}/login`
+  const hostDomain = configService.get('server.hostDomain') as string
+  const redirectUri = `${hostDomain}/login`
 
   const encodedRedirectUri = encodeURIComponent(redirectUri)
   const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${applicationId}&response_type=code&redirect_uri=${encodedRedirectUri}&scope=identify`
