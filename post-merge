@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Run this command first:
+# cp post-merge .git/hooks
+# chmod +x .git/hooks/post-merge
+
+set -e
+
+# 管理しているサブパッケージのディレクトリ名
+PACKAGE_DIRS=("trpg-remix-app" "TRPG-SERVER")
+
+# 変更されたファイルのリストを取得
+CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD || true)
+
+for dir in "${PACKAGE_DIRS[@]}"; do
+  if echo "$CHANGED_FILES" | grep -q "^${dir}/pnpm-lock.yaml"; then
+    echo "${dir}/pnpm-lock.yaml に変更がありました。pnpm install を実行します。"
+    (cd "$dir" && pnpm install)
+  fi
+done
