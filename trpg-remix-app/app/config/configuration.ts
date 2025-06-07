@@ -57,11 +57,6 @@ export const generateAppConfig = () => {
       hostDomain: env.HOST_DOMAIN || 'http://localhost:5173'
     },
 
-    // API設定
-    api: {
-      baseUrl: env.API_BASE_URL || 'http://localhost:3001'
-    },
-
     // データベース設定
     database: {
       url: env.DATABASE_URL,

@@ -3,8 +3,11 @@ import { configService } from '../config'
 
 // Node.js環境でSSL証明書検証を無効化
 if (typeof process !== 'undefined' && process.versions?.node) {
-  process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
-  console.log('SSL certificate verification disabled for Node.js environment')
+  // 開発環境でのみSSL証明書検証を無効化
+  if (!configService.isProduction()) {
+    process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+    console.log('SSL certificate verification disabled for development environment')
+  }
 }
 
 // 共通のaxiosインスタンスを作成
@@ -37,7 +40,7 @@ const createAxiosInstance = (baseURL: string) => {
 }
 
 // 設定システムからAPIベースURLを取得
-const apiBaseUrl = configService.get('api.baseUrl') as string
+const apiBaseUrl = configService.get('server.domain') as string
 console.log('API Base URL:', apiBaseUrl)
 
 export const apiClient = createAxiosInstance(apiBaseUrl)
