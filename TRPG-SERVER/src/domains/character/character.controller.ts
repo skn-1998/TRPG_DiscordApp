@@ -38,7 +38,7 @@ export class CharacterController {
       discordUserId: req.user.userId
     }
 
-    return this.characterService.create(createCharacterDto)
+    return await this.characterService.create(createCharacterDto)
   }
 
   /**
