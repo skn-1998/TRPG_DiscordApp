@@ -23,12 +23,41 @@ export default defineConfig({
     tsconfigPaths(),
     env({ prefix: '', mountedPath: 'process.env' })
   ],
+  // Docker環境とWindows向けの最適化
   server: {
+    host: '0.0.0.0',
+    port: 5173,
     strictPort: true,
     hmr: {
       clientPort: 5173,
       host: 'localhost',
       protocol: 'ws'
+    },
+    watch: {
+      usePolling: true, // Docker環境では常にポーリングを使用
+      interval: 1000, // ポーリング間隔を調整
+      ignored: ['**/node_modules/**', '**/.git/**']
     }
-  }
+  },
+  // 依存関係の最適化設定
+  optimizeDeps: {
+    include: [
+      '@mantine/core',
+      '@mantine/hooks',
+      '@mantine/form',
+      '@mantine/notifications',
+      '@mantine/modals',
+      '@mantine/nprogress',
+      '@remix-run/react',
+      '@remix-run/node',
+      'react',
+      'react-dom',
+      'lodash',
+      'axios',
+      'zustand'
+    ],
+    force: false // 強制的な依存関係最適化を無効化
+  },
+  // キャッシュディレクトリの設定
+  cacheDir: 'node_modules/.vite'
 })

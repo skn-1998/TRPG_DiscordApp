@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
-import { apiClient, createAuthenticatedRequest } from '~/lib/api-client'
-import { TRPGUser, LoginRequest, CookieHeader } from '~/lib/types'
-import { CustomError } from '~/utils/customError'
+import { apiClient, createAuthenticatedRequest } from '../../../lib/api-client'
+import { TRPGUser, LoginRequest, CookieHeader } from '../../../lib/types'
+import { CustomError } from '../../../utils/customError'
 import cookie from 'cookie'
 
 // Discord OAuth認証URLを生成
