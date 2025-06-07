@@ -16,9 +16,6 @@ export interface EnvironmentSchema {
   SERVER_DOMAIN?: string
   HOST_DOMAIN?: string
 
-  // API設定
-  API_BASE_URL?: string
-
   // データベース設定（将来的な拡張用）
   DATABASE_URL?: string
   DB_LOGGING?: boolean

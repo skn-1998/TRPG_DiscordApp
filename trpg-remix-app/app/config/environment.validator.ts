@@ -57,9 +57,6 @@ export class EnvironmentValidator {
       result.SERVER_DOMAIN = TYPE_CONVERTERS.string(env.SERVER_DOMAIN, DEFAULT_VALUES.SERVER_DOMAIN)
       result.HOST_DOMAIN = TYPE_CONVERTERS.string(env.HOST_DOMAIN, DEFAULT_VALUES.HOST_DOMAIN)
 
-      // API設定
-      result.API_BASE_URL = TYPE_CONVERTERS.string(env.API_BASE_URL, DEFAULT_VALUES.API_BASE_URL)
-
       // データベース設定
       result.DATABASE_URL = env.DATABASE_URL ? TYPE_CONVERTERS.string(env.DATABASE_URL) : undefined
       result.DB_LOGGING = TYPE_CONVERTERS.boolean(env.DB_LOGGING, DEFAULT_VALUES.DB_LOGGING)
@@ -68,9 +65,7 @@ export class EnvironmentValidator {
       if (result.PORT) {
         this.validatePort(result.PORT, errors)
       }
-      if (result.API_BASE_URL) {
-        this.validateUrl(result.API_BASE_URL, 'API_BASE_URL', errors)
-      }
+
       if (result.SERVER_DOMAIN) {
         this.validateUrl(result.SERVER_DOMAIN, 'SERVER_DOMAIN', errors)
       }

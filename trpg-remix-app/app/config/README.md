@@ -28,11 +28,10 @@ NODE_ENV=development
 PORT=5173
 
 # サーバー設定
-SERVER_DOMAIN=http://localhost:5173
+SERVER_DOMAIN=http://localhost:3000
 HOST_DOMAIN=http://localhost:5173
 
-# API設定
-API_BASE_URL=http://localhost:3000
+
 
 # データベース設定
 DATABASE_URL=your_database_url
@@ -84,7 +83,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 import { getConfigValue } from '~/config'
 
 // 関数として使用
-const apiUrl = getConfigValue('api.baseUrl')
+const apiUrl = getConfigValue('server.domain')
 ```
 
 ## 利用可能な設定パス
@@ -95,8 +94,6 @@ const apiUrl = getConfigValue('api.baseUrl')
 - `discord.applicationId` - Discord Application ID
 - `server.domain` - サーバードメイン
 - `server.hostDomain` - ホストドメイン
-- `api.baseUrl` - APIベースURL
-- `database.url` - データベースURL
 - `database.logging` - データベースログ出力
 
 ## エラーハンドリング

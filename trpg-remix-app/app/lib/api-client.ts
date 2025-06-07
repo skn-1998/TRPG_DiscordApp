@@ -21,19 +21,26 @@ const createAxiosInstance = (baseURL: string) => {
     }
   }
 
-  // Node.js環境でのみhttpsAgentを設定（SSL証明書検証を無効化）
+  // Node.js環境でのみhttpAgent/httpsAgentを設定（IPv4を強制、SSL証明書検証を無効化）
   try {
     // Node.js環境かつrequireが利用可能な場合のみ
     if (typeof process !== 'undefined' && process.versions?.node && typeof require !== 'undefined') {
       const https = eval('require')('https')
-      config.httpsAgent = new https.Agent({
-        rejectUnauthorized: false
-      })
-      console.log('Using HTTPS agent with rejectUnauthorized: false')
+      const http = eval('require')('http')
+
+      // IPv4を強制使用してIPv6接続エラーを回避
+      const agentOptions = {
+        rejectUnauthorized: false,
+        family: 4 // IPv4を強制使用
+      }
+
+      config.httpsAgent = new https.Agent(agentOptions)
+      config.httpAgent = new http.Agent({ family: 4 })
+      console.log('Using HTTP/HTTPS agents with IPv4 forced (family: 4)')
     }
   } catch (error) {
     // ブラウザ環境やVite環境では無視
-    console.log('Skipping HTTPS agent configuration (browser/Vite environment)')
+    console.log('Skipping HTTP/HTTPS agent configuration (browser/Vite environment)')
   }
 
   return axios.create(config)

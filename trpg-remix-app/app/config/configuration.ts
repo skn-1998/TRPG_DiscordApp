@@ -82,7 +82,6 @@ export type ConfigPaths =
   | 'discord.applicationId'
   | 'server.domain'
   | 'server.hostDomain'
-  | 'api.baseUrl'
   | 'database.url'
   | 'database.logging'
 
