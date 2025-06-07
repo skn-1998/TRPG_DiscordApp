@@ -31,8 +31,7 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
   NODE_ENV: 'development',
   PORT: 5173,
   DB_LOGGING: false,
-  API_BASE_URL: 'http://localhost:3000',
-  SERVER_DOMAIN: 'http://localhost:5173',
+  SERVER_DOMAIN: 'http://localhost:3000',
   HOST_DOMAIN: 'http://localhost:5173'
 } as const
 
