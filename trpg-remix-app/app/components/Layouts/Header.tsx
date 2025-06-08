@@ -1,8 +1,9 @@
 import { Group, Text, Button, ActionIcon, useMantineTheme, darken, Loader, Menu, Avatar } from '@mantine/core'
 import { IconMenu2, IconDice6, IconLogin, IconLogout, IconUser } from '@tabler/icons-react'
-import { Link } from '@remix-run/react'
+import { Link, useNavigate } from '@remix-run/react'
 import { useAuth } from '../../hooks/useAuth'
 import { getDiscordAvatarUrl, getDefaultDiscordAvatarUrl } from '../../utils/discordAvatar'
+import { logoutUser } from '../../features/auth/api/auth.service'
 
 interface HeaderProps {
   opened?: boolean
@@ -13,12 +14,19 @@ interface HeaderProps {
 export function Header({ toggle }: HeaderProps) {
   const theme = useMantineTheme()
   const { isLoggedIn, isLoading, hasValidJwt, user } = useAuth()
+  const navigate = useNavigate()
 
-  const handleLogout = () => {
-    // クッキーからJWTを削除
-    document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-    // ログインページにリダイレクト
-    window.location.href = '/login'
+  const handleLogout = async () => {
+    try {
+      // サーバーサイドでクッキーを削除
+      await logoutUser()
+      // ログインページにリダイレクト
+      navigate('/login')
+    } catch (error) {
+      console.error('ログアウトエラー:', error)
+      // エラーが発生してもリダイレクトは実行
+      navigate('/login')
+    }
   }
 
   return (
