@@ -162,6 +162,33 @@ export class AuthController {
   }
 
   /**
+   * ログアウトエンドポイント
+   * @param res レスポンス
+   */
+  @Post('logout')
+  async logout(@Res() res: Response): Promise<void> {
+    try {
+      // JWTクッキーを削除
+      res.clearCookie('jwt', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/'
+      })
+
+      res.status(HttpStatus.OK).json({
+        message: 'ログアウト成功'
+      })
+    } catch (error) {
+      this.logger.error(`ログアウトエラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        message: 'ログアウトに失敗しました',
+        error: error instanceof Error ? error.message : '不明なエラー'
+      })
+    }
+  }
+
+  /**
    * ユーザー情報取得エンドポイント
    * @param discordUserId DiscordユーザーID
    * @param res レスポンス

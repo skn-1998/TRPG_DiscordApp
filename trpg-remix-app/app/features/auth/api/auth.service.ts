@@ -107,3 +107,13 @@ export function saveJwtToken(jwt: string): CookieHeader {
     throw new Error(CustomError(e))
   }
 }
+
+// ログアウト関数
+export async function logoutUser(): Promise<void> {
+  try {
+    await apiClient.post('/auth/logout')
+  } catch (err: unknown) {
+    console.error('ログアウトエラー:', CustomError(err))
+    throw new Error(CustomError(err))
+  }
+}
