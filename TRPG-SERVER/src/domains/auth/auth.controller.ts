@@ -226,6 +226,42 @@ export class AuthController {
         res.clearCookie('jwt', { secure: false, path: '/' })
         this.logger.debug('ドメイン指定なしでクッキー削除試行')
 
+        // IPアドレス経由の場合の特別対応
+        if (hostHeader.includes('127.0.0.1') || hostHeader.includes('::1')) {
+          const ipType = hostHeader.includes('127.0.0.1') ? 'IPv4' : 'IPv6'
+
+          // 強制的に期限切れクッキーで上書き（複数パターン）
+          const overwriteOptions = [
+            {
+              httpOnly: true,
+              secure: false,
+              sameSite: 'lax' as const,
+              path: '/',
+              expires: new Date(0)
+            },
+            {
+              httpOnly: true,
+              secure: false,
+              sameSite: 'lax' as const,
+              path: '/',
+              maxAge: 0
+            },
+            {
+              path: '/',
+              expires: new Date(0)
+            },
+            {
+              path: '/',
+              maxAge: 0
+            }
+          ]
+
+          overwriteOptions.forEach((options, index) => {
+            res.cookie('jwt', '', options)
+            this.logger.debug(`${ipType}アドレス経由 - パターン${index + 1}で強制上書き`)
+          })
+        }
+
         // localhost経由でのアクセスの場合のみlocalhost domainで削除
         if (hostHeader.includes('localhost')) {
           try {
