@@ -76,12 +76,21 @@ export class AuthController {
       await this.authService.signInAndRegisterUserInfo(user)
       const jwt = await this.authService.generateJwt(user)
 
-      // セキュアクッキーにJWTを設定
-      res.cookie('jwt', jwt, {
+      const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+
+      // 環境に応じたクッキー設定
+      const cookieOptions = {
         httpOnly: true,
-        secure: true,
-        sameSite: 'strict'
-      })
+        secure: isProduction, // 本番環境のみsecure
+        sameSite: isProduction ? ('none' as const) : ('lax' as const), // 環境に応じて変更
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7日間
+      }
+
+      this.logger.debug(`Discord認証 - クッキー設定: ${JSON.stringify(cookieOptions)}`)
+
+      // セキュアクッキーにJWTを設定
+      res.cookie('jwt', jwt, cookieOptions)
 
       // フロントエンドページへリダイレクト
       const frontendUrl = this.configService.get<string>('FRONTEND_URL') || '/'
@@ -139,12 +148,21 @@ export class AuthController {
       await this.authService.signInAndRegisterUserInfo(user)
       const jwt = await this.authService.generateJwt(user)
 
-      // セキュアクッキーにJWTを設定
-      res.cookie('jwt', jwt, {
+      const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+
+      // 環境に応じたクッキー設定
+      const cookieOptions = {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none'
-      })
+        secure: isProduction, // 本番環境のみsecure
+        sameSite: isProduction ? ('none' as const) : ('lax' as const), // 環境に応じて変更
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7日間
+      }
+
+      this.logger.debug(`ログイン - クッキー設定: ${JSON.stringify(cookieOptions)}`)
+
+      // セキュアクッキーにJWTを設定
+      res.cookie('jwt', jwt, cookieOptions)
 
       res.status(HttpStatus.OK).json({
         message: '認証成功',
@@ -168,13 +186,32 @@ export class AuthController {
   @Post('logout')
   async logout(@Res() res: Response): Promise<void> {
     try {
-      // JWTクッキーを削除
-      res.clearCookie('jwt', {
+      const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+
+      // 環境に応じたクッキー削除設定
+      const cookieOptions = {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none',
+        secure: isProduction, // 本番環境のみsecure
+        sameSite: isProduction ? ('none' as const) : ('lax' as const), // 環境に応じて変更
         path: '/'
-      })
+      }
+
+      this.logger.debug(`ログアウト - クッキー削除設定: ${JSON.stringify(cookieOptions)}`)
+
+      // JWTクッキーを削除
+      res.clearCookie('jwt', cookieOptions)
+
+      // 追加的な削除方法（互換性のため）
+      // 様々な設定パターンで削除を試行
+      res.clearCookie('jwt', { path: '/' })
+      res.clearCookie('jwt', { httpOnly: true, path: '/' })
+      res.clearCookie('jwt', { secure: false, path: '/' })
+      res.clearCookie('jwt', { httpOnly: true, secure: false, path: '/' })
+
+      // 本番環境でも念のため追加削除
+      if (isProduction) {
+        res.clearCookie('jwt', { httpOnly: true, secure: true, sameSite: 'strict', path: '/' })
+      }
 
       res.status(HttpStatus.OK).json({
         message: 'ログアウト成功'
