@@ -13,7 +13,7 @@ export function generateDiscordAuthUrl(): string {
   const redirectUri = `${hostDomain}/login`
 
   const encodedRedirectUri = encodeURIComponent(redirectUri)
-  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${applicationId}&response_type=code&redirect_uri=${encodedRedirectUri}&scope=identify`
+  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${applicationId}&response_type=code&redirect_uri=${encodedRedirectUri}&scope=identify%20email`
 
   return discordAuthUrl
 }

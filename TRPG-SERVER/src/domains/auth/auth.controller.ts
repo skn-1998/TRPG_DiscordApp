@@ -24,7 +24,7 @@ import { DiscordUserProfile } from './models/discord-user.model'
 
 // Expressのリクエスト型を拡張してユーザー情報を含める
 interface RequestWithUser extends ExpressRequest {
-  user: any // anyを使用して型エラーを回避
+  user: DiscordUserProfile & Record<string, unknown>
 }
 
 /**
@@ -69,6 +69,7 @@ export class AuthController {
       const user: Partial<User> = {
         name: profile.username,
         discordUserId: profile.id,
+        avatarHash: profile.avatar,
         characterIds: []
       }
 
@@ -123,11 +124,17 @@ export class AuthController {
       const authData = await this.authService.authenticate(code)
       const userInfo = await this.authService.getUserInfo(authData.access_token)
 
+      this.logger.debug(`User info: ${JSON.stringify(userInfo)}`)
+      this.logger.debug(`Avatar hash from Discord: ${userInfo.avatar}`)
+
       const user: Partial<User> = {
         name: userInfo.username,
         discordUserId: userInfo.id,
+        avatarHash: userInfo.avatar,
         characterIds: []
       }
+
+      this.logger.debug(`User object to save: ${JSON.stringify(user)}`)
 
       await this.authService.signInAndRegisterUserInfo(user)
       const jwt = await this.authService.generateJwt(user)

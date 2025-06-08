@@ -17,6 +17,9 @@ export class User {
   @Prop({ required: true })
   name: string
 
+  @Prop({ required: false })
+  avatarHash?: string
+
   @Prop({ type: [String], default: [] })
   characterIds: string[]
 }

@@ -6,15 +6,45 @@ import './styles/globals.css'
 import theme from './theme'
 import { AppLayout } from './components/Layouts'
 import { getJwtFromRequest } from './features/auth/api/auth.service'
+import { apiClient, createAuthenticatedRequest } from './lib/api-client'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const jwt = getJwtFromRequest(request)
-  const isLoggedIn = !!jwt
 
-  return json({
-    user: isLoggedIn ? { authenticated: true } : null,
-    isLoggedIn
-  })
+  if (!jwt) {
+    return json({
+      user: null,
+      isLoggedIn: false,
+      hasValidJwt: false
+    })
+  }
+
+  try {
+    // JWTが存在する場合、バックエンドでトークンを検証
+    const response = await apiClient.get('/users', createAuthenticatedRequest(jwt))
+
+    if (response.data) {
+      return json({
+        user: response.data,
+        isLoggedIn: true,
+        hasValidJwt: true
+      })
+    } else {
+      return json({
+        user: null,
+        isLoggedIn: false,
+        hasValidJwt: false
+      })
+    }
+  } catch (error) {
+    // JWT検証に失敗した場合
+    console.error('JWT validation failed in root loader:', error)
+    return json({
+      user: null,
+      isLoggedIn: false,
+      hasValidJwt: false
+    })
+  }
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {

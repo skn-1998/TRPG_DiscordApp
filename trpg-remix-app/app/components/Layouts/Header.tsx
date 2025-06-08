@@ -1,7 +1,8 @@
-import { Group, Text, Button, ActionIcon, useMantineTheme, darken, Loader } from '@mantine/core'
-import { IconMenu2, IconDice6, IconUser, IconSettings, IconLogin } from '@tabler/icons-react'
+import { Group, Text, Button, ActionIcon, useMantineTheme, darken, Loader, Menu, Avatar } from '@mantine/core'
+import { IconMenu2, IconDice6, IconLogin, IconLogout, IconUser } from '@tabler/icons-react'
 import { Link } from '@remix-run/react'
 import { useAuth } from '../../hooks/useAuth'
+import { getDiscordAvatarUrl, getDefaultDiscordAvatarUrl } from '../../utils/discordAvatar'
 
 interface HeaderProps {
   opened?: boolean
@@ -11,7 +12,14 @@ interface HeaderProps {
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function Header({ toggle }: HeaderProps) {
   const theme = useMantineTheme()
-  const { isLoggedIn, isLoading } = useAuth()
+  const { isLoggedIn, isLoading, hasValidJwt, user } = useAuth()
+
+  const handleLogout = () => {
+    // クッキーからJWTを削除
+    document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+    // ログインページにリダイレクト
+    window.location.href = '/login'
+  }
 
   return (
     <Group
@@ -50,15 +58,31 @@ export function Header({ toggle }: HeaderProps) {
       <Group gap="md">
         {isLoading ? (
           <Loader size="sm" color={theme.colors.accent[5]} />
-        ) : isLoggedIn ? (
-          <Group gap="sm">
-            <Button variant="subtle" color="accent" component={Link} to="/user" leftSection={<IconUser size={16} />}>
-              ユーザーページ
-            </Button>
-            <ActionIcon variant="subtle" color="accent" component={Link} to="/settings">
-              <IconSettings size={18} />
-            </ActionIcon>
-          </Group>
+        ) : isLoggedIn && hasValidJwt && user ? (
+          <Menu shadow="md" width={200}>
+            <Menu.Target>
+              <Avatar
+                size={32}
+                src={getDiscordAvatarUrl(user.discordUserId, user.avatarHash, 64)}
+                alt={user.name}
+                style={{ cursor: 'pointer' }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.src = getDefaultDiscordAvatarUrl(user.discordUserId, 64)
+                }}
+              />
+            </Menu.Target>
+
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<IconUser size={16} />} component={Link} to="/user">
+                ユーザーページ
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item leftSection={<IconLogout size={16} />} onClick={handleLogout} color="red">
+                ログアウト
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         ) : (
           <Button variant="subtle" color="accent" component={Link} to="/login" leftSection={<IconLogin size={16} />}>
             ログイン

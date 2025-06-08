@@ -11,7 +11,7 @@ import {
   UnauthorizedException,
   Header
 } from '@nestjs/common'
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
