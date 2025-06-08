@@ -2,7 +2,7 @@ import { Link, Outlet, useOutletContext } from '@remix-run/react'
 
 export default function User() {
   // 親ルート(User.tsx)の loader が返す型情報を取得
-  const outletContextData = useOutletContext<{ data: any; cookie: string }>()
+  const outletContextData = useOutletContext<{ data: unknown; cookie: string }>()
 
   return (
     <>

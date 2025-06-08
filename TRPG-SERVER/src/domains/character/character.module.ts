@@ -4,7 +4,7 @@ import { CharacterController } from './character.controller'
 import { CharacterService } from './character.service'
 import { CHARACTER_MODEL, CharacterSchema } from './models/character.model'
 import { CharacterRepository } from './repositories/character.repository'
-import { AuthModule } from 'src/auth/auth.module'
+import { AuthModule } from '../auth/auth.module'
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: CHARACTER_MODEL, schema: CharacterSchema }]), AuthModule],

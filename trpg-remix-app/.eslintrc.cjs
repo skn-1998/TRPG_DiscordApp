@@ -89,7 +89,7 @@ module.exports = {
     // ここに追加のルールを指定
     "no-console": "warn",
     "indent": ["error", 2, { "SwitchCase": 1 }],
-    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/explicit-function-return-type": "off",
     "no-unused-vars": "warn",
     "prefer-const": "error"
   }

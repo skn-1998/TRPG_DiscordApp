@@ -7,6 +7,10 @@ export class CreateUserDto {
   @IsString()
   readonly name: string
 
+  @IsString()
+  @IsOptional()
+  readonly avatarHash?: string
+
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

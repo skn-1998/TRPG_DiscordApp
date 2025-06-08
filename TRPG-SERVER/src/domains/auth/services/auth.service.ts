@@ -116,7 +116,15 @@ export class AuthService {
         this.logger.log(`新規ユーザー作成: ${user.discordUserId}`)
         await this.userService.create({
           discordUserId: user.discordUserId,
-          name: user.name
+          name: user.name,
+          avatarHash: user.avatarHash
+        })
+      } else {
+        // 既存ユーザーの場合、アバターハッシュを更新
+        this.logger.log(`既存ユーザーのアバター更新: ${user.discordUserId}`)
+        await this.userService.update(user.discordUserId, {
+          name: user.name,
+          avatarHash: user.avatarHash
         })
       }
     } catch (error) {
@@ -138,6 +146,9 @@ export class AuthService {
 
     try {
       const response = await firstValueFrom(this.httpService.get<DiscordUserProfile>(url, { headers }))
+
+      this.logger.debug(`Discord user info response: ${JSON.stringify(response.data)}`)
+      this.logger.debug(`Avatar hash: ${response.data.avatar}`)
 
       return response.data
     } catch (error) {

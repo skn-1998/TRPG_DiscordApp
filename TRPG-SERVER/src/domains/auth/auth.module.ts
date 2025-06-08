@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
 import { HttpClientService } from './services/http.service'
 import { DiscordStrategy } from './discord.strategy'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { UserModule } from '../user/user.module'
 
 /**
@@ -35,7 +36,7 @@ import { UserModule } from '../user/user.module'
     HttpModule
   ],
   controllers: [AuthController],
-  providers: [AuthService, HttpClientService, DiscordStrategy],
-  exports: [AuthService]
+  providers: [AuthService, HttpClientService, DiscordStrategy, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard]
 })
 export class AuthModule {}
