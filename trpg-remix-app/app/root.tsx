@@ -3,6 +3,7 @@ import { MantineProvider, ColorSchemeScript } from '@mantine/core'
 import '@mantine/core/styles.css'
 import './styles/globals.css'
 import theme from './theme'
+import { AppLayout } from './components/Layouts'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
-          {children}
+          <AppLayout>{children}</AppLayout>
         </MantineProvider>
         <ScrollRestoration />
         <Scripts />

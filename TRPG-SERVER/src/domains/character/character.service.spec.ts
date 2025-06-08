@@ -56,7 +56,7 @@ describe('CharacterService MongoDB Connection Test', () => {
       if (foundCharacter) {
         expect(foundCharacter.characterId).toEqual(cthulhuTestCharacter.characterId)
         expect(foundCharacter.characterName).toEqual(cthulhuTestCharacter.characterName)
-        expect(foundCharacter.TRPGId).toEqual(cthulhuTestCharacter.TRPGId)
+        expect(foundCharacter.gameSystemId).toEqual(cthulhuTestCharacter.gameSystemId)
         expect(foundCharacter.discordUserId).toEqual(cthulhuTestCharacter.discordUserId)
         expect(foundCharacter.discordChannelId).toEqual(cthulhuTestCharacter.discordChannelId)
 

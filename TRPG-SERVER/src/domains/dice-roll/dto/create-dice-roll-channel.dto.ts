@@ -43,7 +43,7 @@ export class PartialInputDiceRollChannelDto {
 
   @IsString()
   @IsOptional()
-  TRPGId?: string
+  gameSystemId?: string
 
   @IsString()
   @IsOptional()

@@ -58,7 +58,7 @@ export class ChannelCreateService {
       // 空文字列でキャラクターを作成 (モデルでデフォルト値が設定されているため可能)
       await this.characterService
         .create({
-          TRPGId: '',
+          gameSystemId: '',
           characterName: channel.name,
           discordChannelId: channel.id,
           discordUserId: creatorId // チャンネル作成者のIDを設定

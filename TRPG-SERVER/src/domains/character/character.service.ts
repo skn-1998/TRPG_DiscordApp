@@ -19,14 +19,14 @@ export class CharacterService {
    */
   async create(createCharacterDto: PartialInputCharacterDto): Promise<Character> {
     // 必要なデータの取得
-    const { TRPGId, characterName, discordUserId, discordChannelId } = createCharacterDto
+    const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
 
     // キャラクターIDがない場合は生成
     const characterId = createCharacterDto.characterId || uuidv4()
 
     const character: Partial<Character> = {
       characterId,
-      TRPGId,
+      gameSystemId,
       characterName,
       discordUserId,
       discordChannelId,
