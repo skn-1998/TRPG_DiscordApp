@@ -122,7 +122,7 @@ export class AuthController {
    * @param res レスポンス
    */
   @Post('login')
-  async login(@Body() loginDto: DiscordLoginDto, @Res() res: Response): Promise<void> {
+  async login(@Body() loginDto: DiscordLoginDto, @Req() req: RequestWithUser, @Res() res: Response): Promise<void> {
     try {
       const { code } = loginDto
 
@@ -149,6 +149,7 @@ export class AuthController {
       const jwt = await this.authService.generateJwt(user)
 
       const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+      const hostHeader = req.get('host') || ''
 
       // 環境に応じたクッキー設定
       const cookieOptions = {
@@ -156,9 +157,12 @@ export class AuthController {
         secure: isProduction, // 本番環境のみsecure
         sameSite: isProduction ? ('none' as const) : ('lax' as const), // 環境に応じて変更
         path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7日間
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7日間
+        // ローカル環境でlocalhostアクセスの場合のみドメインを設定
+        ...(!isProduction && hostHeader.includes('localhost') ? { domain: 'localhost' } : {})
       }
 
+      this.logger.debug(`ログイン - Host: ${hostHeader}`)
       this.logger.debug(`ログイン - クッキー設定: ${JSON.stringify(cookieOptions)}`)
 
       // セキュアクッキーにJWTを設定
@@ -212,26 +216,38 @@ export class AuthController {
         hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('::1')
 
       if (isLocalhost) {
-        // ローカル環境での有効なドメイン設定のみ
-        // 注意: ドメインにはポート番号やIPv6アドレスは含められない
-        const validDomains = ['localhost'] // 有効なドメインのみ
+        this.logger.debug(`ローカル環境でのクッキー削除 - Host: ${hostHeader}`)
 
-        validDomains.forEach((domain) => {
+        // まず、ドメイン指定なしで削除（最も確実）
+        // ログイン時にドメイン指定なしで設定されたクッキーを削除
+        res.clearCookie('jwt', { ...cookieOptions })
+        res.clearCookie('jwt', { path: '/' })
+        res.clearCookie('jwt', { httpOnly: true, path: '/' })
+        res.clearCookie('jwt', { secure: false, path: '/' })
+        this.logger.debug('ドメイン指定なしでクッキー削除試行')
+
+        // localhost経由でのアクセスの場合のみlocalhost domainで削除
+        if (hostHeader.includes('localhost')) {
           try {
-            res.clearCookie('jwt', { ...cookieOptions, domain })
-            res.clearCookie('jwt', { path: '/', domain })
-            res.clearCookie('jwt', { httpOnly: true, path: '/', domain })
-            this.logger.debug(`クッキー削除試行: domain=${domain}`)
+            res.clearCookie('jwt', { ...cookieOptions, domain: 'localhost' })
+            res.clearCookie('jwt', { path: '/', domain: 'localhost' })
+            res.clearCookie('jwt', { httpOnly: true, path: '/', domain: 'localhost' })
+            this.logger.debug('domain=localhostでクッキー削除試行')
           } catch (error) {
-            this.logger.warn(`ドメイン ${domain} でのクッキー削除失敗: ${error}`)
+            this.logger.warn(`domain=localhostでのクッキー削除失敗: ${error}`)
           }
-        })
+        }
 
-        // IPアドレスベースの削除（ドメイン指定なし）
-        // localhost以外のアクセスの場合はドメイン指定を避ける
-        res.clearCookie('jwt', { ...cookieOptions, domain: undefined })
-        res.clearCookie('jwt', { path: '/', domain: undefined })
-        res.clearCookie('jwt', { httpOnly: true, path: '/', domain: undefined })
+        // .localhost ドメインでも試行（サブドメイン対応）
+        if (hostHeader.includes('localhost')) {
+          try {
+            res.clearCookie('jwt', { ...cookieOptions, domain: '.localhost' })
+            res.clearCookie('jwt', { path: '/', domain: '.localhost' })
+            this.logger.debug('domain=.localhostでクッキー削除試行')
+          } catch (error) {
+            this.logger.warn(`domain=.localhostでのクッキー削除失敗: ${error}`)
+          }
+        }
       }
 
       // 追加的な削除方法（互換性のため）
