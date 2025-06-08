@@ -28,9 +28,10 @@ services:
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-SERVER-PROD
     environment:
-      NODE_ENV: production
+      NODE_ENV: production  
       FRONTEND_URL: https://localhost
       PORT: 3000
+      DOCKER_ENV: true
     ports:
       - "3000:3000"
     healthcheck:

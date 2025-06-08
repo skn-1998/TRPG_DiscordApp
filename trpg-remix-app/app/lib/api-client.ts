@@ -47,7 +47,14 @@ const createAxiosInstance = (baseURL: string) => {
 }
 
 // 設定システムからAPIベースURLを取得
-const apiBaseUrl = configService.get('server.domain') as string
+let apiBaseUrl = configService.get('server.domain') as string
+
+// localhostをIPv4アドレスに強制変換してIPv6回避
+if (apiBaseUrl.includes('://localhost')) {
+  apiBaseUrl = apiBaseUrl.replace('://localhost', '://127.0.0.1')
+  console.log('localhost -> 127.0.0.1 に変換してIPv6回避')
+}
+
 console.log('API Base URL:', apiBaseUrl)
 
 export const apiClient = createAxiosInstance(apiBaseUrl)

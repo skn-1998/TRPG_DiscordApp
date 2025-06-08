@@ -30,7 +30,7 @@ export default defineConfig({
     strictPort: true,
     hmr: {
       clientPort: 5173,
-      host: 'localhost',
+      host: '127.0.0.1',  // IPv6回避のため127.0.0.1を使用
       protocol: 'ws'
     },
     watch: {
