@@ -31,7 +31,7 @@ export class DiceRollText {
   text: string
 
   @Prop({ required: false })
-  TRPGId: string
+  gameSystemId: string
 
   @Prop({ type: Boolean, default: false })
   isSecret: boolean

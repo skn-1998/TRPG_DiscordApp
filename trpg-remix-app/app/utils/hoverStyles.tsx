@@ -1,5 +1,16 @@
-import { createStyles } from '@mantine/core'
+import { useMantineTheme } from '@mantine/core'
 
-const useHoverStyles = createStyles((theme) => ({
-  hover
-}))
+export const useHoverStyles = () => {
+  const theme = useMantineTheme()
+
+  return {
+    hover: {
+      '&:hover': {
+        backgroundColor: theme.colors.main[8],
+        transition: 'background-color 0.2s ease'
+      }
+    }
+  }
+}
+
+export default useHoverStyles

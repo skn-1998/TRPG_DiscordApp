@@ -26,7 +26,7 @@ export class DiceRollChannel {
   embedId: string
 
   @Prop({ type: String, default: '' })
-  TRPGId?: string
+  gameSystemId?: string
 }
 /**
  * ダイスロールチャンネルスキーマファクトリ

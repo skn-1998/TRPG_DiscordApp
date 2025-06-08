@@ -24,7 +24,7 @@ export class CreateCharacterDto {
   readonly characterName: string
 
   @IsString()
-  readonly TRPGId: string
+  readonly gameSystemId: string
 
   @IsOptional()
   readonly status: CharacterAttribute = {}
@@ -58,7 +58,7 @@ export class PartialInputCharacterDto {
 
   @IsOptional()
   @IsString()
-  readonly TRPGId?: string
+  readonly gameSystemId?: string
 
   @IsOptional()
   readonly status?: CharacterAttribute

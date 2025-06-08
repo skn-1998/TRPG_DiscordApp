@@ -20,7 +20,7 @@ export class Character {
   characterName: string
 
   @Prop({ required: false, default: '' })
-  TRPGId: string
+  gameSystemId: string
 
   @Prop({ required: false, default: '' })
   discordUserId: string
