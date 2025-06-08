@@ -1,4 +1,4 @@
-import { Group, Text, ActionIcon, Divider, Container, Stack, useMantineTheme } from '@mantine/core'
+import { Group, Text, ActionIcon, Divider, Container, Stack, useMantineTheme, darken } from '@mantine/core'
 import { IconBrandGithub, IconBrandTwitter, IconMail, IconDice6 } from '@tabler/icons-react'
 
 export function Footer() {
@@ -7,9 +7,8 @@ export function Footer() {
   return (
     <div
       style={{
-        backgroundColor: theme.colors.bg[0],
-        borderTop: `1px solid ${theme.colors.main[8]}`,
-        marginTop: 'auto'
+        backgroundColor: darken(theme.colors.bg[0], 0.4),
+        borderTop: `1px solid ${theme.colors.main[8]}`
       }}
     >
       <Container size="xl" py="xl">

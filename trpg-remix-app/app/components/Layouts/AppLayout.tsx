@@ -1,4 +1,4 @@
-import { Box, useMantineTheme } from '@mantine/core'
+import { AppShell, useMantineTheme } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { Header } from './Header'
 import { Footer } from './Footer'
@@ -12,28 +12,23 @@ export function AppLayout({ children }: AppLayoutProps) {
   const theme = useMantineTheme()
 
   return (
-    <Box
+    <AppShell
+      header={{ height: 60 }}
+      footer={{ height: 'auto' }}
+      padding="md"
       style={{
-        minHeight: '100vh',
-        backgroundColor: theme.colors.bg[1],
-        display: 'flex',
-        flexDirection: 'column'
+        backgroundColor: theme.colors.bg[0]
       }}
     >
-      <Header opened={opened} toggle={toggle} />
+      <AppShell.Header>
+        <Header opened={opened} toggle={toggle} />
+      </AppShell.Header>
 
-      <Box
-        component="main"
-        p="md"
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        <Box style={{ flex: 1 }}>{children}</Box>
+      <AppShell.Main>{children}</AppShell.Main>
+
+      <AppShell.Footer>
         <Footer />
-      </Box>
-    </Box>
+      </AppShell.Footer>
+    </AppShell>
   )
 }
