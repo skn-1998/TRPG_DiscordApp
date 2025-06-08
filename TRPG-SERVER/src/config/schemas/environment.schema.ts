@@ -39,7 +39,7 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
   PORT: 3000,
   JWT_EXPIRES_IN: 86400, // 24時間
   DB_LOGGING: false,
-  FRONTEND_URL: 'http://localhost:5173',
+  FRONTEND_URL: 'http://127.0.0.1:5173', // IPv6回避のため127.0.0.1を使用
   CHARACTER_CATEGORY: 'キャラクター',
   DICE_ROLL_CATEGORY: 'ダイスロールチャンネル'
 } as const

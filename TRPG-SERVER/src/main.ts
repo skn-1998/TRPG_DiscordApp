@@ -34,8 +34,18 @@ async function bootstrap() {
 
     Logger.log('Webサーバーを起動します...')
     // 重要: サーバーを起動し、Discordの初期化などの非同期処理の前に完了させる
-    await app.listen(port, '0.0.0.0')
-    Logger.log(`アプリケーションが起動しました: http://localhost:${port}`)
+
+    // IPv6競合回避のため、環境に応じてバインドアドレスを選択
+    const bindAddress = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV ? '0.0.0.0' : '127.0.0.1'
+
+    await app.listen(port, bindAddress)
+    Logger.log(`アプリケーションが起動しました: http://${bindAddress}:${port}`)
+
+    if (bindAddress === '127.0.0.1') {
+      Logger.log('IPv4 (127.0.0.1) を使用してIPv6競合を回避')
+    } else {
+      Logger.log('Docker/本番環境のため 0.0.0.0 でバインド')
+    }
 
     // Webサーバーが起動した後で、Discord初期化を別のプロセスとして実行
     try {
