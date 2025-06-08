@@ -184,7 +184,7 @@ export class AuthController {
    * @param res レスポンス
    */
   @Post('logout')
-  async logout(@Res() res: Response): Promise<void> {
+  async logout(@Req() req: RequestWithUser, @Res() res: Response): Promise<void> {
     try {
       const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
 
@@ -196,10 +196,43 @@ export class AuthController {
         path: '/'
       }
 
+      // IPv6/IPv4 デバッグ情報
+      this.logger.debug(`Client IP: ${req.ip}`)
+      this.logger.debug(`Host Header: ${req.get('host')}`)
+      this.logger.debug(`X-Forwarded-For: ${req.get('X-Forwarded-For')}`)
+      this.logger.debug(`Connection Remote Address: ${req.connection?.remoteAddress}`)
       this.logger.debug(`ログアウト - クッキー削除設定: ${JSON.stringify(cookieOptions)}`)
 
-      // JWTクッキーを削除
+      // 基本的なクッキー削除
       res.clearCookie('jwt', cookieOptions)
+
+      // IPv6/IPv4 対応の包括的削除
+      const hostHeader = req.get('host') || ''
+      const isLocalhost =
+        hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('::1')
+
+      if (isLocalhost) {
+        // ローカル環境での有効なドメイン設定のみ
+        // 注意: ドメインにはポート番号やIPv6アドレスは含められない
+        const validDomains = ['localhost'] // 有効なドメインのみ
+
+        validDomains.forEach((domain) => {
+          try {
+            res.clearCookie('jwt', { ...cookieOptions, domain })
+            res.clearCookie('jwt', { path: '/', domain })
+            res.clearCookie('jwt', { httpOnly: true, path: '/', domain })
+            this.logger.debug(`クッキー削除試行: domain=${domain}`)
+          } catch (error) {
+            this.logger.warn(`ドメイン ${domain} でのクッキー削除失敗: ${error}`)
+          }
+        })
+
+        // IPアドレスベースの削除（ドメイン指定なし）
+        // localhost以外のアクセスの場合はドメイン指定を避ける
+        res.clearCookie('jwt', { ...cookieOptions, domain: undefined })
+        res.clearCookie('jwt', { path: '/', domain: undefined })
+        res.clearCookie('jwt', { httpOnly: true, path: '/', domain: undefined })
+      }
 
       // 追加的な削除方法（互換性のため）
       // 様々な設定パターンで削除を試行
@@ -208,9 +241,13 @@ export class AuthController {
       res.clearCookie('jwt', { secure: false, path: '/' })
       res.clearCookie('jwt', { httpOnly: true, secure: false, path: '/' })
 
+      // ドメインを明示的に指定しない削除
+      res.clearCookie('jwt', { ...cookieOptions, domain: undefined })
+
       // 本番環境でも念のため追加削除
       if (isProduction) {
         res.clearCookie('jwt', { httpOnly: true, secure: true, sameSite: 'strict', path: '/' })
+        res.clearCookie('jwt', { httpOnly: true, secure: true, sameSite: 'none', path: '/' })
       }
 
       res.status(HttpStatus.OK).json({
