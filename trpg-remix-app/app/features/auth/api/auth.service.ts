@@ -89,13 +89,43 @@ export function saveJwtToken(jwt: string): CookieHeader {
     const isProduction = configService.isProduction()
     const jwtExpiresIn = 60 * 60 * 24 * 7 // 7日間
 
-    const cookieHeader = cookie.serialize('jwt', jwt, {
+    // 環境に応じたドメイン設定
+    const getDomainSetting = () => {
+      if (isProduction) {
+        // 本番環境：実際のドメインを設定
+        // 例: return 'your-domain.com'
+        return undefined // 現在は未指定（自動判定）
+      } else {
+        // 開発環境：localhostの場合のみドメインを設定
+        if (typeof window !== 'undefined') {
+          const hostname = window.location.hostname
+          if (hostname === 'localhost') {
+            return 'localhost'
+          }
+        }
+        return undefined // IPアドレス経由等は未指定
+      }
+    }
+
+    const domain = getDomainSetting()
+
+    const cookieOptions: cookie.SerializeOptions = {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       path: '/',
-      maxAge: jwtExpiresIn
+      maxAge: jwtExpiresIn,
+      ...(domain && { domain }) // domainが存在する場合のみ追加
+    }
+
+    console.log('🍪 クッキー設定:', {
+      isProduction,
+      domain,
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite
     })
+
+    const cookieHeader = cookie.serialize('jwt', jwt, cookieOptions)
 
     const cookieHeaders: CookieHeader = {
       'Content-Type': 'application/json',
