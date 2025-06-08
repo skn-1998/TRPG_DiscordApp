@@ -109,11 +109,51 @@ export function saveJwtToken(jwt: string): CookieHeader {
 }
 
 // ログアウト関数
+// クッキーテスト用関数
+export async function testCookies(): Promise<void> {
+  try {
+    console.log('🍪 クッキーテストリクエスト開始')
+
+    // 認証が必要なエンドポイントでクッキーが送信されるかテスト
+    const response = await apiClient.get('/users', {
+      withCredentials: true
+    })
+
+    console.log('✅ クッキーテスト成功:', response.status)
+  } catch (err: unknown) {
+    console.error('❌ クッキーテスト失敗:', CustomError(err))
+  }
+}
+
 export async function logoutUser(): Promise<void> {
   try {
-    await apiClient.post('/auth/logout')
+    console.log('🚪 ログアウトリクエスト開始')
+
+    // 明示的にwithCredentialsを指定してクッキーを確実に送信
+    const response = await apiClient.post(
+      '/auth/logout',
+      {},
+      {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    console.log('✅ ログアウトレスポンス:', response.data)
   } catch (err: unknown) {
-    console.error('ログアウトエラー:', CustomError(err))
+    console.error('❌ ログアウトエラー:', CustomError(err))
+
+    // エラーでも詳細を出力
+    if (err && typeof err === 'object' && 'response' in err) {
+      const axiosErr = err as { response?: { status?: number; data?: unknown; headers?: unknown } }
+      console.error('ログアウトエラー詳細:')
+      console.error('- Status:', axiosErr.response?.status)
+      console.error('- Data:', axiosErr.response?.data)
+      console.error('- Headers:', axiosErr.response?.headers)
+    }
+
     throw new Error(CustomError(err))
   }
 }
