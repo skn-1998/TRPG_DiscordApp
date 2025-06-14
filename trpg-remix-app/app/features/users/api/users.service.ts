@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved */
 import { apiClient, createAuthenticatedRequest } from '~/lib/api-client'
 import { TRPGUser } from '~/lib/types'
 import { CustomError } from '~/utils/customError'

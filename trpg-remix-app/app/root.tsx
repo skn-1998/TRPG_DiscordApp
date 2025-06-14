@@ -1,6 +1,6 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react'
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, isRouteErrorResponse, useRouteError } from '@remix-run/react'
 import { MantineProvider, ColorSchemeScript } from '@mantine/core'
-import { json, LoaderFunctionArgs } from '@remix-run/node'
+import { LoaderFunctionArgs, json } from '@remix-run/node'
 import '@mantine/core/styles.css'
 import './styles/globals.css'
 import theme from './theme'
@@ -11,6 +11,7 @@ import { apiClient, createAuthenticatedRequest } from './lib/api-client'
 export async function loader({ request }: LoaderFunctionArgs) {
   const jwt = getJwtFromRequest(request)
 
+  // JWTが存在しない場合は、認証状態をfalseで返す（リダイレクトしない）
   if (!jwt) {
     return json({
       user: null,
@@ -20,7 +21,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   try {
-    // JWTが存在する場合、バックエンドでトークンを検証
+    // JWTが存在する場合のみ検証を実行
     const response = await apiClient.get('/users', createAuthenticatedRequest(jwt))
 
     if (response.data) {
@@ -37,7 +38,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       })
     }
   } catch (error) {
-    // JWT検証に失敗した場合
+    // JWT検証に失敗した場合も認証状態をfalseで返す（リダイレクトしない）
     console.error('JWT validation failed in root loader:', error)
     return json({
       user: null,
@@ -45,6 +46,93 @@ export async function loader({ request }: LoaderFunctionArgs) {
       hasValidJwt: false
     })
   }
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError()
+
+  // リダイレクトエラーの場合
+  if (isRouteErrorResponse(error) && error.status === 302) {
+    // 自動的にリダイレクト先へ移動
+    window.location.href = '/login'
+    return (
+      <html lang="ja">
+        <head>
+          <meta charSet="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>リダイレクト中...</title>
+        </head>
+        <body>
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p>リダイレクト中...</p>
+          </div>
+        </body>
+      </html>
+    )
+  }
+
+  return (
+    <html lang="ja">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>エラーが発生しました</title>
+        <ColorSchemeScript forceColorScheme="dark" defaultColorScheme="dark" />
+      </head>
+      <body>
+        <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <h1>申し訳ございません</h1>
+            <p>予期しないエラーが発生しました。</p>
+            <details style={{ marginTop: '20px', textAlign: 'left' }}>
+              <summary>エラー詳細</summary>
+              <pre
+                style={{
+                  background: '#f5f5f5',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  overflow: 'auto',
+                  fontSize: '12px'
+                }}
+              >
+                {error instanceof Error ? error.stack : JSON.stringify(error, null, 2)}
+              </pre>
+            </details>
+            <div style={{ marginTop: '20px' }}>
+              <a
+                href="/"
+                style={{
+                  display: 'inline-block',
+                  padding: '10px 20px',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '4px',
+                  margin: '0 10px'
+                }}
+              >
+                ホームに戻る
+              </a>
+              <a
+                href="/login"
+                style={{
+                  display: 'inline-block',
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '4px',
+                  margin: '0 10px'
+                }}
+              >
+                ログインページ
+              </a>
+            </div>
+          </div>
+        </MantineProvider>
+      </body>
+    </html>
+  )
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
