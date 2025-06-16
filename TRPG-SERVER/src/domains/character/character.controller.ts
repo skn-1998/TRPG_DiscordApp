@@ -40,11 +40,10 @@ export class CharacterController {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Req() req: any
   ): Promise<Character> {
-    if (!req.user || !req.user.userId) {
+    console.log(characterData, req.user)
+    if (!req.user || !req.user.discordUserId) {
       throw new UnauthorizedException('認証トークンがありません')
     }
-
-    console.log(characterData)
 
     // 新しいDTOオブジェクトを作成してユーザーIDを設定
     const createCharacterDto: PartialInputCharacterDto = {
@@ -65,7 +64,7 @@ export class CharacterController {
   @UseGuards(JwtAuthGuard)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async findAll(@Req() req: any): Promise<Character[]> {
-    if (!req.user || !req.user.userId) {
+    if (!req.user || !req.user.discordUserId) {
       throw new UnauthorizedException('認証トークンがありません')
     }
 
