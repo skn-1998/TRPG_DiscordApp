@@ -7,11 +7,11 @@ import Fuse from 'fuse.js'
 import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
 import { createCharacter, getUserCharacters } from '../api/character.service'
-import { GameSystemJSON } from '~/lib/types'
 import { ActionFunctionArgs, json } from '@remix-run/node'
 import { CustomError } from '~/utils/customError'
 import axios from 'axios'
 import { getJwtFromRequest, validateJwt, userData } from '~/features/auth'
+import { CreateCharacterDto, PartialInputCharacterDto, UpdateCharacterDto } from '~/types'
 
 const fuseOptions = {
   threshold: 0.4,
@@ -51,11 +51,6 @@ const optionsFilter: OptionsFilter = ({ options, search }) => {
   return formattedResult
 }
 
-interface CharacterCreateProps {
-  jwt?: string
-  userId?: string
-}
-
 export async function action(args: ActionFunctionArgs) {
   console.log('action')
   const { request, context, params } = args
@@ -66,16 +61,12 @@ export async function action(args: ActionFunctionArgs) {
     const _characterData = body.get('characterData') as string
     const characterData = JSON.parse(_characterData)
     const validated = (await validateJwt(args)) as userData
-    console.log('validated', validated)
 
     const userId = validated?._id ? validated?._id : ''
 
     const jwt = getJwtFromRequest(request)
 
     const data = await createCharacter({ ...characterData, userId }, jwt || 'no jwt')
-    console.log('--------------------------------------')
-    console.log(data)
-    console.log('--------------------------------------')
 
     // const getData = await getUserCharacters(jwt || 'no jwt')
     // console.log(getData)
@@ -93,12 +84,10 @@ export function CharacterCreate() {
     console.log('clicked!')
 
     if (!TRPGSystemValue) {
-      console.log('no select TRPG System')
       return
     }
 
     if (!characterName.trim()) {
-      console.log('no character name')
       return
     }
 
@@ -106,16 +95,15 @@ export function CharacterCreate() {
 
     try {
       const formData = new FormData()
-      const characterData = {
-        name: characterName,
-        gameSystemId: TRPGSystemValue.value,
-        userId: ''
+      const characterData: PartialInputCharacterDto = {
+        characterName: characterName,
+        gameSystemId: TRPGSystemValue.value
       }
       formData.append('characterData', JSON.stringify(characterData))
 
       // const newCharacter = await createCharacter(characterData, jwt)
-      const res = await axios.post('/character', formData)
-      console.log('Character created:', res)
+      const newCharacter = await createCharacter(characterData)
+      console.log('newCharacter', newCharacter)
 
       // キャラクター作成成功後の処理（リダイレクトなど）
       // TODO: 成功時の処理を実装

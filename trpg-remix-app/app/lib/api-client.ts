@@ -89,8 +89,22 @@ apiClient.interceptors.request.use(
   (config) => {
     // JWTクッキーを自動的に取得してAuthorizationヘッダーに追加
     const jwtToken = getCookieValue('jwt')
+
+    // デバッグ情報を追加
+    console.log('🔍 JWT Debug Info:', {
+      hasDocument: typeof document !== 'undefined',
+      allCookies: typeof document !== 'undefined' ? document.cookie : 'N/A (SSR)',
+      jwtToken: jwtToken,
+      currentHeaders: config.headers
+    })
+
     if (jwtToken && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${jwtToken}`
+      console.log('✅ JWT Added to Authorization header')
+    } else if (!jwtToken) {
+      console.log('⚠️ No JWT token found in cookies')
+    } else if (config.headers.Authorization) {
+      console.log('ℹ️ Authorization header already exists:', config.headers.Authorization)
     }
 
     console.log('🚀 API Request:', {
