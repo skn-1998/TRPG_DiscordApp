@@ -12,23 +12,29 @@ export function AppLayout({ children }: AppLayoutProps) {
   const theme = useMantineTheme()
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      footer={{ height: 'auto' }}
-      padding="md"
+    <div
       style={{
-        backgroundColor: theme.colors.bg[0]
+        minHeight: '100vh',
+        backgroundColor: theme.colors.bg[0],
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
-      <AppShell.Header>
-        <Header opened={opened} toggle={toggle} />
-      </AppShell.Header>
+      {/* 通常フローのヘッダー */}
+      <Header opened={opened} toggle={toggle} />
 
-      <AppShell.Main>{children}</AppShell.Main>
+      {/* メインコンテンツエリア */}
+      <main
+        style={{
+          flex: 1, // 利用可能なスペースを全て使用
+          padding: '16px' // 通常のパディング
+        }}
+      >
+        {children}
+      </main>
 
-      <AppShell.Footer>
-        <Footer />
-      </AppShell.Footer>
-    </AppShell>
+      {/* 通常フローのフッター（ページ最下部に配置） */}
+      <Footer />
+    </div>
   )
 }

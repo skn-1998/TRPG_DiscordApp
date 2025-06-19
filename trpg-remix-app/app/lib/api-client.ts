@@ -59,6 +59,22 @@ console.log('API Base URL:', apiBaseUrl)
 
 export const apiClient = createAxiosInstance(apiBaseUrl)
 
+// Cookieから値を取得するユーティリティ関数
+const getCookieValue = (name: string): string | null => {
+  // ブラウザ環境
+  if (typeof document !== 'undefined') {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) {
+      return parts.pop()?.split(';').shift() || null
+    }
+  }
+
+  // Node.js環境 - リクエストコンテキストからcookieを取得
+  // この場合は通常、アプリケーション側でcookieを設定する必要があります
+  return null
+}
+
 // JWT付きリクエスト用のヘルパー
 export const createAuthenticatedRequest = (jwt: string) => {
   return {
@@ -71,6 +87,12 @@ export const createAuthenticatedRequest = (jwt: string) => {
 // デバッグ用のリクエストインターセプター
 apiClient.interceptors.request.use(
   (config) => {
+    // JWTクッキーを自動的に取得してAuthorizationヘッダーに追加
+    const jwtToken = getCookieValue('jwt')
+    if (jwtToken && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${jwtToken}`
+    }
+
     console.log('🚀 API Request:', {
       method: config.method,
       url: config.url,

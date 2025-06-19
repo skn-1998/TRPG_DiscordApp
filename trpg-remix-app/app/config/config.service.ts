@@ -15,8 +15,7 @@
  * const jwtSecret = configService.get('auth.jwtSecret')
  * const sessionSecret = configService.get('auth.sessionSecret')
  *
- * // API設定
- * const apiUrl = configService.get('api.baseUrl')
+
  * ```
  */
 
