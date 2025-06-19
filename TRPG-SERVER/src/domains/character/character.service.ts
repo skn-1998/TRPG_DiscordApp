@@ -4,6 +4,7 @@ import { CharacterRepository } from './repositories/character.repository'
 import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.model'
+import { UserService } from '../user/user.service'
 
 /**
  * キャラクターサービス
@@ -11,7 +12,10 @@ import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.mo
  */
 @Injectable()
 export class CharacterService {
-  constructor(private readonly characterRepository: CharacterRepository) {}
+  constructor(
+    private readonly characterRepository: CharacterRepository,
+    private readonly userService: UserService
+  ) {}
 
   /**
    * キャラクターを作成する
@@ -35,7 +39,15 @@ export class CharacterService {
       parameter: createCharacterDto.parameter || {}
     }
 
-    return await this.characterRepository.create(character)
+    // キャラクターを作成
+    const createdCharacter = await this.characterRepository.create(character)
+
+    // ユーザーにキャラクターIDを追加
+    if (discordUserId) {
+      await this.userService.addCharacterId(discordUserId, characterId)
+    }
+
+    return createdCharacter
   }
 
   /**

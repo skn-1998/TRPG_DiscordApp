@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   UnauthorizedException,
+  Headers,
   Header
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -17,6 +18,7 @@ import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { Character } from './models/character.model'
 import { AuthGuard } from '@nestjs/passport'
+import { AuthService } from '../auth/services/auth.service'
 
 /**
  * キャラクターコントローラー
@@ -24,7 +26,10 @@ import { AuthGuard } from '@nestjs/passport'
  */
 @Controller('character')
 export class CharacterController {
-  constructor(private readonly characterService: CharacterService) {}
+  constructor(
+    private readonly characterService: CharacterService,
+    private readonly authService: AuthService
+  ) {}
 
   /**
    * 新しいキャラクターを作成する
@@ -40,18 +45,26 @@ export class CharacterController {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Req() req: any
   ): Promise<Character> {
+    console.log('🔍 Server Debug Info:', {
+      hasUser: !!req.user,
+      userInfo: req.user
+    })
+
     console.log(characterData, req.user)
     if (!req.user || !req.user.discordUserId) {
       throw new UnauthorizedException('認証トークンがありません')
     }
 
+    // JWTAuthGuardで既に認証済みのため、req.userから直接情報を取得
+    const validated = req.user
+
     // 新しいDTOオブジェクトを作成してユーザーIDを設定
     const createCharacterDto: PartialInputCharacterDto = {
       ...characterData,
-      discordUserId: req.user.userId
+      discordUserId: validated.discordUserId
     }
     const character = await this.characterService.create(createCharacterDto)
-    console.log(character)
+    console.log(character, createCharacterDto)
     return character
   }
 
