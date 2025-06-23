@@ -1,6 +1,6 @@
 import { LoaderFunctionArgs, redirect } from '@remix-run/node'
 import { getJwtFromRequest } from '../features/auth/api/auth.service'
-import { apiClient, createAuthenticatedRequest } from '../lib/api-client'
+import { apiClient, setServerRequestContext, clearServerRequestContext } from '../lib/api-client'
 
 /**
  * ログインが必須のページで使用するガード関数
@@ -17,7 +17,10 @@ export async function requireLogin({ request }: LoaderFunctionArgs): Promise<voi
 
   // JWTが存在する場合、有効性を再確認
   try {
-    const response = await apiClient.get('/users', createAuthenticatedRequest(jwt))
+    // サーバーリクエストコンテキストを設定
+    setServerRequestContext(request, jwt)
+
+    const response = await apiClient.get('/users')
     if (!response.data) {
       console.log('Invalid JWT, redirecting to login')
       throw redirect('/login')
@@ -26,6 +29,9 @@ export async function requireLogin({ request }: LoaderFunctionArgs): Promise<voi
   } catch (error) {
     console.error('認証確認エラー:', error)
     throw redirect('/login')
+  } finally {
+    // コンテキストをクリア
+    clearServerRequestContext()
   }
 }
 
@@ -45,7 +51,10 @@ export async function checkAuth({ request }: LoaderFunctionArgs): Promise<{
   }
 
   try {
-    const response = await apiClient.get('/users', createAuthenticatedRequest(jwt))
+    // サーバーリクエストコンテキストを設定
+    setServerRequestContext(request, jwt)
+
+    const response = await apiClient.get('/users')
     if (response.data) {
       return { isAuthenticated: true, user: response.data }
     } else {
@@ -54,6 +63,9 @@ export async function checkAuth({ request }: LoaderFunctionArgs): Promise<{
   } catch (error) {
     console.error('Auth check error:', error)
     return { isAuthenticated: false, user: null, error: 'Auth check failed' }
+  } finally {
+    // コンテキストをクリア
+    clearServerRequestContext()
   }
 }
 

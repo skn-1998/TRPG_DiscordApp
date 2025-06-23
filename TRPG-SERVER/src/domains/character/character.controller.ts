@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
+import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
 import { AuthGuard } from '@nestjs/passport'
 import { AuthService } from '../auth/services/auth.service'
@@ -82,6 +83,27 @@ export class CharacterController {
     }
 
     return this.characterService.findHavingAll(req.user.userId)
+  }
+
+  /**
+   * 認証されたユーザーが所有するキャラクターの軽量データを取得する（カード表示用）
+   * @param req リクエスト
+   * @returns キャラクター軽量データの配列
+   */
+  @Get('summaries')
+  @UseGuards(JwtAuthGuard)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async findUserCharacterSummaries(@Req() req: any): Promise<CharacterSummaryDto[]> {
+    console.log('findUserCharacterSummaries')
+    console.log('🔍 Server Debug Info:', {
+      hasUser: !!req.user,
+      userInfo: req.user
+    })
+    if (!req.user || !req.user.discordUserId) {
+      throw new UnauthorizedException('認証トークンがありません')
+    }
+
+    return this.characterService.findUserCharacterSummaries(req.user.discordUserId)
   }
 
   /**

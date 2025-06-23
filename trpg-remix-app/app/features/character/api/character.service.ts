@@ -2,6 +2,13 @@ import { apiClient } from '~/lib/api-client'
 import { Character } from '~/lib/types'
 import { CustomError } from '~/utils/customError'
 
+// キャラクターカード表示用の軽量データ
+export interface CharacterSummary {
+  characterId: string
+  characterName: string
+  gameSystemId: string
+}
+
 // キャラクター作成
 export async function createCharacter(
   characterData: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>
@@ -28,6 +35,17 @@ export async function getCharacter(characterId: string): Promise<Character> {
 export async function getUserCharacters(): Promise<Character[]> {
   try {
     const response = await apiClient.get<Character[]>('/character')
+    return response.data
+  } catch (err: unknown) {
+    throw new Error(CustomError(err))
+  }
+}
+
+// ユーザーのキャラクター軽量データ一覧取得（カード表示用）
+export async function getUserCharacterSummaries(): Promise<CharacterSummary[]> {
+  try {
+    const response = await apiClient.get<CharacterSummary[]>('/character/summaries')
+    console.log('response', response)
     return response.data
   } catch (err: unknown) {
     throw new Error(CustomError(err))
