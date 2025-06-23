@@ -1,6 +1,6 @@
 import { GridTest } from '~/features/character/components/gridTest'
 
-export default function gridStudy() {
+export default function GridStudy() {
   return (
     <>
       <GridTest />
