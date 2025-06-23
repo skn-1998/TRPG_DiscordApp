@@ -39,6 +39,9 @@ export type {
   DiceRollResponse
 } from './dice-roll'
 
+// ゲームシステム関連の型
+export type { GameSystemJSON } from './gameSystem'
+
 // 共通の型定義
 export interface ApiResponse<T = unknown> {
   /**

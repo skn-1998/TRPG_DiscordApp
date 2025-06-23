@@ -93,15 +93,13 @@ export default function UserCharacter() {
           {characters.length} character(s) loaded
         </span>
       </div>
-
-      <CharacterCreate onCharacterCreated={handleCharacterCreated} />
-
       <CharacterList
         characters={characters}
-        onCreateNew={handleManualRefresh}
+        onCreateNew={() => {}}
         onEditCharacter={handleManualRefresh}
         onCharacterClick={(character) => console.log('詳細:', character)}
         onCharacterDelete={handleCharacterDelete}
+        onCharacterCreated={handleCharacterCreated}
       />
     </div>
   )
