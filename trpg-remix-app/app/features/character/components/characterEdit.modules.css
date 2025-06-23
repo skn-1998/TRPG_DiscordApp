@@ -1,0 +1,11 @@
+.row{
+  display: flex;
+  flex-direction: row;
+  width: initial;
+  /* justify-content: space-between; */
+  flex: 1 10%;
+}
+
+.temp{
+  width: 80px;
+}
