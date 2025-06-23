@@ -1,5 +1,5 @@
 import { Outlet } from '@remix-run/react'
-import { LoaderFunctionArgs, json } from '@remix-run/node'
+import { LoaderFunctionArgs } from '@remix-run/node'
 import { requireLogin } from '../utils/auth-guards'
 import { useAuth } from '../hooks/useAuth'
 
@@ -8,7 +8,7 @@ export const loader = async (args: LoaderFunctionArgs) => {
   await requireLogin(args)
 
   // 認証情報はRoot Loaderから取得できるので、追加のAPI呼び出しは不要
-  return json({ success: true })
+  return { success: true }
 }
 
 // ErrorBoundaryを追加してリダイレクトエラーを処理

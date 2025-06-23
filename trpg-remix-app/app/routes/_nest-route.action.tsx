@@ -1,4 +1,4 @@
-import { json, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node'
+import { LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node'
 import { loader as parentLoader } from './_nest-route'
 import { useActionData, useLoaderData, useFetcher } from '@remix-run/react'
 import { corsApiWithJwt } from '~/utils/corsApiWithJwt'
@@ -8,9 +8,9 @@ import axios from 'axios'
 
 export const loader = async ({ request, params, context }: LoaderFunctionArgs) => {
   const parentResponse = await parentLoader({ request, context, params })
-  const parentJson = await parentResponse.json()
-  const data = { ...parentJson, foo: 'foo' }
-  return json(data)
+  // Single Fetchを使用している場合は、Responseオブジェクト形式で返ってこない
+  const data = { ...parentResponse, foo: 'foo' }
+  return data
 }
 
 export async function action(args: ActionFunctionArgs) {
@@ -29,7 +29,7 @@ export async function action(args: ActionFunctionArgs) {
   const data = await corsApiWithJwt(args, { endpoint: '/character/create', data: { TRPGName: 'DiceBot' } })
   console.log(data)
 
-  return json({ test: 'this is test data.' })
+  return { test: 'this is test data.' }
 }
 
 export default function NestedRouteAction() {

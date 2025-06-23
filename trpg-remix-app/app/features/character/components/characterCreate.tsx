@@ -6,12 +6,20 @@ import _ from 'lodash'
 import Fuse from 'fuse.js'
 import moji from 'moji'
 import convertRomanToKana from '~/utils/convertRomanToKana'
-import { createCharacter, getUserCharacters } from '../api/character.service'
-import { ActionFunctionArgs, json } from '@remix-run/node'
-import { CustomError } from '~/utils/customError'
-import axios from 'axios'
+import { createCharacter } from '../api/character.service'
+import { ActionFunctionArgs } from '@remix-run/node'
 import { getJwtFromRequest, validateJwt, userData } from '~/features/auth'
-import { CreateCharacterDto, PartialInputCharacterDto, UpdateCharacterDto } from '~/types'
+import { Character } from '~/types'
+
+interface GameSystemJSON {
+  ID: string
+  NAME: string
+  SORT_KEY: string
+  HELP_MESSAGE?: string
+  PRIORITY?: number
+  SEARCH_KEY_KANJI: string
+  SEARCH_KEY_HIRAGANA: string
+}
 
 const fuseOptions = {
   threshold: 0.4,
@@ -66,7 +74,7 @@ export async function action(args: ActionFunctionArgs) {
 
     const jwt = getJwtFromRequest(request)
 
-    const data = await createCharacter({ ...characterData, userId }, jwt || 'no jwt')
+    const data = await createCharacter({ ...characterData, userId })
 
     // const getData = await getUserCharacters(jwt || 'no jwt')
     // console.log(getData)
@@ -75,7 +83,11 @@ export async function action(args: ActionFunctionArgs) {
   return 'test'
 }
 
-export function CharacterCreate() {
+interface CharacterCreateProps {
+  onCharacterCreated?: (character?: any) => void
+}
+
+export function CharacterCreate({ onCharacterCreated }: CharacterCreateProps) {
   const [TRPGSystemValue, setTRPGSystemValue] = useState<ComboboxItem | null>(null)
   const [characterName, setCharacterName] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -95,9 +107,13 @@ export function CharacterCreate() {
 
     try {
       const formData = new FormData()
-      const characterData: PartialInputCharacterDto = {
+      const characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'> = {
+        characterId: `char_${Date.now()}`, // 仮のID生成
         characterName: characterName,
-        gameSystemId: TRPGSystemValue.value
+        gameSystemId: TRPGSystemValue.value,
+        discordUserId: '', // TODO: 実際のユーザーIDを設定
+        discordChannelId: '', // TODO: 実際のチャンネルIDを設定
+        status: {}
       }
       formData.append('characterData', JSON.stringify(characterData))
 

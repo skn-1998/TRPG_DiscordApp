@@ -1,4 +1,4 @@
-import { ActionFunctionArgs, json } from '@remix-run/node'
+import { ActionFunctionArgs } from '@remix-run/node'
 import cookie from 'cookie'
 import { CustomError } from './customError'
 import { apiClient } from '~/lib/api-client'
@@ -17,7 +17,7 @@ export async function corsApiWithJwt({ request }: ActionFunctionArgs, options: A
   console.log('jwt: ' + jwt)
 
   if (!jwt) {
-    throw json({ error: '認証情報が見つかりません' }, { status: 401 })
+    throw Response.json({ error: '認証情報が見つかりません' }, { status: 401 })
   }
 
   try {
@@ -55,6 +55,6 @@ export async function corsApiWithJwt({ request }: ActionFunctionArgs, options: A
     return response.data
   } catch (err: unknown) {
     console.error(CustomError(err))
-    throw json({ error: 'APIリクエストに失敗しました' }, { status: 500 })
+    throw Response.json({ error: 'APIリクエストに失敗しました' }, { status: 500 })
   }
 }

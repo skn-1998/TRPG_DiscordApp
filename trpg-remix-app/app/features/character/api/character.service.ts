@@ -1,5 +1,5 @@
 import { apiClient } from '~/lib/api-client'
-import { Character } from '~/lib/types'
+import { Character } from '~/types'
 import { CustomError } from '~/utils/customError'
 
 // キャラクターカード表示用の軽量データ
@@ -11,7 +11,7 @@ export interface CharacterSummary {
 
 // キャラクター作成
 export async function createCharacter(
-  characterData: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>
+  characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'>
 ): Promise<Character> {
   try {
     const response = await apiClient.post<Character>('/character', characterData)

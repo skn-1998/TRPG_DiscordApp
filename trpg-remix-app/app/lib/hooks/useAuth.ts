@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TRPGUser } from '~/lib/types'
+import { User as TRPGUser } from '~/types'
 
 export function useAuth() {
   const [user, setUser] = useState<TRPGUser | null>(null)

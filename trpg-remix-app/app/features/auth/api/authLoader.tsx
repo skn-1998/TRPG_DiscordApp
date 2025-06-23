@@ -1,4 +1,4 @@
-import { json, LoaderFunctionArgs } from '@remix-run/node'
+import { LoaderFunctionArgs } from '@remix-run/node'
 import { redirect } from '@remix-run/node'
 import { generateDiscordAuthUrl, loginOrRegisterUser, saveJwtToken as saveJwtTokenService } from './auth.service'
 import _ from 'lodash'
@@ -23,5 +23,5 @@ export async function loginLoader({ request }: LoaderFunctionArgs) {
     })
   }
 
-  return json({ discordAuthUrl })
+  return { discordAuthUrl }
 }

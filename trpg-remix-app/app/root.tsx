@@ -1,6 +1,6 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, isRouteErrorResponse, useRouteError } from '@remix-run/react'
 import { MantineProvider, ColorSchemeScript } from '@mantine/core'
-import { LoaderFunctionArgs, json } from '@remix-run/node'
+import { LoaderFunctionArgs } from '@remix-run/node'
 import '@mantine/core/styles.css'
 import './styles/globals.css'
 import theme from './theme'
@@ -13,11 +13,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // JWTが存在しない場合は、認証状態をfalseで返す（リダイレクトしない）
   if (!jwt) {
-    return json({
+    return {
       user: null,
       isLoggedIn: false,
       hasValidJwt: false
-    })
+    }
   }
 
   try {
@@ -28,26 +28,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
       userInfo: response.data
     })
     if (response.data) {
-      return json({
+      return {
         user: response.data,
         isLoggedIn: true,
         hasValidJwt: true
-      })
+      }
     } else {
-      return json({
+      return {
         user: null,
         isLoggedIn: false,
         hasValidJwt: false
-      })
+      }
     }
   } catch (error) {
     // JWT検証に失敗した場合も認証状態をfalseで返す（リダイレクトしない）
     console.error('JWT validation failed in root loader:', error)
-    return json({
+    return {
       user: null,
       isLoggedIn: false,
       hasValidJwt: false
-    })
+    }
   }
 }
 
