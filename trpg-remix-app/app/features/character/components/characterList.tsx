@@ -1,12 +1,13 @@
 import { Box, SimpleGrid } from '@mantine/core'
-import { CharacterCard, Character } from './characterCard'
+import { CharacterCard, CharacterSummary } from './characterCard'
 import { CreateCharacterCard } from './createCharacterCard'
 
 interface CharacterListProps {
-  characters?: Character[]
+  characters?: CharacterSummary[]
   onCreateNew?: () => void
-  onEditCharacter?: (character: Character) => void
-  onCharacterClick?: (character: Character) => void
+  onEditCharacter?: (character: CharacterSummary) => void
+  onCharacterClick?: (character: CharacterSummary) => void
+  onCharacterDelete?: (characterId: string) => void
 }
 
 export function CharacterList({ characters = [], onCreateNew, onEditCharacter, onCharacterClick }: CharacterListProps) {
@@ -19,7 +20,7 @@ export function CharacterList({ characters = [], onCreateNew, onEditCharacter, o
         {/* キャラクターカード */}
         {characters.map((character) => (
           <CharacterCard
-            key={character.id}
+            key={character.characterId}
             character={character}
             onEdit={() => onEditCharacter?.(character)}
             onClick={() => onCharacterClick?.(character)}

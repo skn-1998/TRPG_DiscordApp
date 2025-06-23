@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
 import { apiClient, withJwt } from '../../../lib/api-client'
-import { DiscordUserProfile, LoginRequest } from '../../../types'
+import { DiscordUserProfile, LoginRequest, LoginResponse } from '../../../types'
 
 // CookieHeader型定義
 interface CookieHeader {
@@ -25,9 +25,9 @@ export function generateDiscordAuthUrl(): string {
 }
 
 // ユーザーログイン/登録
-export async function loginOrRegisterUser(code: string): Promise<DiscordUserProfile> {
+export async function loginOrRegisterUser(code: string): Promise<LoginResponse> {
   try {
-    const response = await apiClient.post<DiscordUserProfile>('/auth/login', { code } as LoginRequest)
+    const response = await apiClient.post<LoginResponse>('/auth/login', { code } as LoginRequest)
     return response.data
   } catch (err: unknown) {
     // Axiosエラーの詳細情報を出力

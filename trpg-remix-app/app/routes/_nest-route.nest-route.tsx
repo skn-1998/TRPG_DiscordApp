@@ -1,12 +1,12 @@
 import { useLoaderData } from '@remix-run/react'
 import { loader as parentLoader } from './_nest-route'
-import { json, LoaderFunctionArgs } from '@remix-run/node'
+import { LoaderFunctionArgs } from '@remix-run/node'
 
 export const loader = async ({ request, params, context }: LoaderFunctionArgs) => {
   const parentResponse = await parentLoader({ request, context, params })
-  const parentJson = await parentResponse.json()
-  const data = { ...parentJson, abc: 'abc' }
-  return json(data)
+  // Single Fetchを使用している場合は、Responseオブジェクト形式で返ってこない
+  const data = { ...parentResponse, abc: 'abc' }
+  return data
 }
 
 export default function NestedRouteChild() {

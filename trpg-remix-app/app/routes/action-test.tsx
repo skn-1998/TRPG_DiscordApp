@@ -1,4 +1,4 @@
-import { json, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node'
+import { LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node'
 import { useActionData, useLoaderData, useFetcher } from '@remix-run/react'
 import { Button } from '@mantine/core'
 import { CustomError } from '~/utils/customError'
@@ -15,7 +15,7 @@ export const loader = async ({ request, params, context }: LoaderFunctionArgs) =
   // console.log(context)
   // console.log('--- context end ---')
 
-  return json({ red: 'aka' })
+  return { red: 'aka' }
 }
 
 export async function action(args: ActionFunctionArgs) {
@@ -38,7 +38,7 @@ export async function action(args: ActionFunctionArgs) {
     console.log(CustomError(error))
   }
 
-  return json({ test: 'this is test data.' })
+  return { test: 'this is test data.' }
 }
 
 export default function ActionTest() {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getUserCharacters, createCharacter, updateCharacter, deleteCharacter } from '~/features/character'
-import { Character } from '~/lib/types'
+import { Character } from '~/types'
 
 export function useCharacters(jwt?: string) {
   const [characters, setCharacters] = useState<Character[]>([])
@@ -13,7 +13,7 @@ export function useCharacters(jwt?: string) {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getUserCharacters(jwt)
+      const data = await getUserCharacters()
       setCharacters(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch characters')
@@ -22,12 +22,12 @@ export function useCharacters(jwt?: string) {
     }
   }
 
-  const handleCreateCharacter = async (characterData: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleCreateCharacter = async (characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'>) => {
     if (!jwt) throw new Error('JWT token is required')
 
     try {
       setError(null)
-      const newCharacter = await createCharacter(characterData, jwt)
+      const newCharacter = await createCharacter(characterData)
       setCharacters((prev) => [...prev, newCharacter])
       return newCharacter
     } catch (err) {
@@ -42,8 +42,8 @@ export function useCharacters(jwt?: string) {
 
     try {
       setError(null)
-      const updatedCharacter = await updateCharacter(characterId, characterData, jwt)
-      setCharacters((prev) => prev.map((char) => (char.id === characterId ? updatedCharacter : char)))
+      const updatedCharacter = await updateCharacter(characterId, characterData)
+      setCharacters((prev) => prev.map((char) => (char.characterId === characterId ? updatedCharacter : char)))
       return updatedCharacter
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update character'
@@ -57,8 +57,8 @@ export function useCharacters(jwt?: string) {
 
     try {
       setError(null)
-      await deleteCharacter(characterId, jwt)
-      setCharacters((prev) => prev.filter((char) => char.id !== characterId))
+      await deleteCharacter(characterId)
+      setCharacters((prev) => prev.filter((char) => char.characterId !== characterId))
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete character'
       setError(errorMessage)
