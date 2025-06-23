@@ -1,7 +1,13 @@
 /* eslint-disable no-console */
 import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
-import { apiClient, createAuthenticatedRequest } from '../../../lib/api-client'
-import { TRPGUser, LoginRequest, CookieHeader } from '../../../lib/types'
+import { apiClient, withJwt } from '../../../lib/api-client'
+import { DiscordUserProfile, LoginRequest } from '../../../types'
+
+// CookieHeader型定義
+interface CookieHeader {
+  'Content-Type': string
+  'Set-Cookie': string
+}
 import { CustomError } from '../../../utils/customError'
 import { configService } from '../../../config'
 import cookie from 'cookie'
@@ -19,9 +25,9 @@ export function generateDiscordAuthUrl(): string {
 }
 
 // ユーザーログイン/登録
-export async function loginOrRegisterUser(code: string): Promise<TRPGUser> {
+export async function loginOrRegisterUser(code: string): Promise<DiscordUserProfile> {
   try {
-    const response = await apiClient.post<TRPGUser>('/auth/login', { code } as LoginRequest)
+    const response = await apiClient.post<DiscordUserProfile>('/auth/login', { code } as LoginRequest)
     return response.data
   } catch (err: unknown) {
     // Axiosエラーの詳細情報を出力
@@ -67,7 +73,7 @@ export async function validateJwt({ request }: LoaderFunctionArgs): Promise<Type
 
   try {
     console.log('before verify')
-    const response = await apiClient.get(verifyUrl, createAuthenticatedRequest(jwt))
+    const response = await apiClient.get(verifyUrl, withJwt(jwt))
     console.log('after verify')
 
     if (!response.data) {

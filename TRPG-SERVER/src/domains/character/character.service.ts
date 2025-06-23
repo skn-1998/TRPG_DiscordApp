@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { CharacterRepository } from './repositories/character.repository'
 import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
+import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.model'
 import { UserService } from '../user/user.service'
 
@@ -138,5 +139,14 @@ export class CharacterService {
    */
   async removeByChannelId(channelId: string): Promise<void> {
     await this.characterRepository.removeByChannelId(channelId)
+  }
+
+  /**
+   * ユーザーが所有するキャラクターの軽量データを取得する（カード表示用）
+   * @param discordUserId DiscordユーザーID
+   */
+  async findUserCharacterSummaries(discordUserId: string): Promise<CharacterSummaryDto[]> {
+    // データベースレベルで軽量データのみを取得（通信量とメモリ使用量の両方を最適化）
+    return this.characterRepository.findUserCharacterSummaries(discordUserId)
   }
 }

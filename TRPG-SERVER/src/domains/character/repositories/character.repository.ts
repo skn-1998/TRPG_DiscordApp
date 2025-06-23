@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import { Repository } from 'src/core/interfaces/repository.interface'
 import { Character, CHARACTER_MODEL, CharacterDocument, UpdatePrimary } from '../models/character.model'
+import { CharacterSummaryDto } from '../dto/character-summary.dto'
 
 /**
  * キャラクターリポジトリの実装
@@ -121,5 +122,18 @@ export class CharacterRepository implements Repository<Character, string> {
    */
   async removeByChannelId(channelId: string): Promise<void> {
     await this.characterModel.deleteOne({ discordChannelId: channelId }).exec()
+  }
+
+  /**
+   * ユーザーが所有するキャラクターの軽量データのみを取得する（データベースレベルで最適化）
+   * @param discordUserId DiscordユーザーID
+   */
+  async findUserCharacterSummaries(discordUserId: string): Promise<CharacterSummaryDto[]> {
+    // MongoDBのプロジェクション機能を使用して必要なフィールドのみを取得
+    return this.characterModel
+      .find({ discordUserId })
+      .select('characterId characterName gameSystemId -_id') // 必要なフィールドのみ選択、_idは除外
+      .lean() // Mongoose Document ではなく Plain Object を返す（メモリ効率化）
+      .exec()
   }
 }

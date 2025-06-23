@@ -6,7 +6,7 @@ import './styles/globals.css'
 import theme from './theme'
 import { AppLayout } from './components/Layouts'
 import { getJwtFromRequest } from './features/auth/api/auth.service'
-import { apiClient, createAuthenticatedRequest } from './lib/api-client'
+import { apiClient, withJwt } from './lib/api-client'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const jwt = getJwtFromRequest(request)
@@ -22,8 +22,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   try {
     // JWTが存在する場合のみ検証を実行
-    const response = await apiClient.get('/users', createAuthenticatedRequest(jwt))
-
+    const response = await apiClient.get('/users', withJwt(jwt))
+    console.log('🔍 Server Debug Info:', {
+      hasUser: !!response.data,
+      userInfo: response.data
+    })
     if (response.data) {
       return json({
         user: response.data,

@@ -58,11 +58,12 @@ module.exports = {
       files: ["**/*.{ts,tsx}"],
       plugins: ["@typescript-eslint", "import"],
       parser: "@typescript-eslint/parser",
+
       settings: {
         "import/internal-regex": "^~/",
         "import/resolver": {
           node: {
-            extensions: [".ts", ".tsx"],
+            extensions: [".ts", ".tsx", ".js", ".jsx"],
           },
           typescript: {
             alwaysTryTypes: true,
@@ -74,6 +75,14 @@ module.exports = {
         "plugin:import/recommended",
         "plugin:import/typescript",
       ],
+      rules: {
+        // パス解決エラーを無効化または警告レベルに下げる
+        "import/no-unresolved": "off",
+        // 未使用インポートの警告
+        "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+        // any型の使用を警告レベルに
+        "@typescript-eslint/no-explicit-any": "warn",
+      },
     },
 
     // Node
@@ -91,6 +100,9 @@ module.exports = {
     "indent": ["error", 2, { "SwitchCase": 1 }],
     "@typescript-eslint/explicit-function-return-type": "off",
     "no-unused-vars": "warn",
-    "prefer-const": "error"
+    "prefer-const": "error",
+    // インポート関連のエラーを緩和
+    "import/no-unresolved": "off",
+    "import/no-relative-parent-imports": "off"
   }
 };

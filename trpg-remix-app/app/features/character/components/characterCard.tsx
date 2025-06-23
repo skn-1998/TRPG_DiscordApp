@@ -1,16 +1,15 @@
-import { Card, Group, Text, ActionIcon, Box } from '@mantine/core'
+import { Card, Group, Text, ActionIcon } from '@mantine/core'
 import { IconSettings } from '@tabler/icons-react'
 
-interface Character {
-  id: string
-  name: string
-  gameSystem: string
-  level?: number
-  imageUrl?: string
+// 軽量キャラクターデータ
+interface CharacterSummary {
+  characterId: string
+  characterName: string
+  gameSystemId: string
 }
 
 interface CharacterCardProps {
-  character: Character
+  character: CharacterSummary
   onEdit?: () => void
   onClick?: () => void
 }
@@ -30,7 +29,7 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
     >
       <Group justify="space-between" mt="md" mb="xs">
         <Text fw={500} size="lg" lineClamp={1}>
-          {character.name}
+          {character.characterName}
         </Text>
         {onEdit && (
           <ActionIcon
@@ -46,10 +45,10 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
       </Group>
 
       <Text size="sm" c="dimmed" mb="xs">
-        {character.gameSystem}
+        System ID: {character.gameSystemId}
       </Text>
     </Card>
   )
 }
 
-export type { Character }
+export type { CharacterSummary }
