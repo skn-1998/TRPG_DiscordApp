@@ -1,63 +1,11 @@
-import { Button, ComboboxItem, OptionsFilter } from '@mantine/core'
+import { Button, ComboboxItem, TextInput, Stack } from '@mantine/core'
 import { Select } from '@mantine/core'
-import gameSystemList from '~/static/gameSystemList.json'
 import { useState } from 'react'
-import _ from 'lodash'
-import Fuse from 'fuse.js'
-import moji from 'moji'
-import convertRomanToKana from '~/utils/convertRomanToKana'
 import { createCharacter } from '../api/character.service'
 import { ActionFunctionArgs } from '@remix-run/node'
 import { getJwtFromRequest, validateJwt, userData } from '~/features/auth'
 import { Character } from '~/types'
-
-interface GameSystemJSON {
-  ID: string
-  NAME: string
-  SORT_KEY: string
-  HELP_MESSAGE?: string
-  PRIORITY?: number
-  SEARCH_KEY_KANJI: string
-  SEARCH_KEY_HIRAGANA: string
-}
-
-const fuseOptions = {
-  threshold: 0.4,
-  keys: ['SEARCH_KEY_KANJI', 'SEARCH_KEY_HIRAGANA']
-}
-
-const _gameSystemList = _.sortBy(gameSystemList, ['PRIORITY', 'SORT_KEY'])
-
-const fuse = new Fuse<GameSystemJSON>(_gameSystemList, fuseOptions)
-
-const gameSystemListID = _gameSystemList.map((e) => ({ value: e.ID, label: e.NAME }))
-
-export function convertSearchText(str: string) {
-  const _str = str.trim()
-  // 全角英数・全角スペースを半角に
-  const HE = moji(_str).convert('ZS', 'HS').convert('ZE', 'HE').toString()
-  // ローマ字をカタカナに
-  const KKfromRoman = convertRomanToKana(HE)
-  // カタカナをひらがなに統一 ローマ字(英字)はそのまま
-  const convertedWithRoman = moji(HE).convert('KK', 'HG').toString()
-  // ローマ字をカタカナにしてからひらがなに統一
-  const convertedAllHG = moji(KKfromRoman).convert('KK', 'HG').toString()
-  return [convertedWithRoman, convertedAllHG]
-}
-
-const optionsFilter: OptionsFilter = ({ options, search }) => {
-  const _search = search.trim()
-  if (_search === '') return gameSystemListID
-  const gameSystemSearchText = convertSearchText(_search.slice(0, 200))
-  const gameSystemSearchArr_KANJI = gameSystemSearchText.map((e) => ({ SEARCH_KEY_KANJI: e }))
-  const gameSystemSearchArr_HIRAGANA = gameSystemSearchText.map((e) => ({ SEARCH_KEY_HIRAGANA: e }))
-  const gameSystemSearchArr = [...gameSystemSearchArr_KANJI, ...gameSystemSearchArr_HIRAGANA]
-  const _gameSystemSearchResults = fuse.search({ $or: gameSystemSearchArr }).map((e) => e.item)
-  // const gameSystemSearchResults = _.sortBy(_gameSystemSearchResults, ['PRIORITY'])
-  const gameSystemSearchResults = _gameSystemSearchResults
-  const formattedResult = gameSystemSearchResults.map((e) => ({ value: e.ID, label: e.NAME }))
-  return formattedResult
-}
+import { gameSystemOptions, createGameSystemOptionsFilter } from '~/lib/gameSystem'
 
 export async function action(args: ActionFunctionArgs) {
   console.log('action')
@@ -106,7 +54,6 @@ export function CharacterCreate({ onCharacterCreated }: CharacterCreateProps) {
     setIsLoading(true)
 
     try {
-      const formData = new FormData()
       const characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'> = {
         characterId: `char_${Date.now()}`, // 仮のID生成
         characterName: characterName,
@@ -115,14 +62,16 @@ export function CharacterCreate({ onCharacterCreated }: CharacterCreateProps) {
         discordChannelId: '', // TODO: 実際のチャンネルIDを設定
         status: {}
       }
-      formData.append('characterData', JSON.stringify(characterData))
 
-      // const newCharacter = await createCharacter(characterData, jwt)
       const newCharacter = await createCharacter(characterData)
       console.log('newCharacter', newCharacter)
 
-      // キャラクター作成成功後の処理（リダイレクトなど）
-      // TODO: 成功時の処理を実装
+      // キャラクター作成成功後の処理
+      onCharacterCreated?.(newCharacter)
+
+      // フォームをリセット
+      setCharacterName('')
+      setTRPGSystemValue(null)
     } catch (error) {
       console.error('Character creation failed:', error)
       // TODO: エラーハンドリングを実装
@@ -132,38 +81,37 @@ export function CharacterCreate({ onCharacterCreated }: CharacterCreateProps) {
   }
 
   return (
-    <>
-      <div>Character create page</div>
-
-      <input
-        type="text"
-        placeholder="Character Name"
+    <Stack gap="md">
+      <TextInput
+        label="キャラクター名"
+        placeholder="キャラクター名を入力してください"
         value={characterName}
         onChange={(e) => setCharacterName(e.target.value)}
-        style={{ marginBottom: '1rem', padding: '0.5rem' }}
+        required
+      />
+
+      <Select
+        label="TRPG System"
+        placeholder="TRPGシステムを選択してください"
+        data={gameSystemOptions}
+        searchable
+        nothingFoundMessage="該当するシステムが見つかりません"
+        value={TRPGSystemValue ? TRPGSystemValue.value : null}
+        onChange={(_value, option) => setTRPGSystemValue(option)}
+        withScrollArea={false}
+        styles={{ dropdown: { maxHeight: 300, overflowY: 'auto' } }}
+        filter={createGameSystemOptionsFilter()}
+        required
       />
 
       <Button
         onClick={handleCreateCharacter}
         disabled={isLoading || !TRPGSystemValue || !characterName.trim()}
         loading={isLoading}
+        fullWidth
       >
-        {isLoading ? 'Creating...' : 'Create Character'}
+        {isLoading ? '作成中...' : 'キャラクターを作成'}
       </Button>
-
-      <Select
-        label="TRPG System"
-        placeholder="Pick TRPG System"
-        data={gameSystemListID}
-        searchable
-        nothingFoundMessage="Nothing found..."
-        value={TRPGSystemValue ? TRPGSystemValue.value : null}
-        onChange={(_value, option) => setTRPGSystemValue(option)}
-        withScrollArea={false}
-        styles={{ dropdown: { maxHeight: 500, overflowY: 'auto' } }}
-        mt="md"
-        filter={optionsFilter}
-      />
-    </>
+    </Stack>
   )
 }

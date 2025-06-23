@@ -1,5 +1,6 @@
 import { Card, Group, Text, ActionIcon } from '@mantine/core'
 import { IconSettings } from '@tabler/icons-react'
+import { getGameSystemNameById } from '~/lib'
 
 // 軽量キャラクターデータ
 interface CharacterSummary {
@@ -45,7 +46,7 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
       </Group>
 
       <Text size="sm" c="dimmed" mb="xs">
-        System ID: {character.gameSystemId}
+        System Name: {getGameSystemNameById(character.gameSystemId)}
       </Text>
     </Card>
   )
