@@ -382,30 +382,40 @@ FRONTEND_URL          # フロントエンドURL
 
 ### **🔥 高優先度（1週間以内）**
 
-#### 1. **TypeScript設定の強化（第2段階）**
+#### ✅ 1. **TypeScript設定の強化（第2段階 - Discord.js型問題解決）** `[完了: 2025-01-02]`
 ```typescript
-// 🎯 次の段階で実装予定
-- 未使用変数・パラメータのチェック有効化
-- exactOptionalPropertyTypes の段階的適用
-- 残り29個のTypeScriptエラーの修正
-- Discord.js型問題の解決
+// ✅ COMPLETED: Discord.js型問題の解決
+- interaction.channel nullチェック (character-dice-buttons.service.ts)
+- interaction.guild nullチェック (character-channel.service.ts)  
+- TextBasedChannel.send 安全な呼び出し (add-chara-info.service.ts)
+- logEntry.executor nullチェック (character-channel-create.service.ts)
 
-// 📋 残存エラー分類 (29個):
-1. Discord.js型問題 (9件): interaction.channel, interaction.guild のnullチェック
-2. インデックスシグネチャ (6件): CharacterDiceButtonsService の動的プロパティ
-3. 暗黙的any型 (8件): character-channel.service.ts の変数型問題
-4. Character nullチェック (4件): add-chara-info.service.ts
-5. その他 (2件): EmbedBuilder, Object.entries問題
+// 📊 エラー数改善: 29個 → 20個 (31%減少)
+// 📊 累計改善: 84個 → 20個 (76%減少)
 
-// 📋 実装戦略
+// ✅ 実装済み項目:
 1. ✅ 外部型定義の追加 (@types/passport-discord, @types/cors)
 2. ✅ strictNullChecks関連エラーの段階的修正  
-3. 🔄 implicit any type の解消 (進行中)
-4. 🔄 Discord.js関連型問題の解決 (進行中)
-5. 🔜 未使用変数・パラメータの整理
+3. ✅ Discord.js型問題の解決
+4. ✅ 主要なnull/undefinedチェックの追加
 ```
 
-#### 2. **エラーハンドリングの統一**
+#### 2. **TypeScript設定の強化（第3段階）**
+```typescript
+// 🎯 残り20個のエラー解決予定
+1. インデックスシグネチャ問題 (6件): CharacterDiceButtonsService の動的プロパティ
+2. Character nullチェック (4件): add-chara-info.service.ts の関数引数
+3. 暗黙的any型 (6件): itemEmbed, descriptionEmbed の型問題
+4. その他型問題 (4件): EmbedBuilder, Object.entries関連
+
+// 📋 実装戦略
+1. インデックスシグネチャ問題: Map<string, boolean>による適切な型管理
+2. Character nullチェック: 関数引数の事前検証
+3. 暗黙的any型: 適切な型注釈の追加
+4. 最終的な型安全性の向上
+```
+
+#### 3. **エラーハンドリングの統一**
 ```typescript
 // ❌ 現在: 各所でバラバラなエラーハンドリング
 catch (error) {
@@ -428,7 +438,7 @@ export class ApiErrorHandler {
 }
 ```
 
-#### 3. **Discord Botのエラー処理改善**
+#### 4. **Discord Botのエラー処理改善**
 ```typescript
 // ❌ 現在: エラー時のユーザーフィードバック不十分
 catch (error) {
@@ -443,7 +453,7 @@ catch (error) {
 }
 ```
 
-#### 4. **TODO項目の解決**
+#### 5. **TODO項目の解決**
 ```typescript
 // ❌ 未実装機能
 // TODO: 25ページ単位の移動処理（必要に応じて実装）
