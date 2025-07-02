@@ -315,6 +315,28 @@ FRONTEND_URL          # フロントエンドURL
 
 ## 🔧 **リファクタリング優先順位**
 
+### **✅ 完了済み項目**
+
+#### ✅ 1. **非推奨ファイルの削除** `[完了: 2025-07-02]`
+
+```bash
+# ✅ 削除完了
+- src/config/environment.ts  # 完全に削除済み
+- 新しいValidatorシステムに完全移行済み
+```
+
+#### ✅ 2. **プロダクション環境でのデバッグログ除去** `[完了: 2025-07-02]`
+
+```typescript
+// ✅ COMPLETED: 本番環境でのログ制御
+// フロントエンドAPI通信の際のログ制御が完了
+
+// 関連修正:
+// - trpg-remix-app/app/lib/api-client.ts でのログ制御
+// - 本番環境での機密情報保護
+// - 開発環境のみデバッグ情報表示
+```
+
 ### **🚨 最高優先度（即座に対応が必要）**
 
 #### 1. **TypeScript設定の強化**
@@ -336,24 +358,6 @@ FRONTEND_URL          # フロントエンドURL
   "strictBindCallApply": true,
   "noUnusedLocals": true,
   "noUnusedParameters": true
-}
-```
-
-#### 2. **非推奨ファイルの削除**
-```bash
-# 🗑️ 削除対象
-- src/config/environment.ts  # ⚠️ 非推奨マークされたファイル
-```
-
-#### 3. **プロダクション環境でのデバッグログ除去**
-```typescript
-// ❌ 本番環境に残存する大量のログ
-console.log('🔍 Server Debug Info:', ...)  // character.controller.ts
-this.logger.debug(...)  // auth.service.ts, auth.controller.ts
-
-// ✅ 環境別ログ管理
-if (process.env.NODE_ENV === 'development') {
-  this.logger.debug('Debug Info:', data)
 }
 ```
 

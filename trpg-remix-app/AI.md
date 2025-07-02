@@ -464,59 +464,78 @@ pnpm run format
 
 ## 🔧 **リファクタリング優先順位**
 
-### **🚨 最高優先度（即座に対応が必要）**
+### **✅ 完了済み項目**
 
-#### 1. **セキュリティリスクの修正**
+#### ✅ 1. **セキュリティリスクの修正** `[完了: 2025-07-02]`
 
 ```typescript
-// ❌ CRITICAL: SSL証明書検証の無効化
-// app/lib/api-client.ts:7
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+// ✅ COMPLETED: SSL証明書検証の適切な処理
+// 本番環境: 証明書検証を有効化 (rejectUnauthorized: true)
+// 開発環境: 証明書検証を無効化（従来通り）
 
-// ❌ CRITICAL: eval()の使用
-// app/lib/api-client.ts:27-28
-const https = eval('require')('https')
-const http = eval('require')('http')
+// ✅ COMPLETED: eval()の完全削除
+// eval('require')('https') → require('https') に変更
+// 安全なloadHttpModules()関数を実装
 
-// ✅ 修正案: 安全な実装
+// 修正内容:
 const loadHttpModules = () => {
-  if (typeof require !== 'undefined' && process.env.NODE_ENV === 'development') {
-    return {
-      https: require('https'),
-      http: require('http')
+  if (typeof process !== 'undefined' && process.versions?.node && typeof require !== 'undefined') {
+    try {
+      return {
+        https: require('https'),
+        http: require('http')
+      }
+    } catch (error) {
+      return null
     }
   }
   return null
 }
 
-// SSL証明書は開発環境でのみ無効化
-if (process.env.NODE_ENV === 'development' && !configService.isProduction()) {
-  process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+// SSL証明書は本番環境で有効化
+const agentOptions = {
+  rejectUnauthorized: isDevelopment ? false : true, // 本番環境では証明書検証を有効化
+  family: 4
 }
 ```
 
-#### 2. **非推奨ファイルの削除**
+#### ✅ 2. **非推奨ファイルの削除** `[完了: 2025-07-02]`
 
 ```bash
-# 🗑️ 削除対象
-- app/utils/axiosClient.ts  # ⚠️ 完全に非推奨になったファイル
+# ✅ 削除完了
+- app/utils/axiosClient.ts  # 完全に削除済み
+- 型定義の移行: TRPGUser → User (~/types)
 ```
 
-#### 3. **プロダクション環境でのデバッグログ除去**
+#### ✅ 3. **プロダクション環境でのデバッグログ除去** `[完了: 2025-07-02]`
 
 ```typescript
-// ❌ 本番環境に残存する大量のコンソールログ
-console.log('🔍 JWT Debug Info:', ...)     // api-client.ts
-console.log('✅ JWT Added to Authorization header')  // api-client.ts
-console.error('❌ API Error:', ...)         // api-client.ts
+// ✅ COMPLETED: 本番環境でのログ制御
+// 開発環境のみログ出力、本番環境では機密情報保護
 
-// ✅ 環境別ログ管理
-const isDevelopment = process.env.NODE_ENV === 'development'
+// 修正内容:
+const isDevelopment = !configService.isProduction()
 
 if (isDevelopment) {
-  console.log('🔍 Debug Info:', data)
+  console.log('🔍 JWT Debug Info:', {
+    jwtToken: jwtToken ? 'Present' : 'Not found' // トークン値は表示しない
+    // その他のデバッグ情報
+  })
 }
+
+// エラーは本番環境でも記録（ただし機密情報は除外）
+console.error('❌ API Error:', {
+  message: error.message,
+  status: error.response?.status,
+  statusText: error.response?.statusText,
+  ...(isDevelopment && { data: error.response?.data })
+})
 ```
+
+### **🚨 最高優先度（即座に対応が必要）**
+
+> **現在、最高優先度の項目はありません。**  
+> 全てのセキュリティリスクが修正済みです。
 
 ### **🔥 高優先度（1週間以内）**
 
