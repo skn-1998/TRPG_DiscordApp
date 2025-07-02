@@ -418,18 +418,37 @@ private readonly locks = new Map<string, boolean>()
 (this.client as any)['characterService'] = this.characterService
 ```
 
-#### 3. **TypeScript設定の強化（第4段階）**
+#### ✅ 3. **TypeScript設定の強化（第4段階 - Character nullチェック問題解決）** `[完了: 2025-01-02]`
 ```typescript
-// 🎯 残り13個のエラー解決予定
-1. Character nullチェック (4件): add-chara-info.service.ts の関数引数
-2. 暗黙的any型 (4件): itemEmbed, descriptionEmbed の型問題
-3. null/undefinedチェック (4件): createdTimestamp, param.value.value問題
-4. その他型問題 (1件): Object.entries関連
+// ✅ COMPLETED: Character nullチェック問題の完全解決
+- add-chara-info.service.ts: _.isNil()による包括的null/undefinedチェック (4件)
+- convertCharacterJsonToString関数への型安全な引数渡し
+
+// 📊 エラー数改善: 13個 → 9個 (31%減少)
+// 📊 累計改善: 84個 → 9個 (89%減少)
+
+// ✅ 実装した安全なnullチェック:
+if (_.isNil(characterInfo)) {
+  console.error('キャラクター情報が見つかりません')
+  return
+}
+// この時点でcharacterInfoはCharacter型として保証
+
+// ✅ 解決した関数呼び出し (4箇所):
+convertCharacterJsonToString(characterInfo, 'status|parameter|skill')
+```
+
+#### 4. **TypeScript設定の強化（第5段階）**
+```typescript
+// 🎯 残り9個のエラー解決予定
+1. 暗黙的any型 (4件): itemEmbed, descriptionEmbed の型問題
+2. null/undefinedチェック (4件): createdTimestamp, param.value.value問題
+3. その他型問題 (1件): Object.entries関連
 
 // 📋 実装戦略
-1. Character nullチェック: 関数引数の事前検証
-2. 暗黙的any型: EmbedBuilder | null の適切な型注釈
-3. null/undefinedチェック: 安全なプロパティアクセス
+1. 暗黙的any型: EmbedBuilder | null の適切な型注釈
+2. null/undefinedチェック: 安全なプロパティアクセス
+3. Object.entries問題: 型アサーションまたはガード追加
 4. 最終的な型安全性の向上
 ```
 

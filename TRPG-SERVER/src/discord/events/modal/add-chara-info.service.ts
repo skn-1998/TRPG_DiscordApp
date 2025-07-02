@@ -68,7 +68,13 @@ export class AddCharaInfoService implements discordModalType {
     console.log(await this.characterService.findByChannelId(channel.id))
     if (isNull(interaction.channelId)) return
     const characterInfo = await this.characterService.findByChannelId(channel.id)
-    if (isUndefined(characterInfo)) return
+
+    // キャラクター情報の存在確認（nullとundefinedの両方をチェック）
+    if (_.isNil(characterInfo)) {
+      console.error('キャラクター情報が見つかりません')
+      return
+    }
+
     console.log(convertCharacterJsonToString(characterInfo, 'status'))
     const characterInfoText = [
       convertCharacterJsonToString(characterInfo, 'status'),
