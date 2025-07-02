@@ -45,7 +45,7 @@ export class ChannelCreateService {
         const logEntry = fetchedLogs.entries.find((entry) => entry.target.id === channel.id)
 
         // 該当するログが見つかった場合
-        if (logEntry) {
+        if (logEntry && logEntry.executor) {
           creatorId = logEntry.executor.id
           this.logger.log(`チャンネル作成者ID: ${creatorId}`)
         } else {

@@ -119,6 +119,12 @@ export class CharacterChannelService implements discordSelectMenuType {
    */
   async createCharacterThread(interaction: CommandInteraction, character: Character): Promise<void> {
     try {
+      // Guildの存在確認
+      if (!interaction.guild) {
+        await interaction.reply({ content: 'このコマンドはサーバー内でのみ使用できます', ephemeral: true })
+        return
+      }
+
       // キャラクターのチャンネルIDを取得
       const channelId = character.discordChannelId
       if (!channelId) {
@@ -152,6 +158,14 @@ export class CharacterChannelService implements discordSelectMenuType {
 
   getAndSetChannelOption(interaction: CommandInteraction): StringSelectMenuBuilder {
     try {
+      // Guildの存在確認
+      if (!interaction.guild) {
+        this.channelOptions = [
+          new StringSelectMenuOptionBuilder().setLabel('サーバー情報が取得できません').setValue('no-guild')
+        ]
+        return this.data
+      }
+
       const characterCategory = this.appConfigService.get('discord.characterCategory')
       const categoryNameStr = [characterCategory]
       // カテゴリーチャンネルを取得

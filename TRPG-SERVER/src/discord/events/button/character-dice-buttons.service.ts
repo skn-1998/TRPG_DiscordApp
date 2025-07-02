@@ -92,13 +92,24 @@ export class CharacterDiceButtonsService implements discordButtonType {
 
       const rollValue = result
       if (rollValue > 0) {
-        const characterName = interaction.channel.name
+        // チャンネルの存在確認と型チェック
+        if (!interaction.channel) {
+          console.error('インタラクションのチャンネルが存在しません')
+          return
+        }
 
+        // スレッドチャンネルでない場合は処理をスキップ
+        if (interaction.channel.type !== ChannelType.PublicThread) {
+          console.error('パブリックスレッド以外での操作はサポートされていません')
+          return
+        }
+
+        const characterName = interaction.channel.name
         const { resultEmoji } = this.getResultStyle(diceResult, result)
         const resultText = this.formatResultText(resultEmoji, characterName, skillName, diceResult.text)
 
-        // スレッドのチャンネルタイプ確認
-        if (interaction.channel?.type === ChannelType.PublicThread) {
+        // スレッドのチャンネルタイプ確認（上記でチェック済みだが、型安全性のため再確認）
+        if (interaction.channel.type === ChannelType.PublicThread) {
           // 親チャンネルにもメッセージを送信
           const parentChannelId = interaction.channel.parentId
           if (parentChannelId) {
