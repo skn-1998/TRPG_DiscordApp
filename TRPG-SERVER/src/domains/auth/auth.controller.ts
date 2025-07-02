@@ -21,6 +21,8 @@ import { UserService } from '../user/user.service'
 import { User } from '../user/models/user.model'
 import { DiscordLoginDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
+import { JwtTokenPayload } from './models/auth.token.model'
 
 // Expressのリクエスト型を拡張してユーザー情報を含める
 interface RequestWithUser extends ExpressRequest {
@@ -70,7 +72,12 @@ export class AuthController {
         name: profile.username,
         discordUserId: profile.id,
         avatarHash: profile.avatar,
-        characterIds: []
+        characterIds: [],
+        // Discordアクセストークンを保存
+        discordAccessToken: '',
+        discordRefreshToken: '',
+        discordTokenExpiresAt: new Date(),
+        discordTokenScope: ''
       }
 
       await this.authService.signInAndRegisterUserInfo(user)
@@ -136,16 +143,38 @@ export class AuthController {
       this.logger.debug(`User info: ${JSON.stringify(userInfo)}`)
       this.logger.debug(`Avatar hash from Discord: ${userInfo.avatar}`)
 
+      // Discord Guild一覧を取得してログに出力
+      try {
+        this.logger.debug('Discord Guild一覧を取得中...')
+        const guilds = await this.authService.getDiscordGuildsWithToken(authData.access_token)
+
+        this.logger.debug(`✅ Discord Guild一覧取得成功: ${guilds.length}個のサーバー`)
+        guilds.forEach((guild, index) => {
+          this.logger.debug(`Guild ${index + 1}: ${guild.name} (ID: ${guild.id}, Owner: ${guild.owner})`)
+        })
+      } catch (guildError) {
+        this.logger.error(
+          `Discord Guild一覧の取得に失敗: ${guildError instanceof Error ? guildError.message : '不明なエラー'}`
+        )
+        // Guild取得の失敗はログイン全体を失敗させない
+      }
+
       const user: Partial<User> = {
         name: userInfo.username,
         discordUserId: userInfo.id,
         avatarHash: userInfo.avatar,
-        characterIds: []
+        characterIds: [],
+        // Discordアクセストークンを保存
+        discordAccessToken: authData.access_token,
+        discordRefreshToken: authData.refresh_token,
+        discordTokenExpiresAt: new Date(Date.now() + authData.expires_in * 1000),
+        discordTokenScope: authData.scope
       }
 
       this.logger.debug(`User object to save: ${JSON.stringify(user)}`)
 
-      await this.authService.signInAndRegisterUserInfo(user)
+      // 新しいトークン保存機能を使用
+      await this.authService.signInAndRegisterUserInfoWithTokens(user, authData)
       const jwt = await this.authService.generateJwt(user)
 
       const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
@@ -343,6 +372,48 @@ export class AuthController {
           error: error instanceof Error ? error.message : '不明なエラー'
         })
       }
+    }
+  }
+
+  /**
+   * 認証されたユーザーのDiscordサーバー一覧を取得する
+   * @param req リクエストオブジェクト（JwtAuthGuardによってユーザー情報が設定される）
+   * @returns ユーザーが参加しているDiscordサーバー一覧
+   */
+  @Get('discord/guilds')
+  @UseGuards(JwtAuthGuard)
+  async getDiscordGuilds(@Req() req: RequestWithUser) {
+    try {
+      // JwtAuthGuardによって設定されたユーザー情報から取得
+      const user = req.user as unknown as JwtTokenPayload
+      const discordUserId = user.discordUserId
+
+      this.logger.debug(`Discord Guild一覧取得リクエスト - ユーザー: ${discordUserId}`)
+
+      // 実際にDBからアクセストークンを取得してGuild一覧を取得
+      const guilds = await this.authService.getUserDiscordGuilds(discordUserId)
+
+      this.logger.debug(`Discord Guild一覧取得成功: ${guilds.length}個のサーバー`)
+
+      return {
+        guilds,
+        count: guilds.length,
+        message: 'Discord Guild一覧を正常に取得しました'
+      }
+    } catch (error) {
+      this.logger.error(`Discord Guild取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+
+      // エラーに応じて適切なレスポンスを返す
+      if (error instanceof Error && error.message.includes('アクセストークン')) {
+        return {
+          guilds: [],
+          count: 0,
+          message: 'アクセストークンが見つからないか期限切れです。再認証が必要です。',
+          error: error.message
+        }
+      }
+
+      throw error
     }
   }
 }

@@ -18,8 +18,18 @@ export function generateDiscordAuthUrl(): string {
   const hostDomain = configService.get('server.hostDomain') as string
   const redirectUri = `${hostDomain}/login`
 
-  const encodedRedirectUri = encodeURIComponent(redirectUri)
-  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${applicationId}&response_type=code&redirect_uri=${encodedRedirectUri}&scope=identify%20email`
+  // URLSearchParamsを使用してパラメータを適切にエンコード
+  const params = new URLSearchParams({
+    client_id: applicationId,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    scope: 'identify email guilds'
+  })
+
+  const discordAuthUrl = `https://discord.com/oauth2/authorize?${params.toString()}`
+
+  console.log('🔗 Discord OAuth URL:', discordAuthUrl)
+  console.log('📋 OAuth Scope:', 'identify email guilds')
 
   return discordAuthUrl
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
 import { Strategy, VerifyCallback } from 'passport-discord'
@@ -10,6 +10,8 @@ import { DiscordUserProfile } from './models/discord-user.model'
  */
 @Injectable()
 export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
+  private readonly logger = new Logger(DiscordStrategy.name)
+
   constructor(
     private readonly authService: AuthService,
     private readonly _configService: ConfigService
@@ -18,7 +20,7 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
       clientID: _configService.get<string>('DISCORD_APPLICATIONID'),
       clientSecret: _configService.get<string>('DISCORD_SECRET'),
       callbackURL: _configService.get<string>('DISCORD_CALLBACK_URL') || 'http://localhost:3000/auth/discord/callback',
-      scope: ['identify', 'email']
+      scope: ['identify', 'email', 'guilds']
     })
 
     // configServiceが使用されていることをTypeScriptコンパイラに示すためのダミー処理
@@ -31,8 +33,10 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
    */
   private logConfig(): void {
     const applicationId = this._configService.get<string>('DISCORD_APPLICATIONID')
+    this.logger.debug(`Discord Strategy設定 - Application ID: ${applicationId}`)
+    this.logger.debug(`Discord Strategy設定 - Scope: identify, email, guilds`)
     if (!applicationId) {
-      console.log('Warning: DISCORD_APPLICATIONID is not configured')
+      this.logger.warn('Warning: DISCORD_APPLICATIONID is not configured')
     }
   }
 
@@ -50,9 +54,17 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
     done: VerifyCallback
   ): Promise<void> {
     try {
+      this.logger.debug(`Discord認証検証開始: ${profile.username}`)
+      this.logger.debug(`アクセストークン取得済み: ${accessToken ? 'あり' : 'なし'}`)
+
       const user = await this.authService.validateDiscordUser(accessToken, refreshToken, profile)
+      // アクセストークンを一時的に保存（セッションまたはDBに保存するのが理想）
+      user.accessToken = accessToken
+
+      this.logger.debug(`Discord認証検証完了: ${profile.username}`)
       done(null, user)
     } catch (error) {
+      this.logger.error(`Discord認証検証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       done(error, null)
     }
   }

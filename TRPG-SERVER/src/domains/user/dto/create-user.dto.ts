@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString } from 'class-validator'
+import { IsArray, IsDate, IsOptional, IsString } from 'class-validator'
 
 export class CreateUserDto {
   @IsString()
@@ -15,4 +15,21 @@ export class CreateUserDto {
   @IsString({ each: true })
   @IsOptional()
   readonly characterIds?: string[]
+
+  // Discord OAuth トークン関連フィールド
+  @IsString()
+  @IsOptional()
+  readonly discordAccessToken?: string
+
+  @IsString()
+  @IsOptional()
+  readonly discordRefreshToken?: string
+
+  @IsDate()
+  @IsOptional()
+  readonly discordTokenExpiresAt?: Date
+
+  @IsString()
+  @IsOptional()
+  readonly discordTokenScope?: string
 }

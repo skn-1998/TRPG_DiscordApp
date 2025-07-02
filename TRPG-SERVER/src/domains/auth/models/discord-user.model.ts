@@ -1,3 +1,5 @@
+import { DiscordGuild } from '../services/auth.service'
+
 /**
  * Discordから取得するユーザープロファイル
  */
@@ -31,6 +33,16 @@ export interface DiscordUserProfile {
    * メール検証済みフラグ
    */
   verified?: boolean
+
+  /**
+   * アクセストークン（OAuth2認証時に取得）
+   */
+  accessToken?: string
+
+  /**
+   * ユーザーが参加しているGuild一覧（OAuth2認証時に取得）
+   */
+  guilds?: DiscordGuild[]
 }
 
 /**
