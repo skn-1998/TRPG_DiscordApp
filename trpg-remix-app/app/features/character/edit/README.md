@@ -43,7 +43,6 @@ edit/
 
 ```tsx
 import { COCCharacterEdit } from '~/features/character/edit'
-
 ;<COCCharacterEdit onSave={(data) => console.log('保存:', data)} onCancel={() => console.log('キャンセル')} />
 ```
 
