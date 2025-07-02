@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
-import { Strategy, VerifyCallback } from 'passport-discord'
+import { Strategy } from 'passport-discord'
 import { AuthService } from './services/auth.service'
 import { DiscordUserProfile } from './models/discord-user.model'
+
+// passport-discordのVerifyCallback型定義
+type VerifyCallback = (error: any, user?: any) => void
 
 /**
  * Discord OAuth2認証ストラテジー

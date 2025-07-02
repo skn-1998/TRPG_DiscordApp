@@ -30,6 +30,12 @@ export class CharacterTabButtonsService implements discordButtonType {
 
       const character = await this.characterService.findByChannelId(channelId)
 
+      // キャラクターが見つからない場合の処理
+      if (!character) {
+        await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
+        return
+      }
+
       // 応答中であることを示す
       await interaction.deferReply()
 
@@ -81,7 +87,7 @@ export class CharacterTabButtonsService implements discordButtonType {
               const group = parameterItems.slice(i, i + 4)
               const fields = group.map((param) => ({
                 name: param.name,
-                value: param.value.toString(),
+                value: param.value?.toString() || '0',
                 inline: true
               }))
               embed.addFields(fields)
@@ -115,7 +121,7 @@ export class CharacterTabButtonsService implements discordButtonType {
               const group = skillItems.slice(i, i + 6)
               const fields = group.map((skill) => ({
                 name: skill.name,
-                value: skill.value.value.toString(),
+                value: skill.value.value?.toString() || '0',
                 inline: true
               }))
               embed.addFields(fields)
