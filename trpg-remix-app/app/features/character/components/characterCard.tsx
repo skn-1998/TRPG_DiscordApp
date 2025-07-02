@@ -1,6 +1,9 @@
-import { Card, Group, Text, ActionIcon } from '@mantine/core'
-import { IconSettings } from '@tabler/icons-react'
+import { Card, Group, Text, ActionIcon, Modal, Select, Button, Stack, Title, Loader } from '@mantine/core'
+import { IconSettings, IconBrandDiscord } from '@tabler/icons-react'
+import { useState } from 'react'
 import { getGameSystemNameById } from '~/lib'
+import { getDiscordServers, formatGuildsForSelect } from '../../discord'
+import { DiscordServerSelectOption } from '~/types'
 
 // 軽量キャラクターデータ
 interface CharacterSummary {
@@ -16,39 +19,149 @@ interface CharacterCardProps {
 }
 
 export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps) {
+  const [modalOpened, setModalOpened] = useState(false)
+  const [selectedServer, setSelectedServer] = useState<string | null>(null)
+  const [discordServers, setDiscordServers] = useState<DiscordServerSelectOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleDiscordClick = () => {
+    setModalOpened(true)
+    if (discordServers.length === 0) {
+      fetchDiscordServers()
+    }
+  }
+
+  const fetchDiscordServers = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await getDiscordServers()
+      const formattedServers = formatGuildsForSelect(response.guilds)
+      setDiscordServers(formattedServers)
+    } catch (err) {
+      console.error('Failed to fetch Discord servers:', err)
+      setError('サーバー一覧の取得に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleServerAdd = () => {
+    if (selectedServer) {
+      // ここで実際のサーバー追加処理を行う
+      const selectedServerName = discordServers.find((server) => server.value === selectedServer)?.label
+      console.log(`キャラクター "${character.characterName}" をサーバー "${selectedServerName}" に追加`)
+      setModalOpened(false)
+      setSelectedServer(null)
+    }
+  }
+
+  const handleModalClose = () => {
+    setModalOpened(false)
+    setSelectedServer(null)
+    setError(null)
+  }
+
   return (
-    <Card
-      shadow="sm"
-      padding="lg"
-      radius="md"
-      withBorder
-      style={{
-        minHeight: '200px',
-        cursor: onClick ? 'pointer' : 'default'
-      }}
-      onClick={onClick}
-    >
-      <Group justify="space-between" mt="md" mb="xs">
-        <Text fw={500} size="lg" lineClamp={1}>
-          {character.characterName}
+    <>
+      <Card
+        shadow="sm"
+        padding="lg"
+        radius="md"
+        withBorder
+        style={{
+          minHeight: '200px',
+          cursor: onClick ? 'pointer' : 'default'
+        }}
+        onClick={onClick}
+      >
+        <Group justify="space-between" mt="md" mb="xs">
+          <Text fw={500} size="lg" lineClamp={1}>
+            {character.characterName}
+          </Text>
+          {onEdit && (
+            <ActionIcon
+              variant="light"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+            >
+              <IconSettings size={16} />
+            </ActionIcon>
+          )}
+        </Group>
+
+        <Text size="sm" c="dimmed" mb="xs">
+          System Name: {getGameSystemNameById(character.gameSystemId)}
         </Text>
-        {onEdit && (
+
+        <Group justify="flex-end" mt="auto">
           <ActionIcon
             variant="light"
+            color="blue"
             onClick={(e) => {
               e.stopPropagation()
-              onEdit()
+              handleDiscordClick()
             }}
           >
-            <IconSettings size={16} />
+            <IconBrandDiscord size={16} />
           </ActionIcon>
-        )}
-      </Group>
+        </Group>
+      </Card>
 
-      <Text size="sm" c="dimmed" mb="xs">
-        System Name: {getGameSystemNameById(character.gameSystemId)}
-      </Text>
-    </Card>
+      <Modal
+        opened={modalOpened}
+        onClose={handleModalClose}
+        title={
+          <Group>
+            <IconBrandDiscord size={24} color="#5865F2" />
+            <Title order={4}>サーバーに追加：</Title>
+          </Group>
+        }
+        size="md"
+        centered
+      >
+        <Stack gap="md">
+          {loading ? (
+            <Group justify="center" p="md">
+              <Loader size="sm" />
+              <Text size="sm" c="dimmed">
+                サーバー一覧を読み込み中...
+              </Text>
+            </Group>
+          ) : error ? (
+            <Text size="sm" c="red">
+              {error}
+            </Text>
+          ) : (
+            <Select
+              placeholder="サーバーを選択してください"
+              data={discordServers}
+              value={selectedServer}
+              onChange={setSelectedServer}
+              searchable
+              clearable
+              disabled={loading}
+            />
+          )}
+
+          <Text size="sm" c="dimmed">
+            サーバーのサーバー管理権限が必要です。
+          </Text>
+
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={handleModalClose}>
+              キャンセル
+            </Button>
+            <Button disabled={!selectedServer || loading} onClick={handleServerAdd}>
+              追加
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   )
 }
 

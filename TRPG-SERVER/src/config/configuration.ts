@@ -106,6 +106,10 @@ export const generateAppConfig = () => {
       // JWTトークンの有効期限（秒）
       jwtExpiresIn: env.JWT_EXPIRES_IN!,
       redirectUrl: env.REDIRECT_URL!
+    },
+
+    security: {
+      discordTokenEncryptionKey: env.DISCORD_TOKEN_ENCRYPTION_KEY
     }
   } as const
 }
@@ -135,6 +139,7 @@ export type ConfigPaths =
   | 'auth.jwtSecret'
   | 'auth.jwtExpiresIn'
   | 'auth.redirectUrl'
+  | 'security.discordTokenEncryptionKey'
 
 /**
  * 環境変数の再検証（テスト用）
