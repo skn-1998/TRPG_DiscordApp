@@ -33,6 +33,9 @@ export class CharacterDiceButtonsService implements discordButtonType {
   // 最後のEmbed更新時間を記録するMap
   private readonly lastEmbedUpdateTime = new Map<string, number>()
 
+  // ページネーション処理のロック管理（型安全）
+  private readonly locks = new Map<string, boolean>()
+
   constructor(
     private readonly characterService: CharacterService,
     private readonly diceRollService: DiceRollService,
@@ -351,17 +354,17 @@ export class CharacterDiceButtonsService implements discordButtonType {
   ): Promise<void> {
     // 競合を避けるためのロック機構
     const lockKey = `pagination_lock_${channelId}`
-    if (this[lockKey]) {
+    if (this.locks.get(lockKey)) {
       console.log(`ページネーション処理が既に進行中です: ${channelId}`)
       return
     }
 
     // ロックを設定
-    this[lockKey] = true
+    this.locks.set(lockKey, true)
 
     // 最大5秒後に強制的にロックを解除
     const lockTimeout = setTimeout(() => {
-      this[lockKey] = false
+      this.locks.set(lockKey, false)
       console.log(`ページネーションロックを強制解除: ${channelId}`)
     }, 5000)
 
@@ -437,7 +440,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
 
             // ロックを解除
             clearTimeout(lockTimeout)
-            this[lockKey] = false
+            this.locks.set(lockKey, false)
             return
           }
         } catch (error) {
@@ -497,7 +500,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
 
         // ロックを解除
         clearTimeout(lockTimeout)
-        this[lockKey] = false
+        this.locks.set(lockKey, false)
         return
       }
 
@@ -579,7 +582,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
     } finally {
       // 最後に必ずロックを解除
       clearTimeout(lockTimeout)
-      this[lockKey] = false
+      this.locks.set(lockKey, false)
     }
   }
 
