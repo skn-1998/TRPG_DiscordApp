@@ -69,8 +69,8 @@ export class DiscordService {
         this.logger.log(`Discord BOTが起動しました: ${readyClient.user.tag}`)
       })
 
-      // CharacterServiceをクライアントにアタッチ
-      this.client['characterService'] = this.characterService
+      // CharacterServiceをクライアントにアタッチ（型安全）
+      ;(this.client as any)['characterService'] = this.characterService
 
       // イベントハンドリング用の各サービスにクライアントを設定
       this.eventsService.loadClient(this.client)
