@@ -130,7 +130,7 @@ export class AuthService {
         this.logger.log(`新規ユーザー作成（従来互換）: ${user.discordUserId}`)
         await this.userService.create({
           discordUserId: user.discordUserId,
-          name: user.name,
+          name: user.name || 'Unknown User',
           avatarHash: user.avatarHash,
           characterIds: user.characterIds || []
         })
@@ -169,7 +169,7 @@ export class AuthService {
 
       const userData = {
         discordUserId: user.discordUserId,
-        name: user.name,
+        name: user.name || 'Unknown User',
         avatarHash: user.avatarHash,
         discordAccessToken: encryptedAccessToken,
         discordRefreshToken: encryptedRefreshToken,

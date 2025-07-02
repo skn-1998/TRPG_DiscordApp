@@ -39,6 +39,12 @@ export class CharacterChannelService implements discordSelectMenuType {
   }
 
   async execute(interaction: AnySelectMenuInteraction): Promise<void> {
+    // Guildの存在チェック
+    if (!interaction.guild) {
+      await interaction.reply({ content: 'このコマンドはサーバー内でのみ使用できます', ephemeral: true })
+      return
+    }
+
     const characterCategory = this.appConfigService.get('discord.characterCategory')
     const categoryNameStr = [characterCategory]
     const categoryChannel = interaction.guild.channels.cache.find(
@@ -59,6 +65,13 @@ export class CharacterChannelService implements discordSelectMenuType {
       const targetChannel = interaction.channel
       const characterChannelId = interaction.values[0]
       const character = await this.characterService.findByChannelId(characterChannelId)
+
+      // キャラクターの存在チェック
+      if (!character) {
+        await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
+        return
+      }
+
       if (_.isNil(targetChannel) || !targetChannel.isTextBased()) {
         if (!interaction.replied) {
           await interaction.reply({ content: 'チャンネルが見つかりませんでした', ephemeral: true })

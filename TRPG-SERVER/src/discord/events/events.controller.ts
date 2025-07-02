@@ -188,6 +188,13 @@ export class EventsController {
    */
   doSystemEvent(handler: systemEventHandlerType, categoryId: string, channel: TextChannel): void {
     this.logger.debug(`システムイベント実行: ${categoryId}`)
+
+    // channel.parentのnullチェック
+    if (!channel.parent) {
+      this.logger.debug('チャンネルに親カテゴリがありません')
+      return
+    }
+
     console.log(channel.parent.name + categoryId)
     if (channel.parent.name === categoryId) {
       console.log(channel.parent.name)
@@ -197,7 +204,7 @@ export class EventsController {
 
   async doEvents(
     discordClass: discordInteractionType,
-    config?: eventSelectButtonType | eventType | eventButtonType
+    config: eventSelectButtonType | eventType | eventButtonType
   ): Promise<void> {
     if (isUndefined(config.customId)) return
 
