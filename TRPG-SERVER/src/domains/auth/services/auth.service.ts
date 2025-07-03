@@ -11,6 +11,7 @@ import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.
 import axios from 'axios'
 import { AppConfigService } from 'src/config/config.service'
 import { CryptoUtil } from '../../../utils/crypto.util'
+import { ErrorHandler } from '../../../utils/error-handler'
 
 /**
  * Discord Guild（サーバー）情報
@@ -71,7 +72,16 @@ export class AuthService {
     try {
       return await this.parseJwt(jwt)
     } catch (error) {
-      this.logger.error(`JWT検証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'validate-token',
+          additionalData: { hasAuthorization: !!authorization }
+        },
+        'AuthService'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw new UnauthorizedException('トークンが無効です')
     }
   }
@@ -105,8 +115,16 @@ export class AuthService {
       this.logger.debug('JWT検証成功')
       return jwt
     } catch (error) {
-      this.logger.error(`JWT検証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-      this.logger.error(`トークン: ${token}`)
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'parse-jwt',
+          additionalData: { hasToken: !!token }
+        },
+        'AuthService'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw new UnauthorizedException('トークンが無効です')
     }
   }
@@ -142,7 +160,16 @@ export class AuthService {
         })
       }
     } catch (error) {
-      this.logger.error(`ユーザー登録エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'sign-in-register-user-info',
+          discordUserId: user.discordUserId
+        },
+        'AuthService'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw error
     }
   }
@@ -185,7 +212,16 @@ export class AuthService {
         await this.userService.update(user.discordUserId, userData)
       }
     } catch (error) {
-      this.logger.error(`ユーザー登録エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'sign-in-register-user-info-with-tokens',
+          discordUserId: user.discordUserId
+        },
+        'AuthService'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw error
     }
   }

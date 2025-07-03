@@ -23,6 +23,7 @@ import { DiscordLoginDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { JwtTokenPayload } from './models/auth.token.model'
+import { ErrorHandler } from '../../utils/error-handler'
 
 // Expressのリクエスト型を拡張してユーザー情報を含める
 interface RequestWithUser extends ExpressRequest {
@@ -103,8 +104,14 @@ export class AuthController {
       const frontendUrl = this.configService.get<string>('FRONTEND_URL') || '/'
       res.redirect(frontendUrl)
     } catch (error) {
-      this.logger.error(`Discord認証コールバックエラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-      res.redirect('/auth-error')
+      ErrorHandler.handleHttpError(
+        error,
+        {
+          action: 'discord-auth-callback',
+          additionalData: { state: req.query.state }
+        },
+        res
+      )
     }
   }
 
@@ -118,7 +125,16 @@ export class AuthController {
     try {
       return await this.authService.validateToken(authorization)
     } catch (error) {
-      this.logger.error(`トークン検証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'validate-token',
+          additionalData: { authorization: authorization ? '[REDACTED]' : 'missing' }
+        },
+        'AuthController'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw error
     }
   }
@@ -204,11 +220,15 @@ export class AuthController {
         token: jwt
       })
     } catch (error) {
-      this.logger.error(`ログインエラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: '認証に失敗しました',
-        error: error instanceof Error ? error.message : '不明なエラー'
-      })
+      ErrorHandler.handleHttpError(
+        error,
+        {
+          action: 'login',
+          discordUserId: loginDto.code ? '[REDACTED]' : 'missing',
+          additionalData: { hasCode: !!loginDto.code }
+        },
+        res
+      )
     }
   }
 
