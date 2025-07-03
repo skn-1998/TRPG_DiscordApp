@@ -174,7 +174,7 @@ export class DiceRollPaginationService {
             pages.push(currentPage)
 
             // 新しいページは前のページと同じタイトルを維持
-            currentPage = new EmbedBuilder().setTitle(currentPage.data.title).setColor('#0099ff')
+            currentPage = new EmbedBuilder().setTitle(currentPage.data.title ?? 'ダイスロール履歴').setColor('#0099ff')
 
             currentLength = 0
           }

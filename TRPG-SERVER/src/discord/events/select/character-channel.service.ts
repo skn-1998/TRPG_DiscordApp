@@ -196,7 +196,7 @@ export class CharacterChannelService implements discordSelectMenuType {
         let channelsArray = Array.from(textChannels.values())
 
         // 作成日時順に並べ替え（新しいものが先頭）
-        channelsArray = channelsArray.sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+        channelsArray = channelsArray.sort((a, b) => (b.createdTimestamp ?? 0) - (a.createdTimestamp ?? 0))
 
         // 最大25個に制限
         channelsArray = channelsArray.slice(0, 25)
@@ -272,7 +272,7 @@ export class CharacterChannelService implements discordSelectMenuType {
           const group = parameterItems.slice(i, i + 4)
           const fields = group.map((param) => ({
             name: param.name,
-            value: param.value.value.toString(),
+            value: param.value.value?.toString() ?? '0',
             inline: true
           }))
           parameterEmbed.addFields(fields)
@@ -313,7 +313,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       }
 
       // アイテムEmbed（あれば）
-      let itemEmbed = null
+      let itemEmbed: EmbedBuilder | null = null
       if (character.item && Object.keys(character.item).length > 0) {
         itemEmbed = new EmbedBuilder().setTitle('【アイテム】').setColor(0x9933cc)
 
@@ -321,7 +321,7 @@ export class CharacterChannelService implements discordSelectMenuType {
         Object.entries(character.item).forEach(([name, value], index) => {
           if (index < 10) {
             // 最大10個まで表示
-            itemEmbed.addFields({
+            itemEmbed!.addFields({
               name: name,
               value: value?.toString() || '',
               inline: true
@@ -331,7 +331,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       }
 
       // メモ・背景Embed
-      let descriptionEmbed = null
+      let descriptionEmbed: EmbedBuilder | null = null
       if (character.description && Object.keys(character.description).length > 0) {
         descriptionEmbed = new EmbedBuilder().setTitle('【メモ・背景】').setColor(0x999999)
 
@@ -350,7 +350,7 @@ export class CharacterChannelService implements discordSelectMenuType {
 
         if (filteredDesc.length > 0) {
           filteredDesc.forEach(([key, value]) => {
-            descriptionEmbed.addFields({
+            descriptionEmbed!.addFields({
               name: key,
               value: value?.toString().slice(0, 1024) || '',
               inline: true
@@ -447,7 +447,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       // 能力値ロールボタン
       const abilityButtons = new ActionRowBuilder<ButtonBuilder>()
 
-      const abilityItems = Object.entries(character.parameter)
+      const abilityItems = Object.entries(character.parameter ?? {})
         .map(([name, value]) => ({ name, value: value as CharacterAttribute }))
         .sort((a, b) => Number(b.value.name) - Number(a.value.value)) // 値が大きい順にソート
         .slice(0, 5) // 上位5件を取得

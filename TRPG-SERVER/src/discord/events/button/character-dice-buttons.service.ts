@@ -24,6 +24,7 @@ import { DiceRollPaginationService } from 'src/discord/components/pagination/dic
 import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.interface'
 import { OnEvent } from '@nestjs/event-emitter'
 import { v4 as uuidv4 } from 'uuid'
+import { ErrorHandler, BackgroundTaskErrorHandler } from 'src/utils/error-handler'
 
 @Injectable()
 export class CharacterDiceButtonsService implements discordButtonType {
@@ -130,14 +131,16 @@ export class CharacterDiceButtonsService implements discordButtonType {
         return
       }
     } catch (error) {
-      console.error('ダイスボタン処理エラー:', error)
-
-      // エラーが発生した場合、通知
-      try {
-        await interaction.followUp({ content: '⚠️ エラーが発生しました。もう一度お試しください。', ephemeral: true })
-      } catch (replyError) {
-        console.error('エラー応答に失敗:', replyError)
-      }
+      await ErrorHandler.handleDiscordError(
+        error,
+        interaction,
+        {
+          action: 'dice-button-roll',
+          channelId: interaction.channel?.id,
+          additionalData: { customId: interaction.customId }
+        },
+        'ダイスロール処理中にエラーが発生しました。もう一度お試しください。'
+      )
     }
   }
 
@@ -178,11 +181,15 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // モーダルを表示
       await interaction.showModal(modal)
     } catch (error) {
-      console.error('カスタムダイスモーダル作成エラー:', error)
-      await interaction.reply({
-        content: '⚠️ カスタムダイスモーダルの表示中にエラーが発生しました。もう一度お試しください。',
-        ephemeral: true
-      })
+      await ErrorHandler.handleDiscordError(
+        error,
+        interaction,
+        {
+          action: 'custom-dice-modal',
+          channelId: interaction.channel?.id
+        },
+        'カスタムダイスモーダルの表示中にエラーが発生しました。もう一度お試しください。'
+      )
     }
   }
 
@@ -248,7 +255,11 @@ export class CharacterDiceButtonsService implements discordButtonType {
 
         // キャラクターが見つからない場合はエラーログを出力して処理を中断
         if (!character) {
-          console.error(`キャラクター "${characterName}" が見つかりません。ダイスロール結果の保存をスキップします。`)
+          BackgroundTaskErrorHandler.handleBackgroundError(
+            new Error(`キャラクター "${characterName}" が見つかりません`),
+            'save-roll-result',
+            { characterId: characterName, channelId: discordChannelId }
+          )
           return resolve()
         }
 
@@ -268,13 +279,19 @@ export class CharacterDiceButtonsService implements discordButtonType {
             this.paginationService.invalidateCache(discordChannelId)
           })
           .catch((error) => {
-            console.error('ダイスロール結果の保存に失敗しました:', error)
+            BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-dice-roll-result', {
+              characterId: character.characterId,
+              channelId: discordChannelId
+            })
           })
 
         // 即時resolve（保存完了を待たない）
         resolve()
       } catch (error) {
-        console.error('ダイスロール結果の保存に失敗しました:', error)
+        BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-roll-result-main', {
+          characterId: characterName,
+          channelId: discordChannelId
+        })
         resolve() // エラー時もresolve
       }
     })
@@ -294,14 +311,22 @@ export class CharacterDiceButtonsService implements discordButtonType {
   ): Promise<void> {
     // 処理のタイムアウト設定（10秒）
     const timeout = setTimeout(() => {
-      console.log(`インタラクション処理がタイムアウトしました: ${interaction.id}`)
+      BackgroundTaskErrorHandler.handleBackgroundError(
+        new Error(`インタラクション処理がタイムアウトしました: ${interaction.id}`),
+        'interaction-timeout',
+        { discordUserId: interaction.user.id, channelId: parentChannelId }
+      )
     }, 10000)
 
     try {
       // 親チャンネルを取得
       const parentChannel = (await interaction.client.channels.fetch(parentChannelId)) as TextChannel
       if (!parentChannel || !parentChannel.isTextBased()) {
-        console.error('親チャンネルが見つからないか、テキストチャンネルではありません')
+        BackgroundTaskErrorHandler.handleBackgroundError(
+          new Error('親チャンネルが見つからないか、テキストチャンネルではありません'),
+          'fetch-parent-channel',
+          { channelId: parentChannelId, discordUserId: interaction.user.id }
+        )
         clearTimeout(timeout)
         return
       }
@@ -321,7 +346,11 @@ export class CharacterDiceButtonsService implements discordButtonType {
 
       // 前回の更新から一定時間経っていない場合はスキップ
       if (timeSinceLastUpdate < this.MIN_UPDATE_INTERVAL) {
-        console.log(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`)
+        BackgroundTaskErrorHandler.handleBackgroundError(
+          new Error(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`),
+          'embed-update-throttle',
+          { channelId: parentChannelId, discordUserId: interaction.user.id }
+        )
         clearTimeout(timeout)
         return
       }

@@ -1,0 +1,284 @@
+import { Logger, HttpException, HttpStatus } from '@nestjs/common'
+import { Response } from 'express'
+import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction } from 'discord.js'
+
+/**
+ * エラーレスポンスの型定義
+ */
+export interface ErrorResponse {
+  success: false
+  message: string
+  error?: string
+  timestamp: string
+  path?: string
+  statusCode?: number
+}
+
+/**
+ * Discord エラーレスポンスの型定義
+ */
+export interface DiscordErrorResponse {
+  content: string
+  ephemeral: boolean
+}
+
+/**
+ * エラーコンテキストの型定義
+ */
+export interface ErrorContext {
+  userId?: string
+  discordUserId?: string
+  characterId?: string
+  channelId?: string
+  guildId?: string
+  action?: string
+  additionalData?: Record<string, unknown>
+}
+
+/**
+ * 統一されたエラーハンドリングクラス
+ */
+export class ErrorHandler {
+  private static readonly logger = new Logger(ErrorHandler.name)
+
+  /**
+   * HTTP API エラーをハンドリング
+   * @param error エラーオブジェクト
+   * @param context エラーコンテキスト
+   * @param response Expressレスポンス
+   */
+  static handleHttpError(error: unknown, context: ErrorContext, response: Response): void {
+    const errorMessage = this.extractErrorMessage(error)
+    const isProduction = process.env.NODE_ENV === 'production'
+
+    // ログ記録
+    this.logError(error, context, 'HTTP_API')
+
+    // HTTPエラーの場合
+    if (error instanceof HttpException) {
+      const statusCode = error.getStatus()
+      const errorResponse: ErrorResponse = {
+        success: false,
+        message: error.message,
+        error: isProduction ? undefined : errorMessage,
+        timestamp: new Date().toISOString(),
+        statusCode
+      }
+
+      response.status(statusCode).json(errorResponse)
+      return
+    }
+
+    // 一般的なエラーの場合
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: 'リクエストの処理中にエラーが発生しました',
+      error: isProduction ? undefined : errorMessage,
+      timestamp: new Date().toISOString(),
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR
+    }
+
+    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json(errorResponse)
+  }
+
+  /**
+   * Discord インタラクションエラーをハンドリング
+   * @param error エラーオブジェクト
+   * @param interaction Discordインタラクション
+   * @param context エラーコンテキスト
+   * @param customMessage カスタムエラーメッセージ
+   */
+  static async handleDiscordError(
+    error: unknown,
+    interaction: ButtonInteraction | ModalSubmitInteraction | SelectMenuInteraction,
+    context: ErrorContext,
+    customMessage?: string
+  ): Promise<void> {
+    const errorMessage = this.extractErrorMessage(error)
+
+    // ログ記録
+    this.logError(
+      error,
+      {
+        ...context,
+        discordUserId: interaction.user.id,
+        guildId: interaction.guild?.id,
+        channelId: interaction.channel?.id
+      },
+      'DISCORD_BOT'
+    )
+
+    // ユーザーフレンドリーなエラーメッセージ
+    const userMessage = customMessage || '⚠️ エラーが発生しました。もう一度お試しください。'
+
+    try {
+      // インタラクションの応答方法を判定
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          content: userMessage,
+          ephemeral: true
+        })
+      } else {
+        await interaction.reply({
+          content: userMessage,
+          ephemeral: true
+        })
+      }
+    } catch (replyError) {
+      // 応答に失敗した場合もログに記録
+      this.logger.error('Discord エラー応答に失敗', {
+        originalError: errorMessage,
+        replyError: this.extractErrorMessage(replyError),
+        interactionId: interaction.id,
+        userId: interaction.user.id
+      })
+    }
+  }
+
+  /**
+   * サービス層エラーをハンドリング
+   * @param error エラーオブジェクト
+   * @param context エラーコンテキスト
+   * @param serviceName サービス名
+   */
+  static handleServiceError(error: unknown, context: ErrorContext, serviceName: string): void {
+    this.logError(error, context, `SERVICE_${serviceName.toUpperCase()}`)
+
+    // エラーを再スローして上位層でハンドリング
+    if (error instanceof HttpException) {
+      throw error
+    }
+
+    // 一般的なエラーの場合、適切な HTTP エラーに変換
+    throw new HttpException('サービス処理中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+  }
+
+  /**
+   * エラーメッセージを抽出
+   * @param error エラーオブジェクト
+   * @returns エラーメッセージ
+   */
+  private static extractErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message
+    }
+
+    if (typeof error === 'string') {
+      return error
+    }
+
+    return JSON.stringify(error)
+  }
+
+  /**
+   * 構造化されたエラーログを記録
+   * @param error エラーオブジェクト
+   * @param context エラーコンテキスト
+   * @param type エラータイプ
+   */
+  private static logError(error: unknown, context: ErrorContext, type: string): void {
+    const errorMessage = this.extractErrorMessage(error)
+    const timestamp = new Date().toISOString()
+
+    const logData = {
+      timestamp,
+      type,
+      message: errorMessage,
+      context: {
+        ...context,
+        // 機密情報を除外
+        ...(context.additionalData && this.sanitizeAdditionalData(context.additionalData))
+      },
+      stack: error instanceof Error ? error.stack : undefined
+    }
+
+    // エラーレベルに応じてログレベルを調整
+    if (this.isCriticalError(error)) {
+      this.logger.error('CRITICAL_ERROR', logData)
+    } else {
+      this.logger.error('ERROR', logData)
+    }
+  }
+
+  /**
+   * 機密情報をサニタイズ
+   * @param data 追加データ
+   * @returns サニタイズされたデータ
+   */
+  private static sanitizeAdditionalData(data: Record<string, unknown>): Record<string, unknown> {
+    const sanitized = { ...data }
+
+    // 機密情報のキーを除外
+    const sensitiveKeys = [
+      'token',
+      'password',
+      'secret',
+      'key',
+      'authorization',
+      'discordAccessToken',
+      'discordRefreshToken',
+      'jwt'
+    ]
+
+    sensitiveKeys.forEach((key) => {
+      if (sanitized[key]) {
+        sanitized[key] = '[REDACTED]'
+      }
+    })
+
+    return sanitized
+  }
+
+  /**
+   * クリティカルエラーかどうかを判定
+   * @param error エラーオブジェクト
+   * @returns クリティカルエラーの場合true
+   */
+  private static isCriticalError(error: unknown): boolean {
+    if (error instanceof Error) {
+      const criticalPatterns = [/database/i, /connection/i, /timeout/i, /auth/i, /permission/i]
+
+      return criticalPatterns.some((pattern) => pattern.test(error.message))
+    }
+
+    return false
+  }
+
+  /**
+   * エラー統計情報を取得（将来的な監視用）
+   * @returns エラー統計
+   */
+  static getErrorStats(): Record<string, number> {
+    // 実装は将来的に追加（Redis等を使用）
+    return {}
+  }
+}
+
+/**
+ * バックグラウンドタスクエラーハンドラー
+ */
+export class BackgroundTaskErrorHandler {
+  private static readonly logger = new Logger(BackgroundTaskErrorHandler.name)
+
+  /**
+   * バックグラウンドタスクエラーをハンドリング
+   * @param error エラーオブジェクト
+   * @param taskName タスク名
+   * @param context エラーコンテキスト
+   */
+  static handleBackgroundError(error: unknown, taskName: string, context: ErrorContext = {}): void {
+    const errorMessage = ErrorHandler['extractErrorMessage'](error)
+
+    ErrorHandler['logError'](
+      error,
+      {
+        ...context,
+        action: taskName
+      },
+      'BACKGROUND_TASK'
+    )
+
+    // バックグラウンドタスクのエラーは処理を続行
+    // 必要に応じて再試行やアラート機能を追加
+  }
+}
