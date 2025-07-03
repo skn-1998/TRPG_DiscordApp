@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common'
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js'
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  StringSelectMenuBuilder,
+  APISelectMenuOption
+} from 'discord.js'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
@@ -318,7 +325,7 @@ export class DiceRollPaginationService {
     currentPage: number,
     totalPages: number
   ): Promise<void> {
-    const pageOptions = []
+    const pageOptions: APISelectMenuOption[] = []
 
     // 最大25個まで（Discordの制限）
     const maxOptions = Math.min(totalPages, 25)
@@ -419,7 +426,7 @@ export class DiceRollPaginationService {
       }
 
       // セレクトメニューのオプションを作成
-      const characterOptions = []
+      const characterOptions: APISelectMenuOption[] = []
 
       // 全表示オプション - state.characterIdがundefinedまたはnullの場合デフォルトを全表示に
       characterOptions.push({

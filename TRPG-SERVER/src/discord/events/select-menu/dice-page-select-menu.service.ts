@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { StringSelectMenuBuilder, StringSelectMenuInteraction, CacheType } from 'discord.js'
+import { StringSelectMenuBuilder, StringSelectMenuInteraction, CacheType, EmbedBuilder } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
 
@@ -41,7 +41,7 @@ export class DicePageSelectMenuService implements discordSelectMenuType {
         return
       }
 
-      let newPage = null
+      let newPage: EmbedBuilder | null = null
 
       // 特別な値の処理
       if (selectedValue === 'prev-25' || selectedValue === 'next-25') {

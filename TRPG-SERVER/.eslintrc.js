@@ -55,6 +55,7 @@ module.exports = {
   },
   overrides: [
     {
+      // 全てのテストファイル（.spec.ts）
       files: ['**/*.spec.ts'],
       parserOptions: {
         project: ['./tsconfig.spec.json']
@@ -65,6 +66,7 @@ module.exports = {
         '@typescript-eslint/no-unsafe-member-access': 'off',
         '@typescript-eslint/no-unsafe-call': 'off',
         '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
         '@typescript-eslint/no-unused-vars': 'off',
         'no-unused-vars': 'off'
       }
@@ -81,8 +83,88 @@ module.exports = {
         '@typescript-eslint/no-unsafe-member-access': 'off',
         '@typescript-eslint/no-unsafe-call': 'off',
         '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
         '@typescript-eslint/no-unused-vars': 'off',
         'no-unused-vars': 'off'
+      }
+    },
+    {
+      // テストディレクトリ内の全てのTypeScriptファイル
+      files: ['test/**/*.ts'],
+      parserOptions: {
+        project: ['./tsconfig.spec.json']
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        'no-unused-vars': 'off',
+        'no-console': 'off'
+      }
+    },
+    {
+      // モックファイル
+      files: ['**/*.mock.ts', '**/*mock*.ts'],
+      parserOptions: {
+        project: ['./tsconfig.spec.json']
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        'no-unused-vars': 'off'
+      }
+    },
+    {
+      // ファクトリーファイル
+      files: ['**/*.factory.ts', '**/*factory*.ts'],
+      parserOptions: {
+        project: ['./tsconfig.spec.json']
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        'no-unused-vars': 'off'
+      }
+    },
+    {
+      // テストヘルパー・ユーティリティファイル
+      files: ['**/*helper*.ts', '**/*util*.ts'],
+      env: {
+        jest: true
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off'
+      }
+    },
+    {
+      // 認証関連ファイル（外部ライブラリとの接続でany使用が必要）
+      files: ['**/auth/**/*.ts', '**/*.strategy.ts', '**/discord.service.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off'
       }
     },
     {

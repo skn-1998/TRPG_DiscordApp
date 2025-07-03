@@ -71,6 +71,9 @@ export class EnvironmentValidator {
       result.CHARACTER_CATEGORY = TYPE_CONVERTERS.string(env.CHARACTER_CATEGORY, DEFAULT_VALUES.CHARACTER_CATEGORY)
       result.DICE_ROLL_CATEGORY = TYPE_CONVERTERS.string(env.DICE_ROLL_CATEGORY, DEFAULT_VALUES.DICE_ROLL_CATEGORY)
 
+      // 暗号化キー
+      result.DISCORD_TOKEN_ENCRYPTION_KEY = TYPE_CONVERTERS.string(env.DISCORD_TOKEN_ENCRYPTION_KEY)
+
       // 追加のバリデーション
       this.validatePort(result.PORT, errors)
       this.validateUrl(result.FRONTEND_URL, 'FRONTEND_URL', errors)
