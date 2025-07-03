@@ -3,7 +3,6 @@ import { UserService } from './user.service'
 import { UserRepository } from './repositories/user.repository'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
-import { RepositoryMockFactory } from '../../core/testing/repository.mock.factory'
 import { User } from './models/user.model'
 
 describe('UserService', () => {
@@ -17,20 +16,31 @@ describe('UserService', () => {
   }
 
   beforeEach(async () => {
-    // リポジトリのモックを作成
-    repository = RepositoryMockFactory.createMock() as jest.Mocked<UserRepository>
+    // UserRepository用の完全なモックを作成
+    const userRepositoryMock = {
+      create: jest.fn(),
+      findById: jest.fn(),
+      findByDiscordId: jest.fn(),
+      findAll: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+      addCharacterId: jest.fn(),
+      removeCharacterId: jest.fn(),
+      updateDiscordTokens: jest.fn()
+    }
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
         {
           provide: UserRepository,
-          useValue: repository
+          useValue: userRepositoryMock
         }
       ]
     }).compile()
 
     service = module.get<UserService>(UserService)
+    repository = module.get(UserRepository) as jest.Mocked<UserRepository>
   })
 
   it('should be defined', () => {

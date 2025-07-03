@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
 import { cthulhuTestCharacter } from '../src/domains/character/dto/test-data'
-import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard'
+import { JwtAuthGuard } from '../src/domains/auth/guards/jwt-auth.guard'
 import { AuthGuard } from '@nestjs/passport'
 import { getRepositoryToken } from '@nestjs/typeorm'
 import { Character } from '../src/domains/character/models/character.model'
@@ -74,7 +74,7 @@ describe('CharacterController (e2e)', () => {
   })
 
   // 認証ユーザーをシミュレートするリクエスト変更関数
-  const addAuthUserToRequest = (req) => {
+  const addAuthUserToRequest = (req: any) => {
     return req.set('Authorization', 'Bearer test-token').set('user', JSON.stringify({ userId: '123456789012345678' }))
   }
 
@@ -102,7 +102,7 @@ describe('CharacterController (e2e)', () => {
     expect(response.body.length).toBeGreaterThan(0)
 
     // 作成したキャラクターが含まれているか確認
-    const foundCharacter = response.body.find((char) => char.characterId === createdCharacterId)
+    const foundCharacter = response.body.find((char: any) => char.characterId === createdCharacterId)
     expect(foundCharacter).toBeDefined()
     expect(foundCharacter.characterName).toBe(cthulhuTestCharacter.characterName)
   })
