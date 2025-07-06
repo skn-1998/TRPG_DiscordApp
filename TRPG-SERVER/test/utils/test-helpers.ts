@@ -100,7 +100,7 @@ export function expectHttpError(error: any, expectedStatus: number, expectedMess
 export async function expectAsyncError(asyncFunction: () => Promise<any>, expectedError: any) {
   try {
     await asyncFunction()
-    fail('Expected function to throw an error')
+    throw new Error('Expected function to throw an error')
   } catch (error) {
     expect(error).toEqual(expectedError)
   }
@@ -130,30 +130,30 @@ export class TimeHelper {
 
 // データ検証ヘルパー
 export class ValidationHelper {
-  static expectValidCharacter(character: any) {
-    expect(character).toMatchObject({
+  static getCharacterMatcher() {
+    return {
       characterId: expect.any(String),
       name: expect.any(String),
       gameSystem: expect.any(String),
       discordUserId: expect.any(String)
-    })
+    }
   }
 
-  static expectValidUser(user: any) {
-    expect(user).toMatchObject({
+  static getUserMatcher() {
+    return {
       id: expect.any(String),
       username: expect.any(String),
       email: expect.any(String)
-    })
+    }
   }
 
-  static expectValidDiscordMessage(message: any) {
-    expect(message).toMatchObject({
+  static getDiscordMessageMatcher() {
+    return {
       id: expect.any(String),
       content: expect.any(String),
       author: expect.any(Object),
       timestamp: expect.any(Date)
-    })
+    }
   }
 }
 

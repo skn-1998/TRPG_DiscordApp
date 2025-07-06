@@ -253,6 +253,16 @@ export const mockEmbedBuilder = {
   setAuthor: jest.fn().mockReturnThis(),
   setImage: jest.fn().mockReturnThis(),
   setThumbnail: jest.fn().mockReturnThis(),
+  data: {
+    title: 'Test Embed',
+    description: 'Test description',
+    color: 0x00ff00,
+    fields: [],
+    timestamp: new Date().toISOString(),
+    footer: {
+      text: 'Test Footer'
+    }
+  },
   toJSON: jest.fn().mockReturnValue({
     title: 'Test Embed',
     description: 'Test description'
