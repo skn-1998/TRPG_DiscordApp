@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved */
 import { apiClient } from '~/lib/api-client'
-import { TRPGUser } from '~/utils/axiosClient'
+import { User as TRPGUser } from '~/types'
 import { CustomError } from '~/utils/customError'
 
 // ユーザー情報取得

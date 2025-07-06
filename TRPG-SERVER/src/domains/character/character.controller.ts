@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   UnauthorizedException,
+  NotFoundException,
   Headers,
   Header
 } from '@nestjs/common'
@@ -114,7 +115,11 @@ export class CharacterController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<Character> {
-    return this.characterService.findOne(id)
+    const character = await this.characterService.findOne(id)
+    if (!character) {
+      throw new NotFoundException('キャラクターが見つかりません')
+    }
+    return character
   }
 
   /**
@@ -126,7 +131,11 @@ export class CharacterController {
   @Put(':id')
   @UseGuards(JwtAuthGuard)
   async update(@Param('id') id: string, @Body() updateCharacterDto: UpdateCharacterDto): Promise<Character> {
-    return this.characterService.update(id, updateCharacterDto)
+    const character = await this.characterService.update(id, updateCharacterDto)
+    if (!character) {
+      throw new NotFoundException('キャラクターが見つかりません')
+    }
+    return character
   }
 
   /**

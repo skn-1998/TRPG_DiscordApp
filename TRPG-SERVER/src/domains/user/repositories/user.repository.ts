@@ -85,4 +85,32 @@ export class UserRepository implements Repository<User, string> {
       .findOneAndUpdate({ discordUserId: userId }, { $pull: { characterIds: characterId } }, { new: true })
       .exec()
   }
+
+  /**
+   * ユーザーのDiscordトークン情報を更新する
+   * @param discordUserId DiscordユーザーID
+   * @param tokenData トークンデータ
+   */
+  async updateDiscordTokens(
+    discordUserId: string,
+    tokenData: {
+      accessToken: string
+      refreshToken: string
+      expiresAt: Date
+      scope: string
+    }
+  ): Promise<User | null> {
+    return this.userModel
+      .findOneAndUpdate(
+        { discordUserId },
+        {
+          discordAccessToken: tokenData.accessToken,
+          discordRefreshToken: tokenData.refreshToken,
+          discordTokenExpiresAt: tokenData.expiresAt,
+          discordTokenScope: tokenData.scope
+        },
+        { new: true }
+      )
+      .exec()
+  }
 }

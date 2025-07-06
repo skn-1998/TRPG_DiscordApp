@@ -22,16 +22,23 @@ import { UserModule } from '../user/user.module'
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
-          algorithm: 'HS256'
-        },
-        verifyOptions: {
-          algorithms: ['HS256'] // 使用するアルゴリズムを明示
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET')
+        if (!secret) {
+          throw new Error('JWT_SECRET is required but not configured')
         }
-      })
+
+        return {
+          secret,
+          signOptions: {
+            expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
+            algorithm: 'HS256' as const
+          },
+          verifyOptions: {
+            algorithms: ['HS256' as const] // 使用するアルゴリズムを明示
+          }
+        }
+      }
     }),
     HttpModule
   ],

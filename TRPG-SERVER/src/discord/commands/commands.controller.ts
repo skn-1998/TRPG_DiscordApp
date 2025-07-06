@@ -101,7 +101,7 @@ export class CommandsController {
   async doEvents(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     discordClass: discordCommandType | discordContextMenuType,
-    config?: commandType
+    config: commandType
   ): Promise<void> {
     if (isUndefined(config.name)) return
     if (!(this.interaction instanceof CommandInteraction)) return
@@ -113,12 +113,14 @@ export class CommandsController {
   async doAutoComplete(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     discordClass: discordCommandType | discordContextMenuType,
-    config?: commandType
+    config: commandType
   ): Promise<void> {
     if (isUndefined(config.name)) return
     if (!(this.interaction instanceof AutocompleteInteraction)) return
     if (this.interaction?.commandName === config.name) {
-      await discordClass.autocomplete(this.interaction)
+      if (discordClass.autocomplete) {
+        await discordClass.autocomplete(this.interaction)
+      }
     }
   }
 }

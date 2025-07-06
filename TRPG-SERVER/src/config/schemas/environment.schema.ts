@@ -29,6 +29,9 @@ export interface EnvironmentSchema {
   // Discord カテゴリー設定
   CHARACTER_CATEGORY?: string // オプショナル
   DICE_ROLL_CATEGORY?: string // オプショナル
+
+  // 暗号化キー
+  DISCORD_TOKEN_ENCRYPTION_KEY: string
 }
 
 /**
@@ -52,7 +55,8 @@ export const REQUIRED_VARIABLES: (keyof EnvironmentSchema)[] = [
   'DISCORD_APPLICATIONID',
   'DISCORD_SECRET',
   'JWT_SECRET',
-  'MONGODB_URI'
+  'MONGODB_URI',
+  'DISCORD_TOKEN_ENCRYPTION_KEY'
 ] as const
 
 /**

@@ -22,6 +22,19 @@ export class User {
 
   @Prop({ type: [String], default: [] })
   characterIds: string[]
+
+  // Discord OAuth トークン管理フィールド
+  @Prop({ required: false })
+  discordAccessToken?: string // 暗号化されたアクセストークン
+
+  @Prop({ required: false })
+  discordRefreshToken?: string // 暗号化されたリフレッシュトークン
+
+  @Prop({ required: false })
+  discordTokenExpiresAt?: Date // トークン有効期限
+
+  @Prop({ required: false })
+  discordTokenScope?: string // 取得したスコープ情報（space区切り）
 }
 
 /**

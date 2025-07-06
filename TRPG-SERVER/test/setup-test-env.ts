@@ -1,14 +1,11 @@
-import * as dotenv from 'dotenv'
-import * as path from 'path'
+import { setupTestEnvironment } from './config/test-environment'
 
-// テスト用の環境変数を読み込む
-dotenv.config({
-  path: path.resolve(__dirname, '.env.test')
-})
-
-// テスト環境固有の設定があれば追加
-process.env.NODE_ENV = 'test'
-process.env.MONGO_URI = 'mongodb://localhost:27017/trpg_test_db'
+// テスト環境の設定を実行
+setupTestEnvironment()
 
 console.log('テスト環境をセットアップしました')
+console.log(`NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`データベース: ${process.env.TEST_DB_NAME || 'trpg_test_db'}`)
+console.log(`Discord モック: ${process.env.TEST_MOCK_DISCORD}`)
+console.log(`データベース モック: ${process.env.TEST_MOCK_DATABASE}`)
+console.log(`ログ抑制: ${process.env.TEST_SUPPRESS_LOGS}`)
