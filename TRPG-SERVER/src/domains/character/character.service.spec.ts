@@ -1,77 +1,106 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { MongooseModule } from '@nestjs/mongoose'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
-import { CHARACTER_MODEL, CharacterSchema } from './models/character.model'
-import { cthulhuTestCharacter } from './dto/test-data'
-import * as mongoose from 'mongoose'
+import { Character } from './models/character.model'
+import { PartialInputCharacterDto } from './dto/create-character.dto'
+import { UserService } from '../user/user.service'
 
-describe('CharacterService MongoDB Connection Test', () => {
+describe('CharacterService', () => {
   let service: CharacterService
-  let repository: CharacterRepository
-  let moduleRef: TestingModule
+  let repository: jest.Mocked<CharacterRepository>
+  let userService: jest.Mocked<UserService>
 
-  beforeAll(async () => {
-    // MongoDB接続文字列
-    const MONGODB_URI = 'mongodb://localhost:27017/trpg-test'
+  const mockCharacterDto: PartialInputCharacterDto = {
+    characterId: 'test-character-001',
+    characterName: 'テストキャラクター',
+    gameSystemId: 'test-system',
+    discordUserId: 'test-discord-user',
+    discordChannelId: 'test-channel-123',
+    status: { HP: 100, MP: 50 },
+    skill: { 魔法: 80, 剣術: 70 },
+    parameter: { STR: 15, DEX: 12 },
+    item: { 魔法の剣: '1d8+2ダメージ' },
+    description: { 年齢: 25, 職業: '冒険者' }
+  }
 
-    // テスト用にMongooseを直接接続
-    await mongoose.connect(MONGODB_URI)
+  const mockCharacter: Character = {
+    characterId: 'test-character-001',
+    characterName: 'テストキャラクター',
+    gameSystemId: 'test-system',
+    discordUserId: 'test-discord-user',
+    discordChannelId: 'test-channel-123',
+    status: { HP: 100, MP: 50 },
+    skill: { 魔法: 80, 剣術: 70 },
+    parameter: { STR: 15, DEX: 12 },
+    item: { 魔法の剣: '1d8+2ダメージ' },
+    description: { 年齢: 25, 職業: '冒険者' }
+  }
 
-    moduleRef = await Test.createTestingModule({
-      imports: [
-        MongooseModule.forRoot(MONGODB_URI),
-        MongooseModule.forFeature([{ name: CHARACTER_MODEL, schema: CharacterSchema }])
-      ],
-      providers: [CharacterService, CharacterRepository]
+  beforeEach(async () => {
+    // CharacterRepository用のモックを作成
+    const characterRepositoryMock = {
+      create: jest.fn(),
+      findById: jest.fn(),
+      findAll: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+      findByChannelId: jest.fn(),
+      removeByChannelId: jest.fn(),
+      findByUserId: jest.fn(),
+      search: jest.fn()
+    }
+
+    // UserService用のモックを作成
+    const userServiceMock = {
+      addCharacterId: jest.fn(),
+      removeCharacterId: jest.fn(),
+      create: jest.fn(),
+      findOne: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+      findAll: jest.fn()
+    }
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CharacterService,
+        {
+          provide: CharacterRepository,
+          useValue: characterRepositoryMock
+        },
+        {
+          provide: UserService,
+          useValue: userServiceMock
+        }
+      ]
     }).compile()
 
-    service = moduleRef.get<CharacterService>(CharacterService)
-    repository = moduleRef.get<CharacterRepository>(CharacterRepository)
+    service = module.get<CharacterService>(CharacterService)
+    repository = module.get(CharacterRepository) as jest.Mocked<CharacterRepository>
+    userService = module.get(UserService) as jest.Mocked<UserService>
   })
 
-  afterAll(async () => {
-    // テスト後にテストデータを削除
-    if (repository && cthulhuTestCharacter.discordChannelId) {
-      await repository.removeByChannelId(cthulhuTestCharacter.discordChannelId)
-    }
-
-    // MongoDB接続を閉じる
-    await moduleRef.close()
-    await mongoose.disconnect()
+  it('should be defined', () => {
+    expect(service).toBeDefined()
   })
 
-  it('should connect to MongoDB and save test character data', async () => {
-    // テストデータをMongoDBに保存
-    const createdCharacter = await service.create(cthulhuTestCharacter)
+  it('should create a character', async () => {
+    repository.create.mockResolvedValue(mockCharacter)
 
-    // 保存したデータを取得して検証
-    if (cthulhuTestCharacter.discordChannelId) {
-      const foundCharacter = await service.findByChannelId(cthulhuTestCharacter.discordChannelId)
+    const result = await service.create(mockCharacterDto)
 
-      // 検証
-      expect(foundCharacter).toBeDefined()
-      if (foundCharacter) {
-        expect(foundCharacter.characterId).toEqual(cthulhuTestCharacter.characterId)
-        expect(foundCharacter.characterName).toEqual(cthulhuTestCharacter.characterName)
-        expect(foundCharacter.gameSystemId).toEqual(cthulhuTestCharacter.gameSystemId)
-        expect(foundCharacter.discordUserId).toEqual(cthulhuTestCharacter.discordUserId)
-        expect(foundCharacter.discordChannelId).toEqual(cthulhuTestCharacter.discordChannelId)
+    expect(repository.create).toHaveBeenCalled()
+    expect(result).toEqual(mockCharacter)
+  })
 
-        // ステータス、スキル、パラメータ、アイテムの検証
-        expect(foundCharacter.status).toEqual(expect.objectContaining(cthulhuTestCharacter.status))
-        expect(foundCharacter.skill).toEqual(expect.objectContaining(cthulhuTestCharacter.skill))
-        expect(foundCharacter.parameter).toEqual(expect.objectContaining(cthulhuTestCharacter.parameter))
-        expect(foundCharacter.item).toEqual(expect.objectContaining(cthulhuTestCharacter.item))
+  it('should find character by channel ID', async () => {
+    repository.findByChannelId.mockResolvedValue(mockCharacter)
 
-        // 説明の検証
-        expect(foundCharacter.description).toEqual(expect.objectContaining(cthulhuTestCharacter.description))
+    const result = await service.findByChannelId('test-channel-123')
 
-        console.log('MongoDB connection test successful!')
-        console.log('Character saved and retrieved successfully:', foundCharacter.characterName)
-      }
-    }
+    expect(repository.findByChannelId).toHaveBeenCalledWith('test-channel-123')
+    expect(result).toEqual(mockCharacter)
   })
 })

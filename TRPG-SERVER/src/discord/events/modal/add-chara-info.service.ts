@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { CacheType, ChannelType, EmbedBuilder, Message, ModalBuilder, ModalSubmitInteraction } from 'discord.js'
+import {
+  CacheType,
+  ChannelType,
+  EmbedBuilder,
+  Message,
+  ModalBuilder,
+  ModalSubmitInteraction,
+  TextChannel
+} from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
 import { eventSelectButtonType } from '../events.list'
 import _, { isEmpty, isNull, isUndefined } from 'lodash'
@@ -39,14 +47,17 @@ export class AddCharaInfoService implements discordModalType {
     if (_.isNull(channel)) return console.error('channel is null')
 
     if (isEmpty(createCharaInfo)) {
-      const sendErrMessage = await interaction.channel?.send({
-        content: '送信した値のフォーマットが不適切です'
-      })
+      // チャンネルタイプの確認とsendメソッドの安全な呼び出し
+      if (interaction.channel && interaction.channel instanceof TextChannel) {
+        const sendErrMessage = await interaction.channel.send({
+          content: '送信した値のフォーマットが不適切です'
+        })
 
-      setTimeout(() => {
-        if (!sendErrMessage?.deletable) return
-        sendErrMessage?.delete().catch(console.error)
-      }, 5000)
+        setTimeout(() => {
+          if (!sendErrMessage?.deletable) return
+          sendErrMessage?.delete().catch(console.error)
+        }, 5000)
+      }
       return
     }
     if (channel?.type !== ChannelType.GuildText) return console.log('')
@@ -57,7 +68,13 @@ export class AddCharaInfoService implements discordModalType {
     console.log(await this.characterService.findByChannelId(channel.id))
     if (isNull(interaction.channelId)) return
     const characterInfo = await this.characterService.findByChannelId(channel.id)
-    if (isUndefined(characterInfo)) return
+
+    // キャラクター情報の存在確認（nullとundefinedの両方をチェック）
+    if (_.isNil(characterInfo)) {
+      console.error('キャラクター情報が見つかりません')
+      return
+    }
+
     console.log(convertCharacterJsonToString(characterInfo, 'status'))
     const characterInfoText = [
       convertCharacterJsonToString(characterInfo, 'status'),
@@ -82,12 +99,16 @@ export class AddCharaInfoService implements discordModalType {
         await latestEmbedMessage.edit({ embeds: [embed] })
       } else {
         // 既存のメッセージがないか編集できない場合は新しいメッセージを送信
-        await interaction.channel?.send({ embeds: [embed] })
+        if (interaction.channel && interaction.channel instanceof TextChannel) {
+          await interaction.channel.send({ embeds: [embed] })
+        }
       }
     } catch (error) {
       console.error('メッセージの検索または編集中にエラーが発生しました:', error)
       // エラーの場合は新しいメッセージを送信
-      await interaction.channel?.send({ embeds: [embed] })
+      if (interaction.channel && interaction.channel instanceof TextChannel) {
+        await interaction.channel.send({ embeds: [embed] })
+      }
     }
   }
 }

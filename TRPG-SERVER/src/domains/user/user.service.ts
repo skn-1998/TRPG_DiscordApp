@@ -3,13 +3,14 @@ import { User } from './models/user.model'
 import { UserRepository } from './repositories/user.repository'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
+import { CryptoUtil } from '../../utils/crypto.util'
 
 /**
  * ユーザーサービス
  */
 @Injectable()
 export class UserService {
-  validateToken(authorization: string) {
+  validateToken(_authorization: string) {
     throw new Error('Method not implemented.')
   }
   constructor(private readonly userRepository: UserRepository) {}
@@ -79,5 +80,49 @@ export class UserService {
    */
   async remove(discordUserId: string): Promise<void> {
     await this.userRepository.remove(discordUserId)
+  }
+
+  /**
+   * ユーザーのDiscordトークン情報を更新する
+   * @param discordUserId DiscordユーザーID
+   * @param tokenData トークンデータ
+   */
+  async updateDiscordTokens(
+    discordUserId: string,
+    tokenData: {
+      accessToken: string
+      refreshToken: string
+      expiresAt: Date
+      scope: string
+    }
+  ): Promise<User | null> {
+    return this.userRepository.updateDiscordTokens(discordUserId, tokenData)
+  }
+
+  /**
+   * ユーザーのDiscordアクセストークンを取得する
+   * @param discordUserId DiscordユーザーID
+   * @returns アクセストークンまたはnull
+   */
+  async getDiscordAccessToken(discordUserId: string): Promise<string | null> {
+    const user = await this.userRepository.findByDiscordId(discordUserId)
+
+    if (!user || !user.discordAccessToken) {
+      return null
+    }
+
+    // トークン有効期限をチェック
+    if (user.discordTokenExpiresAt && user.discordTokenExpiresAt < new Date()) {
+      // トークンが期限切れの場合はnullを返す
+      return null
+    }
+
+    try {
+      // 暗号化されたトークンを復号化
+      return CryptoUtil.decrypt(user.discordAccessToken)
+    } catch (error) {
+      // 復号化に失敗した場合はnullを返す
+      return null
+    }
   }
 }

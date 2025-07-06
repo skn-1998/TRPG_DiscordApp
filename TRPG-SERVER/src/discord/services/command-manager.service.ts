@@ -19,7 +19,11 @@ export class CommandManagerService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly commandsController: CommandsController
   ) {
-    this.rest = new REST({ version: '10' }).setToken(this.configService.get<string>('discord.token'))
+    const discordToken = this.configService.get<string>('discord.token')
+    if (!discordToken) {
+      throw new Error('Discord token is not configured')
+    }
+    this.rest = new REST({ version: '10' }).setToken(discordToken)
   }
 
   /**

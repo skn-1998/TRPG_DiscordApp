@@ -4,6 +4,7 @@ import { UserService } from './user.service'
 import { NotFoundException } from '@nestjs/common'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
+import { AuthService } from '../auth/services/auth.service'
 
 describe('UserController', () => {
   let controller: UserController
@@ -25,6 +26,17 @@ describe('UserController', () => {
     remove: jest.fn()
   }
 
+  const mockAuthService = {
+    validateToken: jest.fn().mockResolvedValue({
+      discordUserId: 'discord123',
+      username: 'testuser'
+    })
+  }
+
+  const mockJwtAuthGuard = {
+    canActivate: jest.fn().mockReturnValue(true)
+  }
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -32,6 +44,10 @@ describe('UserController', () => {
         {
           provide: UserService,
           useValue: mockUserService
+        },
+        {
+          provide: AuthService,
+          useValue: mockAuthService
         }
       ]
     }).compile()

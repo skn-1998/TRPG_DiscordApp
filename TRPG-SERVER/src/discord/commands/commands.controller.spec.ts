@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { CommandsController } from './commands.controller'
-import { CharacterThreadService } from '../services/character-thread.service'
-import { RollDiceService } from '../services/roll-dice.service'
-import { SelectGameSystemService } from '../services/select-game-system.service'
-import { UserDefinedDiceService } from '../services/user-defined-dice.service'
-import { DiceFromContextMenuService } from '../services/dice-from-context-menu.service'
+import { CharacterThreadService } from './commands-components/character-thread.service'
+import { RollDiceService } from './commands-components/roll-dice.service'
+import { SelectGameSystemService } from './commands-components/select-game-system.service'
+import { UserDefinedDiceService } from './commands-components/user-defined-dice.service'
+import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
+import { DiceResultService } from './commands-components/dice-result.service'
 
 describe('CommandsController', () => {
   let controller: CommandsController
@@ -46,6 +47,12 @@ describe('CommandsController', () => {
           provide: DiceFromContextMenuService,
           useValue: {
             diceFromContextMenu: jest.fn()
+          }
+        },
+        {
+          provide: DiceResultService,
+          useValue: {
+            execute: jest.fn().mockResolvedValue(undefined)
           }
         }
       ]

@@ -56,4 +56,5 @@ export function getParentChannelTopic(interaction: CommandInteraction): string |
   ) {
     return interaction.channel.parent?.topic
   }
+  return null
 }

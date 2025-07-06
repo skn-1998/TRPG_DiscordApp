@@ -127,6 +127,9 @@ export class DiceRollService {
   }
 
   async updateEmbed(embedId: string, channel: UpdateDiceRollChannelDto): Promise<DiceRollChannel | null> {
+    if (!channel.discordChannelId) {
+      throw new Error('Discord channel ID is required')
+    }
     return this.diceRollChannelRepository.addEmbedId(channel.discordChannelId, embedId)
   }
 

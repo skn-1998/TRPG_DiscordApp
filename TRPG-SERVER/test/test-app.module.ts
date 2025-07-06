@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { CharacterModule } from '../src/domains/character/character.module'
-import { AuthModule } from '../src/auth/auth.module'
+import { AuthModule } from '../src/domains/auth/auth.module'
 import { MockModule } from './mocks/mock.module'
 import { AppModule } from '../src/app.module'
 /**
