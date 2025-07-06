@@ -8,6 +8,9 @@ function BunchHeader() {
         <div className={styles.headerCell}>aaa</div>
         <div className={styles.headerCell}>bbb</div>
         <div className={styles.headerCell}>ccc</div>
+        <div className={styles.headerCell}>ddd</div>
+        <div className={styles.headerCell}>eee</div>
+        <div className={styles.headerCell}>fff</div>
       </div>
     </>
   )
@@ -32,6 +35,9 @@ function Bunch() {
     <>
       <div className={styles.bunch}>
         <div className={styles.sideHeaderCell}>zzz</div>
+        <Cell />
+        <Cell />
+        <Cell />
         <Cell />
         <Cell />
         <Cell />
