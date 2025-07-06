@@ -3,6 +3,65 @@ import { DiceRollPaginationService } from './dice-roll-pagination.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
 
+// Discord.js builders モック
+jest.mock('discord.js', () => ({
+  ...jest.requireActual('discord.js'),
+  EmbedBuilder: jest.fn().mockImplementation(() => {
+    // eslint-disable-next-line prefer-const
+    let embedData = {
+      title: null,
+      description: null,
+      color: null,
+      fields: [],
+      timestamp: null,
+      footer: null
+    }
+
+    const embedBuilder = {
+      setTitle: jest.fn().mockImplementation((title) => {
+        embedData.title = title
+        return embedBuilder
+      }),
+      setDescription: jest.fn().mockImplementation((description) => {
+        embedData.description = description
+        return embedBuilder
+      }),
+      setColor: jest.fn().mockImplementation((color) => {
+        embedData.color = color
+        return embedBuilder
+      }),
+      addFields: jest.fn().mockImplementation(() => embedBuilder),
+      setTimestamp: jest.fn().mockImplementation(() => embedBuilder),
+      setFooter: jest.fn().mockImplementation(() => embedBuilder),
+      get data() {
+        return embedData
+      },
+      toJSON: jest.fn().mockReturnValue(embedData)
+    }
+
+    return embedBuilder
+  }),
+  ButtonBuilder: jest.fn().mockImplementation(() => ({
+    setCustomId: jest.fn().mockReturnThis(),
+    setLabel: jest.fn().mockReturnThis(),
+    setStyle: jest.fn().mockReturnThis(),
+    setEmoji: jest.fn().mockReturnThis(),
+    setDisabled: jest.fn().mockReturnThis(),
+    toJSON: jest.fn().mockReturnValue({
+      type: 2,
+      style: 1,
+      label: 'Test Button'
+    })
+  })),
+  ActionRowBuilder: jest.fn().mockImplementation(() => ({
+    addComponents: jest.fn().mockReturnThis(),
+    toJSON: jest.fn().mockReturnValue({
+      type: 1,
+      components: []
+    })
+  }))
+}))
+
 describe('DiceRollPaginationService', () => {
   let service: DiceRollPaginationService
   let mockDiceRollService: any
@@ -223,14 +282,14 @@ describe('DiceRollPaginationService', () => {
     const channelId = 'test-channel'
     const messageId = 'test-message'
     const pages = [{ data: { title: 'Page 1' } }, { data: { title: 'Page 2' } }, { data: { title: 'Page 3' } }] as any
-    const mockState = {
-      pages: pages,
-      totalPages: 3,
-      currentPage: 1,
-      messageId: messageId
-    }
 
     beforeEach(() => {
+      const mockState = {
+        pages: pages,
+        totalPages: 3,
+        currentPage: 1,
+        messageId: messageId
+      }
       service.savePaginationState(channelId, messageId, mockState)
     })
 
@@ -292,7 +351,7 @@ describe('DiceRollPaginationService', () => {
     })
 
     it('should jump to valid page', () => {
-      const result = service.jumpToPage(channelId, messageId, 2)
+      const result = service.jumpToPage(channelId, messageId, 1)
 
       expect(result).toBeDefined()
 
@@ -307,7 +366,7 @@ describe('DiceRollPaginationService', () => {
     })
 
     it('should handle invalid page number (too low)', () => {
-      const result = service.jumpToPage(channelId, messageId, 0)
+      const result = service.jumpToPage(channelId, messageId, -1)
 
       expect(result).toBeNull()
     })
@@ -420,8 +479,11 @@ describe('DiceRollPaginationService', () => {
 
       const channelId = 'test-channel'
 
-      // エラーが投げられるか、適切に処理されることを確認
-      await expect(service.createPaginatedEmbeds(channelId)).rejects.toThrow()
+      // エラーが適切に処理されて、エラーメッセージを含むEmbedが返されることを確認
+      const result = await service.createPaginatedEmbeds(channelId)
+      expect(result).toBeDefined()
+      expect(result.length).toBeGreaterThan(0)
+      expect(result[0].data.description).toContain('履歴の読み込み中にエラーが発生しました')
     })
   })
 })

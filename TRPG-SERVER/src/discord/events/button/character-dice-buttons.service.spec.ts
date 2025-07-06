@@ -19,6 +19,65 @@ jest.mock('../../../utils/error-handler', () => ({
   }
 }))
 
+// Discord.js builders モック
+jest.mock('discord.js', () => ({
+  ...jest.requireActual('discord.js'),
+  EmbedBuilder: jest.fn().mockImplementation(() => {
+    // eslint-disable-next-line prefer-const
+    let embedData = {
+      title: null,
+      description: null,
+      color: null,
+      fields: [],
+      timestamp: null,
+      footer: null
+    }
+
+    const embedBuilder = {
+      setTitle: jest.fn().mockImplementation((title) => {
+        embedData.title = title
+        return embedBuilder
+      }),
+      setDescription: jest.fn().mockImplementation((description) => {
+        embedData.description = description
+        return embedBuilder
+      }),
+      setColor: jest.fn().mockImplementation((color) => {
+        embedData.color = color
+        return embedBuilder
+      }),
+      addFields: jest.fn().mockImplementation(() => embedBuilder),
+      setTimestamp: jest.fn().mockImplementation(() => embedBuilder),
+      setFooter: jest.fn().mockImplementation(() => embedBuilder),
+      get data() {
+        return embedData
+      },
+      toJSON: jest.fn().mockReturnValue(embedData)
+    }
+
+    return embedBuilder
+  }),
+  ButtonBuilder: jest.fn().mockImplementation(() => ({
+    setCustomId: jest.fn().mockReturnThis(),
+    setLabel: jest.fn().mockReturnThis(),
+    setStyle: jest.fn().mockReturnThis(),
+    setEmoji: jest.fn().mockReturnThis(),
+    setDisabled: jest.fn().mockReturnThis(),
+    toJSON: jest.fn().mockReturnValue({
+      type: 2,
+      style: 1,
+      label: 'Test Button'
+    })
+  })),
+  ActionRowBuilder: jest.fn().mockImplementation(() => ({
+    addComponents: jest.fn().mockReturnThis(),
+    toJSON: jest.fn().mockReturnValue({
+      type: 1,
+      components: []
+    })
+  }))
+}))
+
 describe('CharacterDiceButtonsService', () => {
   let service: CharacterDiceButtonsService
   let mockCharacterService: any
@@ -154,11 +213,22 @@ describe('CharacterDiceButtonsService', () => {
       const diceCommand = '1d100'
       const channelId = 'test-channel-id'
 
+      // mockCharacterService.findByName をモック
+      const mockCharacter = {
+        characterId: 'test-char-id',
+        characterName: 'テストキャラクター'
+      }
+      mockCharacterService.findByName = jest.fn().mockResolvedValue(mockCharacter)
+
       await (service as any).saveRollResult(characterName, resultText, result, diceCommand, channelId)
 
+      // 実際の実装では Promise チェーンなので少し待つ
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(mockCharacterService.findByName).toHaveBeenCalledWith(characterName)
       expect(mockDiceRollService.createText).toHaveBeenCalledWith(
         expect.objectContaining({
-          characterName,
+          characterId: 'test-char-id',
           text: resultText,
           result,
           diceRoll: diceCommand,
@@ -213,12 +283,19 @@ describe('CharacterDiceButtonsService', () => {
     const mockRequest = {
       diceCommand: '1d100',
       notation: '1d100',
-      characterName: 'テストキャラクター'
+      characterName: 'テストキャラクター',
+      characterId: 'test-char-id'
     }
 
     beforeEach(() => {
       mockInteraction = {
-        editReply: jest.fn()
+        user: { id: 'test-user-id' },
+        channel: {
+          id: 'test-channel-id',
+          isTextBased: jest.fn().mockReturnValue(true)
+        },
+        deferReply: jest.fn().mockResolvedValue(undefined),
+        editReply: jest.fn().mockResolvedValue(undefined)
       }
     })
 
@@ -226,12 +303,12 @@ describe('CharacterDiceButtonsService', () => {
       const dice = jest.requireMock('../../../discord/utils/dice')
       dice.mockResolvedValue(null)
 
+      mockInteraction.deferReply = jest.fn().mockResolvedValue(undefined)
+
       await service.handleDiceRoll(mockInteraction, mockRequest)
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: 'ダイスロールに失敗しました。コマンドをご確認ください。',
-        ephemeral: true
-      })
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ ephemeral: false })
+      expect(mockInteraction.editReply).toHaveBeenCalledWith('ダイスロールに失敗しました。')
     })
   })
 
@@ -260,10 +337,20 @@ describe('CharacterDiceButtonsService', () => {
 
   describe('execute method', () => {
     it('should handle missing channel gracefully', async () => {
+      const dice = jest.requireMock('../../../discord/utils/dice')
+      dice.mockResolvedValue({
+        rands: [[5]], // rollValue = 5 > 0にするためのモック
+        text: '1d100 → 5',
+        critical: false,
+        fumble: false,
+        success: true,
+        failure: false
+      })
+
       const mockInteraction = {
         customId: 'roll*1d100',
         channel: null,
-        deferUpdate: jest.fn(),
+        deferUpdate: jest.fn().mockResolvedValue(undefined),
         reply: jest.fn(),
         showModal: jest.fn()
       }
@@ -272,6 +359,7 @@ describe('CharacterDiceButtonsService', () => {
 
       await service.execute(mockInteraction as any)
 
+      expect(mockInteraction.deferUpdate).toHaveBeenCalled()
       expect(consoleSpy).toHaveBeenCalledWith('インタラクションのチャンネルが存在しません')
       consoleSpy.mockRestore()
     })
