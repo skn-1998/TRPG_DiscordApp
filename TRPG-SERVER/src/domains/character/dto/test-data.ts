@@ -1,9 +1,9 @@
-import { PartialInputCharacterDto } from './create-character.dto'
+import { CharacterInputDto } from './create-character.dto'
 
 /**
  * 旧クトゥルフ神話TRPGのテストデータ
  */
-export const cthulhuTestCharacter: PartialInputCharacterDto = {
+export const cthulhuTestCharacter: CharacterInputDto = {
   characterId: 'cthulhu-test-001',
   discordUserId: '123456789012345678',
   discordChannelId: '987654321098765432',

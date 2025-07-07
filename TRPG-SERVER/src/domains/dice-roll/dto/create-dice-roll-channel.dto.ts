@@ -1,51 +1,53 @@
 /* eslint-disable indent */
 import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator'
+import { BaseDto, ValidationUtils } from '../../../core/dto/base.dto'
 
 /**
  * ダイスロールチャンネル作成DTO
  */
-export class CreateDiceRollChannelDto {
-  @IsString()
+export class CreateDiceRollChannelDto extends BaseDto {
+  @IsString(ValidationUtils.requiredString('Discordチャンネル'))
   @IsNotEmpty()
-  discordChannelId: string
+  readonly discordChannelId: string
 
-  @IsArray()
+  @IsArray(ValidationUtils.array('キャラクターID'))
   @IsString({ each: true })
   @IsOptional()
-  characterIds?: string[]
+  readonly characterIds?: string[]
 
-  @IsArray()
+  @IsArray(ValidationUtils.array('テキストID'))
   @IsString({ each: true })
   @IsOptional()
-  textIds?: string[]
+  readonly textIds?: string[]
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('ゲームシステムID'))
   @IsOptional()
-  gameSystemId?: string
+  readonly gameSystemId?: string
 }
+
 /**
- * 部分的なダイスロールチャンネル入力DTO
+ * ダイスロールチャンネル入力DTO（部分入力可能）
  */
-export class PartialInputDiceRollChannelDto {
-  @IsString()
+export class DiceRollChannelInputDto {
+  @IsString(ValidationUtils.requiredString('Discordチャンネル'))
   @IsNotEmpty()
-  discordChannelId: string
+  readonly discordChannelId: string
 
-  @IsArray()
+  @IsArray(ValidationUtils.array('キャラクターID'))
   @IsString({ each: true })
   @IsOptional()
-  characterIds?: string[]
+  readonly characterIds?: string[]
 
-  @IsArray()
+  @IsArray(ValidationUtils.array('テキストID'))
   @IsString({ each: true })
   @IsOptional()
-  textIds?: string[]
+  readonly textIds?: string[]
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('ゲームシステムID'))
   @IsOptional()
-  gameSystemId?: string
+  readonly gameSystemId?: string
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('埋め込みID'))
   @IsOptional()
-  embedId?: string
+  readonly embedId?: string
 }

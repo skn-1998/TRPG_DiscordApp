@@ -1,7 +1,6 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import {
   Client,
-  GatewayIntentBits,
   Events,
   Interaction,
   InteractionType,
@@ -9,7 +8,12 @@ import {
   ModalSubmitInteraction,
   AnySelectMenuInteraction,
   CommandInteraction,
-  AutocompleteInteraction
+  AutocompleteInteraction,
+  PermissionsBitField,
+  ChannelType,
+  TextChannel,
+  NewsChannel,
+  ThreadChannel
 } from 'discord.js'
 // import { DiscordController } from './discord.controller'
 // import { CommandsModule } from './commands/commands.module'
@@ -17,11 +21,13 @@ import {
 import 'dotenv/config'
 import { EventsService } from './events/events.service'
 import { CommandsService } from './commands/commands.service'
-import { CharacterService } from 'src/domains/character/character.service'
-import { AppConfigService } from 'src/config/config.service'
+import { CharacterService } from '../domains/character/character.service'
+import { AppConfigService } from '../config/config.service'
 import { DiscordClientService } from './services/discord-client.service'
 import { CommandManagerService } from './services/command-manager.service'
 import { DiscordButton, DiscordModal, DiscordSelectMenu } from './interfaces/discord-interaction-types.interface'
+import { SendMessageDto } from './dto/send-message.dto'
+import { CreateChannelDto } from './dto/create-channel.dto'
 
 /**
  * Discord統合サービス
@@ -115,6 +121,287 @@ export class DiscordService {
   registerSelectMenu(select: DiscordSelectMenu): void {
     this.logger.log(`セレクトメニュー「${select.name}」を登録しています`)
     this.selects.set(select.id, select)
+  }
+
+  /**
+   * ユーザーのチャンネルアクセス権限を確認
+   * @param channelId チャンネルID
+   * @param discordUserId ユーザーのDiscord ID
+   * @returns アクセス権限があるかどうか
+   */
+  async verifyChannelAccess(channelId: string, discordUserId: string): Promise<boolean> {
+    try {
+      const channel = await this.client.channels.fetch(channelId)
+      if (!channel) {
+        return false
+      }
+
+      if (!('guild' in channel) || !channel.guild) {
+        return false
+      }
+
+      const guild = channel.guild
+      const member = await guild.members.fetch(discordUserId).catch(() => null)
+
+      if (!member) {
+        return false
+      }
+
+      // チャンネルの表示権限とメッセージ送信権限をチェック
+      const permissions = channel.permissionsFor(member)
+      return permissions
+        ? permissions.has(PermissionsBitField.Flags.ViewChannel) &&
+            permissions.has(PermissionsBitField.Flags.SendMessages)
+        : false
+    } catch (error) {
+      this.logger.error(`チャンネルアクセス権限確認エラー: ${error}`)
+      return false
+    }
+  }
+
+  /**
+   * ユーザーのギルドアクセス権限を確認
+   * @param guildId ギルドID
+   * @param discordUserId ユーザーのDiscord ID
+   * @returns アクセス権限があるかどうか
+   */
+  async verifyGuildAccess(guildId: string, discordUserId: string): Promise<boolean> {
+    try {
+      const guild = await this.client.guilds.fetch(guildId)
+      if (!guild) {
+        return false
+      }
+
+      const member = await guild.members.fetch(discordUserId).catch(() => null)
+      return member !== null
+    } catch (error) {
+      this.logger.error(`ギルドアクセス権限確認エラー: ${error}`)
+      return false
+    }
+  }
+
+  /**
+   * ユーザーのギルド管理権限を確認
+   * @param guildId ギルドID
+   * @param discordUserId ユーザーのDiscord ID
+   * @returns 管理権限があるかどうか
+   */
+  async verifyGuildManagePermission(guildId: string, discordUserId: string): Promise<boolean> {
+    try {
+      const guild = await this.client.guilds.fetch(guildId)
+      if (!guild) {
+        return false
+      }
+
+      const member = await guild.members.fetch(discordUserId).catch(() => null)
+      if (!member) {
+        return false
+      }
+
+      // チャンネル管理権限をチェック
+      return member.permissions.has(PermissionsBitField.Flags.ManageChannels)
+    } catch (error) {
+      this.logger.error(`ギルド管理権限確認エラー: ${error}`)
+      return false
+    }
+  }
+
+  /**
+   * Discord Bot経由でメッセージを送信する
+   * @param sendMessageDto メッセージ送信DTO
+   */
+  async sendMessage(sendMessageDto: SendMessageDto): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const { channelId, content, embed } = sendMessageDto
+
+      const channel = await this.client.channels.fetch(channelId)
+      if (!channel || !channel.isTextBased()) {
+        throw new Error('チャンネルが見つからないか、テキストチャンネルではありません')
+      }
+
+      const messageOptions: { content?: string; embeds?: any[] } = {}
+      if (content) {
+        messageOptions.content = content
+      }
+      if (embed) {
+        messageOptions.embeds = [embed]
+      }
+
+      const message = await (channel as TextChannel | NewsChannel | ThreadChannel).send(messageOptions)
+
+      return {
+        success: true,
+        messageId: message.id
+      }
+    } catch (error) {
+      this.logger.error('メッセージ送信に失敗しました', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '不明なエラーが発生しました'
+      }
+    }
+  }
+
+  /**
+   * Discord Bot経由でチャンネルを作成する
+   * @param createChannelDto チャンネル作成DTO
+   */
+  async createChannel(
+    createChannelDto: CreateChannelDto
+  ): Promise<{ success: boolean; channelId?: string; error?: string }> {
+    try {
+      const { guildId, name, type = 'text', topic, parentId, position, nsfw, rateLimitPerUser } = createChannelDto
+
+      const guild = await this.client.guilds.fetch(guildId)
+      if (!guild) {
+        throw new Error('ギルドが見つかりません')
+      }
+
+      // Discord.js v14の正しいChannelTypeを使用
+      let channelType: ChannelType.GuildText | ChannelType.GuildVoice | ChannelType.GuildCategory
+      switch (type) {
+        case 'voice':
+          channelType = ChannelType.GuildVoice
+          break
+        case 'category':
+          channelType = ChannelType.GuildCategory
+          break
+        case 'text':
+        default:
+          channelType = ChannelType.GuildText
+          break
+      }
+
+      const channelOptions: {
+        name: string
+        type: ChannelType.GuildText | ChannelType.GuildVoice | ChannelType.GuildCategory
+        topic?: string
+        parent?: string
+        position?: number
+        nsfw?: boolean
+        rateLimitPerUser?: number
+      } = {
+        name,
+        type: channelType,
+        topic,
+        parent: parentId,
+        position,
+        nsfw,
+        rateLimitPerUser
+      }
+
+      const channel = await guild.channels.create(channelOptions)
+
+      return {
+        success: true,
+        channelId: channel.id
+      }
+    } catch (error) {
+      this.logger.error('チャンネル作成に失敗しました', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '不明なエラーが発生しました'
+      }
+    }
+  }
+
+  /**
+   * Discord Bot の現在の状態を取得する
+   */
+  async getBotStatus(): Promise<{
+    online: boolean
+    guilds: number
+    users: number
+    ping: number
+    uptime: number
+  }> {
+    try {
+      const guilds = this.client.guilds.cache.size
+      const users = this.client.users.cache.size
+      const ping = this.client.ws.ping
+      const uptime = this.client.uptime || 0
+
+      return {
+        online: this.client.isReady(),
+        guilds,
+        users,
+        ping,
+        uptime
+      }
+    } catch (error) {
+      this.logger.error('Bot状態取得に失敗しました', error)
+      return {
+        online: false,
+        guilds: 0,
+        users: 0,
+        ping: 0,
+        uptime: 0
+      }
+    }
+  }
+
+  /**
+   * 指定されたギルドの情報を取得する
+   * @param guildId ギルドID
+   */
+  async getGuildInfo(guildId: string): Promise<{
+    id: string
+    name: string
+    memberCount: number
+    channels: Array<{ id: string; name: string; type: string }>
+  }> {
+    try {
+      const guild = await this.client.guilds.fetch(guildId)
+      if (!guild) {
+        throw new Error('ギルドが見つかりません')
+      }
+
+      const channels = guild.channels.cache.map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        type: channel.type.toString()
+      }))
+
+      return {
+        id: guild.id,
+        name: guild.name,
+        memberCount: guild.memberCount,
+        channels
+      }
+    } catch (error) {
+      this.logger.error('ギルド情報取得に失敗しました', error)
+      throw error
+    }
+  }
+
+  /**
+   * 指定されたチャンネルの情報を取得する
+   * @param channelId チャンネルID
+   */
+  async getChannelInfo(channelId: string): Promise<{
+    id: string
+    name: string
+    type: string
+    guild: { id: string; name: string }
+  }> {
+    try {
+      const channel = await this.client.channels.fetch(channelId)
+      if (!channel) {
+        throw new Error('チャンネルが見つかりません')
+      }
+
+      const guild = 'guild' in channel && channel.guild ? channel.guild : null
+
+      return {
+        id: channel.id,
+        name: 'name' in channel ? channel.name || '' : '',
+        type: channel.type.toString(),
+        guild: guild ? { id: guild.id, name: guild.name } : { id: '', name: '' }
+      }
+    } catch (error) {
+      this.logger.error('チャンネル情報取得に失敗しました', error)
+      throw error
+    }
   }
 
   /**

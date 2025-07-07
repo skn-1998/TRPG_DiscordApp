@@ -1,4 +1,4 @@
-import { DiscordGuild } from '../services/auth.service'
+import { DiscordGuild } from '../../user/user.service'
 
 /**
  * Discordから取得するユーザープロファイル

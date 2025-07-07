@@ -1,32 +1,272 @@
-import { Controller } from '@nestjs/common'
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Param,
+  Req,
+  HttpException,
+  HttpStatus,
+  BadRequestException,
+  NotFoundException,
+  Logger
+} from '@nestjs/common'
+import { Request } from 'express'
 import { DiscordService } from './discord.service'
-import { Client } from 'discord.js'
-import { CommandsController } from './commands/commands.controller'
+import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
+import { SendMessageDto } from './dto/send-message.dto'
+import { CreateChannelDto } from './dto/create-channel.dto'
+
+// 認証されたリクエストの型定義
+interface AuthenticatedRequest extends Request {
+  user: {
+    discordUserId: string
+    id: string
+    username: string
+  }
+}
 
 /**
  * Discordコントローラー
+ * Discord Bot操作用のHTTP APIエンドポイントを提供
+ *
+ * 責務:
+ * - HTTP リクエストの受信とレスポンス
+ * - 認証・認可の確認
+ * - 入力値バリデーション
+ * - エラーハンドリング
  */
 @Controller('discord')
+@ApiTags('Discord Bot')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 export class DiscordController {
-  constructor(
-    private readonly _discordService: DiscordService,
-    private readonly commandsController: CommandsController
-  ) {
-    this.initializeServices()
+  private readonly logger = new Logger(DiscordController.name)
+
+  constructor(private readonly discordService: DiscordService) {}
+
+  /**
+   * Discord Bot経由でメッセージを送信する
+   * @param sendMessageDto メッセージ送信DTO
+   * @param req リクエスト（ユーザー情報含む）
+   */
+  @Post('send-message')
+  @ApiOperation({ summary: 'Discord Bot経由でメッセージを送信' })
+  @ApiResponse({ status: 200, description: 'メッセージ送信成功' })
+  @ApiResponse({ status: 400, description: 'バリデーションエラー' })
+  @ApiResponse({ status: 401, description: '認証エラー' })
+  @ApiResponse({ status: 403, description: '権限不足' })
+  @ApiResponse({ status: 404, description: 'チャンネルが見つかりません' })
+  async sendMessage(
+    @Body() sendMessageDto: SendMessageDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      this.logger.log(`メッセージ送信要求: channelId=${sendMessageDto.channelId}, user=${req.user?.discordUserId}`)
+
+      // 入力値検証
+      if (!sendMessageDto.content && !sendMessageDto.embed) {
+        throw new BadRequestException('メッセージ内容またはEmbedのいずれかが必要です')
+      }
+
+      // ユーザーのチャンネルアクセス権限を確認
+      const hasAccess = await this.discordService.verifyChannelAccess(sendMessageDto.channelId, req.user.discordUserId)
+
+      if (!hasAccess) {
+        throw new HttpException('このチャンネルへのアクセス権限がありません', HttpStatus.FORBIDDEN)
+      }
+
+      const result = await this.discordService.sendMessage(sendMessageDto)
+
+      this.logger.log(`メッセージ送信完了: success=${result.success}, messageId=${result.messageId}`)
+      return result
+    } catch (error) {
+      this.logger.error(`メッセージ送信エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      if (error instanceof HttpException) {
+        throw error
+      }
+
+      throw new HttpException('メッセージ送信中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
   }
 
   /**
-   * 関連サービスの初期化
+   * Discord Bot経由でチャンネルを作成する
+   * @param createChannelDto チャンネル作成DTO
+   * @param req リクエスト（ユーザー情報含む）
    */
-  private initializeServices(): void {
-    console.log(`Discord service initialized: ${this._discordService ? 'success' : 'failed'}`)
+  @Post('create-channel')
+  @ApiOperation({ summary: 'Discord Bot経由でチャンネルを作成' })
+  @ApiResponse({ status: 200, description: 'チャンネル作成成功' })
+  @ApiResponse({ status: 400, description: 'バリデーションエラー' })
+  @ApiResponse({ status: 401, description: '認証エラー' })
+  @ApiResponse({ status: 403, description: '権限不足' })
+  @ApiResponse({ status: 404, description: 'ギルドが見つかりません' })
+  async createChannel(
+    @Body() createChannelDto: CreateChannelDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{ success: boolean; channelId?: string; error?: string }> {
+    try {
+      this.logger.log(`チャンネル作成要求: guildId=${createChannelDto.guildId}, name=${createChannelDto.name}`)
+
+      // ユーザーのギルド管理権限を確認
+      const hasPermission = await this.discordService.verifyGuildManagePermission(
+        createChannelDto.guildId,
+        req.user.discordUserId
+      )
+
+      if (!hasPermission) {
+        throw new HttpException('このギルドでのチャンネル作成権限がありません', HttpStatus.FORBIDDEN)
+      }
+
+      const result = await this.discordService.createChannel(createChannelDto)
+
+      this.logger.log(`チャンネル作成完了: success=${result.success}, channelId=${result.channelId}`)
+      return result
+    } catch (error) {
+      this.logger.error(`チャンネル作成エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      if (error instanceof HttpException) {
+        throw error
+      }
+
+      throw new HttpException('チャンネル作成中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
   }
 
-  handleCommand(client: Client) {
-    this.commandsController.handleCommand(client)
+  /**
+   * Discord Bot の現在の状態を取得する
+   */
+  @Get('status')
+  @ApiOperation({ summary: 'Discord Bot の現在の状態を取得' })
+  @ApiResponse({ status: 200, description: 'Bot状態取得成功' })
+  async getBotStatus(): Promise<{
+    online: boolean
+    guilds: number
+    users: number
+    ping: number
+    uptime: number
+  }> {
+    try {
+      this.logger.log('Bot状態取得要求')
+
+      const status = await this.discordService.getBotStatus()
+
+      this.logger.log(`Bot状態取得完了: online=${status.online}`)
+      return status
+    } catch (error) {
+      this.logger.error(`Bot状態取得エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      throw new HttpException('Bot状態取得中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
   }
 
-  handleAutoComplete(client: Client) {
-    this.commandsController.handleAutoComplete(client)
+  /**
+   * 指定されたギルドの情報を取得する
+   * @param guildId ギルドID
+   * @param req リクエスト（ユーザー情報含む）
+   */
+  @Get('guild/:guildId')
+  @ApiOperation({ summary: '指定されたギルドの情報を取得' })
+  @ApiResponse({ status: 200, description: 'ギルド情報取得成功' })
+  @ApiResponse({ status: 403, description: '権限不足' })
+  @ApiResponse({ status: 404, description: 'ギルドが見つかりません' })
+  async getGuildInfo(
+    @Param('guildId') guildId: string,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{
+    id: string
+    name: string
+    memberCount: number
+    channels: Array<{ id: string; name: string; type: string }>
+  }> {
+    try {
+      this.logger.log(`ギルド情報取得要求: guildId=${guildId}`)
+
+      // 入力値検証
+      if (!guildId || typeof guildId !== 'string') {
+        throw new BadRequestException('有効なギルドIDが必要です')
+      }
+
+      // ユーザーのギルドアクセス権限を確認
+      const hasAccess = await this.discordService.verifyGuildAccess(guildId, req.user.discordUserId)
+
+      if (!hasAccess) {
+        throw new HttpException('このギルドへのアクセス権限がありません', HttpStatus.FORBIDDEN)
+      }
+
+      const guildInfo = await this.discordService.getGuildInfo(guildId)
+
+      this.logger.log(`ギルド情報取得完了: name=${guildInfo.name}`)
+      return guildInfo
+    } catch (error) {
+      this.logger.error(`ギルド情報取得エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      if (error instanceof HttpException) {
+        throw error
+      }
+
+      if ((error as Error).message.includes('ギルドが見つかりません')) {
+        throw new NotFoundException('指定されたギルドが見つかりません')
+      }
+
+      throw new HttpException('ギルド情報取得中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
+  }
+
+  /**
+   * 指定されたチャンネルの情報を取得する
+   * @param channelId チャンネルID
+   * @param req リクエスト（ユーザー情報含む）
+   */
+  @Get('channel/:channelId')
+  @ApiOperation({ summary: '指定されたチャンネルの情報を取得' })
+  @ApiResponse({ status: 200, description: 'チャンネル情報取得成功' })
+  @ApiResponse({ status: 403, description: '権限不足' })
+  @ApiResponse({ status: 404, description: 'チャンネルが見つかりません' })
+  async getChannelInfo(
+    @Param('channelId') channelId: string,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{
+    id: string
+    name: string
+    type: string
+    guild: { id: string; name: string }
+  }> {
+    try {
+      this.logger.log(`チャンネル情報取得要求: channelId=${channelId}`)
+
+      // 入力値検証
+      if (!channelId || typeof channelId !== 'string') {
+        throw new BadRequestException('有効なチャンネルIDが必要です')
+      }
+
+      // ユーザーのチャンネルアクセス権限を確認
+      const hasAccess = await this.discordService.verifyChannelAccess(channelId, req.user.discordUserId)
+
+      if (!hasAccess) {
+        throw new HttpException('このチャンネルへのアクセス権限がありません', HttpStatus.FORBIDDEN)
+      }
+
+      const channelInfo = await this.discordService.getChannelInfo(channelId)
+
+      this.logger.log(`チャンネル情報取得完了: name=${channelInfo.name}`)
+      return channelInfo
+    } catch (error) {
+      this.logger.error(`チャンネル情報取得エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      if (error instanceof HttpException) {
+        throw error
+      }
+
+      if ((error as Error).message.includes('チャンネルが見つかりません')) {
+        throw new NotFoundException('指定されたチャンネルが見つかりません')
+      }
+
+      throw new HttpException('チャンネル情報取得中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
   }
 }

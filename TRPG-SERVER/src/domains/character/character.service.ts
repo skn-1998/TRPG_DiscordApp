@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { v4 as uuidv4 } from 'uuid'
 import { CharacterRepository } from './repositories/character.repository'
-import { PartialInputCharacterDto } from './dto/create-character.dto'
+import { CharacterInputDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.model'
@@ -22,7 +22,7 @@ export class CharacterService {
    * キャラクターを作成する
    * @param createCharacterDto キャラクター作成DTO（完全版またはパーシャル版）
    */
-  async create(createCharacterDto: PartialInputCharacterDto): Promise<Character> {
+  async create(createCharacterDto: CharacterInputDto): Promise<Character> {
     // 必要なデータの取得
     const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
 

@@ -3,7 +3,7 @@ import { Client, AuditLogEvent, TextChannel } from 'discord.js'
 import { getChannelIdByName } from '../../utils/searchChannelID'
 import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
-import { PartialInputDiceRollChannelDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'
+import { DiceRollChannelInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 
 @Injectable()
@@ -28,7 +28,7 @@ export class DiceRollChannelCreateService {
     )
     if (channel.parentId !== categoryId) return
     this.logger.log(`ダイスロールチャンネルを作成: ${channel.name}`)
-    const createDiceRollChannelDto: PartialInputDiceRollChannelDto = {
+    const createDiceRollChannelDto: DiceRollChannelInputDto = {
       discordChannelId: channel.id,
       characterIds: [],
       textIds: []

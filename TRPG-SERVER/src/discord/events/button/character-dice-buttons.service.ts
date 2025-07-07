@@ -19,7 +19,7 @@ import { CharacterService } from 'src/domains/character/character.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'
-import { PartialInputDiceRollTextDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
+import { DiceRollTextInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
 import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
 import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.interface'
 import { OnEvent } from '@nestjs/event-emitter'
@@ -263,10 +263,10 @@ export class CharacterDiceButtonsService implements discordButtonType {
           return resolve()
         }
 
-        const text: PartialInputDiceRollTextDto = {
+        const text: DiceRollTextInputDto = {
           characterId: character.characterId,
           text: resultText,
-          result: result,
+          result: result.toString(),
           diceRoll: diceCommand,
           discordChannelId: discordChannelId
         }
@@ -682,7 +682,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
         textId: uuidv4(),
         discordChannelId: channelId,
         characterId: characterId,
-        result: result,
+        result: result.toString(),
         diceRoll: req.notation,
         text: `${req.characterName ? `${req.characterName}の` : ''}${req.skillName ? `${req.skillName}` : ''}ロール結果: ${result}`
       })

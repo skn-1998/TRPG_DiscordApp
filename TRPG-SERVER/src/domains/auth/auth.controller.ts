@@ -159,21 +159,7 @@ export class AuthController {
       this.logger.debug(`User info: ${JSON.stringify(userInfo)}`)
       this.logger.debug(`Avatar hash from Discord: ${userInfo.avatar}`)
 
-      // Discord Guild一覧を取得してログに出力
-      try {
-        this.logger.debug('Discord Guild一覧を取得中...')
-        const guilds = await this.authService.getDiscordGuildsWithToken(authData.access_token)
-
-        this.logger.debug(`✅ Discord Guild一覧取得成功: ${guilds.length}個のサーバー`)
-        guilds.forEach((guild, index) => {
-          this.logger.debug(`Guild ${index + 1}: ${guild.name} (ID: ${guild.id}, Owner: ${guild.owner})`)
-        })
-      } catch (guildError) {
-        this.logger.error(
-          `Discord Guild一覧の取得に失敗: ${guildError instanceof Error ? guildError.message : '不明なエラー'}`
-        )
-        // Guild取得の失敗はログイン全体を失敗させない
-      }
+      // Discord Guild一覧取得機能はuserドメインに移動されました
 
       const user: Partial<User> = {
         name: userInfo.username,
@@ -392,48 +378,6 @@ export class AuthController {
           error: error instanceof Error ? error.message : '不明なエラー'
         })
       }
-    }
-  }
-
-  /**
-   * 認証されたユーザーのDiscordサーバー一覧を取得する
-   * @param req リクエストオブジェクト（JwtAuthGuardによってユーザー情報が設定される）
-   * @returns ユーザーが参加しているDiscordサーバー一覧
-   */
-  @Get('discord/guilds')
-  @UseGuards(JwtAuthGuard)
-  async getDiscordGuilds(@Req() req: RequestWithUser) {
-    try {
-      // JwtAuthGuardによって設定されたユーザー情報から取得
-      const user = req.user as unknown as JwtTokenPayload
-      const discordUserId = user.discordUserId
-
-      this.logger.debug(`Discord Guild一覧取得リクエスト - ユーザー: ${discordUserId}`)
-
-      // 実際にDBからアクセストークンを取得してGuild一覧を取得
-      const guilds = await this.authService.getUserDiscordGuilds(discordUserId)
-
-      this.logger.debug(`Discord Guild一覧取得成功: ${guilds.length}個のサーバー`)
-
-      return {
-        guilds,
-        count: guilds.length,
-        message: 'Discord Guild一覧を正常に取得しました'
-      }
-    } catch (error) {
-      this.logger.error(`Discord Guild取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-
-      // エラーに応じて適切なレスポンスを返す
-      if (error instanceof Error && error.message.includes('アクセストークン')) {
-        return {
-          guilds: [],
-          count: 0,
-          message: 'アクセストークンが見つからないか期限切れです。再認証が必要です。',
-          error: error.message
-        }
-      }
-
-      throw error
     }
   }
 }

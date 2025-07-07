@@ -1,35 +1,58 @@
 import { IsArray, IsDate, IsOptional, IsString } from 'class-validator'
+import { Type } from 'class-transformer'
+import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
 
-export class CreateUserDto {
-  @IsString()
-  readonly discordUserId: string
-
-  @IsString()
+/**
+ * ユーザー作成DTO
+ */
+export class CreateUserDto extends DiscordDto {
+  @IsString(ValidationUtils.requiredString('ユーザー名'))
   readonly name: string
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('アバターハッシュ'))
   @IsOptional()
   readonly avatarHash?: string
 
-  @IsArray()
+  @IsArray(ValidationUtils.array('キャラクターID'))
   @IsString({ each: true })
   @IsOptional()
   readonly characterIds?: string[]
 
   // Discord OAuth トークン関連フィールド
-  @IsString()
+  @IsString(ValidationUtils.optionalString('Discordアクセストークン'))
   @IsOptional()
   readonly discordAccessToken?: string
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('Discordリフレッシュトークン'))
   @IsOptional()
   readonly discordRefreshToken?: string
 
-  @IsDate()
+  @IsDate(ValidationUtils.date('Discordトークン有効期限'))
   @IsOptional()
+  @Type(() => Date)
   readonly discordTokenExpiresAt?: Date
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('Discordトークンスコープ'))
   @IsOptional()
   readonly discordTokenScope?: string
+}
+
+/**
+ * ユーザー入力DTO（部分入力可能）
+ */
+export class UserInputDto {
+  @IsString(ValidationUtils.requiredString('DiscordユーザーID'))
+  readonly discordUserId: string
+
+  @IsString(ValidationUtils.requiredString('ユーザー名'))
+  readonly name: string
+
+  @IsString(ValidationUtils.optionalString('アバターハッシュ'))
+  @IsOptional()
+  readonly avatarHash?: string
+
+  @IsArray(ValidationUtils.array('キャラクターID'))
+  @IsString({ each: true })
+  @IsOptional()
+  readonly characterIds?: string[]
 }

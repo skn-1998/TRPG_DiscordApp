@@ -10,8 +10,6 @@ import {
   NonThreadGuildBasedChannel,
   ChannelType,
   AnySelectMenuInteraction,
-  AuditLogEvent,
-  BaseGuildTextChannel,
   TextChannel
 } from 'discord.js'
 import { ChangeCharaInfoService } from './select/change-chara-info.service'
