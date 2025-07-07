@@ -1,0 +1,114 @@
+.widthWrap {
+  max-width: 550px;
+}
+
+.tableWrap {
+  display: flex;
+  flex-direction: row;
+}
+
+.textBunch {
+  display: flex;
+  flex-direction: column;
+  min-width: 5rem;
+  max-width: 150px;
+}
+
+.textCellCommon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  text-align: center;
+}
+
+.textHeaderCell {
+  background-color: rgb(77, 80, 88);
+  width: 128px;
+  min-height: 32px;
+}
+
+.textCell {
+  background-color: rgb(101, 109, 117);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgb(89, 92, 96);
+  border-right: 1px solid rgb(89, 92, 96);
+  width: 128px;
+}
+
+.textCellInner {
+  background-color: rgb(58, 63, 68);
+  width: 100%;
+  height: 100%;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.textCellInnerInner {
+  display: flex;
+  flex-flow: row;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  height: 100%;
+}
+
+.inputBunch {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-width: 0px;
+}
+
+.inputCellCommon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+}
+
+.inputHeaderCell {
+  background-color: rgb(77, 80, 88);
+  min-height: 32px;
+  writing-mode: horizontal-tb;
+}
+
+.inputCell {
+  padding: 1px;
+  background-color: rgb(58, 63, 68);
+}
+
+.inputCellInner {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-width: 0px;
+}
+
+.inputCellInnerInner {
+  min-width: 0px;
+  display: flex;
+  flex: 1 1 auto;
+  position: relative;
+}
+
+.inputNumber {
+  height: 100%;
+  padding: 0px;
+  border-radius: 4px;
+  border: none;
+  background-color: rgb(79, 87, 97);
+  caret-color: rgb(255, 255, 255);
+  color: rgb(255, 255, 255);
+  -webkit-text-fill-color: rgb(255, 255, 255);
+  min-width: 0px;
+  margin-right: 0px;
+  text-align: center;
+  flex: 1 1 auto;
+}
