@@ -1,64 +1,67 @@
 /* eslint-disable indent */
-import { IsBIC, IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsOptional, IsString } from 'class-validator'
+import { BaseDto, ValidationUtils } from '../../../core/dto/base.dto'
 
 /**
  * ダイスロールテキスト作成DTO
  */
-export class CreateDiceRollTextDto {
-  @IsString()
+export class CreateDiceRollTextDto extends BaseDto {
+  @IsString(ValidationUtils.optionalString('テキストID'))
   @IsOptional()
-  textId?: string
+  readonly textId?: string
 
-  @IsString()
-  @IsNotEmpty()
-  discordChannelId: string
+  @IsString(ValidationUtils.requiredString('Discordチャンネル'))
+  readonly discordChannelId: string
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('キャラクターID'))
   @IsOptional()
-  characterId?: string
+  readonly characterId?: string
 
-  @IsString()
-  @IsNotEmpty()
-  result: number
+  @IsString(ValidationUtils.optionalString('ダイスロール'))
+  @IsOptional()
+  readonly diceRoll?: string
 
-  @IsString()
-  @IsNotEmpty()
-  diceRoll: string
+  @IsString(ValidationUtils.optionalString('テキスト'))
+  @IsOptional()
+  readonly text?: string
 
-  @IsString()
-  @IsNotEmpty()
-  text: string
+  @IsString(ValidationUtils.optionalString('結果'))
+  @IsOptional()
+  readonly result?: string
 
   @IsBoolean()
   @IsOptional()
-  isSecret?: boolean
+  readonly isSecret?: boolean
 }
 
 /**
- * 部分的なダイスロールテキスト入力DTO
+ * ダイスロールテキスト入力DTO（部分入力可能）
  */
-export class PartialInputDiceRollTextDto {
-  @IsString()
+export class DiceRollTextInputDto {
+  @IsString(ValidationUtils.optionalString('テキストID'))
   @IsOptional()
-  textId?: string
+  readonly textId?: string
 
-  @IsString()
-  @IsNotEmpty()
-  discordChannelId: string
+  @IsString(ValidationUtils.requiredString('Discordチャンネル'))
+  readonly discordChannelId: string
 
-  @IsString()
+  @IsString(ValidationUtils.optionalString('キャラクターID'))
   @IsOptional()
-  characterId?: string
+  readonly characterId?: string
 
-  @IsNumber()
-  @IsNotEmpty()
-  result: number
+  @IsString(ValidationUtils.optionalString('ダイスロール'))
+  @IsOptional()
+  readonly diceRoll?: string
 
-  @IsString()
-  @IsNotEmpty()
-  diceRoll: string
+  @IsString(ValidationUtils.optionalString('テキスト'))
+  @IsOptional()
+  readonly text?: string
 
-  @IsString()
-  @IsNotEmpty()
-  text: string
+  @IsString(ValidationUtils.optionalString('結果'))
+  @IsOptional()
+  readonly result?: string
+
+  @IsBoolean()
+  @IsOptional()
+  readonly isSecret?: boolean
 }

@@ -2,13 +2,12 @@ import { forwardRef, Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { PassportModule } from '@nestjs/passport'
 import { JwtModule } from '@nestjs/jwt'
-import { HttpModule } from '@nestjs/axios'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
-import { HttpClientService } from './services/http.service'
 import { DiscordStrategy } from './discord.strategy'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { UserModule } from '../user/user.module'
+import { SharedModule } from '../../core/shared/shared.module'
 
 /**
  * 認証モジュール
@@ -19,6 +18,7 @@ import { UserModule } from '../user/user.module'
     PassportModule,
     forwardRef(() => UserModule),
     ConfigModule,
+    SharedModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -39,11 +39,10 @@ import { UserModule } from '../user/user.module'
           }
         }
       }
-    }),
-    HttpModule
+    })
   ],
   controllers: [AuthController],
-  providers: [AuthService, HttpClientService, DiscordStrategy, JwtAuthGuard],
+  providers: [AuthService, DiscordStrategy, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard]
 })
 export class AuthModule {}

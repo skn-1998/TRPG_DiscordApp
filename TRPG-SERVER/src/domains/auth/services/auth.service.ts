@@ -5,25 +5,13 @@ import { firstValueFrom, lastValueFrom } from 'rxjs'
 import { URLSearchParams } from 'url'
 import { UserService } from '../../user/user.service'
 import { User } from '../../user/models/user.model'
-import { HttpClientService } from './http.service'
+import { HttpClientService } from '../../../core/shared/services/http.service'
 import { JwtTokenPayload } from '../models/auth.token.model'
 import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.model'
 import axios from 'axios'
 import { AppConfigService } from 'src/config/config.service'
 import { CryptoUtil } from '../../../utils/crypto.util'
 import { ErrorHandler } from '../../../utils/error-handler'
-
-/**
- * Discord Guild（サーバー）情報
- */
-export interface DiscordGuild {
-  id: string
-  name: string
-  icon: string | null
-  owner: boolean
-  permissions: string
-  features: string[]
-}
 
 /**
  * 認証サービス
@@ -285,7 +273,7 @@ export class AuthService {
       const response = await lastValueFrom(
         this.httpService.post<DiscordAuthResponse>(url, params.toString(), { headers })
       )
-      const authData = response.data
+      const authData = (response as any).data as DiscordAuthResponse
 
       // 新しいトークンを暗号化して保存
       const tokenExpiresAt = new Date(Date.now() + authData.expires_in * 1000)
@@ -308,34 +296,6 @@ export class AuthService {
   }
 
   /**
-   * ユーザーが参加しているDiscordサーバー一覧を取得する
-   * @param discordUserId DiscordユーザーID
-   * @returns ユーザーが参加しているサーバー一覧
-   */
-  async getUserDiscordGuilds(discordUserId: string): Promise<DiscordGuild[]> {
-    try {
-      this.logger.debug(`Discord Guild一覧取得開始: ${discordUserId}`)
-
-      // DBからアクセストークンを取得
-      const accessToken = await this.userService.getDiscordAccessToken(discordUserId)
-
-      if (!accessToken) {
-        this.logger.warn(`アクセストークンが見つからないか期限切れです: ${discordUserId}`)
-        throw new Error('アクセストークンが見つからないか期限切れです。再認証が必要です。')
-      }
-
-      // アクセストークンを使ってGuild一覧を取得
-      const guilds = await this.getDiscordGuildsWithToken(accessToken)
-
-      this.logger.debug(`Discord Guild一覧取得成功: ${guilds.length}個のサーバー`)
-      return guilds
-    } catch (error) {
-      this.logger.error(`Discord Guild取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-      throw error
-    }
-  }
-
-  /**
    * Discordからユーザー情報を取得する
    * @param token Discordアクセストークン
    * @returns ユーザー情報
@@ -348,11 +308,12 @@ export class AuthService {
 
     try {
       const response = await firstValueFrom(this.httpService.get<DiscordUserProfile>(url, { headers }))
+      const userData = (response as any).data as DiscordUserProfile
 
-      this.logger.debug(`Discord user info response: ${JSON.stringify(response.data)}`)
-      this.logger.debug(`Avatar hash: ${response.data.avatar}`)
+      this.logger.debug(`Discord user info response: ${JSON.stringify(userData)}`)
+      this.logger.debug(`Avatar hash: ${userData.avatar}`)
 
-      return response.data
+      return userData
     } catch (error) {
       this.logger.error(`Discordユーザー情報取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       throw new Error(
@@ -390,10 +351,11 @@ export class AuthService {
 
     try {
       const response = await lastValueFrom(this.httpService.post<DiscordAuthResponse>(url, params, { headers }))
+      const authData = (response as any).data as DiscordAuthResponse
 
       this.logger.debug('Discord認証成功')
-      this.logger.debug(`取得したスコープ: ${response.data.scope}`)
-      return response.data
+      this.logger.debug(`取得したスコープ: ${authData.scope}`)
+      return authData
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         this.logger.error(`Discord認証エラー: ${error.message}, レスポンス: ${JSON.stringify(error.response.data)}`)
@@ -401,30 +363,6 @@ export class AuthService {
         this.logger.error(`Discord認証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       }
       throw new Error(`認証に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`)
-    }
-  }
-
-  /**
-   * Discordアクセストークンを使用してユーザーのサーバー一覧を取得する
-   * @param accessToken Discordアクセストークン
-   * @returns ユーザーが参加しているサーバー一覧
-   */
-  async getDiscordGuildsWithToken(accessToken: string): Promise<DiscordGuild[]> {
-    const url = 'https://discord.com/api/users/@me/guilds'
-    const headers = {
-      Authorization: `Bearer ${accessToken}`
-    }
-
-    try {
-      const response = await firstValueFrom(this.httpService.get<DiscordGuild[]>(url, { headers }))
-
-      this.logger.debug(`Discord Guild一覧取得成功: ${response.data.length}個のサーバー`)
-      return response.data
-    } catch (error) {
-      this.logger.error(`Discord Guild取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
-      throw new Error(
-        `Discordサーバー一覧の取得に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`
-      )
     }
   }
 }

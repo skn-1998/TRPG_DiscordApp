@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { v4 as uuidv4 } from 'uuid'
 import { DiceRollChannelRepository } from './repositories/dice-roll-channel.repository'
 import { DiceRollTextRepository } from './repositories/dice-roll-text.repository'
-import { PartialInputDiceRollChannelDto } from './dto/create-dice-roll-channel.dto'
-import { PartialInputDiceRollTextDto } from './dto/create-dice-roll-text.dto'
+import { DiceRollChannelInputDto } from './dto/create-dice-roll-channel.dto'
+import { DiceRollTextInputDto } from './dto/create-dice-roll-text.dto'
 import { UpdateDiceRollChannelDto } from './dto/update-dice-roll-channel.dto'
 import { DiceRollChannel } from './models/dice-roll-channel.model'
 import { DiceRollText } from './models/dice-roll-text.model'
@@ -23,7 +23,7 @@ export class DiceRollService {
    * ダイスロールチャンネルを作成または取得する
    * @param createDiceRollChannelDto ダイスロールチャンネル作成DTO
    */
-  async createOrGetChannel(createDiceRollChannelDto: PartialInputDiceRollChannelDto): Promise<DiceRollChannel> {
+  async createOrGetChannel(createDiceRollChannelDto: DiceRollChannelInputDto): Promise<DiceRollChannel> {
     const { discordChannelId } = createDiceRollChannelDto
 
     // 既存のチャンネルを検索
@@ -46,7 +46,7 @@ export class DiceRollService {
    * ダイスロールテキストを作成する
    * @param createDiceRollTextDto ダイスロールテキスト作成DTO
    */
-  async createText(createDiceRollTextDto: PartialInputDiceRollTextDto): Promise<DiceRollText> {
+  async createText(createDiceRollTextDto: DiceRollTextInputDto): Promise<DiceRollText> {
     // チャンネルを取得または作成
     // const channel = await this.createOrGetChannel({
     //   discordChannelId: createDiceRollTextDto.discordChannelId
@@ -62,7 +62,10 @@ export class DiceRollService {
       characterId: createDiceRollTextDto.characterId,
       diceRoll: createDiceRollTextDto.diceRoll,
       text: createDiceRollTextDto.text,
-      result: createDiceRollTextDto.result,
+      result:
+        typeof createDiceRollTextDto.result === 'string'
+          ? parseInt(createDiceRollTextDto.result, 10)
+          : createDiceRollTextDto.result,
       createdAt: new Date()
     }
 

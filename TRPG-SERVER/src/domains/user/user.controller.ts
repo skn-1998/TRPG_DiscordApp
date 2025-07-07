@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, Patch, UseGuards, Headers } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Delete, Put, Patch, UseGuards, Headers, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger'
 import { UserService } from './user.service'
 import { CreateUserDto } from './dto/create-user.dto'
@@ -6,6 +6,11 @@ import { UpdateUserDto } from './dto/update-user.dto'
 import { User } from './models/user.model'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { AuthService } from '../auth/services/auth.service'
+import { JwtTokenPayload } from '../auth/models/auth.token.model'
+
+interface RequestWithUser extends Request {
+  user: JwtTokenPayload
+}
 
 @ApiTags('users')
 @Controller('users')
@@ -30,6 +35,39 @@ export class UserController {
   async findOne(@Headers('Authorization') authorization: string) {
     const token = await this.authService.validateToken(authorization)
     return await this.userService.findByDiscordId(token.discordUserId)
+  }
+
+  @Get('discord/guilds')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get user Discord guilds' })
+  @ApiResponse({ status: 200, description: 'Return the user Discord guilds.' })
+  async getDiscordGuilds(@Req() req: RequestWithUser) {
+    try {
+      // JwtAuthGuardによって設定されたユーザー情報から取得
+      const user = req.user as unknown as JwtTokenPayload
+      const discordUserId = user.discordUserId
+
+      // ユーザーが参加しているDiscordサーバー一覧を取得
+      const guilds = await this.userService.getUserDiscordGuilds(discordUserId)
+
+      return {
+        guilds,
+        count: guilds.length,
+        message: 'Discord Guild一覧を正常に取得しました'
+      }
+    } catch (error) {
+      // エラーに応じて適切なレスポンスを返す
+      if (error instanceof Error && error.message.includes('アクセストークン')) {
+        return {
+          guilds: [],
+          count: 0,
+          message: 'アクセストークンが見つからないか期限切れです。再認証が必要です。',
+          error: error.message
+        }
+      }
+
+      throw error
+    }
   }
 
   @Put(':discordUserId')

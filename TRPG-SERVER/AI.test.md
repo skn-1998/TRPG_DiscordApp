@@ -61,21 +61,359 @@ const challengesConquered = {
 }
 ```
 
-### 🚀 **次期戦略方針**
+---
+
+## 🚀 **次期戦略・展望（Step 6以降）**
+
+### 🎯 **Step 6: Discord Events/Button Services 重点攻略**
 ```typescript
-// Step 6以降の戦略
-const nextPhaseStrategy = {
-  step6Target: [
-    'より大きなサービス群（ゲームシステム、ダイスロール等）',
-    'src/discord/events/button/ 全体制覇',
-    'src/discord/commands/commands-components/ 重点攻略'
+// Step 6 戦略: Discord Events & Button Services 完全制覇
+const step6Strategy = {
+  primaryTargets: [
+    'src/discord/events/button/ 全ファイル（8ファイル）',
+    'src/discord/events/modal/ 全ファイル（2ファイル）',
+    'src/discord/events/select/ 全ファイル（3ファイル）',
+    'src/discord/events/select-menu/ 全ファイル（1ファイル）'
   ],
-  step7Target: [
-    'ユーティリティ・ヘルパー関数群',
-    'src/utils/ 全体カバレッジ向上',
+  
+  expectedImpact: {
+    lineCoverage: '+350~400行期待',
+    percentageIncrease: '+11~13%',
+    testCount: '+40~50テスト',
+    totalCoverage: '54~57%到達予測'
+  },
+  
+  technicalChallenges: {
+    discordButtonHandling: 'Discord.js Button interaction 複雑処理',
+    modalSubmission: 'Modal submission + validation フロー',
+    selectMenuLogic: 'Select menu dynamic option generation',
+    eventChaining: 'イベント連鎖処理のテスト'
+  }
+}
+
+// Step 6 詳細実装計画
+const step6DetailedPlan = {
+  phase1_buttonServices: {
+    files: [
+      'dice-button.service.ts (重要度: 高)',
+      'character-dice-buttons.service.ts (重要度: 高)',
+      'character-tab-buttons.service.ts (重要度: 中)',
+      'dice-page-cancel-button.service.ts (重要度: 中)'
+    ],
+    mockingStrategy: 'Discord.js ButtonInteraction完全モック',
+    testingFocus: 'ボタン押下→処理実行→レスポンスフロー'
+  },
+  
+  phase2_modalAndSelect: {
+    files: [
+      'custom-dice-modal.service.ts (重要度: 高)',
+      'dice-character-select.service.ts (重要度: 高)',
+      'dice-page-select-menu.service.ts (重要度: 中)'
+    ],
+    mockingStrategy: 'Modal/SelectMenu interaction モック',
+    testingFocus: 'フォーム検証→データ処理→状態更新'
+  }
+}
+```
+
+### 🎯 **Step 7: Commands-Components & Utilities 総仕上げ**
+```typescript
+// Step 7 戦略: Commands-Components & Utilities 完全制覇
+const step7Strategy = {
+  primaryTargets: [
+    'src/discord/commands/commands-components/ 全ファイル（7ファイル）',
+    'src/utils/ 全体のカバレッジ向上',
+    'src/discord/utils/ 全体のカバレッジ向上',
     'リポジトリ層テスト強化'
   ],
-  finalTarget: '目標80%カバレッジ達成（現在43.99% → 残り36.01%）'
+  
+  expectedImpact: {
+    lineCoverage: '+300~350行期待',
+    percentageIncrease: '+10~12%',
+    testCount: '+35~45テスト',
+    totalCoverage: '65~70%到達予測'
+  },
+  
+  technicalChallenges: {
+    commandComponents: 'Discord slash command + component 統合',
+    utilityFunctions: 'ユーティリティ関数の包括的テスト',
+    databaseRepository: 'MongoDB repository layer完全テスト',
+    crossServiceIntegration: 'サービス間連携テスト'
+  }
+}
+
+// Step 7 詳細実装計画
+const step7DetailedPlan = {
+  phase1_commandsComponents: {
+    files: [
+      'roll-dice.service.ts (重要度: 最高)',
+      'select-game-system.service.ts (重要度: 高)',
+      'character-thread.service.ts (重要度: 高)',
+      'dice-from-context-menu.service.ts (重要度: 中)'
+    ],
+    mockingStrategy: 'Discord Command + Component 統合モック',
+    testingFocus: 'コマンド実行→コンポーネント生成→ユーザー操作'
+  },
+  
+  phase2_utilities: {
+    files: [
+      'src/utils/crypto.util.ts',
+      'src/discord/utils/dice.util.ts',
+      'src/discord/utils/discord.util.ts',
+      'src/discord/utils/table-dice.util.ts'
+    ],
+    mockingStrategy: 'Pure function + Helper function テスト',
+    testingFocus: 'エッジケース + 境界値 + エラーケース'
+  }
+}
+```
+
+### 🎯 **Final Step: 80%カバレッジ到達戦略**
+```typescript
+// Final Step: 80%カバレッジ到達への道筋
+const finalStepStrategy = {
+  currentStatus: '43.99%',
+  targetStatus: '80%',
+  remainingGap: '36.01%',
+  
+  roadmap: {
+    step6Complete: '57%到達予測 (差分: +13%)',
+    step7Complete: '70%到達予測 (差分: +13%)',
+    finalPush: '80%到達 (差分: +10%)'
+  },
+  
+  finalPushTargets: [
+    'E2Eテスト強化（統合テスト）',
+    'エラーハンドリング完全化',
+    '境界値テスト網羅',
+    'パフォーマンステスト追加'
+  ],
+  
+  qualityAssurance: {
+    maintainability: '保守性を重視した設計',
+    typeScript: 'TypeScript型安全性100%',
+    documentation: 'テストドキュメント完備',
+    continuousImprovement: '継続的改善体制確立'
+  }
+}
+```
+
+---
+
+## 🔍 **技術的課題と解決戦略**
+
+### 1. Discord.js 複雑性への対応
+```typescript
+// Discord.js 複雑性解決戦略
+const discordJsTestingStrategy = {
+  challenges: {
+    interactionTypes: 'Button/Modal/SelectMenu/Command多様性',
+    eventChaining: 'イベント連鎖の複雑なフロー',
+    builderPattern: 'Discord.js Builder pattern のモック',
+    asyncHandling: '非同期処理の適切なテスト'
+  },
+  
+  solutions: {
+    unifiedMocking: '統一されたDiscord.jsモック戦略',
+    typeScriptSupport: 'TypeScript型安全性確保',
+    testUtilities: 'Discord.js専用テストユーティリティ',
+    documentationPattern: 'パターン化されたテスト文書'
+  }
+}
+```
+
+### 2. MongoDB Repository Layer テスト
+```typescript
+// Repository Layer テスト戦略
+const repositoryTestStrategy = {
+  challenges: {
+    databaseConnection: 'テスト用DB接続管理',
+    dataFixtures: 'テストデータフィクスチャ',
+    transactionHandling: 'トランザクション処理テスト',
+    performanceTest: 'パフォーマンステスト'
+  },
+  
+  solutions: {
+    inMemoryDatabase: 'In-memory MongoDB テスト',
+    factoryPattern: 'テストデータファクトリーパターン',
+    transactionMocking: 'トランザクションモック',
+    benchmarkSuite: 'ベンチマークテストスイート'
+  }
+}
+```
+
+### 3. 大規模テストスイート管理
+```typescript
+// 大規模テストスイート管理戦略
+const largeScaleTestManagement = {
+  challenges: {
+    executionTime: 'テスト実行時間の最適化',
+    testIsolation: 'テスト間の分離保証',
+    resourceManagement: 'リソース使用量管理',
+    parallelExecution: '並列実行効率化'
+  },
+  
+  solutions: {
+    testGrouping: 'テストグループ化戦略',
+    selectiveExecution: '選択的テスト実行',
+    resourcePooling: 'リソースプーリング',
+    parallelConfiguration: '並列実行設定最適化'
+  }
+}
+```
+
+---
+
+## 📋 **実装優先度マトリックス**
+
+### High Priority (Step 6 - すぐに実装)
+```typescript
+const highPriorityTargets = [
+  {
+    file: 'dice-button.service.ts',
+    lines: 120,
+    impact: 'high',
+    difficulty: 'medium',
+    expectedCoverage: '+4%'
+  },
+  {
+    file: 'character-dice-buttons.service.ts',
+    lines: 90,
+    impact: 'high',
+    difficulty: 'medium',
+    expectedCoverage: '+3%'
+  },
+  {
+    file: 'custom-dice-modal.service.ts',
+    lines: 80,
+    impact: 'high',
+    difficulty: 'high',
+    expectedCoverage: '+2.5%'
+  }
+]
+```
+
+### Medium Priority (Step 7 - 次に実装)
+```typescript
+const mediumPriorityTargets = [
+  {
+    file: 'roll-dice.service.ts',
+    lines: 150,
+    impact: 'very-high',
+    difficulty: 'high',
+    expectedCoverage: '+5%'
+  },
+  {
+    file: 'select-game-system.service.ts',
+    lines: 100,
+    impact: 'medium',
+    difficulty: 'medium',
+    expectedCoverage: '+3%'
+  },
+  {
+    file: 'discord.util.ts',
+    lines: 80,
+    impact: 'medium',
+    difficulty: 'low',
+    expectedCoverage: '+2.5%'
+  }
+]
+```
+
+### Low Priority (Final Step - 最終段階)
+```typescript
+const lowPriorityTargets = [
+  {
+    file: 'E2E テスト',
+    lines: 200,
+    impact: 'high',
+    difficulty: 'very-high',
+    expectedCoverage: '+6%'
+  },
+  {
+    file: 'パフォーマンステスト',
+    lines: 100,
+    impact: 'medium',
+    difficulty: 'high',
+    expectedCoverage: '+3%'
+  }
+]
+```
+
+---
+
+## 🎯 **品質保証・成功指標**
+
+### 成功指標 (KPI)
+```typescript
+const successMetrics = {
+  quantitative: {
+    coverageTarget: '80%以上',
+    testSuccessRate: '100%維持',
+    buildStability: '100%成功',
+    executionTime: '5分以内'
+  },
+  
+  qualitative: {
+    codeQuality: 'TypeScript型安全性100%',
+    maintainability: '保守性スコア90%以上',
+    documentation: 'テスト文書完備',
+    teamSatisfaction: '開発チーム満足度90%以上'
+  }
+}
+```
+
+### 品質保証プロセス
+```typescript
+const qualityAssuranceProcess = {
+  preImplementation: {
+    designReview: '設計レビュー実施',
+    mockStrategy: 'モック戦略確立',
+    testPlan: 'テスト計画作成'
+  },
+  
+  duringImplementation: {
+    codeReview: 'コードレビュー実施',
+    continuousIntegration: 'CI/CD パイプライン',
+    progressTracking: '進捗追跡・報告'
+  },
+  
+  postImplementation: {
+    retrospective: '振り返り実施',
+    lessonLearned: '学習事項記録',
+    processImprovement: 'プロセス改善'
+  }
+}
+```
+
+---
+
+## 🌟 **プロジェクト成功への道筋**
+
+### 短期目標 (1-2週間)
+- Step 6 完了: Discord Events/Button Services 完全制覇
+- カバレッジ 57% 到達
+- テストスイート 30以上
+
+### 中期目標 (3-4週間)
+- Step 7 完了: Commands-Components & Utilities 完全制覇
+- カバレッジ 70% 到達
+- テストスイート 35以上
+
+### 長期目標 (5-6週間)
+- Final Step 完了: 80%カバレッジ到達
+- 全テストスイート 100%成功率維持
+- 完全なテスト文書化
+
+### 最終ビジョン
+```typescript
+const finalVision = {
+  technicalExcellence: '技術的優秀性の達成',
+  teamConfidence: 'チームの自信向上',
+  productQuality: '製品品質の向上',
+  maintainability: '長期保守性の確保',
+  knowledgeTransfer: '知識の継承・共有',
+  continuousImprovement: '継続的改善文化の確立'
 }
 ```
 

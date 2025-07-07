@@ -1,4 +1,6 @@
 import { IsOptional, IsString } from 'class-validator'
+import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
+import { AttributeObject } from '../../../core/dto/domain.dto'
 
 /**
  * キャラクター属性の型定義
@@ -10,68 +12,72 @@ export type CharacterAttribute = {
 /**
  * キャラクター作成DTO
  */
-export class CreateCharacterDto {
-  @IsString()
+export class CreateCharacterDto extends DiscordDto {
+  @IsString(ValidationUtils.requiredString('キャラクターID'))
   readonly characterId: string
 
-  @IsString()
-  readonly discordUserId: string
+  @IsString(ValidationUtils.optionalString('Discordチャンネル'))
+  @IsOptional()
+  readonly discordChannelId?: string
 
-  @IsString()
-  readonly discordChannelId: string
-
-  @IsString()
+  @IsString(ValidationUtils.requiredString('キャラクター名'))
   readonly characterName: string
 
-  @IsString()
+  @IsString(ValidationUtils.requiredString('ゲームシステムID'))
   readonly gameSystemId: string
 
   @IsOptional()
-  readonly status: CharacterAttribute = {}
+  readonly status?: AttributeObject
 
   @IsOptional()
-  readonly parameter: CharacterAttribute = {}
+  readonly parameter?: AttributeObject
 
   @IsOptional()
-  readonly skill: CharacterAttribute = {}
+  readonly skill?: AttributeObject
+
+  @IsOptional()
+  readonly item?: AttributeObject
+
+  @IsOptional()
+  readonly description?: AttributeObject
 }
 
 /**
- * キャラクター作成入力DTO（部分的に入力可能）
+ * キャラクター入力DTO（部分入力可能）
  */
-export class PartialInputCharacterDto {
+export class CharacterInputDto {
   @IsOptional()
-  @IsString()
+  @IsString(ValidationUtils.optionalString('キャラクターID'))
   readonly characterId?: string
 
   @IsOptional()
-  @IsString()
+  @IsString(ValidationUtils.optionalString('DiscordユーザーID'))
   readonly discordUserId?: string
 
   @IsOptional()
-  @IsString()
+  @IsString(ValidationUtils.optionalString('Discordチャンネル'))
   readonly discordChannelId?: string
 
   @IsOptional()
-  @IsString()
+  @IsString(ValidationUtils.optionalString('キャラクター名'))
   readonly characterName?: string
 
   @IsOptional()
-  @IsString()
+  @IsString(ValidationUtils.optionalString('ゲームシステムID'))
   readonly gameSystemId?: string
 
   @IsOptional()
-  readonly status?: CharacterAttribute
+  readonly status?: AttributeObject
 
   @IsOptional()
-  readonly parameter?: CharacterAttribute
+  readonly parameter?: AttributeObject
 
   @IsOptional()
-  readonly skill?: CharacterAttribute
+  readonly skill?: AttributeObject
 
   @IsOptional()
-  readonly item?: CharacterAttribute
+  readonly item?: AttributeObject
 
   @IsOptional()
-  readonly description?: CharacterAttribute
+  readonly description?: AttributeObject
 }

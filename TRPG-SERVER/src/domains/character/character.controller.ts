@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
-import { PartialInputCharacterDto } from './dto/create-character.dto'
+import { CharacterInputDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
@@ -43,7 +43,7 @@ export class CharacterController {
   @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'application/json')
   async create(
-    @Body() characterData: PartialInputCharacterDto,
+    @Body() characterData: CharacterInputDto,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Req() req: any
   ): Promise<Character> {
@@ -61,7 +61,7 @@ export class CharacterController {
     const validated = req.user
 
     // 新しいDTOオブジェクトを作成してユーザーIDを設定
-    const createCharacterDto: PartialInputCharacterDto = {
+    const createCharacterDto: CharacterInputDto = {
       ...characterData,
       discordUserId: validated.discordUserId
     }
