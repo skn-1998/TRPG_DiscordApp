@@ -2,7 +2,7 @@ import { Card, Group, Text, ActionIcon, Modal, Select, Button, Stack, Title, Loa
 import { IconSettings, IconBrandDiscord } from '@tabler/icons-react'
 import { useState } from 'react'
 import { getGameSystemNameById } from '~/lib'
-import { getDiscordServers, formatGuildsForSelect } from '../../discord'
+import { getDiscordServers, formatGuildsForSelect, postCharacterToDiscord } from '../../discord'
 import { DiscordServerSelectOption } from '~/types'
 
 // 軽量キャラクターデータ
@@ -47,13 +47,30 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
     }
   }
 
-  const handleServerAdd = () => {
+  const handleServerAdd = async () => {
     if (selectedServer) {
-      // ここで実際のサーバー追加処理を行う
-      const selectedServerName = discordServers.find((server) => server.value === selectedServer)?.label
-      console.log(`キャラクター "${character.characterName}" をサーバー "${selectedServerName}" に追加`)
-      setModalOpened(false)
-      setSelectedServer(null)
+      try {
+        setLoading(true)
+        setError(null)
+        
+                 const selectedServerName = discordServers.find((server: DiscordServerSelectOption) => server.value === selectedServer)?.label
+        
+        // キャラクター情報をDiscordサーバーに投稿
+        const result = await postCharacterToDiscord(character.characterId, selectedServer)
+        
+        if (result.success) {
+          console.log(`キャラクター "${character.characterName}" をサーバー "${selectedServerName}" に投稿しました`)
+          setModalOpened(false)
+          setSelectedServer(null)
+        } else {
+          setError(result.error || 'キャラクターの投稿に失敗しました')
+        }
+      } catch (err) {
+        console.error('Failed to post character to Discord:', err)
+        setError('キャラクターの投稿中にエラーが発生しました')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
