@@ -252,3 +252,28 @@ export async function sendDiceRollToDiscord(
     throw new Error(CustomError(err))
   }
 }
+
+/**
+ * キャラクター情報をDiscordサーバーに投稿する
+ * @param characterId キャラクターID
+ * @param guildId DiscordサーバーID
+ * @returns 投稿結果
+ */
+export async function postCharacterToDiscord(
+  characterId: string,
+  guildId: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const response = await apiClient.post<{ success: boolean; messageId?: string; error?: string }>(
+      '/discord/post-character',
+      {
+        characterId,
+        guildId
+      }
+    )
+    return response.data
+  } catch (error) {
+    console.error('Failed to post character to Discord:', error)
+    throw error
+  }
+}

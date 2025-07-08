@@ -7,10 +7,11 @@ import { DiscordClientService } from './services/discord-client.service'
 import { CommandManagerService } from './services/command-manager.service'
 import { DiscordCommandRegistrationService } from './services/discord-command-registration.service'
 import { CharacterModule } from '../domains/character/character.module'
+import { DiscordController } from './discord.controller'
 
 @Module({
   imports: [ConfigModule, forwardRef(() => EventsModule), CommandsModule, CharacterModule],
-  controllers: [],
+  controllers: [DiscordController],
   providers: [DiscordService, DiscordClientService, CommandManagerService, DiscordCommandRegistrationService],
   exports: [DiscordService, DiscordClientService, CommandManagerService]
 })

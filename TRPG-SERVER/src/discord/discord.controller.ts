@@ -15,9 +15,11 @@ import {
 import { Request } from 'express'
 import { DiscordService } from './discord.service'
 import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
+import { CharacterService } from '../domains/character/character.service'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
 import { SendMessageDto } from './dto/send-message.dto'
 import { CreateChannelDto } from './dto/create-channel.dto'
+import { PostCharacterDto } from './dto/post-character.dto'
 
 // 認証されたリクエストの型定義
 interface AuthenticatedRequest extends Request {
@@ -45,7 +47,10 @@ interface AuthenticatedRequest extends Request {
 export class DiscordController {
   private readonly logger = new Logger(DiscordController.name)
 
-  constructor(private readonly discordService: DiscordService) {}
+  constructor(
+    private readonly discordService: DiscordService,
+    private readonly characterService: CharacterService
+  ) {}
 
   /**
    * Discord Bot経由でメッセージを送信する
@@ -267,6 +272,125 @@ export class DiscordController {
       }
 
       throw new HttpException('チャンネル情報取得中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
+  }
+
+  /**
+   * キャラクター情報をDiscordサーバーに投稿する
+   * @param postCharacterDto キャラクター投稿DTO
+   * @param req リクエスト（ユーザー情報含む）
+   */
+  @Post('post-character')
+  @ApiOperation({ summary: 'キャラクター情報をDiscordサーバーに投稿' })
+  @ApiResponse({ status: 200, description: 'キャラクター投稿成功' })
+  @ApiResponse({ status: 400, description: 'バリデーションエラー' })
+  @ApiResponse({ status: 401, description: '認証エラー' })
+  @ApiResponse({ status: 403, description: '権限不足' })
+  @ApiResponse({ status: 404, description: 'キャラクターまたはギルドが見つかりません' })
+  async postCharacter(
+    @Body() postCharacterDto: PostCharacterDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      this.logger.log(`キャラクター投稿要求: characterId=${postCharacterDto.characterId}, guildId=${postCharacterDto.guildId}`)
+
+      // キャラクター情報を取得
+      const character = await this.characterService.findOne(postCharacterDto.characterId)
+      if (!character) {
+        throw new NotFoundException('指定されたキャラクターが見つかりません')
+      }
+
+      // ユーザーのギルドアクセス権限を確認
+      const hasAccess = await this.discordService.verifyGuildAccess(postCharacterDto.guildId, req.user.discordUserId)
+      if (!hasAccess) {
+        throw new HttpException('このギルドへのアクセス権限がありません', HttpStatus.FORBIDDEN)
+      }
+
+      // ギルド情報を取得
+      const guildInfo = await this.discordService.getGuildInfo(postCharacterDto.guildId)
+      
+      // キャラクター情報をDiscordに投稿するためのチャンネルを探す
+      // 設定されたキャラクターカテゴリのチャンネルを探す
+      const characterChannels = guildInfo.channels.filter(channel => 
+        channel.name.toLowerCase().includes('character') || 
+        channel.name.toLowerCase().includes('キャラクター')
+      )
+      
+      if (characterChannels.length === 0) {
+        throw new NotFoundException('キャラクター投稿用のチャンネルが見つかりません')
+      }
+
+      // 最初のキャラクターチャンネルを使用
+      const targetChannel = characterChannels[0]
+
+      // Discord embed用のデータを作成
+      const embedData = {
+        title: `${character.characterName}`,
+        description: `**サーバー名**: ${guildInfo.name}\n**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+        color: '0x00ff00', // 緑色
+        fields: [
+          {
+            name: 'キャラクター情報',
+            value: `**名前**: ${character.characterName}\n**システム**: ${character.gameSystemId || '未設定'}`,
+            inline: false
+          }
+        ]
+      }
+
+      // ステータス情報があれば追加
+      if (character.status && Object.keys(character.status).length > 0) {
+        const statusText = Object.entries(character.status)
+          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+          .join('\n')
+        embedData.fields.push({
+          name: 'ステータス',
+          value: statusText.length > 1024 ? statusText.substring(0, 1021) + '...' : statusText,
+          inline: false
+        })
+      }
+
+      // パラメータ情報があれば追加
+      if (character.parameter && Object.keys(character.parameter).length > 0) {
+        const paramText = Object.entries(character.parameter)
+          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+          .join('\n')
+        embedData.fields.push({
+          name: 'パラメータ',
+          value: paramText.length > 1024 ? paramText.substring(0, 1021) + '...' : paramText,
+          inline: false
+        })
+      }
+
+      // スキル情報があれば追加
+      if (character.skill && Object.keys(character.skill).length > 0) {
+        const skillText = Object.entries(character.skill)
+          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+          .join('\n')
+        embedData.fields.push({
+          name: 'スキル',
+          value: skillText.length > 1024 ? skillText.substring(0, 1021) + '...' : skillText,
+          inline: false
+        })
+      }
+
+      // メッセージ送信
+      const sendMessageDto: SendMessageDto = {
+        channelId: targetChannel.id,
+        embed: embedData
+      }
+
+      const result = await this.discordService.sendMessage(sendMessageDto)
+
+      this.logger.log(`キャラクター投稿完了: success=${result.success}, messageId=${result.messageId}`)
+      return result
+    } catch (error) {
+      this.logger.error(`キャラクター投稿エラー: ${(error as Error).message}`, (error as Error).stack)
+
+      if (error instanceof HttpException) {
+        throw error
+      }
+
+      throw new HttpException('キャラクター投稿中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
     }
   }
 }
