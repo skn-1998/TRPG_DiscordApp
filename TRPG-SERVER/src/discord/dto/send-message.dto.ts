@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, IsNumber } from 'class-validator'
 import { Type } from 'class-transformer'
 import { ApiProperty } from '@nestjs/swagger'
 
@@ -15,8 +15,8 @@ export class EmbedDto {
 
   @ApiProperty({ description: 'Embedの色（16進数）', required: false })
   @IsOptional()
-  @IsString()
-  readonly color?: string
+  @IsNumber()
+  readonly color?: number
 
   @ApiProperty({ description: 'Embedのフィールド', required: false })
   @IsOptional()

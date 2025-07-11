@@ -18,8 +18,9 @@ import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
 import { CharacterService } from '../domains/character/character.service'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
 import { SendMessageDto } from './dto/send-message.dto'
-import { CreateChannelDto } from './dto/create-channel.dto'
+import { CreateChannelDto, ChannelType } from './dto/create-channel.dto'
 import { PostCharacterDto } from './dto/post-character.dto'
+import { Character } from '../domains/character/models/character.model'
 
 // 認証されたリクエストの型定義
 interface AuthenticatedRequest extends Request {
@@ -28,6 +29,26 @@ interface AuthenticatedRequest extends Request {
     id: string
     username: string
   }
+}
+
+// Guild情報の型定義
+interface GuildInfo {
+  id: string
+  name: string
+  memberCount: number
+  channels: Array<{ id: string; name: string; type: string }>
+}
+
+// Discord Embed用の型定義
+interface EmbedData {
+  title: string
+  description: string
+  color: number
+  fields: Array<{
+    name: string
+    value: string
+    inline: boolean
+  }>
 }
 
 /**
@@ -292,7 +313,9 @@ export class DiscordController {
     @Req() req: AuthenticatedRequest
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      this.logger.log(`キャラクター投稿要求: characterId=${postCharacterDto.characterId}, guildId=${postCharacterDto.guildId}`)
+      this.logger.log(
+        `キャラクター投稿要求: characterId=${postCharacterDto.characterId}, guildId=${postCharacterDto.guildId}`
+      )
 
       // キャラクター情報を取得
       const character = await this.characterService.findOne(postCharacterDto.characterId)
@@ -308,70 +331,45 @@ export class DiscordController {
 
       // ギルド情報を取得
       const guildInfo = await this.discordService.getGuildInfo(postCharacterDto.guildId)
-      
-      // キャラクター情報をDiscordに投稿するためのチャンネルを探す
-      // 設定されたキャラクターカテゴリのチャンネルを探す
-      const characterChannels = guildInfo.channels.filter(channel => 
-        channel.name.toLowerCase().includes('character') || 
-        channel.name.toLowerCase().includes('キャラクター')
+
+      // キャラクター投稿用のカテゴリを探す
+      const characterCategories = guildInfo.channels.filter(
+        (channel) =>
+          channel.type === '4' && // カテゴリタイプ（ChannelType.GuildCategory = 4）
+          (channel.name.toLowerCase().includes('character') || channel.name.toLowerCase().includes('キャラクター'))
       )
-      
-      if (characterChannels.length === 0) {
-        throw new NotFoundException('キャラクター投稿用のチャンネルが見つかりません')
+
+      if (characterCategories.length === 0) {
+        throw new NotFoundException('キャラクター投稿用のカテゴリが見つかりません')
       }
 
-      // 最初のキャラクターチャンネルを使用
-      const targetChannel = characterChannels[0]
+      // 最初のキャラクターカテゴリを使用
+      const targetCategory = characterCategories[0]
+
+      // カテゴリ内にキャラクター名でチャンネルを作成
+      const channelName = character.characterName
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]/g, '')
+      const createChannelResult = await this.discordService.createChannel({
+        guildId: postCharacterDto.guildId,
+        name: channelName,
+        type: ChannelType.TEXT,
+        parentId: targetCategory.id,
+        topic: `${character.characterName}のキャラクター情報`
+      })
+
+      if (!createChannelResult.success || !createChannelResult.channelId) {
+        throw new HttpException(
+          createChannelResult.error || 'チャンネル作成に失敗しました',
+          HttpStatus.INTERNAL_SERVER_ERROR
+        )
+      }
+
+      const targetChannel = { id: createChannelResult.channelId }
 
       // Discord embed用のデータを作成
-      const embedData = {
-        title: `${character.characterName}`,
-        description: `**サーバー名**: ${guildInfo.name}\n**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
-        color: '0x00ff00', // 緑色
-        fields: [
-          {
-            name: 'キャラクター情報',
-            value: `**名前**: ${character.characterName}\n**システム**: ${character.gameSystemId || '未設定'}`,
-            inline: false
-          }
-        ]
-      }
-
-      // ステータス情報があれば追加
-      if (character.status && Object.keys(character.status).length > 0) {
-        const statusText = Object.entries(character.status)
-          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
-          .join('\n')
-        embedData.fields.push({
-          name: 'ステータス',
-          value: statusText.length > 1024 ? statusText.substring(0, 1021) + '...' : statusText,
-          inline: false
-        })
-      }
-
-      // パラメータ情報があれば追加
-      if (character.parameter && Object.keys(character.parameter).length > 0) {
-        const paramText = Object.entries(character.parameter)
-          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
-          .join('\n')
-        embedData.fields.push({
-          name: 'パラメータ',
-          value: paramText.length > 1024 ? paramText.substring(0, 1021) + '...' : paramText,
-          inline: false
-        })
-      }
-
-      // スキル情報があれば追加
-      if (character.skill && Object.keys(character.skill).length > 0) {
-        const skillText = Object.entries(character.skill)
-          .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
-          .join('\n')
-        embedData.fields.push({
-          name: 'スキル',
-          value: skillText.length > 1024 ? skillText.substring(0, 1021) + '...' : skillText,
-          inline: false
-        })
-      }
+      const embedData = this.createCharacterEmbed(character, guildInfo)
 
       // メッセージ送信
       const sendMessageDto: SendMessageDto = {
@@ -392,5 +390,64 @@ export class DiscordController {
 
       throw new HttpException('キャラクター投稿中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
     }
+  }
+
+  /**
+   * キャラクター情報からDiscord Embed用のデータを作成する
+   * @param character キャラクター情報
+   * @param guildInfo ギルド情報
+   * @returns Discord Embed用のデータ
+   */
+  private createCharacterEmbed(character: Character, guildInfo: GuildInfo): EmbedData {
+    const embedData = {
+      title: `${character.characterName}`,
+      description: `**サーバー名**: ${guildInfo.name}\n**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+      color: 0x00ff00, // 緑色
+      fields: [
+        {
+          name: 'キャラクター情報',
+          value: `**名前**: ${character.characterName}\n**システム**: ${character.gameSystemId || '未設定'}`,
+          inline: false
+        }
+      ]
+    }
+
+    // ステータス情報があれば追加
+    if (character.status && Object.keys(character.status).length > 0) {
+      const statusText = Object.entries(character.status)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'ステータス',
+        value: statusText.length > 1024 ? statusText.substring(0, 1021) + '...' : statusText,
+        inline: false
+      })
+    }
+
+    // パラメータ情報があれば追加
+    if (character.parameter && Object.keys(character.parameter).length > 0) {
+      const paramText = Object.entries(character.parameter)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'パラメータ',
+        value: paramText.length > 1024 ? paramText.substring(0, 1021) + '...' : paramText,
+        inline: false
+      })
+    }
+
+    // スキル情報があれば追加
+    if (character.skill && Object.keys(character.skill).length > 0) {
+      const skillText = Object.entries(character.skill)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'スキル',
+        value: skillText.length > 1024 ? skillText.substring(0, 1021) + '...' : skillText,
+        inline: false
+      })
+    }
+
+    return embedData
   }
 }
