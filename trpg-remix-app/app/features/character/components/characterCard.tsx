@@ -52,12 +52,14 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
       try {
         setLoading(true)
         setError(null)
-        
-                 const selectedServerName = discordServers.find((server: DiscordServerSelectOption) => server.value === selectedServer)?.label
-        
+
+        const selectedServerName = discordServers.find(
+          (server: DiscordServerSelectOption) => server.value === selectedServer
+        )?.label
+
         // キャラクター情報をDiscordサーバーに投稿
         const result = await postCharacterToDiscord(character.characterId, selectedServer)
-        
+
         if (result.success) {
           console.log(`キャラクター "${character.characterName}" をサーバー "${selectedServerName}" に投稿しました`)
           setModalOpened(false)
