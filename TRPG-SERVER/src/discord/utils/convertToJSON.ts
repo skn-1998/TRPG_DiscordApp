@@ -3,8 +3,10 @@ import { Character, UpdatePrimary } from 'src/domains/character/models/character
 
 type characterInfo = {
   name: string
-  value: number
   index: number
+
+  other: number
+  [key: string]: string | number
 }
 
 type GeneralAttributeUpdate = {
@@ -38,7 +40,7 @@ export function convertCharacterInfoToJson(data: string): GeneralAttributeUpdate
     if (!isNaN(value)) {
       result[name] = {
         name: name,
-        value: value,
+        other: value,
         index: index
       }
       index++
@@ -62,10 +64,24 @@ export function convertCharacterJsonToString(data: Character, updatePrimary: Upd
   // オブジェクトを配列に変換
   const dataArray = Object.entries(recordData).map(([key, value]) => {
     // 型安全に処理
-    const item = value as unknown as { name?: string; value?: number; index?: number }
+    const item = value as unknown as {
+      name?: string
+      other?: number
+      index?: number
+      [key: string]: string | number | undefined
+    }
+
+    // indexとname以外のnumberプロパティを合計
+    let totalOtherValues = 0
+    for (const [propKey, propValue] of Object.entries(item)) {
+      if (propKey !== 'name' && propKey !== 'index' && typeof propValue === 'number') {
+        totalOtherValues += propValue
+      }
+    }
+
     return {
       name: item.name || key,
-      value: item.value || 0,
+      totalValue: totalOtherValues,
       index: item.index || 0
     }
   })
@@ -73,5 +89,5 @@ export function convertCharacterJsonToString(data: Character, updatePrimary: Upd
   // ソート処理
   const sortedArray = sortBy(dataArray, [(status) => status.index])
   // 文字列に変換
-  return sortedArray.map((status) => `${status.name}:${status.value}`).join('\n')
+  return sortedArray.map((status) => `${status.name}:${status.totalValue}`).join('\n')
 }

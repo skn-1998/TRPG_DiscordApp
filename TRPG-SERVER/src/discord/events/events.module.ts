@@ -66,6 +66,6 @@ import { EventEmitterModule } from '@nestjs/event-emitter'
     DiceCharacterSelectService,
     DicePageSelectMenuService
   ],
-  imports: [CharacterModule, forwardRef(() => DiscordModule), DiceRollModule, EventEmitterModule]
+  imports: [forwardRef(() => CharacterModule), forwardRef(() => DiscordModule), DiceRollModule, EventEmitterModule]
 })
 export class EventsModule {}

@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client, AuditLogEvent, TextChannel } from 'discord.js'
 import { getChannelIdByName } from '../../utils/searchChannelID'
-import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
 import { DiceRollChannelInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
@@ -12,7 +11,6 @@ export class DiceRollChannelCreateService {
   private client: Client
 
   constructor(
-    private readonly characterService: CharacterService,
     private readonly appConfigService: AppConfigService,
     private readonly diceRollService: DiceRollService
   ) {}

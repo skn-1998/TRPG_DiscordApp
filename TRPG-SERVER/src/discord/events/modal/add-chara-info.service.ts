@@ -1,28 +1,20 @@
 import { Injectable } from '@nestjs/common'
-import {
-  CacheType,
-  ChannelType,
-  EmbedBuilder,
-  Message,
-  ModalBuilder,
-  ModalSubmitInteraction,
-  TextChannel
-} from 'discord.js'
+import { CacheType, ChannelType, ModalBuilder, ModalSubmitInteraction, TextChannel } from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
 import { eventSelectButtonType } from '../events.list'
 import _, { isEmpty, isNull, isUndefined } from 'lodash'
-import {
-  convertCharacterInfoToJson,
-  convertCharacterJsonToString,
-  filterAndFormatInput
-} from 'src/discord/utils/convertToJSON'
-import { CharacterService } from 'src/domains/character/character.service'
+import { convertCharacterInfoToJson, filterAndFormatInput } from 'src/discord/utils/convertToJSON'
+import { DiscordIntegrationService } from '../../application/discord-integration.service'
+import { ConfigService } from '@nestjs/config'
 
 @Injectable()
 export class AddCharaInfoService implements discordModalType {
   private _characterInfoConfig: eventSelectButtonType
 
-  constructor(private readonly characterService: CharacterService) {}
+  constructor(
+    private readonly discordIntegration: DiscordIntegrationService,
+    private readonly configService: ConfigService
+  ) {}
 
   initialSetting(config: eventSelectButtonType) {
     this._characterInfoConfig = config
@@ -36,78 +28,59 @@ export class AddCharaInfoService implements discordModalType {
   async execute(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {
     const channel = interaction.channel
 
-    await interaction.deferUpdate()
-    const regex = /status|skill|parameter/
-    const createCharaInfo = filterAndFormatInput(interaction.fields.components[0].components[0].value)
-    const updatePrimary = interaction.fields.components[0].components[0].customId.match(regex)?.shift()
-    console.log(interaction.fields.components[0].components[0].customId.match(regex))
-    if (_.isUndefined(updatePrimary)) return console.error('updatePrimary isUndefined')
-
-    // console.log(createCharaInfo)
-    if (_.isNull(channel)) return console.error('channel is null')
-
-    if (isEmpty(createCharaInfo)) {
-      // チャンネルタイプの確認とsendメソッドの安全な呼び出し
-      if (interaction.channel && interaction.channel instanceof TextChannel) {
-        const sendErrMessage = await interaction.channel.send({
-          content: '送信した値のフォーマットが不適切です'
-        })
-
-        setTimeout(() => {
-          if (!sendErrMessage?.deletable) return
-          sendErrMessage?.delete().catch(console.error)
-        }, 5000)
-      }
-      return
-    }
-    if (channel?.type !== ChannelType.GuildText) return console.log('')
-    console.log(channel.id)
-    await this.characterService.updateByChannelId(channel.id, {
-      [updatePrimary]: convertCharacterInfoToJson(createCharaInfo)
-    })
-    console.log(await this.characterService.findByChannelId(channel.id))
-    if (isNull(interaction.channelId)) return
-    const characterInfo = await this.characterService.findByChannelId(channel.id)
-
-    // キャラクター情報の存在確認（nullとundefinedの両方をチェック）
-    if (_.isNil(characterInfo)) {
-      console.error('キャラクター情報が見つかりません')
-      return
-    }
-
-    console.log(convertCharacterJsonToString(characterInfo, 'status'))
-    const characterInfoText = [
-      convertCharacterJsonToString(characterInfo, 'status'),
-      convertCharacterJsonToString(characterInfo, 'parameter'),
-      convertCharacterJsonToString(characterInfo, 'skill')
-    ].join('\n')
-    const embed = new EmbedBuilder().setTitle(channel.name).setDescription(characterInfoText)
-
-    // チャンネル内のメッセージを取得（最新100件）
+    // Phase 3: 簡潔なイベント駆動パターン
     try {
-      const messages = await channel.messages.fetch({ limit: 100 })
+      await interaction.deferUpdate()
 
-      // ボットが送信した埋め込みメッセージを検索
-      const botEmbedMessages = messages
-        .filter((msg) => msg.author.bot && msg.embeds.length > 0 && msg.embeds[0].title === channel.name)
-        .sort((a, b) => b.createdTimestamp - a.createdTimestamp) // 新しい順にソート
-
-      const latestEmbedMessage = botEmbedMessages.first()
-
-      if (latestEmbedMessage && latestEmbedMessage.editable) {
-        // 既存のメッセージを編集
-        await latestEmbedMessage.edit({ embeds: [embed] })
-      } else {
-        // 既存のメッセージがないか編集できない場合は新しいメッセージを送信
-        if (interaction.channel && interaction.channel instanceof TextChannel) {
-          await interaction.channel.send({ embeds: [embed] })
-        }
+      // 入力値の基本検証
+      if (_.isNull(channel) || channel?.type !== ChannelType.GuildText) {
+        console.error('Invalid channel')
+        return
       }
+
+      const regex = /status|skill|parameter/
+      const inputValue = interaction.fields.components[0].components[0].value
+      const updateField = interaction.fields.components[0].components[0].customId.match(regex)?.shift()
+
+      if (_.isUndefined(updateField)) {
+        console.error('Invalid update field')
+        return
+      }
+
+      const formattedInput = filterAndFormatInput(inputValue)
+
+      if (isEmpty(formattedInput)) {
+        // エラーフィードバック - チャンネルの型チェックを安全に行う
+        if (
+          interaction.channel &&
+          interaction.channel.type === ChannelType.GuildText &&
+          'send' in interaction.channel
+        ) {
+          const errorMessage = await interaction.channel.send({
+            content: '送信した値のフォーマットが不適切です'
+          })
+          setTimeout(() => errorMessage?.delete().catch(console.error), 5000)
+        }
+        return
+      }
+
+      // イベント駆動によるキャラクター更新リクエスト
+      const updateData = {
+        [updateField]: convertCharacterInfoToJson(formattedInput)
+      }
+
+      await this.discordIntegration.requestCharacterUpdate(channel.id, updateData, interaction.user.id)
+
+      console.log(`[PHASE3] Character update requested for channel: ${channel.id}`)
     } catch (error) {
-      console.error('メッセージの検索または編集中にエラーが発生しました:', error)
-      // エラーの場合は新しいメッセージを送信
-      if (interaction.channel && interaction.channel instanceof TextChannel) {
-        await interaction.channel.send({ embeds: [embed] })
+      console.error('Error in AddCharaInfoService:', error)
+
+      // エラー時のフィードバック - チャンネルの型チェックを安全に行う
+      if (interaction.channel && interaction.channel.type === ChannelType.GuildText && 'send' in interaction.channel) {
+        const errorMessage = await interaction.channel.send({
+          content: 'キャラクター情報の更新中にエラーが発生しました'
+        })
+        setTimeout(() => errorMessage?.delete().catch(console.error), 5000)
       }
     }
   }

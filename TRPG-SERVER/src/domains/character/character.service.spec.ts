@@ -3,104 +3,445 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
-import { Character } from './models/character.model'
-import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UserService } from '../user/user.service'
+import { DiscordService } from '../../discord/discord.service'
+import { AppConfigService } from '../../config/config.service'
+import { DiscordIntegrationService } from '../../discord/application/discord-integration.service'
+import { CharacterInputDto } from './dto/create-character.dto'
+import { Character } from './models/character.model'
 
 describe('CharacterService', () => {
   let service: CharacterService
-  let repository: jest.Mocked<CharacterRepository>
+  let characterRepository: jest.Mocked<CharacterRepository>
   let userService: jest.Mocked<UserService>
-
-  const mockCharacterDto: PartialInputCharacterDto = {
-    characterId: 'test-character-001',
-    characterName: 'テストキャラクター',
-    gameSystemId: 'test-system',
-    discordUserId: 'test-discord-user',
-    discordChannelId: 'test-channel-123',
-    status: { HP: 100, MP: 50 },
-    skill: { 魔法: 80, 剣術: 70 },
-    parameter: { STR: 15, DEX: 12 },
-    item: { 魔法の剣: '1d8+2ダメージ' },
-    description: { 年齢: 25, 職業: '冒険者' }
-  }
+  let discordService: jest.Mocked<DiscordService>
+  let configService: jest.Mocked<AppConfigService>
+  let discordIntegrationService: jest.Mocked<DiscordIntegrationService>
 
   const mockCharacter: Character = {
-    characterId: 'test-character-001',
-    characterName: 'テストキャラクター',
+    characterId: 'test-id',
+    characterName: 'Test Character',
     gameSystemId: 'test-system',
-    discordUserId: 'test-discord-user',
-    discordChannelId: 'test-channel-123',
-    status: { HP: 100, MP: 50 },
-    skill: { 魔法: 80, 剣術: 70 },
-    parameter: { STR: 15, DEX: 12 },
-    item: { 魔法の剣: '1d8+2ダメージ' },
-    description: { 年齢: 25, 職業: '冒険者' }
+    discordUserId: 'test-user',
+    discordChannelId: 'test-channel',
+    status: {},
+    skill: {},
+    parameter: {}
   }
 
   beforeEach(async () => {
-    // CharacterRepository用のモックを作成
-    const characterRepositoryMock = {
+    const mockCharacterRepository = {
       create: jest.fn(),
-      findById: jest.fn(),
-      findAll: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-      findByChannelId: jest.fn(),
-      removeByChannelId: jest.fn(),
       findByUserId: jest.fn(),
-      search: jest.fn()
+      findById: jest.fn(),
+      findByName: jest.fn(),
+      findByChannelId: jest.fn(),
+      update: jest.fn(),
+      updateByChannelId: jest.fn(),
+      remove: jest.fn(),
+      removeByChannelId: jest.fn()
     }
 
-    // UserService用のモックを作成
-    const userServiceMock = {
-      addCharacterId: jest.fn(),
-      removeCharacterId: jest.fn(),
-      create: jest.fn(),
-      findOne: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-      findAll: jest.fn()
+    const mockUserService = {
+      addCharacterId: jest.fn()
+    }
+
+    const mockDiscordService = {
+      createOrUpdateCharacterEmbed: jest.fn()
+    }
+
+    const mockConfigService = {
+      get: jest.fn()
+    }
+
+    const mockDiscordIntegrationService = {
+      requestCharacterCreation: jest.fn()
     }
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterService,
-        {
-          provide: CharacterRepository,
-          useValue: characterRepositoryMock
-        },
-        {
-          provide: UserService,
-          useValue: userServiceMock
-        }
+        { provide: CharacterRepository, useValue: mockCharacterRepository },
+        { provide: UserService, useValue: mockUserService },
+        { provide: DiscordService, useValue: mockDiscordService },
+        { provide: AppConfigService, useValue: mockConfigService },
+        { provide: DiscordIntegrationService, useValue: mockDiscordIntegrationService }
       ]
     }).compile()
 
     service = module.get<CharacterService>(CharacterService)
-    repository = module.get(CharacterRepository) as jest.Mocked<CharacterRepository>
-    userService = module.get(UserService) as jest.Mocked<UserService>
+    characterRepository = module.get(CharacterRepository)
+    userService = module.get(UserService)
+    discordService = module.get(DiscordService)
+    configService = module.get(AppConfigService)
+    discordIntegrationService = module.get(DiscordIntegrationService)
   })
 
-  it('should be defined', () => {
-    expect(service).toBeDefined()
+  describe('create', () => {
+    const createDto: CharacterInputDto = {
+      characterName: 'Test Character',
+      gameSystemId: 'test-system',
+      discordUserId: 'test-user',
+      discordChannelId: 'test-channel',
+      status: {},
+      skill: {},
+      parameter: {}
+    }
+
+    it('should create character using direct method when event-driven is disabled', async () => {
+      // Given
+      configService.get.mockReturnValue(false) // event-driven disabled
+      characterRepository.create.mockResolvedValue(mockCharacter)
+
+      // When
+      const result = await service.create(createDto)
+
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(characterRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          characterName: createDto.characterName,
+          gameSystemId: createDto.gameSystemId,
+          discordUserId: createDto.discordUserId,
+          discordChannelId: createDto.discordChannelId
+        })
+      )
+      expect(userService.addCharacterId).toHaveBeenCalledWith(createDto.discordUserId, expect.any(String))
+      expect(discordIntegrationService.requestCharacterCreation).not.toHaveBeenCalled()
+      expect(result).toEqual(mockCharacter)
+    })
+
+    it('should create character using event-driven method when enabled', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled
+
+      // When
+      const result = await service.create(createDto)
+
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(discordIntegrationService.requestCharacterCreation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          characterName: createDto.characterName,
+          gameSystemId: createDto.gameSystemId,
+          discordUserId: createDto.discordUserId,
+          discordChannelId: createDto.discordChannelId
+        }),
+        createDto.discordUserId
+      )
+      expect(characterRepository.create).not.toHaveBeenCalled()
+      expect(userService.addCharacterId).not.toHaveBeenCalled()
+      expect(result).toEqual(
+        expect.objectContaining({
+          characterName: createDto.characterName,
+          gameSystemId: createDto.gameSystemId,
+          discordUserId: createDto.discordUserId,
+          discordChannelId: createDto.discordChannelId
+        })
+      )
+    })
+
+    it('should handle missing optional fields in event-driven mode', async () => {
+      // Given
+      configService.get.mockReturnValue(true)
+      const partialDto: CharacterInputDto = {
+        characterName: 'Test Character'
+      }
+
+      // When
+      const result = await service.create(partialDto)
+
+      // Then
+      expect(discordIntegrationService.requestCharacterCreation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          characterName: 'Test Character',
+          gameSystemId: '',
+          discordUserId: ''
+        }),
+        ''
+      )
+      expect(result).toEqual(
+        expect.objectContaining({
+          characterName: 'Test Character',
+          gameSystemId: '',
+          discordUserId: ''
+        })
+      )
+    })
+
+    it('should generate characterId when not provided in event-driven mode', async () => {
+      // Given
+      configService.get.mockReturnValue(true)
+
+      // When
+      const result = await service.create(createDto)
+
+      // Then
+      expect(result.characterId).toBeDefined()
+      expect(result.characterId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    })
+
+    it('should use provided characterId in event-driven mode', async () => {
+      // Given
+      configService.get.mockReturnValue(true)
+      const dtoWithId = { ...createDto, characterId: 'custom-id' }
+
+      // When
+      const result = await service.create(dtoWithId)
+
+      // Then
+      expect(result.characterId).toBe('custom-id')
+    })
+
+    it('should log appropriate messages for each mode', async () => {
+      const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation()
+
+      // Test direct mode
+      configService.get.mockReturnValue(false)
+      characterRepository.create.mockResolvedValue(mockCharacter)
+      await service.create(createDto)
+      expect(logSpy).toHaveBeenCalledWith('[DIRECT] Creating character directly: Test Character')
+
+      // Test event-driven mode
+      configService.get.mockReturnValue(true)
+      await service.create(createDto)
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Creating character via events: Test Character')
+
+      logSpy.mockRestore()
+    })
   })
 
-  it('should create a character', async () => {
-    repository.create.mockResolvedValue(mockCharacter)
+  describe('remove', () => {
+    it('should delete character using direct method when event-driven is disabled', async () => {
+      // Given
+      configService.get.mockReturnValue(false) // event-driven disabled
 
-    const result = await service.create(mockCharacterDto)
+      // When
+      await service.remove('test-id', 'test-user')
 
-    expect(repository.create).toHaveBeenCalled()
-    expect(result).toEqual(mockCharacter)
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(characterRepository.remove).toHaveBeenCalledWith('test-id')
+      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+    })
+
+    it('should delete character using direct method when userId is not provided', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled but no userId
+
+      // When
+      await service.remove('test-id')
+
+      // Then
+      expect(characterRepository.remove).toHaveBeenCalledWith('test-id')
+      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+    })
+
+    it('should delete character using event-driven method when enabled and userId provided', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled
+
+      // When
+      await service.remove('test-id', 'test-user')
+
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(discordIntegrationService.requestCharacterDeletion).toHaveBeenCalledWith(
+        'test-id',
+        'test-user',
+        'Direct deletion request'
+      )
+      expect(characterRepository.remove).not.toHaveBeenCalled()
+    })
+
+    it('should log appropriate messages for each mode', async () => {
+      const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation()
+
+      // Test direct mode
+      configService.get.mockReturnValue(false)
+      await service.remove('test-id', 'test-user')
+      expect(logSpy).toHaveBeenCalledWith('[DIRECT] Deleting character directly: test-id')
+
+      // Test event-driven mode
+      configService.get.mockReturnValue(true)
+      await service.remove('test-id', 'test-user')
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Deleting character via events: test-id')
+
+      logSpy.mockRestore()
+    })
   })
 
-  it('should find character by channel ID', async () => {
-    repository.findByChannelId.mockResolvedValue(mockCharacter)
+  describe('removeByChannelId', () => {
+    it('should delete character by channel using direct method when event-driven is disabled', async () => {
+      // Given
+      configService.get.mockReturnValue(false) // event-driven disabled
 
-    const result = await service.findByChannelId('test-channel-123')
+      // When
+      await service.removeByChannelId('test-channel', 'test-user')
 
-    expect(repository.findByChannelId).toHaveBeenCalledWith('test-channel-123')
-    expect(result).toEqual(mockCharacter)
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(characterRepository.removeByChannelId).toHaveBeenCalledWith('test-channel')
+      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+    })
+
+    it('should delete character by channel using direct method when userId is not provided', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled but no userId
+
+      // When
+      await service.removeByChannelId('test-channel')
+
+      // Then
+      expect(characterRepository.removeByChannelId).toHaveBeenCalledWith('test-channel')
+      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+    })
+
+    it('should delete character by channel using event-driven method when enabled and userId provided', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled
+      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
+
+      // When
+      await service.removeByChannelId('test-channel', 'test-user')
+
+      // Then
+      expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
+      expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
+      expect(discordIntegrationService.requestCharacterDeletion).toHaveBeenCalledWith(
+        'test-id',
+        'test-user',
+        'Channel-based deletion request'
+      )
+      expect(characterRepository.removeByChannelId).not.toHaveBeenCalled()
+    })
+
+    it('should handle character not found in event-driven mode', async () => {
+      // Given
+      configService.get.mockReturnValue(true) // event-driven enabled
+      characterRepository.findByChannelId.mockResolvedValue(null)
+      const logSpy = jest.spyOn(service['logger'], 'warn').mockImplementation()
+
+      // When
+      await service.removeByChannelId('test-channel', 'test-user')
+
+      // Then
+      expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Character not found for channel: test-channel')
+      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+
+      logSpy.mockRestore()
+    })
+
+    it('should log appropriate messages for each mode', async () => {
+      const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation()
+
+      // Test direct mode
+      configService.get.mockReturnValue(false)
+      await service.removeByChannelId('test-channel', 'test-user')
+      expect(logSpy).toHaveBeenCalledWith('[DIRECT] Deleting character by channel directly: test-channel')
+
+      // Test event-driven mode
+      configService.get.mockReturnValue(true)
+      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
+      await service.removeByChannelId('test-channel', 'test-user')
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Deleting character by channel via events: test-channel')
+
+      logSpy.mockRestore()
+    })
+  })
+
+  describe('Character Search Feature Flag', () => {
+    it('should use event-driven approach when feature flag is enabled', async () => {
+      // Setup
+      configService.get.mockReturnValue(true)
+      discordIntegrationService.requestCharacterSearch = jest.fn()
+
+      const logSpy = jest.spyOn(service['logger'], 'log')
+
+      // Mock the waitForCharacterSearchResult method
+      const waitForSearchResultSpy = jest.spyOn(service as any, 'waitForCharacterSearchResult')
+      waitForSearchResultSpy.mockResolvedValue(mockCharacter)
+
+      // Execute
+      await service.findByChannelId('test-channel')
+
+      // Verify
+      expect(discordIntegrationService.requestCharacterSearch).toHaveBeenCalledWith(
+        { channelId: 'test-channel' },
+        'api'
+      )
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Searching character via events: test-channel')
+
+      logSpy.mockRestore()
+      waitForSearchResultSpy.mockRestore()
+    })
+
+    it('should use direct approach when feature flag is disabled', async () => {
+      // Setup
+      configService.get.mockReturnValue(false)
+      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
+
+      const logSpy = jest.spyOn(service['logger'], 'log')
+
+      // Execute
+      const result = await service.findByChannelId('test-channel')
+
+      // Verify
+      expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
+      expect(result).toEqual(mockCharacter)
+      expect(logSpy).toHaveBeenCalledWith('[DIRECT] Searching character directly: test-channel')
+
+      logSpy.mockRestore()
+    })
+  })
+
+  describe('Character Update Feature Flag', () => {
+    const updateData = { characterName: 'Updated Character' }
+
+    it('should use event-driven approach when feature flag is enabled', async () => {
+      // Setup
+      configService.get.mockReturnValue(true)
+      discordIntegrationService.requestCharacterUpdate = jest.fn()
+
+      const logSpy = jest.spyOn(service['logger'], 'log')
+
+      // Mock the waitForCharacterUpdateResult method
+      const waitForUpdateResultSpy = jest.spyOn(service as any, 'waitForCharacterUpdateResult')
+      waitForUpdateResultSpy.mockResolvedValue(mockCharacter)
+
+      // Execute
+      await service.updateByChannelId('test-channel', updateData)
+
+      // Verify
+      expect(discordIntegrationService.requestCharacterUpdate).toHaveBeenCalledWith('test-channel', updateData)
+      expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Updating character via events: test-channel')
+
+      logSpy.mockRestore()
+      waitForUpdateResultSpy.mockRestore()
+    })
+
+    it('should use direct approach when feature flag is disabled', async () => {
+      // Setup
+      configService.get.mockReturnValue(false)
+      characterRepository.updateByChannelId.mockResolvedValue(mockCharacter)
+      discordService.createOrUpdateCharacterEmbed.mockResolvedValue({ success: true })
+
+      const logSpy = jest.spyOn(service['logger'], 'log')
+
+      // Execute
+      const result = await service.updateByChannelId('test-channel', updateData)
+
+      // Verify
+      expect(characterRepository.updateByChannelId).toHaveBeenCalledWith('test-channel', updateData)
+      expect(result).toEqual(mockCharacter)
+      expect(logSpy).toHaveBeenCalledWith('[DIRECT] Updating character directly: test-channel')
+
+      logSpy.mockRestore()
+    })
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
   })
 })

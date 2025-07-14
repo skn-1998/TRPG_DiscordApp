@@ -1,207 +1,106 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, EmbedBuilder, ThreadChannel } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
-import { CharacterService } from 'src/domains/character/character.service'
+import { Character } from 'src/domains/character/models/character.model'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 
 @Injectable()
 export class CharacterTabButtonsService implements discordButtonType {
-  constructor(private readonly characterService: CharacterService) {}
+  constructor(private readonly eventEmitter: EventEmitter2) {}
 
-  // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
-  // 実際には動的に生成されるためここでは最小限のものを提供
   public data = new ButtonBuilder().setCustomId('character-tab*').setLabel('基本情報').setStyle(ButtonStyle.Primary)
 
-  /**
-   * ボタンが押されたときの処理
-   */
   async execute(interaction: ButtonInteraction<CacheType>): Promise<void> {
     try {
-      // ボタンのカスタムIDを解析して、どのタブが選択されたかを特定
-      const customId = interaction.customId
-      const _temp = customId.replace('character-tab*', '')
+      if (!interaction.isButton()) return
+
+      const _temp = interaction.customId.replace('character-tab*', '')
       const channelId = _temp.split('*')[0]
       const tabType = _temp.split('*')[1]
+
       // スレッドチャンネルであることを確認
       if (!interaction.channel || !(interaction.channel instanceof ThreadChannel)) {
         await interaction.reply({ content: 'このコマンドはスレッド内でのみ使用できます', ephemeral: true })
         return
       }
 
-      const character = await this.characterService.findByChannelId(channelId)
+      // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更
+      console.log(`[PHASE3] キャラクター情報取得をスキップ: ${channelId}, tab: ${tabType}`)
 
-      // キャラクターが見つからない場合の処理
-      if (!character) {
-        await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
-        return
-      }
+      // イベント発行（非同期）
+      this.eventEmitter.emit('character.findByChannelId.requested', {
+        channelId,
+        tabType,
+        source: 'character-tab-buttons-service',
+        timestamp: new Date()
+      })
 
-      // 応答中であることを示す
-      await interaction.deferReply()
+      // 【PHASE3】 一時的に機能を無効化
+      await interaction.reply({
+        content: '⚠️ キャラクタータブ機能は現在メンテナンス中です。Phase 3移行作業が完了するまでお待ちください。',
+        ephemeral: true
+      })
+      return
 
-      // タブに応じたEmbedを生成
-      let embed: EmbedBuilder
+      // 以下は Phase 3 完了後に削除予定
+      // const character = await this.discordFacadeService.getCharacterByChannelId(channelId)
 
-      switch (tabType) {
-        case 'basic':
-          // 基本情報Embed
-          embed = new EmbedBuilder()
-            .setTitle('【基本情報】')
-            .setColor(0x0099ff)
-            .addFields(
-              { name: '名前', value: character.characterName || '未設定', inline: true },
-              { name: '職業', value: character.description?.['職業']?.toString() || '未設定', inline: true },
-              { name: 'システム', value: character.gameSystemId || '未設定', inline: true },
-              { name: '年齢', value: character.description?.['年齢']?.toString() || '未設定', inline: true }
-            )
+      // // キャラクターが見つからない場合の処理
+      // if (!character) {
+      //   await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
+      //   return
+      // }
 
-          // ステータスの追加（HPなど）
-          if (character.status && Object.keys(character.status).length > 0) {
-            // HP, MP, SANの取得
-            const hp = character.status['HP']
-            const mp = character.status['MP']
-            const san = character.status['SAN']
+      // // 応答中であることを示す
+      // await interaction.deferReply()
 
-            if (hp) {
-              embed.addFields({ name: 'HP', value: `${hp}/${hp}`, inline: true })
-            }
-            if (mp) {
-              embed.addFields({ name: 'MP', value: `${mp}/${mp}`, inline: true })
-            }
-            if (san) {
-              embed.addFields({ name: 'SAN', value: `${san}/${san}`, inline: true })
-            }
-          }
-          break
+      // // タブに応じたEmbedを生成
+      // let embed: EmbedBuilder
 
-        case 'status':
-          // パラメータEmbed
-          embed = new EmbedBuilder().setTitle('【ステータス】').setColor(0x00cc99)
+      // switch (tabType) {
+      //   case 'basic':
+      //     embed = this.createBasicInfoEmbed(character)
+      //     break
+      //   case 'status':
+      //     embed = this.createStatusEmbed(character)
+      //     break
+      //   case 'skills':
+      //     embed = this.createSkillsEmbed(character)
+      //     break
+      //   case 'items':
+      //     embed = this.createItemsEmbed(character)
+      //     break
+      //   case 'desc':
+      //     embed = this.createDescriptionEmbed(character)
+      //     break
+      //   default:
+      //     embed = this.createBasicInfoEmbed(character)
+      // }
 
-          // パラメータの追加
-          if (character.parameter && Object.keys(character.parameter).length > 0) {
-            const parameterItems = Object.entries(character.parameter).map(([name, value]) => ({ name, value }))
-
-            // パラメータを4つずつのグループに分割して表示
-            for (let i = 0; i < parameterItems.length; i += 4) {
-              const group = parameterItems.slice(i, i + 4)
-              const fields = group.map((param) => ({
-                name: param.name,
-                value: param.value?.toString() || '0',
-                inline: true
-              }))
-              embed.addFields(fields)
-            }
-
-            // 幸運、アイデア、知識などの追加パラメータを追加
-            if (character.status['幸運']) {
-              embed.addFields({ name: '幸運', value: character.status['幸運'].toString(), inline: true })
-            }
-            if (character.status['アイデア']) {
-              embed.addFields({ name: 'アイデア', value: character.status['アイデア'].toString(), inline: true })
-            }
-            if (character.status['知識']) {
-              embed.addFields({ name: '知識', value: character.status['知識'].toString(), inline: true })
-            }
-          }
-          break
-
-        case 'skills':
-          // スキルEmbed
-          embed = new EmbedBuilder().setTitle('【スキル】').setColor(0xff6600)
-
-          // スキルの追加
-          if (character.skill && Object.keys(character.skill).length > 0) {
-            const skillItems = Object.entries(character.skill)
-              .map(([name, value]) => ({ name, value: value as CharacterAttribute }))
-              .sort((a, b) => Number(b.value.value) - Number(a.value.value)) // 値が大きい順にソート
-
-            // スキルを6つずつのグループに分割して表示
-            for (let i = 0; i < skillItems.length; i += 6) {
-              const group = skillItems.slice(i, i + 6)
-              const fields = group.map((skill) => ({
-                name: skill.name,
-                value: skill.value.value?.toString() || '0',
-                inline: true
-              }))
-              embed.addFields(fields)
-            }
-          }
-          break
-
-        case 'items':
-          // アイテムEmbed
-          embed = new EmbedBuilder().setTitle('【アイテム】').setColor(0x9933cc)
-
-          // アイテムの追加
-          if (character.item && Object.keys(character.item).length > 0) {
-            const itemEntries = Object.entries(character.item)
-
-            // アイテムを追加
-            for (let i = 0; i < itemEntries.length; i++) {
-              const [name, value] = itemEntries[i]
-              embed.addFields({
-                name,
-                value: value?.toString() || '',
-                inline: true
-              })
-            }
-          } else {
-            embed.setDescription('アイテムはありません')
-          }
-          break
-
-        case 'desc':
-          // メモ・背景Embed
-          embed = new EmbedBuilder().setTitle('【メモ・背景】').setColor(0x999999)
-
-          // 背景設定フィールドの追加
-          if (character.description && Object.keys(character.description).length > 0) {
-            if (character.description['背景']) {
-              embed.addFields({
-                name: '背景設定',
-                value: character.description['背景'].toString().slice(0, 1024) // Discordの制限
-              })
-            }
-
-            // その他のメモを追加
-            const filteredDesc = Object.entries(character.description).filter(
-              ([key]) => !['背景', '年齢', '職業'].includes(key)
-            )
-
-            if (filteredDesc.length > 0) {
-              filteredDesc.forEach(([key, value]) => {
-                embed.addFields({
-                  name: key,
-                  value: value?.toString().slice(0, 1024) || '',
-                  inline: true
-                })
-              })
-            }
-          } else {
-            embed.setDescription('メモはありません')
-          }
-          break
-
-        default:
-          // デフォルトは基本情報
-          embed = new EmbedBuilder()
-            .setTitle('【情報】')
-            .setDescription('選択したタブの情報が見つかりませんでした')
-            .setColor(0xff0000)
-          break
-      }
-
-      // Embedを送信
-      await interaction.editReply({ embeds: [embed] })
+      // await interaction.editReply({ embeds: [embed] })
     } catch (error) {
-      console.error('タブボタン処理エラー:', error)
+      console.error('[PHASE3] キャラクタータブ処理エラー:', error)
 
-      // エラーが発生した場合、通知
-      if (interaction.deferred) {
-        await interaction.editReply({ content: 'エラーが発生しました。もう一度お試しください。' })
-      } else {
-        await interaction.reply({ content: 'エラーが発生しました。もう一度お試しください。', ephemeral: true })
+      // エラー応答
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: '⚠️ キャラクター情報の表示中にエラーが発生しました。',
+            ephemeral: true
+          })
+        } else if (interaction.deferred) {
+          await interaction.editReply({
+            content: '⚠️ キャラクター情報の表示中にエラーが発生しました。'
+          })
+        } else {
+          await interaction.followUp({
+            content: '⚠️ キャラクター情報の表示中にエラーが発生しました。',
+            ephemeral: true
+          })
+        }
+      } catch (replyError) {
+        console.error('[PHASE3] エラー応答送信失敗:', replyError)
       }
     }
   }

@@ -14,18 +14,18 @@ import {
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import _, { isNull, isUndefined } from 'lodash'
-import { CharacterService } from 'src/domains/character/character.service'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 
 @Injectable()
 export class CharacterChannelService implements discordSelectMenuType {
   channelOptions: StringSelectMenuOptionBuilder[]
 
   constructor(
-    private readonly characterService: CharacterService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly eventEmitter: EventEmitter2
   ) {
     // Initialize with default empty array to prevent 'not iterable' error
     this.channelOptions = [new StringSelectMenuOptionBuilder().setLabel('デフォルト').setValue('default')]
@@ -64,50 +64,64 @@ export class CharacterChannelService implements discordSelectMenuType {
     try {
       const targetChannel = interaction.channel
       const characterChannelId = interaction.values[0]
-      const character = await this.characterService.findByChannelId(characterChannelId)
 
-      // キャラクターの存在チェック
-      if (!character) {
-        await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
-        return
-      }
+      // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更
+      console.log(`[PHASE3] キャラクター情報取得をスキップ: ${characterChannelId}`)
 
-      if (_.isNil(targetChannel) || !targetChannel.isTextBased()) {
-        if (!interaction.replied) {
-          await interaction.reply({ content: 'チャンネルが見つかりませんでした', ephemeral: true })
-        }
-        return
-      }
+      // イベント発行（非同期）
+      this.eventEmitter.emit('character.findByChannelId.requested', {
+        channelId: characterChannelId,
+        source: 'character-channel-service',
+        timestamp: new Date()
+      })
 
-      // チャンネルがTextChannelであることを確認
-      if (targetChannel instanceof TextChannel) {
-        // TextChannelとして処理を続行
-        const thread = await targetChannel.threads.create({
-          name: `${character.characterName}`,
-          type: ChannelType.PublicThread
-        })
-        await this.postThreadCreationReply(interaction, thread, character)
-        try {
-          await this.deleteSelectMenu(interaction)
-        } catch (deleteError) {
-          console.error('セレクトメニュー削除エラー:', deleteError)
-        }
-      } else {
-        if (!interaction.replied) {
-          await interaction.reply({ content: 'テキストチャンネルを選択してください', ephemeral: true })
-        }
-        return
-      }
+      // 【PHASE3】 一時的に機能を無効化
+      await interaction.reply({
+        content:
+          '⚠️ キャラクタースレッド作成機能は現在メンテナンス中です。Phase 3移行作業が完了するまでお待ちください。',
+        ephemeral: true
+      })
+      return
+
+      // 以下は Phase 3 完了後に削除予定
+      // const character = await this.discordFacadeService.getCharacterByChannelId(characterChannelId)
+
+      // // キャラクターの存在チェック
+      // if (!character) {
+      //   await interaction.reply({ content: 'キャラクター情報が見つかりませんでした', ephemeral: true })
+      //   return
+      // }
+
+      // if (_.isNil(targetChannel) || !targetChannel.isTextBased()) {
+      //   if (!interaction.replied) {
+      //     await interaction.reply({ content: 'チャンネルが見つかりませんでした', ephemeral: true })
+      //   }
+      //   return
+      // }
+
+      // // チャンネルがTextChannelであることを確認
+      // if (targetChannel instanceof TextChannel) {
+      //   // TextChannelとして処理を続行
+      //   const thread = await targetChannel.threads.create({
+      //     name: `${character.characterName}`,
+      //     type: ChannelType.PublicThread
+      //   })
+      //   await this.postThreadCreationReply(interaction, thread, character)
+      //   try {
+      //     await this.deleteSelectMenu(interaction)
+      //   } catch (deleteError) {
+      //     console.error('セレクトメニュー削除エラー:', deleteError)
+      //   }
+      // } else {
+      //   if (!interaction.replied) {
+      //     await interaction.reply({ content: 'テキストチャンネルを選択してください', ephemeral: true })
+      //   }
+      //   return
+      // }
     } catch (error) {
-      console.error('スレッド作成エラー:', error)
-      try {
-        if (!interaction.replied) {
-          await interaction.reply({ content: 'スレッド作成中にエラーが発生しました', ephemeral: true })
-        } else if (interaction.isRepliable()) {
-          await interaction.followUp({ content: 'スレッド作成中にエラーが発生しました', ephemeral: true })
-        }
-      } catch (replyError) {
-        console.error('エラー応答に失敗:', replyError)
+      console.error('[PHASE3] スレッド作成エラー:', error)
+      if (!interaction.replied) {
+        await interaction.reply({ content: 'スレッドの作成中にエラーが発生しました', ephemeral: true })
       }
     }
   }

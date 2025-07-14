@@ -32,6 +32,13 @@ export interface EnvironmentSchema {
 
   // 暗号化キー
   DISCORD_TOKEN_ENCRYPTION_KEY: string
+
+  // ログ設定
+  LOG_LEVEL?: 'debug' | 'info' | 'warn' | 'error' // オプショナル
+  LOG_FILE_ENABLE?: boolean // オプショナル
+  LOG_CONSOLE_ENABLE?: boolean // オプショナル
+  LOG_FILE_PATH?: string // オプショナル
+  LOG_ERROR_FILE_PATH?: string // オプショナル
 }
 
 /**
@@ -44,7 +51,12 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
   DB_LOGGING: false,
   FRONTEND_URL: 'http://127.0.0.1:5173', // IPv6回避のため127.0.0.1を使用
   CHARACTER_CATEGORY: 'キャラクター',
-  DICE_ROLL_CATEGORY: 'ダイスロールチャンネル'
+  DICE_ROLL_CATEGORY: 'ダイスロールチャンネル',
+  LOG_LEVEL: 'info',
+  LOG_FILE_ENABLE: true,
+  LOG_CONSOLE_ENABLE: true,
+  LOG_FILE_PATH: 'logs/app.log',
+  LOG_ERROR_FILE_PATH: 'logs/error.log'
 } as const
 
 /**

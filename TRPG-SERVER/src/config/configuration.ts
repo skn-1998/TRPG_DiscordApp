@@ -110,6 +110,27 @@ export const generateAppConfig = () => {
 
     security: {
       discordTokenEncryptionKey: env.DISCORD_TOKEN_ENCRYPTION_KEY
+    },
+
+    // ログ設定
+    logging: {
+      // ログレベル
+      level: env.LOG_LEVEL!,
+      // ファイルログの有効/無効
+      fileEnabled: env.LOG_FILE_ENABLE!,
+      // コンソールログの有効/無効
+      consoleEnabled: env.LOG_CONSOLE_ENABLE!,
+      // ログファイルのパス
+      filePath: env.LOG_FILE_PATH!,
+      // エラーログファイルのパス
+      errorFilePath: env.LOG_ERROR_FILE_PATH!
+    },
+
+    prototype: {
+      characterNameUpdate: process.env.PROTOTYPE_CHARACTER_NAME_UPDATE === 'true',
+      eventDriven: process.env.PROTOTYPE_EVENT_DRIVEN === 'true',
+      discordIntegration: process.env.PROTOTYPE_DISCORD_INTEGRATION === 'true',
+      enableLogging: process.env.PROTOTYPE_ENABLE_LOGGING === 'true'
     }
   } as const
 }
@@ -140,6 +161,11 @@ export type ConfigPaths =
   | 'auth.jwtExpiresIn'
   | 'auth.redirectUrl'
   | 'security.discordTokenEncryptionKey'
+  | 'logging.level'
+  | 'logging.fileEnabled'
+  | 'logging.consoleEnabled'
+  | 'logging.filePath'
+  | 'logging.errorFilePath'
 
 /**
  * 環境変数の再検証（テスト用）

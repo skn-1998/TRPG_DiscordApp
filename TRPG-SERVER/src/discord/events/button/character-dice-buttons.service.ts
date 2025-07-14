@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import {
   ButtonBuilder,
   ButtonInteraction,
@@ -38,6 +38,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
   private readonly locks = new Map<string, boolean>()
 
   constructor(
+    @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
     private readonly diceRollService: DiceRollService,
     private readonly paginationService: DiceRollPaginationService
