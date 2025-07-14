@@ -6,7 +6,6 @@ import { CharacterController } from './character.controller'
 import { CharacterService } from './character.service'
 import { AuthService } from '../auth/services/auth.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { PartialInputCharacterDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
@@ -32,7 +31,9 @@ describe('CharacterController', () => {
     userName: 'テストユーザー'
   }
 
-  const mockCharacterDto: PartialInputCharacterDto = {
+  // PartialInputCharacterDtoが未定義のため、any型で暫定対応
+  // TODO: PartialInputCharacterDtoの型定義を作成し、anyを置き換えること
+  const mockCharacterDto: any = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
     gameSystemId: 'test-system',
@@ -60,7 +61,8 @@ describe('CharacterController', () => {
   const mockCharacterSummary: CharacterSummaryDto = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
-    gameSystemId: 'test-system'
+    gameSystemId: 'test-system',
+    discordChannelId: ''
   }
 
   const mockUpdateCharacterDto: UpdateCharacterDto = {

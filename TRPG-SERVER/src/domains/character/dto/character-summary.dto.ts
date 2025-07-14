@@ -16,4 +16,9 @@ export interface CharacterSummaryDto {
    * ゲームシステムID
    */
   gameSystemId: string
+
+  /**
+   * ディスコードチャンネルID
+   */
+  discordChannelId: string
 }

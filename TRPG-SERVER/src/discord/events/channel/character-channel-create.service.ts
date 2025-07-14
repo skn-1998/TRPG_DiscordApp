@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
 import { ActionRowBuilder, AuditLogEvent, Client, SelectMenuBuilder, TextChannel } from 'discord.js'
 import { CharaInfoButtonService } from '../button/chara-info-button.service'
 import { getChannelIdByName } from '../../utils/searchChannelID'
@@ -16,6 +16,7 @@ export class ChannelCreateService {
 
   constructor(
     private readonly appConfigService: AppConfigService,
+    @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
     private readonly changeCharaInfoService: ChangeCharaInfoService
   ) {}

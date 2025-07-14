@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { Controller, Logger } from '@nestjs/common'
+import { Controller, Logger, Inject, forwardRef } from '@nestjs/common'
 import { CharaInfoButtonService } from './button/chara-info-button.service'
 import { DiceButtonService } from './button/dice-button.service'
 import {
@@ -63,6 +63,7 @@ export class EventsController {
     private addCharaInfoService: AddCharaInfoService,
     private changeCharaInfoService: ChangeCharaInfoService,
     private characterChannelService: CharacterChannelService,
+    @Inject(forwardRef(() => CharacterService))
     private characterService: CharacterService,
     private appConfigService: AppConfigService,
     private characterTabButtonsService: CharacterTabButtonsService,

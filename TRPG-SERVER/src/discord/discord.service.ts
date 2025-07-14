@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
 import {
   Client,
   Events,
@@ -28,6 +28,27 @@ import { CommandManagerService } from './services/command-manager.service'
 import { DiscordButton, DiscordModal, DiscordSelectMenu } from './interfaces/discord-interaction-types.interface'
 import { SendMessageDto } from './dto/send-message.dto'
 import { CreateChannelDto } from './dto/create-channel.dto'
+import { Character } from '../domains/character/models/character.model'
+
+// Guild情報の型定義
+interface GuildInfo {
+  id: string
+  name: string
+  memberCount: number
+  channels: Array<{ id: string; name: string; type: string }>
+}
+
+// Discord Embed用の型定義
+interface EmbedData {
+  title: string
+  description: string
+  color: number
+  fields: Array<{
+    name: string
+    value: string
+    inline: boolean
+  }>
+}
 
 /**
  * Discord統合サービス
@@ -51,6 +72,7 @@ export class DiscordService {
     private readonly discordClientService: DiscordClientService,
     private readonly eventsService: EventsService,
     private readonly commandsService: CommandsService,
+    @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
     private readonly appConfigService: AppConfigService,
     private readonly commandManagerService: CommandManagerService
@@ -707,5 +729,154 @@ export class DiscordService {
         }
       }
     }
+  }
+
+  /**
+   * キャラクター情報をDiscordチャンネルに投稿または更新する
+   * @param character キャラクター情報
+   * @param channelId チャンネルID
+   * @param guildInfo ギルド情報
+   * @returns 投稿・更新結果
+   */
+  async createOrUpdateCharacterEmbed(
+    character: Character,
+    channelId: string,
+    guildInfo: GuildInfo
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      this.logger.log(`キャラクターEmbed作成・更新: characterId=${character.characterId}, channelId=${channelId}`)
+
+      // チャンネルを取得
+      const channel = await this.client.channels.fetch(channelId)
+      if (!channel || !channel.isTextBased()) {
+        return { success: false, error: 'チャンネルが見つからないかテキストチャンネルではありません' }
+      }
+
+      // DM以外のテキストチャンネルかチェック
+      if (channel.isDMBased()) {
+        return { success: false, error: 'DMチャンネルはサポートされていません' }
+      }
+
+      // キャラクターの既存Embedメッセージを検索
+      const existingMessage = await this.findExistingCharacterEmbed(channel)
+
+      // Embedデータを作成
+      const embedData = this.createCharacterEmbedData(character, guildInfo)
+
+      if (existingMessage) {
+        // 既存メッセージを更新
+        try {
+          await existingMessage.edit({
+            content: '',
+            embeds: [embedData]
+          })
+          this.logger.log(`キャラクターEmbed更新完了: messageId=${existingMessage.id}`)
+          return { success: true, messageId: existingMessage.id }
+        } catch (error) {
+          this.logger.error(`Embed更新エラー: ${(error as Error).message}`)
+          return { success: false, error: 'Embedの更新に失敗しました' }
+        }
+      } else {
+        // 新規メッセージを作成
+        try {
+          const sentMessage = await channel.send({
+            content: '',
+            embeds: [embedData]
+          })
+          this.logger.log(`キャラクターEmbed作成完了: messageId=${sentMessage.id}`)
+          return { success: true, messageId: sentMessage.id }
+        } catch (error) {
+          this.logger.error(`Embed作成エラー: ${(error as Error).message}`)
+          return { success: false, error: 'Embedの作成に失敗しました' }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`キャラクターEmbed処理エラー: ${(error as Error).message}`)
+      return { success: false, error: 'キャラクターEmbed処理中にエラーが発生しました' }
+    }
+  }
+
+  /**
+   * 既存のキャラクターEmbedメッセージを検索する
+   * @param channel チャンネル
+   * @returns 既存メッセージまたはnull
+   */
+  private async findExistingCharacterEmbed(channel: any) {
+    try {
+      // 最新100件のメッセージを取得
+      const messages = await channel.messages.fetch({ limit: 100 })
+
+      // BOTのメッセージでEmbedを含むものを検索
+      for (const message of messages.values()) {
+        if (message.author.id === this.client.user?.id && message.embeds.length > 0) {
+          // このBotが送信したEmbedメッセージが見つかったらそれを返す
+          return message
+        }
+      }
+
+      return null
+    } catch (error) {
+      this.logger.error(`既存Embed検索エラー: ${(error as Error).message}`)
+      return null
+    }
+  }
+
+  /**
+   * キャラクター情報からDiscord Embed用のデータを作成する
+   * @param character キャラクター情報
+   * @param guildInfo ギルド情報
+   * @returns Discord Embed用のデータ
+   */
+  private createCharacterEmbedData(character: Character, guildInfo: GuildInfo): EmbedData {
+    const embedData: EmbedData = {
+      title: `${character.characterName}`,
+      description: `**サーバー名**: ${guildInfo.name}\n**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+      color: 0x00ff00, // 緑色
+      fields: [
+        {
+          name: 'キャラクター情報',
+          value: `**名前**: ${character.characterName}\n**システム**: ${character.gameSystemId || '未設定'}`,
+          inline: false
+        }
+      ]
+    }
+
+    // ステータス情報があれば追加
+    if (character.status && Object.keys(character.status).length > 0) {
+      const statusText = Object.entries(character.status)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'ステータス',
+        value: statusText.length > 1024 ? statusText.substring(0, 1021) + '...' : statusText,
+        inline: false
+      })
+    }
+
+    // パラメータ情報があれば追加
+    if (character.parameter && Object.keys(character.parameter).length > 0) {
+      const paramText = Object.entries(character.parameter)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'パラメータ',
+        value: paramText.length > 1024 ? paramText.substring(0, 1021) + '...' : paramText,
+        inline: false
+      })
+    }
+
+    // スキル情報があれば追加
+    if (character.skill && Object.keys(character.skill).length > 0) {
+      const skillText = Object.entries(character.skill)
+        .map(([key, value]) => `**${key}**: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+        .join('\n')
+      embedData.fields.push({
+        name: 'スキル',
+        value: skillText.length > 1024 ? skillText.substring(0, 1021) + '...' : skillText,
+        inline: false
+      })
+    }
+
+    return embedData
   }
 }

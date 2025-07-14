@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -8,8 +8,8 @@ import {
   APISelectMenuOption
 } from 'discord.js'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
-import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
+import { DiceRollText } from 'src/domains/dice-roll/models/dice-roll-text.model'
 
 // ページネーションの状態を保持するためのインターフェース
 export interface PaginatedDiceRoll {
@@ -20,7 +20,7 @@ export interface PaginatedDiceRoll {
   messageId?: string // 関連するDiscordメッセージID
 }
 
-// チャンネルごとのページネーション状態を保持
+// 内部的な状態管理用のインターフェース
 interface DiceRollPaginationState {
   [channelId: string]: {
     [messageId: string]: PaginatedDiceRoll
@@ -54,78 +54,44 @@ export class DiceRollPaginationService {
   private readonly CACHE_TTL = 5000 // 5秒（ダイスロール間隔に合わせて短く設定）
   private readonly CHARACTER_CACHE_TTL = 60000 // 1分（キャラクター情報は頻繁に変わらない）
 
-  constructor(
-    private readonly diceRollService: DiceRollService,
-    private readonly characterService: CharacterService
-  ) {}
+  constructor(private readonly diceRollService: DiceRollService) {}
 
   /**
-   * ダイスロール結果をページに分割してEmbedを作成
-   * @param channelId Discordチャンネル
-   * @param characterId キャラクターID（オプション）
+   * ダイスロール結果をページネーション形式のEmbedに変換
    */
   async createPaginatedEmbeds(channelId: string, characterId?: string): Promise<EmbedBuilder[]> {
     try {
-      const startTime = Date.now()
-      console.log(`[Performance] ページネーション処理開始: channelId=${channelId}`)
-
-      const cacheKey = characterId || 'all'
-
-      // キャッシュをチェック（再有効化）
-      if (this.pageCache[channelId]?.[cacheKey]) {
-        const cache = this.pageCache[channelId][cacheKey]
-        const now = Date.now()
-        const age = now - cache.timestamp
-
-        // キャッシュが有効期限内なら使用
-        if (age < this.CACHE_TTL) {
-          const cacheHitTime = Date.now() - startTime
-          console.log(
-            `キャッシュを使用: channelId=${channelId}, cacheKey=${cacheKey}, age=${age}ms, 取得時間=${cacheHitTime}ms`
-          )
-          return cache.pages
-        } else {
-          console.log(`キャッシュ期限切れ: channelId=${channelId}, cacheKey=${cacheKey}, age=${age}ms`)
-        }
-      } else {
-        console.log(`キャッシュ未使用: channelId=${channelId}, cacheKey=${cacheKey}`)
+      // キャッシュから取得
+      const cachedPages = this.getFromCache(channelId, characterId || 'all')
+      if (cachedPages) {
+        console.log(`[PHASE3] キャッシュから取得: ${characterId || 'all'} in ${channelId}`)
+        return cachedPages
       }
 
-      // DB問い合わせ開始時間
-      const dbQueryStartTime = Date.now()
-
-      // ダイスロール履歴を取得（全部または特定キャラクター）
+      // ダイスロールデータを取得
       const diceRolls = await this.diceRollService.findTextsByChannelId(channelId)
+      if (!diceRolls || diceRolls.length === 0) {
+        console.log(`[PHASE3] ダイスロールデータが見つかりません: ${channelId}`)
+        return this.createEmptyEmbed(characterId)
+      }
 
-      // DB問い合わせ終了時間
-      const dbQueryEndTime = Date.now()
-      const dbQueryDuration = dbQueryEndTime - dbQueryStartTime
-      console.log(
-        `[Performance] DB問い合わせ完了: channelId=${channelId}, 件数=${diceRolls.length}, 所要時間=${dbQueryDuration}ms`
-      )
+      // キャラクターIDが指定されている場合、フィルタリング
+      let filteredRolls = diceRolls
+      if (characterId && characterId !== 'all') {
+        filteredRolls = diceRolls.filter((roll: DiceRollText) => roll.characterId === characterId)
+      }
 
-      // フィルタリング開始時間
-      const filterStartTime = Date.now()
+      // 日時順でソート（新しい順）
+      const sortedRolls = filteredRolls.sort((a: DiceRollText, b: DiceRollText) => {
+        const timeA = a.createdAt || new Date(0)
+        const timeB = b.createdAt || new Date(0)
+        return new Date(timeB).getTime() - new Date(timeA).getTime()
+      })
 
-      const characterRolls = characterId
-        ? diceRolls.filter((diceRollText) => diceRollText.characterId === characterId)
-        : diceRolls
+      // 最新500件に制限
+      const limitedRolls = sortedRolls.slice(0, 500)
 
-      // 最新の100件に制限して処理を軽量化
-      const limitedRolls = characterRolls
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 100)
-
-      const filterEndTime = Date.now()
-      const filterDuration = filterEndTime - filterStartTime
-      console.log(
-        `[Performance] データフィルタリング完了: フィルタ前=${diceRolls.length}件, フィルタ後=${limitedRolls.length}件, 所要時間=${filterDuration}ms`
-      )
-
-      // Embed生成開始時間
-      const embedStartTime = Date.now()
-
-      // ページに分割（1ページあたり約1800文字まで）
+      // Embedページを作成
       const pages: EmbedBuilder[] = []
       let currentPage = new EmbedBuilder().setTitle('ダイスロール履歴').setColor('#0099ff')
 
@@ -133,190 +99,183 @@ export class DiceRollPaginationService {
       const pageLimit = 500 // Embedの安全上限より少なめに設定
 
       // キャラクター名を取得してタイトルに追加（特定キャラクターの場合）
-      // characterIdが明示的に指定されていない場合は、全体表示とする
+      // 【PHASE3】 一時的にキャラクター名取得をスキップ
       if (characterId && characterId !== 'all') {
-        try {
-          const character = await this.characterService.findOne(characterId)
-          if (character && character.characterName) {
-            currentPage.setTitle(`${character.characterName}のダイスロール`)
-          }
-        } catch (error) {
-          console.error('キャラクター情報取得エラー:', error)
-        }
+        console.log(`[PHASE3] キャラクター指定: ${characterId}`)
+        currentPage.setTitle(`キャラクター(${characterId})のダイスロール`)
       }
 
       // ロール履歴がない場合
       if (limitedRolls.length === 0) {
-        currentPage.setDescription('ダイスロール履歴がありません')
-        pages.push(currentPage)
-        const result = this.setPageFooters(pages)
-
-        // Embed生成時間を計測
-        const embedEndTime = Date.now()
-        const embedDuration = embedEndTime - embedStartTime
-        console.log(`[Performance] Embed生成完了: ページ数=${result.length}, 所要時間=${embedDuration}ms`)
-
-        // キャッシュに保存（再有効化）
-        this.saveToCache(channelId, cacheKey, result)
-
-        const totalTime = Date.now() - startTime
-        console.log(
-          `[Performance] ページネーション処理完了: 総所要時間=${totalTime}ms (DB=${dbQueryDuration}ms, フィルタ=${filterDuration}ms, Embed=${embedDuration}ms)`
-        )
-
-        return result
+        const emptyEmbed = new EmbedBuilder()
+          .setTitle(
+            characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
+          )
+          .setColor('#ff6b6b')
+          .setDescription('ダイスロール履歴がありません。')
+          .setTimestamp()
+        return [emptyEmbed]
       }
 
-      // バッチ処理で効率化（20件ずつ処理）
-      const batchSize = 20
-      for (let i = 0; i < limitedRolls.length; i += batchSize) {
-        const batch = limitedRolls.slice(i, i + batchSize)
+      // 各ダイスロールを処理
+      for (const roll of limitedRolls) {
+        try {
+          // ダイスロール結果の文字列を生成
+          const rollText = this.formatDiceRoll(roll)
 
-        for (const roll of batch) {
-          // フォーマットを変更して新しいエントリを上に表示
-          const entryText = `${roll.text}\n`
+          // 追加後の長さを計算
+          const newLength = currentLength + rollText.length
 
-          if (currentLength + entryText.length > pageLimit) {
-            // 現在のページを確定し、新しいページを作成
+          // ページ制限を超える場合は新しいページを作成
+          if (newLength > pageLimit && currentPage.data.description) {
             pages.push(currentPage)
-
-            // 新しいページは前のページと同じタイトルを維持
-            currentPage = new EmbedBuilder().setTitle(currentPage.data.title ?? 'ダイスロール履歴').setColor('#0099ff')
-
+            currentPage = new EmbedBuilder()
+              .setTitle(
+                characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
+              )
+              .setColor('#0099ff')
             currentLength = 0
           }
 
-          // 項目を追加（既存のテキストの前に新しいエントリを追加）
+          // 現在のページに追加
           const currentDescription = currentPage.data.description || ''
-          currentPage.setDescription(entryText + currentDescription)
-          currentLength += entryText.length
+          currentPage.setDescription(currentDescription + rollText)
+          currentLength += rollText.length
+        } catch (error) {
+          console.error(`[PHASE3] ダイスロール処理エラー:`, error)
+          continue
         }
       }
 
       // 最後のページを追加
-      if (currentLength > 0) {
+      if (currentPage.data.description) {
         pages.push(currentPage)
       }
 
-      const result = this.setPageFooters(pages)
+      // 空の場合は空のEmbedを返す
+      if (pages.length === 0) {
+        return this.createEmptyEmbed(characterId)
+      }
 
-      const embedEndTime = Date.now()
-      const embedDuration = embedEndTime - embedStartTime
-      console.log(`[Performance] Embed生成完了: ページ数=${result.length}, 所要時間=${embedDuration}ms`)
+      // フッターを設定
+      const pagesWithFooter = this.setPageFooters(pages)
 
-      // キャッシュに保存（再有効化）
-      this.saveToCache(channelId, cacheKey, result)
+      // キャッシュに保存
+      this.saveToCache(channelId, characterId || 'all', pagesWithFooter)
 
-      const totalTime = Date.now() - startTime
-      console.log(
-        `[Performance] ページネーション処理完了: 総所要時間=${totalTime}ms (DB=${dbQueryDuration}ms, フィルタ=${filterDuration}ms, Embed=${embedDuration}ms)`
-      )
-
-      return result
+      console.log(`[PHASE3] ${pagesWithFooter.length}ページ生成完了: ${characterId || 'all'} in ${channelId}`)
+      return pagesWithFooter
     } catch (error) {
-      console.error('ページ生成エラー:', error)
-      // エラー時は空のページを返す
-      const errorPage = new EmbedBuilder()
-        .setTitle('ダイスロール履歴')
-        .setDescription('履歴の読み込み中にエラーが発生しました')
-        .setColor('#ff0000')
-      return [errorPage]
+      console.error('[PHASE3] ページネーション生成エラー:', error)
+      return this.createEmptyEmbed(characterId)
     }
   }
 
   /**
-   * 各ページにフッターを設定する
+   * 空のEmbedを作成
    */
-  private setPageFooters(pages: EmbedBuilder[]): EmbedBuilder[] {
-    pages.forEach((page, index) => {
-      page.setFooter({
-        text: `Page ${index + 1}/${pages.length}`
-      })
-      // タイムスタンプも追加（オプション）
-      page.setTimestamp()
-    })
-    return pages
+  private createEmptyEmbed(characterId?: string): EmbedBuilder[] {
+    const emptyEmbed = new EmbedBuilder()
+      .setTitle(
+        characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
+      )
+      .setColor('#ff6b6b')
+      .setDescription('ダイスロール履歴がありません。')
+      .setTimestamp()
+    return [emptyEmbed]
   }
 
   /**
-   * ページネーションボタンとセレクトメニューを作成
+   * ダイスロール結果を表示形式にフォーマット
+   */
+  private formatDiceRoll(roll: DiceRollText): string {
+    const timestamp = new Date(roll.createdAt || new Date())
+    const timeString = timestamp.toLocaleString('ja-JP', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+
+    // textプロパティをそのまま使用
+    const rollText = roll.text || `${roll.diceRoll} → ${roll.result}`
+
+    return `**${timeString}** ${rollText}\n`
+  }
+
+  /**
+   * 各ページにフッターを設定
+   */
+  private setPageFooters(pages: EmbedBuilder[]): EmbedBuilder[] {
+    return pages.map((page, index) => {
+      return page.setFooter({
+        text: `ページ ${index + 1}/${pages.length}`,
+        iconURL: undefined
+      })
+    })
+  }
+
+  /**
+   * ページネーション用のボタンコントロールを作成
    */
   async createPaginationControls(
     messageId: string,
     channelId: string,
     totalPages: number
   ): Promise<(ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[]> {
-    // ページネーション状態を取得
-    const state = this.getPaginationState(channelId, messageId)
-    const currentPage = state ? state.currentPage : 0
-
-    // 結果を返すコントロール配列
     const rows: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[] = []
 
-    // 総ページ数が0の場合でも最低限のコントロールは作成
-    const effectiveTotalPages = Math.max(1, totalPages)
+    // ページ数が1以下の場合は何も表示しない
+    if (totalPages <= 1) {
+      return rows
+    }
 
-    // ページネーションボタン（画像スタイルに合わせて）
-    const firstPageButton = new ButtonBuilder()
-      .setCustomId(`dice-first*${messageId}*${channelId}`)
-      .setLabel('<<')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage <= 0 || effectiveTotalPages <= 1)
+    // 現在の状態を取得
+    const state = this.getPaginationState(channelId, messageId)
 
-    const prevButton = new ButtonBuilder()
-      .setCustomId(`dice-prev*${messageId}*${channelId}`)
-      .setLabel('<')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage <= 0 || effectiveTotalPages <= 1)
-
-    const nextButton = new ButtonBuilder()
-      .setCustomId(`dice-next*${messageId}*${channelId}`)
-      .setLabel('>')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= effectiveTotalPages - 1 || effectiveTotalPages <= 1)
-
-    const lastPageButton = new ButtonBuilder()
-      .setCustomId(`dice-last*${messageId}*${channelId}`)
-      .setLabel('>>')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= effectiveTotalPages - 1 || effectiveTotalPages <= 1)
-
-    // キャンセルボタン
-    const cancelButton = new ButtonBuilder()
-      .setCustomId(`dice-cancel*${messageId}*${channelId}`)
-      .setLabel('cancel')
-      .setStyle(ButtonStyle.Danger)
-
-    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      firstPageButton,
-      prevButton,
-      nextButton,
-      lastPageButton,
-      cancelButton
+    // ページ移動ボタンを作成
+    const pageButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`dice-page-first*${messageId}*${channelId}`)
+        .setLabel('最初')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(state?.currentPage === 1),
+      new ButtonBuilder()
+        .setCustomId(`dice-page-prev*${messageId}*${channelId}`)
+        .setLabel('前')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(state?.currentPage === 1),
+      new ButtonBuilder()
+        .setCustomId(`dice-page-next*${messageId}*${channelId}`)
+        .setLabel('次')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(state?.currentPage === totalPages),
+      new ButtonBuilder()
+        .setCustomId(`dice-page-last*${messageId}*${channelId}`)
+        .setLabel('最後')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(state?.currentPage === totalPages),
+      new ButtonBuilder()
+        .setCustomId(`dice-page-cancel*${messageId}*${channelId}`)
+        .setLabel('閉じる')
+        .setStyle(ButtonStyle.Danger)
     )
 
-    // ボタン行を追加
-    rows.push(buttonRow)
+    rows.push(pageButtons)
 
-    // ページ選択用のセレクトメニュー（ページ数が多い場合）
-    if (effectiveTotalPages > 1) {
-      await this.addPageSelectMenu(rows, messageId, channelId, currentPage, effectiveTotalPages)
+    // ページ数が多い場合はページ選択メニューを追加
+    if (totalPages > 3) {
+      await this.addPageSelectMenu(rows, messageId, channelId, state?.currentPage || 1, totalPages)
     }
 
-    try {
-      // キャラクター選択メニュー生成
-      await this.addCharacterSelectMenu(rows, messageId, channelId, state)
-    } catch (error) {
-      console.error('キャラクター選択メニュー作成エラー:', error)
-      // エラーが発生しても少なくともボタンは表示する
-    }
+    // キャラクター選択メニューを追加
+    await this.addCharacterSelectMenu(rows, messageId, channelId, state)
 
-    // 最低でもボタン行が含まれているはず
     return rows
   }
 
   /**
-   * ページ選択用のセレクトメニューを追加
+   * ページ選択メニューを追加
    */
   private async addPageSelectMenu(
     rows: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[],
@@ -325,51 +284,63 @@ export class DiceRollPaginationService {
     currentPage: number,
     totalPages: number
   ): Promise<void> {
-    const pageOptions: APISelectMenuOption[] = []
+    try {
+      const pageOptions: APISelectMenuOption[] = []
 
-    // 最大25個まで（Discordの制限）
-    const maxOptions = Math.min(totalPages, 25)
-
-    for (let i = 0; i < maxOptions; i++) {
-      pageOptions.push({
-        label: `Page ${i + 1}`,
-        value: i.toString(),
-        description: `${i + 1}/${totalPages}ページ目に移動`,
-        default: i === currentPage
-      })
-    }
-
-    // 25ページを超える場合は「次のページ」「前のページ」オプションを追加
-    if (totalPages > 25) {
-      if (currentPage >= 25) {
+      // 最大25ページまで選択肢を作成（Discord制限）
+      const maxPages = Math.min(totalPages, 25)
+      for (let i = 1; i <= maxPages; i++) {
         pageOptions.push({
-          label: '前の25ページ',
-          value: 'prev-25',
-          description: '前の25ページ分を表示'
+          label: `ページ ${i}`,
+          value: i.toString(),
+          description: `ページ ${i} に移動`,
+          default: i === currentPage
         })
       }
-      if (currentPage < totalPages - 25) {
+
+      // 25ページを超える場合は省略表示
+      if (totalPages > 25) {
         pageOptions.push({
-          label: '次の25ページ',
-          value: 'next-25',
-          description: '次の25ページ分を表示'
+          label: `... (${totalPages}ページ中)`,
+          value: '25',
+          description: '一部のページのみ表示されています'
         })
       }
-    }
 
-    if (pageOptions.length > 1) {
       const pageSelectMenu = new StringSelectMenuBuilder()
         .setCustomId(`dice-page-select*${messageId}*${channelId}`)
-        .setPlaceholder(`Page ${currentPage + 1}/${totalPages}`)
+        .setPlaceholder('ページを選択')
         .addOptions(pageOptions)
 
-      const pageSelectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(pageSelectMenu)
-      rows.push(pageSelectRow)
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(pageSelectMenu)
+      rows.push(selectRow)
+    } catch (error) {
+      console.error('[PHASE3] ページ選択メニュー作成エラー:', error)
     }
   }
 
   /**
-   * ページのキャッシュを保存
+   * キャッシュから取得
+   */
+  private getFromCache(channelId: string, characterId: string): EmbedBuilder[] | null {
+    const channelCache = this.pageCache[channelId]
+    if (!channelCache) return null
+
+    const cached = channelCache[characterId]
+    if (!cached) return null
+
+    // キャッシュの有効期限チェック
+    const now = Date.now()
+    if (now - cached.timestamp > this.CACHE_TTL) {
+      delete channelCache[characterId]
+      return null
+    }
+
+    return cached.pages
+  }
+
+  /**
+   * キャッシュに保存
    */
   private saveToCache(channelId: string, characterId: string, pages: EmbedBuilder[]): void {
     if (!this.pageCache[channelId]) {
@@ -377,28 +348,26 @@ export class DiceRollPaginationService {
     }
 
     this.pageCache[channelId][characterId] = {
-      pages: pages,
+      pages,
       timestamp: Date.now()
     }
-
-    console.log(`キャッシュを保存: channelId=${channelId}, characterId=${characterId}, ページ数=${pages.length}`)
   }
 
   /**
    * キャッシュを無効化
    */
   invalidateCache(channelId: string, characterId?: string): void {
+    if (!this.pageCache[channelId]) return
+
     if (characterId) {
-      // 特定のキャラクターのキャッシュのみ削除
-      if (this.pageCache[channelId]) {
-        delete this.pageCache[channelId][characterId]
-        delete this.pageCache[channelId]['all'] // 全体表示も更新が必要
-        console.log(`特定キャラクターのキャッシュを無効化: channelId=${channelId}, characterId=${characterId}`)
-      }
+      delete this.pageCache[channelId][characterId]
     } else {
-      // チャンネル全体のキャッシュを削除
       delete this.pageCache[channelId]
-      console.log(`チャンネル全体のキャッシュを無効化: channelId=${channelId}`)
+    }
+
+    // キャラクター情報キャッシュも無効化
+    if (this.characterCache[channelId]) {
+      delete this.characterCache[channelId]
     }
   }
 
@@ -412,68 +381,29 @@ export class DiceRollPaginationService {
     state: PaginatedDiceRoll | null
   ): Promise<void> {
     try {
-      // キャッシュからキャラクター情報を取得
-      let characters = this.getCharactersFromCache(channelId)
-
-      // キャッシュにデータがない場合は新しく取得
-      if (!characters) {
-        characters = await this.fetchCharacters(channelId)
-
-        // 取得できなかったらここで処理終了
-        if (!characters || characters.length === 0) {
-          return
-        }
-      }
-
-      // セレクトメニューのオプションを作成
-      const characterOptions: APISelectMenuOption[] = []
-
-      // 全表示オプション - state.characterIdがundefinedまたはnullの場合デフォルトを全表示に
-      characterOptions.push({
-        label: '全てのキャラクター',
-        value: 'all',
-        description: '全キャラクターのロール履歴を表示',
-        default: state?.characterId === undefined || state?.characterId === null
-      })
-
-      // 各キャラクターのオプション
-      for (const character of characters) {
-        if (character && character.characterId && character.characterName) {
-          characterOptions.push({
-            label: character.characterName || 'Unknown',
-            value: character.characterId,
-            description: `${character.characterName}`,
-            default: state?.characterId === character.characterId
-          })
-        }
-      }
-
-      // 選択肢があればセレクトメニューを作成
-      if (characterOptions.length > 1) {
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId(`dice-char-select*${messageId}*${channelId}`)
-          .setPlaceholder('キャラクターを選択')
-          .addOptions(characterOptions)
-
-        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu)
-
-        rows.push(selectRow)
-      }
+      // 【PHASE3】 キャラクター選択メニューを一時的に無効化
+      console.log('[PHASE3] キャラクター選択メニューは一時的に無効化されています')
+      return
     } catch (error) {
-      console.error('キャラクター選択メニュー作成エラー:', error)
+      console.error('[PHASE3] キャラクター選択メニュー作成エラー:', error)
       // エラーをスローしない - ボタンだけでも表示できるようにする
     }
   }
 
   /**
-   * キャッシュからキャラクター情報を取得
+   * キャラクター情報をキャッシュから取得
    */
   private getCharactersFromCache(channelId: string): Character[] | null {
-    const cache = this.characterCache[channelId]
-    if (cache && Date.now() - cache.timestamp < this.CHARACTER_CACHE_TTL) {
-      return cache.characters
+    const cached = this.characterCache[channelId]
+    if (!cached) return null
+
+    const now = Date.now()
+    if (now - cached.timestamp > this.CHARACTER_CACHE_TTL) {
+      delete this.characterCache[channelId]
+      return null
     }
-    return null
+
+    return cached.characters
   }
 
   /**
@@ -481,38 +411,11 @@ export class DiceRollPaginationService {
    */
   private async fetchCharacters(channelId: string): Promise<Character[]> {
     try {
-      // チャンネルに関連するキャラクターを取得
-      const diceRollChannel = await this.diceRollService.findChannelByChannelId(channelId)
-      if (!diceRollChannel || !diceRollChannel.characterIds || diceRollChannel.characterIds.length === 0) {
-        return []
-      }
-
-      // 全てのキャラクターを先に取得
-      const characters: Character[] = []
-      for (const charId of diceRollChannel.characterIds) {
-        try {
-          const character = await this.characterService.findOne(charId)
-          if (character) {
-            characters.push(character)
-          }
-        } catch (error) {
-          console.error(`キャラクター取得エラー (ID: ${charId}):`, error)
-        }
-      }
-
-      // キャッシュに保存
-      if (!this.characterCache[channelId]) {
-        this.characterCache[channelId] = { characters: [], timestamp: 0 }
-      }
-
-      this.characterCache[channelId] = {
-        characters,
-        timestamp: Date.now()
-      }
-
-      return characters
+      // 【PHASE3】 キャラクター情報取得を一時的に無効化
+      console.log('[PHASE3] キャラクター情報取得は一時的に無効化されています')
+      return []
     } catch (error) {
-      console.error('キャラクター情報取得エラー:', error)
+      console.error('[PHASE3] キャラクター情報取得エラー:', error)
       return []
     }
   }
@@ -535,110 +438,94 @@ export class DiceRollPaginationService {
   }
 
   /**
-   * ページを更新（前へ/次へ/最初/最後）
+   * ページを更新
    */
   updatePage(channelId: string, messageId: string, direction: 'prev' | 'next' | 'first' | 'last'): EmbedBuilder | null {
     const state = this.getPaginationState(channelId, messageId)
     if (!state) return null
 
-    const oldPage = state.currentPage
-
+    let newPage = state.currentPage
     switch (direction) {
-      case 'first':
-        state.currentPage = 0
-        break
-      case 'last':
-        state.currentPage = state.totalPages - 1
-        break
       case 'prev':
-        if (state.currentPage > 0) {
-          state.currentPage--
-        } else {
-          return null // 変更なし
-        }
+        newPage = Math.max(1, state.currentPage - 1)
         break
       case 'next':
-        if (state.currentPage < state.totalPages - 1) {
-          state.currentPage++
-        } else {
-          return null // 変更なし
-        }
+        newPage = Math.min(state.totalPages, state.currentPage + 1)
         break
-      default:
-        return null
+      case 'first':
+        newPage = 1
+        break
+      case 'last':
+        newPage = state.totalPages
+        break
     }
 
-    // ページが実際に変更された場合のみ状態を保存
-    if (oldPage !== state.currentPage) {
-      this.savePaginationState(channelId, messageId, state)
-      return state.pages[state.currentPage]
-    }
+    if (newPage === state.currentPage) return null
 
-    return null
+    state.currentPage = newPage
+    this.savePaginationState(channelId, messageId, state)
+
+    return state.pages[newPage - 1] || null
   }
 
   /**
-   * 特定のページに移動
+   * 指定されたページにジャンプ
    */
   jumpToPage(channelId: string, messageId: string, pageNumber: number): EmbedBuilder | null {
     const state = this.getPaginationState(channelId, messageId)
     if (!state) return null
 
-    // ページ番号の妥当性チェック
-    if (pageNumber < 0 || pageNumber >= state.totalPages) {
-      return null
-    }
+    const newPage = Math.max(1, Math.min(state.totalPages, pageNumber))
+    if (newPage === state.currentPage) return null
 
-    // 現在のページと同じ場合は何もしない
-    if (state.currentPage === pageNumber) {
-      return null
-    }
-
-    state.currentPage = pageNumber
+    state.currentPage = newPage
     this.savePaginationState(channelId, messageId, state)
-    return state.pages[state.currentPage]
+
+    return state.pages[newPage - 1] || null
   }
 
   /**
-   * ページネーションをキャンセル（削除）
+   * ページネーションをキャンセル
    */
   cancelPagination(channelId: string, messageId: string): boolean {
-    if (this.paginationState[channelId]?.[messageId]) {
-      delete this.paginationState[channelId][messageId]
+    if (!this.paginationState[channelId]) return false
 
-      // チャンネル内に他のページネーションがない場合はチャンネルごと削除
-      if (Object.keys(this.paginationState[channelId]).length === 0) {
-        delete this.paginationState[channelId]
-      }
+    delete this.paginationState[channelId][messageId]
 
-      return true
+    // チャンネル全体の状態が空になったら削除
+    if (Object.keys(this.paginationState[channelId]).length === 0) {
+      delete this.paginationState[channelId]
     }
-    return false
+
+    return true
   }
 
   /**
-   * キャラクター切り替え時のページ更新
+   * キャラクター選択を更新
    */
   async updateCharacter(channelId: string, messageId: string, characterId: string): Promise<PaginatedDiceRoll | null> {
-    // 'all'の場合は全キャラクター表示
-    const targetCharId = characterId === 'all' ? undefined : characterId
+    try {
+      // 新しいページを生成
+      const pages = await this.createPaginatedEmbeds(channelId, characterId)
+      if (!pages || pages.length === 0) return null
 
-    // キャッシュを無効化して最新データを取得
-    this.invalidateCache(channelId, targetCharId)
+      // 新しい状態を作成
+      const newState: PaginatedDiceRoll = {
+        pages,
+        totalPages: pages.length,
+        currentPage: 1,
+        characterId,
+        messageId
+      }
 
-    // 新しいページを生成
-    const pages = await this.createPaginatedEmbeds(channelId, targetCharId)
+      // 状態を保存
+      this.savePaginationState(channelId, messageId, newState)
 
-    // 状態を更新
-    const newState: PaginatedDiceRoll = {
-      pages,
-      totalPages: pages.length,
-      currentPage: 0,
-      characterId: targetCharId,
-      messageId
+      console.log(`[PHASE3] キャラクター選択更新完了: ${characterId} (${pages.length}ページ)`)
+      return newState
+    } catch (error) {
+      console.error('[PHASE3] キャラクター選択更新エラー:', error)
+      return null
     }
-
-    this.savePaginationState(channelId, messageId, newState)
-    return newState
   }
 }
