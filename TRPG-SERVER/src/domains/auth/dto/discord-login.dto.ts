@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator'
+import { IsNotEmpty, IsString, Matches } from 'class-validator'
 import { BaseDto, ValidationUtils } from '../../../core/dto/base.dto'
 
 /**
@@ -41,4 +41,22 @@ export class TokenValidationOutputDto {
   readonly discordUserId: string
   readonly iat?: number
   readonly exp?: number
+}
+
+/**
+ * validate-token用ヘッダーDTO
+ */
+export class ValidateTokenHeaderDto {
+  @IsString({ message: 'Authorizationヘッダーは必須です' })
+  @Matches(/^Bearer\s.+$/, { message: 'AuthorizationヘッダーはBearerトークン形式で指定してください' })
+  readonly Authorization: string
+}
+
+/**
+ * :userId/User用パラメータDTO
+ */
+export class GetUserParamDto {
+  @IsString({ message: 'userIdは必須です' })
+  @IsNotEmpty({ message: 'userIdは空にできません' })
+  readonly userId: string
 }

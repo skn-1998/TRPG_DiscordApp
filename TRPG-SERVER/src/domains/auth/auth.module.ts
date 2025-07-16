@@ -8,6 +8,7 @@ import { DiscordStrategy } from './discord.strategy'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { UserModule } from '../user/user.module'
 import { SharedModule } from '../../core/shared/shared.module'
+import { CookieService } from '../../utils/cookie.service'
 
 /**
  * 認証モジュール
@@ -42,7 +43,7 @@ import { SharedModule } from '../../core/shared/shared.module'
     })
   ],
   controllers: [AuthController],
-  providers: [AuthService, DiscordStrategy, JwtAuthGuard],
-  exports: [AuthService, JwtAuthGuard]
+  providers: [AuthService, DiscordStrategy, JwtAuthGuard, ConfigService, CookieService],
+  exports: [AuthService]
 })
 export class AuthModule {}

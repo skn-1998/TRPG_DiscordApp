@@ -9,8 +9,9 @@ import { DiceFromContextMenuService } from './commands-components/dice-from-cont
 import { CommandsService } from './commands.service'
 import { EventsModule } from '../events/events.module'
 import { DiceResultService } from './commands-components/dice-result.service'
+import { SharedModule } from '../../shared/shared.module'
 @Module({
-  imports: [EventsModule],
+  imports: [EventsModule, SharedModule],
   providers: [
     CharacterThreadService,
     RollDiceService,

@@ -2,9 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { UserController } from './user.controller'
 import { UserService } from './user.service'
 import { NotFoundException } from '@nestjs/common'
-import { CreateUserDto } from './dto/create-user.dto'
+import { CreateUserDto, DiscordUserIdParamDto, CharacterIdParamDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { AuthService } from '../auth/services/auth.service'
+import { ApiResponseUtil } from '../../utils/api-response.util'
+import { Response } from 'express'
 
 describe('UserController', () => {
   let controller: UserController
@@ -35,6 +37,14 @@ describe('UserController', () => {
 
   const mockJwtAuthGuard = {
     canActivate: jest.fn().mockReturnValue(true)
+  }
+
+  // mockResponse: Express.Response型に準拠
+  const mockResponse = (): any => {
+    const res: Partial<Response> = {}
+    res.status = jest.fn().mockReturnValue(res)
+    res.json = jest.fn().mockReturnValue(res)
+    return res as Response
   }
 
   beforeEach(async () => {
@@ -70,7 +80,10 @@ describe('UserController', () => {
 
       mockUserService.create.mockResolvedValue(mockUser)
 
-      expect(await controller.create(createUserDto)).toEqual(mockUser)
+      const res = mockResponse()
+      await controller.create(createUserDto, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(mockUser))
       expect(service.create).toHaveBeenCalledWith(createUserDto)
     })
   })
@@ -79,7 +92,10 @@ describe('UserController', () => {
     it('should return a user by Discord ID', async () => {
       mockUserService.findByDiscordId.mockResolvedValue(mockUser)
 
-      expect(await controller.findOne('discord123')).toEqual(mockUser)
+      const res = mockResponse()
+      await controller.findOne({ discordUserId: 'discord123' }, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(mockUser))
       expect(service.findByDiscordId).toHaveBeenCalledWith('discord123')
     })
   })
@@ -91,7 +107,10 @@ describe('UserController', () => {
 
       mockUserService.update.mockResolvedValue(updatedUser)
 
-      expect(await controller.update('discord123', updateUserDto)).toEqual(updatedUser)
+      const res = mockResponse()
+      await controller.update({ discordUserId: 'discord123' }, updateUserDto, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(updatedUser))
       expect(service.update).toHaveBeenCalledWith('discord123', updateUserDto)
     })
   })
@@ -102,7 +121,10 @@ describe('UserController', () => {
 
       mockUserService.addCharacterId.mockResolvedValue(updatedUser)
 
-      expect(await controller.addCharacter('discord123', 'character123')).toEqual(updatedUser)
+      const res = mockResponse()
+      await controller.addCharacter({ discordUserId: 'discord123', characterId: 'character123' }, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(updatedUser))
       expect(service.addCharacterId).toHaveBeenCalledWith('discord123', 'character123')
     })
   })
@@ -113,7 +135,10 @@ describe('UserController', () => {
 
       mockUserService.removeCharacterId.mockResolvedValue(updatedUser)
 
-      expect(await controller.removeCharacter('discord123', 'character123')).toEqual(updatedUser)
+      const res = mockResponse()
+      await controller.removeCharacter({ discordUserId: 'discord123', characterId: 'character123' }, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(updatedUser))
       expect(service.removeCharacterId).toHaveBeenCalledWith('discord123', 'character123')
     })
   })
@@ -122,7 +147,10 @@ describe('UserController', () => {
     it('should remove a user', async () => {
       mockUserService.remove.mockResolvedValue(mockUser)
 
-      expect(await controller.remove('discord123')).toEqual(mockUser)
+      const res = mockResponse()
+      await controller.remove({ discordUserId: 'discord123' }, res)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(ApiResponseUtil.success(mockUser))
       expect(service.remove).toHaveBeenCalledWith('discord123')
     })
   })

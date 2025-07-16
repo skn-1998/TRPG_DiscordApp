@@ -11,8 +11,10 @@ import {
   UnauthorizedException,
   NotFoundException,
   Headers,
-  Header
+  Header,
+  Res
 } from '@nestjs/common'
+import { Request, Response } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { CharacterInputDto } from './dto/create-character.dto'
@@ -21,6 +23,8 @@ import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
 import { AuthGuard } from '@nestjs/passport'
 import { AuthService } from '../auth/services/auth.service'
+import { CharacterIdParamDto } from './dto/create-character.dto'
+import { ApiResponseUtil } from '../../utils/api-response.util'
 
 /**
  * キャラクターコントローラー
@@ -35,116 +39,121 @@ export class CharacterController {
 
   /**
    * 新しいキャラクターを作成する
-   * @param characterData キャラクター作成DTO
-   * @param req リクエスト
-   * @returns 作成されたキャラクター
    */
   @Post()
   @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'application/json')
-  async create(
-    @Body() characterData: CharacterInputDto,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    @Req() req: any
-  ): Promise<Character> {
-    console.log('🔍 Server Debug Info:', {
-      hasUser: !!req.user,
-      userInfo: req.user
-    })
-
-    console.log(characterData, req.user)
-    if (!req.user || !req.user.discordUserId) {
-      throw new UnauthorizedException('認証トークンがありません')
+  async create(@Body() characterData: CharacterInputDto, @Req() req: Request, @Res() res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.discordUserId) {
+        ApiResponseUtil.error(res, '認証トークンがありません', 401)
+        return
+      }
+      const createCharacterDto: CharacterInputDto = {
+        ...characterData,
+        discordUserId: req.user.discordUserId
+      }
+      const character = await this.characterService.create(createCharacterDto)
+      ApiResponseUtil.success(res, character)
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクター作成に失敗しました')
     }
-
-    // JWTAuthGuardで既に認証済みのため、req.userから直接情報を取得
-    const validated = req.user
-
-    // 新しいDTOオブジェクトを作成してユーザーIDを設定
-    const createCharacterDto: CharacterInputDto = {
-      ...characterData,
-      discordUserId: validated.discordUserId
-    }
-    const character = await this.characterService.create(createCharacterDto)
-    console.log(character, createCharacterDto)
-    return character
   }
 
   /**
    * 認証されたユーザーが所有するすべてのキャラクターを取得する
-   * @param req リクエスト
-   * @returns キャラクターの配列
    */
   @Get()
   @UseGuards(JwtAuthGuard)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async findAll(@Req() req: any): Promise<Character[]> {
-    if (!req.user || !req.user.discordUserId) {
-      throw new UnauthorizedException('認証トークンがありません')
+  async findAll(@Req() req: Request, @Res() res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.discordUserId) {
+        ApiResponseUtil.error(res, '認証トークンがありません', 401)
+        return
+      }
+      const characters = await this.characterService.findHavingAll(req.user.discordUserId)
+      ApiResponseUtil.success(res, characters)
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクター一覧取得に失敗しました')
     }
-
-    return this.characterService.findHavingAll(req.user.userId)
   }
 
   /**
    * 認証されたユーザーが所有するキャラクターの軽量データを取得する（カード表示用）
-   * @param req リクエスト
-   * @returns キャラクター軽量データの配列
    */
   @Get('summaries')
   @UseGuards(JwtAuthGuard)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async findUserCharacterSummaries(@Req() req: any): Promise<CharacterSummaryDto[]> {
-    console.log('findUserCharacterSummaries')
-    console.log('🔍 Server Debug Info:', {
-      hasUser: !!req.user,
-      userInfo: req.user
-    })
-    if (!req.user || !req.user.discordUserId) {
-      throw new UnauthorizedException('認証トークンがありません')
+  async findUserCharacterSummaries(@Req() req: Request, @Res() res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.discordUserId) {
+        ApiResponseUtil.error(res, '認証トークンがありません', 401)
+        return
+      }
+      const summaries = await this.characterService.findUserCharacterSummaries(req.user.discordUserId)
+      ApiResponseUtil.success(res, summaries)
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクターサマリー取得に失敗しました')
     }
-
-    return this.characterService.findUserCharacterSummaries(req.user.discordUserId)
   }
 
   /**
    * 特定のキャラクターを取得する
-   * @param id キャラクターID
-   * @returns キャラクター
    */
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string): Promise<Character> {
-    const character = await this.characterService.findOne(id)
-    if (!character) {
-      throw new NotFoundException('キャラクターが見つかりません')
+  async findOne(@Param() params: CharacterIdParamDto, @Res() res: Response): Promise<void> {
+    try {
+      const { id } = params
+      const character = await this.characterService.findOne(id)
+      if (!character) {
+        ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
+        return
+      }
+      ApiResponseUtil.success(res, character)
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクター取得に失敗しました')
     }
-    return character
   }
 
   /**
    * キャラクターを更新する
-   * @param id キャラクターID
-   * @param updateCharacterDto 更新DTO
-   * @returns 更新されたキャラクター
    */
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateCharacterDto: UpdateCharacterDto): Promise<Character> {
-    const character = await this.characterService.update(id, updateCharacterDto)
-    if (!character) {
-      throw new NotFoundException('キャラクターが見つかりません')
+  async update(
+    @Param() params: CharacterIdParamDto,
+    @Body() updateCharacterDto: UpdateCharacterDto,
+    @Res() res: Response
+  ): Promise<void> {
+    try {
+      const { id } = params
+      const character = await this.characterService.update(id, updateCharacterDto)
+      if (!character) {
+        ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
+        return
+      }
+      ApiResponseUtil.success(res, character)
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクター更新に失敗しました')
     }
-    return character
   }
 
   /**
    * キャラクターを削除する
-   * @param id キャラクターID
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.characterService.remove(id)
+  async remove(@Param() params: CharacterIdParamDto, @Res() res: Response): Promise<void> {
+    try {
+      const { id } = params
+      const deletedCharacter = await this.characterService.remove(id)
+      if (!deletedCharacter) {
+        ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
+        return
+      }
+      ApiResponseUtil.success(res, { message: 'キャラクターを削除しました' })
+    } catch (error) {
+      ApiResponseUtil.error(res, error, 500, 'キャラクター削除に失敗しました')
+    }
   }
 }

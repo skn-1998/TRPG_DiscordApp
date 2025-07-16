@@ -93,7 +93,7 @@ export class DiceRollChannelRepository implements Repository<DiceRollChannel, st
    * ダイスロールチャンネルを削除する
    * @param channelId DiscordチャンネルID
    */
-  async remove(channelId: string): Promise<void> {
-    await this.diceRollChannelModel.deleteOne({ discordChannelId: channelId }).exec()
+  async remove(channelId: string): Promise<DiceRollChannel | null> {
+    return this.diceRollChannelModel.findOneAndDelete({ discordChannelId: channelId }).exec()
   }
 }

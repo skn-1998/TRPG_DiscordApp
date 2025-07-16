@@ -60,8 +60,8 @@ export class UserRepository implements Repository<User, string> {
    * ユーザーを削除する
    * @param id DiscordユーザーID
    */
-  async remove(id: string): Promise<void> {
-    await this.userModel.deleteOne({ discordUserId: id }).exec()
+  async remove(id: string): Promise<User | null> {
+    return this.userModel.findOneAndDelete({ discordUserId: id }).exec()
   }
 
   /**

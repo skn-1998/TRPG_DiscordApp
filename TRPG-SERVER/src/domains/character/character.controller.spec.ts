@@ -9,15 +9,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
+import { CharacterIdParamDto } from './dto/create-character.dto'
+import { ApiResponseUtil } from '../../utils/api-response.util'
+import { Request, Response } from 'express'
 
-// RequestWithUser型の定義
-interface RequestWithUser {
-  user: {
-    discordUserId: string
-    userId: string
-    userName: string
-  }
-}
+// RequestWithUser型の定義は不要
 
 describe('CharacterController', () => {
   let controller: CharacterController
@@ -71,10 +67,28 @@ describe('CharacterController', () => {
     skill: { 魔法: 90, 剣術: 80 }
   }
 
-  // リクエストモック作成関数
-  const mockRequest = (user = mockUser): RequestWithUser => ({
-    user
-  })
+  // mockRequest: Express.Request型に準拠
+  const mockRequest = (user: any = mockUser): Request => {
+    return {
+      user,
+      // Express.Requestの必須プロパティを最低限追加
+      headers: {},
+      body: {},
+      query: {},
+      params: {},
+      get: jest.fn()
+      // ...他の必要なプロパティはテストごとに追加
+    } as unknown as Request
+  }
+
+  // mockResponse: Express.Response型に準拠
+  const mockResponse = (): Response => {
+    const res = {} as Partial<Response>
+    res.status = jest.fn().mockReturnValue(res)
+    res.json = jest.fn().mockReturnValue(res)
+    // ...他の必要なメソッドはテストごとに追加
+    return res as Response
+  }
 
   beforeEach(async () => {
     // CharacterService用のモック
@@ -150,142 +164,181 @@ describe('CharacterController', () => {
   })
 
   describe('POST /character', () => {
-    it('should create character successfully', async () => {
-      const req = mockRequest()
+    it('should create character successfully and return ApiResponseUtil.success', async () => {
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       characterService.create.mockResolvedValue(mockCharacter)
 
-      const result = await controller.create(mockCharacterDto, req)
+      await controller.create(mockCharacterDto, req, res)
 
       expect(characterService.create).toHaveBeenCalledWith({
         ...mockCharacterDto,
         discordUserId: mockUser.discordUserId
       })
-      expect(result).toEqual(mockCharacter)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: expect.objectContaining(mockCharacter)
+        })
+      )
     })
 
     it('should throw UnauthorizedException when user is missing', async () => {
-      const req = { user: null } as any
+      const req: any = { user: null }
+      const res: any = mockResponse()
 
-      await expect(controller.create(mockCharacterDto, req)).rejects.toThrow(
+      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(
         new UnauthorizedException('認証トークンがありません')
       )
       expect(characterService.create).not.toHaveBeenCalled()
     })
 
     it('should throw UnauthorizedException when discordUserId is missing', async () => {
-      const req = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const res: any = mockResponse()
 
-      await expect(controller.create(mockCharacterDto, req)).rejects.toThrow(
+      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(
         new UnauthorizedException('認証トークンがありません')
       )
       expect(characterService.create).not.toHaveBeenCalled()
     })
 
     it('should handle character service creation error', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       characterService.create.mockRejectedValue(new Error('Character creation failed'))
 
-      await expect(controller.create(mockCharacterDto, req)).rejects.toThrow('Character creation failed')
+      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow('Character creation failed')
     })
   })
 
   describe('GET /character', () => {
     it('should return all characters for authenticated user', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       const mockCharacters = [mockCharacter, { ...mockCharacter, characterId: 'character-002' }]
       characterService.findHavingAll.mockResolvedValue(mockCharacters)
 
-      const result = await controller.findAll(req)
+      await controller.findAll(req, res)
 
       expect(characterService.findHavingAll).toHaveBeenCalledWith(mockUser.userId)
-      expect(result).toEqual(mockCharacters)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: expect.arrayContaining(mockCharacters)
+        })
+      )
     })
 
     it('should throw UnauthorizedException when user is missing', async () => {
-      const req = { user: null } as any
+      const req: any = { user: null }
+      const res: any = mockResponse()
 
-      await expect(controller.findAll(req)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
+      await expect(controller.findAll(req, res)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
     it('should throw UnauthorizedException when discordUserId is missing', async () => {
-      const req = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const res: any = mockResponse()
 
-      await expect(controller.findAll(req)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
+      await expect(controller.findAll(req, res)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
     it('should handle character service findHavingAll error', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       characterService.findHavingAll.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findAll(req)).rejects.toThrow('Database error')
+      await expect(controller.findAll(req, res)).rejects.toThrow('Database error')
     })
   })
 
   describe('GET /character/summaries', () => {
     it('should return character summaries for authenticated user', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       const mockSummaries = [mockCharacterSummary, { ...mockCharacterSummary, characterId: 'character-002' }]
       characterService.findUserCharacterSummaries.mockResolvedValue(mockSummaries)
 
-      const result = await controller.findUserCharacterSummaries(req)
+      await controller.findUserCharacterSummaries(req, res)
 
       expect(characterService.findUserCharacterSummaries).toHaveBeenCalledWith(mockUser.discordUserId)
-      expect(result).toEqual(mockSummaries)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: expect.arrayContaining(mockSummaries)
+        })
+      )
     })
 
     it('should throw UnauthorizedException when user is missing', async () => {
-      const req = { user: null } as any
+      const req: any = { user: null }
+      const res: any = mockResponse()
 
-      await expect(controller.findUserCharacterSummaries(req)).rejects.toThrow(
+      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(
         new UnauthorizedException('認証トークンがありません')
       )
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
     it('should throw UnauthorizedException when discordUserId is missing', async () => {
-      const req = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
+      const res: any = mockResponse()
 
-      await expect(controller.findUserCharacterSummaries(req)).rejects.toThrow(
+      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(
         new UnauthorizedException('認証トークンがありません')
       )
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
     it('should handle character service findUserCharacterSummaries error', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       characterService.findUserCharacterSummaries.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findUserCharacterSummaries(req)).rejects.toThrow('Database error')
+      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow('Database error')
     })
   })
 
   describe('GET /character/:id', () => {
     it('should return specific character', async () => {
       const characterId = 'test-character-001'
+      const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(mockCharacter)
 
-      const result = await controller.findOne(characterId)
+      await controller.findOne({ id: characterId }, res)
 
       expect(characterService.findOne).toHaveBeenCalledWith(characterId)
-      expect(result).toEqual(mockCharacter)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: expect.objectContaining(mockCharacter)
+        })
+      )
     })
 
     it('should throw NotFoundException when character is not found', async () => {
       const characterId = 'non-existent-character'
+      const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(null)
 
-      await expect(controller.findOne(characterId)).rejects.toThrow(
+      await expect(controller.findOne({ id: characterId }, res)).rejects.toThrow(
         new NotFoundException('キャラクターが見つかりません')
       )
     })
 
     it('should handle character service findOne error', async () => {
       const characterId = 'test-character-001'
+      const res: any = mockResponse()
       characterService.findOne.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findOne(characterId)).rejects.toThrow('Database error')
+      await expect(controller.findOne({ id: characterId }, res)).rejects.toThrow('Database error')
     })
   })
 
@@ -293,46 +346,66 @@ describe('CharacterController', () => {
     it('should update character successfully', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
+      const res: any = mockResponse()
       characterService.update.mockResolvedValue(updatedCharacter)
 
-      const result = await controller.update(characterId, mockUpdateCharacterDto)
+      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
 
       expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
-      expect(result).toEqual(updatedCharacter)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: expect.objectContaining(updatedCharacter)
+        })
+      )
     })
 
     it('should throw NotFoundException when character to update is not found', async () => {
       const characterId = 'non-existent-character'
+      const res: any = mockResponse()
       characterService.update.mockResolvedValue(null)
 
-      await expect(controller.update(characterId, mockUpdateCharacterDto)).rejects.toThrow(
+      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, res)).rejects.toThrow(
         new NotFoundException('キャラクターが見つかりません')
       )
     })
 
     it('should handle character service update error', async () => {
       const characterId = 'test-character-001'
+      const res: any = mockResponse()
       characterService.update.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.update(characterId, mockUpdateCharacterDto)).rejects.toThrow('Database error')
+      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, res)).rejects.toThrow(
+        'Database error'
+      )
     })
   })
 
   describe('DELETE /character/:id', () => {
     it('should delete character successfully', async () => {
       const characterId = 'test-character-001'
+      const res: any = mockResponse()
       characterService.remove.mockResolvedValue(undefined)
 
-      await controller.remove(characterId)
+      await controller.remove({ id: characterId }, res)
 
       expect(characterService.remove).toHaveBeenCalledWith(characterId)
+      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'success',
+          data: undefined
+        })
+      )
     })
 
     it('should handle character service remove error', async () => {
       const characterId = 'test-character-001'
+      const res: any = mockResponse()
       characterService.remove.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.remove(characterId)).rejects.toThrow('Database error')
+      await expect(controller.remove({ id: characterId }, res)).rejects.toThrow('Database error')
     })
   })
 
@@ -347,8 +420,9 @@ describe('CharacterController', () => {
       expect(characterService).toBeDefined()
 
       // モックガードが正常に動作していることを確認
-      const req = mockRequest()
-      expect(async () => await controller.create(mockCharacterDto, req)).not.toThrow()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
+      expect(async () => await controller.create(mockCharacterDto, req, res)).not.toThrow()
     })
   })
 
@@ -362,16 +436,18 @@ describe('CharacterController', () => {
       ]
 
       for (const testCase of testCases) {
-        const req = { user: testCase.user } as any
+        const req: any = { user: testCase.user }
+        const res: any = mockResponse()
 
-        await expect(controller.create(mockCharacterDto, req)).rejects.toThrow(testCase.expectedError)
-        await expect(controller.findAll(req)).rejects.toThrow(testCase.expectedError)
-        await expect(controller.findUserCharacterSummaries(req)).rejects.toThrow(testCase.expectedError)
+        await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(testCase.expectedError)
+        await expect(controller.findAll(req, res)).rejects.toThrow(testCase.expectedError)
+        await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(testCase.expectedError)
       }
     })
 
     it('should handle service errors gracefully', async () => {
-      const req = mockRequest()
+      const req: any = mockRequest()
+      const res: any = mockResponse()
       const serviceError = new Error('Service unavailable')
 
       // 各メソッドでサービスエラーが適切に伝播されることを確認
@@ -382,12 +458,14 @@ describe('CharacterController', () => {
       characterService.update.mockRejectedValue(serviceError)
       characterService.remove.mockRejectedValue(serviceError)
 
-      await expect(controller.create(mockCharacterDto, req)).rejects.toThrow('Service unavailable')
-      await expect(controller.findAll(req)).rejects.toThrow('Service unavailable')
-      await expect(controller.findUserCharacterSummaries(req)).rejects.toThrow('Service unavailable')
-      await expect(controller.findOne('test-id')).rejects.toThrow('Service unavailable')
-      await expect(controller.update('test-id', mockUpdateCharacterDto)).rejects.toThrow('Service unavailable')
-      await expect(controller.remove('test-id')).rejects.toThrow('Service unavailable')
+      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow('Service unavailable')
+      await expect(controller.findAll(req, res)).rejects.toThrow('Service unavailable')
+      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow('Service unavailable')
+      await expect(controller.findOne({ id: 'test-id' }, res)).rejects.toThrow('Service unavailable')
+      await expect(controller.update({ id: 'test-id' }, mockUpdateCharacterDto, res)).rejects.toThrow(
+        'Service unavailable'
+      )
+      await expect(controller.remove({ id: 'test-id' }, res)).rejects.toThrow('Service unavailable')
     })
   })
 })

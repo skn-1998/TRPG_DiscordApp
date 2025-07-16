@@ -1,4 +1,4 @@
-import { IsArray, IsDate, IsOptional, IsString } from 'class-validator'
+import { IsArray, IsDate, IsOptional, IsString, IsNotEmpty } from 'class-validator'
 import { Type } from 'class-transformer'
 import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
 
@@ -55,4 +55,22 @@ export class UserInputDto {
   @IsString({ each: true })
   @IsOptional()
   readonly characterIds?: string[]
+}
+
+/**
+ * ユーザーID用Param DTO
+ */
+export class DiscordUserIdParamDto {
+  @IsString({ message: 'discordUserIdは必須です' })
+  @IsNotEmpty({ message: 'discordUserIdは空にできません' })
+  readonly discordUserId: string
+}
+
+/**
+ * キャラクターID用Param DTO
+ */
+export class CharacterIdParamDto {
+  @IsString({ message: 'characterIdは必須です' })
+  @IsNotEmpty({ message: 'characterIdは空にできません' })
+  readonly characterId: string
 }

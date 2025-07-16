@@ -3,11 +3,11 @@ import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, EmbedBuilder,
 import { discordButtonType } from 'src/discord/discord.type'
 import { Character } from 'src/domains/character/models/character.model'
 import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
-import { EventEmitter2 } from '@nestjs/event-emitter'
+import { TypedEventEmitter } from '../../../shared/application/typed-event.service'
 
 @Injectable()
 export class CharacterTabButtonsService implements discordButtonType {
-  constructor(private readonly eventEmitter: EventEmitter2) {}
+  constructor(private readonly eventEmitter: TypedEventEmitter) {}
 
   public data = new ButtonBuilder().setCustomId('character-tab*').setLabel('基本情報').setStyle(ButtonStyle.Primary)
 
@@ -25,16 +25,11 @@ export class CharacterTabButtonsService implements discordButtonType {
         return
       }
 
-      // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更
+      // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更（型安全）
       console.log(`[PHASE3] キャラクター情報取得をスキップ: ${channelId}, tab: ${tabType}`)
 
-      // イベント発行（非同期）
-      this.eventEmitter.emit('character.findByChannelId.requested', {
-        channelId,
-        tabType,
-        source: 'character-tab-buttons-service',
-        timestamp: new Date()
-      })
+      // 型安全なイベント発行
+      await this.eventEmitter.requestCharacterSearch(channelId, 'character-tab-buttons-service', tabType)
 
       // 【PHASE3】 一時的に機能を無効化
       await interaction.reply({

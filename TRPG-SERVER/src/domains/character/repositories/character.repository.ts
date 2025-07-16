@@ -112,8 +112,8 @@ export class CharacterRepository implements Repository<Character, string> {
    * キャラクターを削除する
    * @param id キャラクターID
    */
-  async remove(id: string): Promise<void> {
-    await this.characterModel.deleteOne({ characterId: id }).exec()
+  async remove(id: string): Promise<Character | null> {
+    return this.characterModel.findOneAndDelete({ characterId: id }).exec()
   }
 
   /**
