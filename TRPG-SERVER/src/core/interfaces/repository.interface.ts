@@ -32,5 +32,5 @@ export interface Repository<T, ID> {
    * エンティティを削除する
    * @param id 削除するエンティティのID
    */
-  remove(id: ID): Promise<void>
+  remove(id: ID): Promise<T | null>
 }

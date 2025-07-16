@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator'
+import { IsOptional, IsString, IsNotEmpty } from 'class-validator'
 import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
 import { AttributeObject } from '../../../core/dto/domain.dto'
 
@@ -80,4 +80,13 @@ export class CharacterInputDto {
 
   @IsOptional()
   readonly description?: AttributeObject
+}
+
+/**
+ * キャラクターID用Param DTO
+ */
+export class CharacterIdParamDto {
+  @IsString({ message: 'idは必須です' })
+  @IsNotEmpty({ message: 'idは空にできません' })
+  readonly id: string
 }

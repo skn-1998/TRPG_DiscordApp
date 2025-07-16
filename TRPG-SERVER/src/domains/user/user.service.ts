@@ -94,8 +94,8 @@ export class UserService {
    * ユーザーを削除する
    * @param discordUserId DiscordユーザーID
    */
-  async remove(discordUserId: string): Promise<void> {
-    await this.userRepository.remove(discordUserId)
+  async remove(discordUserId: string): Promise<User | null> {
+    return this.userRepository.remove(discordUserId)
   }
 
   /**

@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { EventBusService } from './application/event-bus.service'
+import { TypedEventService, TypedEventEmitter } from './application/typed-event.service'
 
 /**
  * 共有モジュール
@@ -20,7 +21,15 @@ import { EventBusService } from './application/event-bus.service'
       ignoreErrors: false
     })
   ],
-  providers: [EventBusService],
-  exports: [EventBusService]
+  providers: [
+    EventBusService,
+    TypedEventService,
+    {
+      provide: TypedEventEmitter,
+      useFactory: (typedEventService: TypedEventService) => new TypedEventEmitter(typedEventService),
+      inject: [TypedEventService]
+    }
+  ],
+  exports: [EventBusService, TypedEventService, TypedEventEmitter]
 })
 export class SharedModule {}

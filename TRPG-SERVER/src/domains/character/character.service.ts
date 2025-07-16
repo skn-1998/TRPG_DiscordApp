@@ -234,7 +234,7 @@ export class CharacterService {
    * @param id キャラクターID
    * @param userId ユーザーID（イベント駆動時の権限チェック用）
    */
-  async remove(id: string, userId?: string): Promise<void> {
+  async remove(id: string, userId?: string): Promise<Character | null> {
     const useEventDriven = this.configService.get('prototype.eventDriven')
 
     if (useEventDriven && userId) {
@@ -242,10 +242,11 @@ export class CharacterService {
       this.logger.log(`[EVENT-DRIVEN] Deleting character via events: ${id}`)
 
       await this.discordIntegrationService.requestCharacterDeletion(id, userId, 'Direct deletion request')
+      return null // イベント駆動の場合は削除されたオブジェクトを返せないため
     } else {
       // Phase 1: 既存の直接呼び出し方式
       this.logger.log(`[DIRECT] Deleting character directly: ${id}`)
-      await this.characterRepository.remove(id)
+      return this.characterRepository.remove(id)
     }
   }
 

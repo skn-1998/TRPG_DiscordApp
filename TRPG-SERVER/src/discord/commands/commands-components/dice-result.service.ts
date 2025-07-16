@@ -6,10 +6,17 @@ import {
   DiceRollPaginationService,
   PaginatedDiceRoll
 } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { BaseCommandService } from '../base-command.service'
+import { TypedEventService } from 'src/shared/application/typed-event.service'
 
 @Injectable()
-export class DiceResultService implements discordCommandType {
-  constructor(private readonly diceRollPaginationService: DiceRollPaginationService) {}
+export class DiceResultService extends BaseCommandService implements discordCommandType {
+  constructor(
+    private readonly diceRollPaginationService: DiceRollPaginationService,
+    typedEventService: TypedEventService
+  ) {
+    super(typedEventService, DiceResultService.name)
+  }
   public data = new SlashCommandBuilder()
     .setName(diceResultConfig.name)
     .setDescription(diceResultConfig.description)
@@ -21,6 +28,7 @@ export class DiceResultService implements discordCommandType {
     )
 
   async execute(interaction: CommandInteraction): Promise<void> {
+    if (!(await this.preExecute(interaction))) return
     if (!interaction.isChatInputCommand()) return
 
     try {
@@ -38,6 +46,8 @@ export class DiceResultService implements discordCommandType {
 
       // キャラクターオプションを取得（省略可能）
       const characterOption = interaction.options.getString('character')
+
+      this.logger.debug('ダイスロール履歴取得', { channelId, characterOption })
 
       // ページネーション用のEmbedを作成
       const pages = await this.diceRollPaginationService.createPaginatedEmbeds(channelId, characterOption || undefined)
@@ -76,17 +86,10 @@ export class DiceResultService implements discordCommandType {
         embeds: [pages[0]],
         components: controls
       })
+
+      await this.postExecute(interaction)
     } catch (error) {
-      console.error('DiceResultService実行エラー:', error)
-
-      // エラー時の応答
-      const errorMessage = '⚠️ ダイスロール履歴の取得中にエラーが発生しました。'
-
-      if (interaction.deferred) {
-        await interaction.editReply({ content: errorMessage })
-      } else {
-        await interaction.reply({ content: errorMessage, ephemeral: true })
-      }
+      await this.handleInteractionError(interaction, error, 'ダイスロール履歴取得')
     }
   }
 }

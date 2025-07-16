@@ -79,8 +79,8 @@ export class DiceRollTextRepository implements Repository<DiceRollText, string> 
    * ダイスロールテキストを削除する
    * @param id テキストID
    */
-  async remove(id: string): Promise<void> {
-    await this.diceRollTextModel.deleteOne({ textId: id }).exec()
+  async remove(id: string): Promise<DiceRollText | null> {
+    return this.diceRollTextModel.findOneAndDelete({ textId: id }).exec()
   }
 
   /**

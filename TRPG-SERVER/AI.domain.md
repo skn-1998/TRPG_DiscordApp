@@ -1,6 +1,6 @@
 # TRPG-SERVER ドメイン駆動設計ドキュメント
 
-## 📋 **ドキュメント概要** **[作成日: 2025-01-14]** **[更新日: 2025-01-14]**
+## 📋 **ドキュメント概要** **[作成日: 2025-01-14]** **[更新日: 2025-01-05]**
 
 このドキュメントは、TRPG-SERVERにおけるドメイン駆動設計（DDD）とイベント駆動アーキテクチャの導入に関する包括的な設計指針を記載しています。
 
@@ -40,10 +40,24 @@
   - waitForCharacterUpdateResult()実装
   - 更新機能テスト実装（4テストケース）
 
-### **🔄 Phase 3 開始: Discord統合層リファクタリング (Week 3)**
-- **循環依存の完全除去**: 🔄 実装準備中
-- **EventsModule簡素化**: 🔄 実装準備中
-- **Discord統合レイヤー最適化**: 🔄 実装準備中
+### **✅ Phase 3 完了: Discord統合層リファクタリング (Week 3)**
+- **循環依存の完全除去**: ✅ 実装完了
+- **EventsModule簡素化**: ✅ 実装完了
+- **Discord統合レイヤー最適化**: ✅ 実装完了
+- **Commands層統一化**: ✅ 実装完了 **[2025-01-05]**
+
+#### **✅ Phase 3.4 実装完了: Commands層変換** `[完了: 2025-01-05]`
+- **BaseCommandService抽象クラス**: ✅ 統一されたエラーハンドリング・ログシステム
+- **ErrorHandler拡張**: ✅ `handleDiscordCommandError`メソッド新規実装
+- **全Commandsサービス統一化**: ✅ 6/6サービス完了
+- **TypedEventService統合**: ✅ 全Commands層で型安全なイベント処理
+- **ログシステム統一**: ✅ console.log完全撲滅、構造化ログ実装
+- **エラーハンドリング統一**: ✅ 100%統一化達成
+
+### **🔄 Phase 4 開始: 次期最適化フェーズ (Week 4)**
+- **Controller層完全化**: 🔄 実装準備中
+- **パフォーマンス最適化**: 🔄 実装準備中
+- **セキュリティ強化**: 🔄 実装準備中
 
 #### **Phase 3.1 実装結果** ✅
 **AddCharaInfoService変換完了**:
@@ -1662,3 +1676,52 @@ export class CharacterService {
 **推定所要時間: 3-4時間**
 
 これらの作業を完了後、キャラクター削除機能、検索機能の順で進めていきます。
+
+### 🚧 Phase 4.0: user.controllerリファクタリング方針
+
+- **目的**: Controller層の責務分離・型安全化・APIレスポンス/エラー統一・テスト性向上
+- **対象**: src/domains/user/user.controller.ts, user.controller.spec.ts
+
+### 主なリファクタリング内容
+1. **DTO新規作成・修正**
+   - Param用DTO（discordUserId, characterId等）を新規作成
+   - 必要に応じてBody/Queryも型安全化
+2. **コントローラ修正**
+   - ApiResponseUtilで全レスポンスを統一
+   - エラー時もApiResponseUtil.errorで返却
+   - 例外throwは原則廃止
+3. **テスト修正**
+   - 新シグネチャ・レスポンス形式に合わせてテストを修正・拡充
+
+---
+
+この方針に従い、user.controllerの全エンドポイント・テストを一括でリファクタリングする。
+
+## Phase 4.0: Controller層リファクタリング進捗
+
+### 完了内容
+- **auth.controller**: DTOバリデーション・ApiResponseUtil・統一エラーハンドリング・テスト修正
+- **character.controller**: Param用DTO新規作成、全エンドポイントでApiResponseUtil/DTOバリデーション/エラーハンドリング統一、テスト修正
+- **user.controller**: Param用DTO新規作成、全エンドポイントでApiResponseUtil/DTOバリデーション/エラーハンドリング統一、テスト修正
+- すべてのテストで新しいレスポンス形式・バリデーション・エラーケースを網羅
+- linter/型エラーも解消済み
+
+### 実装例（user.controller抜粋）
+```ts
+@Post()
+async create(@Body() createUserDto: CreateUserDto, @Res() res: Response): Promise<void> {
+  try {
+    const user = await this.userService.create(createUserDto)
+    ApiResponseUtil.success(res, user)
+  } catch (error) {
+    ApiResponseUtil.error(res, error, 500, 'ユーザー作成に失敗しました')
+  }
+}
+```
+
+### 今後のTODO（Phase 4.1以降）
+- scenario.controller等、未リファクタのController層の同様の最適化
+- API共通エラーハンドリング/レスポンスのe2eテスト強化
+- コード全体の型安全性・テスト網羅性チェック
+- パフォーマンス・セキュリティ観点の追加施策
+- 設計・実装例・進捗はAI.domain.mdに随時記載

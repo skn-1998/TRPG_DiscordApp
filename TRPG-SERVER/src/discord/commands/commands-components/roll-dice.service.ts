@@ -6,27 +6,35 @@ import dice from 'src/discord/utils/dice'
 import { loadJsonFile } from 'src/discord/utils/loadJsonFile'
 import { GameSystemJSON } from './select-game-system.service'
 import { rollDiceConfig } from 'src/discord/commands/commands.list'
-import { handleError } from '../../utils/discord.utils'
+import { BaseCommandService } from '../base-command.service'
+import { TypedEventService } from 'src/shared/application/typed-event.service'
 
 const gameSystemList = loadJsonFile('src/discord/static/gameSystemList.json') as GameSystemJSON[]
 
 @Injectable()
-export class RollDiceService implements discordCommandType {
+export class RollDiceService extends BaseCommandService implements discordCommandType {
+  constructor(typedEventService: TypedEventService) {
+    super(typedEventService, RollDiceService.name)
+  }
   public data = new SlashCommandBuilder()
     .setName(rollDiceConfig.name)
     .setDescription(rollDiceConfig.description)
     .addStringOption((option) => option.setName('command').setDescription('コマンドを入力 例: 1d6').setRequired(true))
 
   async execute(interaction: CommandInteraction): Promise<void> {
+    if (!(await this.preExecute(interaction))) return
     if (!interaction.isChatInputCommand()) return
+
     const command = interaction.options.getString('command', true)
     if (isNull(command)) return
-    const channel = interaction.channel
-    if (isNull(channel)) return
 
+    if (!this.validateChannel(interaction)) return
+
+    const channel = interaction.channel!
     const topic = channel.type === ChannelType.GuildText ? channel.topic : getParentChannelTopic(interaction)
-
     const gameSystemId = getGameSystemIdFromTopic(topic)
+
+    this.logger.debug('ダイスロールコマンド実行', { command, gameSystemId })
 
     try {
       const diceResult = await dice(command, gameSystemId)
@@ -35,8 +43,10 @@ export class RollDiceService implements discordCommandType {
         return
       }
       await interaction.reply(diceResult.text)
+
+      await this.postExecute(interaction)
     } catch (error) {
-      await handleError(interaction, error)
+      await this.handleInteractionError(interaction, error, 'ダイスロールコマンド実行')
     }
   }
 }

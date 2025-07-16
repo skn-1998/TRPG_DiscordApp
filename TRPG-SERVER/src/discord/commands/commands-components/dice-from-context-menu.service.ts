@@ -5,10 +5,14 @@ import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'
 import { getGameSystemIdFromTopic, getParentChannelTopic } from './roll-dice.service'
 import { diceFromContextMenuConfig } from 'src/discord/commands/commands.list'
-import { handleError } from '../../utils/discord.utils'
+import { BaseCommandService } from '../base-command.service'
+import { TypedEventService } from 'src/shared/application/typed-event.service'
 
 @Injectable()
-export class DiceFromContextMenuService implements discordContextMenuType {
+export class DiceFromContextMenuService extends BaseCommandService implements discordContextMenuType {
+  constructor(typedEventService: TypedEventService) {
+    super(typedEventService, DiceFromContextMenuService.name)
+  }
   public data = new ContextMenuCommandBuilder()
     .setName(diceFromContextMenuConfig.name)
     .setType(ApplicationCommandType.Message)
@@ -16,6 +20,8 @@ export class DiceFromContextMenuService implements discordContextMenuType {
   async execute(interaction: CommandInteraction) {
     if (!interaction.isMessageContextMenuCommand()) return
     if (isNull(interaction.channel)) return
+
+    this.logger.debug('コンテキストメニューダイス実行開始')
 
     const channel = interaction.channel
     const topic = channel.type === ChannelType.GuildText ? channel.topic : getParentChannelTopic(interaction)
@@ -32,7 +38,7 @@ export class DiceFromContextMenuService implements discordContextMenuType {
       }
       await interaction.reply(diceResult.text)
     } catch (error) {
-      await handleError(interaction, error)
+      await this.handleInteractionError(interaction, error, 'コンテキストメニューダイス実行')
     }
   }
 }
