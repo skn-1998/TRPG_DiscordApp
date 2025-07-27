@@ -16,6 +16,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // 軽量データを取得（拡張api-clientが自動でJWTを処理）
     const characters = await getUserCharacterSummaries()
 
+    console.log(characters)
+
     // コンテキストをクリア
     clearServerRequestContext()
 

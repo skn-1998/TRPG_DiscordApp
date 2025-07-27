@@ -29,8 +29,9 @@ export class CryptoUtil {
 
     const key = this.getEncryptionKey()
     const iv = crypto.randomBytes(this.IV_LENGTH)
-    const cipher = crypto.createCipher(this.ALGORITHM, key)
-    cipher.setAutoPadding(true)
+
+    // createCipherivを使用してIVを明示的に指定
+    const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv)
 
     let encrypted = cipher.update(text, 'utf8', 'hex')
     encrypted += cipher.final('hex')
@@ -56,7 +57,8 @@ export class CryptoUtil {
     const tag = Buffer.from(encryptedText.slice(this.IV_LENGTH * 2, (this.IV_LENGTH + this.TAG_LENGTH) * 2), 'hex')
     const encrypted = encryptedText.slice((this.IV_LENGTH + this.TAG_LENGTH) * 2)
 
-    const decipher = crypto.createDecipher(this.ALGORITHM, key)
+    // createDecipherivを使用してIVを明示的に指定
+    const decipher = crypto.createDecipheriv(this.ALGORITHM, key, iv)
     decipher.setAuthTag(tag)
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8')

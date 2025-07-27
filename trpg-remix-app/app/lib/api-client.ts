@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { configService } from '../config'
+import { ApiClientResponse, KnownDomains, DomainDataMap } from '../types/api'
 
 // 開発環境判定
 const isDevelopment = !configService.isProduction()
@@ -255,35 +256,77 @@ class ExtendedApiClient {
     this.baseClient = baseClient
   }
 
-  // GET リクエストの拡張
+  // 型安全なGETリクエスト（ドメイン指定版）
+  async getDomain<Domain extends KnownDomains>(
+    url: string,
+    domain: Domain,
+    config?: any
+  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
+    const finalConfig = this.prepareConfig(config)
+    const response = await this.baseClient.get(url, finalConfig)
+    return response
+  }
+
+  // 型安全なPOSTリクエスト（ドメイン指定版）
+  async postDomain<Domain extends KnownDomains>(
+    url: string,
+    domain: Domain,
+    data?: any,
+    config?: any
+  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
+    const finalConfig = this.prepareConfig(config)
+    const response = await this.baseClient.post(url, data, finalConfig)
+    return response
+  }
+
+  // 型安全なPUTリクエスト（ドメイン指定版）
+  async putDomain<Domain extends KnownDomains>(
+    url: string,
+    domain: Domain,
+    data?: any,
+    config?: any
+  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
+    const finalConfig = this.prepareConfig(config)
+    const response = await this.baseClient.put(url, data, finalConfig)
+    return response
+  }
+
+  // 型安全なDELETEリクエスト（ドメイン指定版）
+  async deleteDomain<Domain extends KnownDomains>(
+    url: string,
+    domain: Domain,
+    config?: any
+  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
+    const finalConfig = this.prepareConfig(config)
+    const response = await this.baseClient.delete(url, finalConfig)
+    return response
+  }
+
+  // 従来のメソッド（後方互換性のため）
   async get<T = any>(url: string, config?: any): Promise<{ data: T; status: number; statusText: string }> {
     const finalConfig = this.prepareConfig(config)
     const response = await this.baseClient.get<T>(url, finalConfig)
     return response
   }
 
-  // POST リクエストの拡張
   async post<T = any>(url: string, data?: any, config?: any): Promise<{ data: T; status: number; statusText: string }> {
     const finalConfig = this.prepareConfig(config)
     const response = await this.baseClient.post<T>(url, data, finalConfig)
     return response
   }
 
-  // PUT リクエストの拡張
   async put<T = any>(url: string, data?: any, config?: any): Promise<{ data: T; status: number; statusText: string }> {
     const finalConfig = this.prepareConfig(config)
     const response = await this.baseClient.put<T>(url, data, finalConfig)
     return response
   }
 
-  // DELETE リクエストの拡張
   async delete<T = any>(url: string, config?: any): Promise<{ data: T; status: number; statusText: string }> {
     const finalConfig = this.prepareConfig(config)
     const response = await this.baseClient.delete<T>(url, finalConfig)
     return response
   }
 
-  // PATCH リクエストの拡張
   async patch<T = any>(
     url: string,
     data?: any,

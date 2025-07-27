@@ -1,16 +1,20 @@
 /* eslint-disable no-console */
 import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
 import { apiClient, withJwt } from '../../../lib/api-client'
+import { createApiHandler, ApiResponseUtil } from '../../../lib/api-response.util'
 import { DiscordUserProfile, LoginRequest, LoginResponse } from '../../../types'
+import { CustomError } from '../../../utils/customError'
+import { configService } from '../../../config'
+import cookie from 'cookie'
 
 // CookieHeader型定義
 interface CookieHeader {
   'Content-Type': string
   'Set-Cookie': string
 }
-import { CustomError } from '../../../utils/customError'
-import { configService } from '../../../config'
-import cookie from 'cookie'
+
+// 認証用のAPIハンドラーを作成
+const authHandler = createApiHandler('auth')
 
 // Discord OAuth認証URLを生成
 export function generateDiscordAuthUrl(): string {
@@ -37,18 +41,29 @@ export function generateDiscordAuthUrl(): string {
 // ユーザーログイン/登録
 export async function loginOrRegisterUser(code: string): Promise<LoginResponse> {
   try {
-    const response = await apiClient.post<LoginResponse>('/auth/login', { code } as LoginRequest)
+    const response = await apiClient.postDomain('/auth/login', 'auth', { code } as LoginRequest)
+
+    // 統合型定義システムを使用してレスポンスを処理
+    const authData = authHandler.handleSuccess(response)
+
+    console.log('🔐 ログイン成功:', {
+      success: response.data.success,
+      message: authData.message,
+      userName: authData.userName,
+      discordUserId: authData.discordUserId
+    })
+
     return response.data
   } catch (err: unknown) {
-    // Axiosエラーの詳細情報を出力
+    // 統合エラーハンドリング
+    const errorMessage = ApiResponseUtil.handleError(err)
+    console.error('❌ ログインエラー:', errorMessage)
+
+    // 詳細デバッグ情報も出力
     if (err && typeof err === 'object' && 'response' in err) {
       const axiosErr = err as { response?: { status?: number; data?: unknown; headers?: unknown }; config?: unknown }
       console.error('HTTP Status:', axiosErr.response?.status)
       console.error('HTTP Data:', axiosErr.response?.data)
-      console.error('HTTP Headers:', axiosErr.response?.headers)
-      console.error('Request Config:', axiosErr.config)
-    } else {
-      console.error('Non-HTTP Error:', err)
     }
 
     throw new Error(CustomError(err))
@@ -154,7 +169,6 @@ export function saveJwtToken(jwt: string): CookieHeader {
   }
 }
 
-// ログアウト関数
 // クッキーテスト用関数
 export async function testCookies(): Promise<void> {
   try {

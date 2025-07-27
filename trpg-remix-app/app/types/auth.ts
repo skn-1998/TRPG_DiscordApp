@@ -1,3 +1,5 @@
+import { DomainApiResponse } from './api'
+
 /**
  * 認証関連の型定義
  */
@@ -135,26 +137,6 @@ export interface LoginRequest {
 }
 
 /**
- * ログインレスポンス
+ * ログインレスポンス（新しいAPI型定義を使用）
  */
-export interface LoginResponse {
-  /**
-   * JWTトークン
-   */
-  token: string
-
-  /**
-   * ユーザー情報
-   */
-  user: DiscordUserProfile
-
-  /**
-   * 認証成功フラグ
-   */
-  success: boolean
-
-  /**
-   * メッセージ
-   */
-  message?: string
-}
+export type LoginResponse = DomainApiResponse<'auth'>

@@ -28,7 +28,7 @@ export class UserController {
   async create(@Body() createUserDto: CreateUserDto, @Res() res: Response): Promise<void> {
     try {
       const user = await this.userService.create(createUserDto)
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'ユーザー作成に失敗しました')
     }
@@ -47,7 +47,7 @@ export class UserController {
         ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'ユーザー取得に失敗しました')
     }
@@ -65,11 +65,15 @@ export class UserController {
         return
       }
       const guilds = await this.userService.getUserDiscordGuilds(user.discordUserId)
-      ApiResponseUtil.success(res, {
-        guilds,
-        count: guilds.length,
-        message: 'Discord Guild一覧を正常に取得しました'
-      })
+      ApiResponseUtil.success(
+        res,
+        {
+          guilds,
+          count: guilds.length,
+          message: 'Discord Guild一覧を正常に取得しました'
+        },
+        'user'
+      )
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'Discord Guild一覧取得に失敗しました')
     }
@@ -91,7 +95,7 @@ export class UserController {
         ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'ユーザー更新に失敗しました')
     }
@@ -112,7 +116,7 @@ export class UserController {
         ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター追加に失敗しました')
     }
@@ -133,7 +137,7 @@ export class UserController {
         ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター削除に失敗しました')
     }
@@ -151,7 +155,7 @@ export class UserController {
         ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, user)
+      ApiResponseUtil.success(res, user, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'ユーザー削除に失敗しました')
     }
