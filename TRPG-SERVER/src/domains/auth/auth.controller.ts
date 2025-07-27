@@ -109,7 +109,7 @@ export class AuthController {
         iat: payload.iat,
         exp: payload.exp
       }
-      ApiResponseUtil.success(res, output)
+      ApiResponseUtil.success(res, output, 'auth')
     } catch (error) {
       ApiResponseUtil.error(res, error, 401, 'トークン検証に失敗しました')
     }
@@ -148,12 +148,21 @@ export class AuthController {
       // クッキー設定をCookieServiceに委譲
       this.cookieService.setJwtCookie(res, jwt, isProduction)
       // レスポンス生成をApiResponseUtilに委譲
-      ApiResponseUtil.success(res, {
-        message: '認証成功',
-        discordUserId: user.discordUserId,
-        userName: user.name,
-        token: jwt
-      })
+      ApiResponseUtil.success(
+        res,
+        {
+          message: '認証成功',
+          discordUserId: user.discordUserId,
+          userName: user.name,
+          token: jwt,
+          user: {
+            id: user.discordUserId!,
+            username: user.name!,
+            avatar: user.avatarHash
+          }
+        },
+        'auth'
+      )
     } catch (error) {
       ApiResponseUtil.error(res, error, 401, 'ログインに失敗しました')
     }
@@ -168,7 +177,7 @@ export class AuthController {
     try {
       // クッキー削除をCookieServiceに委譲
       this.cookieService.clearJwtCookie(res)
-      ApiResponseUtil.success(res, { message: 'ログアウト成功' })
+      ApiResponseUtil.success(res, { message: 'ログアウト成功' }, 'auth')
     } catch (error) {
       this.logger.error(`ログアウトエラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       ApiResponseUtil.error(res, error, 500, 'ログアウトに失敗しました')
@@ -189,7 +198,7 @@ export class AuthController {
         ApiResponseUtil.error(res, `ユーザーID ${userId} が見つかりません`, 404)
         return
       }
-      ApiResponseUtil.success(res, { user: userInfo })
+      ApiResponseUtil.success(res, { user: userInfo }, 'user')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'ユーザー情報の取得に失敗しました')
     }

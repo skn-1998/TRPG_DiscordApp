@@ -54,7 +54,7 @@ export class CharacterController {
         discordUserId: req.user.discordUserId
       }
       const character = await this.characterService.create(createCharacterDto)
-      ApiResponseUtil.success(res, character)
+      ApiResponseUtil.success(res, character, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター作成に失敗しました')
     }
@@ -72,7 +72,7 @@ export class CharacterController {
         return
       }
       const characters = await this.characterService.findHavingAll(req.user.discordUserId)
-      ApiResponseUtil.success(res, characters)
+      ApiResponseUtil.success(res, characters, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター一覧取得に失敗しました')
     }
@@ -90,7 +90,7 @@ export class CharacterController {
         return
       }
       const summaries = await this.characterService.findUserCharacterSummaries(req.user.discordUserId)
-      ApiResponseUtil.success(res, summaries)
+      ApiResponseUtil.success(res, summaries, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクターサマリー取得に失敗しました')
     }
@@ -109,7 +109,7 @@ export class CharacterController {
         ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, character)
+      ApiResponseUtil.success(res, character, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター取得に失敗しました')
     }
@@ -132,7 +132,7 @@ export class CharacterController {
         ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, character)
+      ApiResponseUtil.success(res, character, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター更新に失敗しました')
     }
@@ -151,7 +151,7 @@ export class CharacterController {
         ApiResponseUtil.error(res, 'キャラクターが見つかりません', 404)
         return
       }
-      ApiResponseUtil.success(res, { message: 'キャラクターを削除しました' })
+      ApiResponseUtil.success(res, { message: 'キャラクターを削除しました' }, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター削除に失敗しました')
     }

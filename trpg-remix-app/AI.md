@@ -184,15 +184,27 @@ store/
 
 ```
 lib/
-├── api-client.ts       # HTTP通信クライアント
-├── gameSystem.ts       # ゲームシステム管理
-└── hooks/              # 共通カスタムフック
-    ├── useAuth.ts      # 認証フック
-    ├── useCharacters.ts # キャラクター管理フック
+├── api-client.ts           # HTTP通信クライアント（統合型定義対応）
+├── api-response.util.ts    # 統合レスポンス処理ユーティリティ
+├── gameSystem.ts           # ゲームシステム管理
+└── hooks/                  # 共通カスタムフック
+    ├── useAuth.ts          # 認証フック
+    ├── useCharacters.ts    # キャラクター管理フック
     └── useCharacterSummaries.ts # キャラクター概要フック
 ```
 
-#### 8. **スタイリング** (`/styles`)
+#### 8. **型定義** (`/types`)
+
+```
+types/
+├── api.ts              # 統合API型定義（新規追加）
+├── auth.ts             # 認証関連型定義
+├── character.ts        # キャラクター関連型定義
+├── dice-roll.ts        # ダイスロール関連型定義
+└── index.ts            # 共通型定義エクスポート
+```
+
+#### 9. **スタイリング** (`/styles`)
 
 ```
 styles/
@@ -285,6 +297,12 @@ User Action → React Component → Zustand Store → API Call → State Update 
 Login → Discord OAuth → JWT Token → Cookie Storage → API Authorization
 ```
 
+### 4. **統合型定義フロー**
+
+```
+API Request → postDomain/getDomain → Type-Safe Response → createApiHandler → Type Guard → Safe Data Access
+```
+
 ## 主要な設計パターン
 
 ### 1. **Custom Hooks パターン**
@@ -305,7 +323,14 @@ Login → Discord OAuth → JWT Token → Cookie Storage → API Authorization
 - 柔軟なカスタマイズ性
 - 再利用性の向上
 
-### 4. **Error Boundary パターン**
+### 4. **統合型定義パターン**
+
+- 型安全なAPIレスポンス処理
+- ドメインベースの型定義
+- コンパイル時エラー検出
+- IntelliSenseによる自動補完
+
+### 5. **Error Boundary パターン**
 
 - エラーハンドリングの分離
 - ユーザーフレンドリーなエラー表示
@@ -313,7 +338,22 @@ Login → Discord OAuth → JWT Token → Cookie Storage → API Authorization
 
 ## API通信アーキテクチャ
 
-### 1. **HTTPクライアント設定**
+### 1. **統合型定義システム**
+
+```typescript
+// 型安全なAPIクライアント（新しい実装）
+const response = await apiClient.postDomain('/auth/login', 'auth', { code })
+const authData = authHandler.handleSuccess(response) // 型推論が効く
+
+// 型ガードによる安全なアクセス
+if (userInfo.success) {
+  console.log(userInfo.auth.userName) // 型安全
+} else {
+  console.error(userInfo.message) // 型安全
+}
+```
+
+### 2. **HTTPクライアント設定**
 
 ```typescript
 // IPv4強制・SSL証明書検証回避（開発環境）
@@ -324,17 +364,31 @@ const apiClient = axios.create({
 })
 ```
 
-### 2. **認証インターセプター**
+### 3. **認証インターセプター**
 
 - JWTトークンの自動付与
 - 認証エラーの自動処理
 - リクエスト・レスポンスログ
 
-### 3. **エラーハンドリング**
+### 4. **統合エラーハンドリング**
 
-- 統一されたエラーレスポンス処理
-- ユーザーフレンドリーなエラーメッセージ
-- 自動リトライ機能
+```typescript
+// 統一されたエラーハンドリング
+const errorMessage = ApiResponseUtil.handleError(err)
+console.error('❌ ログインエラー:', errorMessage)
+```
+
+### 5. **ドメインベースレスポンス処理**
+
+```typescript
+// ドメイン指定でAPIハンドラーを作成
+const authHandler = createApiHandler('auth')
+const characterHandler = createApiHandler('character')
+
+// 型安全なレスポンス処理
+const authData = authHandler.handleSuccess(response)
+const character = characterHandler.handleSuccess(response)
+```
 
 ## 設定管理
 
@@ -1054,3 +1108,108 @@ if (process.env.NODE_ENV === 'development') {
 - **ユニットテスト**: 認証ロジックのテスト
 - **統合テスト**: Discord API連携のテスト
 - **E2Eテスト**: 認証フロー全体のテスト
+
+---
+
+## 🔧 **最新の修正履歴**
+
+### **✅ 完了済み項目**
+
+#### ✅ 5. **統合型定義システムの実装** `[完了: 2025-01-27]`
+
+```typescript
+// ✅ COMPLETED: api-client.tsとapi-response.util.tsの統合型定義システム
+// 問題: response.data.dataのような型安全性のないAPIレスポンス処理
+// 解決: 完全に型安全な統合型定義システムを実装
+
+// 修正前（型安全性なし）:
+const response = await apiClient.post('/auth/login', { code })
+const authData = response.data.auth // 型エラーの可能性
+
+// 修正後（完全型安全）:
+const response = await apiClient.postDomain('/auth/login', 'auth', { code })
+const authData = authHandler.handleSuccess(response) // 型推論が効く
+```
+
+**実装内容**:
+
+1. **中央集権的な型定義** (`app/types/api.ts`)
+
+   - `KnownDomains`: 型安全なドメイン定義
+   - `DomainDataMap`: ドメインとデータ型のマッピング
+   - `ApiResponse<T, Domain>`: 統合レスポンス型
+
+2. **型安全なAPIクライアント** (`app/lib/api-client.ts`)
+
+   - `getDomain/postDomain/putDomain/deleteDomain`: 新しい型安全メソッド
+   - 既存メソッドとの後方互換性を維持
+
+3. **統合レスポンスユーティリティ** (`app/lib/api-response.util.ts`)
+   - 新しい型定義と完全に連携
+   - `createApiHandler<Domain>`: 型安全なハンドラー生成
+
+**型安全性の恩恵**:
+
+```typescript
+// 型ガードによる安全なアクセス
+const userInfo = await loginOrRegisterUser(code)
+
+if (userInfo.success) {
+  // TypeScriptが自動的にuserInfo.authの存在を保証
+  console.log(userInfo.auth.userName) // 型安全
+} else {
+  // TypeScriptが自動的にuserInfo.messageの存在を保証
+  console.error(userInfo.message) // 型安全
+}
+```
+
+**影響**:
+
+- `response.data.data`問題の完全解消
+- コンパイル時エラー検出の向上
+- IntelliSenseによる自動補完の改善
+- ドメイン名のtypo防止
+- `as any`キャストの不要化
+
+**テスト結果**:
+
+```bash
+Type Check: ✅ 通過
+Build: ✅ 成功（jsx-runtime問題は型定義とは無関係）
+```
+
+#### ✅ 4. **Node.js crypto非推奨警告の修正** `[完了: 2025-01-27]`
+
+```typescript
+// ✅ COMPLETED: crypto.createCipher/createDecipherの非推奨警告を修正
+// 問題: Node.js 17以降でcrypto.createCipherとcrypto.createDecipherが非推奨
+// 解決: createCipheriv/createDecipherivに置き換え
+
+// 修正前（非推奨）:
+const cipher = crypto.createCipher(this.ALGORITHM, key)
+const decipher = crypto.createDecipher(this.ALGORITHM, key)
+
+// 修正後（推奨）:
+const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv)
+const decipher = crypto.createDecipheriv(this.ALGORITHM, key, iv)
+```
+
+**修正内容**:
+
+- `TRPG-SERVER/src/utils/crypto.util.ts`の暗号化処理を修正
+- `aes-256-gcm`アルゴリズムで適切な`createCipheriv`/`createDecipheriv`を使用
+- IV（初期化ベクトル）を明示的に指定
+- テストファイル`crypto.util.spec.ts`を追加して動作確認
+
+**影響**:
+
+- Node.js非推奨警告の解消
+- セキュリティの向上（適切な暗号化処理）
+- 将来のNode.jsバージョンでの互換性確保
+
+**テスト結果**:
+
+```bash
+Test Suites: 1 passed, 1 total
+Tests:       13 passed, 13 total
+```
