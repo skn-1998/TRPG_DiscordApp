@@ -10,6 +10,10 @@ function TextBunch() {
         <TextCell text="aaa" />
         <TextCell text="bbb" />
         <TextCell text="ccc" />
+        {/* <InputCell />
+        <InputCell /> */}
+        <SideInputCell />
+        <SideInputCell />
       </div>
     </>
   )
@@ -33,6 +37,20 @@ function TextCell(props: Props) {
   )
 }
 
+function SideInputCell() {
+  return (
+    <>
+      <div className={`${styles.textCell} ${styles.textCellCommon}`}>
+        <div className={styles.textCellInner}>
+          <div className={styles.sideInputWrap}>
+            <input className={styles.inputText} type="text" />
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function InputBunch(props: Props) {
   return (
     <>
@@ -43,6 +61,10 @@ function InputBunch(props: Props) {
         <InputCell />
         <InputCell />
         <InputCell />
+        <InputCell />
+        <InputCell />
+        {/* <InputCell />
+        <InputCell /> */}
       </div>
     </>
   )
