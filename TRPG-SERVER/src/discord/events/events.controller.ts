@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 import { Controller, Logger, Inject, forwardRef } from '@nestjs/common'
-import { CharaInfoButtonService } from './button/chara-info-button.service'
-import { DiceButtonService } from './button/dice-button.service'
+import { CharaInfoButtonService } from '../features/characterEdit/chara-info-button.service'
+import { DiceButtonService } from '../features/diceRoll/adapters/dice-button.adapter'
 import {
   Client,
   Events,
@@ -12,45 +12,33 @@ import {
   AnySelectMenuInteraction,
   TextChannel
 } from 'discord.js'
-import { ChangeCharaInfoService } from './select/change-chara-info.service'
-import { CharacterChannelService } from './select/character-channel.service'
-import { AddCharaInfoService } from './modal/add-chara-info.service'
-import {
-  changeCharacterInfoConfig,
-  addCharacterInfoConfig,
-  selectCharacterChannelConfig,
-  diceButtonConfig,
-  eventSelectButtonType,
-  eventType,
-  eventButtonType,
-  characterTabButtonsConfig,
-  characterDiceButtonsConfig,
-  dicePagePrevButtonConfig,
-  dicePageNextButtonConfig,
-  dicePageFirstButtonConfig,
-  dicePageLastButtonConfig,
-  dicePageCancelButtonConfig,
-  diceCharacterSelectConfig,
-  dicePageSelectConfig
-} from './events.list'
+import { ChangeCharaInfoService } from '../features/characterEdit/change-chara-info.service'
+import { CharacterChannelService } from '../features/characterThread/character-channel.service'
+import { AddCharaInfoService } from '../features/characterEdit/add-chara-info.service'
+import { characterEditIds } from '../features/characterEdit/events/character-edit.ids'
+import type { eventSelectButtonType, eventType, eventButtonType } from './events.list'
+import { characterThreadIds } from '../features/characterThread/events/character-thread.ids'
 import { discordInteractionType } from '../discord.type'
 import { isUndefined } from 'lodash'
-import { CharacterService } from 'src/domains/character/character.service'
+import { TypedEventEmitter } from 'src/shared/application/typed-event.service'
 import { AppConfigService } from 'src/config/config.service'
-import { CharacterTabButtonsService } from './button/character-tab-buttons.service'
+import { CharacterTabButtonsService } from '../features/characterThread/character-tab-buttons.service'
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
-import { ChannelCreateService } from './channel/character-channel-create.service'
 import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
-import { DicePagePrevButtonService } from './button/dice-page-prev-button.service'
-import { DicePageNextButtonService } from './button/dice-page-next-button.service'
-import { DicePageFirstButtonService } from './button/dice-page-first-button.service'
-import { DicePageLastButtonService } from './button/dice-page-last-button.service'
-import { DicePageCancelButtonService } from './button/dice-page-cancel-button.service'
-import { DiceCharacterSelectService } from './select/dice-character-select.service'
-import { DicePageSelectMenuService } from './select-menu/dice-page-select-menu.service'
+import { CharacterChannelCreateService } from './channel/character-channel-create.service'
+import { DicePagePrevButtonService } from '../features/diceRoll/adapters/dice-page-prev-button.adapter'
+import { DicePageNextButtonService } from '../features/diceRoll/adapters/dice-page-next-button.adapter'
+import { DicePageFirstButtonService } from '../features/diceRoll/adapters/dice-page-first-button.adapter'
+import { DicePageLastButtonService } from '../features/diceRoll/adapters/dice-page-last-button.adapter'
+import { DicePageCancelButtonService } from '../features/diceRoll/adapters/dice-page-cancel-button.adapter'
+import { DiceCharacterSelectService } from '../features/diceRoll/adapters/dice-character-select.adapter'
+import { CharacterThreadSelectService } from './select/character-thread-select.service'
+import { DicePageSelectMenuService } from '../features/diceRoll/adapters/dice-page-select-menu.adapter'
+import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
+import { EnhancedCharacterEditService } from '../features/characterEdit/enhanced-character-edit.service'
 // システムイベントハンドラーの型定義
 export type systemEventHandlerType = {
-  execute: (channel: TextChannel, config: string) => void
+  execute: (channel: TextChannel, config: string) => void | Promise<void>
 }
 
 @Controller('events')
@@ -63,20 +51,22 @@ export class EventsController {
     private addCharaInfoService: AddCharaInfoService,
     private changeCharaInfoService: ChangeCharaInfoService,
     private characterChannelService: CharacterChannelService,
-    @Inject(forwardRef(() => CharacterService))
-    private characterService: CharacterService,
+    private typedEventEmitter: TypedEventEmitter,
     private appConfigService: AppConfigService,
     private characterTabButtonsService: CharacterTabButtonsService,
     private characterDiceButtonsService: CharacterDiceButtonsService,
-    private channelCreateHandler: ChannelCreateService,
     private diceRollChannelCreateHandler: DiceRollChannelCreateService,
+    private characterChannelCreateHandler: CharacterChannelCreateService,
     private dicePagePrevButtonService: DicePagePrevButtonService,
     private dicePageNextButtonService: DicePageNextButtonService,
     private dicePageFirstButtonService: DicePageFirstButtonService,
     private dicePageLastButtonService: DicePageLastButtonService,
     private dicePageCancelButtonService: DicePageCancelButtonService,
     private diceCharacterSelectService: DiceCharacterSelectService,
-    private dicePageSelectMenuService: DicePageSelectMenuService
+    private characterThreadSelectService: CharacterThreadSelectService,
+    private dicePageSelectMenuService: DicePageSelectMenuService,
+    private channelCreateOrchestratorService: ChannelCreateOrchestratorService,
+    private enhancedCharacterEditService: EnhancedCharacterEditService
   ) {}
 
   private client: Client
@@ -109,16 +99,24 @@ export class EventsController {
         this.logger.debug(`ボタン処理: ${interaction.customId}`)
 
         // 通常のボタン処理
-        await this.doEvents(this.charaInfoButtonService, addCharacterInfoConfig)
-        await this.doEvents(this.charaInfoButtonService, changeCharacterInfoConfig)
-        await this.doEvents(this.diceButtonService, diceButtonConfig)
-        await this.doEvents(this.characterTabButtonsService, characterTabButtonsConfig)
-        await this.doEvents(this.characterDiceButtonsService, characterDiceButtonsConfig)
-        await this.doEvents(this.dicePagePrevButtonService, dicePagePrevButtonConfig)
-        await this.doEvents(this.dicePageNextButtonService, dicePageNextButtonConfig)
-        await this.doEvents(this.dicePageFirstButtonService, dicePageFirstButtonConfig)
-        await this.doEvents(this.dicePageLastButtonService, dicePageLastButtonConfig)
-        await this.doEvents(this.dicePageCancelButtonService, dicePageCancelButtonConfig)
+        await this.doEvents(this.charaInfoButtonService, { customId: characterEditIds.addCharacterInfo.customId })
+        await this.doEvents(this.charaInfoButtonService, { customId: characterEditIds.changeCharacterInfo.customId })
+        // diceButtonはfeaturesのAdapterでcustomIdを持つため、直接マッチング
+        await this.doEvents(this.diceButtonService, { customId: 'dice_button' })
+        await this.doEvents(this.characterTabButtonsService, {
+          customId: characterThreadIds.characterTabButtons.customId
+        })
+        // characterDiceButtons は 'roll*' プレフィクスでワイルドカードマッチ
+        await this.doEvents(this.characterDiceButtonsService, { customId: 'roll*' })
+        await this.doEvents(this.dicePagePrevButtonService, { customId: 'dice-prev*' })
+        await this.doEvents(this.dicePageNextButtonService, { customId: 'dice-next*' })
+        await this.doEvents(this.dicePageFirstButtonService, { customId: 'dice-first*' })
+        await this.doEvents(this.dicePageLastButtonService, { customId: 'dice-last*' })
+        await this.doEvents(this.dicePageCancelButtonService, { customId: 'dice-cancel*' })
+
+        // Enhanced Character Edit Service のボタン処理
+        await this.doEnhancedCharacterEditEvents('character-refresh-*')
+        await this.doEnhancedCharacterEditEvents('character-compact-view-*')
       }
 
       // セレクトメニューインタラクションの処理
@@ -126,18 +124,30 @@ export class EventsController {
         this.logger.debug(`セレクトメニュー処理: ${interaction.customId}`)
 
         // 通常のセレクトメニュー処理
-        await this.doEvents(this.characterChannelService, selectCharacterChannelConfig)
-        await this.doEvents(this.changeCharaInfoService, addCharacterInfoConfig)
-        await this.doEvents(this.changeCharaInfoService, changeCharacterInfoConfig)
-        await this.doEvents(this.diceCharacterSelectService, diceCharacterSelectConfig)
-        await this.doEvents(this.dicePageSelectMenuService, dicePageSelectConfig)
+        await this.doEvents(this.characterChannelService, {
+          customId: characterThreadIds.selectCharacterChannel.customId
+        })
+        await this.doEvents(this.changeCharaInfoService, { customId: characterEditIds.addCharacterInfo.customId })
+        await this.doEvents(this.changeCharaInfoService, { customId: characterEditIds.changeCharacterInfo.customId })
+        await this.doEvents(this.diceCharacterSelectService, { customId: 'dice-char-select*' })
+        await this.doEvents(this.characterThreadSelectService, { customId: 'character-thread-select' })
+        await this.doEvents(this.dicePageSelectMenuService, { customId: 'dice-page-select*' })
+
+        // Enhanced Character Edit Service のセレクトメニュー処理
+        await this.doEnhancedCharacterEditEvents('character-edit-section-*')
+        await this.doEnhancedCharacterEditEvents('character-field-edit-*')
+        await this.doEnhancedCharacterEditEvents('character-field-add-*')
       }
 
       // モーダルインタラクションの処理
       else if (interaction.isModalSubmit()) {
         this.logger.debug(`モーダル処理: ${interaction.customId}`)
-        await this.doEvents(this.addCharaInfoService, addCharacterInfoConfig)
-        await this.doEvents(this.addCharaInfoService, changeCharacterInfoConfig)
+        await this.doEvents(this.addCharaInfoService, { customId: characterEditIds.addCharacterInfo.customId })
+        await this.doEvents(this.addCharaInfoService, { customId: characterEditIds.changeCharacterInfo.customId })
+
+        // Enhanced Character Edit Service のモーダル処理
+        await this.doEnhancedCharacterEditEvents('character-create-basic-*')
+        await this.doEnhancedCharacterEditEvents('character-edit-modal-*')
       }
 
       // インタラクションが応答されなかった場合
@@ -171,7 +181,12 @@ export class EventsController {
     client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel): Promise<void> => {
       if (!(channel.type === ChannelType.GuildText)) return
 
-      this.doSystemEvent(this.channelCreateHandler, this.appConfigService.get('discord.characterCategory'), channel)
+      // キャラクターチャンネル作成ハンドラー
+      this.doSystemEvent(
+        this.characterChannelCreateHandler,
+        this.appConfigService.get('discord.characterCategory'),
+        channel
+      )
       this.doSystemEvent(
         this.diceRollChannelCreateHandler,
         this.appConfigService.get('discord.diceRollCategory'),
@@ -219,6 +234,30 @@ export class EventsController {
     if (this.interaction?.customId.includes('*') && this.interaction?.customId.includes(config.customId)) {
       this.logger.debug(`ワイルドカードイベント実行: ${this.interaction.customId} (マッチ: ${config.customId})`)
       await discordClass.execute(this.interaction, config)
+    }
+  }
+
+  /**
+   * Enhanced Character Edit Service のイベントを処理する
+   */
+  private async doEnhancedCharacterEditEvents(pattern: string): Promise<void> {
+    // 応答済みのインタラクションは処理しない
+    if (this.interaction.replied || this.interaction.deferred) {
+      return
+    }
+
+    // ワイルドカードパターンマッチング
+    const basePattern = pattern.replace('*', '')
+    if (this.interaction.customId.startsWith(basePattern)) {
+      this.logger.debug(`Enhanced Character Edit イベント実行: ${this.interaction.customId}`)
+
+      if (this.interaction.isButton()) {
+        await this.enhancedCharacterEditService.handleButtonInteraction(this.interaction)
+      } else if (this.interaction.isStringSelectMenu()) {
+        await this.enhancedCharacterEditService.handleSelectMenuInteraction(this.interaction)
+      } else if (this.interaction.isModalSubmit()) {
+        await this.enhancedCharacterEditService.handleModalSubmitInteraction(this.interaction)
+      }
     }
   }
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
+import { AppConfigModule } from '../src/config/config.module'
 import { CharacterModule } from '../src/domains/character/character.module'
 import { AuthModule } from '../src/domains/auth/auth.module'
 import { MockModule } from './mocks/mock.module'
@@ -10,13 +11,10 @@ import { AppModule } from '../src/app.module'
  */
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true
-    }),
-    MockModule, // モックを先にインポート
+    AppConfigModule,
     CharacterModule,
-    AuthModule,
-    AppModule
+    MockModule, // CharacterModule後にモックを読み込み、プロバイダを上書き
+    AuthModule
   ]
 })
 export class TestAppModule {}

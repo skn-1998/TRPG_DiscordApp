@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max } from 'class-validator'
 import { ApiProperty } from '@nestjs/swagger'
 
-export enum ChannelType {
+export enum CreateChannelType {
   TEXT = 'text',
   VOICE = 'voice',
   CATEGORY = 'category',
@@ -21,12 +21,12 @@ export class CreateChannelDto {
 
   @ApiProperty({
     description: 'チャンネルタイプ',
-    enum: ChannelType,
-    default: ChannelType.TEXT
+    enum: CreateChannelType,
+    default: CreateChannelType.TEXT
   })
   @IsOptional()
-  @IsEnum(ChannelType, { message: 'チャンネルタイプは有効な値で入力してください' })
-  readonly type?: ChannelType
+  @IsEnum(CreateChannelType, { message: 'チャンネルタイプは有効な値で入力してください' })
+  readonly type?: CreateChannelType
 
   @ApiProperty({ description: 'チャンネルの説明', required: false })
   @IsOptional()
@@ -54,4 +54,8 @@ export class CreateChannelDto {
   @Min(0, { message: '低速モードは0秒以上で入力してください' })
   @Max(21600, { message: '低速モードは21600秒以下で入力してください' }) // 6時間
   readonly rateLimitPerUser?: number
+
+  @ApiProperty({ description: 'チャンネル権限設定', required: false })
+  @IsOptional()
+  readonly permissions?: any[]
 }

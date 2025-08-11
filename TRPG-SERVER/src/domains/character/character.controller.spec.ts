@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
-import { CharacterIdParamDto } from './dto/create-character.dto'
+import { CharacterIdParamDto, CharacterInputDto } from './dto/create-character.dto'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { Request, Response } from 'express'
 
@@ -27,9 +27,8 @@ describe('CharacterController', () => {
     userName: 'テストユーザー'
   }
 
-  // PartialInputCharacterDtoが未定義のため、any型で暫定対応
-  // TODO: PartialInputCharacterDtoの型定義を作成し、anyを置き換えること
-  const mockCharacterDto: any = {
+  // CharacterInputDtoを使用した型安全なモックデータ
+  const mockCharacterDto: CharacterInputDto = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
     gameSystemId: 'test-system',

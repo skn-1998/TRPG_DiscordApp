@@ -45,6 +45,17 @@ export class SendMessageDto {
   @Type(() => EmbedDto)
   readonly embed?: EmbedDto
 
+  @ApiProperty({ description: 'Embed情報配列', required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmbedDto)
+  readonly embeds?: EmbedDto[]
+
+  @ApiProperty({ description: 'メッセージコンポーネント', required: false })
+  @IsOptional()
+  readonly components?: any[]
+
   @ApiProperty({ description: '一時的なメッセージかどうか', required: false })
   @IsOptional()
   readonly ephemeral?: boolean

@@ -26,11 +26,17 @@ export interface DiscordErrorResponse {
  * エラーコンテキストの型定義
  */
 export interface ErrorContext {
+  context?: string
   userId?: string
   discordUserId?: string
   characterId?: string
   channelId?: string
   guildId?: string
+  messageId?: string
+  messageCount?: number
+  channelName?: string
+  interactionId?: string
+  customId?: string
   action?: string
   additionalData?: Record<string, unknown>
 }
@@ -40,6 +46,26 @@ export interface ErrorContext {
  */
 export class ErrorHandler {
   private static readonly logger = new Logger(ErrorHandler.name)
+
+  /**
+   * 汎用エラーハンドリング（既存コードとの互換性のため）
+   * @param error エラーオブジェクト
+   * @param context エラーコンテキスト
+   */
+  static async handleError(error: unknown, context: ErrorContext): Promise<void> {
+    const errorMessage = this.extractErrorMessage(error)
+
+    // ログ記録
+    this.logError(error, context, 'GENERAL_ERROR')
+
+    // エラーを再スローして上位層でハンドリング
+    if (error instanceof HttpException) {
+      throw error
+    }
+
+    // 一般的なエラーの場合、適切な HTTP エラーに変換
+    throw new HttpException('処理中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+  }
 
   /**
    * HTTP API エラーをハンドリング

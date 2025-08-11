@@ -10,19 +10,29 @@ import { CommandsService } from './commands.service'
 import { EventsModule } from '../events/events.module'
 import { DiceResultService } from './commands-components/dice-result.service'
 import { SharedModule } from '../../shared/shared.module'
+import { CharacterModule } from '../../domains/character/character.module'
+import { GameSystemFeatureModule } from '../features/gameSystem/game-system.module'
+import { UserDefinedDiceFeatureModule } from '../features/userDefinedDice/user-defined-dice.module'
+import { DiceRollFeatureModule } from '../features/diceRoll/dice-roll.module'
 @Module({
-  imports: [EventsModule, SharedModule],
+  imports: [
+    EventsModule,
+    SharedModule,
+    CharacterModule,
+    GameSystemFeatureModule,
+    UserDefinedDiceFeatureModule,
+    DiceRollFeatureModule
+  ],
   providers: [
     CharacterThreadService,
     RollDiceService,
     SelectGameSystemService,
     UserDefinedDiceService,
     DiceFromContextMenuService,
-    CommandsController,
     CommandsService,
     DiceResultService
   ],
   controllers: [CommandsController],
-  exports: [CommandsService, CommandsController]
+  exports: [CommandsService]
 })
 export class CommandsModule {}

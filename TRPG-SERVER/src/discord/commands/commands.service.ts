@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common'
-import { CommandsController } from './commands.controller'
-import { Client, REST, Routes } from 'discord.js'
+import { Injectable, Logger } from '@nestjs/common'
+import { Client, CommandInteraction, AutocompleteInteraction } from 'discord.js'
 import 'dotenv/config'
 import { CharacterThreadService } from './commands-components/character-thread.service'
 import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
@@ -11,12 +10,12 @@ import { DiceResultService } from './commands-components/dice-result.service'
 
 @Injectable()
 export class CommandsService {
+  private readonly logger = new Logger(CommandsService.name)
   private characterThreadService: CharacterThreadService
   private rollDiceService: RollDiceService
   private selectGameSystemService: SelectGameSystemService
   private userDefinedDiceService: UserDefinedDiceService
   private diceFromContextMenuService: DiceFromContextMenuService
-  private commandsController: CommandsController
   private diceResultService: DiceResultService
 
   constructor(
@@ -24,7 +23,6 @@ export class CommandsService {
     rollDiceService: RollDiceService,
     selectGameSystemService: SelectGameSystemService,
     userDefinedDiceService: UserDefinedDiceService,
-    commandsController: CommandsController,
     diceFromContextMenuService: DiceFromContextMenuService,
     diceResultService: DiceResultService
   ) {
@@ -33,7 +31,6 @@ export class CommandsService {
     this.selectGameSystemService = selectGameSystemService
     this.userDefinedDiceService = userDefinedDiceService
     this.diceFromContextMenuService = diceFromContextMenuService
-    this.commandsController = commandsController
     this.diceResultService = diceResultService
   }
 
@@ -52,9 +49,63 @@ export class CommandsService {
     ].filter((service) => service)
   }
 
+  /**
+   * コマンド実行
+   */
+  async execute(interaction: CommandInteraction): Promise<void> {
+    try {
+      // コマンドサービス別に実行
+      const commandName = interaction.commandName
+
+      switch (commandName) {
+        case 'character-thread':
+          if (this.characterThreadService && typeof this.characterThreadService.execute === 'function') {
+            await this.characterThreadService.execute(interaction)
+          }
+          break
+        case 'roll-dice':
+          if (this.rollDiceService && typeof this.rollDiceService.execute === 'function') {
+            await this.rollDiceService.execute(interaction)
+          }
+          break
+        default:
+          this.logger.warn(`未実装のコマンド: ${commandName}`)
+          await interaction.reply({
+            content: 'このコマンドは現在利用できません。',
+            ephemeral: true
+          })
+      }
+    } catch (error) {
+      this.logger.error('コマンド実行エラー:', error)
+      const replyOptions = {
+        content: 'コマンドの実行中にエラーが発生しました。',
+        ephemeral: true
+      }
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(replyOptions)
+      } else {
+        await interaction.reply(replyOptions)
+      }
+    }
+  }
+
+  /**
+   * オートコンプリート実行
+   */
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    try {
+      // 各サービスのオートコンプリート機能を呼び出し
+      // 現在はログのみ
+      this.logger.log(`オートコンプリート: ${interaction.commandName}`)
+    } catch (error) {
+      this.logger.error('オートコンプリートエラー:', error)
+    }
+  }
+
   loadClient(client: Client): void {
-    this.commandsController.handleCommand(client)
-    this.commandsController.handleAutoComplete(client)
+    // クライアント設定が必要な場合は各サービスに委譲
+    this.logger.log('Discord クライアントが設定されました')
   }
 
   // 重複したコマンド登録処理を削除

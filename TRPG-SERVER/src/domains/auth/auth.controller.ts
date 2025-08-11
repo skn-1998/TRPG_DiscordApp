@@ -9,9 +9,7 @@ import {
   Headers,
   Param,
   Logger,
-  HttpStatus,
-  BadRequestException,
-  NotFoundException
+  BadRequestException
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { Request as ExpressRequest, Response } from 'express'
@@ -21,8 +19,6 @@ import { UserService } from '../user/user.service'
 import { User } from '../user/models/user.model'
 import { DiscordLoginDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
-import { JwtAuthGuard } from './guards/jwt-auth.guard'
-import { JwtTokenPayload } from './models/auth.token.model'
 import { ErrorHandler } from '../../utils/error-handler'
 import { CookieService } from '../../utils/cookie.service'
 import { ApiResponseUtil } from '../../utils/api-response.util'
@@ -100,7 +96,10 @@ export class AuthController {
   @Get('validate-token')
   async validateToken(@Headers() headers: ValidateTokenHeaderDto, @Res() res: Response): Promise<void> {
     try {
+      console.log('validateToken')
       const { Authorization } = headers
+      console.log('Authorization', Authorization)
+      console.log('headers', headers)
       const payload = await this.authService.validateToken(Authorization)
       // レスポンスDTOで型付け
       const output: TokenValidationOutputDto = {
@@ -127,6 +126,7 @@ export class AuthController {
       if (!code) {
         throw new BadRequestException('認証コードが指定されていません')
       }
+      console.log('login')
       const authData = await this.authService.authenticate(code)
       const userInfo = await this.authService.getUserInfo(authData.access_token)
       this.logger.debug(`User info: ${JSON.stringify(userInfo)}`)

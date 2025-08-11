@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
 import { CharacterService } from '../domains/character/character.service'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
 import { SendMessageDto } from './dto/send-message.dto'
-import { CreateChannelDto, ChannelType } from './dto/create-channel.dto'
+import { CreateChannelDto, CreateChannelType } from './dto/create-channel.dto'
 import { PostCharacterDto } from './dto/post-character.dto'
 
 // 認証されたリクエストの型定義
@@ -333,7 +333,7 @@ export class DiscordController {
       const createChannelResult = await this.discordService.createChannel({
         guildId: postCharacterDto.guildId,
         name: channelName,
-        type: ChannelType.TEXT,
+        type: CreateChannelType.TEXT,
         parentId: targetCategory.id,
         topic: `${character.characterName}のキャラクター情報`
       })

@@ -1,12 +1,32 @@
-import { IsOptional, IsString, IsNotEmpty } from 'class-validator'
+import { IsOptional, IsString, IsNotEmpty, IsNumber, IsBoolean, ValidateNested } from 'class-validator'
+import { Type, Transform } from 'class-transformer'
 import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
+import { AttributeSection } from '../../../core/types/attribute.types'
 import { AttributeObject } from '../../../core/dto/domain.dto'
 
 /**
- * キャラクター属性の型定義
+ * AttributeValue用DTO
  */
-export type CharacterAttribute = {
-  [key: string]: string | number | boolean | null | undefined
+export class AttributeValueDto {
+  @IsOptional()
+  @IsString()
+  name?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => Number(value))
+  index?: number
+
+  @IsOptional()
+  values?: Record<string, number> = {}
+
+  @IsOptional()
+  @IsString()
+  description?: string
+
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean
 }
 
 /**
@@ -27,19 +47,29 @@ export class CreateCharacterDto extends DiscordDto {
   readonly gameSystemId: string
 
   @IsOptional()
-  readonly status?: AttributeObject
+  @ValidateNested({ each: true })
+  @Type(() => AttributeValueDto)
+  readonly status?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly parameter?: AttributeObject
+  @ValidateNested({ each: true })
+  @Type(() => AttributeValueDto)
+  readonly parameter?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly skill?: AttributeObject
+  @ValidateNested({ each: true })
+  @Type(() => AttributeValueDto)
+  readonly skill?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly item?: AttributeObject
+  @ValidateNested({ each: true })
+  @Type(() => AttributeValueDto)
+  readonly item?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly description?: AttributeObject
+  @ValidateNested({ each: true })
+  @Type(() => AttributeValueDto)
+  readonly description?: Record<string, AttributeValueDto>
 }
 
 /**
@@ -67,19 +97,19 @@ export class CharacterInputDto {
   readonly gameSystemId?: string
 
   @IsOptional()
-  readonly status?: AttributeObject
+  readonly status?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly parameter?: AttributeObject
+  readonly parameter?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly skill?: AttributeObject
+  readonly skill?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly item?: AttributeObject
+  readonly item?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  readonly description?: AttributeObject
+  readonly description?: Record<string, AttributeValueDto>
 }
 
 /**

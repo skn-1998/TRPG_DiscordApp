@@ -45,32 +45,53 @@ export class DicePageSelectMenuService implements discordSelectMenuType {
 
       // 特別な値の処理
       if (selectedValue === 'prev-25' || selectedValue === 'next-25') {
-        // TODO: 25ページ単位の移動処理（必要に応じて実装）
-        await interaction.followUp({
-          content: 'この機能は現在開発中です。',
-          ephemeral: true
-        })
-        return
-      }
+        // 現在の状態を取得
+        const state = this.paginationService.getPaginationState(channelId, messageId)
+        if (!state) {
+          await interaction.followUp({
+            content: '⚠️ ページ状態の取得に失敗しました。',
+            ephemeral: true
+          })
+          return
+        }
 
-      // 通常のページ番号の場合
-      const pageNumber = parseInt(selectedValue, 10)
-      if (isNaN(pageNumber)) {
-        await interaction.followUp({
-          content: '⚠️ 無効なページ番号です。',
-          ephemeral: true
-        })
-        return
-      }
+        // 25ページ単位での移動先を計算
+        let targetPage: number
+        if (selectedValue === 'prev-25') {
+          targetPage = Math.max(1, state.currentPage - 25)
+        } else {
+          targetPage = Math.min(state.totalPages, state.currentPage + 25)
+        }
 
-      // 指定されたページに移動
-      newPage = this.paginationService.jumpToPage(channelId, messageId, pageNumber)
-      if (!newPage) {
-        await interaction.followUp({
-          content: '⚠️ 指定されたページに移動できませんでした。',
-          ephemeral: true
-        })
-        return
+        // 移動先ページに移動
+        newPage = this.paginationService.jumpToPage(channelId, messageId, targetPage)
+        if (!newPage) {
+          await interaction.followUp({
+            content: '⚠️ ページの移動に失敗しました。',
+            ephemeral: true
+          })
+          return
+        }
+      } else {
+        // 通常のページ番号の場合
+        const pageNumber = parseInt(selectedValue, 10)
+        if (isNaN(pageNumber)) {
+          await interaction.followUp({
+            content: '⚠️ 無効なページ番号です。',
+            ephemeral: true
+          })
+          return
+        }
+
+        // 指定されたページに移動
+        newPage = this.paginationService.jumpToPage(channelId, messageId, pageNumber)
+        if (!newPage) {
+          await interaction.followUp({
+            content: '⚠️ 指定されたページに移動できませんでした。',
+            ephemeral: true
+          })
+          return
+        }
       }
 
       // ページ状態を取得

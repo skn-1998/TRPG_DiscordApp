@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { EventName, EventPayload, TypedEventHandler, TypedEventListener } from '../domain/events/event-contracts'
 
@@ -10,7 +10,7 @@ import { EventName, EventPayload, TypedEventHandler, TypedEventListener } from '
 export class TypedEventService {
   private readonly logger = new Logger(TypedEventService.name)
 
-  constructor(private readonly eventEmitter: EventEmitter2) {}
+  constructor(@Inject('TYPED_EVENT_EMITTER') private readonly eventEmitter: EventEmitter2) {}
 
   /**
    * 型安全なイベント発行
@@ -212,6 +212,56 @@ export class TypedEventEmitter {
       channelId,
       diceExpression,
       userId,
+      source,
+      timestamp: new Date()
+    })
+  }
+
+  /**
+   * Discord Character Embed更新リクエストイベント
+   */
+  async requestDiscordCharacterEmbedUpdate(
+    character: EventPayload<'discord.embed.character.update.requested'>['character'],
+    channelId: string,
+    source: string
+  ): Promise<void> {
+    await this.typedEventService.emit('discord.embed.character.update.requested', {
+      character,
+      channelId,
+      source,
+      timestamp: new Date()
+    })
+  }
+
+  /**
+   * ChannelIDによるキャラクター検索リクエストイベント
+   */
+  async requestCharacterByChannelId(channelId: string, source: string, tabType?: string): Promise<void> {
+    await this.typedEventService.emit('character.findByChannelId.requested', {
+      channelId,
+      source,
+      timestamp: new Date(),
+      tabType
+    })
+  }
+
+  /**
+   * キャラクターIDによるキャラクター検索リクエストイベント
+   */
+  async requestCharacterById(characterId: string, source: string): Promise<void> {
+    await this.typedEventService.emit('character.findById.requested', {
+      characterId,
+      source,
+      timestamp: new Date()
+    })
+  }
+
+  /**
+   * キャラクター名による検索リクエストイベント
+   */
+  async requestCharacterByName(characterName: string, source: string): Promise<void> {
+    await this.typedEventService.emit('character.findByName.requested', {
+      characterName,
       source,
       timestamp: new Date()
     })

@@ -25,27 +25,35 @@ export class CharacterRepository implements Repository<Character, string> {
   }
 
   /**
-   * IDによってキャラクターを検索する
+   * IDによってキャラクターを検索する（インデックス最適化済み）
    * @param id キャラクターID
    */
   async findById(id: string): Promise<Character | null> {
-    return this.characterModel.findOne({ characterId: id }).exec()
+    return this.characterModel.findOne({ characterId: id }).lean().exec()
   }
 
   /**
-   * キャラクター名で検索する
+   * キャラクター名で検索する（インデックス最適化済み）
    * @param name キャラクター名
    */
   async findByName(name: string): Promise<Character | null> {
-    return this.characterModel.findOne({ characterName: name }).exec()
+    return this.characterModel
+      .findOne({ characterName: name })
+      .select('characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt')
+      .lean()
+      .exec()
   }
 
   /**
-   * ChannelIDによってキャラクターを検索する
+   * ChannelIDによってキャラクターを検索する（インデックス最適化済み）
    * @param channelId DiscordチャンネルID
    */
   async findByChannelId(channelId: string): Promise<Character | null> {
-    return this.characterModel.findOne({ discordChannelId: channelId }).exec()
+    return this.characterModel
+      .findOne({ discordChannelId: channelId })
+      .select('characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt')
+      .lean()
+      .exec()
   }
 
   /**

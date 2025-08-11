@@ -105,7 +105,7 @@ export const generateAppConfig = () => {
       jwtSecret: env.JWT_SECRET,
       // JWTトークンの有効期限（秒）
       jwtExpiresIn: env.JWT_EXPIRES_IN!,
-      redirectUrl: env.REDIRECT_URL!
+      redirectUrl: env.REDIRECT_URL! ?? 'http://127.0.0.1:5173'
     },
 
     security: {

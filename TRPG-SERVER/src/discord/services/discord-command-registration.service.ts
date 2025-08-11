@@ -22,10 +22,15 @@ export class DiscordCommandRegistrationService implements OnModuleInit {
    * モジュール初期化時にコマンドを登録
    */
   async onModuleInit(): Promise<void> {
+    // テストやモック環境ではDiscord API登録をスキップ
+    if (process.env.NODE_ENV === 'test' || process.env.TEST_MOCK_DISCORD === 'true') {
+      this.logger.log('TEST環境のためDiscordコマンド登録をスキップします')
+      this.registerCommands()
+      return
+    }
+
     this.logger.log('Discordコマンドを登録します...')
     this.registerCommands()
-
-    // コマンド登録完了後にDiscord APIに登録
     await this.commandManagerService.registerCommandsToDiscord()
   }
 

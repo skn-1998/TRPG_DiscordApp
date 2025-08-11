@@ -8,16 +8,17 @@ import {
   TextInputStyle
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
-import { changeCharacterInfoConfig, eventSelectButtonType } from '../events.list'
-import { AddCharaInfoService } from '../modal/add-chara-info.service'
+import { characterEditIds } from './events/character-edit.ids'
+import type { eventSelectButtonType } from '../../events/events.list'
+import { AddCharaInfoService } from './add-chara-info.service'
 
 @Injectable()
 export class ChangeCharaInfoService implements discordSelectMenuType {
   constructor(private readonly addCharaInfoService: AddCharaInfoService) {}
 
   public data = new StringSelectMenuBuilder()
-    .setCustomId(changeCharacterInfoConfig.customId)
-    .setPlaceholder(changeCharacterInfoConfig.placeholder)
+    .setCustomId(characterEditIds.changeCharacterInfo.customId)
+    .setPlaceholder(characterEditIds.changeCharacterInfo.placeholder)
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel('ステータス').setValue('status'),
       new StringSelectMenuOptionBuilder().setLabel('パラメータ').setValue('parameter'),
@@ -26,7 +27,13 @@ export class ChangeCharaInfoService implements discordSelectMenuType {
   async execute(interaction: AnySelectMenuInteraction, characterInfoConfig?: eventSelectButtonType): Promise<void> {
     try {
       // Use the provided config or fallback to the default one
-      const config = characterInfoConfig || changeCharacterInfoConfig
+      const config =
+        characterInfoConfig ||
+        ({
+          customId: characterEditIds.changeCharacterInfo.customId,
+          placeholder: characterEditIds.changeCharacterInfo.placeholder,
+          label: characterEditIds.changeCharacterInfo.label
+        } as eventSelectButtonType)
 
       const modal = this.addCharaInfoService.initialSetting(config).data
       const inputCharacterInfo = new TextInputBuilder()
@@ -35,7 +42,7 @@ export class ChangeCharaInfoService implements discordSelectMenuType {
         .setLabel('例のように入力')
         .setPlaceholder('HP:13\nMP:30')
 
-      if (changeCharacterInfoConfig.customId.includes(interaction.customId)) {
+      if (characterEditIds.changeCharacterInfo.customId.includes(interaction.customId)) {
         // const characterInfo = await getCharacter(interaction.channelId)
         // if(isUndefined(characterInfo)) return
         // inputCharacterInfo.setValue(convertCharacterJsonToString(characterInfo,interaction.values[0] as updatePrimary))
