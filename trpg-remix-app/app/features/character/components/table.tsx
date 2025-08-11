@@ -54,24 +54,24 @@ function SideInputCell({ value, changeHandler }: InputCellProps) {
 
 type SideGroupProps = {
   sideHeaderText: string
-  sideCellGroup: ReactNode
+  children: ReactNode
 }
 
-function SideGroup({ sideHeaderText, sideCellGroup }: SideGroupProps) {
+function SideGroup({ sideHeaderText, children }: SideGroupProps) {
   return (
     <>
       <div className={styles.textGroup}>
         <div className={`${styles.textHeaderCell} ${styles.inputCellCommon}`}>
           <b>{sideHeaderText}</b>
         </div>
-        {sideCellGroup}
+        {children}
       </div>
     </>
   )
 }
 
 function SideCellGroup() {
-  const [value, setValue] = useState('運転()')
+  const [value, setValue] = useState('運転（）')
 
   const changeHandler = (e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value)
 
@@ -85,7 +85,9 @@ function SideCellGroup() {
 export function TestSideGroup() {
   return (
     <>
-      <SideGroup sideHeaderText="hello" sideCellGroup={<SideCellGroup />}></SideGroup>
+      <SideGroup sideHeaderText="hello">
+        <SideCellGroup />
+      </SideGroup>
     </>
   )
 }
