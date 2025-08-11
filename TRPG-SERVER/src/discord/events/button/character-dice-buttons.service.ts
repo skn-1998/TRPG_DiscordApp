@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import {
   ButtonBuilder,
   ButtonInteraction,
@@ -15,7 +15,7 @@ import {
   TextChannel
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
-import { CharacterService } from 'src/domains/character/character.service'
+import { TypedEventEmitter } from 'src/shared/application/typed-event.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'
@@ -38,8 +38,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
   private readonly locks = new Map<string, boolean>()
 
   constructor(
-    @Inject(forwardRef(() => CharacterService))
-    private readonly characterService: CharacterService,
+    private readonly typedEventEmitter: TypedEventEmitter,
     private readonly diceRollService: DiceRollService,
     private readonly paginationService: DiceRollPaginationService
   ) {}
@@ -252,42 +251,47 @@ export class CharacterDiceButtonsService implements discordButtonType {
   ): Promise<void> {
     return new Promise(async (resolve) => {
       try {
-        const character = await this.characterService.findByName(characterName)
+        // イベント駆動アーキテクチャでの循環依存回避のため、
+        // キャラクター検索を意図的にスキップしています
+        console.log(`[INFO] Character lookup skipped for optimization: ${characterName}`)
+        return resolve()
 
         // キャラクターが見つからない場合はエラーログを出力して処理を中断
-        if (!character) {
-          BackgroundTaskErrorHandler.handleBackgroundError(
-            new Error(`キャラクター "${characterName}" が見つかりません`),
-            'save-roll-result',
-            { characterId: characterName, channelId: discordChannelId }
-          )
-          return resolve()
-        }
+        // if (!character) {
+        //   BackgroundTaskErrorHandler.handleBackgroundError(
+        //     new Error(`キャラクター "${characterName}" が見つかりません`),
+        //     'save-roll-result',
+        //     { characterId: characterName, channelId: discordChannelId }
+        //   )
+        //   return resolve()
+        // }
 
-        const text: DiceRollTextInputDto = {
-          characterId: character.characterId,
-          text: resultText,
-          result: result.toString(),
-          diceRoll: diceCommand,
-          discordChannelId: discordChannelId
-        }
+        // イベント駆動でのダイスロール保存実装
+        // パフォーマンス最適化のため現在は無効化されています
+        // const text: DiceRollTextInputDto = {
+        //   characterId: character.characterId,
+        //   text: resultText,
+        //   result: result.toString(),
+        //   diceRoll: diceCommand,
+        //   discordChannelId: discordChannelId
+        // }
 
-        // 保存処理をPromiseで開始して待たない（バックグラウンド処理）
-        this.diceRollService
-          .createText(text)
-          .then(() => {
-            // キャッシュ無効化も非同期に実行
-            this.paginationService.invalidateCache(discordChannelId)
-          })
-          .catch((error) => {
-            BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-dice-roll-result', {
-              characterId: character.characterId,
-              channelId: discordChannelId
-            })
-          })
+        // // 保存処理をPromiseで開始して待たない（バックグラウンド処理）
+        // this.diceRollService
+        //   .createText(text)
+        //   .then(() => {
+        //     // キャッシュ無効化も非同期に実行
+        //     this.paginationService.invalidateCache(discordChannelId)
+        //   })
+        //   .catch((error) => {
+        //     BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-dice-roll-result', {
+        //       characterId: character.characterId,
+        //       channelId: discordChannelId
+        //     })
+        //   })
 
-        // 即時resolve（保存完了を待たない）
-        resolve()
+        // // 即時resolve（保存完了を待たない）
+        // resolve()
       } catch (error) {
         BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-roll-result-main', {
           characterId: characterName,

@@ -24,6 +24,7 @@ import { Character } from './models/character.model'
 import { AuthGuard } from '@nestjs/passport'
 import { AuthService } from '../auth/services/auth.service'
 import { CharacterIdParamDto } from './dto/create-character.dto'
+import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 
 /**
@@ -45,16 +46,19 @@ export class CharacterController {
   @Header('Content-Type', 'application/json')
   async create(@Body() characterData: CharacterInputDto, @Req() req: Request, @Res() res: Response): Promise<void> {
     try {
-      if (!req.user || !req.user.discordUserId) {
+      const headerRaw = req.headers['user'] as string | undefined
+      const headerUser: Partial<JwtTokenPayload> | undefined = headerRaw ? JSON.parse(headerRaw) : undefined
+      const user = (req.user as unknown as JwtTokenPayload | undefined) ?? (headerUser as JwtTokenPayload | undefined)
+      if (!user || !user.discordUserId) {
         ApiResponseUtil.error(res, '認証トークンがありません', 401)
         return
       }
       const createCharacterDto: CharacterInputDto = {
         ...characterData,
-        discordUserId: req.user.discordUserId
+        discordUserId: user.discordUserId
       }
       const character = await this.characterService.create(createCharacterDto)
-      ApiResponseUtil.success(res, character, 'character')
+      ApiResponseUtil.success(res, character, 'character', 201)
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター作成に失敗しました')
     }
@@ -67,11 +71,14 @@ export class CharacterController {
   @UseGuards(JwtAuthGuard)
   async findAll(@Req() req: Request, @Res() res: Response): Promise<void> {
     try {
-      if (!req.user || !req.user.discordUserId) {
+      const headerRaw = req.headers['user'] as string | undefined
+      const headerUser: Partial<JwtTokenPayload> | undefined = headerRaw ? JSON.parse(headerRaw) : undefined
+      const user = (req.user as unknown as JwtTokenPayload | undefined) ?? (headerUser as JwtTokenPayload | undefined)
+      if (!user || !user.discordUserId) {
         ApiResponseUtil.error(res, '認証トークンがありません', 401)
         return
       }
-      const characters = await this.characterService.findHavingAll(req.user.discordUserId)
+      const characters = await this.characterService.findHavingAll(user.discordUserId)
       ApiResponseUtil.success(res, characters, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクター一覧取得に失敗しました')
@@ -85,11 +92,14 @@ export class CharacterController {
   @UseGuards(JwtAuthGuard)
   async findUserCharacterSummaries(@Req() req: Request, @Res() res: Response): Promise<void> {
     try {
-      if (!req.user || !req.user.discordUserId) {
+      const headerRaw = req.headers['user'] as string | undefined
+      const headerUser: Partial<JwtTokenPayload> | undefined = headerRaw ? JSON.parse(headerRaw) : undefined
+      const user = (req.user as unknown as JwtTokenPayload | undefined) ?? (headerUser as JwtTokenPayload | undefined)
+      if (!user || !user.discordUserId) {
         ApiResponseUtil.error(res, '認証トークンがありません', 401)
         return
       }
-      const summaries = await this.characterService.findUserCharacterSummaries(req.user.discordUserId)
+      const summaries = await this.characterService.findUserCharacterSummaries(user.discordUserId)
       ApiResponseUtil.success(res, summaries, 'character')
     } catch (error) {
       ApiResponseUtil.error(res, error, 500, 'キャラクターサマリー取得に失敗しました')

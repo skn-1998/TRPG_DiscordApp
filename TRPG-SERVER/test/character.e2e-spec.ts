@@ -75,7 +75,9 @@ describe('CharacterController (e2e)', () => {
 
   // 認証ユーザーをシミュレートするリクエスト変更関数
   const addAuthUserToRequest = (req: any) => {
-    return req.set('Authorization', 'Bearer test-token').set('user', JSON.stringify({ userId: '123456789012345678' }))
+    return req
+      .set('Authorization', 'Bearer test-token')
+      .set('user', JSON.stringify({ discordUserId: '123456789012345678', username: 'test-user' }))
   }
 
   it('POST /character - キャラクターを作成できること', async () => {
@@ -131,7 +133,7 @@ describe('CharacterController (e2e)', () => {
           characterName: updatedName,
           status: {
             ...cthulhuTestCharacter.status,
-            HP: 15 // HPを更新
+            HP: { name: 'HP', values: { base: 15 } }
           }
         })
     )

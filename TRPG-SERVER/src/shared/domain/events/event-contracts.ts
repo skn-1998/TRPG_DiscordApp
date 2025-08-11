@@ -40,8 +40,29 @@ export interface CharacterEventContracts {
     timestamp: Date
   }
 
+  'character.findById.failed': {
+    characterId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
   'character.findByName.requested': {
     characterName: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByName.completed': {
+    characterName: string
+    character: import('../../../domains/character/models/character.model').Character | null
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByName.failed': {
+    characterName: string
+    error: string
     source: string
     timestamp: Date
   }
@@ -89,6 +110,15 @@ export interface CharacterEventContracts {
     source: string
     timestamp: Date
   }
+
+  // Character更新イベント（汎用）
+  'character.updated': {
+    character: import('../../../domains/character/models/character.model').Character
+    updateType: string
+    channelId?: string
+    source: string
+    timestamp: Date
+  }
 }
 
 // DiceRoll関連のイベント契約
@@ -103,7 +133,7 @@ export interface DiceRollEventContracts {
 
   'diceroll.execute.completed': {
     channelId: string
-    result: unknown // TODO: DiceRollResultの型定義
+    result: import('../../../discord/utils/dice.util').DiceResult
     source: string
     timestamp: Date
   }
@@ -133,10 +163,90 @@ export interface DiscordEventContracts {
     source: string
     timestamp: Date
   }
+
+  'discord.embed.character.update.requested': {
+    character: import('../../../domains/character/models/character.model').Character
+    channelId: string
+    source: string
+    timestamp: Date
+  }
+
+  'discord.embed.character.update.completed': {
+    characterId: string
+    channelId: string
+    success: boolean
+    source: string
+    timestamp: Date
+  }
+
+  'discord.embed.character.update.failed': {
+    characterId: string
+    channelId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // メッセージEmbedの更新イベント
+  'discord.message.embed.update': {
+    channelId: string
+    messageId?: string
+    character?: import('../../../domains/character/models/character.model').Character
+    embed?: any
+    success: boolean
+    source: string
+    timestamp: Date
+  }
+}
+
+// CharacterThread関連のイベント契約
+export interface CharacterThreadEventContracts {
+  // スレッド作成関連
+  'character-thread.creation.requested': {
+    threadId: string
+    characterId: string
+    characterName: string
+    channelId: string
+    creatorId: string
+    guildId: string
+    character: import('../../../domains/character/models/character.model').Character
+    displayOptions: any
+    timestamp: Date
+    source: string
+  }
+
+  'character-thread.creation.completed': {
+    threadId: string
+    discordThreadId: string
+    threadUrl: string
+    characterId: string
+    characterName: string
+    channelId: string
+    creatorId: string
+    guildId: string
+    timestamp: Date
+    source: string
+  }
+
+  'character-thread.creation.failed': {
+    threadId: string
+    characterId: string
+    characterName: string
+    channelId: string
+    creatorId: string
+    guildId: string
+    error: string
+    timestamp: Date
+    source: string
+  }
 }
 
 // 統合されたイベント契約
-export interface AppEventContracts extends CharacterEventContracts, DiceRollEventContracts, DiscordEventContracts {}
+export interface AppEventContracts
+  extends CharacterEventContracts,
+    DiceRollEventContracts,
+    DiscordEventContracts,
+    CharacterThreadEventContracts {}
 
 // イベント名の型
 export type EventName = keyof AppEventContracts

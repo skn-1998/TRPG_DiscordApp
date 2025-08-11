@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { CacheType, ChannelType, ModalBuilder, ModalSubmitInteraction, TextChannel } from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
-import { eventSelectButtonType } from '../events.list'
+import type { eventSelectButtonType } from '../../events/events.list'
+import { characterEditIds } from './events/character-edit.ids'
 import _, { isEmpty, isNull, isUndefined } from 'lodash'
 import { convertCharacterInfoToJson, filterAndFormatInput } from 'src/discord/utils/convertToJSON'
 import { DiscordIntegrationService } from '../../application/discord-integration.service'
@@ -22,7 +23,8 @@ export class AddCharaInfoService implements discordModalType {
   }
 
   get data(): ModalBuilder {
-    return new ModalBuilder().setCustomId(this._characterInfoConfig.customId).setTitle('キャラクター情報追加')
+    const id = this._characterInfoConfig?.customId || characterEditIds.addCharacterInfo.customId
+    return new ModalBuilder().setCustomId(id).setTitle('キャラクター情報追加')
   }
 
   async execute(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {

@@ -31,8 +31,13 @@ export const testEnvironment = {
   }
 }
 
+import * as dotenv from 'dotenv'
+import * as path from 'path'
+
 // 環境変数設定用のヘルパー関数
 export function setupTestEnvironment() {
+  // .env ファイルを明示的に読み込み
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') })
   // テスト環境の環境変数を設定
   process.env.NODE_ENV = 'test'
   process.env.MONGO_URI = testEnvironment.database.mongo.uri
@@ -50,8 +55,16 @@ export function setupTestEnvironment() {
   process.env.TOKEN = testEnvironment.auth.discord.botToken
   process.env.DISCORD_APPLICATIONID = testEnvironment.auth.discord.clientId
   process.env.DISCORD_SECRET = testEnvironment.auth.discord.clientSecret
-  process.env.MONGODB_URI = testEnvironment.database.mongo.uri
+
+  // MongoDB Atlas URI を優先（すでに設定されている場合は上書きしない）
+  if (!process.env.MONGODB_URI) {
+    process.env.MONGODB_URI = testEnvironment.database.mongo.uri
+  }
+
   process.env.DISCORD_TOKEN_ENCRYPTION_KEY = 'test-encryption-key-32-characters-long'
+
+  // イベント駆動を無効化してテストで直接DB操作を行う
+  process.env.PROTOTYPE_EVENT_DRIVEN = 'false'
 
   process.env.TEST_TIMEOUT = testEnvironment.test.timeout.toString()
   process.env.TEST_MOCK_DISCORD = testEnvironment.test.mockDiscord.toString()

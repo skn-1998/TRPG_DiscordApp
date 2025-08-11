@@ -16,7 +16,7 @@ import { discordSelectMenuType } from 'src/discord/discord.type'
 import _, { isNull, isUndefined } from 'lodash'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
-import { CharacterAttribute } from 'src/domains/character/dto/create-character.dto'
+import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
 import { TypedEventEmitter } from '../../../shared/application/typed-event.service'
 
 @Injectable()
@@ -252,18 +252,21 @@ export class CharacterChannelService implements discordSelectMenuType {
       // ステータスの追加（HPなど）
       if (character.status && Object.keys(character.status).length > 0) {
         // HP, MP, SANの取得
-        const hp = character.status['HP'] as CharacterAttribute
-        const mp = character.status['MP'] as CharacterAttribute
-        const san = character.status['SAN'] as CharacterAttribute
+        const hp = character.status['HP'] as AttributeValue
+        const mp = character.status['MP'] as AttributeValue
+        const san = character.status['SAN'] as AttributeValue
 
         if (hp) {
-          baseInfoEmbed.addFields({ name: 'HP', value: `${hp.value}/${hp.value}`, inline: true })
+          const v = getDisplayNumber(hp)
+          baseInfoEmbed.addFields({ name: 'HP', value: `${v}`, inline: true })
         }
         if (mp) {
-          baseInfoEmbed.addFields({ name: 'MP', value: `${mp.value}/${mp.value}`, inline: true })
+          const v = getDisplayNumber(mp)
+          baseInfoEmbed.addFields({ name: 'MP', value: `${v}`, inline: true })
         }
         if (san) {
-          baseInfoEmbed.addFields({ name: 'SAN', value: `${san.value}/${san.value}`, inline: true })
+          const v = getDisplayNumber(san)
+          baseInfoEmbed.addFields({ name: 'SAN', value: `${v}`, inline: true })
         }
       }
 
@@ -274,7 +277,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       if (character.parameter && Object.keys(character.parameter).length > 0) {
         const parameterItems = Object.entries(character.parameter).map(([name, value]) => ({
           name,
-          value: value as CharacterAttribute
+          value: value as AttributeValue
         }))
 
         // パラメータを4つずつのグループに分割して表示
@@ -282,7 +285,7 @@ export class CharacterChannelService implements discordSelectMenuType {
           const group = parameterItems.slice(i, i + 4)
           const fields = group.map((param) => ({
             name: param.name,
-            value: param.value.value?.toString() ?? '0',
+            value: String(getDisplayNumber(param.value)),
             inline: true
           }))
           parameterEmbed.addFields(fields)
@@ -306,8 +309,8 @@ export class CharacterChannelService implements discordSelectMenuType {
       // スキルの追加（上位5件）
       if (character.skill && Object.keys(character.skill).length > 0) {
         const skillItems = Object.entries(character.skill)
-          .map(([name, value]) => ({ name, value: value as CharacterAttribute }))
-          .sort((a, b) => Number(b.value.value) - Number(a.value.value)) // 値が大きい順にソート
+          .map(([name, value]) => ({ name, value: value as AttributeValue }))
+          .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
           .slice(0, 5) // 上位5件を取得
 
         // スキルフィールドを追加
@@ -316,7 +319,7 @@ export class CharacterChannelService implements discordSelectMenuType {
 
           skillEmbed.addFields({
             name: skill.name,
-            value: `${skill.value.value}`,
+            value: `${getDisplayNumber(skill.value)}`,
             inline: true
           })
         })
@@ -435,19 +438,20 @@ export class CharacterChannelService implements discordSelectMenuType {
 
       if (character.skill && Object.keys(character.skill).length > 0) {
         const skillItems = Object.entries(character.skill)
-          .map(([name, value]) => ({ name, value: value as CharacterAttribute }))
-          .sort((a, b) => Number(b.value.value) - Number(a.value.value)) // 値が大きい順にソート
+          .map(([name, value]) => ({ name, value: value as AttributeValue }))
+          .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value)) // 値が大きい順にソート
           .slice(0, 5) // 上位5件を取得
 
         skillItems.forEach((skill, index) => {
-          if (isNull(skill.value.value)) return
+          const skillVal = getDisplayNumber(skill.value)
+          if (isNull(skillVal)) return
           if (index < 5) {
             // 最大5つま
             // でボタンを作成
             skillButtons.addComponents(
               new ButtonBuilder()
-                .setCustomId(`roll*_${skill.name}-${skill.value.value}`)
-                .setLabel(`${skill.name}(${skill.value.value}%)`)
+                .setCustomId(`roll*_${skill.name}-${skillVal}`)
+                .setLabel(`${skill.name}(${skillVal}%)`)
                 .setStyle(ButtonStyle.Secondary)
             )
           }
@@ -458,16 +462,17 @@ export class CharacterChannelService implements discordSelectMenuType {
       const abilityButtons = new ActionRowBuilder<ButtonBuilder>()
 
       const abilityItems = Object.entries(character.parameter ?? {})
-        .map(([name, value]) => ({ name, value: value as CharacterAttribute }))
-        .sort((a, b) => Number(b.value.name) - Number(a.value.value)) // 値が大きい順にソート
+        .map(([name, value]) => ({ name, value: value as AttributeValue }))
+        .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
         .slice(0, 5) // 上位5件を取得
 
       abilityItems.forEach((ability) => {
-        if (isNull(ability.value.value)) return
+        const abilityVal = getDisplayNumber(ability.value)
+        if (isNull(abilityVal)) return
         abilityButtons.addComponents(
           new ButtonBuilder()
-            .setCustomId(`roll*_${ability.name}-${ability.value.value}`)
-            .setLabel(`${ability.name}(${ability.value.value})`)
+            .setCustomId(`roll*_${ability.name}-${abilityVal}`)
+            .setLabel(`${ability.name}(${abilityVal})`)
             .setStyle(ButtonStyle.Success)
         )
       })

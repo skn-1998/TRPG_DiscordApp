@@ -1,7 +1,7 @@
 /* eslint-disable indent */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document } from 'mongoose'
-import { CharacterAttribute } from '../dto/create-character.dto'
+import { AttributeSection } from '../../../core/types/attribute.types'
 
 /**
  * キャラクタードキュメント
@@ -29,19 +29,19 @@ export class Character {
   discordChannelId: string
 
   @Prop({ type: Object, default: {} })
-  status: Record<string, CharacterAttribute> | Record<string, unknown>
+  status: AttributeSection
 
   @Prop({ type: Object, default: {} })
-  skill?: Record<string, CharacterAttribute> | Record<string, unknown>
+  skill?: AttributeSection
 
   @Prop({ type: Object, default: {} })
-  parameter?: Record<string, CharacterAttribute> | Record<string, unknown>
+  parameter?: AttributeSection
 
   @Prop({ type: Object, default: {} })
-  item?: Record<string, CharacterAttribute> | Record<string, unknown>
+  item?: AttributeSection
 
   @Prop({ type: Object, default: {} })
-  description?: Record<string, CharacterAttribute> | Record<string, unknown>
+  description?: AttributeSection
 }
 
 /**

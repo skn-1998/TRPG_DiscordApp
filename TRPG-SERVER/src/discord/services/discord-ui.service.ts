@@ -170,7 +170,7 @@ export class DiscordUIService {
    * キャラクターEmbedデータを作成
    */
   private createCharacterEmbedData(character: Character, guildInfo: GuildInfo): EmbedData {
-    const fields = []
+    const fields: Array<{ name: string; value: string; inline: boolean }> = []
 
     // 基本情報
     if (character.characterName) {

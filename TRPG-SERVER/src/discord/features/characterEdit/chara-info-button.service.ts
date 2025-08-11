@@ -9,8 +9,9 @@ import {
   TextChannel
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
-import { addCharacterInfoConfig, changeCharacterInfoConfig, eventSelectButtonType } from '../events.list'
-import { ChangeCharaInfoService } from '../select/change-chara-info.service'
+import type { eventSelectButtonType } from '../../events/events.list'
+import { characterEditIds } from './events/character-edit.ids'
+import { ChangeCharaInfoService } from './change-chara-info.service'
 
 @Injectable()
 export class CharaInfoButtonService implements discordButtonType {
@@ -24,10 +25,9 @@ export class CharaInfoButtonService implements discordButtonType {
   private _buttonStyle: ButtonStyle
   private _buttonConfig: eventSelectButtonType
   get data(): ButtonBuilder {
-    return new ButtonBuilder()
-      .setCustomId(this._buttonConfig.customId)
-      .setLabel(this._buttonConfig.label)
-      .setStyle(this._buttonStyle)
+    const id = this._buttonConfig?.customId || characterEditIds.addCharacterInfo.customId
+    const label = this._buttonConfig?.label || characterEditIds.addCharacterInfo.label
+    return new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(this._buttonStyle)
   }
   async execute(interaction: ButtonInteraction<CacheType>): Promise<void> {
     try {
@@ -50,13 +50,13 @@ export class CharaInfoButtonService implements discordButtonType {
 
   async createButton(channel: TextChannel): Promise<void> {
     const addCharacterInfoButtonBuilder = new ButtonBuilder()
-      .setCustomId(addCharacterInfoConfig.customId)
-      .setLabel(addCharacterInfoConfig.label)
+      .setCustomId(characterEditIds.addCharacterInfo.customId)
+      .setLabel(characterEditIds.addCharacterInfo.label)
       .setStyle(ButtonStyle.Primary)
 
     const changeCharacterInfoButtonBuilder = new ButtonBuilder()
-      .setCustomId(changeCharacterInfoConfig.customId)
-      .setLabel(changeCharacterInfoConfig.label)
+      .setCustomId(characterEditIds.changeCharacterInfo.customId)
+      .setLabel(characterEditIds.changeCharacterInfo.label)
       .setStyle(ButtonStyle.Secondary)
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents([

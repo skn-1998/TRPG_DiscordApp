@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { EventEmitter2 } from '@nestjs/event-emitter'
+import { TypedEventService } from '../../shared/application/typed-event.service'
 import { Character } from '../../domains/character/models/character.model'
 import { UpdateCharacterDto } from '../../domains/character/dto/update-character.dto'
 
@@ -12,7 +12,7 @@ import { UpdateCharacterDto } from '../../domains/character/dto/update-character
  */
 @Injectable()
 export class DiscordFacadeService {
-  constructor(private readonly eventEmitter: EventEmitter2) {}
+  constructor(private readonly typedEventService: TypedEventService) {}
 
   /**
    * 【PHASE3】 チャンネルIDでキャラクターを取得
@@ -22,7 +22,7 @@ export class DiscordFacadeService {
     console.warn('[PHASE3] DiscordFacadeService.getCharacterByChannelId is deprecated. Use event-driven pattern.')
 
     // イベント駆動パターンでリクエスト
-    this.eventEmitter.emit('character.findByChannelId.requested', {
+    await this.typedEventService.emit('character.findByChannelId.requested', {
       channelId,
       source: 'discord-facade',
       timestamp: new Date()
@@ -40,7 +40,7 @@ export class DiscordFacadeService {
     console.warn('[PHASE3] DiscordFacadeService.getCharacterById is deprecated. Use event-driven pattern.')
 
     // イベント駆動パターンでリクエスト
-    this.eventEmitter.emit('character.findById.requested', {
+    await this.typedEventService.emit('character.findById.requested', {
       characterId,
       source: 'discord-facade',
       timestamp: new Date()
@@ -58,7 +58,7 @@ export class DiscordFacadeService {
     console.warn('[PHASE3] DiscordFacadeService.getCharacterByName is deprecated. Use event-driven pattern.')
 
     // イベント駆動パターンでリクエスト
-    this.eventEmitter.emit('character.findByName.requested', {
+    await this.typedEventService.emit('character.findByName.requested', {
       characterName: name,
       source: 'discord-facade',
       timestamp: new Date()
@@ -78,7 +78,7 @@ export class DiscordFacadeService {
     )
 
     // イベント駆動パターンで更新リクエスト
-    this.eventEmitter.emit('character.updateByChannelId.requested', {
+    await this.typedEventService.emit('character.update.requested', {
       channelId,
       updateData,
       source: 'discord-facade',
@@ -96,9 +96,9 @@ export class DiscordFacadeService {
   async updateCharacter(characterId: string, updateData: UpdateCharacterDto): Promise<Character | null> {
     console.warn('[PHASE3] DiscordFacadeService.updateCharacter is deprecated. Use DiscordIntegrationService.')
 
-    // イベント駆動パターンで更新リクエスト
-    this.eventEmitter.emit('character.update.requested', {
-      characterId,
+    // イベント駆動パターンで更新リクエスト（現行契約はchannelIdベースのため空文字を設定）
+    await this.typedEventService.emit('character.update.requested', {
+      channelId: '',
       updateData,
       source: 'discord-facade',
       timestamp: new Date()
@@ -112,8 +112,8 @@ export class DiscordFacadeService {
    * Discord関連のキャラクター操作イベントを発行
    * この機能は維持される
    */
-  emitCharacterEvent(eventName: string, data: Record<string, unknown>): void {
-    this.eventEmitter.emit(eventName, {
+  async emitCharacterEvent(eventName: string, data: Record<string, unknown>): Promise<void> {
+    await this.typedEventService.emit(eventName as any, {
       ...data,
       source: 'discord-facade',
       timestamp: new Date()

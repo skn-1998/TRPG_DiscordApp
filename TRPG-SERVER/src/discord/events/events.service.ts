@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, Logger, Inject, Optional, forwardRef } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 import { Client, Interaction, ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
 import { EventsController } from './events.controller'
 
@@ -14,6 +15,7 @@ export class EventsService implements OnModuleInit {
 
   constructor(
     private readonly moduleRef: ModuleRef,
+    private readonly eventEmitter: EventEmitter2,
     // コントローラーを直接注入（Optionalでundefinedでも問題ないように設定）
     @Optional()
     @Inject(forwardRef(() => EventsController))
@@ -73,25 +75,84 @@ export class EventsService implements OnModuleInit {
   async handleInteraction(
     interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
   ): Promise<boolean> {
+    const startTime = Date.now()
+    const interactionType = interaction.isButton() ? 'button' : interaction.isAnySelectMenu() ? 'select' : 'modal'
+
+    // イベント処理開始メトリクス
+    this.eventEmitter.emit('discord.event.start', {
+      eventType: `${interactionType}-interaction`,
+      interactionId: interaction.id,
+      userId: interaction.user.id,
+      guildId: interaction.guildId
+    })
+
     try {
       // 応答済みのインタラクションは処理しない
       if (interaction.replied || interaction.deferred) {
+        const duration = Date.now() - startTime
         this.logger.warn(
           `インタラクション(ID: ${interaction.id})は既に応答済みです。EventsControllerへの委譲をスキップします。`
         )
+
+        // 処理済みメトリクス記録
+        this.eventEmitter.emit('discord.event.processed', {
+          eventType: `${interactionType}-interaction`,
+          success: true,
+          duration,
+          reason: 'already-replied'
+        })
         return true // すでに処理済みとみなす
       }
 
       if (this.eventsController) {
         this.logger.log(`インタラクション(ID: ${interaction.id})をEventsControllerに委譲します。`)
         await this.eventsController.handleInteraction(interaction)
+
+        const duration = Date.now() - startTime
+
+        // 成功メトリクス記録
+        this.eventEmitter.emit('discord.event.processed', {
+          eventType: `${interactionType}-interaction`,
+          success: true,
+          duration,
+          interactionId: interaction.id
+        })
+
         return true // 処理成功
       }
+
+      const duration = Date.now() - startTime
       this.logger.warn('インタラクション処理のためのEventsControllerが利用できません。')
+
+      // エラーメトリクス記録
+      this.eventEmitter.emit('discord.event.processed', {
+        eventType: `${interactionType}-interaction`,
+        success: false,
+        duration,
+        error: 'controller-unavailable'
+      })
+
       return false // コントローラーが利用できない
     } catch (error) {
+      const duration = Date.now() - startTime
       this.logger.error(`EventsServiceでのハンドリングエラー(ID: ${interaction.id}):`, error)
+
+      // エラーメトリクス記録
+      this.eventEmitter.emit('discord.event.processed', {
+        eventType: `${interactionType}-interaction`,
+        success: false,
+        duration,
+        error: (error as Error).message
+      })
+
       return false // エラーが発生した
     }
+  }
+
+  /**
+   * インタラクション実行（discord-interaction-handler.service.tsとの互換性のため）
+   */
+  async execute(interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction): Promise<void> {
+    await this.handleInteraction(interaction)
   }
 }

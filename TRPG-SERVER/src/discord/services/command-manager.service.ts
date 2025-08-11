@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Client, REST, Routes, Interaction, AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
-import { CommandsController } from '../commands/commands.controller'
+import { CommandsService } from '../commands/commands.service'
 /**
  * コマンドマネージャーサービス
  * Discord Bot のコマンド管理、登録、実行を担当
@@ -17,7 +17,7 @@ export class CommandManagerService implements OnModuleInit {
   constructor(
     private readonly discordClientService: DiscordClientService,
     private readonly configService: ConfigService,
-    private readonly commandsController: CommandsController
+    private readonly commandsService: CommandsService
   ) {
     const discordToken = this.configService.get<string>('discord.token')
     if (!discordToken) {
@@ -102,7 +102,7 @@ export class CommandManagerService implements OnModuleInit {
    * @param interaction オートコンプリート相互作用
    */
   async handleAutocompleteInteraction(interaction: AutocompleteInteraction): Promise<void> {
-    await this.commandsController.handleAutocompleteInteraction(interaction)
+    await this.commandsService.autocomplete(interaction)
   }
 
   /**

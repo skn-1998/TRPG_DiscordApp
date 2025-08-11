@@ -332,7 +332,7 @@ export class AuthService {
     const redirectUri = this.appConfigService.get('app.frontendUrl') + '/login'
     const applicationId = this.appConfigService.get('discord.applicationId')
     const clientSecret = this.appConfigService.get('discord.secret')
-
+    console.log(redirectUri)
     const params = new URLSearchParams()
     params.append('client_id', applicationId)
     params.append('client_secret', clientSecret)
@@ -344,6 +344,9 @@ export class AuthService {
     this.logger.debug(`認証リクエスト: redirect_uri=${redirectUri}`)
     this.logger.debug(`認証スコープ: identify email guilds`)
     this.logger.debug(`Client ID: ${applicationId}`)
+    for (const [key, value] of params.entries()) {
+      this.logger.debug(`${key}: ${value}`)
+    }
 
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -352,7 +355,6 @@ export class AuthService {
     try {
       const response = await lastValueFrom(this.httpService.post<DiscordAuthResponse>(url, params, { headers }))
       const authData = (response as any).data as DiscordAuthResponse
-
       this.logger.debug('Discord認証成功')
       this.logger.debug(`取得したスコープ: ${authData.scope}`)
       return authData

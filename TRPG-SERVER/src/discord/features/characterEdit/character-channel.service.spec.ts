@@ -2,7 +2,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
-import { CharacterChannelService } from './character-channel.service'
+import { CharacterChannelService } from '../characterThread/character-channel.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { AppConfigService } from '../../../config/config.service'
 import { Character } from '../../../domains/character/models/character.model'
