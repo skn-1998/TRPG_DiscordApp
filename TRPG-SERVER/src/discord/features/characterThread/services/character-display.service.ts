@@ -7,7 +7,16 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { EmbedBuilder, Client, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
+import {
+  EmbedBuilder,
+  Client,
+  TextChannel,
+  NewsChannel,
+  ThreadChannel,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder
+} from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
@@ -40,20 +49,13 @@ export class CharacterDisplayService implements OnModuleInit {
   }
 
   /**
-   * Embed関連イベントハンドラーを登録
-   * DiscordEmbedHandlerServiceから統合
+   * Embed関連イベントハンドラーを登録（character-thread専用）
    */
   private registerEmbedEventHandlers(): void {
-    // Discord Character Embed更新リクエストハンドラー
-    this.typedEventService.on(
-      'discord.embed.character.update.requested',
-      this.handleCharacterEmbedUpdateRequest.bind(this)
-    )
+    // character-thread専用のキャラクター表示リクエストハンドラー
+    this.typedEventService.on('discord.character.display.requested', this.handleCharacterDisplayRequest.bind(this))
 
-    // キャラクター情報更新時のEmbed自動更新
-    this.typedEventService.on('character.updated', this.handleCharacterUpdated.bind(this))
-
-    this.logger.debug('Discord embed event handlers registered in features/characterThread/')
+    this.logger.debug('Character thread display event handlers registered')
   }
 
   /**
@@ -71,10 +73,10 @@ export class CharacterDisplayService implements OnModuleInit {
         tabType
       })
 
-      // 結果を待機（タイムアウト10秒）
+      // 結果を待機（タイムアウト3秒に短縮）
       const result = await Promise.race([
-        this.typedEventService.waitForEvent('character.findByChannelId.completed', 10000),
-        this.typedEventService.waitForEvent('character.findByChannelId.failed', 10000)
+        this.typedEventService.waitForEvent('character.findByChannelId.completed', 3000),
+        this.typedEventService.waitForEvent('character.findByChannelId.failed', 3000)
       ])
 
       if ('character' in result && result.character) {
@@ -84,6 +86,13 @@ export class CharacterDisplayService implements OnModuleInit {
       this.logger.warn(`Character not found for channelId: ${channelId}`)
       return null
     } catch (error) {
+      // タイムアウトエラーの場合は詳細ログを出力
+      if (error instanceof Error && error.message.includes('timeout')) {
+        this.logger.warn(`Character search timeout for channelId: ${channelId} - falling back to alternative method`)
+      } else {
+        this.logger.error(`Character embed creation failed for channelId: ${channelId}`, error)
+      }
+
       const context: ErrorContext = {
         channelId,
         action: 'character-display'
@@ -224,96 +233,35 @@ export class CharacterDisplayService implements OnModuleInit {
   }
 
   // ============================================================================
-  // DiscordEmbedHandlerServiceから統合されたメソッド
+  // Character Thread 専用機能
   // ============================================================================
 
   /**
-   * Character Embed更新リクエストを処理
-   * DiscordEmbedHandlerServiceから統合
+   * キャラクター表示リクエストを処理（character-thread専用）
    */
-  private async handleCharacterEmbedUpdateRequest(
-    payload: EventPayload<'discord.embed.character.update.requested'>
+  private async handleCharacterDisplayRequest(
+    payload: EventPayload<'discord.character.display.requested'>
   ): Promise<void> {
     const { character, channelId, source } = payload
 
-    this.logger.log(`[CHARACTER-EMBED] Character embed update requested: ${character.characterId} from ${source}`)
+    this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display requested: ${character.characterId} from ${source}`)
 
     try {
-      // 新しいEmbedを作成
+      // character-thread専用の基本的なEmbed表示のみ
       const embed = this.buildCharacterEmbed(character, 'basic')
-
-      // Discord APIを通じてEmbed更新（TypedEventService経由）
       this.typedEventService.emit('discord.message.embed.update', {
         channelId,
         embed: embed.toJSON(),
         character,
         success: true,
-        source: 'character-display-service',
+        source: 'character-thread-display',
         timestamp: new Date()
       })
 
-      this.logger.log(`[CHARACTER-EMBED] Embed update completed for ${character.characterId}`)
+      this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display completed for ${character.characterId}`)
     } catch (error) {
-      this.logger.error(`[CHARACTER-EMBED] Embed update failed for ${character.characterId}`, error)
-
-      // エラーイベントを発行
-      this.typedEventService.emit('discord.embed.character.update.failed', {
-        characterId: character.characterId,
-        channelId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        source,
-        timestamp: new Date()
-      })
+      this.logger.error(`[CHARACTER-THREAD-DISPLAY] Character display failed for ${character.characterId}`, error)
     }
-  }
-
-  /**
-   * キャラクター更新時の自動Embed更新処理
-   * DiscordEmbedHandlerServiceから統合
-   */
-  private async handleCharacterUpdated(payload: EventPayload<'character.updated'>): Promise<void> {
-    const { character, updateType } = payload
-
-    this.logger.log(`[CHARACTER-EMBED] Character updated: ${character.characterId} (${updateType})`)
-
-    try {
-      // 更新タイプに応じてTabTypeを決定
-      const tabType = this.getTabTypeFromUpdateType(updateType)
-
-      // 新しいEmbedを作成
-      const embed = this.buildCharacterEmbed(character, tabType)
-
-      // チャンネルIDが設定されている場合のみ更新
-      if (character.discordChannelId) {
-        this.typedEventService.emit('discord.message.embed.update', {
-          channelId: character.discordChannelId,
-          embed: embed.toJSON(),
-          character,
-          success: true,
-          source: 'character-auto-update',
-          timestamp: new Date()
-        })
-
-        this.logger.log(`[CHARACTER-EMBED] Auto-update completed for ${character.characterId}`)
-      }
-    } catch (error) {
-      this.logger.error(`[CHARACTER-EMBED] Auto-update failed for ${character.characterId}`, error)
-    }
-  }
-
-  /**
-   * 更新タイプからTabTypeを決定
-   */
-  private getTabTypeFromUpdateType(updateType: string): TabType {
-    const updateTypeMapping: Record<string, TabType> = {
-      parameter: 'status',
-      skill: 'skills',
-      item: 'items',
-      description: 'desc',
-      basic: 'basic'
-    }
-
-    return updateTypeMapping[updateType] || 'basic'
   }
 
   /**
@@ -367,5 +315,105 @@ export class CharacterDisplayService implements OnModuleInit {
       this.logger.error(`[CHARACTER-EMBED] Failed to find existing embed`, error)
       return null
     }
+  }
+
+  /**
+   * キャラクターのスキルに基づいてスキルロールボタンを生成
+   */
+  createSkillRollButtons(character: Character): ActionRowBuilder<ButtonBuilder>[] {
+    const buttons: ButtonBuilder[] = []
+    const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
+
+    if (!character.skill || Object.keys(character.skill).length === 0) {
+      return []
+    }
+
+    let buttonCount = 0
+    const maxButtonsPerRow = 5
+    const maxTotalButtons = 20 // Discord制限に配慮
+
+    for (const [skillKey, skillData] of Object.entries(character.skill)) {
+      if (buttonCount >= maxTotalButtons) break
+
+      let skillName: string
+      let skillValue: number
+
+      // スキルデータの形式を判定
+      if (skillData && typeof skillData === 'object') {
+        if ('name' in skillData && 'value' in skillData) {
+          skillName = skillData.name as string
+          skillValue = Number(skillData.value) || 0
+        } else {
+          skillName = skillKey
+          skillValue = Number(skillData) || 0
+        }
+      } else {
+        skillName = skillKey
+        skillValue = Number(skillData) || 0
+      }
+
+      // スキル値が0以下の場合はスキップ
+      if (skillValue <= 0) continue
+
+      // スキルロールボタンを作成
+      // customId形式: roll*_{skillName}-{skillValue}*{characterId}
+      const customId = `roll*_${skillName}-${skillValue}*${character.characterId}`
+
+      const button = new ButtonBuilder()
+        .setCustomId(customId)
+        .setLabel(`${skillName}(${skillValue})`)
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🎯')
+
+      buttons.push(button)
+      buttonCount++
+
+      // 5個ごとに新しい行を作成
+      if (buttons.length === maxButtonsPerRow) {
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.splice(0, maxButtonsPerRow))
+        actionRows.push(row)
+      }
+    }
+
+    // 残りのボタンがある場合は最後の行に追加
+    if (buttons.length > 0) {
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)
+      actionRows.push(row)
+    }
+
+    return actionRows
+  }
+
+  /**
+   * 基本ダイスロールボタンを生成
+   */
+  createBasicDiceButtons(character: Character): ActionRowBuilder<ButtonBuilder> {
+    const diceButtons = [
+      new ButtonBuilder()
+        .setCustomId(`roll*1d100*${character.characterId}`)
+        .setLabel('1D100')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*1d6*${character.characterId}`)
+        .setLabel('1D6')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*2d6*${character.characterId}`)
+        .setLabel('2D6')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*custom*${character.characterId}`)
+        .setLabel('カスタム')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('⚙️')
+    ]
+
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(diceButtons)
   }
 }

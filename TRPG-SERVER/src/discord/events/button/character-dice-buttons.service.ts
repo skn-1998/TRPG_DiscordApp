@@ -25,6 +25,7 @@ import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.int
 import { OnEvent } from '@nestjs/event-emitter'
 import { v4 as uuidv4 } from 'uuid'
 import { ErrorHandler, BackgroundTaskErrorHandler } from 'src/utils/error-handler'
+import { CharacterService } from 'src/domains/character/character.service'
 
 @Injectable()
 export class CharacterDiceButtonsService implements discordButtonType {
@@ -40,7 +41,8 @@ export class CharacterDiceButtonsService implements discordButtonType {
   constructor(
     private readonly typedEventEmitter: TypedEventEmitter,
     private readonly diceRollService: DiceRollService,
-    private readonly paginationService: DiceRollPaginationService
+    private readonly paginationService: DiceRollPaginationService,
+    private readonly characterService: CharacterService
   ) {}
 
   // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
@@ -55,9 +57,12 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // ボタンのカスタムIDを解析して、どのダイスロールが選択されたかを特定
       const customId = interaction.customId
 
+      // CustomIdからcharacterIdを抽出
+      const characterId = this.extractCharacterIdFromCustomId(customId)
+
       // カスタムダイスロールの場合
-      if (customId === 'roll*custom') {
-        await this.handleCustomDiceRoll(interaction)
+      if (customId.startsWith('roll*custom')) {
+        await this.handleCustomDiceRoll(interaction, characterId)
         return
       }
 
@@ -65,7 +70,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
       await interaction.deferUpdate()
 
       // 通常のスキルロールまたはダイスロールの処理
-      const rollInfo = customId.replace('roll*', '')
+      const rollInfo = customId.replace('roll*', '').split('*')[0] // characterIdを除去
 
       // diceRollのフォーマットを判断
       let diceCommand: string
@@ -119,9 +124,10 @@ export class CharacterDiceButtonsService implements discordButtonType {
           if (parentChannelId) {
             const parentChannel = (await interaction.client.channels.fetch(parentChannelId)) as TextChannel
             if (parentChannel && parentChannel.isTextBased()) {
+              // テキストメッセージでダイスロール結果を送信
               await parentChannel.send({ content: resultText })
 
-              this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
+              this.saveRollResult(characterId, characterName, resultText, result, diceCommand, parentChannelId)
             }
           }
         }
@@ -145,9 +151,28 @@ export class CharacterDiceButtonsService implements discordButtonType {
   }
 
   /**
+   * CustomIdからcharacterIdを抽出
+   */
+  private extractCharacterIdFromCustomId(customId: string): string | null {
+    try {
+      // 新しい形式: roll*{dice}*{characterId} または roll*_{skillName}-{skillValue}*{characterId}
+      const parts = customId.split('*')
+      if (parts.length >= 3) {
+        return parts[parts.length - 1] // 最後の要素がcharacterId
+      }
+
+      // 古い形式の場合はnullを返し、フォールバック処理に任せる
+      return null
+    } catch (error) {
+      console.warn(`CustomIdの解析に失敗: ${customId}`, error)
+      return null
+    }
+  }
+
+  /**
    * カスタムダイスロールのモーダルを表示
    */
-  private async handleCustomDiceRoll(interaction: ButtonInteraction): Promise<void> {
+  private async handleCustomDiceRoll(interaction: ButtonInteraction, characterId?: string | null): Promise<void> {
     try {
       // モーダルを作成
       const modal = new ModalBuilder().setCustomId('custom-dice-modal').setTitle('カスタムダイスロール')
@@ -242,64 +267,62 @@ export class CharacterDiceButtonsService implements discordButtonType {
   /**
    * ダイスロール結果を保存
    */
-  private saveRollResult(
+  private async saveRollResult(
+    characterId: string | null,
     characterName: string,
     resultText: string,
     result: number,
     diceCommand: string,
     discordChannelId: string
   ): Promise<void> {
-    return new Promise(async (resolve) => {
-      try {
-        // イベント駆動アーキテクチャでの循環依存回避のため、
-        // キャラクター検索を意図的にスキップしています
-        console.log(`[INFO] Character lookup skipped for optimization: ${characterName}`)
-        return resolve()
+    let finalCharacterId: string | null = characterId
 
-        // キャラクターが見つからない場合はエラーログを出力して処理を中断
-        // if (!character) {
-        //   BackgroundTaskErrorHandler.handleBackgroundError(
-        //     new Error(`キャラクター "${characterName}" が見つかりません`),
-        //     'save-roll-result',
-        //     { characterId: characterName, channelId: discordChannelId }
-        //   )
-        //   return resolve()
-        // }
+    try {
+      // characterIdが取得できなかった場合、フォールバック処理でチャンネルから検索
+      if (!finalCharacterId) {
+        console.log(`[INFO] CharacterId not provided, searching by channel ${discordChannelId}`)
+        const character = await this.characterService.findByChannelId(discordChannelId)
 
-        // イベント駆動でのダイスロール保存実装
-        // パフォーマンス最適化のため現在は無効化されています
-        // const text: DiceRollTextInputDto = {
-        //   characterId: character.characterId,
-        //   text: resultText,
-        //   result: result.toString(),
-        //   diceRoll: diceCommand,
-        //   discordChannelId: discordChannelId
-        // }
+        if (!character) {
+          console.log(`[INFO] Character not found for channel ${discordChannelId}, skipping save`)
+          return
+        }
 
-        // // 保存処理をPromiseで開始して待たない（バックグラウンド処理）
-        // this.diceRollService
-        //   .createText(text)
-        //   .then(() => {
-        //     // キャッシュ無効化も非同期に実行
-        //     this.paginationService.invalidateCache(discordChannelId)
-        //   })
-        //   .catch((error) => {
-        //     BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-dice-roll-result', {
-        //       characterId: character.characterId,
-        //       channelId: discordChannelId
-        //     })
-        //   })
-
-        // // 即時resolve（保存完了を待たない）
-        // resolve()
-      } catch (error) {
-        BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-roll-result-main', {
-          characterId: characterName,
-          channelId: discordChannelId
-        })
-        resolve() // エラー時もresolve
+        finalCharacterId = character.characterId
       }
-    })
+
+      console.log(`[INFO] Saving dice roll for character: ${finalCharacterId}`)
+
+      // ダイスロール結果をDBに保存
+      const text: DiceRollTextInputDto = {
+        textId: uuidv4(),
+        characterId: finalCharacterId,
+        text: resultText,
+        result: result.toString(),
+        diceRoll: diceCommand,
+        discordChannelId: discordChannelId
+      }
+
+      // バックグラウンドで保存処理（非同期）
+      this.diceRollService
+        .createText(text)
+        .then(() => {
+          // キャッシュ無効化も非同期に実行
+          this.paginationService.invalidateCache(discordChannelId)
+          console.log(`[INFO] Dice roll saved successfully for character: ${finalCharacterId}`)
+        })
+        .catch((error) => {
+          BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-dice-roll-result', {
+            characterId: finalCharacterId || undefined,
+            channelId: discordChannelId
+          })
+        })
+    } catch (error) {
+      BackgroundTaskErrorHandler.handleBackgroundError(error, 'save-roll-result-main', {
+        characterId: finalCharacterId || characterName,
+        channelId: discordChannelId
+      })
+    }
   }
 
   /**
@@ -309,6 +332,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
     interaction: ButtonInteraction,
     parentChannelId: string,
     embed: EmbedBuilder,
+    characterId: string | null,
     characterName: string,
     resultText: string,
     result: number,
@@ -341,7 +365,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
         // チャンネルデータを取得
         this.diceRollService.findChannelByChannelId(parentChannelId),
         // ダイスロール結果を保存（バックグラウンドで非同期実行）
-        this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
+        this.saveRollResult(characterId, characterName, resultText, result, diceCommand, parentChannelId)
       ])
 
       // 前回の更新からの経過時間をチェック

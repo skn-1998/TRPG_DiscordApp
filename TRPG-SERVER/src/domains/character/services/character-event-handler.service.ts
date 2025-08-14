@@ -6,6 +6,7 @@ import { UserService } from '../../user/user.service'
 import { CreateCharacterDto } from '../dto/create-character.dto'
 import { Character } from '../models/character.model'
 import { v4 as uuidv4 } from 'uuid'
+import { randomBytes } from 'crypto'
 
 /**
  * キャラクター関連のイベントハンドラーサービス
@@ -60,14 +61,46 @@ export class CharacterEventHandlerService implements OnModuleInit {
   }
 
   /**
+   * 短いキャラクターIDを生成（8文字）
+   */
+  private async generateUniqueShortCharacterId(): Promise<string> {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    let attempts = 0
+    const maxAttempts = 10
+
+    while (attempts < maxAttempts) {
+      let result = ''
+      const bytes = randomBytes(8)
+
+      for (let i = 0; i < 8; i++) {
+        result += chars[bytes[i] % chars.length]
+      }
+
+      // ID衝突チェック
+      const existingCharacter = await this.characterRepository.findById(result)
+      if (!existingCharacter) {
+        this.logger.debug(`Generated unique short character ID: ${result}`)
+        return result
+      }
+
+      attempts++
+      this.logger.debug(`Character ID collision detected: ${result}, retrying (${attempts}/${maxAttempts})`)
+    }
+
+    // 最大試行回数を超えた場合はUUIDにフォールバック
+    this.logger.warn('Failed to generate unique short ID, falling back to UUID')
+    return uuidv4()
+  }
+
+  /**
    * キャラクター作成リクエストの処理
    */
   private async handleCharacterCreationRequested(payload: EventPayload<'character.creation.requested'>): Promise<void> {
     try {
       this.logger.log(`Character creation requested: ${payload.createData.characterName}`)
 
-      // キャラクターIDがない場合は生成
-      const characterId = payload.createData.characterId || uuidv4()
+      // キャラクターIDがない場合は短いIDを生成
+      const characterId = payload.createData.characterId || (await this.generateUniqueShortCharacterId())
 
       // CreateCharacterDtoからCharacterオブジェクトに変換
       const character: Partial<Character> = {

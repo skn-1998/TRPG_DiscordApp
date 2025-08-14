@@ -14,10 +14,12 @@ import {
   ButtonBuilder,
   ButtonStyle,
   TextChannel,
+  ThreadChannel,
   ComponentType,
   EmbedField
 } from 'discord.js'
 import { v4 as uuidv4 } from 'uuid'
+import { randomBytes } from 'crypto'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
@@ -26,7 +28,7 @@ import { ErrorHandler } from '../../../../utils/error-handler'
 /**
  * Embed分割タイプ
  */
-export type EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item'
+export type EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item' | 'back'
 
 /**
  * キャラクター編集アクション
@@ -42,6 +44,21 @@ export class CharacterEmbedManagerService {
   private readonly logger = new Logger(CharacterEmbedManagerService.name)
 
   constructor(private readonly typedEventService: TypedEventService) {}
+
+  /**
+   * 短いキャラクターIDを生成（8文字）
+   */
+  private generateShortCharacterId(): string {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    const bytes = randomBytes(8)
+
+    for (let i = 0; i < 8; i++) {
+      result += chars[bytes[i] % chars.length]
+    }
+
+    return result
+  }
 
   /**
    * キャラクター情報を分割Embedで表示
@@ -61,6 +78,10 @@ export class CharacterEmbedManagerService {
       const statusEmbed = this.createStatusEmbed(character)
       embeds.push(statusEmbed)
 
+      // パラメータEmbed (parameter の詳細表示)
+      const parameterEmbed = this.createParameterEmbed(character)
+      embeds.push(parameterEmbed)
+
       // スキルEmbed
       const skillEmbed = this.createSkillEmbed(character)
       embeds.push(skillEmbed)
@@ -71,6 +92,14 @@ export class CharacterEmbedManagerService {
 
       // 編集用コンポーネントを作成
       const components = this.createEditComponents(character.characterId)
+
+      // ダイスロールボタンを追加（skill、status、parameterの個別表示のみ）
+      const diceRollButtons = this.createCharacterDiceRollButtons(character)
+      components.push(...diceRollButtons)
+
+      // 基本ダイスロールボタンは重複を避けるためコメントアウト
+      // const basicDiceButtons = this.createBasicDiceButtons(character)
+      // components.push(basicDiceButtons)
 
       return { embeds, components }
     } catch (error) {
@@ -117,7 +146,7 @@ export class CharacterEmbedManagerService {
   }
 
   /**
-   * ステータスEmbed (parameter) を作成
+   * ステータスEmbed を作成
    */
   private createStatusEmbed(character: Character): EmbedBuilder {
     const embed = new EmbedBuilder()
@@ -125,23 +154,54 @@ export class CharacterEmbedManagerService {
       .setColor('#e74c3c')
       .setTimestamp()
 
-    if (!character.parameter || Object.keys(character.parameter).length === 0) {
+    if (!character.status || Object.keys(character.status).length === 0) {
       embed.setDescription('ステータス情報がありません。\n編集ボタンから追加してください。')
       return embed
     }
 
-    // parameterフィールドを処理
-    const fields = this.processCharacterData(character.parameter, 'ステータス')
+    // statusフィールドを処理
+    const fields = this.processCharacterData(character.status, 'ステータス')
 
     if (fields.length > 0) {
       // Discord Embedの25フィールド制限を考慮
       embed.addFields(...fields.slice(0, 24))
 
       if (fields.length > 24) {
-        embed.setFooter({ text: `${fields.length - 24}個のフィールドが省略されています` })
+        embed.setFooter({ text: `${fields.length - 24}個のステータスが省略されています` })
       }
     } else {
       embed.setDescription('表示可能なステータス情報がありません。')
+    }
+
+    return embed
+  }
+
+  /**
+   * パラメータEmbed を作成
+   */
+  private createParameterEmbed(character: Character): EmbedBuilder {
+    const embed = new EmbedBuilder()
+      .setTitle(`⚙️ ${character.characterName} - パラメータ`)
+      .setColor('#34495e')
+      .setTimestamp()
+
+    if (!character.parameter || Object.keys(character.parameter).length === 0) {
+      embed.setDescription('パラメータ情報がありません。\n編集ボタンから追加してください。')
+      return embed
+    }
+
+    // parameterフィールドを処理
+    const fields = this.processCharacterData(character.parameter, 'パラメータ')
+
+    if (fields.length > 0) {
+      // Discord Embedの25フィールド制限を考慮
+      embed.addFields(...fields.slice(0, 24))
+
+      if (fields.length > 24) {
+        embed.setFooter({ text: `${fields.length - 24}個のパラメータが省略されています` })
+      }
+    } else {
+      embed.setDescription('表示可能なパラメータ情報がありません。')
     }
 
     return embed
@@ -262,6 +322,10 @@ export class CharacterEmbedManagerService {
       .addOptions(
         new StringSelectMenuOptionBuilder()
           .setLabel('📊 ステータス')
+          .setValue('status')
+          .setDescription('基本ステータスを編集'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('⚙️ パラメータ')
           .setValue('parameter')
           .setDescription('能力値やパラメータを編集'),
         new StringSelectMenuOptionBuilder().setLabel('⚔️ スキル').setValue('skill').setDescription('技能や特技を編集'),
@@ -290,6 +354,153 @@ export class CharacterEmbedManagerService {
   }
 
   /**
+   * キャラクターのskill、status、parameterに基づいてダイスロールボタンを生成
+   */
+  private createCharacterDiceRollButtons(character: Character): ActionRowBuilder<ButtonBuilder>[] {
+    const buttons: ButtonBuilder[] = []
+    const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
+
+    let buttonCount = 0
+    const maxButtonsPerRow = 5
+    const maxTotalButtons = 20 // Discord制限に配慮
+
+    // skillセクションのボタンを生成
+    if (character.skill && Object.keys(character.skill).length > 0) {
+      buttonCount = this.addDiceRollButtonsFromData(
+        character.skill,
+        'スキル',
+        '🎯',
+        character.characterId,
+        buttons,
+        buttonCount,
+        maxTotalButtons
+      )
+    }
+
+    // statusセクションのボタンを生成
+    if (character.status && Object.keys(character.status).length > 0) {
+      buttonCount = this.addDiceRollButtonsFromData(
+        character.status,
+        'ステータス',
+        '📊',
+        character.characterId,
+        buttons,
+        buttonCount,
+        maxTotalButtons
+      )
+    }
+
+    // parameterセクションのボタンを生成
+    if (character.parameter && Object.keys(character.parameter).length > 0) {
+      buttonCount = this.addDiceRollButtonsFromData(
+        character.parameter,
+        'パラメータ',
+        '⚙️',
+        character.characterId,
+        buttons,
+        buttonCount,
+        maxTotalButtons
+      )
+    }
+
+    // // ボタンを行に分割
+    // for (let i = 0; i < buttons.length; i += maxButtonsPerRow) {
+    //   const rowButtons = buttons.slice(i, i + maxButtonsPerRow)
+    //   if (rowButtons.length > 0) {
+    //     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(rowButtons)
+    //     actionRows.push(row)
+    //   }
+    // }
+
+    return actionRows
+  }
+
+  /**
+   * 指定されたデータからダイスロールボタンを追加
+   */
+  private addDiceRollButtonsFromData(
+    data: Record<string, any>,
+    sectionName: string,
+    emoji: string,
+    characterId: string,
+    buttons: ButtonBuilder[],
+    buttonCount: number,
+    maxTotalButtons: number
+  ): number {
+    for (const [key, value] of Object.entries(data)) {
+      if (buttonCount >= maxTotalButtons) break
+
+      let name: string
+      let rollValue: number
+
+      // データの形式を判定
+      if (value && typeof value === 'object') {
+        if ('name' in value && 'value' in value) {
+          name = value.name as string
+          rollValue = Number(value.value) || 0
+        } else {
+          name = key
+          rollValue = Number(value) || 0
+        }
+      } else {
+        name = key
+        rollValue = Number(value) || 0
+      }
+
+      // ロール値が0以下の場合はスキップ
+      if (rollValue <= 0) continue
+
+      // ダイスロールボタンを作成
+      // customId形式: roll*_{name}-{rollValue}*{characterId}
+      const customId = `roll*_${name}-${rollValue}*${characterId}`
+
+      const button = new ButtonBuilder()
+        .setCustomId(customId)
+        .setLabel(`${name}(${rollValue})`)
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(emoji)
+
+      buttons.push(button)
+      buttonCount++
+    }
+
+    return buttonCount
+  }
+
+  /**
+   * 基本ダイスロールボタンを生成
+   */
+  private createBasicDiceButtons(character: Character): ActionRowBuilder<ButtonBuilder> {
+    const diceButtons = [
+      new ButtonBuilder()
+        .setCustomId(`roll*1d100*${character.characterId}`)
+        .setLabel('1D100')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*1d6*${character.characterId}`)
+        .setLabel('1D6')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*2d6*${character.characterId}`)
+        .setLabel('2D6')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🎲'),
+
+      new ButtonBuilder()
+        .setCustomId(`roll*custom*${character.characterId}`)
+        .setLabel('カスタム')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('⚙️')
+    ]
+
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(diceButtons)
+  }
+
+  /**
    * 特定セクションのフィールド選択メニューを作成
    */
   createFieldSelectMenu(
@@ -301,9 +512,13 @@ export class CharacterEmbedManagerService {
     let sectionName: string
 
     switch (sectionType) {
+      case 'status':
+        data = character.status
+        sectionName = 'ステータス'
+        break
       case 'parameter':
         data = character.parameter
-        sectionName = 'ステータス'
+        sectionName = 'パラメータ'
         break
       case 'skill':
         data = character.skill
@@ -376,7 +591,7 @@ export class CharacterEmbedManagerService {
   /**
    * チャンネルに分割Embedを送信
    */
-  async sendSectionedEmbeds(channel: TextChannel, character: Character): Promise<void> {
+  async sendSectionedEmbeds(channel: TextChannel | ThreadChannel, character: Character): Promise<void> {
     try {
       const { embeds, components } = await this.createSectionedEmbeds(character)
 
@@ -410,7 +625,7 @@ export class CharacterEmbedManagerService {
 
       // CharacterInputDtoからCreateCharacterDtoに変換
       const createData = {
-        characterId: characterData.characterId || uuidv4(),
+        characterId: characterData.characterId || this.generateShortCharacterId(),
         characterName: characterData.characterName || '',
         gameSystemId: characterData.gameSystemId || '',
         discordUserId: userId,

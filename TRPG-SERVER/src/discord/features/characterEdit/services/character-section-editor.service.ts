@@ -19,6 +19,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
+import { ModalSessionManagerService } from './modal-session-manager.service'
 // import { discordSelectMenuType } from '../../../discord.type'
 
 /**
@@ -37,7 +38,8 @@ export class CharacterSectionEditorService {
 
   constructor(
     private readonly typedEventService: TypedEventService,
-    private readonly embedManager: CharacterEmbedManagerService
+    private readonly embedManager: CharacterEmbedManagerService,
+    private readonly modalSessionManager: ModalSessionManagerService
   ) {}
 
   /**
@@ -101,6 +103,12 @@ export class CharacterSectionEditorService {
     character: Character,
     sectionType: EmbedSectionType
   ): Promise<void> {
+    // 「戻る」オプションの処理
+    if (sectionType === 'back') {
+      await this.showMainSectionMenu(interaction, character)
+      return
+    }
+
     // フィールド選択メニューを作成
     const fieldSelectMenu = this.embedManager.createFieldSelectMenu(character, sectionType, character.characterId)
 
@@ -109,10 +117,21 @@ export class CharacterSectionEditorService {
       return
     }
 
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(fieldSelectMenu)
+    // 戻るボタンを追加
+    const backSelectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`character-edit-section-${character.characterId}`)
+      .setPlaceholder('別のセクションを選択するか戻る')
+      .addOptions({
+        label: '⬅️ セクション選択に戻る',
+        value: 'back',
+        description: 'メインのセクション選択画面に戻ります'
+      })
+
+    const fieldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(fieldSelectMenu)
+    const backRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backSelectMenu)
 
     // セクション名を取得
-    const sectionNames = {
+    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
       status: 'ステータス',
       parameter: 'パラメータ',
       skill: 'スキル',
@@ -120,16 +139,30 @@ export class CharacterSectionEditorService {
       basic: '基本情報'
     }
 
+    const sectionName = sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]
     const embed = new EmbedBuilder()
-      .setTitle(`${sectionNames[sectionType]}編集`)
+      .setTitle(`${sectionName}編集`)
       .setDescription(
-        `${character.characterName}の${sectionNames[sectionType]}を編集します。\n下のメニューから編集したい項目を選択してください。`
+        `${character.characterName}の${sectionName}を編集します。\n下のメニューから編集したい項目を選択してください。`
       )
       .setColor('#3498db')
 
     await interaction.editReply({
       embeds: [embed],
-      components: [row]
+      components: [fieldRow, backRow]
+    })
+  }
+
+  /**
+   * メインセクション選択画面を表示
+   */
+  private async showMainSectionMenu(interaction: StringSelectMenuInteraction, character: Character): Promise<void> {
+    // 元の分割Embedに戻す
+    const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
+
+    await interaction.editReply({
+      embeds,
+      components
     })
   }
 
@@ -197,7 +230,7 @@ export class CharacterSectionEditorService {
     currentValue: string,
     isNew: boolean
   ): Promise<ModalBuilder> {
-    const sectionNames = {
+    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
       status: 'ステータス',
       parameter: 'パラメータ',
       skill: 'スキル',
@@ -205,11 +238,21 @@ export class CharacterSectionEditorService {
       basic: '基本情報'
     }
 
-    // フォーマットを characterId 末尾に統一
-    const modalId = `character-edit-modal-${sectionType}-${fieldKey}-${characterId}`
+    // 新しいキャラクター（短いID）は直接CustomIDを使用、長いIDのみセッション管理
+    let modalId: string
+    if (characterId.length <= 8) {
+      // 短いIDの場合は直接CustomIDを使用
+      modalId = `char-edit-${sectionType}-${fieldKey}-${characterId}`
+      this.logger.debug(`Using direct CustomID for short character ID: ${modalId}`)
+    } else {
+      // 長いIDの場合はセッション管理を使用
+      const sessionId = this.modalSessionManager.createSession(characterId, sectionType, fieldKey)
+      modalId = `char-edit-modal-${sessionId}`
+      this.logger.debug(`Using session-based CustomID for long character ID: ${modalId}`)
+    }
     const modal = new ModalBuilder()
       .setCustomId(modalId)
-      .setTitle(`${sectionNames[sectionType]}${isNew ? '追加' : '編集'}`)
+      .setTitle(`${sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]}${isNew ? '追加' : '編集'}`)
 
     // フィールド名入力（新規の場合のみ）
     if (isNew) {
@@ -240,18 +283,6 @@ export class CharacterSectionEditorService {
 
     const valueRow = new ActionRowBuilder<TextInputBuilder>().addComponents(valueInput)
     modal.addComponents(valueRow)
-
-    // 詳細説明（オプション）
-    const descInput = new TextInputBuilder()
-      .setCustomId('field-description')
-      .setLabel('説明（任意）')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('この項目の詳細説明や効果など')
-      .setRequired(false)
-      .setMaxLength(2000)
-
-    const descRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
-    modal.addComponents(descRow)
 
     return modal
   }
@@ -293,6 +324,8 @@ export class CharacterSectionEditorService {
    */
   private getSectionData(character: Character, sectionType: EmbedSectionType): Record<string, unknown> | undefined {
     switch (sectionType) {
+      case 'status':
+        return character.status
       case 'parameter':
         return character.parameter
       case 'skill':
@@ -324,6 +357,7 @@ export class CharacterSectionEditorService {
    * カスタムIDからセクションタイプを抽出
    */
   private extractSectionFromCustomId(customId: string): EmbedSectionType | null {
+    if (customId.includes('-status-')) return 'status'
     if (customId.includes('-parameter-')) return 'parameter'
     if (customId.includes('-skill-')) return 'skill'
     if (customId.includes('-item-')) return 'item'

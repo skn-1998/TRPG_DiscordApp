@@ -1,8 +1,8 @@
 /**
  * Character Thread Service
  *
- * /features/characterThread の実装を統合
- * 完全なキャラクタースレッド作成機能を提供
+ * キャラクター指定でのTRPGキャラクター表示機能を提供
+ * 疎結合な設計により、表示タイプを指定してfeatures/に委譲
  */
 
 import { Injectable, Logger } from '@nestjs/common'
@@ -11,14 +11,14 @@ import {
   CacheType,
   CommandInteraction,
   SlashCommandBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  ApplicationCommandOptionType
 } from 'discord.js'
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'
 import { BaseCommandService } from '../base-command.service'
 import { TypedEventService } from 'src/shared/application/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
-// Command層はルーティングのみ。ビジネスロジックはfeatures側に集約
 
 @Injectable()
 export class CharacterThreadService extends BaseCommandService implements discordCommandType {
@@ -48,26 +48,8 @@ export class CharacterThreadService extends BaseCommandService implements discor
         return
       }
 
-      // ユーザーのキャラクター一覧を取得
-      const characters = await this.characterService.findHavingAll(interaction.user.id)
-
-      if (characters.length === 0) {
-        await interaction.reply({
-          content: '❌ キャラクターが見つかりませんでした。まずキャラクターを作成してください。',
-          ephemeral: true
-        })
-        return
-      }
-
-      // キャラクター選択メニューを表示
-      const selectMenu = this.createCharacterSelectMenu(characters)
-      const actionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu)
-
-      await interaction.reply({
-        content: '🎭 スレッドを作成するキャラクターを選択してください：',
-        components: [actionRow],
-        ephemeral: true
-      })
+      // 現在のチャンネルIDに関連するキャラクター選択メニューを表示
+      await this.displayChannelCharacterSelectionMenu(interaction)
 
       await this.postExecute(interaction)
     } catch (error) {
@@ -76,7 +58,45 @@ export class CharacterThreadService extends BaseCommandService implements discor
   }
 
   /**
-   * キャラクター選択メニューを作成
+   * キャラクター選択メニューを表示（現行仕様）
+   * AI.discord.md準拠: commands層は薄いアダプタとして機能
+   */
+  private async displayChannelCharacterSelectionMenu(interaction: CommandInteraction<CacheType>): Promise<void> {
+    try {
+      // ユーザーのキャラクター一覧を取得
+      const allCharacters = await this.characterService.findHavingAll(interaction.user.id)
+
+      // 現行仕様: 全キャラクターを表示（チャンネル制限なし）
+      if (allCharacters.length === 0) {
+        await interaction.reply({
+          content: '❌ キャラクターが見つかりませんでした。\n先にキャラクターを作成してください。',
+          ephemeral: true
+        })
+        return
+      }
+
+      // キャラクター選択メニューを作成
+      const selectMenu = this.createCharacterSelectMenu(allCharacters)
+      const actionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu)
+
+      await interaction.reply({
+        content: `🎭 キャラクターを選択してスレッドを作成してください：`,
+        components: [actionRow],
+        ephemeral: true
+      })
+
+      this.logger.log(`Displayed ${allCharacters.length} characters for user: ${interaction.user.id}`)
+    } catch (error) {
+      this.logger.error('Failed to display character selection menu', error)
+      await interaction.reply({
+        content: '❌ キャラクター取得中にエラーが発生しました。',
+        ephemeral: true
+      })
+    }
+  }
+
+  /**
+   * キャラクター選択メニューを作成（現行仕様）
    */
   private createCharacterSelectMenu(
     characters: Array<{ characterName?: string; characterId: string; gameSystemId?: string }>
@@ -88,11 +108,52 @@ export class CharacterThreadService extends BaseCommandService implements discor
       emoji: '🎭'
     }))
 
+    // スレッド作成専用のcustomId（現行仕様）
+    const customId = 'character-thread-create-select'
+
     return new StringSelectMenuBuilder()
-      .setCustomId('character-thread-select')
-      .setPlaceholder('キャラクターを選択してください...')
+      .setCustomId(customId)
+      .setPlaceholder('キャラクターを選択してスレッドを作成...')
       .addOptions(options)
   }
 
-  // 選択後の処理はfeatures側のOrchestratorに委譲
+  // ===============================================
+  // 古い処理（コメントアウト - 参考用）
+  // ===============================================
+
+  /**
+   * [廃止] チャンネル制限付きキャラクター選択
+   * 理由: AI.discord.md方針変更により、commands層は薄いアダプタに統一
+   * 現行: 全キャラクター表示 → features/側でビジネスロジック処理
+   */
+  /*
+  private async displayChannelCharacterSelectionMenuLegacy(
+    interaction: CommandInteraction<CacheType>
+  ): Promise<void> {
+    const currentChannelId = interaction.channel!.id
+
+    try {
+      const allCharacters = await this.characterService.findHavingAll(interaction.user.id)
+      
+      // 旧仕様: チャンネルIDフィルタリング
+      const channelCharacters = allCharacters.filter(character => 
+        character.discordChannelId === currentChannelId
+      )
+
+      if (channelCharacters.length === 0) {
+        await interaction.reply({
+          content: '❌ このチャンネルに関連するキャラクターが見つかりませんでした。',
+          ephemeral: true
+        })
+        return
+      }
+      
+      // 以下処理継続...
+    } catch (error) {
+      // エラーハンドリング...
+    }
+  }
+  */
+
+  // 選択後の処理はfeatures側のOrchestratorまたはSelectServiceに委譲
 }

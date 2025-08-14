@@ -18,6 +18,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter'
 import { DiceButtonService } from '../features/diceRoll/adapters/dice-button.adapter'
 import { SharedModule } from '../../shared/shared.module'
 import { CharacterThreadFeatureModule } from '../features/characterThread/character-thread-feature.module'
+import { CharacterModule } from '../../domains/character/character.module'
 
 // Character Edit Modules
 import { CharacterEditModule } from '../features/characterEdit/character-edit.module'
@@ -62,7 +63,8 @@ import { CharacterEditModule } from '../features/characterEdit/character-edit.mo
     EventEmitterModule,
     CharacterEditModule, // Modern Services + Legacy Services (統合)
     SharedModule, // TypedEventService用
-    CharacterThreadFeatureModule
+    CharacterThreadFeatureModule,
+    CharacterModule // CharacterService用
   ]
 })
 export class EventsModule {}

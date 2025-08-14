@@ -6,6 +6,7 @@ import { CharacterThreadOrchestrator } from './services/character-thread.orchest
 import { CharacterDisplayService } from './services/character-display.service'
 import { CharacterChannelService } from './character-channel.service'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
+import { CharacterDisplayHandlerService } from './services/character-display-handler.service'
 import { SharedModule } from '../../../shared/shared.module'
 
 @Module({
@@ -14,6 +15,7 @@ import { SharedModule } from '../../../shared/shared.module'
     ThreadCreationService,
     CharacterThreadOrchestrator,
     CharacterDisplayService, // CharacterTabButtonsServiceより先に定義
+    CharacterDisplayHandlerService,
     CharacterChannelService,
     CharacterTabButtonsService
   ],
@@ -21,6 +23,7 @@ import { SharedModule } from '../../../shared/shared.module'
     ThreadCreationService,
     CharacterThreadOrchestrator,
     CharacterDisplayService,
+    CharacterDisplayHandlerService,
     CharacterChannelService,
     CharacterTabButtonsService
   ]
