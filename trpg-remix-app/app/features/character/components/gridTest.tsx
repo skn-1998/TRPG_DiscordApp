@@ -30,6 +30,12 @@ export function GridTest() {
           <NumberInput className={styles.cell} />
         </div>
       </div>
+      {/*  */}
+      <div className={styles.testContainer}>
+        <div className={styles.testChild}></div>
+        <div className={styles.testChild}></div>
+        <div className={styles.testChild}></div>
+      </div>
     </>
   )
 }
