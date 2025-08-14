@@ -11,6 +11,7 @@ import {
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
   TextChannel,
+  ThreadChannel,
   CacheType,
   ModalBuilder,
   TextInputBuilder,
@@ -65,13 +66,19 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       this.handleDiscordEmbedUpdateRequested.bind(this)
     )
 
+    // キャラクター自動更新イベント（character-edit専用）
+    this.typedEventService.on('character.updated', this.handleCharacterAutoUpdate.bind(this))
+
+    // キャラクター表示リクエストイベント（character-edit専用）
+    this.typedEventService.on('discord.character.display.requested', this.handleCharacterDisplayRequested.bind(this))
+
     this.logger.debug('Enhanced Character Edit event handlers registered')
   }
 
   /**
    * 改善されたキャラクター編集画面を表示
    */
-  async displayEnhancedCharacterEdit(channel: TextChannel, character: Character): Promise<void> {
+  async displayEnhancedCharacterEdit(channel: TextChannel | ThreadChannel, character: Character): Promise<void> {
     try {
       this.logger.log(`Displaying enhanced character edit for: ${character.characterId}`)
 
@@ -264,20 +271,55 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
+   * キャラクター自動更新イベントの処理（character-edit専用）
+   */
+  private async handleCharacterAutoUpdate(
+    payload: import('../../../shared/domain/events/event-contracts').EventPayload<'character.updated'>
+  ): Promise<void> {
+    const { character, updateType } = payload
+
+    this.logger.log(`[CHARACTER-EDIT] Character updated: ${character.characterId} (${updateType})`)
+
+    try {
+      // character-editが管理するチャンネルのEmbedのみ更新
+      if (character.discordChannelId && this.isCharacterEditChannel(character.discordChannelId)) {
+        await this.updateCharacterEditEmbed(character, character.discordChannelId)
+        this.logger.log(`[CHARACTER-EDIT] Auto-update completed for ${character.characterId}`)
+      }
+    } catch (error) {
+      this.logger.error(`[CHARACTER-EDIT] Auto-update failed for ${character.characterId}`, error)
+    }
+  }
+
+  /**
+   * チャンネルがcharacter-edit管理下かどうかを判定
+   */
+  private isCharacterEditChannel(channelId: string): boolean {
+    // この実装は要件に応じて調整
+    // 例: character-editが作成したチャンネル、特定のチャンネル名パターンなど
+    return true // 暫定的にすべてのチャンネルを対象とする
+  }
+
+  /**
    * Discord Embed更新リクエストイベントの処理
    */
   private async handleDiscordEmbedUpdateRequested(
     payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.embed.character.update.requested'>
   ): Promise<void> {
     try {
-      const { character, channelId, source } = payload
+      const { character, channelId, displayType, source } = payload
 
       this.logger.log(
-        `Discord embed update requested for character: ${character.characterId}, channel: ${channelId}, source: ${source}`
+        `Discord embed update requested for character: ${character.characterId}, channel: ${channelId}, displayType: ${displayType}, source: ${source}`
       )
 
-      // characterEdit embedを更新
-      await this.updateCharacterEditEmbed(character, channelId)
+      // displayTypeが'enhanced'の場合のみ処理
+      if (displayType === 'enhanced') {
+        await this.updateCharacterEditEmbed(character, channelId)
+      } else {
+        this.logger.log(`Skipping enhanced display for displayType: ${displayType}`)
+        return
+      }
 
       // 成功イベントを発行
       await this.typedEventService.emit('discord.embed.character.update.completed', {
@@ -298,6 +340,41 @@ export class EnhancedCharacterEditService implements OnModuleInit {
         source: 'enhanced-character-edit',
         timestamp: new Date()
       })
+    }
+  }
+
+  /**
+   * キャラクター表示リクエストイベントの処理
+   */
+  private async handleCharacterDisplayRequested(
+    payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.character.display.requested'>
+  ): Promise<void> {
+    try {
+      const { character, channelId, displayType, source } = payload
+
+      this.logger.log(
+        `[CHARACTER-EDIT] Display requested: ${character.characterId}, channel: ${channelId}, displayType: ${displayType}, source: ${source}`
+      )
+
+      // character-edit専用: enhanced表示のみ処理
+      if (displayType === 'enhanced' && this.isCharacterEditChannel(channelId)) {
+        // Discord チャンネルを取得
+        const discordClient = this.discordClientService.getClient()
+        const channel = await discordClient.channels.fetch(channelId)
+        if (!channel || !channel.isTextBased()) {
+          this.logger.warn(`Channel not found or not text-based: ${channelId}`)
+          return
+        }
+
+        const textChannel = channel as TextChannel | ThreadChannel
+        await this.displayEnhancedCharacterEdit(textChannel, character)
+
+        this.logger.log(`[CHARACTER-EDIT] Enhanced display completed for ${character.characterId}`)
+      } else {
+        this.logger.log(`[CHARACTER-EDIT] Skipping - displayType: ${displayType}, channel: ${channelId}`)
+      }
+    } catch (error) {
+      this.logger.error(`[CHARACTER-EDIT] Display request failed for ${payload.character.characterId}`, error)
     }
   }
 
@@ -424,7 +501,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * 新規キャラクター作成画面の表示
    */
-  async displayNewCharacterCreation(channel: TextChannel, userId: string): Promise<void> {
+  async displayNewCharacterCreation(channel: TextChannel | ThreadChannel, userId: string): Promise<void> {
     try {
       const { embeds, components } = this.embedManager.createNewCharacterEmbed(channel.id, userId)
 

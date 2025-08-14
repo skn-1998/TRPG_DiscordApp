@@ -130,7 +130,7 @@ export class EventsController {
         await this.doEvents(this.changeCharaInfoService, { customId: characterEditIds.addCharacterInfo.customId })
         await this.doEvents(this.changeCharaInfoService, { customId: characterEditIds.changeCharacterInfo.customId })
         await this.doEvents(this.diceCharacterSelectService, { customId: 'dice-char-select*' })
-        await this.doEvents(this.characterThreadSelectService, { customId: 'character-thread-select' })
+        await this.doEvents(this.characterThreadSelectService, { customId: 'character-thread-*' })
         await this.doEvents(this.dicePageSelectMenuService, { customId: 'dice-page-select*' })
 
         // Enhanced Character Edit Service のセレクトメニュー処理
@@ -147,7 +147,11 @@ export class EventsController {
 
         // Enhanced Character Edit Service のモーダル処理
         await this.doEnhancedCharacterEditEvents('character-create-basic-*')
-        await this.doEnhancedCharacterEditEvents('character-edit-modal-*')
+        await this.doEnhancedCharacterEditEvents('char-edit-modal-*') // セッション形式
+        await this.doEnhancedCharacterEditEvents('character-edit-modal-*') // 従来形式サポート
+
+        // 短いID直接形式 (char-edit-{section}-{field}-{shortId})
+        await this.doEnhancedCharacterEditEventsForDirectId()
       }
 
       // インタラクションが応答されなかった場合
@@ -231,9 +235,13 @@ export class EventsController {
       this.logger.debug(`イベント実行: ${config.customId}`)
       await discordClass.execute(this.interaction, config)
     }
-    if (this.interaction?.customId.includes('*') && this.interaction?.customId.includes(config.customId)) {
-      this.logger.debug(`ワイルドカードイベント実行: ${this.interaction.customId} (マッチ: ${config.customId})`)
-      await discordClass.execute(this.interaction, config)
+    // ワイルドカードマッチング: config.customIdに*が含まれている場合
+    else if (config.customId.includes('*')) {
+      const basePattern = config.customId.replace('*', '')
+      if (this.interaction?.customId.startsWith(basePattern)) {
+        this.logger.debug(`ワイルドカードイベント実行: ${this.interaction.customId} (マッチ: ${config.customId})`)
+        await discordClass.execute(this.interaction, config)
+      }
     }
   }
 
@@ -243,20 +251,60 @@ export class EventsController {
   private async doEnhancedCharacterEditEvents(pattern: string): Promise<void> {
     // 応答済みのインタラクションは処理しない
     if (this.interaction.replied || this.interaction.deferred) {
+      this.logger.debug(`Skipping pattern ${pattern}: interaction already replied/deferred`)
       return
     }
 
     // ワイルドカードパターンマッチング
     const basePattern = pattern.replace('*', '')
+    this.logger.debug(
+      `Checking pattern: ${pattern} (base: ${basePattern}) against customId: ${this.interaction.customId}`
+    )
+
     if (this.interaction.customId.startsWith(basePattern)) {
-      this.logger.debug(`Enhanced Character Edit イベント実行: ${this.interaction.customId}`)
+      this.logger.log(`Enhanced Character Edit イベント実行: ${this.interaction.customId} (pattern: ${pattern})`)
 
       if (this.interaction.isButton()) {
         await this.enhancedCharacterEditService.handleButtonInteraction(this.interaction)
       } else if (this.interaction.isStringSelectMenu()) {
         await this.enhancedCharacterEditService.handleSelectMenuInteraction(this.interaction)
       } else if (this.interaction.isModalSubmit()) {
+        this.logger.debug(`Processing modal submit for: ${this.interaction.customId}`)
         await this.enhancedCharacterEditService.handleModalSubmitInteraction(this.interaction)
+      }
+    } else {
+      this.logger.debug(`Pattern ${pattern} does not match customId: ${this.interaction.customId}`)
+    }
+  }
+
+  /**
+   * 短いID直接形式のモーダル処理 (char-edit-{section}-{field}-{shortId})
+   */
+  private async doEnhancedCharacterEditEventsForDirectId(): Promise<void> {
+    // 応答済みのインタラクションは処理しない
+    if (this.interaction.replied || this.interaction.deferred) {
+      this.logger.debug(`Skipping direct ID pattern: interaction already replied/deferred`)
+      return
+    }
+
+    const customId = this.interaction.customId
+
+    // char-edit-{section}-{field}-{shortId} 形式をチェック
+    // セッション形式 (char-edit-modal-) を除外
+    if (customId.startsWith('char-edit-') && !customId.startsWith('char-edit-modal-')) {
+      // パターン: char-edit-status-add_new-se4e74ws のような形式
+      const parts = customId.split('-')
+
+      // 最低4つの部分が必要: ['char', 'edit', '{section}', '{field}', ...]
+      if (parts.length >= 4) {
+        this.logger.log(`Direct ID modal event: ${customId}`)
+
+        if (this.interaction.isModalSubmit()) {
+          this.logger.debug(`Processing direct ID modal submit for: ${customId}`)
+          await this.enhancedCharacterEditService.handleModalSubmitInteraction(this.interaction)
+        }
+      } else {
+        this.logger.debug(`Direct ID pattern insufficient parts: ${parts.length}, customId: ${customId}`)
       }
     }
   }

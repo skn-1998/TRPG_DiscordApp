@@ -22,6 +22,7 @@ import { CharacterInputDto, AttributeValueDto } from '../../../../domains/charac
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
+import { ModalSessionManagerService } from './modal-session-manager.service'
 
 /**
  * フィールドデータ構造
@@ -29,7 +30,6 @@ import { CharacterEmbedManagerService, EmbedSectionType } from './character-embe
 export interface FieldData {
   name?: string
   value: string
-  description?: string
 }
 
 @Injectable()
@@ -38,7 +38,8 @@ export class CharacterModalHandlerService {
 
   constructor(
     private readonly typedEventService: TypedEventService,
-    private readonly embedManager: CharacterEmbedManagerService
+    private readonly embedManager: CharacterEmbedManagerService,
+    private readonly modalSessionManager: ModalSessionManagerService
   ) {}
 
   /**
@@ -46,15 +47,18 @@ export class CharacterModalHandlerService {
    */
   async handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     try {
+      this.logger.log(`Modal submit received: ${interaction.customId}`)
       await interaction.deferReply({ ephemeral: true })
 
       // キャラクター作成モーダルかどうかを確認
       if (interaction.customId.includes('character-create-basic')) {
+        this.logger.debug('Processing character creation modal')
         await this.handleCharacterCreation(interaction)
         return
       }
 
       // 既存のキャラクター編集処理
+      this.logger.debug('Processing character edit modal')
       await this.handleCharacterEdit(interaction)
     } catch (error) {
       ErrorHandler.handleServiceError(
@@ -117,10 +121,15 @@ export class CharacterModalHandlerService {
    * キャラクター編集の処理（既存）
    */
   private async handleCharacterEdit(interaction: ModalSubmitInteraction): Promise<void> {
+    this.logger.log(`Handling character edit for customId: ${interaction.customId}`)
+
     // カスタムIDを解析
     const { characterId, sectionType, fieldKey } = this.parseModalCustomId(interaction.customId)
 
+    this.logger.debug(`Parsed modal data: characterId=${characterId}, sectionType=${sectionType}, fieldKey=${fieldKey}`)
+
     if (!characterId || !sectionType || !fieldKey) {
+      this.logger.error(`Failed to parse modal customId: ${interaction.customId}`)
       await this.sendErrorResponse(interaction, 'モーダル情報の解析に失敗しました。')
       return
     }
@@ -150,8 +159,22 @@ export class CharacterModalHandlerService {
     if (success) {
       await this.sendSuccessResponse(interaction, sectionType, formData.name || (fieldKey as string))
 
-      // 既存のcharacterEditEmbedを更新
-      await this.updateExistingCharacterEditEmbed(character, interaction)
+      // 最新のキャラクター情報を再取得してEmbedを更新
+      // データベース更新が確実に反映されるよう少し待機
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const updatedCharacter = await this.getCharacter(character.characterId)
+      if (updatedCharacter) {
+        this.logger.debug(`Successfully retrieved updated character data for embed update`)
+        await this.updateExistingCharacterEditEmbed(updatedCharacter, interaction)
+      } else {
+        this.logger.warn(`Failed to get updated character for embed update: ${character.characterId}`)
+        // フォールバック: 元のキャラクター情報でEmbed更新
+        await this.updateExistingCharacterEditEmbed(character, interaction)
+      }
+
+      // セクション編集のEmbedとメニューをクリア
+      await this.clearSectionEditEmbed(interaction, character.characterId)
     } else {
       await this.sendErrorResponse(interaction, 'キャラクター情報の更新に失敗しました。')
     }
@@ -165,21 +188,54 @@ export class CharacterModalHandlerService {
     sectionType: EmbedSectionType | null
     fieldKey: string | null
   } {
-    // 形式: character-edit-modal-{sectionType}-{fieldKey}-{characterId}
-    const prefix = 'character-edit-modal-'
-    if (!customId.startsWith(prefix)) {
-      return { characterId: null, sectionType: null, fieldKey: null }
+    this.logger.debug(`Parsing modal customId: ${customId}`)
+
+    // セッションベース形式: char-edit-modal-{sessionId}
+    const sessionFormatPrefix = 'char-edit-modal-'
+    if (customId.startsWith(sessionFormatPrefix)) {
+      const sessionId = customId.slice(sessionFormatPrefix.length)
+      this.logger.debug(`Using session-based customId with sessionId: ${sessionId}`)
+
+      // ModalSessionManagerServiceからセッションデータを取得
+      const sessionData = this.modalSessionManager.getSession(sessionId)
+      if (sessionData) {
+        this.logger.debug(`Session found: ${JSON.stringify(sessionData)}`)
+        // セッション使用後は削除
+        this.modalSessionManager.removeSession(sessionId)
+        return {
+          characterId: sessionData.characterId,
+          sectionType: sessionData.sectionType,
+          fieldKey: sessionData.fieldKey
+        }
+      } else {
+        this.logger.warn(`Session not found for sessionId: ${sessionId}`)
+        return { characterId: null, sectionType: null, fieldKey: null }
+      }
     }
 
-    const rest = customId.slice(prefix.length)
-    const parts = rest.split('-')
-    if (parts.length < 3) return { characterId: null, sectionType: null, fieldKey: null }
+    // 従来の形式をサポート（後方互換）
+    const oldFormatPrefix = 'char-edit-'
+    if (customId.startsWith(oldFormatPrefix) && !customId.startsWith(sessionFormatPrefix)) {
+      const rest = customId.slice(oldFormatPrefix.length)
+      const parts = rest.split('-')
+      this.logger.debug(`Using legacy format, CustomId parts: ${JSON.stringify(parts)}`)
 
-    const sectionType = parts[0] as EmbedSectionType
-    const fieldKey = parts[1]
-    const characterId = parts.slice(2).join('-') // 残り全てをcharacterIdとして扱う
+      if (parts.length < 3) {
+        this.logger.warn(`CustomId has insufficient parts: ${parts.length}, expected at least 3`)
+        return { characterId: null, sectionType: null, fieldKey: null }
+      }
 
-    return { characterId, sectionType, fieldKey }
+      const sectionType = parts[0] as EmbedSectionType
+      const fieldKey = parts[1]
+      const characterId = parts.slice(2).join('-')
+
+      this.logger.debug(`Legacy parsed: sectionType=${sectionType}, fieldKey=${fieldKey}, characterId=${characterId}`)
+
+      return { characterId, sectionType, fieldKey }
+    }
+
+    this.logger.warn(`CustomId format not recognized: ${customId}`)
+    return { characterId: null, sectionType: null, fieldKey: null }
   }
 
   /**
@@ -187,9 +243,25 @@ export class CharacterModalHandlerService {
    */
   private extractFormData(interaction: ModalSubmitInteraction): FieldData | null {
     try {
-      const name = interaction.fields.getTextInputValue('field-name') || undefined
-      const value = interaction.fields.getTextInputValue('field-value')
-      const description = interaction.fields.getTextInputValue('field-description') || undefined
+      // 各フィールドを安全に取得
+      let name: string | undefined = undefined
+      let value: string
+
+      // field-name フィールドが存在するかチェック（新規追加の場合のみ）
+      try {
+        name = interaction.fields.getTextInputValue('field-name') || undefined
+      } catch (error) {
+        // field-name フィールドが存在しない場合（既存フィールド編集）
+        name = undefined
+      }
+
+      // field-value フィールドは必須
+      try {
+        value = interaction.fields.getTextInputValue('field-value')
+      } catch (error) {
+        this.logger.error('Required field-value not found', error)
+        return null
+      }
 
       if (!value || value.trim() === '') {
         return null
@@ -197,8 +269,7 @@ export class CharacterModalHandlerService {
 
       return {
         name: name?.trim(),
-        value: value.trim(),
-        description: description?.trim()
+        value: value.trim()
       }
     } catch (error) {
       this.logger.error('Failed to extract form data', error)
@@ -223,15 +294,9 @@ export class CharacterModalHandlerService {
       const actualFieldKey = fieldKey === 'add_new' ? formData.name || `new_${Date.now()}` : fieldKey
 
       // フィールドデータを構築
-      type FieldStructured = { name?: string; value: string; description?: string }
+      type FieldStructured = { name?: string; value: string }
       let fieldValue: string | FieldStructured
-      if (formData.description) {
-        fieldValue = {
-          name: formData.name || actualFieldKey,
-          value: formData.value,
-          description: formData.description
-        }
-      } else if (formData.name && formData.name !== actualFieldKey) {
+      if (formData.name && formData.name !== actualFieldKey) {
         fieldValue = {
           name: formData.name,
           value: formData.value
@@ -247,6 +312,9 @@ export class CharacterModalHandlerService {
       let updateData: UpdateCharacterDto
 
       switch (sectionType) {
+        case 'status':
+          updateData = { status: sectionData as Record<string, AttributeValueDto> }
+          break
         case 'parameter':
           updateData = { parameter: sectionData as Record<string, AttributeValueDto> }
           break
@@ -279,7 +347,10 @@ export class CharacterModalHandlerService {
       const result = await resultPromise
 
       if ('character' in result) {
-        this.logger.log(`Character field updated: ${character.characterId} - ${sectionType}.${actualFieldKey}`)
+        this.logger.log(
+          `Character field updated successfully: ${character.characterId} - ${sectionType}.${actualFieldKey}`
+        )
+        this.logger.debug(`Updated field value: ${JSON.stringify(fieldValue)}`)
         return true
       } else {
         this.logger.error(`Character update failed: ${character.characterId}`, result)
@@ -326,6 +397,8 @@ export class CharacterModalHandlerService {
    */
   private getSectionData(character: Character, sectionType: EmbedSectionType): Record<string, unknown> | undefined {
     switch (sectionType) {
+      case 'status':
+        return character.status
       case 'parameter':
         return character.parameter
       case 'skill':
@@ -345,7 +418,7 @@ export class CharacterModalHandlerService {
     sectionType: EmbedSectionType,
     fieldName: string
   ): Promise<void> {
-    const sectionNames = {
+    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
       status: 'ステータス',
       parameter: 'パラメータ',
       skill: 'スキル',
@@ -355,7 +428,9 @@ export class CharacterModalHandlerService {
 
     const embed = new EmbedBuilder()
       .setTitle('✅ 更新完了')
-      .setDescription(`${sectionNames[sectionType]}「${fieldName}」を更新しました。`)
+      .setDescription(
+        `${sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]}「${fieldName}」を更新しました。`
+      )
       .setColor('#27ae60')
       .setTimestamp()
 
@@ -500,19 +575,20 @@ export class CharacterModalHandlerService {
       if (!message.author.bot) continue
 
       // 更新ボタンまたは簡易表示ボタンがあるかチェック
-      const hasCharacterEditButtons = message.components.some(
-        (row: any) =>
-          row.components &&
-          row.components.some((component: any) => {
-            if (component.type !== 2) return false // Button type = 2
-            const customId = component.customId
-            return (
-              customId &&
-              (customId.includes(`character-refresh-${characterId}`) ||
-                customId.includes(`character-compact-view-${characterId}`))
-            )
-          })
-      )
+      type ButtonLike = { type?: number; customId?: string }
+      type ActionRowLike = { components?: ButtonLike[] }
+      const actionRows: ActionRowLike[] = (message.components ?? []) as ActionRowLike[]
+      const hasCharacterEditButtons = actionRows.some((row) => {
+        const buttons: ButtonLike[] = row.components ?? []
+        return buttons.some((component) => {
+          if (component.type !== 2) return false // Button type = 2
+          const customId = component.customId ?? ''
+          return (
+            customId.includes(`character-refresh-${characterId}`) ||
+            customId.includes(`character-compact-view-${characterId}`)
+          )
+        })
+      })
 
       if (hasCharacterEditButtons) {
         return message
@@ -520,5 +596,81 @@ export class CharacterModalHandlerService {
     }
 
     return null
+  }
+
+  /**
+   * セクション編集のEmbedとメニューをクリア
+   */
+  private async clearSectionEditEmbed(interaction: ModalSubmitInteraction, characterId: string): Promise<void> {
+    try {
+      if (!interaction.channel || !('messages' in interaction.channel)) {
+        this.logger.warn('Channel does not support message fetching for clearing section edit')
+        return
+      }
+
+      const textChannel = interaction.channel as TextChannel
+
+      // 最近の50メッセージを取得してセクション編集Embedを探す
+      const messages = await textChannel.messages.fetch({ limit: 50 })
+
+      for (const message of messages.values()) {
+        // ボット自身のメッセージのみを対象
+        if (!message.author.bot) continue
+
+        // セクション編集のEmbedかどうかをチェック
+        const isSectionEditEmbed = this.isSectionEditEmbed(message, characterId)
+
+        if (isSectionEditEmbed) {
+          this.logger.log(`Clearing section edit embed: ${message.id} for character: ${characterId}`)
+
+          // メッセージを削除
+          try {
+            await message.delete()
+            this.logger.debug(`Section edit embed deleted successfully: ${message.id}`)
+          } catch (deleteError) {
+            // 削除に失敗した場合はコンテンツをクリア
+            this.logger.warn(`Failed to delete message, clearing content instead: ${deleteError}`)
+            await message.edit({
+              content: '✅ 編集が完了しました。',
+              embeds: [],
+              components: []
+            })
+          }
+          break // 最初に見つかったセクション編集Embedのみを処理
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to clear section edit embed', error)
+    }
+  }
+
+  /**
+   * メッセージがセクション編集Embedかどうかを判定
+   */
+  private isSectionEditEmbed(message: Message, characterId: string): boolean {
+    // セクション編集のEmbedの特徴をチェック
+    // 1. Embedのタイトルに「編集」が含まれる
+    // 2. セクション選択メニューまたは戻るメニューがある
+
+    const hasEditTitle = message.embeds.some((embed) => embed.title && embed.title.includes('編集'))
+
+    type ComponentLike = { type?: number; customId?: string }
+    type ActionRowLike = { components?: ComponentLike[] }
+    const rows = (message.components ?? []) as ActionRowLike[]
+
+    const hasSectionSelectMenu = rows.some((row) => {
+      const comps: ComponentLike[] = row.components ?? []
+      return comps.some((component: ComponentLike) => {
+        if (component.type !== 3) return false // StringSelectMenu type = 3
+        const customId = component.customId ?? ''
+        return (
+          customId.includes(`character-edit-section-${characterId}`) ||
+          customId.includes('character-field-edit-') ||
+          customId.includes('character-field-add-')
+        )
+      })
+    })
+
+    return hasEditTitle && hasSectionSelectMenu
   }
 }

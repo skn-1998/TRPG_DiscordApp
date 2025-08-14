@@ -167,6 +167,7 @@ export interface DiscordEventContracts {
   'discord.embed.character.update.requested': {
     character: import('../../../domains/character/models/character.model').Character
     channelId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
     source: string
     timestamp: Date
   }
@@ -180,6 +181,60 @@ export interface DiscordEventContracts {
   }
 
   'discord.embed.character.update.failed': {
+    characterId: string
+    channelId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // スレッド作成関連イベント
+  'discord.thread.create.requested': {
+    character: import('../../../domains/character/models/character.model').Character
+    channelId: string
+    guildId: string
+    creatorId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
+    source: string
+    timestamp: Date
+  }
+
+  'discord.thread.create.completed': {
+    threadId: string
+    threadUrl?: string
+    character: import('../../../domains/character/models/character.model').Character
+    source: string
+    timestamp: Date
+  }
+
+  'discord.thread.create.failed': {
+    characterId: string
+    channelId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // キャラクター表示関連イベント
+  'discord.character.display.requested': {
+    character: import('../../../domains/character/models/character.model').Character
+    channelId: string
+    guildId: string
+    requesterId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
+    source: string
+    timestamp: Date
+  }
+
+  'discord.character.display.completed': {
+    characterId: string
+    channelId: string
+    success: boolean
+    source: string
+    timestamp: Date
+  }
+
+  'discord.character.display.failed': {
     characterId: string
     channelId: string
     error: string

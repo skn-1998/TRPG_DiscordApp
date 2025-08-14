@@ -282,6 +282,85 @@ const achievedPerformanceGains = {
 
 ---
 
+## 🎯 **CharacterThread拡張スラッシュコマンド実装** `[完了: 2025-08-13]`
+
+### **🎯 機能概要**
+characterThread機能を拡張し、キャラクターを直接指定してTRPGキャラクター表示できるスラッシュコマンドを実装。EnhancedCharacterEdit サービスとの統合により、高機能なキャラクター編集画面も提供。
+
+### **📊 実装完了項目**
+
+#### **1. 拡張スラッシュコマンド機能**
+```typescript
+// ✅ 新規実装機能
+const enhancedSlashCommand = {
+  'キャラクター直接指定': 'character-id オプションで直接キャラクターを指定可能',
+  'スレッド作成オプション': 'create-thread オプションでスレッド作成の有無を選択',
+  'Enhanced表示統合': 'EnhancedCharacterEdit の4分割Embed表示に対応',
+  '後方互換性': '既存のcharacterThread機能も引き続き利用可能'
+}
+```
+
+#### **2. イベント駆動アーキテクチャの実装**
+```typescript
+// ✅ アーキテクチャ改善
+const eventDrivenArchitecture = {
+  'イベント契約拡張': 'discord.thread.create.requested などの新イベント追加',
+  'サービス間通信': 'TypedEventService経由の疎結合な連携',
+  'モジュール分離': 'features間の直接依存関係を排除',
+  'フォールバック機能': 'Enhanced表示失敗時の基本表示対応'
+}
+```
+
+#### **3. スレッド作成サービスの改善**
+```typescript
+// ✅ ThreadCreationService拡張
+const threadCreationEnhancements = {
+  'Enhanced統合': 'EnhancedCharacterEdit経由での高機能表示',
+  'イベントハンドラー': 'discord.thread.create.requestedイベントの処理',
+  'エラーハンドリング': '成功・失敗イベントの適切な発行',
+  'フォールバック処理': 'Enhanced表示失敗時の基本表示切り替え'
+}
+```
+
+#### **4. 選択メニューハンドラーの改善**
+```typescript
+// ✅ 選択メニュー対応拡張
+const selectMenuEnhancements = {
+  'CustomID形式拡張': '新しいcustomID形式への対応',
+  '後方互換性': '既存のcharacter-thread-selectも引き続きサポート',
+  'Enhanced処理': 'EnhancedCharacterEdit統合での選択処理',
+  'エラー処理改善': 'フォールバック処理の強化'
+}
+```
+
+#### **5. 技術実装詳細**
+- **コマンドオプション**: `character-id`（省略時は選択メニュー）、`create-thread`（デフォルト:false）
+- **イベント駆動統合**: `discord.thread.create.requested`で ThreadCreationService と連携
+- **Enhanced表示**: `discord.embed.character.update.requested`で EnhancedCharacterEdit と連携  
+- **フォールバック機能**: Enhanced表示失敗時は基本のEmbedとボタン表示に切り替え
+- **モジュール分離**: CircularDependencyを回避してfeatures間の独立性を保持
+
+#### **6. UX改善効果**
+- **操作効率化**: キャラクターを直接指定して即座に表示・編集が可能
+- **柔軟な表示**: スレッド作成または現在のチャンネルでの表示を選択可能  
+- **高機能編集**: EnhancedCharacterEditによる4分割Embed（基本・ステータス・パラメータ・スキル・アイテム）
+- **安定性**: フォールバック処理により、Enhanced表示に失敗しても基本機能は動作
+
+### **🔄 実装ファイル**
+- `CharacterThreadService`: スラッシュコマンドの拡張
+- `ThreadCreationService`: Enhanced表示統合とイベントハンドラー追加
+- `CharacterThreadSelectService`: 新しいcustomID形式への対応
+- `event-contracts.ts`: 新しいイベント契約の追加
+- `character-thread-feature.module.ts`: モジュール依存関係の修正
+
+### **✅ 動作確認済み**
+- サーバー起動成功 (`pnpm run start:dev`)
+- 新しい `/create-character-thread` コマンドの Discord への登録完了
+- 全てのコンパイルエラーを解決
+- イベント駆動による EnhancedCharacterEdit との統合動作
+
+---
+
 ## 🆕 **CharacterEdit作成・更新機能のDomain連携** `[完了: 2025-01-10]`
 
 ### **🎯 機能概要**
@@ -372,6 +451,317 @@ const updateTriggers = {
 ### **🔄 実装ファイル**
 - `CharacterModalHandlerService`: モーダル編集時の既存Embed更新
 - `EnhancedCharacterEditService`: リフレッシュボタン時の既存Embed更新
+
+---
+
+## 🔙 **CharacterEdit戻るボタン機能** `[完了: 2025-08-12]`
+
+### **🎯 機能概要**
+セクション編集画面から元のメインセクション選択画面に戻ることができる戻るボタンを追加し、ユーザーのナビゲーション体験を向上。
+
+### **📊 実装完了項目**
+
+#### **1. 戻るボタン機能**
+```typescript
+// ✅ 新規実装機能
+const backButtonFeatures = {
+  '戻るセレクト': 'セクション編集画面に戻るセレクトメニューを追加',
+  '画面遷移': 'showMainSectionMenu() - メインのセクション選択画面に戻る',
+  '型安全性': 'EmbedSectionType に back オプション追加で型安全な処理',
+  'UX向上': 'フィールド編集中から簡単にメイン画面に戻れる機能'
+}
+```
+
+#### **2. 実装詳細**
+```typescript
+// ✅ 戻る機能の処理フロー
+const backButtonFlow = {
+  'セクション選択': 'back値が選択された場合の特別処理',
+  '戻るメニュー': '別のセレクトメニューとして戻るオプションを提供',
+  'メイン画面復帰': '元の分割Embedを再表示してナビゲーション完了'
+}
+```
+
+#### **3. 技術実装詳細**
+- **型拡張**: `EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item' | 'back'`
+- **戻る処理**: `sectionType === 'back'` の場合に `showMainSectionMenu()` を呼び出し
+- **UI配置**: フィールド選択メニューの下に戻るメニューを追加配置
+- **型安全性**: `Exclude<EmbedSectionType, 'back'>` で実際の編集セクションのみを対象とした型安全な処理
+
+#### **4. UX改善効果**
+- **ナビゲーション向上**: セクション編集中でもメイン画面に簡単に戻れる
+- **操作の直感性**: 戻るボタンによる分かりやすい画面遷移
+- **誤操作防止**: 意図しない深い階層に入った場合の脱出ルート提供
+
+### **🔄 実装ファイル**
+- `CharacterSectionEditorService`: 戻るボタンロジックと画面遷移処理
+- `CharacterEmbedManagerService`: EmbedSectionType型定義の拡張
+- `CharacterModalHandlerService`: 型安全性の確保
+
+---
+
+## ⚙️ **CharacterEmbed Parameter表示機能** `[完了: 2025-08-12]`
+
+### **🎯 機能概要**
+characterEmbedの表示に、従来のステータス（status）に加えてパラメータ（parameter）セクションも個別に表示する機能を追加し、よりの詳細なキャラクター情報管理を実現。
+
+### **📊 実装完了項目**
+
+#### **1. Embed表示拡張**
+```typescript
+// ✅ 新規実装機能
+const parameterDisplayFeatures = {
+  'パラメータEmbed': 'createParameterEmbed() - parameter専用Embed作成機能',
+  'ステータス分離': 'createStatusEmbed() - status専用に変更',
+  '個別編集': 'ステータスとパラメータを個別に編集可能',
+  'セクション追加': 'セクション選択メニューに両方を追加'
+}
+```
+
+#### **2. データ構造対応**
+```typescript
+// ✅ Character モデル対応
+const characterDataStructure = {
+  'status': 'Characterモデルのstatus属性 - 基本ステータス情報',
+  'parameter': 'Characterモデルのparameter属性 - 詳細パラメータ情報',
+  '個別管理': 'statusとparameterを完全に分離した管理',
+  '編集対応': '両セクションで個別にフィールド追加・編集が可能'
+}
+```
+
+#### **3. 技術実装詳細**
+- **Embed分離**: `📊 ステータス`（status）と `⚙️ パラメータ`（parameter）を個別のEmbedで表示
+- **セクション選択**: 編集メニューで4つのセクション（ステータス・パラメータ・スキル・アイテム）を選択可能
+- **データ処理**: `getSectionData()` でstatus/parameterを個別に取得・更新
+- **UI統一性**: 各セクションで統一されたフィールド編集インターフェース
+
+#### **4. UX改善効果**
+- **情報整理**: statusとparameterの明確な分離による情報の整理
+- **編集効率**: 目的に応じたセクションでの効率的な編集
+- **視覚的改善**: 異なる色とアイコンでセクションを視覚的に区別
+- **拡張性向上**: 新しいセクション追加への対応が容易
+
+### **🔄 実装ファイル**
+- `CharacterEmbedManagerService`: createParameterEmbed追加、セクション選択メニュー拡張
+- `CharacterSectionEditorService`: status/parameter対応、getSectionData拡張
+- `CharacterModalHandlerService`: 更新処理でstatus対応追加
+
+---
+
+## 🔧 **CustomID長さ制限対応セッション管理システム** `[完了: 2025-08-12]`
+
+### **🎯 機能概要**
+Discord のCustomID 100文字制限によるモーダル切り捨てエラーを解決するため、セッションベースのCustomID管理システムを実装。長いキャラクターIDでも確実にモーダル処理を実行可能。
+
+### **📊 実装完了項目**
+
+#### **1. セッション管理システム**
+```typescript
+// ✅ 新規実装機能
+const sessionManagementFeatures = {
+  'セッション生成': '4桁のセッションIDを生成して短いCustomIDを実現',
+  'セッション保存': 'characterId, sectionType, fieldKey を一時保存',
+  '自動クリーンアップ': '30分経過したセッションを自動削除',
+  '後方互換性': '従来のCustomID形式も引き続きサポート'
+}
+```
+
+#### **2. CustomID形式の改善**
+```typescript
+// ✅ Before/After比較
+const customIdImprovement = {
+  '従来形式': 'char-edit-status-HP-e724f9f0-0c6c-4bd6-8f1b-da28a057386b',
+  '新形式': 'char-edit-modal-0001',
+  '文字数削減': '75文字 → 20文字 (73%削減)',
+  '確実性': 'Discord 100文字制限を確実にクリア'
+}
+```
+
+#### **3. エラーハンドリング改善**
+```typescript
+// ✅ 堅牢性向上
+const errorHandlingImprovements = {
+  'セッション検索': 'セッションが見つからない場合の適切なエラー処理',
+  'フォールバック': '従来形式のCustomIDも引き続き処理可能',
+  'ログ強化': 'デバッグ用の詳細ログ出力を追加',
+  'ガベージコレクション': '古いセッションの自動削除でメモリリーク防止'
+}
+```
+
+#### **4. 技術実装詳細**
+- **セッションID生成**: 0000-9999の循環カウンターで重複を防止
+- **セッション保存**: `Map<sessionId, {characterId, sectionType, fieldKey, timestamp}>`
+- **CustomID形式**: `char-edit-modal-{sessionId}` で最大20文字
+- **クリーンアップ**: 30分タイマーで古いセッション自動削除
+- **依存性注入**: forwardRefでCharacterModalHandlerServiceとの循環依存を解決
+
+#### **5. UX改善効果**
+- **エラー解消**: CustomID切り捨てによるモーダル解析エラーを完全解決
+- **応答性向上**: セッションベースの高速CustomID処理
+- **安定性向上**: 長いキャラクターIDでも確実に動作
+- **保守性向上**: セッション管理により、将来的なCustomID拡張が容易
+
+### **🔄 実装ファイル**
+- `CharacterSectionEditorService`: セッション管理とCustomID生成
+- `CharacterModalHandlerService`: セッションベースCustomID解析
+- `character-edit.module.ts`: forwardRefによる依存性解決
+
+### **⚠️ 解決したエラー**
+```
+-modal-status-SAN-e724f9f0-0c6c-4bd6-8f1b-da28a057386b 
+[Nest] 57292 - 2025/08/12 21:55:27 ERROR [CharacterModalHandlerService] Failed to extract form data
+```
+→ セッションベースCustomID管理により完全解決
+
+## 🎯 **CharacterThread ダイスロールボタンcharacterId統合** `[完了: 2025-08-14]`
+
+### **🎯 機能概要**
+character-threadのダイスロールボタンを押下した際にcharacterIdを確実に保存できるよう、CustomIdにcharacterIdを組み込む仕組みを実装。従来のスレッド名からの取得方法をフォールバックとして残し、確実にキャラクター情報を特定できる仕組みを構築。
+
+### **📊 実装完了項目**
+
+#### **1. CustomId形式の拡張**
+```typescript
+// ✅ 新しいCustomId形式
+const customIdFormats = {
+  '基本ダイス': 'roll*1d100*{characterId}',
+  'スキルロール': 'roll*_{skillName}-{skillValue}*{characterId}',
+  'カスタムダイス': 'roll*custom*{characterId}'
+}
+
+// 従来形式（フォールバック対応）
+const legacyFormats = {
+  '基本ダイス': 'roll*1d100',
+  'スキルロール': 'roll*_{skillName}-{skillValue}',
+  'カスタムダイス': 'roll*custom'
+}
+```
+
+#### **2. ボタン生成の改善**
+```typescript
+// ✅ CharacterDisplayService と CharacterEmbedManagerService
+const buttonGeneration = {
+  'スキルロールボタン': 'createSkillRollButtons(character) - characterId組み込み',
+  '基本ダイスボタン': 'createBasicDiceButtons(character) - characterId組み込み',
+  '後方互換性': '既存のボタンも引き続き動作するフォールバック処理'
+}
+```
+
+#### **3. characterId抽出システム**
+```typescript
+// ✅ CharacterDiceButtonsService拡張
+const extractionSystem = {
+  'CustomId解析': 'extractCharacterIdFromCustomId() - 新形式からcharacterIdを抽出',
+  'フォールバック処理': 'チャンネルIDから既存のキャラクター検索処理を保持',
+  'エラーハンドリング': '解析失敗時の適切なフォールバック'
+}
+```
+
+#### **4. 保存処理の改善**
+```typescript
+// ✅ saveRollResult拡張
+const saveProcessImprovement = {
+  '優先順位': 'CustomIdのcharacterId > チャンネル検索でのcharacterId',
+  'フォールバック': '従来のチャンネルIDベースの検索を保持',
+  'エラー処理': 'characterId取得失敗時の適切な処理とログ'
+}
+```
+
+#### **5. 技術実装詳細**
+- **CustomId拡張**: 既存の`roll*`形式に`*{characterId}`を末尾に追加
+- **ボタン生成修正**: `createSkillRollButtons`、`createBasicDiceButtons`でcharacterを引数に追加
+- **抽出ロジック**: `split('*')`で最後の要素をcharacterIdとして抽出
+- **フォールバック処理**: characterIdが取得できない場合はチャンネルIDで検索
+- **エラーハンドリング**: 抽出失敗時の適切なログ出力と代替処理
+
+#### **6. 後方互換性の確保**
+- **既存ボタン対応**: 古い形式のCustomIdでも動作する処理を保持
+- **段階的移行**: 新しいボタンは新形式、既存のボタンは従来通り動作
+- **エラー耐性**: characterId抽出失敗時の適切なフォールバック処理
+
+### **🔄 実装ファイル**
+- `CharacterDisplayService`: スキル・基本ダイスボタン生成でcharacterId組み込み
+- `CharacterEmbedManagerService`: Enhanced表示でのボタン生成でcharacterId組み込み
+- `CharacterDiceButtonsService`: CustomId解析とcharacterId抽出、フォールバック処理
+
+### **✅ 動作保証**
+- 新しい形式のボタンからのcharacterId確実取得
+- 既存ボタンでのフォールバック処理による互換性確保
+- characterId取得失敗時の適切なエラーハンドリング
+- ダイスロール結果のcharacterIdと紐づけた確実な保存
+
+---
+
+## 🎯 **Character-Thread ダイスボタン重複解消** `[完了: 2025-08-14]`
+
+### **🎯 機能概要**
+character-thread作成時のダイスロールボタンの重複表示を解消し、skill、status、parameterの個別ダイスロール表示のみを残すよう最適化。基本ダイスロールボタン（1D100、1D6等）を削除して、キャラクター固有の能力値に基づくロールのみを表示。
+
+### **📊 実装完了項目**
+
+#### **1. 基本ダイスボタン削除**
+```typescript
+// ✅ CharacterEmbedManagerService での変更
+const buttonOptimization = {
+  '基本ダイスボタン': 'createBasicDiceButtons() をコメントアウトして重複回避',
+  'スキルロール特化': 'キャラクター固有の能力値ロールのみを表示',
+  '視覚的整理': 'ボタン数を削減して見やすさを向上'
+}
+```
+
+#### **2. 統合ダイスロールボタン生成**
+```typescript
+// ✅ 新しいボタン生成システム
+const unifiedDiceRolls = {
+  'メソッド名変更': 'createSkillRollButtons → createCharacterDiceRollButtons',
+  'skill対応': '🎯 スキルロール（従来通り）',
+  'status対応': '📊 ステータスロール（新規追加）',
+  'parameter対応': '⚙️ パラメータロール（新規追加）'
+}
+```
+
+#### **3. セクション別絵文字とラベリング**
+```typescript
+// ✅ 視覚的区別システム
+const sectionIdentification = {
+  'skill': '🎯 スキル系ボタン（例：調査(65)、戦闘(50)）',
+  'status': '📊 ステータス系ボタン（例：HP(100)、MP(80)）',
+  'parameter': '⚙️ パラメータ系ボタン（例：STR(15)、DEX(12)）'
+}
+```
+
+#### **4. データ処理の統一化**
+```typescript
+// ✅ addDiceRollButtonsFromData メソッド
+const unifiedDataProcessing = {
+  '柔軟なデータ形式': '{name, value} または 直接値の両方に対応',
+  'ロール値検証': '0以下の値は自動的にスキップ',
+  'CustomID統一': 'roll*_{name}-{rollValue}*{characterId} 形式',
+  'Discord制限対応': '最大20ボタン、1行5ボタンの制限遵守'
+}
+```
+
+#### **5. 技術実装詳細**
+- **ボタン削除**: 基本ダイス（1D100、1D6、2D6、カスタム）ボタンをコメントアウト
+- **統合生成**: skill/status/parameterの3セクションを統合処理
+- **セクション別処理**: 各セクションで異なる絵文字とラベルを設定
+- **データ正規化**: 様々なデータ形式に対応した統一処理
+- **行分割最適化**: 5ボタンずつ行分割して見やすく配置
+
+#### **6. UX改善効果**
+- **視覚的整理**: 不要な基本ダイスボタンを削除して画面をスッキリ
+- **機能特化**: キャラクター固有の能力値に特化したダイスロール
+- **識別容易**: 絵文字によるセクション別の視覚的区別
+- **操作効率**: 重複削除により目的のボタンを素早く発見可能
+
+### **🔄 実装ファイル**
+- `CharacterEmbedManagerService`: ボタン生成ロジックの統合と最適化
+
+### **✅ 動作確認済み**
+- コンパイルエラー0件で正常起動
+- 基本ダイスボタンの重複表示解消
+- skill/status/parameter の個別ダイスロール表示のみ残存
+- characterIdを含むCustomId形式での確実な保存
 
 ---
 

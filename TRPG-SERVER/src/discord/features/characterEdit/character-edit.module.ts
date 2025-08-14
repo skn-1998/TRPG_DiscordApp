@@ -15,6 +15,7 @@ import { ChannelNameSyncService } from './services/channel-name-sync.service'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
+import { ModalSessionManagerService } from './services/modal-session-manager.service'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 
 // Legacy Services (後方互換性のため)
@@ -54,6 +55,7 @@ import { ChangeCharaInfoService } from './change-chara-info.service'
     // Enhanced Character Edit Services
     // ============================================================================
     CharacterEmbedManagerService,
+    ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
     EnhancedCharacterEditService,
@@ -80,6 +82,7 @@ import { ChangeCharaInfoService } from './change-chara-info.service'
     // Enhanced Character Edit Services Export
     // ============================================================================
     CharacterEmbedManagerService,
+    ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
     EnhancedCharacterEditService,

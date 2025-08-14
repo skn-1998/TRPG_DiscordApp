@@ -28,6 +28,9 @@ export class Character {
   @Prop()
   discordChannelId: string
 
+  @Prop()
+  discordEditChannelId?: string
+
   @Prop({ type: Object, default: {} })
   status: AttributeSection
 

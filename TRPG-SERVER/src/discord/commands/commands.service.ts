@@ -58,14 +58,34 @@ export class CommandsService {
       const commandName = interaction.commandName
 
       switch (commandName) {
-        case 'character-thread':
+        case 'create-character-thread':
           if (this.characterThreadService && typeof this.characterThreadService.execute === 'function') {
             await this.characterThreadService.execute(interaction)
           }
           break
-        case 'roll-dice':
+        case 'd':
           if (this.rollDiceService && typeof this.rollDiceService.execute === 'function') {
             await this.rollDiceService.execute(interaction)
+          }
+          break
+        case 'create-dice-channel':
+          if (this.selectGameSystemService && typeof this.selectGameSystemService.execute === 'function') {
+            await this.selectGameSystemService.execute(interaction)
+          }
+          break
+        case 'user-dice':
+          if (this.userDefinedDiceService && typeof this.userDefinedDiceService.execute === 'function') {
+            await this.userDefinedDiceService.execute(interaction)
+          }
+          break
+        case 'dice-from-context-menu':
+          if (this.diceFromContextMenuService && typeof this.diceFromContextMenuService.execute === 'function') {
+            await this.diceFromContextMenuService.execute(interaction)
+          }
+          break
+        case 'dice-result':
+          if (this.diceResultService && typeof this.diceResultService.execute === 'function') {
+            await this.diceResultService.execute(interaction)
           }
           break
         default:
