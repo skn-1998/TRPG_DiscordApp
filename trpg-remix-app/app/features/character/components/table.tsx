@@ -1,6 +1,7 @@
-import { ChangeEvent, ChangeEventHandler, ReactNode, useState } from 'react'
+import { ChangeEvent, ChangeEventHandler, ReactNode, useEffect, useState } from 'react'
 import styles from './flexTable2.module.css'
 import { CloseButton } from '@mantine/core'
+import useStore from '~/store'
 
 type TextCellProps = {
   text: string
@@ -36,8 +37,7 @@ function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
               type="number"
               className={styles.inputNumber}
               onChange={changeHandler}
-              // value={value}
-              value={'10000'}
+              value={value}
               disabled={disabled}
             />
           </div>
@@ -199,6 +199,64 @@ function ButtonCell({ clickHandler }: ButtonCellProps) {
           <div className={styles.inputCellInnerInner}>
             <CloseButton onClick={clickHandler} />
           </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+//
+export function StatusTest() {
+  const status = useStore((state) => state.status)
+  const updateStatus = useStore((state) => state.updateStatus)
+
+  const attrs = Object.keys(status)
+
+  const [sums, setSums] = useState(
+    attrs.map((attr) => {
+      const key = Object.keys(status[attr].values)
+      const values = key.map((e) => Number(status[attr].values[e]))
+      return `${values.reduce((p, c) => p + c, 0)}`
+    })
+  )
+  useEffect(() => {
+    setSums(
+      attrs.map((attr) => {
+        const key = Object.keys(status[attr].values)
+        const values = key.map((e) => Number(status[attr].values[e]))
+        return `${values.reduce((p, c) => p + c, 0)}`
+      })
+    )
+  }, [status])
+
+  return (
+    <>
+      <div className={styles.widthWrap}>
+        <div className={styles.tableWrap}>
+          <SideGroup headerText="">
+            {attrs.map((attr) => (
+              <TextCell text={attr} />
+            ))}
+          </SideGroup>
+          <Column headerText={'初期値'}>
+            {attrs.map((attr) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateStatus(status[attr].index, 'initial', e.target.value)
+              return <InputCell value={status[attr].values.initial} disabled={false} changeHandler={changeHandler} />
+            })}
+          </Column>
+          <Column headerText={'その他'}>
+            {attrs.map((attr) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateStatus(status[attr].index, 'other', e.target.value)
+              return <InputCell value={status[attr].values.other} disabled={false} changeHandler={changeHandler} />
+            })}
+          </Column>
+          <Column headerText="合計">
+            {sums.map((sum) => (
+              <InputCell value={sum} disabled={true} />
+            ))}
+          </Column>
         </div>
       </div>
     </>
