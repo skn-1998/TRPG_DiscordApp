@@ -13,6 +13,12 @@
   min-width: 5rem;
   max-width: 150px;
 }
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  min-width: 5rem;
+  max-width: 150px;
+}
 
 .textCellCommon {
   display: flex;
@@ -128,7 +134,7 @@
   height: 100%;
   /* padding: 0px; */
   border-radius: 4px;
-  border: solid 1px;
+  /* border: solid 1px; */
   border: none;
   /* background-color: rgb(79, 87, 97); */
   /* caret-color: rgb(255, 255, 255); */
@@ -145,4 +151,21 @@
 .inputNumber::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* .textGroup > .textCell{
+  border-bottom: 0.2px solid #fff;
+}
+
+.inputCell{
+  border-bottom: 0.2px solid #fff;
+} */
+
+.oddRow.textCell, .oddRow.inputCell{
+  background-color: var(--mantine-color-main-7);
+}
+
+.inputNumber{
+  border: solid 0.5px var(--mantine-color-main-3);
+  background-color: #00000000;
 }

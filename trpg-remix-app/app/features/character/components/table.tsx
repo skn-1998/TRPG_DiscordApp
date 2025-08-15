@@ -5,12 +5,13 @@ import useStore from '~/store'
 
 type TextCellProps = {
   text: string
+  isOdd?: boolean
 }
 
-function TextCell({ text }: TextCellProps) {
+function TextCell({ text, isOdd = false }: TextCellProps) {
   return (
     <>
-      <div className={`${styles.textCell} ${styles.textCellCommon}`}>
+      <div className={`${styles.textCell} ${styles.textCellCommon} ${isOdd ? styles.oddRow : ''}`}>
         <div className={styles.textCellInner}>
           <div className={styles.textCellInnerInner}>
             <div>{text}</div>
@@ -25,12 +26,13 @@ type InputCellProps = {
   value: string
   changeHandler?: ChangeEventHandler<HTMLInputElement>
   disabled?: boolean
+  isOdd?: boolean
 }
 
-function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
+function InputCell({ value, changeHandler, disabled = false, isOdd = false }: InputCellProps) {
   return (
     <>
-      <div className={`${styles.inputCell} ${styles.inputCellCommon}`}>
+      <div className={`${styles.inputCell} ${styles.inputCellCommon} ${isOdd ? styles.oddRow : ''}`}>
         <div className={styles.inputCellInner}>
           <div className={styles.inputCellInnerInner}>
             <input
@@ -234,28 +236,46 @@ export function StatusTest() {
       <div className={styles.widthWrap}>
         <div className={styles.tableWrap}>
           <SideGroup headerText="">
-            {attrs.map((attr) => (
-              <TextCell text={attr} />
-            ))}
+            {attrs.map((attr, i) => {
+              const isOdd = i % 2 !== 0
+              return <TextCell text={attr} isOdd={isOdd} />
+            })}
           </SideGroup>
           <Column headerText={'初期値'}>
-            {attrs.map((attr) => {
+            {attrs.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
                 updateStatus(status[attr].index, 'initial', e.target.value)
-              return <InputCell value={status[attr].values.initial} disabled={false} changeHandler={changeHandler} />
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={status[attr].values.initial}
+                  disabled={false}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
             })}
           </Column>
           <Column headerText={'その他'}>
-            {attrs.map((attr) => {
+            {attrs.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
                 updateStatus(status[attr].index, 'other', e.target.value)
-              return <InputCell value={status[attr].values.other} disabled={false} changeHandler={changeHandler} />
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={status[attr].values.other}
+                  disabled={false}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
             })}
           </Column>
           <Column headerText="合計">
-            {sums.map((sum) => (
-              <InputCell value={sum} disabled={true} />
-            ))}
+            {sums.map((sum, i) => {
+              const isOdd = i % 2 !== 0
+              return <InputCell value={sum} disabled={true} isOdd={isOdd} />
+            })}
           </Column>
         </div>
       </div>
