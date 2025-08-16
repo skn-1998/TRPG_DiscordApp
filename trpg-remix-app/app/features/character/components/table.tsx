@@ -324,10 +324,11 @@ export function SkillTest() {
             {keys.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateSkill(attr, 'initial', e.target.value)
               const isOdd = i % 2 !== 0
+              const disabled = !skill[attr].deletable
               return (
                 <InputCell
                   value={skill[attr].values.initial}
-                  disabled={true}
+                  disabled={disabled}
                   changeHandler={changeHandler}
                   isOdd={isOdd}
                 />
