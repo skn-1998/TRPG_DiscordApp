@@ -19,5 +19,6 @@ export const skillTemplate = {
     interest: '',
     other: ''
   },
-  deletable: true
+  deletable: true,
+  nameEditable: true
 }

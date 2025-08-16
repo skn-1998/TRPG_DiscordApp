@@ -301,6 +301,7 @@ export function SkillTest() {
   const createSkill = useStore((state) => state.createSkill)
   const updateSkill = useStore((state) => state.updateSkill)
   const deleteSkill = useStore((state) => state.deleteSkill)
+  const updateSkillName = useStore((state) => state.updateSkillName)
 
   const keys = Object.keys(skill)
 
@@ -312,7 +313,11 @@ export function SkillTest() {
           <SideGroup headerText="技能名">
             {keys.map((attr, i) => {
               const isOdd = i % 2 !== 0
-              return <TextCell text={skill[attr].name} isOdd={isOdd} />
+              if (!skill[attr].nameEditable) {
+                return <TextCell text={skill[attr].name} isOdd={isOdd} />
+              }
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateSkillName(attr, e.target.value)
+              return <SideInputCell value={skill[attr].name} changeHandler={changeHandler} />
             })}
           </SideGroup>
           <Column headerText="初期値">

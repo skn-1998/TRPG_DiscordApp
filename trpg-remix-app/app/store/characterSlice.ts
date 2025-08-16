@@ -15,6 +15,7 @@ export interface Status {
       [key: string]: string
     }
     deletable?: boolean
+    nameEditable?: boolean
   }
 }
 
@@ -25,6 +26,7 @@ export interface CharacterSlice {
   updateSkill: (key: string, valuesKey: string, value: string) => void
   createSkill: () => void
   deleteSkill: (key: string) => void
+  updateSkillName: (key: string, value: string) => void
 }
 
 export const createCharacterSlice: StateCreator<
@@ -55,5 +57,9 @@ export const createCharacterSlice: StateCreator<
   deleteSkill: (key: string) =>
     set((state) => {
       delete state.skill[key]
+    }),
+  updateSkillName: (key: string, value: string) =>
+    set((state) => {
+      state.skill[key].name = value
     })
 })
