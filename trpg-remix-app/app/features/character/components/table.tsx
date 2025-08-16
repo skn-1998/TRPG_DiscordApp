@@ -207,29 +207,24 @@ function ButtonCell({ clickHandler }: ButtonCellProps) {
   )
 }
 
+function EmptyButtonCell() {
+  return (
+    <>
+      <div className={`${styles.inputCell} ${styles.inputCellCommon}`}>
+        <div className={styles.inputCellInner}>
+          <div className={styles.inputCellInnerInner}></div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 //
 export function StatusTest() {
   const status = useStore((state) => state.status)
   const updateStatus = useStore((state) => state.updateStatus)
 
   const attrs = Object.keys(status)
-
-  const [sums, setSums] = useState(
-    attrs.map((attr) => {
-      const key = Object.keys(status[attr].values)
-      const values = key.map((e) => Number(status[attr].values[e]))
-      return `${values.reduce((p, c) => p + c, 0)}`
-    })
-  )
-  useEffect(() => {
-    setSums(
-      attrs.map((attr) => {
-        const key = Object.keys(status[attr].values)
-        const values = key.map((e) => Number(status[attr].values[e]))
-        return `${values.reduce((p, c) => p + c, 0)}`
-      })
-    )
-  }, [status])
 
   return (
     <>
@@ -243,8 +238,7 @@ export function StatusTest() {
           </SideGroup>
           <Column headerText="初期値">
             {attrs.map((attr, i) => {
-              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateStatus(status[attr].index, 'initial', e.target.value)
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateStatus(attr, 'initial', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -258,8 +252,7 @@ export function StatusTest() {
           </Column>
           <Column headerText="その他">
             {attrs.map((attr, i) => {
-              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateStatus(status[attr].index, 'other', e.target.value)
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateStatus(attr, 'other', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -272,13 +265,32 @@ export function StatusTest() {
             })}
           </Column>
           <Column headerText="合計">
-            {sums.map((sum, i) => {
+            {attrs.map((attr, i) => {
               const isOdd = i % 2 !== 0
-              return <InputCell value={sum} disabled={true} isOdd={isOdd} />
+              return <SumCell isOdd={isOdd} values={[status[attr].values.initial, status[attr].values.other]} />
             })}
           </Column>
         </div>
       </div>
+    </>
+  )
+}
+
+type SumCellProps = {
+  isOdd?: boolean
+  values: string[]
+}
+
+function SumCell({ isOdd, values }: SumCellProps) {
+  const [sum, setSum] = useState('0')
+  useEffect(() => {
+    const result = values.map((v) => Number(v)).reduce((p, c) => p + c, 0)
+    setSum(`${result}`)
+  }, [values])
+
+  return (
+    <>
+      <InputCell value={sum} disabled isOdd={isOdd} />
     </>
   )
 }
@@ -288,25 +300,9 @@ export function SkillTest() {
   const skill = useStore((state) => state.skill)
   const createSkill = useStore((state) => state.createSkill)
   const updateSkill = useStore((state) => state.updateSkill)
+  const deleteSkill = useStore((state) => state.deleteSkill)
 
   const keys = Object.keys(skill)
-
-  const [sums, setSums] = useState(
-    keys.map((key) => {
-      const valuesKey = Object.keys(skill[key].values)
-      const values = valuesKey.map((e) => Number(skill[key].values[e]))
-      return `${values.reduce((p, c) => p + c, 0)}`
-    })
-  )
-  useEffect(() => {
-    setSums(
-      keys.map((key) => {
-        const valuesKey = Object.keys(skill[key].values)
-        const values = valuesKey.map((e) => Number(skill[key].values[e]))
-        return `${values.reduce((p, c) => p + c, 0)}`
-      })
-    )
-  }, [skill])
 
   return (
     <>
@@ -321,8 +317,7 @@ export function SkillTest() {
           </SideGroup>
           <Column headerText="初期値">
             {keys.map((attr, i) => {
-              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateSkill(skill[attr].index, 'initial', e.target.value)
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateSkill(attr, 'initial', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -337,7 +332,7 @@ export function SkillTest() {
           <Column headerText="職業P">
             {keys.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateSkill(skill[attr].index, 'occupation', e.target.value)
+                updateSkill(attr, 'occupation', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -351,8 +346,7 @@ export function SkillTest() {
           </Column>
           <Column headerText="興味P">
             {keys.map((attr, i) => {
-              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateSkill(skill[attr].index, 'interest', e.target.value)
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateSkill(attr, 'interest', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -366,8 +360,7 @@ export function SkillTest() {
           </Column>
           <Column headerText="その他">
             {keys.map((attr, i) => {
-              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
-                updateSkill(skill[attr].index, 'other', e.target.value)
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) => updateSkill(attr, 'other', e.target.value)
               const isOdd = i % 2 !== 0
               return (
                 <InputCell
@@ -380,9 +373,36 @@ export function SkillTest() {
             })}
           </Column>
           <Column headerText="合計">
-            {sums.map((sum, i) => {
+            {keys.map((attr, i) => {
               const isOdd = i % 2 !== 0
-              return <InputCell value={sum} disabled={true} isOdd={isOdd} />
+              return (
+                <SumCell
+                  isOdd={isOdd}
+                  values={[
+                    skill[attr].values.initial,
+                    skill[attr].values.occupation,
+                    skill[attr].values.interest,
+                    skill[attr].values.other
+                  ]}
+                />
+              )
+            })}
+          </Column>
+          <Column headerText="">
+            {keys.map((attr) => {
+              if (!skill[attr].deletable) {
+                return (
+                  <>
+                    <EmptyButtonCell />
+                  </>
+                )
+              }
+              const clickHandler = () => deleteSkill(attr)
+              return (
+                <>
+                  <ButtonCell clickHandler={clickHandler} />
+                </>
+              )
             })}
           </Column>
         </div>

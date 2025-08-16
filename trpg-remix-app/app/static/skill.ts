@@ -18,5 +18,6 @@ export const skillTemplate = {
     occupation: '',
     interest: '',
     other: ''
-  }
+  },
+  deletable: true
 }

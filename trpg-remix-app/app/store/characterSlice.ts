@@ -2,9 +2,8 @@ import { StateCreator } from 'zustand'
 import { RootState } from '.'
 import { status } from '~/static/status'
 import { skill, skillTemplate } from '~/static/skill'
-// import { findKey } from 'lodash'
 import pkg from 'lodash'
-const { findKey, cloneDeep, map } = pkg
+const { cloneDeep, map } = pkg
 import Hashids from 'hashids'
 const hashids = new Hashids('hogehogesolty')
 
@@ -15,15 +14,17 @@ export interface Status {
     values: {
       [key: string]: string
     }
+    deletable?: boolean
   }
 }
 
 export interface CharacterSlice {
   status: Status
   skill: Status
-  updateStatus: (index: number | string, valuesKey: string, value: string) => void
-  updateSkill: (index: number | string, valuesKey: string, value: string) => void
+  updateStatus: (key: string, valuesKey: string, value: string) => void
+  updateSkill: (key: string, valuesKey: string, value: string) => void
   createSkill: () => void
+  deleteSkill: (key: string) => void
 }
 
 export const createCharacterSlice: StateCreator<
@@ -34,33 +35,25 @@ export const createCharacterSlice: StateCreator<
 > = (set) => ({
   status: status,
   skill: skill,
-  updateStatus: (index: number | string, valuesKey: string, value: string) =>
+  updateStatus: (key: string, valuesKey: string, value: string) =>
     set((state) => {
-      const key = findKey(state.status, (o) => o.index === index)
-      if (!key) {
-        console.log('not find key')
-        return
-      }
       state.status[key].values[valuesKey] = value
     }),
-  createSkill: () => {
+  createSkill: () =>
     set((state) => {
       const uid = hashids.encode([...new Array(6)].map(() => Math.floor(Math.random() * 100)))
-      console.log(uid)
       const largestIndex = Math.max(...map(state.skill, (v) => Number(v.index)))
       state.skill[uid] = {
         index: largestIndex + 1,
         ...cloneDeep(skillTemplate)
       }
-    })
-  },
-  updateSkill: (index: number | string, valuesKey: string, value: string) =>
+    }),
+  updateSkill: (key: string, valuesKey: string, value: string) =>
     set((state) => {
-      const key = findKey(state.skill, (o) => o.index === index)
-      if (!key) {
-        console.log('not find key')
-        return
-      }
       state.skill[key].values[valuesKey] = value
+    }),
+  deleteSkill: (key: string) =>
+    set((state) => {
+      delete state.skill[key]
     })
 })
