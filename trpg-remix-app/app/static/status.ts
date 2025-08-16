@@ -1,6 +1,7 @@
 export const status = {
   STR: {
     index: 0,
+    name: 'STR',
     values: {
       initial: '',
       other: ''
@@ -8,6 +9,7 @@ export const status = {
   },
   CON: {
     index: 1,
+    name: 'CON',
     values: {
       initial: '',
       other: ''
@@ -15,6 +17,7 @@ export const status = {
   },
   DEX: {
     index: 2,
+    name: 'DEX',
     values: {
       initial: '',
       other: ''
@@ -22,6 +25,7 @@ export const status = {
   },
   APP: {
     index: 3,
+    name: 'APP',
     values: {
       initial: '',
       other: ''
@@ -29,6 +33,7 @@ export const status = {
   },
   SIZ: {
     index: 4,
+    name: 'SIZ',
     values: {
       initial: '',
       other: ''
@@ -36,6 +41,7 @@ export const status = {
   },
   INT: {
     index: 5,
+    name: 'INT',
     values: {
       initial: '',
       other: ''
@@ -43,6 +49,7 @@ export const status = {
   },
   EDU: {
     index: 6,
+    name: 'EDU',
     values: {
       initial: '',
       other: ''

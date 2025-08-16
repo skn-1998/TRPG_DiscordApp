@@ -1,6 +1,6 @@
 import { ChangeEvent, ChangeEventHandler, ReactNode, useEffect, useState } from 'react'
 import styles from './flexTable2.module.css'
-import { CloseButton } from '@mantine/core'
+import { Button, CloseButton } from '@mantine/core'
 import useStore from '~/store'
 
 type TextCellProps = {
@@ -238,10 +238,10 @@ export function StatusTest() {
           <SideGroup headerText="">
             {attrs.map((attr, i) => {
               const isOdd = i % 2 !== 0
-              return <TextCell text={attr} isOdd={isOdd} />
+              return <TextCell text={status[attr].name} isOdd={isOdd} />
             })}
           </SideGroup>
-          <Column headerText={'初期値'}>
+          <Column headerText="初期値">
             {attrs.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
                 updateStatus(status[attr].index, 'initial', e.target.value)
@@ -256,7 +256,7 @@ export function StatusTest() {
               )
             })}
           </Column>
-          <Column headerText={'その他'}>
+          <Column headerText="その他">
             {attrs.map((attr, i) => {
               const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
                 updateStatus(status[attr].index, 'other', e.target.value)
@@ -264,6 +264,114 @@ export function StatusTest() {
               return (
                 <InputCell
                   value={status[attr].values.other}
+                  disabled={false}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
+            })}
+          </Column>
+          <Column headerText="合計">
+            {sums.map((sum, i) => {
+              const isOdd = i % 2 !== 0
+              return <InputCell value={sum} disabled={true} isOdd={isOdd} />
+            })}
+          </Column>
+        </div>
+      </div>
+    </>
+  )
+}
+
+//
+export function SkillTest() {
+  const skill = useStore((state) => state.skill)
+  const createSkill = useStore((state) => state.createSkill)
+  const updateSkill = useStore((state) => state.updateSkill)
+
+  const keys = Object.keys(skill)
+
+  const [sums, setSums] = useState(
+    keys.map((key) => {
+      const valuesKey = Object.keys(skill[key].values)
+      const values = valuesKey.map((e) => Number(skill[key].values[e]))
+      return `${values.reduce((p, c) => p + c, 0)}`
+    })
+  )
+  useEffect(() => {
+    setSums(
+      keys.map((key) => {
+        const valuesKey = Object.keys(skill[key].values)
+        const values = valuesKey.map((e) => Number(skill[key].values[e]))
+        return `${values.reduce((p, c) => p + c, 0)}`
+      })
+    )
+  }, [skill])
+
+  return (
+    <>
+      <Button onClick={() => createSkill()}>＋</Button>
+      <div className={styles.widthWrap}>
+        <div className={styles.tableWrap}>
+          <SideGroup headerText="技能名">
+            {keys.map((attr, i) => {
+              const isOdd = i % 2 !== 0
+              return <TextCell text={skill[attr].name} isOdd={isOdd} />
+            })}
+          </SideGroup>
+          <Column headerText="初期値">
+            {keys.map((attr, i) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateSkill(skill[attr].index, 'initial', e.target.value)
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={skill[attr].values.initial}
+                  disabled={true}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
+            })}
+          </Column>
+          <Column headerText="職業P">
+            {keys.map((attr, i) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateSkill(skill[attr].index, 'occupation', e.target.value)
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={skill[attr].values.occupation}
+                  disabled={false}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
+            })}
+          </Column>
+          <Column headerText="興味P">
+            {keys.map((attr, i) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateSkill(skill[attr].index, 'interest', e.target.value)
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={skill[attr].values.interest}
+                  disabled={false}
+                  changeHandler={changeHandler}
+                  isOdd={isOdd}
+                />
+              )
+            })}
+          </Column>
+          <Column headerText="その他">
+            {keys.map((attr, i) => {
+              const changeHandler = (e: ChangeEvent<HTMLInputElement>) =>
+                updateSkill(skill[attr].index, 'other', e.target.value)
+              const isOdd = i % 2 !== 0
+              return (
+                <InputCell
+                  value={skill[attr].values.other}
                   disabled={false}
                   changeHandler={changeHandler}
                   isOdd={isOdd}
