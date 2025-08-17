@@ -228,7 +228,7 @@ export function StatusTest() {
 
   return (
     <>
-      <div className={styles.widthWrap}>
+      <div className={styles.widthWrap} style={{ width: '350px' }}>
         <div className={styles.tableWrap}>
           <SideGroup headerText="">
             {attrs.map((attr, i) => {

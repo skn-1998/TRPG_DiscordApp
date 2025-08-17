@@ -13,9 +13,13 @@ export interface Status {
     name: string
     values: {
       [key: string]: string
+      other: string
     }
     deletable?: boolean
     nameEditable?: boolean
+    diceRoll?: string
+    amount?: string
+    description?: string
   }
 }
 

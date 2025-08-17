@@ -8,10 +8,10 @@ export default function GridStudy() {
   return (
     <>
       {/* <GridTest /> */}
-      <FlexTable />
-      <FlexTable2 />
-      <StatusTable />
-      <TestTable />
+      {/* <FlexTable /> */}
+      {/* <FlexTable2 /> */}
+      {/* <StatusTable /> */}
+      {/* <TestTable /> */}
       <StatusTest />
       <SkillTest />
     </>

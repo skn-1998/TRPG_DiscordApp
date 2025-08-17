@@ -167,5 +167,5 @@
 
 .inputNumber{
   border: solid 0.5px var(--mantine-color-main-3);
-  background-color: #00000000;
+  /* background-color: #00000000; */
 }
