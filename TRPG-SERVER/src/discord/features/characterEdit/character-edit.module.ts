@@ -3,6 +3,10 @@ import { CharacterModule } from 'src/domains/character/character.module'
 import { SharedModule } from '../../../shared/shared.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 
+// Feature Events
+import { CharacterEditFeatureHandler } from './events/handlers/character-edit-feature.handler'
+import { CharacterEditCreationHandler } from './events/handlers/character-edit-creation.handler'
+
 // Modern Services (分離されたサービス群)
 import { ChannelDetectionService } from './services/channel-detection.service'
 import { CharacterCreationService } from './services/character-creation.service'
@@ -18,10 +22,9 @@ import { CharacterModalHandlerService } from './services/character-modal-handler
 import { ModalSessionManagerService } from './services/modal-session-manager.service'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 
-// Legacy Services (後方互換性のため)
-import { CharaInfoButtonService } from './chara-info-button.service'
-import { AddCharaInfoService } from './add-chara-info.service'
-import { ChangeCharaInfoService } from './change-chara-info.service'
+// Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
+// CharaInfoButtonService, AddCharaInfoService, ChangeCharaInfoServiceは
+// EnhancedCharacterEditServiceに統合され、完全に置き換えられました
 
 /**
  * Character Edit Feature Module
@@ -37,10 +40,16 @@ import { ChangeCharaInfoService } from './change-chara-info.service'
   imports: [
     SharedModule, // TypedEventService用
     forwardRef(() => CharacterModule),
-    DiscordIntegrationModule // Discord依存関係があるLegacy Services用
+    DiscordIntegrationModule // 循環依存解消により安全にインポート可能
     // Note: AppConfigServiceはグローバルモジュールのためインポート不要
   ],
   providers: [
+    // ============================================================================
+    // Feature Event Handlers
+    // ============================================================================
+    CharacterEditFeatureHandler,
+    CharacterEditCreationHandler,
+
     // ============================================================================
     // Modern Services (推奨) - Discord依存関係なし
     // ============================================================================
@@ -58,16 +67,20 @@ import { ChangeCharaInfoService } from './change-chara-info.service'
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
-    EnhancedCharacterEditService,
+    EnhancedCharacterEditService
 
     // ============================================================================
-    // Legacy Services (後方互換性のため) - Discord依存関係あり
+    // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
     // ============================================================================
-    CharaInfoButtonService,
-    AddCharaInfoService,
-    ChangeCharaInfoService
+    // Legacy services have been completely integrated into EnhancedCharacterEditService
   ],
   exports: [
+    // ============================================================================
+    // Feature Event Handlers Export
+    // ============================================================================
+    CharacterEditFeatureHandler,
+    CharacterEditCreationHandler,
+
     // ============================================================================
     // Modern Services Export (新しいコードで使用)
     // ============================================================================
@@ -85,14 +98,12 @@ import { ChangeCharaInfoService } from './change-chara-info.service'
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
-    EnhancedCharacterEditService,
+    EnhancedCharacterEditService
 
     // ============================================================================
-    // Legacy Services Export (後方互換性のため)
+    // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
     // ============================================================================
-    CharaInfoButtonService,
-    AddCharaInfoService,
-    ChangeCharaInfoService
+    // Legacy services exports are no longer needed as they are integrated into EnhancedCharacterEditService
   ]
 })
 export class CharacterEditModule {}

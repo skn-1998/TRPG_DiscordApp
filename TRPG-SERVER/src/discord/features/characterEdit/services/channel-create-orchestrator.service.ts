@@ -5,6 +5,7 @@ import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { DiscordUIService } from '../../../services/discord-ui.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
 
 // ============================================================================
@@ -20,22 +21,28 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
     private readonly characterCreationService: CharacterCreationService,
     private readonly characterNotificationService: CharacterNotificationService,
     private readonly typedEventService: TypedEventService,
+    private readonly discordUIService: DiscordUIService,
     private readonly discordClientService: DiscordClientService
   ) {}
 
   /**
    * サービス初期化 - イベントリスナーの登録
+   *
+   * 🚨 File-based Event Handlersへの移行により無効化済み
+   *
+   * 理由: 以下のイベントリスナーはFile-based Event Handlersで処理済み：
+   * - character.creation.completed → CharacterCreationCompletedChannelOrchestratorHandler
+   * - character.creation.failed → CharacterCreationFailedChannelOrchestratorHandler
+   *
+   * チャンネル同期とエラーハンドリングはFile-based Event Handlersで実行されます。
    */
   onModuleInit(): void {
-    // character.creation.completedイベントリスナー登録
-    this.typedEventService.on('character.creation.completed', async (payload) => {
-      await this.handleCharacterCreationCompleted(payload)
-    })
+    // 🚨 すべてのイベントリスナーはFile-based Event Handlersに移行済み
+    // 重複登録を避けるため、このメソッドでのリスナー登録は無効化
 
-    // character.creation.failedイベントリスナー登録
-    this.typedEventService.on('character.creation.failed', async (payload) => {
-      await this.handleCharacterCreationFailed(payload)
-    })
+    this.logger.debug(
+      'Channel Create Orchestrator event listeners registration skipped (migrated to File-based Event Handlers)'
+    )
   }
 
   /**
@@ -60,11 +67,18 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
       await this.typedEventService.emit('character.creation.requested', {
         createData: {
-          characterId: '', // サービス側で生成
           characterName: detectionResult.context.channel.name,
           gameSystemId: '', // デフォルト値
-          discordChannelId: detectionResult.context.channel.id,
-          discordUserId: detectionResult.context.creatorId || ''
+          discordUserId: detectionResult.context.creatorId || '',
+          discordChannelId: detectionResult.context.channel.id
+        },
+        requester: {
+          featureId: 'characterEdit',
+          context: {
+            channelId: detectionResult.context.channel.id,
+            sectionType: 'basic',
+            triggeredBy: 'channel_create'
+          }
         },
         userId: detectionResult.context.creatorId || '',
         source: 'channel-create-orchestrator',
@@ -88,8 +102,14 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
       this.logger.log(`キャラクター作成成功: ${character.characterName} (ID: ${character.characterId})`)
 
       // Discordチャンネルの取得
-      const channel = this.getTextChannelFromId(character.discordChannelId)
-      if (!channel) {
+      const client = this.discordClientService.getClient()
+      if (!client) {
+        this.logger.warn('Discord client not available')
+        return
+      }
+
+      const channel = await client.channels.fetch(character.discordChannelId)
+      if (!channel || !channel.isTextBased()) {
         this.logger.warn(`チャンネルが見つかりません: ${character.discordChannelId}`)
         return
       }
@@ -97,9 +117,10 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
       // 1. チャンネル名をキャラクター名に同期
       const sanitizedChannelName = this.sanitizeChannelName(character.characterName)
 
-      if (channel.name !== sanitizedChannelName) {
+      const textChannel = channel as TextChannel
+      if (textChannel.name !== sanitizedChannelName) {
         try {
-          await channel.setName(sanitizedChannelName, `キャラクター名を反映: ${character.characterName}`)
+          await textChannel.setName(sanitizedChannelName, `キャラクター名を反映: ${character.characterName}`)
           this.logger.log(
             `チャンネル名をキャラクター名に同期しました: ${character.characterName} → ${sanitizedChannelName}`
           )
@@ -110,12 +131,15 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
       // 2. 通知送信
       await this.characterNotificationService.notifyCharacterCreation(
-        channel,
+        textChannel,
         character.characterId,
         character.characterName
       )
 
-      this.logger.log('チャンネル作成処理が正常に完了しました')
+      // 3. CharacterEdit Embed作成はCharacter Event Handlerで自動実行されるため省略
+      this.logger.log(
+        'チャンネル作成処理が正常に完了しました（CharacterEdit Embedは別途Character Event Handlerで自動作成）'
+      )
     } catch (error) {
       this.logger.error('キャラクター作成成功イベントの処理中にエラーが発生:', error)
     }
@@ -131,23 +155,9 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
   /**
    * チャンネルIDからTextChannelオブジェクトを取得するヘルパーメソッド
+   * 現在は DiscordUIService の getTextChannel を使用しているため不要
+   * @deprecated Use discordUIService.getTextChannel() instead
    */
-  private getTextChannelFromId(channelId: string): TextChannel | null {
-    try {
-      const discordClient = this.discordClientService.getClient()
-      const channel = discordClient.channels.cache.get(channelId)
-
-      if (channel && channel.isTextBased() && 'guild' in channel) {
-        return channel as TextChannel
-      }
-
-      this.logger.warn(`TextChannel not found or invalid type for ID: ${channelId}`)
-      return null
-    } catch (error) {
-      this.logger.error(`Error retrieving TextChannel for ID ${channelId}:`, error)
-      return null
-    }
-  }
 
   /**
    * チャンネル名をDiscordの制約に合わせてサニタイズ

@@ -13,6 +13,7 @@ export class PerformanceMetricsIntegrationService implements OnModuleInit {
 
   // システム全体のメトリクス
   private readonly systemMetrics = {
+    startTime: Date.now(),
     discord: {
       commandsExecuted: 0,
       eventsProcessed: 0,
@@ -237,7 +238,7 @@ export class PerformanceMetricsIntegrationService implements OnModuleInit {
         database: this.systemMetrics.database
       },
       discord: discordHealth,
-      uptime: now - (this.systemMetrics as any).startTime || now
+      uptime: now - this.systemMetrics.startTime
     })
 
     this.logger.debug(

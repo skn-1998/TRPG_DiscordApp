@@ -20,7 +20,10 @@
     "test:e2e": "cross-env NODE_ENV=test TEST_DB_NAME=trpg_test_db jest --config ./test/jest-e2e.json --runInBand --forceExit",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix --ignore-pattern \"src/DB/**/*\" --ignore-pattern \"src/domains/discord/**/*\"",
     "clean": "rimraf dist && rimraf .eslintcache && rimraf tsconfig.tsbuildinfo",
-    "clean:build": "npm run clean && npm run build"
+    "clean:build": "npm run clean && npm run build",
+    "check:circular": "madge --circular --extensions ts ./src",
+    "check:deps": "madge --image deps-graph.svg ./src",
+    "analyze:deps": "madge --warning --extensions ts ./src"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.564.0",
@@ -48,6 +51,7 @@
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
     "dynamoose": "^4.0.1",
+    "eslint-plugin-import": "^2.32.0",
     "express": "^5.1.0",
     "express-session": "^1.18.0",
     "fuse.js": "^7.0.0",
@@ -60,8 +64,10 @@
     "pg": "^8.15.6",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.22",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
@@ -87,6 +93,7 @@
     "eslint-plugin-prettier": "^5.0.0",
     "globals": "^16.3.0",
     "jest": "^29.5.0",
+    "madge": "^8.0.0",
     "prettier": "^3.0.0",
     "rimraf": "^5.0.10",
     "source-map-support": "^0.5.21",

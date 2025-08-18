@@ -1,7 +1,19 @@
 /**
  * イベント契約の型定義
  * すべてのイベントの名前と引数の型を定義
+ * AI.architecture.md設計方針に基づく型安全化対応
  */
+
+// 型エイリアス定義（循環依存回避のため直接import使用）
+type CharacterModel = import('../../../domains/character/models/character.model').Character
+type UpdateCharacterDto = import('../../../domains/character/dto/update-character.dto').UpdateCharacterDto
+type DiceResult = import('../../../discord/utils/dice.util').DiceResult
+type FeatureRequester = import('../../../events/contracts/character-events.contract').FeatureRequester
+
+// 新しい型定義のインポート
+import { Discord } from '../../../types/discord.types'
+import { Character } from '../../../types/character.types'
+import { AttributeValue } from '../../../core/types/attribute.types'
 
 // Character関連のイベント契約
 export interface CharacterEventContracts {
@@ -15,7 +27,7 @@ export interface CharacterEventContracts {
 
   'character.findByChannelId.completed': {
     channelId: string
-    character: import('../../../domains/character/models/character.model').Character | null
+    character: CharacterModel | null
     source: string
     timestamp: Date
   }
@@ -35,7 +47,7 @@ export interface CharacterEventContracts {
 
   'character.findById.completed': {
     characterId: string
-    character: import('../../../domains/character/models/character.model').Character | null
+    character: CharacterModel | null
     source: string
     timestamp: Date
   }
@@ -55,7 +67,7 @@ export interface CharacterEventContracts {
 
   'character.findByName.completed': {
     characterName: string
-    character: import('../../../domains/character/models/character.model').Character | null
+    character: CharacterModel | null
     source: string
     timestamp: Date
   }
@@ -70,7 +82,7 @@ export interface CharacterEventContracts {
   // Character更新関連
   'character.update.requested': {
     channelId: string
-    updateData: import('../../../domains/character/dto/update-character.dto').UpdateCharacterDto
+    updateData: UpdateCharacterDto
     userId?: string
     source: string
     timestamp: Date
@@ -78,7 +90,7 @@ export interface CharacterEventContracts {
 
   'character.update.completed': {
     channelId: string
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     source: string
     timestamp: Date
   }
@@ -92,20 +104,43 @@ export interface CharacterEventContracts {
 
   // Character作成関連
   'character.creation.requested': {
-    createData: import('../../../domains/character/dto/create-character.dto').CreateCharacterDto
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
+    requester?: FeatureRequester
     userId: string
     source: string
     timestamp: Date
   }
 
   'character.creation.completed': {
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     source: string
     timestamp: Date
   }
 
   'character.creation.failed': {
-    createData: import('../../../domains/character/dto/create-character.dto').CreateCharacterDto
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
     error: string
     source: string
     timestamp: Date
@@ -113,9 +148,23 @@ export interface CharacterEventContracts {
 
   // Character更新イベント（汎用）
   'character.updated': {
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     updateType: string
     channelId?: string
+    source: string
+    timestamp: Date
+  }
+
+  // Character作成イベント（汎用）
+  'character.created': {
+    character: CharacterModel
+    source: string
+    timestamp: Date
+  }
+
+  // Character削除イベント（汎用）
+  'character.deleted': {
+    character: CharacterModel
     source: string
     timestamp: Date
   }
@@ -133,7 +182,7 @@ export interface DiceRollEventContracts {
 
   'diceroll.execute.completed': {
     channelId: string
-    result: import('../../../discord/utils/dice.util').DiceResult
+    result: DiceResult
     source: string
     timestamp: Date
   }
@@ -165,7 +214,7 @@ export interface DiscordEventContracts {
   }
 
   'discord.embed.character.update.requested': {
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     channelId: string
     displayType?: 'basic' | 'enhanced' | 'compact'
     source: string
@@ -190,7 +239,7 @@ export interface DiscordEventContracts {
 
   // スレッド作成関連イベント
   'discord.thread.create.requested': {
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     channelId: string
     guildId: string
     creatorId: string
@@ -202,7 +251,7 @@ export interface DiscordEventContracts {
   'discord.thread.create.completed': {
     threadId: string
     threadUrl?: string
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     source: string
     timestamp: Date
   }
@@ -217,7 +266,7 @@ export interface DiscordEventContracts {
 
   // キャラクター表示関連イベント
   'discord.character.display.requested': {
-    character: import('../../../domains/character/models/character.model').Character
+    character: CharacterModel
     channelId: string
     guildId: string
     requesterId: string
@@ -246,11 +295,244 @@ export interface DiscordEventContracts {
   'discord.message.embed.update': {
     channelId: string
     messageId?: string
-    character?: import('../../../domains/character/models/character.model').Character
-    embed?: any
+    character?: CharacterModel
+    embed?: Discord.Embed
     success: boolean
     source: string
     timestamp: Date
+  }
+}
+
+// CharacterEdit Feature関連のイベント契約
+export interface CharacterEditEventContracts {
+  // Character Creation Events (Event Bridge Integration)
+  'characterEdit.creation.requested': {
+    type: 'characterEdit.creation.requested'
+    characterId: string
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
+    editContext: {
+      channelId: string
+      sectionType?: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      triggeredBy: 'modal' | 'button' | 'select_menu' | 'channel_create'
+    }
+    originalRequester?: FeatureRequester
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+  }
+
+  'characterEdit.creation.completed': {
+    type: 'characterEdit.creation.completed'
+    characterId: string
+    character: CharacterModel
+    editContext: {
+      channelId: string
+      sectionType?: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      triggeredBy: 'modal' | 'button' | 'select_menu' | 'channel_create'
+    }
+    originalRequester?: FeatureRequester
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+  }
+
+  'characterEdit.creation.failed': {
+    type: 'characterEdit.creation.failed'
+    characterId: string
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
+    error: {
+      code: string
+      message: string
+      details?: Record<string, unknown>
+    }
+    editContext: {
+      channelId: string
+      sectionType?: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      triggeredBy: 'modal' | 'button' | 'select_menu' | 'channel_create'
+    }
+    originalRequester?: FeatureRequester
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+  }
+
+  // Modal Events
+  'characterEdit.modal.opened': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    modal: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      currentValue?: AttributeValue
+    }
+  }
+
+  'characterEdit.modal.submitted': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    modal: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      newValue: AttributeValue
+      oldValue?: AttributeValue
+    }
+  }
+
+  'characterEdit.modal.closed': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    modal: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      cancelled: boolean
+    }
+  }
+
+  // Section Events
+  'characterEdit.section.selected': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    section: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      displayMode: 'list' | 'add' | 'edit'
+    }
+  }
+
+  'characterEdit.field.selected': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    field: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      action: 'edit' | 'add' | 'delete'
+    }
+  }
+
+  // Validation Events
+  'characterEdit.validation.started': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    validation: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      value: AttributeValue
+    }
+  }
+
+  'characterEdit.validation.completed': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    validation: {
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      value: AttributeValue
+      isValid: boolean
+      errors?: string[]
+    }
+  }
+
+  // Embed Update Events
+  'characterEdit.embed.refresh.requested': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    embed: {
+      channelId: string
+      embedType: 'enhanced' | 'compact' | 'status' | 'parameter'
+      section?: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+    }
+  }
+
+  'characterEdit.embed.updated': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    embed: {
+      channelId: string
+      messageId?: string
+      embedType: 'enhanced' | 'compact' | 'status' | 'parameter'
+      success: boolean
+      updateMode: 'create' | 'update' | 'refresh'
+    }
+  }
+
+  // Session Management Events
+  'characterEdit.session.created': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    session: {
+      sessionId: string
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+      expiresAt: Date
+    }
+  }
+
+  'characterEdit.session.expired': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    session: {
+      sessionId: string
+      sectionType: 'status' | 'parameter' | 'skill' | 'item' | 'basic'
+      fieldKey: string
+    }
+  }
+
+  // Error Events
+  'characterEdit.error.occurred': {
+    characterId: string
+    timestamp: Date
+    userId?: string
+    sessionId?: string
+    error: {
+      code: string
+      message: string
+      operation: string
+      details?: Record<string, unknown>
+      severity: 'low' | 'medium' | 'high'
+    }
   }
 }
 
@@ -264,8 +546,8 @@ export interface CharacterThreadEventContracts {
     channelId: string
     creatorId: string
     guildId: string
-    character: import('../../../domains/character/models/character.model').Character
-    displayOptions: any
+    character: CharacterModel
+    displayOptions: Discord.DisplayOptions
     timestamp: Date
     source: string
   }
@@ -301,6 +583,7 @@ export interface AppEventContracts
   extends CharacterEventContracts,
     DiceRollEventContracts,
     DiscordEventContracts,
+    CharacterEditEventContracts,
     CharacterThreadEventContracts {}
 
 // イベント名の型

@@ -19,7 +19,7 @@
 // ============================================================================
 
 export { CharacterEditModule } from './character-edit.module' // Modern Services + Legacy Services (統合)
-export { DiscordIntegrationModule } from '../../application/discord-integration.module' // DiscordIntegrationService専用モジュール
+export { DiscordIntegrationModule } from '../../application/discord-integration.module' // Discord基盤サービス専用モジュール（DiscordIntegrationServiceは廃止済み）
 
 // ============================================================================
 // Modern Services (分離されたサービス群)
@@ -35,12 +35,13 @@ export { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 import { ChannelCreationContext, CharacterCreationResult } from './services'
 
 // ============================================================================
-// Legacy Services (後方互換性のため)
+// Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
 // ============================================================================
 
-export { CharaInfoButtonService } from './chara-info-button.service'
-export { AddCharaInfoService } from './add-chara-info.service'
-export { ChangeCharaInfoService } from './change-chara-info.service'
+// Legacy services have been integrated into EnhancedCharacterEditService
+// - CharaInfoButtonService: Integrated into enhanced-character-edit.service.ts
+// - AddCharaInfoService: Integrated into enhanced-character-edit.service.ts
+// - ChangeCharaInfoService: Integrated into enhanced-character-edit.service.ts
 
 // ============================================================================
 // Types and Interfaces

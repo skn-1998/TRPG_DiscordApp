@@ -28,6 +28,7 @@
 - **[AI.architecture.md](./AI.architecture.md)** - システムアーキテクチャ・技術スタック・設計パターン
 - **[AI.development.md](./AI.development.md)** - 開発環境・運用・パフォーマンス・セキュリティ
 - **[AI.discord.md](./src/discord/AI.discord.md)** - Discord Bot機能・コマンド・イベント処理
+- **[AI.types.md](./AI.types.md)** - 型管理・型安全性・型の不一致問題と解決策
 
 ---
 
@@ -508,6 +509,21 @@ export class CharacterChannelService {
 
 
 
+## 🔧 **型管理方式** `[最新: 2025-08-17]`
+
+### **✅ 型エイリアス方式の採用**
+```typescript
+// event-contracts.ts における型管理
+type CharacterModel = import('../../../domains/character/models/character.model').Character
+type UpdateCharacterDto = import('../../../domains/character/dto/update-character.dto').UpdateCharacterDto
+type DiceResult = import('../../../discord/utils/dice.util').DiceResult
+
+// 利点: 可読性・保守性・一貫性を大幅向上
+// 効果: パス変更時の修正が1箇所のみ、型名の統一、循環依存回避
+```
+
+**→ 詳細な型管理設計: [AI.architecture.md](./AI.architecture.md#型管理方式)**
+
 ### 🚀 **今後の拡張性**
 - 新ゲームシステム対応・マルチサーバー対応
 - マイクロサービス化・キャッシュ層追加
@@ -934,134 +950,25 @@ const benefits = {
 
 ---
 
-## 🚨 **重要な最新変更・修正 [2025-08-10]**
+## 🚨 **重要な最新変更・修正 [2025-08-17]**
 
-### **🔧 EventEmitter2競合問題の修正** `[修正完了: 2025-08-10]`
-```typescript
-// ⚠️ 問題: EventBusService と TypedEventService が同一EventEmitter2インスタンスを共有
-// EventBusService の DomainEvent.getEventName() が TypedEventService のプレーンオブジェクトに対して実行されエラー発生
-// TypeError: event.getEventName is not a function
+### **🔧 型の不一致問題の特定と解決策** `[発見: 2025-01-05]`
 
-// 💡 解決策: TypedEventService 専用のEventEmitter2インスタンスを作成
-// SharedModule の providers 変更:
-{
-  provide: 'TYPED_EVENT_EMITTER',
-  useFactory: () => new EventEmitter2({/* 独立した設定 */})
-},
-{
-  provide: TypedEventService,
-  useFactory: (typedEventEmitter: EventEmitter2) => new TypedEventService(typedEventEmitter),
-  inject: ['TYPED_EVENT_EMITTER']
-}
+#### **⚠️ 発見された問題**
+型の不一致問題が複数のファイルで発生しており、プロジェクトの型安全性に影響を与えています。
 
-// 🚀 修正効果:
-// - EventBusService: DomainEvent 専用処理（getEventName()メソッドを持つオブジェクト）
-// - TypedEventService: 型安全なプレーンオブジェクト処理（event-contracts.ts定義）
-// - 完全な責務分離によりイベント処理の競合解決
-// - ChannelCreateOrchestratorService等のTypeScriptエラー解消
-```
+#### **📋 詳細情報**
+型の不一致問題の詳細な分析と解決策については、専用ドキュメント **[AI.types.md](./AI.types.md)** をご参照ください。
 
-### **🏗️ アーキテクチャ改善効果**
-```typescript
-const eventSystemImprovements = {
-  '責務分離': 'EventBusService（ドメインイベント） vs TypedEventService（型安全イベント）',
-  '競合解決': '同一EventEmitter2インスタンス共有問題の根本解決',
-  '型安全性': 'TypedEventService の完全な独立動作',
-  'エラー解消': 'TypeError: event.getEventName is not a function 完全修正'
-}
-```
+#### **🎯 主要な影響範囲**
+- `character-creation.service.ts`: イベント発行時の型エラー
+- `character.creation.requested.ts`: ハンドラー側の型エラー
+- `TypedEventService`: 型定義の不一致
 
-## 🚨 **重要な最新変更 [2025-01-05]**
+#### **💡 解決方針**
+段階的な対応により型安全性を向上させ、最終的に100%の型安全性達成を目指します。
 
-### **🔧 Winston設定の改善**
-```typescript
-// ⚠️ 重要: Winston設定が大幅に改善されました
-
-// 💡 変更点:
-// - 設定がapp.module.tsから分離され、専用設定ファイルに移動
-// - 環境変数による設定管理（LOG_LEVEL, LOG_FILE_ENABLE等）
-// - 型安全な設定値アクセス
-// - 設定システムとの統合による保守性向上
-
-// 🆕 新しい環境変数:
-// LOG_LEVEL - ログレベル (debug, info, warn, error)
-// LOG_FILE_ENABLE - ファイルログの有効/無効
-// LOG_CONSOLE_ENABLE - コンソールログの有効/無効
-// LOG_FILE_PATH - ログファイルのパス
-// LOG_ERROR_FILE_PATH - エラーログファイルのパス
-
-// 🚀 改善効果:
-// - 設定の集中管理と型安全性の確保
-// - 環境別設定の柔軟な管理
-// - 設定変更の影響範囲の明確化
-// - 保守性・拡張性の大幅向上
-```
-
-### **🔄 APIエンドポイント変更**
-```typescript
-// ⚠️ 重要: 以下のエンドポイントが変更されました
-// 旧: GET /auth/discord/guilds
-// 新: GET /users/discord/guilds
-
-// 💡 変更理由: ドメイン責務の最適化
-// - Discord Guild一覧取得はユーザー情報取得の一部
-// - authドメインは認証・認可処理に特化
-// - userドメインはユーザー関連情報管理に特化
-```
-
-### **🏗️ DTO構造の大幅変更**
-```typescript
-// ⚠️ 重要: 以下のDTOクラス名が変更されました
-'PartialInputCharacterDto' → 'CharacterInputDto'
-'PartialInputDiceRollChannelDto' → 'DiceRollChannelInputDto'
-'PartialInputDiceRollTextDto' → 'DiceRollTextInputDto'
-
-// 💡 影響範囲
-// - CharacterService, CharacterController
-// - DiceRollService
-// - 各種テストファイル
-// - 型参照箇所
-
-// 🚀 改善効果
-// - 統一された命名規則
-// - 基底クラス継承による共通機能
-// - ValidationUtils による統一バリデーション
-// - readonly 修飾子による型安全性向上
-```
-
-### **📦 新しい共通DTOライブラリ**
-```typescript
-// 🆕 新規追加: 共通DTOライブラリ
-// src/core/dto/base.dto.ts
-export class BaseDto {
-  @ApiProperty({ description: '作成日時' })
-  readonly createdAt?: Date;
-
-  @ApiProperty({ description: '更新日時' })
-  readonly updatedAt?: Date;
-}
-
-// src/core/dto/domain.dto.ts
-export class ValidationUtils {
-  static requiredString(field: string) { /* ... */ }
-  static optionalString(field: string) { /* ... */ }
-  static array(field: string) { /* ... */ }
-  static date(field: string) { /* ... */ }
-}
-```
-
-### **🧪 開発者向け注意事項**
-1. **型インポート更新**: 旧DTOクラス名を使用している箇所を新しい名前に更新
-2. **APIクライアント更新**: フロントエンドの Discord Guild API 呼び出しを `/users/discord/guilds` に変更
-3. **テストコード更新**: 新しいDTOクラス名を使用したテストデータの作成
-4. **バリデーション活用**: 新しいDTOは `ValidationUtils` を使用して一貫したバリデーションを提供
-
-### **🔧 マイグレーション不要項目**
-- データベーススキーマ変更なし
-- 既存のビジネスロジック変更なし
-- 既存のDiscord Bot機能変更なし
-
-この変更により、プロジェクトの設計一貫性が大幅に向上し、今後の開発・保守効率が向上します。
+**→ 詳細な解決策: [AI.types.md](./AI.types.md)**
 
 ---
 

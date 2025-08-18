@@ -30,14 +30,21 @@ export class CharacterCreationService {
     try {
       this.logger.log(`キャラクター作成イベントを発火: ${context.channel.name}`)
 
-      // キャラクター作成イベントを発行
+      // キャラクター作成イベントを発行 (Event Bridge対応)
       await this.typedEventService.emit('character.creation.requested', {
         createData: {
-          characterId: '', // サービス側で生成
           characterName: context.channel.name,
           gameSystemId: '', // デフォルト値
-          discordChannelId: context.channel.id,
-          discordUserId: context.creatorId || ''
+          discordUserId: context.creatorId || '',
+          discordChannelId: context.channel.id
+        },
+        requester: {
+          featureId: 'characterEdit',
+          context: {
+            channelId: context.channel.id,
+            sectionType: 'basic',
+            triggeredBy: 'channel_create'
+          }
         },
         userId: context.creatorId || '',
         source: 'character-creation-service',

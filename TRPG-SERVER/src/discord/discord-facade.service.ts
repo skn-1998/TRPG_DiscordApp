@@ -8,7 +8,7 @@ import { DiscordInteractionHandlerService } from './services/discord-interaction
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
 import { DiscordPerformanceMonitorService } from './services/discord-performance-monitor.service'
-import { EventsService } from './events/events.service'
+import { InteractionsService } from './interactions/interactions.service'
 import { CommandsService } from './commands/commands.service'
 
 /**
@@ -25,7 +25,7 @@ export class DiscordFacadeService {
 
   constructor(
     private readonly discordClientService: DiscordClientService,
-    private readonly eventsService: EventsService,
+    private readonly interactionsService: InteractionsService,
     private readonly commandsService: CommandsService,
     private readonly appConfigService: AppConfigService,
     private readonly commandManagerService: CommandManagerService,
@@ -59,7 +59,7 @@ export class DiscordFacadeService {
 
       // 各サービスにクライアントを設定（並列処理）
       await Promise.all([
-        this.eventsService.loadClient(this.client),
+        this.interactionsService.loadClient(this.client),
         this.commandsService.loadClient(this.client),
         this.interactionHandler.initialize(this.client),
         this.guildManager.initialize(this.client),

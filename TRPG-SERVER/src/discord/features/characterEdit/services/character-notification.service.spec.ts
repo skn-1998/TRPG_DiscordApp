@@ -5,7 +5,7 @@ import { CharacterNotificationService } from './character-notification.service'
 
 // Mock dependencies
 jest.mock('src/config/configuration')
-jest.mock('../../events/events.list', () => ({
+jest.mock('../../interactions/interactions.list', () => ({
   changeCharacterInfoConfig: {
     customId: 'change-character-info',
     placeholder: 'キャラクター情報を選択してください'

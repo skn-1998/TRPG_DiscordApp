@@ -7,7 +7,6 @@ import { CharacterRepository } from './repositories/character.repository'
 import { CharacterEventHandlerService } from './services/character-event-handler.service'
 import { UserService } from '../user/user.service'
 import { AppConfigService } from '../../config/config.service'
-import { DiscordIntegrationService } from '../../discord/application/discord-integration.service'
 import { TypedEventEmitter, TypedEventService } from '../../shared/application/typed-event.service'
 import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
 import { CharacterInputDto, CreateCharacterDto } from './dto/create-character.dto'
@@ -49,16 +48,7 @@ describe('Character CRUD Events Integration Test', () => {
     })
   }
 
-  const mockDiscordIntegrationService = {
-    createCharacterChannel: jest.fn().mockResolvedValue({
-      id: 'channel-123',
-      name: 'test-channel'
-    }),
-    updateChannelName: jest.fn(),
-    deleteChannel: jest.fn(),
-    requestCharacterCreation: jest.fn().mockResolvedValue(undefined),
-    requestCharacterUpdate: jest.fn().mockResolvedValue(undefined)
-  }
+  // TypedEventServiceは既にmockTypedEventServiceで定義済み
 
   beforeEach(async () => {
     // イベント受信用のハンドラーを初期化
@@ -109,11 +99,8 @@ describe('Character CRUD Events Integration Test', () => {
         {
           provide: AppConfigService,
           useValue: mockConfigService
-        },
-        {
-          provide: DiscordIntegrationService,
-          useValue: mockDiscordIntegrationService
         }
+        // DiscordIntegrationServiceの依存を削除（イベント駆動に移行済み）
       ]
     }).compile()
 

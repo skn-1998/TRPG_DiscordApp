@@ -5,10 +5,12 @@ module.exports = {
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
-  plugins: ['@typescript-eslint/eslint-plugin', 'jest'],
+  plugins: ['@typescript-eslint/eslint-plugin', 'jest', 'import'],
   extends: [
     'plugin:@typescript-eslint/recommended',
     'plugin:jest/recommended',
+    'plugin:import/recommended',
+    'plugin:import/typescript',
     // 'plugin:prettier/recommended',
     "prettier"
   ],
@@ -30,7 +32,7 @@ module.exports = {
     // '@typescript-eslint/interface-name-prefix': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     // '@typescript-eslint/explicit-module-boundary-types': 'off',
-    // '@typescript-eslint/no-explicit-any': 'off',
+    '@typescript-eslint/no-explicit-any': 'error',
     
     // 未使用変数の警告設定 - DIパターンに優しい設定
     "no-unused-vars": "off", // 基本のルールをオフにする
@@ -50,7 +52,12 @@ module.exports = {
     }],
     
     "prefer-const": "error",
-    // "no-console": "warn",
+    "no-console": "warn",
+    
+    // AI.architecture.mdに基づく型安全性強化
+    '@typescript-eslint/no-namespace': 'off', // 名前空間使用を許可
+    '@typescript-eslint/prefer-namespace-keyword': 'off',
+    'import/no-cycle': 'error',
     "indent": ["error", 2,{"SwitchCase": 1}],
     // "linebreak-style": ["error", "windows"]
   },

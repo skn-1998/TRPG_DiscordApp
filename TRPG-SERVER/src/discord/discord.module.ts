@@ -3,13 +3,16 @@ import { ConfigModule } from '@nestjs/config'
 import { ScheduleModule } from '@nestjs/schedule'
 import { DiscordService } from './discord.service'
 import { DiscordFacadeService } from './discord-facade.service'
-import { EventsModule } from './events/events.module'
+import { InteractionsModule } from './interactions/interactions.module'
 import { CommandsModule } from './commands/commands.module'
 import { CommandManagerService } from './services/command-manager.service'
 import { DiscordCommandRegistrationService } from './services/discord-command-registration.service'
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
+import { MessageManagerService } from './services/message-manager.service'
+import { ChannelCacheService } from './services/channel-cache.service'
+import { ChannelCreatorService } from './services/channel-creator.service'
 import { DiscordPerformanceMonitorService } from './services/discord-performance-monitor.service'
 import { PerformanceMetricsIntegrationService } from './services/performance-metrics-integration.service'
 import { AlertSystemService } from './services/alert-system.service'
@@ -25,7 +28,7 @@ import { CharacterModule } from '../domains/character/character.module'
     ConfigModule,
     ScheduleModule.forRoot(), // パフォーマンス監視の定期実行用
     SharedModule,
-    forwardRef(() => EventsModule),
+    forwardRef(() => InteractionsModule),
     CommandsModule,
     AuthModule,
     CharacterModule, // DiscordControllerでCharacterServiceが必要
@@ -40,6 +43,11 @@ import { CharacterModule } from '../domains/character/character.module'
     DiscordChannelManagerService,
     DiscordPerformanceMonitorService,
 
+    // チャンネル管理専門サービス（分割結果）
+    MessageManagerService,
+    ChannelCacheService,
+    ChannelCreatorService,
+
     // パフォーマンス監視系
     PerformanceMetricsIntegrationService,
     AlertSystemService,
@@ -48,8 +56,9 @@ import { CharacterModule } from '../domains/character/character.module'
     DiscordService,
     CommandManagerService,
     DiscordCommandRegistrationService
-    // Note: DiscordClientService, DiscordUIService, DiscordIntegrationService は
+    // Note: DiscordClientService, DiscordUIService は
     // DiscordIntegrationModule で提供されるため削除
+    // DiscordIntegrationService は廃止済み（イベント駆動アーキテクチャに移行）
   ],
   exports: [
     // 新しいアーキテクチャ（推奨）
@@ -59,6 +68,11 @@ import { CharacterModule } from '../domains/character/character.module'
     DiscordChannelManagerService,
     DiscordPerformanceMonitorService,
 
+    // チャンネル管理専門サービス（高度な利用向け）
+    MessageManagerService,
+    ChannelCacheService,
+    ChannelCreatorService,
+
     // パフォーマンス監視系
     PerformanceMetricsIntegrationService,
     AlertSystemService,
@@ -66,7 +80,7 @@ import { CharacterModule } from '../domains/character/character.module'
     // 後方互換性のために保持
     DiscordService,
     CommandManagerService,
-    DiscordIntegrationModule // 他のモジュールがDiscordIntegrationServiceを使用できるように
+    DiscordIntegrationModule // 他のモジュールがDiscord基盤サービスを使用できるように
   ]
 })
 export class DiscordModule {}

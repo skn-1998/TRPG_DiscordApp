@@ -351,11 +351,13 @@ export class DiscordController {
 
       const targetChannel = { id: createChannelResult.channelId }
 
-      // キャラクターEmbedを作成または更新
-      const result = await this.discordService.createOrUpdateCharacterEmbed(character, targetChannel.id, guildInfo)
+      // 🚨 REMOVED: 冗長なキャラクターEmbed直接作成を削除
+      // File-based Event Handlersがcharacter.creation.completedイベントを自動処理するため不要
 
-      this.logger.log(`キャラクター投稿完了: success=${result.success}, messageId=${result.messageId}`)
-      return result
+      this.logger.log(
+        `キャラクター投稿完了: channelId=${targetChannel.id}（File-based Event Handlers経由で自動Embed作成）`
+      )
+      return { success: true, messageId: 'auto-handled-by-file-based-handlers' }
     } catch (error) {
       this.logger.error(`キャラクター投稿エラー: ${(error as Error).message}`, (error as Error).stack)
 

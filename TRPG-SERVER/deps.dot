@@ -1,0 +1,5 @@
+
+✖ Error: Graphviz could not be found. Ensure that "gvpr" is in your $PATH. Error: spawn gvpr ENOENT
+    at checkGraphvizInstalled (C:\workspace\dokcer-trpg-remix-app\TRPG-SERVER\node_modules\.pnpm\madge@8.0.0_typescript@5.8.3\node_modules\madge\lib\graph.js:33:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+

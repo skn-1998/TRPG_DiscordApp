@@ -7,8 +7,7 @@ import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.
 import { CharacterInputDto } from './dto/create-character.dto'
 import { UserService } from '../user/user.service'
 import { AppConfigService } from '../../config/config.service'
-import { DiscordIntegrationService } from '../../discord/application/discord-integration.service'
-import { TypedEventEmitter } from '../../shared/application/typed-event.service'
+import { TypedEventEmitter, TypedEventService } from '../../shared/application/typed-event.service'
 
 /**
  * Character Simple CRUD Test
@@ -39,12 +38,9 @@ describe('Character Simple CRUD Test', () => {
     })
   }
 
-  const mockDiscordIntegrationService = {
-    createCharacterChannel: jest.fn().mockResolvedValue({ id: 'channel-123', name: 'test-channel' }),
-    updateChannelName: jest.fn(),
-    deleteChannel: jest.fn(),
-    requestCharacterCreation: jest.fn().mockResolvedValue(undefined),
-    requestCharacterUpdate: jest.fn().mockResolvedValue(undefined)
+  const mockTypedEventService = {
+    emit: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn()
   }
 
   const mockTypedEventEmitter = {
@@ -63,7 +59,7 @@ describe('Character Simple CRUD Test', () => {
         CharacterRepository,
         { provide: UserService, useValue: mockUserService },
         { provide: AppConfigService, useValue: mockConfigService },
-        { provide: DiscordIntegrationService, useValue: mockDiscordIntegrationService },
+        { provide: TypedEventService, useValue: mockTypedEventService },
         { provide: TypedEventEmitter, useValue: mockTypedEventEmitter }
       ]
     }).compile()

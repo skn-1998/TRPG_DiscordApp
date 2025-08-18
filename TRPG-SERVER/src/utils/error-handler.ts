@@ -38,7 +38,29 @@ export interface ErrorContext {
   interactionId?: string
   customId?: string
   action?: string
+  operation?: string
+  diceResult?: any
+  details?: any
   additionalData?: Record<string, unknown>
+  // 新しいサービス用の追加プロパティ
+  content?: string
+  hasContent?: boolean
+  hasEmbeds?: boolean
+  hasComponents?: boolean
+  reason?: string
+  daysOld?: number
+  limit?: number
+  before?: string
+  after?: string
+  emoji?: string
+  channelType?: any
+  threadType?: any
+  threadName?: string
+  permissions?: any
+  targetId?: string
+  isRole?: boolean
+  categoryName?: string
+  settings?: any
 }
 
 /**

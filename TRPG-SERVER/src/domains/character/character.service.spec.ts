@@ -6,7 +6,7 @@ import { CharacterRepository } from './repositories/character.repository'
 import { UserService } from '../user/user.service'
 import { DiscordService } from '../../discord/discord.service'
 import { AppConfigService } from '../../config/config.service'
-import { DiscordIntegrationService } from '../../discord/application/discord-integration.service'
+import { TypedEventService } from '../../shared/application/typed-event.service'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { Character } from './models/character.model'
 
@@ -16,7 +16,7 @@ describe('CharacterService', () => {
   let userService: jest.Mocked<UserService>
   let discordService: jest.Mocked<DiscordService>
   let configService: jest.Mocked<AppConfigService>
-  let discordIntegrationService: jest.Mocked<DiscordIntegrationService>
+  let typedEventService: jest.Mocked<TypedEventService>
 
   const mockCharacter: Character = {
     characterId: 'test-id',
@@ -54,8 +54,9 @@ describe('CharacterService', () => {
       get: jest.fn()
     }
 
-    const mockDiscordIntegrationService = {
-      requestCharacterCreation: jest.fn()
+    const mockTypedEventService = {
+      emit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn()
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,7 +66,7 @@ describe('CharacterService', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: DiscordService, useValue: mockDiscordService },
         { provide: AppConfigService, useValue: mockConfigService },
-        { provide: DiscordIntegrationService, useValue: mockDiscordIntegrationService }
+        { provide: TypedEventService, useValue: mockTypedEventService }
       ]
     }).compile()
 
@@ -74,7 +75,7 @@ describe('CharacterService', () => {
     userService = module.get(UserService)
     discordService = module.get(DiscordService)
     configService = module.get(AppConfigService)
-    discordIntegrationService = module.get(DiscordIntegrationService)
+    typedEventService = module.get(TypedEventService)
   })
 
   describe('create', () => {
@@ -107,7 +108,7 @@ describe('CharacterService', () => {
         })
       )
       expect(userService.addCharacterId).toHaveBeenCalledWith(createDto.discordUserId, expect.any(String))
-      expect(discordIntegrationService.requestCharacterCreation).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(result).toEqual(mockCharacter)
     })
 
@@ -120,14 +121,18 @@ describe('CharacterService', () => {
 
       // Then
       expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
-      expect(discordIntegrationService.requestCharacterCreation).toHaveBeenCalledWith(
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.requested',
         expect.objectContaining({
-          characterName: createDto.characterName,
-          gameSystemId: createDto.gameSystemId,
-          discordUserId: createDto.discordUserId,
-          discordChannelId: createDto.discordChannelId
-        }),
-        createDto.discordUserId
+          type: 'character.creation.requested',
+          createData: expect.objectContaining({
+            characterName: createDto.characterName,
+            gameSystemId: createDto.gameSystemId,
+            discordUserId: createDto.discordUserId,
+            discordChannelId: createDto.discordChannelId
+          }),
+          userId: createDto.discordUserId
+        })
       )
       expect(characterRepository.create).not.toHaveBeenCalled()
       expect(userService.addCharacterId).not.toHaveBeenCalled()
@@ -152,13 +157,17 @@ describe('CharacterService', () => {
       const result = await service.create(partialDto)
 
       // Then
-      expect(discordIntegrationService.requestCharacterCreation).toHaveBeenCalledWith(
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.requested',
         expect.objectContaining({
-          characterName: 'Test Character',
-          gameSystemId: '',
-          discordUserId: ''
-        }),
-        ''
+          type: 'character.creation.requested',
+          createData: expect.objectContaining({
+            characterName: 'Test Character',
+            gameSystemId: '',
+            discordUserId: ''
+          }),
+          userId: ''
+        })
       )
       expect(result).toEqual(
         expect.objectContaining({
@@ -222,7 +231,7 @@ describe('CharacterService', () => {
       // Then
       expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
       expect(characterRepository.remove).toHaveBeenCalledWith('test-id')
-      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('should delete character using direct method when userId is not provided', async () => {
@@ -234,7 +243,7 @@ describe('CharacterService', () => {
 
       // Then
       expect(characterRepository.remove).toHaveBeenCalledWith('test-id')
-      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('should delete character using event-driven method when enabled and userId provided', async () => {
@@ -246,10 +255,15 @@ describe('CharacterService', () => {
 
       // Then
       expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
-      expect(discordIntegrationService.requestCharacterDeletion).toHaveBeenCalledWith(
-        'test-id',
-        'test-user',
-        'Direct deletion request'
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.deletion.requested',
+        expect.objectContaining({
+          type: 'character.deletion.requested',
+          characterId: 'test-id',
+          userId: 'test-user',
+          reason: 'Direct deletion request',
+          source: 'api'
+        })
       )
       expect(characterRepository.remove).not.toHaveBeenCalled()
     })
@@ -282,7 +296,7 @@ describe('CharacterService', () => {
       // Then
       expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
       expect(characterRepository.removeByChannelId).toHaveBeenCalledWith('test-channel')
-      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('should delete character by channel using direct method when userId is not provided', async () => {
@@ -294,7 +308,7 @@ describe('CharacterService', () => {
 
       // Then
       expect(characterRepository.removeByChannelId).toHaveBeenCalledWith('test-channel')
-      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('should delete character by channel using event-driven method when enabled and userId provided', async () => {
@@ -308,10 +322,15 @@ describe('CharacterService', () => {
       // Then
       expect(configService.get).toHaveBeenCalledWith('prototype.eventDriven')
       expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
-      expect(discordIntegrationService.requestCharacterDeletion).toHaveBeenCalledWith(
-        'test-id',
-        'test-user',
-        'Channel-based deletion request'
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.deletion.requested',
+        expect.objectContaining({
+          type: 'character.deletion.requested',
+          characterId: 'test-id',
+          userId: 'test-user',
+          reason: 'Channel-based deletion request',
+          source: 'api'
+        })
       )
       expect(characterRepository.removeByChannelId).not.toHaveBeenCalled()
     })
@@ -328,7 +347,7 @@ describe('CharacterService', () => {
       // Then
       expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
       expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Character not found for channel: test-channel')
-      expect(discordIntegrationService.requestCharacterDeletion).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
 
       logSpy.mockRestore()
     })
@@ -355,7 +374,7 @@ describe('CharacterService', () => {
     it('should use event-driven approach when feature flag is enabled', async () => {
       // Setup
       configService.get.mockReturnValue(true)
-      discordIntegrationService.requestCharacterSearch = jest.fn()
+      // Mock setup for event-driven search
 
       const logSpy = jest.spyOn(service['logger'], 'log')
 
@@ -367,9 +386,13 @@ describe('CharacterService', () => {
       await service.findByChannelId('test-channel')
 
       // Verify
-      expect(discordIntegrationService.requestCharacterSearch).toHaveBeenCalledWith(
-        { channelId: 'test-channel' },
-        'api'
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.findByChannelId.requested',
+        expect.objectContaining({
+          type: 'character.findByChannelId.requested',
+          channelId: 'test-channel',
+          source: 'api'
+        })
       )
       expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Searching character via events: test-channel')
 
@@ -402,7 +425,7 @@ describe('CharacterService', () => {
     it('should use event-driven approach when feature flag is enabled', async () => {
       // Setup
       configService.get.mockReturnValue(true)
-      discordIntegrationService.requestCharacterUpdate = jest.fn()
+      // Mock setup for event-driven update
 
       const logSpy = jest.spyOn(service['logger'], 'log')
 
@@ -414,7 +437,14 @@ describe('CharacterService', () => {
       await service.updateByChannelId('test-channel', updateData)
 
       // Verify
-      expect(discordIntegrationService.requestCharacterUpdate).toHaveBeenCalledWith('test-channel', updateData)
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.update.requested',
+        expect.objectContaining({
+          type: 'character.update.requested',
+          channelId: 'test-channel',
+          updateData
+        })
+      )
       expect(logSpy).toHaveBeenCalledWith('[EVENT-DRIVEN] Updating character via events: test-channel')
 
       logSpy.mockRestore()

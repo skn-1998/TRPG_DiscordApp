@@ -12,7 +12,7 @@ import {
   SlashCommandOptionsOnlyBuilder,
   TextChannel
 } from 'discord.js'
-import { eventSelectButtonType, eventType } from './events/events.list'
+import { eventSelectButtonType, eventType } from './interactions/interactions.list'
 
 export interface discordInteractionType {
   // eslint-disable-next-line no-unused-vars
