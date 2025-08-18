@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { DiscordService } from './discord.service'
 import { DiscordClientService } from './services/discord-client.service'
-import { EventsService } from './events/events.service'
+import { InteractionsService } from './interactions/interactions.service'
 import { CommandsService } from './commands/commands.service'
 import { CharacterService } from '../domains/character/character.service'
 import { AppConfigService } from '../config/config.service'
@@ -39,7 +39,7 @@ describe('DiscordService', () => {
 
   // Service mocks
   let discordClientService: jest.Mocked<DiscordClientService>
-  let eventsService: jest.Mocked<EventsService>
+  let interactionsService: jest.Mocked<InteractionsService>
   let commandsService: jest.Mocked<CommandsService>
   let characterService: jest.Mocked<CharacterService>
   let appConfigService: jest.Mocked<AppConfigService>
@@ -132,7 +132,7 @@ describe('DiscordService', () => {
           }
         },
         {
-          provide: EventsService,
+          provide: InteractionsService,
           useValue: {
             loadClient: jest.fn(),
             handleInteraction: jest.fn().mockResolvedValue(false)
@@ -171,7 +171,7 @@ describe('DiscordService', () => {
 
     // Get service references
     discordClientService = module.get(DiscordClientService)
-    eventsService = module.get(EventsService)
+    interactionsService = module.get(InteractionsService)
     commandsService = module.get(CommandsService)
     characterService = module.get(CharacterService)
     appConfigService = module.get(AppConfigService)
@@ -208,7 +208,7 @@ describe('DiscordService', () => {
 
     it('should have all required services injected', () => {
       expect(discordClientService).toBeDefined()
-      expect(eventsService).toBeDefined()
+      expect(interactionsService).toBeDefined()
       expect(commandsService).toBeDefined()
       expect(characterService).toBeDefined()
       expect(appConfigService).toBeDefined()
@@ -222,7 +222,7 @@ describe('DiscordService', () => {
 
       expect(mockLogger.log).toHaveBeenCalledWith('Discord初期化を開始します...')
       expect(mockClient.once).toHaveBeenCalledWith('ready', expect.any(Function))
-      expect(eventsService.loadClient).toHaveBeenCalledWith(mockClient)
+      expect(interactionsService.loadClient).toHaveBeenCalledWith(mockClient)
       expect(commandsService.loadClient).toHaveBeenCalledWith(mockClient)
       expect(mockClient.on).toHaveBeenCalledWith('interactionCreate', expect.any(Function))
       expect(discordClientService.initializeClient).toHaveBeenCalled()
@@ -369,7 +369,7 @@ describe('DiscordService', () => {
 
       await interactionHandler?.(mockButtonInteraction)
 
-      expect(eventsService.handleInteraction).toHaveBeenCalledWith(mockButtonInteraction)
+      expect(interactionsService.handleInteraction).toHaveBeenCalledWith(mockButtonInteraction)
     })
 
     it('should prevent duplicate interaction processing', async () => {
@@ -382,7 +382,7 @@ describe('DiscordService', () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'インタラクション(ID: button-interaction-id)は既に処理されています。処理をスキップします。'
       )
-      expect(eventsService.handleInteraction).toHaveBeenCalledTimes(1)
+      expect(interactionsService.handleInteraction).toHaveBeenCalledTimes(1)
     })
 
     it('should handle unsupported interaction types', async () => {
@@ -405,13 +405,13 @@ describe('DiscordService', () => {
 
     it('should handle interaction processing errors', async () => {
       const error = new Error('Processing error')
-      eventsService.handleInteraction.mockRejectedValueOnce(error)
+      interactionsService.handleInteraction.mockRejectedValueOnce(error)
 
       const interactionHandler = mockClient.on.mock.calls.find((call) => call[0] === 'interactionCreate')?.[1]
 
       await interactionHandler?.(mockButtonInteraction)
 
-      expect(mockLogger.error).toHaveBeenCalledWith('EventsServiceでの処理中にエラーが発生しました')
+      expect(mockLogger.error).toHaveBeenCalledWith('InteractionsServiceでの処理中にエラーが発生しました')
     })
   })
 
@@ -543,8 +543,8 @@ describe('DiscordService', () => {
       service.registerModal(mockModal)
       service.registerSelectMenu(mockSelect)
 
-      // Mock EventsService to return false (not handled)
-      eventsService.handleInteraction.mockResolvedValue(false)
+      // Mock InteractionsService to return false (not handled)
+      interactionsService.handleInteraction.mockResolvedValue(false)
     })
 
     it('should handle unprocessed button interaction', async () => {
@@ -649,15 +649,15 @@ describe('DiscordService', () => {
       await service.initializeDiscord()
     })
 
-    it('should handle EventsService errors gracefully', async () => {
-      const error = new Error('EventsService error')
-      eventsService.handleInteraction.mockRejectedValueOnce(error)
+    it('should handle InteractionsService errors gracefully', async () => {
+      const error = new Error('InteractionsService error')
+      interactionsService.handleInteraction.mockRejectedValueOnce(error)
 
       const interactionHandler = mockClient.on.mock.calls.find((call) => call[0] === 'interactionCreate')?.[1]
 
       await interactionHandler?.(mockButtonInteraction)
 
-      expect(mockLogger.error).toHaveBeenCalledWith('EventsServiceでの処理中にエラーが発生しました')
+      expect(mockLogger.error).toHaveBeenCalledWith('InteractionsServiceでの処理中にエラーが発生しました')
     })
 
     it('should clean up processed interactions after timeout', async () => {
@@ -679,8 +679,8 @@ describe('DiscordService', () => {
     })
 
     it('should handle mixed interaction processing scenarios', async () => {
-      // First, EventsService handles it
-      eventsService.handleInteraction.mockResolvedValueOnce(true)
+      // First, InteractionsService handles it
+      interactionsService.handleInteraction.mockResolvedValueOnce(true)
 
       const interactionHandler = mockClient.on.mock.calls.find((call) => call[0] === 'interactionCreate')?.[1]
 
@@ -688,7 +688,7 @@ describe('DiscordService', () => {
 
       // Should not reach fallback processing
       expect(mockLogger.log).not.toHaveBeenCalledWith(
-        expect.stringContaining('EventsServiceで処理されなかったインタラクション')
+        expect.stringContaining('InteractionsServiceで処理されなかったインタラクション')
       )
     })
   })

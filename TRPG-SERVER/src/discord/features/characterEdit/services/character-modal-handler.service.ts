@@ -382,7 +382,7 @@ export class CharacterModalHandlerService {
       const result = await resultPromise
 
       if ('character' in result && result.character) {
-        return result.character
+        return result.character as Character
       }
 
       return null

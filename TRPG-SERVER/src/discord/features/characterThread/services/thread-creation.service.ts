@@ -16,7 +16,9 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ThreadAutoArchiveDuration
+  ThreadAutoArchiveDuration,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
@@ -63,21 +65,14 @@ export class ThreadCreationService {
     private readonly characterService: CharacterService
   ) {
     this.discordClient = this.discordClientService.getClient()
-    this.registerEventHandlers()
+    // イベントハンドラー登録は削除 - EventRouterServiceで一元管理
+    this.logger.debug('Thread creation service initialized')
   }
 
   /**
-   * イベントハンドラーを登録
+   * スレッド作成リクエストイベントを処理（EventRouterServiceから呼び出される公開メソッド）
    */
-  private registerEventHandlers(): void {
-    this.typedEventService.on('discord.thread.create.requested', this.handleThreadCreateRequest.bind(this))
-    this.logger.debug('Thread creation event handlers registered')
-  }
-
-  /**
-   * スレッド作成リクエストイベントを処理
-   */
-  private async handleThreadCreateRequest(
+  async handleThreadCreateRequest(
     payload: import('../../../../shared/domain/events/event-contracts').EventPayload<'discord.thread.create.requested'>
   ): Promise<void> {
     const { character, channelId, guildId, creatorId, displayType, source } = payload
@@ -129,6 +124,26 @@ export class ThreadCreationService {
   }
 
   /**
+   * thread表示更新（イベント駆動で呼び出される公開メソッド）
+   */
+  async updateCharacterThreadDisplay(character: Character): Promise<void> {
+    this.logger.log(`Updating character thread display for: ${character.characterId}`)
+
+    try {
+      // characterにthreadIDがある場合のみ更新処理を実行
+      if (character.threadId) {
+        await this.updateThreadCharacterDisplay(character)
+        this.logger.log(`Thread display updated for character: ${character.characterId}, thread: ${character.threadId}`)
+      } else {
+        this.logger.debug(`Character ${character.characterId} does not have threadId, skipping thread update`)
+      }
+    } catch (error) {
+      this.logger.error(`Failed to update thread display for character: ${character.characterId}`, error)
+      throw error
+    }
+  }
+
+  /**
    * キャラクタースレッドを作成
    */
   async createCharacterThread(request: CreateThreadRequest, character: Character): Promise<CreateThreadResult> {
@@ -158,6 +173,9 @@ export class ThreadCreationService {
 
       // character-editチャンネルIDを保存してから、discordChannelIdをスレッドIDに更新
       await this.updateCharacterChannelIds(character.characterId, thread.id, character.discordChannelId)
+
+      // threadIdも保存
+      await this.updateCharacterThreadId(character.characterId, thread.id)
 
       // キャラクター情報を投稿（表示タイプに応じて処理）
       await this.postCharacterDisplay(thread, character, request.displayType || 'basic')
@@ -216,16 +234,28 @@ export class ThreadCreationService {
         // Enhanced表示でもダイスロールボタンを表示
         await this.postActionButtons(thread, thread.id)
         await this.postSkillRollButtons(thread, character)
+        // 柔軟ダイス計算メニューを追加
+        await this.postFlexibleDiceMenu(thread, character)
+        // プリセットボタンを追加
+        await this.postPresetDiceButtons(thread, character)
       } else if (displayType === 'compact') {
         await this.postCompactCharacterInfo(thread, character)
         // Compact表示でもダイスロールボタンを表示
         await this.postActionButtons(thread, thread.id)
         await this.postSkillRollButtons(thread, character)
+        // 柔軟ダイス計算メニューを追加
+        await this.postFlexibleDiceMenu(thread, character)
+        // プリセットボタンを追加
+        await this.postPresetDiceButtons(thread, character)
       } else {
         // basic display
         await this.postCharacterInfo(thread, character)
         await this.postActionButtons(thread, thread.id)
         await this.postSkillRollButtons(thread, character)
+        // 柔軟ダイス計算メニューを追加
+        await this.postFlexibleDiceMenu(thread, character)
+        // プリセットボタンを追加
+        await this.postPresetDiceButtons(thread, character)
       }
     } catch (error) {
       this.logger.error(`Failed to post character display (${displayType}), falling back to basic`, error)
@@ -234,6 +264,8 @@ export class ThreadCreationService {
       await this.postCharacterInfo(thread, character)
       await this.postActionButtons(thread, thread.id)
       await this.postSkillRollButtons(thread, character)
+      // 柔軟ダイス計算メニューを追加
+      await this.postFlexibleDiceMenu(thread, character)
     }
   }
 
@@ -279,13 +311,25 @@ export class ThreadCreationService {
       inline: true
     })
 
-    // ステータス情報
-    if (character.parameter && Object.keys(character.parameter).length > 0) {
-      const statusText = this.formatCharacterData(character.parameter)
+    // ステータス情報を追加
+    if (character.status && Object.keys(character.status).length > 0) {
+      const statusText = this.formatCharacterData(character.status)
       if (statusText) {
         basicEmbed.addFields({
-          name: '📊 パラメータ',
+          name: '🩸 ステータス',
           value: statusText.substring(0, 1024),
+          inline: false
+        })
+      }
+    }
+
+    // パラメータ情報
+    if (character.parameter && Object.keys(character.parameter).length > 0) {
+      const parameterText = this.formatCharacterData(character.parameter)
+      if (parameterText) {
+        basicEmbed.addFields({
+          name: '📊 パラメータ',
+          value: parameterText.substring(0, 1024),
           inline: false
         })
       }
@@ -340,45 +384,7 @@ export class ThreadCreationService {
    * キャラクター情報Embedを投稿（基本版 + 編集URL）
    */
   private async postCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
-    const embed = new EmbedBuilder().setTitle(`🎭 ${character.characterName}`).setColor(0x00ae86).setTimestamp()
-
-    // 基本情報
-    if (character.gameSystemId) {
-      embed.addFields({
-        name: '🎲 ゲームシステム',
-        value: character.gameSystemId,
-        inline: true
-      })
-    }
-
-    embed.addFields({
-      name: '🆔 キャラクターID',
-      value: character.characterId,
-      inline: true
-    })
-
-    // ステータス情報（簡略化）
-    if (character.parameter) {
-      const statusText = this.formatCharacterData(character.parameter)
-      if (statusText) {
-        embed.addFields({
-          name: '📊 ステータス',
-          value: statusText.substring(0, 1024), // Discord field limit
-          inline: false
-        })
-      }
-    }
-
-    // キャラクター編集URL（Discord チャンネルURL）
-    const editUrl = this.generateCharacterEditUrl(character, thread.guild?.id || '')
-    if (editUrl) {
-      embed.addFields({
-        name: '✏️ キャラクター編集',
-        value: `[こちらから詳細な編集ができます](${editUrl})`,
-        inline: false
-      })
-    }
-
+    const embed = this.createBasicCharacterEmbed(character, thread.guild?.id || '')
     await thread.send({ embeds: [embed] })
   }
 
@@ -400,9 +406,248 @@ export class ThreadCreationService {
     const diceRow = new ActionRowBuilder<ButtonBuilder>().addComponents(diceButtons)
 
     await thread.send({
-      content: '🎲 ダイスロール（結果は親チャンネルに送信されます）：',
+      content: '🎲 ダイスロール',
       components: [diceRow]
     })
+  }
+
+  /**
+   * 柔軟ダイス計算用のパラメータ選択メニューを投稿
+   */
+  private async postFlexibleDiceMenu(thread: ThreadChannel, character: Character): Promise<void> {
+    try {
+      // パラメータ選択セレクトメニューを作成
+      const parameterSelectMenu = this.createParameterSelectMenu(character)
+
+      if (parameterSelectMenu) {
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(parameterSelectMenu)
+
+        await thread.send({
+          content: '🎯 柔軟ダイス計算：パラメータを選択してください',
+          components: [selectRow]
+        })
+      }
+    } catch (error) {
+      this.logger.error('Failed to post flexible dice menu', error)
+    }
+  }
+
+  /**
+   * キャラクターデータからパラメータ選択メニューを作成
+   */
+  private createParameterSelectMenu(character: Character): StringSelectMenuBuilder | null {
+    try {
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`flexible-dice-param*${character.characterId}`)
+        .setPlaceholder('計算に使用するパラメータを選択...')
+        .setMinValues(1)
+        .setMaxValues(1)
+
+      const options: StringSelectMenuOptionBuilder[] = []
+
+      // ステータスセクション
+      if (character.status && Object.keys(character.status).length > 0) {
+        for (const [key, value] of Object.entries(character.status)) {
+          let displayName = key
+          let displayValue = ''
+
+          if (typeof value === 'object' && value && 'name' in value && 'value' in value) {
+            displayName = (value as any).name || key
+            displayValue = String((value as any).value || 0)
+          } else {
+            displayValue = String(value || 0)
+          }
+
+          if (parseInt(displayValue) > 0) {
+            options.push(
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`📊 ${displayName} (${displayValue})`)
+                .setValue(`status:${key}:${displayValue}`)
+                .setDescription(`ステータス: ${displayName}を使用`)
+            )
+          }
+        }
+      }
+
+      // スキルセクション
+      if (character.skill && Object.keys(character.skill).length > 0) {
+        for (const [key, value] of Object.entries(character.skill)) {
+          let displayName = key
+          let displayValue = ''
+
+          if (typeof value === 'object' && value && 'name' in value && 'value' in value) {
+            displayName = (value as any).name || key
+            displayValue = String((value as any).value || 0)
+          } else {
+            displayValue = String(value || 0)
+          }
+
+          if (parseInt(displayValue) > 0) {
+            options.push(
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`⚔️ ${displayName} (${displayValue})`)
+                .setValue(`skill:${key}:${displayValue}`)
+                .setDescription(`スキル: ${displayName}を使用`)
+            )
+          }
+        }
+      }
+
+      // パラメータセクション
+      if (character.parameter && Object.keys(character.parameter).length > 0) {
+        for (const [key, value] of Object.entries(character.parameter)) {
+          let displayName = key
+          let displayValue = ''
+
+          if (typeof value === 'object' && value && 'name' in value && 'value' in value) {
+            displayName = (value as any).name || key
+            displayValue = String((value as any).value || 0)
+          } else {
+            displayValue = String(value || 0)
+          }
+
+          if (parseInt(displayValue) > 0) {
+            options.push(
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`⚙️ ${displayName} (${displayValue})`)
+                .setValue(`parameter:${key}:${displayValue}`)
+                .setDescription(`パラメータ: ${displayName}を使用`)
+            )
+          }
+        }
+      }
+
+      // カスタム計算オプション
+      options.push(
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🔧 カスタム計算式')
+          .setValue('custom:formula:0')
+          .setDescription('自由な計算式を入力')
+      )
+
+      if (options.length === 0) {
+        return null
+      }
+
+      // Discordの制限：最大25オプション
+      selectMenu.addOptions(...options.slice(0, 25))
+      return selectMenu
+    } catch (error) {
+      this.logger.error('Failed to create parameter select menu', error)
+      return null
+    }
+  }
+
+  /**
+   * よく使用されるパラメータのプリセットボタンを投稿
+   */
+  private async postPresetDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
+    try {
+      const presetButtons = this.createPresetButtons(character)
+
+      if (presetButtons.length > 0) {
+        // 5個ずつボタンを配列
+        const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
+        for (let i = 0; i < presetButtons.length; i += 5) {
+          const rowButtons = presetButtons.slice(i, i + 5)
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(rowButtons)
+          actionRows.push(row)
+        }
+
+        await thread.send({
+          content: '⚡ クイックダイス：よく使用されるパラメータ',
+          components: actionRows
+        })
+      }
+    } catch (error) {
+      this.logger.error('Failed to post preset dice buttons', error)
+    }
+  }
+
+  /**
+   * プリセットダイスボタンを作成
+   */
+  private createPresetButtons(character: Character): ButtonBuilder[] {
+    const buttons: ButtonBuilder[] = []
+    const maxButtons = 10 // 最大ボタン数制限
+
+    // 高い値を持つパラメータを優先的に抽出
+    const allParameters: Array<{ key: string; value: number; section: string; emoji: string }> = []
+
+    // ステータスから抽出
+    if (character.status && Object.keys(character.status).length > 0) {
+      for (const [key, value] of Object.entries(character.status)) {
+        const numericValue = this.extractNumericValue(value)
+        if (numericValue > 0) {
+          allParameters.push({ key, value: numericValue, section: 'status', emoji: '📊' })
+        }
+      }
+    }
+
+    // スキルから抽出
+    if (character.skill && Object.keys(character.skill).length > 0) {
+      for (const [key, value] of Object.entries(character.skill)) {
+        const numericValue = this.extractNumericValue(value)
+        if (numericValue > 0) {
+          allParameters.push({ key, value: numericValue, section: 'skill', emoji: '⚔️' })
+        }
+      }
+    }
+
+    // パラメータから抽出
+    if (character.parameter && Object.keys(character.parameter).length > 0) {
+      for (const [key, value] of Object.entries(character.parameter)) {
+        const numericValue = this.extractNumericValue(value)
+        if (numericValue > 0) {
+          allParameters.push({ key, value: numericValue, section: 'parameter', emoji: '⚙️' })
+        }
+      }
+    }
+
+    // 値の高い順にソート
+    allParameters.sort((a, b) => b.value - a.value)
+
+    // 上位のパラメータからボタンを作成
+    for (let i = 0; i < Math.min(allParameters.length, maxButtons); i++) {
+      const param = allParameters[i]
+
+      // よく使用される計算パターンのボタンを作成
+      const patterns = [
+        { multiplier: 3, label: `×3`, description: `${param.key}×3` },
+        { multiplier: 2, label: `×2`, description: `${param.key}×2` }
+      ]
+
+      for (const pattern of patterns) {
+        if (buttons.length >= maxButtons) break
+
+        const customId = `preset-dice*${character.characterId}*${param.section}*${param.key}*${param.value}*${pattern.multiplier}`
+
+        const button = new ButtonBuilder()
+          .setCustomId(customId)
+          .setLabel(`${param.emoji} ${param.key}${pattern.label}`)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('⚡')
+
+        buttons.push(button)
+      }
+    }
+
+    return buttons
+  }
+
+  /**
+   * 値から数値を抽出
+   */
+  private extractNumericValue(value: unknown): number {
+    if (typeof value === 'number') {
+      return value
+    }
+
+    if (typeof value === 'object' && value && 'value' in value) {
+      return Number((value as any).value) || 0
+    }
+
+    return Number(value) || 0
   }
 
   /**
@@ -470,7 +715,7 @@ export class ThreadCreationService {
     // スキルロールボタンがある場合は投稿
     if (actionRows.length > 0) {
       await thread.send({
-        content: '🎯 スキルロール（結果は親チャンネルに送信されます）：',
+        content: '🎯 スキルロール',
         components: actionRows
       })
     }
@@ -491,6 +736,64 @@ export class ThreadCreationService {
   }
 
   /**
+   * thread用の基本キャラクターEmbedを作成（postCharacterInfoと同じ形式）
+   */
+  private createBasicCharacterEmbed(character: Character, guildId: string): EmbedBuilder {
+    const embed = new EmbedBuilder().setTitle(`🎭 ${character.characterName}`).setColor(0x00ae86).setTimestamp()
+
+    // 基本情報
+    if (character.gameSystemId) {
+      embed.addFields({
+        name: '🎲 ゲームシステム',
+        value: character.gameSystemId,
+        inline: true
+      })
+    }
+
+    embed.addFields({
+      name: '🆔 キャラクターID',
+      value: character.characterId,
+      inline: true
+    })
+
+    // ステータス情報（簡略化）
+    if (character.status) {
+      const statusText = this.formatCharacterData(character.status)
+      if (statusText) {
+        embed.addFields({
+          name: '📊 ステータス',
+          value: statusText.substring(0, 1024), // Discord field limit
+          inline: false
+        })
+      }
+    }
+
+    // パラメータ情報
+    if (character.parameter) {
+      const parameterText = this.formatCharacterData(character.parameter)
+      if (parameterText) {
+        embed.addFields({
+          name: '⚙️ パラメータ',
+          value: parameterText.substring(0, 1024), // Discord field limit
+          inline: false
+        })
+      }
+    }
+
+    // キャラクター編集URL（Discord チャンネルURL）
+    const editUrl = this.generateCharacterEditUrl(character, guildId)
+    if (editUrl) {
+      embed.addFields({
+        name: '✏️ キャラクター編集',
+        value: `[こちらから詳細な編集ができます](${editUrl})`,
+        inline: false
+      })
+    }
+
+    return embed
+  }
+
+  /**
    * キャラクターデータをフォーマット
    */
   private formatCharacterData(data: Record<string, unknown>): string {
@@ -507,7 +810,75 @@ export class ThreadCreationService {
         return `**${key}**: ${value}`
       })
       .slice(0, 5) // 最大5項目まで
-      .join('\\n')
+      .join('\n')
+  }
+
+  /**
+   * Thread内のキャラクター表示を更新
+   */
+  private async updateThreadCharacterDisplay(character: Character): Promise<void> {
+    try {
+      if (!character.threadId) {
+        this.logger.warn(`Character ${character.characterId} does not have threadId`)
+        return
+      }
+
+      this.logger.log(`Updating thread display for character: ${character.characterId}, thread: ${character.threadId}`)
+
+      // ThreadChannelを取得
+      const thread = await this.getThreadChannel(character.threadId)
+      if (!thread) {
+        this.logger.error(`Thread not found: ${character.threadId}`)
+        return
+      }
+
+      // 既存のキャラクター表示メッセージを検索して更新
+      const messages = await thread.messages.fetch({ limit: 50 })
+      const botMessages = messages.filter((msg) => msg.author.bot && msg.embeds.length > 0)
+
+      for (const message of botMessages.values()) {
+        // キャラクター情報のEmbedを探す
+        const hasCharacterEmbed = message.embeds.some(
+          (embed) =>
+            embed.title?.includes(character.characterName) || embed.description?.includes(character.characterId)
+        )
+
+        if (hasCharacterEmbed) {
+          this.logger.log(`Found character embed message to update: ${message.id}`)
+
+          // thread用の基本Embed情報を作成（postCharacterInfoと同じ形式）
+          const basicEmbed = this.createBasicCharacterEmbed(character, thread.guild?.id || '')
+
+          // メッセージを更新
+          await message.edit({ embeds: [basicEmbed] })
+          this.logger.log(`Successfully updated character embed message: ${message.id}`)
+
+          // 最初に見つかったメッセージのみ更新
+          break
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to update thread character display for ${character.characterId}`, error)
+      throw error
+    }
+  }
+
+  /**
+   * ThreadChannelを取得
+   */
+  private async getThreadChannel(threadId: string): Promise<ThreadChannel | null> {
+    try {
+      const channel = await this.discordClient.channels.fetch(threadId)
+
+      if (channel && channel.type === ChannelType.PublicThread) {
+        return channel as ThreadChannel
+      }
+
+      return null
+    } catch (error) {
+      this.logger.error(`Failed to fetch thread ${threadId}:`, error instanceof Error ? error.message : String(error))
+      return null
+    }
   }
 
   /**
@@ -532,6 +903,19 @@ export class ThreadCreationService {
       this.logger.log(`Character channel IDs updated: ${characterId} -> thread: ${threadId}, edit: ${editChannelId}`)
     } catch (error) {
       this.logger.error(`Failed to update character channel IDs: ${characterId}`, error)
+      // エラーが発生してもスレッド作成処理は継続
+    }
+  }
+
+  /**
+   * キャラクターのthreadIdを更新
+   */
+  private async updateCharacterThreadId(characterId: string, threadId: string): Promise<void> {
+    try {
+      await this.characterService.update(characterId, { threadId })
+      this.logger.log(`Character threadId updated: ${characterId} -> ${threadId}`)
+    } catch (error) {
+      this.logger.error(`Failed to update character threadId: ${characterId}`, error)
       // エラーが発生してもスレッド作成処理は継続
     }
   }

@@ -10,7 +10,7 @@ import {
   CommandInteraction,
   AutocompleteInteraction
 } from 'discord.js'
-import { EventsService } from '../events/events.service'
+import { InteractionsService } from '../interactions/interactions.service'
 import { CommandsService } from '../commands/commands.service'
 import { DiscordButton, DiscordModal, DiscordSelectMenu } from '../interfaces/discord-interaction-types.interface'
 import { AppConfigService } from '../../config/config.service'
@@ -34,7 +34,7 @@ export class DiscordInteractionHandlerService {
   private readonly processedInteractions = new Set<string>()
 
   constructor(
-    private readonly eventsService: EventsService,
+    private readonly interactionsService: InteractionsService,
     private readonly commandsService: CommandsService,
     private readonly appConfigService: AppConfigService
   ) {}
@@ -152,7 +152,7 @@ export class DiscordInteractionHandlerService {
       await handler.execute(interaction)
     } else {
       // fallback to events service
-      await this.eventsService.execute(interaction)
+      await this.interactionsService.execute(interaction)
     }
   }
 
@@ -166,7 +166,7 @@ export class DiscordInteractionHandlerService {
     if (handler) {
       await handler.execute(interaction)
     } else {
-      await this.eventsService.execute(interaction)
+      await this.interactionsService.execute(interaction)
     }
   }
 
@@ -180,7 +180,7 @@ export class DiscordInteractionHandlerService {
     if (handler) {
       await handler.execute(interaction)
     } else {
-      await this.eventsService.execute(interaction)
+      await this.interactionsService.execute(interaction)
     }
   }
 

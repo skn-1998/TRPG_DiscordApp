@@ -12,8 +12,11 @@ import { UserModule } from './domains/user/user.module'
 import { AuthModule } from './domains/auth/auth.module'
 import { DiceRollModule } from './domains/dice-roll/dice-roll.module'
 import { DiscordModule } from './discord/discord.module'
+import { EventsModule } from './events/events.module'
 import { winstonConfigFactory } from './config/winston.config'
 import { AppConfigService } from './config/config.service'
+// AI.architecture.md Phase 3: アダプター層統合
+// import { AdapterModule } from './adapters/adapter.module' // 一時的にコメントアウト
 
 // プロトタイプモジュール
 import { PrototypeModule } from './domains/character/application/prototype/prototype.module'
@@ -31,6 +34,9 @@ import { DiscordPrototypeModule } from './discord/application/prototype/discord-
     SharedModule,
     AppConfigModule,
     DatabaseModule,
+    // AI.architecture.md Phase 3: アダプター層を早期に初期化
+    // AdapterModule, // 一時的にコメントアウト
+    EventsModule, // Events層を先に初期化
     CharacterModule,
     UserModule,
     AuthModule,

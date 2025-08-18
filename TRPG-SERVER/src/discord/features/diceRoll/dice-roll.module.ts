@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 import { RollDiceOrchestrator } from './services/roll-dice.orchestrator'
 import { DiceResultOrchestrator } from './services/dice-result.orchestrator'
-import { EventsModule } from '../../events/events.module'
+import { InteractionsModule } from '../../interactions/interactions.module'
 import { DicePagePrevButtonService } from './adapters/dice-page-prev-button.adapter'
 import { DicePageNextButtonService } from './adapters/dice-page-next-button.adapter'
 import { DicePageSelectMenuService } from './adapters/dice-page-select-menu.adapter'
@@ -13,7 +13,7 @@ import { CustomDiceModalService } from './adapters/custom-dice-modal.adapter'
 import { DiceButtonService } from './adapters/dice-button.adapter'
 
 @Module({
-  imports: [EventsModule],
+  imports: [InteractionsModule],
   providers: [
     RollDiceOrchestrator,
     DiceResultOrchestrator,

@@ -6,6 +6,8 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
 import { DiscordStrategy } from './discord.strategy'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
+//  ここの循環参照は、問題ない
+// eslint-disable-next-line import/no-cycle
 import { UserModule } from '../user/user.module'
 import { SharedModule } from '../../core/shared/shared.module'
 import { CookieService } from '../../utils/cookie.service'

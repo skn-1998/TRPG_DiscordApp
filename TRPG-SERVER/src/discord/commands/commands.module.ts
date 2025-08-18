@@ -7,7 +7,7 @@ import { SelectGameSystemService } from './commands-components/select-game-syste
 import { UserDefinedDiceService } from './commands-components/user-defined-dice.service'
 import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
 import { CommandsService } from './commands.service'
-import { EventsModule } from '../events/events.module'
+import { InteractionsModule } from '../interactions/interactions.module'
 import { DiceResultService } from './commands-components/dice-result.service'
 import { SharedModule } from '../../shared/shared.module'
 import { CharacterModule } from '../../domains/character/character.module'
@@ -16,7 +16,7 @@ import { UserDefinedDiceFeatureModule } from '../features/userDefinedDice/user-d
 import { DiceRollFeatureModule } from '../features/diceRoll/dice-roll.module'
 @Module({
   imports: [
-    EventsModule,
+    InteractionsModule,
     SharedModule,
     CharacterModule,
     GameSystemFeatureModule,

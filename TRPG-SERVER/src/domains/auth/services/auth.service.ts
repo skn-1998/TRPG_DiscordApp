@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { firstValueFrom, lastValueFrom } from 'rxjs'
 import { URLSearchParams } from 'url'
+import { AxiosResponse } from 'axios'
 import { UserService } from '../../user/user.service'
 import { User } from '../../user/models/user.model'
 import { HttpClientService } from '../../../core/shared/services/http.service'
@@ -270,10 +271,10 @@ export class AuthService {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
 
-      const response = await lastValueFrom(
+      const response: AxiosResponse<DiscordAuthResponse> = await lastValueFrom(
         this.httpService.post<DiscordAuthResponse>(url, params.toString(), { headers })
       )
-      const authData = (response as any).data as DiscordAuthResponse
+      const authData = response.data
 
       // 新しいトークンを暗号化して保存
       const tokenExpiresAt = new Date(Date.now() + authData.expires_in * 1000)
@@ -307,8 +308,10 @@ export class AuthService {
     }
 
     try {
-      const response = await firstValueFrom(this.httpService.get<DiscordUserProfile>(url, { headers }))
-      const userData = (response as any).data as DiscordUserProfile
+      const response: AxiosResponse<DiscordUserProfile> = await firstValueFrom(
+        this.httpService.get<DiscordUserProfile>(url, { headers })
+      )
+      const userData = response.data
 
       this.logger.debug(`Discord user info response: ${JSON.stringify(userData)}`)
       this.logger.debug(`Avatar hash: ${userData.avatar}`)
@@ -353,8 +356,10 @@ export class AuthService {
     }
 
     try {
-      const response = await lastValueFrom(this.httpService.post<DiscordAuthResponse>(url, params, { headers }))
-      const authData = (response as any).data as DiscordAuthResponse
+      const response: AxiosResponse<DiscordAuthResponse> = await lastValueFrom(
+        this.httpService.post<DiscordAuthResponse>(url, params, { headers })
+      )
+      const authData = response.data
       this.logger.debug('Discord認証成功')
       this.logger.debug(`取得したスコープ: ${authData.scope}`)
       return authData

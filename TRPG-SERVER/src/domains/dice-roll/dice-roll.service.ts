@@ -58,28 +58,35 @@ export class DiceRollService {
     // テキストを作成
     const text: Partial<DiceRollText> = {
       textId,
-      discordChannelId: createDiceRollTextDto.discordChannelId,
+      discordChannelId: createDiceRollTextDto.channelId || createDiceRollTextDto.discordChannelId || '',
       characterId: createDiceRollTextDto.characterId,
-      diceRoll: createDiceRollTextDto.diceRoll,
-      text: createDiceRollTextDto.text,
+      diceRoll: createDiceRollTextDto.diceExpression || createDiceRollTextDto.diceRoll || 'unknown',
+      text: createDiceRollTextDto.resultDetails || createDiceRollTextDto.text || '',
       result:
         typeof createDiceRollTextDto.result === 'string'
           ? parseInt(createDiceRollTextDto.result, 10)
-          : createDiceRollTextDto.result,
-      createdAt: new Date()
+          : createDiceRollTextDto.result || 0,
+      createdAt: new Date(),
+      // 新しいフィールド
+      userId: createDiceRollTextDto.userId,
+      diceExpression: createDiceRollTextDto.diceExpression,
+      resultDetails: createDiceRollTextDto.resultDetails,
+      reason: createDiceRollTextDto.reason,
+      characterName: createDiceRollTextDto.characterName,
+      gameSystem: createDiceRollTextDto.gameSystem
     }
 
     const createdText = await this.diceRollTextRepository.create(text)
 
     // チャンネルにテキストIDを追加
-    await this.diceRollChannelRepository.addTextId(createDiceRollTextDto.discordChannelId, textId)
+    const channelId = createDiceRollTextDto.channelId || createDiceRollTextDto.discordChannelId
+    if (channelId) {
+      await this.diceRollChannelRepository.addTextId(channelId, textId)
+    }
 
     // キャラクターIDがある場合、チャンネルにキャラクターIDを追加
-    if (createDiceRollTextDto.characterId) {
-      await this.diceRollChannelRepository.addCharacterId(
-        createDiceRollTextDto.discordChannelId,
-        createDiceRollTextDto.characterId
-      )
+    if (createDiceRollTextDto.characterId && channelId) {
+      await this.diceRollChannelRepository.addCharacterId(channelId, createDiceRollTextDto.characterId)
     }
 
     return createdText
@@ -153,5 +160,14 @@ export class DiceRollService {
    */
   async removeText(textId: string): Promise<void> {
     await this.diceRollTextRepository.remove(textId)
+  }
+
+  /**
+   * 古いダイスロールを削除
+   * @param channelId チャンネルID
+   * @param keepCount 保持する件数
+   */
+  async deleteOldRolls(channelId: string, keepCount: number = 1000): Promise<number> {
+    return this.diceRollTextRepository.deleteOldRolls(channelId, keepCount)
   }
 }

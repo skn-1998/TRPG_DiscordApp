@@ -40,6 +40,10 @@ export class CreateCharacterDto extends DiscordDto {
   @IsOptional()
   readonly discordChannelId?: string
 
+  @IsString(ValidationUtils.optionalString('スレッドID'))
+  @IsOptional()
+  readonly threadId?: string
+
   @IsString(ValidationUtils.requiredString('キャラクター名'))
   readonly characterName: string
 
@@ -87,6 +91,10 @@ export class CharacterInputDto {
   @IsOptional()
   @IsString(ValidationUtils.optionalString('Discordチャンネル'))
   readonly discordChannelId?: string
+
+  @IsOptional()
+  @IsString(ValidationUtils.optionalString('スレッドID'))
+  readonly threadId?: string
 
   @IsOptional()
   @IsString(ValidationUtils.optionalString('キャラクター名'))

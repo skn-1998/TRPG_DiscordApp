@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run start:dev)",
+      "Bash(pnpm run start:prod)",
+      "Bash(pnpm run start:test)",
+      "Bash(pnpm run start:dev:debug)",
+      "Bash(pnpm run start:prod:debug)",
+      "Bash(pnpm run start:test:debug)",
+      "Bash(pnpm run start:dev:debug:watch)",
+      "Bash(pnpm run build)",
+      "Bash(pnpm run build:watch)",
+      "Bash(pnpm run build:prod)",
+      "Bash(pnpm run build:prod:watch)",
+      "Bash(pnpm run build:test)",
+      "Bash(pnpm run build:test:watch)",
+      "Bash(pnpm run build:dev)",
+      "Bash",
+      "Edit",
+      "Bash(pnpm:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:stackoverflow.com)",
+      "WebFetch(domain:developer.mozilla.org)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:nestjs.com)",
+      "WebFetch(domain:discord.com)",
+      "WebFetch(domain:discord.js.org)",
+      "WebFetch(domain:discord.js.org/docs/latest/api/index.html)",
+      "WebFetch(domain:mongoosejs.com)",
+      "WebFetch(domain:mongodb.com)",
+      "WebFetch(domain:mongodb.com/docs/drivers/node/current/fundamentals/connection/)",
+      "WebFetch(domain:remix.run)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

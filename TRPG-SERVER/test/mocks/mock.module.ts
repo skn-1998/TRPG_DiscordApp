@@ -74,7 +74,7 @@ class MockCharacterMongooseModel {
     }
   }
   static findOne(filter: any = {}) {
-    let result =
+    const result =
       mockCharacters.find((c) => {
         return Object.entries(filter).every(([k, v]) => (c as any)[k] === v)
       }) || null

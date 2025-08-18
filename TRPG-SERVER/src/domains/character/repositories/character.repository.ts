@@ -144,4 +144,62 @@ export class CharacterRepository implements Repository<Character, string> {
       .lean() // Mongoose Document ではなく Plain Object を返す（メモリ効率化）
       .exec()
   }
+
+  /**
+   * キャラクターIDの存在確認
+   * @param characterId キャラクターID
+   * @returns 存在する場合はtrue
+   */
+  async existsById(characterId: string): Promise<boolean> {
+    const count = await this.characterModel.countDocuments({ characterId }).exec()
+    return count > 0
+  }
+
+  /**
+   * チャンネル内でのキャラクターIDの存在確認
+   * @param characterId キャラクターID
+   * @param channelId DiscordチャンネルID
+   * @returns 存在する場合はtrue
+   */
+  async existsByIdAndChannel(characterId: string, channelId: string): Promise<boolean> {
+    const count = await this.characterModel
+      .countDocuments({
+        characterId,
+        discordChannelId: channelId
+      })
+      .exec()
+    return count > 0
+  }
+
+  /**
+   * チャンネル内でのキャラクター名の存在確認
+   * @param characterName キャラクター名
+   * @param channelId DiscordチャンネルID
+   * @returns 存在する場合はtrue
+   */
+  async existsByNameAndChannel(characterName: string, channelId: string): Promise<boolean> {
+    const count = await this.characterModel
+      .countDocuments({
+        characterName,
+        discordChannelId: channelId
+      })
+      .exec()
+    return count > 0
+  }
+
+  /**
+   * ユーザーが所有するキャラクター名の存在確認
+   * @param characterName キャラクター名
+   * @param discordUserId DiscordユーザーID
+   * @returns 存在する場合はtrue
+   */
+  async existsByNameAndUser(characterName: string, discordUserId: string): Promise<boolean> {
+    const count = await this.characterModel
+      .countDocuments({
+        characterName,
+        discordUserId
+      })
+      .exec()
+    return count > 0
+  }
 }

@@ -8,14 +8,24 @@ export interface DiceResult {
   total: number
 
   /**
-   * 各ダイスの出目
+   * 各ダイスの出目（オプション）
    */
-  rolls: number[]
+  rolls?: number[]
 
   /**
    * ダイスの種類（例: 2d6）
    */
   diceType: string
+
+  /**
+   * 詳細情報（オプション）
+   */
+  details?: any
+
+  /**
+   * ロール理由（オプション）
+   */
+  reason?: string
 }
 
 /**

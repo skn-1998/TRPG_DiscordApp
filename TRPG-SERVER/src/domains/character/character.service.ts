@@ -1,15 +1,17 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
-import { v4 as uuidv4 } from 'uuid'
 import { CharacterRepository } from './repositories/character.repository'
 import { CharacterInputDto, AttributeValueDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.model'
-import { UserService } from '../user/user.service'
-import { AppConfigService } from '../../config/config.service'
-import { DiscordIntegrationService } from '../../discord/application/discord-integration.service'
-import { TypedEventEmitter } from '../../shared/application/typed-event.service'
+// UserService依存削除 - Character Service単一責任原則の強化
+// AppConfigService依存削除 - EventDriven分岐を削除し単純化
+// DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
+import { TypedEventService } from '../../shared/application/typed-event.service'
 import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
+// AI.architecture.md Phase 3: ランタイム型検証統合
+// import { RuntimeValidationIntegration } from '../../adapters/runtime-validation.integration' // 一時的にコメントアウト
+// import { ValidationUtils } from '../../adapters/validation.utils' // 一時的にコメントアウト
 
 /**
  * キャラクターサービス
@@ -65,92 +67,100 @@ export class CharacterService {
 
   constructor(
     private readonly characterRepository: CharacterRepository,
-    private readonly userService: UserService,
-    private readonly configService: AppConfigService,
-    @Inject(forwardRef(() => DiscordIntegrationService))
-    private readonly discordIntegrationService: DiscordIntegrationService,
-    private readonly typedEventEmitter: TypedEventEmitter
+    // UserService依存削除 - Character Service単一責任原則の強化
+    // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
+    private readonly typedEventService: TypedEventService
   ) {}
 
   /**
-   * キャラクターを作成する
+   * キャラクターを作成する（型安全性強化版）
    * @param createCharacterDto キャラクター作成DTO（完全版またはパーシャル版）
    */
   async create(createCharacterDto: CharacterInputDto): Promise<Character> {
-    const useEventDriven = this.configService.get('prototype.eventDriven')
+    this.logger.log(`Creating character: ${createCharacterDto.characterName}`)
 
-    if (useEventDriven) {
-      // Phase 2: イベント駆動方式
-      this.logger.log(`[EVENT-DRIVEN] Creating character via events: ${createCharacterDto.characterName}`)
+    // AI.architecture.md Phase 3: ランタイム型検証の統合
+    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
+    // const validationResult = RuntimeValidationIntegration.validateCharacterCreation(
+    //   createCharacterDto,
+    //   { enableBusinessRules: true, strictMode: false }
+    // )
 
-      // CharacterInputDtoからCreateCharacterDtoへの変換
-      const characterId = createCharacterDto.characterId || uuidv4()
-      const createData = {
-        characterId,
-        characterName: createCharacterDto.characterName || '',
-        gameSystemId: createCharacterDto.gameSystemId || '',
-        discordUserId: createCharacterDto.discordUserId || '',
-        discordChannelId: createCharacterDto.discordChannelId,
-        status: createCharacterDto.status,
-        parameter: createCharacterDto.parameter,
-        skill: createCharacterDto.skill,
-        item: createCharacterDto.item,
-        description: createCharacterDto.description
-      }
+    // if (!validationResult.isValid) {
+    //   const validationReport = RuntimeValidationIntegration.createValidationReport(
+    //     validationResult,
+    //     {
+    //       operation: 'character.create',
+    //       timestamp: new Date(),
+    //       correlationId: createCharacterDto.characterId
+    //     }
+    //   )
+    //
+    //   this.logger.error(`Character creation validation failed: ${validationReport.summary}`)
+    //   throw new Error(`Validation failed: ${validationResult.errors.map(e => e.message).join(', ')}`)
+    // }
 
-      // イベントを発行
-      await this.discordIntegrationService.requestCharacterCreation(createData, createCharacterDto.discordUserId || '')
+    // 必要なデータの取得
+    const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
 
-      // 非同期処理のため、仮のCharacterオブジェクトを返す
-      return {
-        characterId,
-        characterName: createCharacterDto.characterName || '',
-        gameSystemId: createCharacterDto.gameSystemId || '',
-        discordUserId: createCharacterDto.discordUserId || '',
-        discordChannelId: createCharacterDto.discordChannelId || '',
-        status: createCharacterDto.status || {},
-        skill: createCharacterDto.skill || {},
-        parameter: createCharacterDto.parameter || {}
-      } as Character
-    } else {
-      // Phase 1: 既存の直接呼び出し方式
-      this.logger.log(`[DIRECT] Creating character directly: ${createCharacterDto.characterName}`)
-
-      // 必要なデータの取得
-      const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
-
-      // キャラクターIDがない場合は生成
-      const characterId = createCharacterDto.characterId || uuidv4()
-
-      const character: Partial<Character> = {
-        characterId,
-        gameSystemId,
-        characterName,
-        discordUserId,
-        discordChannelId,
-        status: this.convertDtoSectionToAttributeSection(createCharacterDto.status),
-        skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill),
-        parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter),
-        item: this.convertDtoSectionToAttributeSection(createCharacterDto.item),
-        description: this.convertDtoSectionToAttributeSection(createCharacterDto.description)
-      }
-
-      // キャラクターを作成
-      const createdCharacter = await this.characterRepository.create(character)
-
-      // ユーザーにキャラクターIDを追加（テスト環境では失敗しても処理継続）
-      if (discordUserId) {
-        try {
-          await this.userService.addCharacterId(discordUserId, characterId)
-        } catch (e) {
-          this.logger.warn(
-            `Failed to add characterId to user ${discordUserId} (ignored in this context): ${(e as Error).message}`
-          )
-        }
-      }
-
-      return createdCharacter
+    // キャラクターIDがない場合はエラー（IDは外部で生成される想定）
+    if (!createCharacterDto.characterId) {
+      throw new Error('CharacterID is required. Use Character Event Handler for automatic ID generation.')
     }
+    const characterId = createCharacterDto.characterId
+
+    const character: Partial<Character> = {
+      characterId,
+      gameSystemId,
+      characterName,
+      discordUserId,
+      discordChannelId,
+      status: this.convertDtoSectionToAttributeSection(createCharacterDto.status),
+      skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill),
+      parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter),
+      item: this.convertDtoSectionToAttributeSection(createCharacterDto.item),
+      description: this.convertDtoSectionToAttributeSection(createCharacterDto.description)
+    }
+
+    // パフォーマンス監視付きでキャラクター作成
+    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
+    // const createResult = RuntimeValidationIntegration.withPerformanceMonitoring(
+    //   () => this.characterRepository.create(character),
+    //   'character.repository.create',
+    //   { warningMs: 500, errorMs: 2000 }
+    // )
+
+    // if (createResult.performance.status !== 'ok') {
+    //   this.logger.warn(`Character creation performance issue: ${createResult.performance.message}`)
+    // }
+
+    // const createdCharacter = createResult.result
+    const createdCharacter = await this.characterRepository.create(character)
+
+    // 作成後検証（オプション）
+    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
+    // const postValidation = ValidationUtils.validateCharacterComplete(createdCharacter, {
+    //   enableBusinessRules: true
+    // })
+
+    // if (!postValidation.isValid) {
+    //   this.logger.warn(`Created character failed post-validation: ${postValidation.errors.map(e => e.message).join(', ')}`)
+    // }
+
+    // キャラクター作成完了イベントを発行（イベント駆動アーキテクチャ）
+    await this.typedEventService.emit('character.created', {
+      character: createdCharacter,
+      source: 'character-service',
+      timestamp: new Date()
+      // validation: {
+      //   preValidation: validationResult,
+      //   postValidation: postValidation
+      // }
+    })
+
+    this.logger.log(`Character created event emitted for: ${createdCharacter.characterId}`)
+
+    return createdCharacter
   }
 
   /**
@@ -178,26 +188,12 @@ export class CharacterService {
   }
 
   /**
-   * チャンネルIDで特定のキャラクターを取得する
+   * チャンネルIDで特定のキャラクターを取得する（単純化済み）
    * @param channelId DiscordチャンネルID
    */
   async findByChannelId(channelId: string): Promise<Character | null> {
-    const useEventDriven = this.configService.get('prototype.eventDriven')
-
-    if (useEventDriven) {
-      // Phase 2: イベント駆動方式
-      this.logger.log(`[EVENT-DRIVEN] Searching character via events: ${channelId}`)
-
-      // 検索イベントを発行
-      await this.discordIntegrationService.requestCharacterSearch({ channelId }, 'api')
-
-      // 非同期処理の結果を待つ
-      return await this.waitForCharacterSearchResult(channelId)
-    } else {
-      // Phase 1: 既存の直接呼び出し方式
-      this.logger.log(`[DIRECT] Searching character directly: ${channelId}`)
-      return this.characterRepository.findByChannelId(channelId)
-    }
+    this.logger.log(`Searching character by channelId: ${channelId}`)
+    return this.characterRepository.findByChannelId(channelId)
   }
 
   /**
@@ -211,40 +207,36 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
+
+      // character.updatedイベントを発行
+      await this.typedEventService.emit('character.updated', {
+        character: updatedCharacter,
+        updateType: 'update',
+        source: 'character-service',
+        timestamp: new Date()
+      })
+
+      this.logger.log(`Character updated event emitted for: ${updatedCharacter.characterId}`)
     }
 
     return updatedCharacter
   }
 
   /**
-   * チャンネルIDでキャラクターを更新する
+   * チャンネルIDでキャラクターを更新する（単純化済み）
    * @param channelId DiscordチャンネルID
    * @param updateCharacterDto 更新データ
    */
   async updateByChannelId(channelId: string, updateCharacterDto: UpdateCharacterDto): Promise<Character | null> {
-    const useEventDriven = this.configService.get('prototype.eventDriven')
+    this.logger.log(`Updating character by channelId: ${channelId}`)
+    const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
+    const updatedCharacter = await this.characterRepository.updateByChannelId(channelId, convertedDto)
 
-    if (useEventDriven) {
-      // Phase 2: イベント駆動方式
-      this.logger.log(`[EVENT-DRIVEN] Updating character via events: ${channelId}`)
-
-      // 更新イベントを発行
-      await this.discordIntegrationService.requestCharacterUpdate(channelId, updateCharacterDto)
-
-      // 非同期処理の結果を待つ
-      return await this.waitForCharacterUpdateResult(channelId, updateCharacterDto)
-    } else {
-      // Phase 1: 既存の直接呼び出し方式
-      this.logger.log(`[DIRECT] Updating character directly: ${channelId}`)
-      const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
-      const updatedCharacter = await this.characterRepository.updateByChannelId(channelId, convertedDto)
-
-      if (updatedCharacter) {
-        await this.updateDiscordEmbed(updatedCharacter)
-      }
-
-      return updatedCharacter
+    if (updatedCharacter) {
+      await this.updateDiscordEmbed(updatedCharacter)
     }
+
+    return updatedCharacter
   }
 
   /**
@@ -258,6 +250,16 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
+
+      // character.updatedイベントを発行
+      await this.typedEventService.emit('character.updated', {
+        character: updatedCharacter,
+        updateType: `updateField-${field}`,
+        source: 'character-service',
+        timestamp: new Date()
+      })
+
+      this.logger.log(`Character updated event emitted for field update: ${updatedCharacter.characterId} (${field})`)
     }
 
     return updatedCharacter
@@ -278,59 +280,71 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
+
+      // character.updatedイベントを発行
+      await this.typedEventService.emit('character.updated', {
+        character: updatedCharacter,
+        updateType: `updateFieldByChannelId-${field}`,
+        channelId: channelId,
+        source: 'character-service',
+        timestamp: new Date()
+      })
+
+      this.logger.log(
+        `Character updated event emitted for field update by channelId: ${updatedCharacter.characterId} (${field})`
+      )
     }
 
     return updatedCharacter
   }
 
   /**
-   * キャラクターを削除する
+   * キャラクターを削除する（単純化済み）
    * @param id キャラクターID
-   * @param userId ユーザーID（イベント駆動時の権限チェック用）
+   * @param userId ユーザーID（将来の権限チェック用、現在は未使用）
    */
   async remove(id: string, userId?: string): Promise<Character | null> {
-    const useEventDriven = this.configService.get('prototype.eventDriven')
+    this.logger.log(`Deleting character: ${id}`)
+    const deletedCharacter = await this.characterRepository.remove(id)
 
-    if (useEventDriven && userId) {
-      // Phase 2: イベント駆動方式
-      this.logger.log(`[EVENT-DRIVEN] Deleting character via events: ${id}`)
+    if (deletedCharacter) {
+      // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
+      await this.typedEventService.emit('character.deleted', {
+        character: deletedCharacter,
+        source: 'character-service',
+        timestamp: new Date()
+      })
 
-      await this.discordIntegrationService.requestCharacterDeletion(id, userId, 'Direct deletion request')
-      return null // イベント駆動の場合は削除されたオブジェクトを返せないため
-    } else {
-      // Phase 1: 既存の直接呼び出し方式
-      this.logger.log(`[DIRECT] Deleting character directly: ${id}`)
-      return this.characterRepository.remove(id)
+      this.logger.log(`Character deleted event emitted for: ${deletedCharacter.characterId}`)
     }
+
+    return deletedCharacter
   }
 
   /**
-   * チャンネルIDでキャラクターを削除する
+   * チャンネルIDでキャラクターを削除する（単純化済み）
    * @param channelId DiscordチャンネルID
-   * @param userId ユーザーID（イベント駆動時の権限チェック用）
+   * @param userId ユーザーID（将来の権限チェック用、現在は未使用）
    */
   async removeByChannelId(channelId: string, userId?: string): Promise<void> {
-    const useEventDriven = this.configService.get('prototype.eventDriven')
+    this.logger.log(`Deleting character by channelId: ${channelId}`)
 
-    if (useEventDriven && userId) {
-      // Phase 2: イベント駆動方式
-      this.logger.log(`[EVENT-DRIVEN] Deleting character by channel via events: ${channelId}`)
+    // 削除前にキャラクター情報を取得
+    const character = await this.characterRepository.findByChannelId(channelId)
 
-      // まずキャラクターを取得してIDを確認
-      const character = await this.characterRepository.findByChannelId(channelId)
-      if (character) {
-        await this.discordIntegrationService.requestCharacterDeletion(
-          character.characterId,
-          userId,
-          'Channel-based deletion request'
-        )
-      } else {
-        this.logger.warn(`[EVENT-DRIVEN] Character not found for channel: ${channelId}`)
-      }
-    } else {
-      // Phase 1: 既存の直接呼び出し方式
-      this.logger.log(`[DIRECT] Deleting character by channel directly: ${channelId}`)
-      await this.characterRepository.removeByChannelId(channelId)
+    await this.characterRepository.removeByChannelId(channelId)
+
+    if (character) {
+      // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
+      await this.typedEventService.emit('character.deleted', {
+        character,
+        source: 'character-service',
+        timestamp: new Date()
+      })
+
+      this.logger.log(
+        `Character deleted event emitted for channelId: ${channelId}, characterId: ${character.characterId}`
+      )
     }
   }
 
@@ -355,92 +369,18 @@ export class CharacterService {
         return
       }
 
-      // イベント駆動でDiscord Embedの更新を要求
-      await this.typedEventEmitter.requestDiscordCharacterEmbedUpdate(
-        character,
-        character.discordChannelId,
-        'character-service'
-      )
+      // 🚨 REMOVED: 冗長なDiscord Embed更新イベント発行を削除
+      // character.update.completed イベントがFile-based Event Handlersにより自動処理されるため不要
 
-      this.logger.log(`キャラクター ${character.characterId} のDiscordEmbed更新イベントを発行しました`)
+      this.logger.log(
+        `キャラクター ${character.characterId} のDiscord連携準備完了（File-based Event Handlers経由で自動更新）`
+      )
     } catch (error) {
       this.logger.error(
-        `キャラクター ${character.characterId} のDiscordEmbed更新イベント発行中にエラーが発生しました: ${(error as Error).message}`
+        `キャラクター ${character.characterId} のDiscord連携処理中にエラーが発生しました: ${(error as Error).message}`
       )
     }
   }
 
-  /**
-   * キャラクター検索結果を待つ
-   * @param channelId チャンネルID
-   */
-  private async waitForCharacterSearchResult(channelId: string): Promise<Character | null> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Character search timeout'))
-      }, 5000)
-
-      const handleCharacterFound = (character: Character | null) => {
-        if (character && character.discordChannelId === channelId) {
-          clearTimeout(timeout)
-          resolve(character)
-        } else if (!character) {
-          clearTimeout(timeout)
-          resolve(null)
-        }
-      }
-
-      const handleCharacterNotFound = () => {
-        clearTimeout(timeout)
-        resolve(null)
-      }
-
-      // イベントリスナーを設定（簡単な実装）
-      // 実際の実装では適切なイベントバスのsubscribeを使用する必要があります
-      setTimeout(() => {
-        this.characterRepository.findByChannelId(channelId).then(handleCharacterFound).catch(handleCharacterNotFound)
-      }, 100)
-    })
-  }
-
-  /**
-   * キャラクター更新結果を待つ
-   * @param channelId チャンネルID
-   * @param updateData 更新データ
-   */
-  private async waitForCharacterUpdateResult(
-    channelId: string,
-    updateData: UpdateCharacterDto
-  ): Promise<Character | null> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Character update timeout'))
-      }, 5000)
-
-      const handleCharacterUpdated = (character: Character | null) => {
-        if (character && character.discordChannelId === channelId) {
-          clearTimeout(timeout)
-          resolve(character)
-        } else if (!character) {
-          clearTimeout(timeout)
-          resolve(null)
-        }
-      }
-
-      const handleCharacterUpdateFailed = () => {
-        clearTimeout(timeout)
-        resolve(null)
-      }
-
-      // イベントリスナーを設定（簡単な実装）
-      // 実際の実装では適切なイベントバスのsubscribeを使用する必要があります
-      setTimeout(() => {
-        const convertedUpdateData = this.convertUpdateDtoToCharacter(updateData)
-        this.characterRepository
-          .updateByChannelId(channelId, convertedUpdateData)
-          .then(handleCharacterUpdated)
-          .catch(handleCharacterUpdateFailed)
-      }, 100)
-    })
-  }
+  // EventDriven待機メソッドを削除 - 単純化により不要
 }

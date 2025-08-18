@@ -80,7 +80,7 @@ export class CharacterDisplayService implements OnModuleInit {
       ])
 
       if ('character' in result && result.character) {
-        return this.buildCharacterEmbed(result.character, tabType)
+        return this.buildCharacterEmbed(result.character as any, tabType)
       }
 
       this.logger.warn(`Character not found for channelId: ${channelId}`)

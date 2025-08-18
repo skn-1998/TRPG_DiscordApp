@@ -17,12 +17,16 @@ import { ConfigService } from '@nestjs/config'
 import { AuthService } from './services/auth.service'
 import { UserService } from '../user/user.service'
 import { User } from '../user/models/user.model'
-import { DiscordLoginDto } from './dto/discord-login.dto'
+import {
+  DiscordLoginDto,
+  ValidateTokenHeaderDto,
+  TokenValidationOutputDto,
+  GetUserParamDto
+} from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { ErrorHandler } from '../../utils/error-handler'
 import { CookieService } from '../../utils/cookie.service'
 import { ApiResponseUtil } from '../../utils/api-response.util'
-import { ValidateTokenHeaderDto, TokenValidationOutputDto, GetUserParamDto } from './dto/discord-login.dto'
 
 // Express型の拡張を使用（src/types/express/index.d.tsで定義）
 

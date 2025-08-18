@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { INestApplication } from '@nestjs/common'
+import { INestApplication, HttpException } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { HttpException } from '@nestjs/common'
 import { mockAuthProviders } from '../mocks/auth.mock'
 import { mockDiscordClient } from '../mocks/discord.mock'
 

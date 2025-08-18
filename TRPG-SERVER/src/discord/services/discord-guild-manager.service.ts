@@ -375,7 +375,7 @@ export class DiscordGuildManagerService {
         return { hasAccess: false, reason: 'Cannot check permissions for this channel type' }
       }
 
-      const permissions = (channel as any).permissionsFor(member)
+      const permissions = (channel as GuildChannel).permissionsFor(member)
       if (!permissions?.has(PermissionsBitField.Flags.ViewChannel)) {
         return { hasAccess: false, reason: 'User lacks permission to view channel' }
       }

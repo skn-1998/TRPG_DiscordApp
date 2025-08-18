@@ -38,6 +38,28 @@ export class DiceRollText {
 
   @Prop({ type: Date, default: Date.now })
   createdAt: Date
+
+  // 新しいフィールド（オプション・後方互換性）
+  @Prop({ required: false })
+  userId?: string
+
+  @Prop({ required: false })
+  diceExpression?: string
+
+  @Prop({ required: false })
+  resultDetails?: string
+
+  @Prop({ required: false })
+  reason?: string
+
+  @Prop({ required: false })
+  characterName?: string
+
+  @Prop({ required: false })
+  gameSystem?: string
+
+  // MongoDB _id プロパティの追加
+  _id?: any
 }
 
 /**

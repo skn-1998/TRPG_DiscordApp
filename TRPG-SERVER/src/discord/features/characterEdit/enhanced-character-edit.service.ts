@@ -23,10 +23,11 @@ import {
 import { Character } from '../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../shared/application/typed-event.service'
 import { ErrorHandler } from '../../../utils/error-handler'
+import { AttributeValue } from '../../../core/types/attribute.types'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
-import { DiscordClientService } from '../../services/discord-client.service'
+// DiscordClientService依存を完全削除 - イベント駆動アーキテクチャに移行
 
 /**
  * 統合キャラクター編集サービス
@@ -41,70 +42,59 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     private readonly typedEventService: TypedEventService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly sectionEditor: CharacterSectionEditorService,
-    private readonly modalHandler: CharacterModalHandlerService,
-    private readonly discordClientService: DiscordClientService
+    private readonly modalHandler: CharacterModalHandlerService
+    // DiscordClientService依存を完全削除 - 全てイベント駆動に移行
   ) {}
 
   /**
    * モジュール初期化
    */
   async onModuleInit(): Promise<void> {
-    this.registerEventHandlers()
+    // イベントハンドラー登録は削除 - EventRouterServiceで一元管理
     this.logger.log('Enhanced Character Edit Service initialized')
   }
 
   /**
-   * イベントハンドラーを登録
+   * 改善されたキャラクター編集画面を表示（イベント駆動）
    */
-  private registerEventHandlers(): void {
-    // キャラクター更新完了時のEmbed再表示
-    this.typedEventService.on('character.update.completed', this.handleCharacterUpdated.bind(this))
-
-    // Character更新汎用イベント（characterService.updateDiscordEmbedから）
-    this.typedEventService.on(
-      'discord.embed.character.update.requested',
-      this.handleDiscordEmbedUpdateRequested.bind(this)
-    )
-
-    // キャラクター自動更新イベント（character-edit専用）
-    this.typedEventService.on('character.updated', this.handleCharacterAutoUpdate.bind(this))
-
-    // キャラクター表示リクエストイベント（character-edit専用）
-    this.typedEventService.on('discord.character.display.requested', this.handleCharacterDisplayRequested.bind(this))
-
-    this.logger.debug('Enhanced Character Edit event handlers registered')
-  }
-
-  /**
-   * 改善されたキャラクター編集画面を表示
-   */
-  async displayEnhancedCharacterEdit(channel: TextChannel | ThreadChannel, character: Character): Promise<void> {
+  async displayEnhancedCharacterEdit(channelId: string, character: Character): Promise<void> {
     try {
-      this.logger.log(`Displaying enhanced character edit for: ${character.characterId}`)
+      this.logger.log(`Requesting enhanced character edit display for: ${character.characterId}`)
 
-      // 分割Embedを送信
-      await this.embedManager.sendSectionedEmbeds(channel, character)
+      // Discord Message送信リクエストイベント発行
+      const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
 
-      this.logger.log(`Enhanced character edit displayed successfully`)
+      await this.typedEventService.emit('discord.message.send.requested', {
+        channelId,
+        content: '',
+        embeds,
+        source: 'enhanced-character-edit',
+        timestamp: new Date()
+      })
+
+      this.logger.log(`Enhanced character edit display requested successfully`)
     } catch (error) {
       ErrorHandler.handleServiceError(
         error,
         {
-          channelId: channel.id,
+          channelId,
           characterId: character.characterId
         },
         'EnhancedCharacterEditService'
       )
 
-      // フォールバック: 簡易メッセージ
-      await channel.send({
-        content: `❌ ${character.characterName}の編集画面の表示に失敗しました。`
+      // フォールバック: エラーメッセージ送信
+      await this.typedEventService.emit('discord.message.send.requested', {
+        channelId,
+        content: `❌ ${character.characterName}の編集画面の表示に失敗しました。`,
+        source: 'enhanced-character-edit',
+        timestamp: new Date()
       })
     }
   }
 
   /**
-   * チャンネルIDからキャラクター編集画面を表示
+   * チャンネルIDからキャラクター編集画面を表示（イベント駆動）
    */
   async displayCharacterEditByChannelId(channelId: string): Promise<void> {
     try {
@@ -115,13 +105,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
         return
       }
 
-      // チャンネル情報を取得
-      // この部分はDiscordServiceやTypedEventServiceを使用して実装
-      // 簡略化のため、コメントとして記載
-      // const channel = await this.getChannelById(channelId)
-      // if (channel && channel instanceof TextChannel) {
-      //   await this.displayEnhancedCharacterEdit(channel, character)
-      // }
+      // イベント駆動でキャラクター編集画面を表示
+      await this.displayEnhancedCharacterEdit(channelId, character)
     } catch (error) {
       ErrorHandler.handleServiceError(error, { channelId }, 'EnhancedCharacterEditService')
     }
@@ -145,12 +130,18 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       // 更新ボタンの処理
       else if (customId.startsWith('character-refresh-')) {
         await this.handleRefreshButton(interaction)
+
+        // Embed更新リクエストイベント発火
+        await this.emitEmbedRefreshEvent(interaction)
       }
       // 簡易表示ボタンの処理
       else if (customId.startsWith('character-compact-view-')) {
         await this.handleCompactViewButton(interaction)
       }
     } catch (error) {
+      // エラーイベント発火
+      await this.emitErrorEvent(error, interaction.customId, interaction.user.id)
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -167,9 +158,15 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    */
   async handleSelectMenuInteraction(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
     try {
+      // セクション選択イベント発火
+      await this.emitSectionSelectedEvent(interaction)
+
       // セクションエディターに委譲
       await this.sectionEditor.execute(interaction)
     } catch (error) {
+      // エラーイベント発火
+      await this.emitErrorEvent(error, interaction.customId, interaction.user.id)
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -186,9 +183,15 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    */
   async handleModalSubmitInteraction(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {
     try {
+      // モーダル送信イベント発火
+      await this.emitModalSubmittedEvent(interaction)
+
       // モーダルハンドラーに委譲
       await this.modalHandler.handleModalSubmit(interaction)
     } catch (error) {
+      // エラーイベント発火
+      await this.emitErrorEvent(error, interaction.customId, interaction.user.id)
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -303,7 +306,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * Discord Embed更新リクエストイベントの処理
    */
-  private async handleDiscordEmbedUpdateRequested(
+  async handleDiscordEmbedUpdateRequested(
     payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.embed.character.update.requested'>
   ): Promise<void> {
     try {
@@ -346,7 +349,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * キャラクター表示リクエストイベントの処理
    */
-  private async handleCharacterDisplayRequested(
+  async handleCharacterDisplayRequested(
     payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.character.display.requested'>
   ): Promise<void> {
     try {
@@ -358,16 +361,10 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
       // character-edit専用: enhanced表示のみ処理
       if (displayType === 'enhanced' && this.isCharacterEditChannel(channelId)) {
-        // Discord チャンネルを取得
-        const discordClient = this.discordClientService.getClient()
-        const channel = await discordClient.channels.fetch(channelId)
-        if (!channel || !channel.isTextBased()) {
-          this.logger.warn(`Channel not found or not text-based: ${channelId}`)
-          return
-        }
+        this.logger.log(`[CHARACTER-EDIT] Processing enhanced display for ${character.characterId}`)
 
-        const textChannel = channel as TextChannel | ThreadChannel
-        await this.displayEnhancedCharacterEdit(textChannel, character)
+        // イベント駆動でEnhanced表示を実行
+        await this.displayEnhancedCharacterEdit(channelId, character)
 
         this.logger.log(`[CHARACTER-EDIT] Enhanced display completed for ${character.characterId}`)
       } else {
@@ -398,7 +395,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       const result = await resultPromise
 
       if ('character' in result && result.character) {
-        return result.character
+        // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
+        return result.character as any as Character
       }
 
       return null
@@ -428,7 +426,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       const result = await resultPromise
 
       if ('character' in result && result.character) {
-        return result.character
+        // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
+        return result.character as any as Character
       }
 
       return null
@@ -484,6 +483,9 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
     modal.addComponents(nameRow, systemRow)
 
+    // モーダル開始イベント発火
+    await this.emitModalOpenedEvent(interaction)
+
     await interaction.showModal(modal)
   }
 
@@ -499,23 +501,27 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * 新規キャラクター作成画面の表示
+   * 新規キャラクター作成画面の表示（イベント駆動）
    */
-  async displayNewCharacterCreation(channel: TextChannel | ThreadChannel, userId: string): Promise<void> {
+  async displayNewCharacterCreation(channelId: string, userId: string): Promise<void> {
     try {
-      const { embeds, components } = this.embedManager.createNewCharacterEmbed(channel.id, userId)
+      const { embeds, components } = this.embedManager.createNewCharacterEmbed(channelId, userId)
 
-      await channel.send({
+      // イベント駆動でメッセージを送信
+      await this.typedEventService.emit('discord.message.send.requested', {
+        channelId,
+        content: '',
         embeds,
-        components
+        source: 'enhanced-character-edit-creation',
+        timestamp: new Date()
       })
 
-      this.logger.log(`New character creation displayed for user: ${userId} in channel: ${channel.id}`)
+      this.logger.log(`New character creation display requested for user: ${userId} in channel: ${channelId}`)
     } catch (error) {
       ErrorHandler.handleServiceError(
         error,
         {
-          channelId: channel.id,
+          channelId,
           userId
         },
         'EnhancedCharacterEditService.displayNewCharacterCreation'
@@ -525,33 +531,25 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * 指定されたチャンネルのcharacterEdit embedを更新する
+   * 指定されたチャンネルのcharacterEdit embedを更新する（イベント駆動）
    */
   private async updateCharacterEditEmbed(character: Character, channelId: string): Promise<void> {
     try {
       this.logger.log(`Updating character edit embed for channel: ${channelId}, character: ${character.characterId}`)
 
-      // Discord チャンネルを取得
-      const discordClient = this.discordClientService.getClient()
-      const channel = await discordClient.channels.fetch(channelId)
-      if (!channel || !channel.isTextBased()) {
-        this.logger.warn(`Channel not found or not text-based: ${channelId}`)
-        return
-      }
-
-      const textChannel = channel as TextChannel
-
       // 新しいcharacterEdit embedを作成
       const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
 
-      // 更新メッセージを送信（新規投稿として）
-      await textChannel.send({
+      // イベント駆動で更新メッセージを送信
+      await this.typedEventService.emit('discord.message.send.requested', {
+        channelId,
         content: `🔄 ${character.characterName}の情報が更新されました`,
         embeds,
-        components
+        source: 'enhanced-character-edit-update',
+        timestamp: new Date()
       })
 
-      this.logger.log(`Character edit embed updated successfully for channel: ${channelId}`)
+      this.logger.log(`Character edit embed update requested for channel: ${channelId}`)
     } catch (error) {
       ErrorHandler.handleServiceError(
         error,
@@ -664,5 +662,157 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     }
 
     return null
+  }
+
+  // ============================================================================
+  // CharacterEdit Event Emission Methods
+  // ============================================================================
+
+  /**
+   * モーダル開始イベント発火
+   */
+  private async emitModalOpenedEvent(interaction: ButtonInteraction<CacheType>): Promise<void> {
+    try {
+      const characterId = this.extractCharacterIdFromCustomId(interaction.customId)
+      if (!characterId) return
+
+      await this.typedEventService.emit('characterEdit.modal.opened', {
+        characterId,
+        userId: interaction.user.id,
+        timestamp: new Date(),
+        sessionId: `modal-${Date.now()}`,
+        modal: {
+          sectionType: 'basic' as const,
+          fieldKey: 'characterName',
+          currentValue: { name: '', values: {}, isVisible: true } as AttributeValue
+        }
+      })
+    } catch (error) {
+      this.logger.error('Failed to emit modal opened event', error)
+    }
+  }
+
+  /**
+   * モーダル送信イベント発火
+   */
+  private async emitModalSubmittedEvent(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {
+    try {
+      // CustomIDからキャラクターIDとセクション情報を抽出
+      const parts = interaction.customId.split('-')
+      const characterId = parts[parts.length - 1] // 最後の部分をcharacterIDとする
+      const sectionType = parts[2] || 'unknown'
+      const fieldKey = parts[3] || 'unknown'
+
+      // モーダルから新しい値を取得
+      const newValue =
+        interaction.fields.getTextInputValue(`${sectionType}-${fieldKey}`) ||
+        interaction.fields.getTextInputValue('character-name') ||
+        interaction.fields.getTextInputValue('game-system') ||
+        ''
+
+      await this.typedEventService.emit('characterEdit.modal.submitted', {
+        characterId,
+        userId: interaction.user.id,
+        timestamp: new Date(),
+        sessionId: `modal-${Date.now()}`,
+        modal: {
+          sectionType: (sectionType as 'status' | 'parameter' | 'skill' | 'item' | 'basic') || 'basic',
+          fieldKey,
+          newValue: { name: newValue, values: {}, isVisible: true } as AttributeValue,
+          oldValue: { name: '', values: {}, isVisible: true } as AttributeValue
+        }
+      })
+    } catch (error) {
+      this.logger.error('Failed to emit modal submitted event', error)
+    }
+  }
+
+  /**
+   * セクション選択イベント発火
+   */
+  private async emitSectionSelectedEvent(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
+    try {
+      const characterId = this.extractCharacterIdFromCustomId(interaction.customId)
+      if (!characterId) return
+
+      const selectedValue = interaction.values[0]
+      const [sectionType, fieldKey] = selectedValue?.split('-') || ['unknown', 'unknown']
+
+      await this.typedEventService.emit('characterEdit.section.selected', {
+        characterId,
+        userId: interaction.user.id,
+        timestamp: new Date(),
+        sessionId: `section-${Date.now()}`,
+        section: {
+          sectionType: (sectionType as 'status' | 'parameter' | 'skill' | 'item' | 'basic') || 'basic',
+          displayMode: 'edit' as const
+        }
+      })
+
+      // フィールド選択イベントも同時発火
+      if (fieldKey && fieldKey !== 'unknown') {
+        await this.typedEventService.emit('characterEdit.field.selected', {
+          characterId,
+          userId: interaction.user.id,
+          timestamp: new Date(),
+          sessionId: `field-${Date.now()}`,
+          field: {
+            sectionType: (sectionType as 'status' | 'parameter' | 'skill' | 'item' | 'basic') || 'basic',
+            fieldKey,
+            action: 'edit' as const
+          }
+        })
+      }
+    } catch (error) {
+      this.logger.error('Failed to emit section selected event', error)
+    }
+  }
+
+  /**
+   * Embed更新リクエストイベント発火
+   */
+  private async emitEmbedRefreshEvent(interaction: ButtonInteraction<CacheType>): Promise<void> {
+    try {
+      const characterId = this.extractCharacterIdFromCustomId(interaction.customId)
+      if (!characterId) return
+
+      await this.typedEventService.emit('characterEdit.embed.refresh.requested', {
+        characterId,
+        userId: interaction.user.id,
+        timestamp: new Date(),
+        sessionId: `embed-${Date.now()}`,
+        embed: {
+          channelId: interaction.channelId || '',
+          embedType: 'enhanced' as const,
+          section: 'status' as const
+        }
+      })
+    } catch (error) {
+      this.logger.error('Failed to emit embed refresh event', error)
+    }
+  }
+
+  /**
+   * エラーイベント発火
+   */
+  private async emitErrorEvent(error: any, customId: string, userId: string): Promise<void> {
+    try {
+      const characterId = this.extractCharacterIdFromCustomId(customId)
+
+      await this.typedEventService.emit('characterEdit.error.occurred', {
+        characterId: characterId || 'unknown',
+        userId,
+        timestamp: new Date(),
+        error: {
+          code: 'ENHANCED_CHARACTER_EDIT_ERROR',
+          message: error.message || 'Unknown error',
+          operation: customId,
+          details: { customId, stack: error.stack },
+          severity: 'medium'
+        }
+      })
+    } catch (emitError) {
+      this.logger.error('Failed to emit error event', emitError)
+    }
   }
 }

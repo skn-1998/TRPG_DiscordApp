@@ -22,22 +22,8 @@ export class CharacterNotificationService {
     try {
       const clientUrl = generateAppConfig().app.frontendUrl
       const url = `${clientUrl}/characters/${characterId}`
-
-      // セレクトメニューを直接作成（自己完結型）
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(characterEditIds.changeCharacterInfo.customId)
-        .setPlaceholder(characterEditIds.changeCharacterInfo.placeholder)
-        .addOptions(
-          new StringSelectMenuOptionBuilder().setLabel('ステータス').setValue('status'),
-          new StringSelectMenuOptionBuilder().setLabel('パラメータ').setValue('parameter'),
-          new StringSelectMenuOptionBuilder().setLabel('スキル').setValue('skill')
-        )
-
-      const selectComponent = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu)
-
       await channel.send({
-        content: url,
-        components: [selectComponent]
+        content: url
       })
 
       this.logger.log(`キャラクター「${characterName}」の通知を送信しました`)

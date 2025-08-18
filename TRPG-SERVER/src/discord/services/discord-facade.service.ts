@@ -8,7 +8,7 @@ import { UpdateCharacterDto } from '../../domains/character/dto/update-character
  * CharacterServiceへの直接依存を排除し、イベント駆動パターンを使用
  *
  * @deprecated このサービスは段階的に廃止予定
- * 新しい機能はDiscordIntegrationServiceを使用してください
+ * 新しい機能はイベント駆動アーキテクチャ（TypedEventService）を使用してください
  */
 @Injectable()
 export class DiscordFacadeService {
@@ -70,11 +70,11 @@ export class DiscordFacadeService {
 
   /**
    * 【PHASE3】 チャンネルIDでキャラクターを更新
-   * @deprecated DiscordIntegrationService.requestCharacterUpdateを使用してください
+   * @deprecated TypedEventService.emit('character.update.requested', ...)を使用してください
    */
   async updateCharacterByChannelId(channelId: string, updateData: UpdateCharacterDto): Promise<Character | null> {
     console.warn(
-      '[PHASE3] DiscordFacadeService.updateCharacterByChannelId is deprecated. Use DiscordIntegrationService.'
+      '[PHASE3] DiscordFacadeService.updateCharacterByChannelId is deprecated. Use TypedEventService.emit("character.update.requested", ...).'
     )
 
     // イベント駆動パターンで更新リクエスト
@@ -91,10 +91,12 @@ export class DiscordFacadeService {
 
   /**
    * 【PHASE3】 キャラクターを更新
-   * @deprecated DiscordIntegrationService.requestCharacterUpdateを使用してください
+   * @deprecated TypedEventService.emit('character.update.requested', ...)を使用してください
    */
   async updateCharacter(characterId: string, updateData: UpdateCharacterDto): Promise<Character | null> {
-    console.warn('[PHASE3] DiscordFacadeService.updateCharacter is deprecated. Use DiscordIntegrationService.')
+    console.warn(
+      '[PHASE3] DiscordFacadeService.updateCharacter is deprecated. Use TypedEventService.emit("character.update.requested", ...).'
+    )
 
     // イベント駆動パターンで更新リクエスト（現行契約はchannelIdベースのため空文字を設定）
     await this.typedEventService.emit('character.update.requested', {

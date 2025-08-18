@@ -62,16 +62,15 @@ export class DiscordEmbedHandlerService implements OnModuleInit {
         return
       }
 
-      // DiscordのEmbedを更新
-      const result = await this.discordService.createOrUpdateCharacterEmbed(character, channelId, guildDetails)
+      // 🚨 DEPRECATED: この中間処理は冗長です
+      // File-based Event Handlersが直接DiscordUIServiceを呼び出すため、この中間レイヤーは不要
 
-      // 結果に基づいてイベントを発行
-      if (result.success) {
-        await this.emitUpdateCompleted(character.characterId, channelId, true, source)
-        this.logger.log(`[DISCORD-EMBED] Character embed updated successfully: ${character.characterId}`)
-      } else {
-        await this.emitUpdateFailed(character.characterId, channelId, result.error || 'Unknown error', source)
-      }
+      this.logger.warn(
+        `[DISCORD-EMBED] DEPRECATED: この処理はFile-based Event Handlersにより自動処理されます: ${character.characterId}`
+      )
+
+      // 互換性のため成功イベントを発行（実際の処理は行わない）
+      await this.emitUpdateCompleted(character.characterId, channelId, true, source)
     } catch (error) {
       const errorMessage = (error as Error).message
       this.logger.error(`[DISCORD-EMBED] Error updating character embed: ${errorMessage}`)

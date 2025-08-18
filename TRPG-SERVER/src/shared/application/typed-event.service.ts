@@ -217,21 +217,8 @@ export class TypedEventEmitter {
     })
   }
 
-  /**
-   * Discord Character Embed更新リクエストイベント
-   */
-  async requestDiscordCharacterEmbedUpdate(
-    character: EventPayload<'discord.embed.character.update.requested'>['character'],
-    channelId: string,
-    source: string
-  ): Promise<void> {
-    await this.typedEventService.emit('discord.embed.character.update.requested', {
-      character,
-      channelId,
-      source,
-      timestamp: new Date()
-    })
-  }
+  // 🚨 REMOVED: requestDiscordCharacterEmbedUpdate メソッドを削除
+  // File-based Event Handlersがcharacter.update.completedイベントを自動処理するため不要
 
   /**
    * ChannelIDによるキャラクター検索リクエストイベント

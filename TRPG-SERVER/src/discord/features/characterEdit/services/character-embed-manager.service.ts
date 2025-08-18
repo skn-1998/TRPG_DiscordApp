@@ -637,9 +637,17 @@ export class CharacterEmbedManagerService {
         description: characterData.description
       }
 
-      // キャラクター作成イベントを発行
+      // キャラクター作成イベントを発行 (Event Bridge対応)
       await this.typedEventService.emit('character.creation.requested', {
         createData,
+        requester: {
+          featureId: 'characterEdit',
+          context: {
+            channelId: channelId,
+            sectionType: 'basic',
+            triggeredBy: 'modal' // embed manager経由はモーダル入力
+          }
+        },
         userId,
         source: 'character-embed-manager',
         timestamp: new Date()

@@ -5,7 +5,6 @@ import { CharacterRepository } from '../repositories/character.repository'
 import { UserService } from '../../user/user.service'
 import { CreateCharacterDto } from '../dto/create-character.dto'
 import { Character } from '../models/character.model'
-import { v4 as uuidv4 } from 'uuid'
 import { randomBytes } from 'crypto'
 
 /**
@@ -32,32 +31,20 @@ export class CharacterEventHandlerService implements OnModuleInit {
 
   /**
    * イベントリスナーの登録
+   *
+   * 注意: File-based Event Handlersの導入により、以下のイベントリスナーは削除されました：
+   * - character.update.requested → CharacterUpdateRequestedHandler
+   * - character.findByChannelId.requested → CharacterFindByChannelIdRequestedHandler
+   * - character.findById.requested → CharacterFindByIdRequestedHandler
+   * - character.findByName.requested → CharacterFindByNameRequestedHandler
+   *
+   * このサービスはレガシーサービスとして、将来的に削除予定です。
    */
   private registerEventListeners(): void {
-    // キャラクター作成リクエストイベント
-    this.typedEventService.on('character.creation.requested', async (payload) => {
-      await this.handleCharacterCreationRequested(payload)
-    })
+    // 🚨 すべてのイベントリスナーはFile-based Event Handlersに移行済み
+    // 重複登録を避けるため、このメソッドでのリスナー登録は無効化
 
-    // キャラクター更新リクエストイベント
-    this.typedEventService.on('character.update.requested', async (payload) => {
-      await this.handleCharacterUpdateRequested(payload)
-    })
-
-    // キャラクター検索リクエストイベント
-    this.typedEventService.on('character.findByChannelId.requested', async (payload) => {
-      await this.handleCharacterSearchRequested(payload)
-    })
-
-    this.typedEventService.on('character.findById.requested', async (payload) => {
-      await this.handleCharacterSearchByIdRequested(payload)
-    })
-
-    this.typedEventService.on('character.findByName.requested', async (payload) => {
-      await this.handleCharacterSearchByNameRequested(payload)
-    })
-
-    this.logger.debug('Character event listeners registered')
+    this.logger.debug('Character event listeners registration skipped (migrated to File-based Event Handlers)')
   }
 
   /**
@@ -87,70 +74,46 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.debug(`Character ID collision detected: ${result}, retrying (${attempts}/${maxAttempts})`)
     }
 
-    // 最大試行回数を超えた場合はUUIDにフォールバック
-    this.logger.warn('Failed to generate unique short ID, falling back to UUID')
-    return uuidv4()
+    // 最大試行回数を超えた場合はエラーを投げる
+    throw new Error(`Failed to generate unique short character ID after ${maxAttempts} attempts`)
   }
 
   /**
-   * キャラクター作成リクエストの処理
+   * キャラクター作成完了イベントの処理
+   * 注意: 現在はChannel Create Orchestratorで統一処理されるため使用されない
    */
-  private async handleCharacterCreationRequested(payload: EventPayload<'character.creation.requested'>): Promise<void> {
-    try {
-      this.logger.log(`Character creation requested: ${payload.createData.characterName}`)
+  // private async handleCharacterCreated(payload: EventPayload<'character.created'>): Promise<void> {
+  //   try {
+  //     const { character } = payload
+  //     this.logger.log(`Character created event received: ${character.characterId} (${character.characterName})`)
 
-      // キャラクターIDがない場合は短いIDを生成
-      const characterId = payload.createData.characterId || (await this.generateUniqueShortCharacterId())
+  //     // Discord Channelが設定されている場合、characterEdit Embedの作成を要求
+  //     if (character.discordChannelId) {
+  //       this.logger.log(`Requesting characterEdit embed creation for channel: ${character.discordChannelId}`)
 
-      // CreateCharacterDtoからCharacterオブジェクトに変換
-      const character: Partial<Character> = {
-        characterId,
-        gameSystemId: payload.createData.gameSystemId,
-        characterName: payload.createData.characterName,
-        discordUserId: payload.createData.discordUserId,
-        discordChannelId: payload.createData.discordChannelId,
-        status: (payload.createData.status as any) || {},
-        skill: (payload.createData.skill as any) || {},
-        parameter: (payload.createData.parameter as any) || {}
-      }
+  //       // Discord Character Display リクエストイベント発火
+  //       await this.typedEventService.emit('discord.character.display.requested', {
+  //         character,
+  //         channelId: character.discordChannelId,
+  //         guildId: 'default-guild', // 後でDiscordサービスから動的に取得可能
+  //         requesterId: character.discordUserId || 'system',
+  //         displayType: 'enhanced',
+  //         source: 'character-created',
+  //         timestamp: new Date()
+  //       })
 
-      // キャラクターを作成
-      const createdCharacter = await this.characterRepository.create(character)
+  //       this.logger.log(`CharacterEdit embed creation requested for character: ${character.characterId}`)
+  //     } else {
+  //       this.logger.debug(`No Discord channel ID found for character: ${character.characterId}, skipping embed creation`)
+  //     }
+  //   } catch (error) {
+  //     this.logger.error(`Failed to handle character created event for character: ${payload.character?.characterId}`, error)
+  //   }
+  // }
 
-      // ユーザーにキャラクターIDを追加
-      if (payload.createData.discordUserId) {
-        await this.userService.addCharacterId(payload.createData.discordUserId, characterId)
-      }
-
-      // 成功イベントを発行
-      await this.typedEventService.emit('character.creation.completed', {
-        character: createdCharacter,
-        source: payload.source,
-        timestamp: new Date()
-      })
-
-      await this.typedEventService.emit('character.update.completed', {
-        channelId: payload.createData.discordChannelId || '',
-        character: createdCharacter,
-        source: payload.source,
-        timestamp: new Date()
-      })
-
-      this.logger.log(
-        `Character created successfully: ${createdCharacter.characterName} (ID: ${createdCharacter.characterId})`
-      )
-    } catch (error) {
-      this.logger.error('Character creation failed:', error)
-
-      // 失敗イベントを発行
-      await this.typedEventService.emit('character.creation.failed', {
-        createData: payload.createData,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        source: payload.source,
-        timestamp: new Date()
-      })
-    }
-  }
+  // 削除: Event Bridge移行完了により不要
+  // handleCharacterCreationRequested メソッドは削除されました
+  // 新しい処理は CharacterService.create() → CharacterEditCreationHandler で実行されます
 
   /**
    * キャラクター更新リクエストの処理
@@ -206,7 +169,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       // 成功イベントを発行（キャラクターが見つからない場合もnullで成功とする）
       await this.typedEventService.emit('character.findByChannelId.completed', {
         channelId: payload.channelId,
-        character: character,
+        character: character as any,
         source: payload.source,
         timestamp: new Date()
       })
@@ -243,7 +206,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
         // 成功イベントを発行
         await this.typedEventService.emit('character.findById.completed', {
           characterId: payload.characterId,
-          character: character,
+          character: character as any,
           source: payload.source,
           timestamp: new Date()
         })
@@ -287,7 +250,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
         // 成功イベントを発行
         await this.typedEventService.emit('character.findByName.completed', {
           characterName: payload.characterName,
-          character: character,
+          character: character as any,
           source: payload.source,
           timestamp: new Date()
         })
