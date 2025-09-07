@@ -81,42 +81,6 @@ function SideGroup({ headerText, children }: SideGroupProps) {
   )
 }
 
-//
-function SideCellGroup() {
-  const [value, setValue] = useState('運転（）')
-
-  const changeHandler = (e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value)
-
-  return (
-    <>
-      <SideInputCell value={value} changeHandler={changeHandler} />
-    </>
-  )
-}
-
-function SideCellGroup2() {
-  return (
-    <>
-      <TextCell text="qqq" />
-      <TextCell text="www" />
-      <TextCell text="eee" />
-      <TextCell text="rrr" />
-    </>
-  )
-}
-
-export function TestSideGroup() {
-  return (
-    <>
-      <SideGroup headerText="hello">
-        <SideCellGroup />
-        <SideCellGroup2 />
-      </SideGroup>
-    </>
-  )
-}
-//
-
 type ColumnProps = {
   headerText: string
   children: ReactNode
@@ -134,60 +98,6 @@ function Column({ headerText, children }: ColumnProps) {
     </>
   )
 }
-
-//
-type aaa = {
-  text: string
-  disabled?: boolean
-}
-
-function TestColumn({ text, disabled = false }: aaa) {
-  return (
-    <>
-      <Column headerText={text}>
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-      </Column>
-    </>
-  )
-}
-
-export function TestTable() {
-  return (
-    <>
-      <div className={styles.widthWrap}>
-        <div className={styles.tableWrap}>
-          <TestSideGroup />
-          <TestColumn text="初期値" disabled={true} />
-          <TestColumn text="職業P" />
-          <TestColumn text="興味P" />
-          <TestColumn text="その他" />
-          <TestColumn text="合計" disabled={true} />
-          <TestButtonColumn text="" />
-        </div>
-      </div>
-    </>
-  )
-}
-
-function TestButtonColumn({ text }: aaa) {
-  return (
-    <>
-      <Column headerText={text}>
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-      </Column>
-    </>
-  )
-}
-
-//
 
 type ButtonCellProps = {
   clickHandler?: () => void

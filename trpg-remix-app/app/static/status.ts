@@ -54,5 +54,37 @@ export const status = {
       initial: '',
       other: ''
     }
+  },
+  SAN: {
+    index: 7,
+    name: 'SAN',
+    values: {
+      initial: '',
+      other: ''
+    }
+  },
+  idea: {
+    index: 8,
+    name: 'アイデア',
+    values: {
+      initial: '',
+      other: ''
+    }
+  },
+  luck: {
+    index: 9,
+    name: '幸運',
+    values: {
+      initial: '',
+      other: ''
+    }
+  },
+  knowledge: {
+    index: 10,
+    name: '知識',
+    values: {
+      initial: '',
+      other: ''
+    }
   }
 }
