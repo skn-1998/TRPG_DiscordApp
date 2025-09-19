@@ -718,14 +718,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 ```typescript
 // ❌ 潜在的なパフォーマンス問題
-- 不要な再レンダリング
-- 大きなバンドルサイズ
-- 画像の最適化不足
-
-// ✅ 最適化項目
-- React.memo, useMemo, useCallbackの適切な使用
-- コード分割の実装
-- 画像の遅延読み込み・WebP対応
+;(-不要な再レンダリング -
+  大きなバンドルサイズ -
+  画像の最適化不足 -
+  // ✅ 最適化項目
+  React.memo,
+  useMemo,
+  useCallbackの適切な使用 - コード分割の実装 - 画像の遅延読み込み・WebP対応)
 ```
 
 #### 11. **アクセシビリティの向上**
@@ -1134,13 +1133,11 @@ const authData = authHandler.handleSuccess(response) // 型推論が効く
 **実装内容**:
 
 1. **中央集権的な型定義** (`app/types/api.ts`)
-
    - `KnownDomains`: 型安全なドメイン定義
    - `DomainDataMap`: ドメインとデータ型のマッピング
    - `ApiResponse<T, Domain>`: 統合レスポンス型
 
 2. **型安全なAPIクライアント** (`app/lib/api-client.ts`)
-
    - `getDomain/postDomain/putDomain/deleteDomain`: 新しい型安全メソッド
    - 既存メソッドとの後方互換性を維持
 

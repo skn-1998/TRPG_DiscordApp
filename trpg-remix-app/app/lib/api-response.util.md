@@ -160,7 +160,6 @@ apiClient.delete<T>(url, config?)
    ```
 
 2. **IntelliSenseサポート**
-
    - IDEでの自動補完
    - プロパティの型情報表示
    - リファクタリング支援
