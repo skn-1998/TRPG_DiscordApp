@@ -1,4 +1,3 @@
-/* eslint-disable indent */
 import { IsArray, IsOptional, IsString } from 'class-validator'
 import { PartialType } from '@nestjs/mapped-types'
 import { DiceRollChannelInputDto } from './create-dice-roll-channel.dto'

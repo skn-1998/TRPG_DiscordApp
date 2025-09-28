@@ -1,4 +1,3 @@
-/* eslint-disable indent */
 import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator'
 import { BaseDto, ValidationUtils } from '../../../core/dto/base.dto'
 

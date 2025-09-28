@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { Controller, Logger, Inject, forwardRef } from '@nestjs/common'
 import { DiceButtonService } from '../features/diceRoll/adapters/dice-button.adapter'
 import {
