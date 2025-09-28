@@ -1,8 +1,7 @@
 import { Controller, Get, Post, Query, UseGuards, Logger, HttpException, HttpStatus } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../domains/auth/guards/jwt-auth.guard'
-import { PerformanceMetricsIntegrationService } from '../services/performance-metrics-integration.service'
-import { DiscordPerformanceMonitorService } from '../services/discord-performance-monitor.service'
+import { PerformanceOrchestratorService } from '../services/monitoring/performance-orchestrator.service'
 
 /**
  * パフォーマンスダッシュボードコントローラー
@@ -15,10 +14,7 @@ import { DiscordPerformanceMonitorService } from '../services/discord-performanc
 export class PerformanceDashboardController {
   private readonly logger = new Logger(PerformanceDashboardController.name)
 
-  constructor(
-    private readonly performanceMetrics: PerformanceMetricsIntegrationService,
-    private readonly discordPerformanceMonitor: DiscordPerformanceMonitorService
-  ) {}
+  constructor(private readonly performanceOrchestrator: PerformanceOrchestratorService) {}
 
   /**
    * 総合パフォーマンス統計を取得
@@ -68,7 +64,7 @@ export class PerformanceDashboardController {
   }> {
     try {
       this.logger.log('パフォーマンス統計取得要求')
-      const stats = this.performanceMetrics.getPerformanceStats()
+      const stats = this.performanceOrchestrator.getPerformanceSummary()
       this.logger.log('パフォーマンス統計取得完了')
       return stats
     } catch (error) {
@@ -103,7 +99,7 @@ export class PerformanceDashboardController {
     try {
       this.logger.log('ヘルス状態取得要求')
 
-      const discordHealth = this.discordPerformanceMonitor.getHealthStatus()
+      const discordHealth = this.performanceOrchestrator.getSystemHealth()
       const timestamp = Date.now()
 
       // 全体のヘルス状態を判定
@@ -126,7 +122,11 @@ export class PerformanceDashboardController {
       const result = {
         status: overallStatus,
         issues: allIssues,
-        metrics: discordHealth.metrics,
+        metrics: {
+          avgResponseTime: discordHealth.metrics.discord.avgResponseTime || 0,
+          errorRate: discordHealth.metrics.discord.errorRate || 0,
+          activeAlerts: discordHealth.metrics.alerts.active || 0
+        },
         timestamp,
         services: {
           discord: {
@@ -171,7 +171,7 @@ export class PerformanceDashboardController {
   }> {
     try {
       this.logger.log('Discord統計取得要求')
-      const stats = this.discordPerformanceMonitor.getStats()
+      const stats = this.performanceOrchestrator.getPerformanceSummary().discord
 
       const result = {
         ...stats,
@@ -226,7 +226,7 @@ export class PerformanceDashboardController {
     try {
       this.logger.log(`時系列メトリクス取得要求: period=${period}, metric=${metric}`)
 
-      const stats = this.performanceMetrics.getPerformanceStats()
+      const stats = this.performanceOrchestrator.getPerformanceSummary()
       const data: Array<{ timestamp: number; value: number; label: string }> = []
 
       // 期間に応じてデータソースを選択
@@ -318,14 +318,15 @@ export class PerformanceDashboardController {
     try {
       this.logger.log('アクティブアラート取得要求')
 
-      const discordStats = this.discordPerformanceMonitor.getStats()
-      const healthStatus = this.discordPerformanceMonitor.getHealthStatus()
+      const discordStats = this.performanceOrchestrator.getPerformanceSummary().discord
+      const healthStatus = this.performanceOrchestrator.getSystemHealth()
 
       // アラートの重要度分類（簡易実装）
       const criticalAlerts = discordStats.alerts.filter(
-        (alert) => alert.includes('critical') || alert.includes('rate-limited') || alert.includes('consecutive-errors')
+        (alert: string) =>
+          alert.includes('critical') || alert.includes('rate-limited') || alert.includes('consecutive-errors')
       )
-      const warningAlerts = discordStats.alerts.filter((alert) => !criticalAlerts.includes(alert))
+      const warningAlerts = discordStats.alerts.filter((alert: string) => !criticalAlerts.includes(alert))
 
       const result = {
         activeAlerts: discordStats.alerts,
@@ -354,7 +355,7 @@ export class PerformanceDashboardController {
     try {
       this.logger.log('メトリクスリセット要求')
 
-      this.performanceMetrics.resetAllMetrics()
+      this.performanceOrchestrator.resetMonitoring()
 
       const result = {
         success: true,

@@ -9,15 +9,23 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
+    "baseUrl": "./src",
     "paths": {
-      "src/*": ["./src/*"],
-      "@app/*": ["./src/*"],
-      "@config/*": ["./src/config/*"],
-      "@domains/*": ["./src/domains/*"],
-      "@auth/*": ["./src/auth/*"],
-      "@discord/*": ["./src/discord/*"],
-      "@middleware/*": ["./src/middleware/*"]
+      // srcからの相対パス（推奨）
+      "*": ["./*"],
+      "src/*": ["./*"],
+      
+      // エイリアスパス（オプション）
+      "@/*": ["./*"],
+      "@app/*": ["./*"],
+      "@config/*": ["./config/*"],
+      "@domains/*": ["./domains/*"],
+      "@auth/*": ["./auth/*"],
+      "@discord/*": ["./discord/*"],
+      "@events/*": ["./events/*"],
+      "@shared/*": ["./shared/*"],
+      "@utils/*": ["./utils/*"],
+      "@middleware/*": ["./middleware/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

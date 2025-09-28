@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
 import { TypedEventService } from '../shared/application/typed-event.service'
 import { EventHandler, EventContext } from './handlers/_shared/event-handler.base'
-import { CharacterEventContracts } from '../shared/domain/events/event-contracts'
+import { CharacterEventContracts } from './contracts'
 
 // ハンドラーのインポート
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
@@ -10,8 +10,9 @@ import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.f
 import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
 import { CharacterCreationCompletedHandler } from './handlers/character.creation.completed'
 import { CharacterUpdateCompletedHandler } from './handlers/character.update.completed'
-import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
+// import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
 import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
+import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.create.requested'
 
 /**
  * File-based Event Registry Service
@@ -42,8 +43,9 @@ export class EventRegistryService implements OnModuleInit {
     private readonly characterFindByIdHandler: CharacterFindByIdRequestedHandler,
     private readonly characterCreationCompletedHandler: CharacterCreationCompletedHandler,
     private readonly characterUpdateCompletedHandler: CharacterUpdateCompletedHandler,
-    private readonly characterDeletionCompletedHandler: CharacterDeletionCompletedHandler,
-    private readonly characterFindByNameHandler: CharacterFindByNameRequestedHandler
+    // private readonly characterDeletionCompletedHandler: CharacterDeletionCompletedHandler,
+    private readonly characterFindByNameHandler: CharacterFindByNameRequestedHandler,
+    private readonly discordThreadCreateRequestedHandler: DiscordThreadCreateRequestedHandler
     // 新しいハンドラーはここに追加
   ) {}
 
@@ -72,8 +74,9 @@ export class EventRegistryService implements OnModuleInit {
       this.characterFindByIdHandler,
       this.characterCreationCompletedHandler,
       this.characterUpdateCompletedHandler,
-      this.characterDeletionCompletedHandler,
-      this.characterFindByNameHandler
+      // this.characterDeletionCompletedHandler,
+      this.characterFindByNameHandler,
+      this.discordThreadCreateRequestedHandler
       // 新しいハンドラーはここに追加
     ]
 
@@ -114,7 +117,7 @@ export class EventRegistryService implements OnModuleInit {
     this.handlers.set(eventName, handler)
 
     // TypedEventService にリスナー登録
-    this.typedEventService.on(eventName as keyof CharacterEventContracts, async (event) => {
+    this.typedEventService.on(eventName, async (event) => {
       await this.executeHandler(eventName, event)
     })
 
@@ -160,8 +163,8 @@ export class EventRegistryService implements OnModuleInit {
    * イベント名形式の検証
    */
   private isValidEventName(eventName: string): boolean {
-    // ドット記法の検証: domain.action.type（キャメルケース許可）
-    const pattern = /^[a-zA-Z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*$/
+    // ドット記法の検証: domain.action.type（複数セグメント許可、英数字・ハイフン許可）
+    const pattern = /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*){2,}$/
     return pattern.test(eventName)
   }
 

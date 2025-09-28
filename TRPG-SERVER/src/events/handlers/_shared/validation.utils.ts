@@ -74,8 +74,8 @@ export function validateCharacterId(value: string, fieldName: string): void {
   validatePattern(
     value,
     fieldName,
-    /^[a-z0-9]{8,12}$/,
-    `${fieldName} must be a valid character ID (8-12 lowercase alphanumeric)`
+    /^char_[a-z0-9]{8,12}$/,
+    `${fieldName} must be a valid character ID (char_ prefix + 8-12 lowercase alphanumeric)`
   )
 }
 

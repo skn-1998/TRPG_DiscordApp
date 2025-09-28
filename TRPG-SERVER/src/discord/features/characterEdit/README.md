@@ -340,15 +340,6 @@ async execute(channel: TextChannel): Promise<void> {
   // 3. 後続処理はイベントハンドラーで実行
 }
 ```
-
-### 2. イベント駆動による非同期処理
-
-- **character.creation.requested**: キャラクター作成要求
-- **character.creation.completed**: キャラクター作成完了  
-- **character.creation.failed**: キャラクター作成失敗
-- **character.update.completed**: キャラクター更新完了
-- **character.update.failed**: キャラクター更新失敗
-
 ### 3. MongoDB Atlas 統合
 
 新しい **AttributeValue** システムを使用:

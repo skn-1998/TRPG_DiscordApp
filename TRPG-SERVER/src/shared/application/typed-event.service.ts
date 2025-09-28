@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import { EventName, EventPayload, TypedEventHandler, TypedEventListener } from '../domain/events/event-contracts'
+import { EventName, EventPayload, TypedEventHandler, TypedEventListener } from '../../events/contracts'
 
 /**
  * 型安全なイベントサービス

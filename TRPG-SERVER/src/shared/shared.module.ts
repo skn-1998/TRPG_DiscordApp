@@ -1,6 +1,5 @@
 import { Global, Module } from '@nestjs/common'
 import { EventEmitterModule, EventEmitter2 } from '@nestjs/event-emitter'
-import { EventBusService } from './application/event-bus.service'
 import { TypedEventService, TypedEventEmitter } from './application/typed-event.service'
 
 /**
@@ -22,7 +21,6 @@ import { TypedEventService, TypedEventEmitter } from './application/typed-event.
     })
   ],
   providers: [
-    EventBusService,
     {
       provide: 'TYPED_EVENT_EMITTER',
       useFactory: () =>
@@ -47,6 +45,6 @@ import { TypedEventService, TypedEventEmitter } from './application/typed-event.
       inject: [TypedEventService]
     }
   ],
-  exports: [EventBusService, TypedEventService, TypedEventEmitter]
+  exports: [TypedEventService, TypedEventEmitter]
 })
 export class SharedModule {}

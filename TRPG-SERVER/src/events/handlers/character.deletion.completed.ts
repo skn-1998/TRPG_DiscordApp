@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { EventHandler, EventContext } from './_shared/event-handler.base'
-import { DiscordUIService } from '../../discord/services/discord-ui.service'
-import { CharacterDeletionCompletedEvent } from '../contracts/unified-event-contracts'
+import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
+import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
+import { CharacterDeletionCompletedEvent } from 'events/contracts/unified-event-contracts'
 
 /**
  * character.deletion.completed 専用ハンドラー
@@ -13,7 +13,7 @@ import { CharacterDeletionCompletedEvent } from '../contracts/unified-event-cont
  */
 @Injectable()
 export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDeletionCompletedEvent> {
-  constructor(private readonly discordUIService: DiscordUIService) {
+  constructor(private readonly characterUIService: CharacterUIService) {
     super()
   }
 
@@ -52,7 +52,7 @@ export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDel
     // 1. 削除完了通知の送信（チャンネルが存在する場合）
     if (deletedCharacterData.discordChannelId) {
       try {
-        await this.discordUIService.sendCharacterDeletionNotification(
+        await this.characterUIService.sendCharacterDeletionNotification(
           deletedCharacterData.discordChannelId,
           deletedCharacterData.characterName,
           deletedCharacterData.discordUserId
@@ -79,7 +79,7 @@ export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDel
     // 3. 関連するEmbedメッセージの削除・更新
     if (deletedCharacterData.discordChannelId) {
       try {
-        await this.discordUIService.removeCharacterEmbeds(deletedCharacterData.discordChannelId)
+        await this.characterUIService.removeCharacterEmbeds(deletedCharacterData.discordChannelId)
         this.logger.debug(`✅ Character embeds removed successfully`)
       } catch (error) {
         this.logger.warn(
@@ -101,8 +101,8 @@ export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDel
       // チャンネル名を変更してアーカイブ状態を示す
       const archivedChannelName = `🗄️-archived-${characterName.toLowerCase().replace(/\s+/g, '-')}`
 
-      await this.discordUIService.updateChannelName(channelId, archivedChannelName)
-      await this.discordUIService.archiveChannel(channelId)
+      await this.characterUIService.updateChannelName(channelId, archivedChannelName)
+      await this.characterUIService.archiveChannel(channelId)
 
       this.logger.debug(`Channel archived with name: ${archivedChannelName}`)
     } catch (error) {
@@ -112,7 +112,7 @@ export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDel
 
       // アーカイブに失敗した場合の代替処理
       try {
-        await this.discordUIService.addChannelArchiveEmoji(channelId)
+        await this.characterUIService.addChannelArchiveEmoji(channelId)
         this.logger.debug(`Channel marked with archive emoji as fallback`)
       } catch (fallbackError) {
         this.logger.error(

@@ -35,8 +35,7 @@ export class CharacterEventHandler implements OnModuleInit {
    * イベントハンドラー登録
    */
   private registerEventHandlers(): void {
-    // Character Lifecycle Events
-    this.globalEventBus.on('character.created', this.handleCharacterCreated.bind(this))
+    // Character Lifecycle Events (character.created はFile-based Event Handlersに統合済み)
     this.globalEventBus.on('character.updated', this.handleCharacterUpdated.bind(this))
     this.globalEventBus.on('character.deleted', this.handleCharacterDeleted.bind(this))
 
@@ -52,115 +51,7 @@ export class CharacterEventHandler implements OnModuleInit {
     this.logger.debug('Character event handlers registered')
   }
 
-  /**
-   * キャラクター作成完了イベントハンドラー
-   */
-  private async handleCharacterCreated(event: CharacterCreatedEvent): Promise<void> {
-    this.logger.log(`🎭 Character Created: ${event.character.characterName} (${event.characterId})`)
-
-    try {
-      // Discord統合通知イベント発行
-      if (event.character.discordChannelId) {
-        await this.globalEventBus.emit({
-          type: 'discord.notification.requested',
-          timestamp: new Date(),
-          source: 'system',
-          channelId: event.character.discordChannelId,
-          notification: {
-            type: 'character.created',
-            channelId: event.character.discordChannelId,
-            title: '🎭 キャラクター作成完了',
-            message: `キャラクター「${event.character.characterName}」が作成されました。`,
-            color: 0x00ff00,
-            characterId: event.characterId
-          }
-        })
-      }
-
-      // スレッド作成リクエスト（threadIdが指定されている場合）
-      if (event.character.threadId || event.character.discordChannelId) {
-        await this.globalEventBus.emit({
-          type: 'discord.thread.create.requested',
-          timestamp: new Date(),
-          source: 'system',
-          channelId: event.character.discordChannelId || '',
-          threadData: {
-            name: `character-${event.character.characterName}`,
-            channelId: event.character.discordChannelId || '',
-            autoArchiveDuration: 1440,
-            message: `🎭 ${event.character.characterName} のキャラクタースレッドです。`
-          },
-          characterId: event.characterId
-        })
-      }
-
-      // Embed更新リクエスト
-      if (event.character.discordChannelId) {
-        await this.globalEventBus.emit({
-          type: 'discord.embed.update.requested',
-          timestamp: new Date(),
-          source: 'system',
-          channelId: event.character.discordChannelId,
-          embedData: {
-            channelId: event.character.discordChannelId,
-            characterId: event.characterId,
-            embedType: 'character',
-            updateMode: 'create'
-          }
-        })
-
-        // CharacterEdit Enhanced Embed作成リクエスト（TypedEventService経由）
-        // 既存のGlobalEventBusとは別系統でcharacterEdit専用処理
-        await this.typedEventService.emit('discord.character.display.requested', {
-          character: {
-            ...event.character,
-            discordChannelId: event.character.discordChannelId! // 確実に存在するためNon-null assertion
-          } as Character,
-          channelId: event.character.discordChannelId,
-          guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
-          requesterId: event.userId || 'system',
-          displayType: 'enhanced',
-          source: 'character-event-handler',
-          timestamp: new Date()
-        })
-
-        this.logger.log(`🎨 CharacterEdit Enhanced Embed requested: ${event.characterId}`)
-      }
-
-      // システム監査ログ
-      await this.globalEventBus.emit({
-        type: 'system.audit.logged',
-        timestamp: new Date(),
-        source: 'system',
-        audit: {
-          action: 'character.created',
-          userId: event.userId,
-          resource: `character:${event.characterId}`,
-          details: {
-            characterName: event.character.characterName,
-            gameSystemId: event.character.gameSystemId,
-            source: event.source
-          },
-          outcome: 'success'
-        }
-      })
-    } catch (error) {
-      this.logger.error(`❌ Character created event processing failed: ${event.characterId}`, error)
-
-      // エラーイベント発行
-      await this.globalEventBus.emit({
-        type: 'system.error.occurred',
-        timestamp: new Date(),
-        source: 'system',
-        error: {
-          code: 'CHARACTER_CREATED_HANDLER_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          context: { characterId: event.characterId, eventType: 'character.created' },
-          severity: 'medium'
-        }
-      })
-    }
-  }
+  // character.created処理はFile-based Event Handlersに統合済み（character.creation.completed.ts）
 
   /**
    * キャラクター更新完了イベントハンドラー

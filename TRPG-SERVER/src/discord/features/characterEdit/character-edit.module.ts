@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common'
-import { CharacterModule } from 'src/domains/character/character.module'
+import { CharacterModule } from '../../../domains/character/character.module'
 import { SharedModule } from '../../../shared/shared.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 
@@ -21,6 +21,7 @@ import { CharacterSectionEditorService } from './services/character-section-edit
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
 import { ModalSessionManagerService } from './services/modal-session-manager.service'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
+import { CharacterUIService } from './services/character-ui.service'
 
 // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
 // CharaInfoButtonService, AddCharaInfoService, ChangeCharaInfoServiceは
@@ -67,7 +68,8 @@ import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
-    EnhancedCharacterEditService
+    EnhancedCharacterEditService,
+    CharacterUIService
 
     // ============================================================================
     // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
@@ -98,7 +100,8 @@ import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
-    EnhancedCharacterEditService
+    EnhancedCharacterEditService,
+    CharacterUIService
 
     // ============================================================================
     // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)

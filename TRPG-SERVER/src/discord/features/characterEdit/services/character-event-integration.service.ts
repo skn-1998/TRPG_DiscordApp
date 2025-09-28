@@ -128,14 +128,7 @@ export class CharacterEventIntegrationService implements OnModuleInit {
       const updatedCharacter = await this.characterService.updateByChannelId(channelId, updateData)
 
       if (updatedCharacter) {
-        // 更新完了イベントを発行
-        await this.typedEventService.emit('character.update.completed', {
-          channelId,
-          character: updatedCharacter,
-          source,
-          timestamp: new Date()
-        })
-
+        // 更新完了通知は character.update.requested -> completed 経由で自動処理される
         this.logger.debug(`キャラクター更新完了: ${updatedCharacter.characterId}`)
       } else {
         throw new Error('Character not found or update failed')

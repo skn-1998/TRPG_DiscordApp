@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { EventPayload } from '../../../../shared/domain/events/event-contracts'
+import { EventPayload } from '../../../../events/contracts'
 import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
-import { DiscordUIService } from '../../../services/discord-ui.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
+import { CharacterUIService } from './character-ui.service'
 
 // ============================================================================
 // Main Orchestrator Service
@@ -21,7 +21,7 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
     private readonly characterCreationService: CharacterCreationService,
     private readonly characterNotificationService: CharacterNotificationService,
     private readonly typedEventService: TypedEventService,
-    private readonly discordUIService: DiscordUIService,
+    private readonly characterUIService: CharacterUIService,
     private readonly discordClientService: DiscordClientService
   ) {}
 

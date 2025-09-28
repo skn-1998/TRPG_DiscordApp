@@ -70,80 +70,6 @@ export class ThreadCreationService {
   }
 
   /**
-   * スレッド作成リクエストイベントを処理（EventRouterServiceから呼び出される公開メソッド）
-   */
-  async handleThreadCreateRequest(
-    payload: import('../../../../shared/domain/events/event-contracts').EventPayload<'discord.thread.create.requested'>
-  ): Promise<void> {
-    const { character, channelId, guildId, creatorId, displayType, source } = payload
-
-    this.logger.log(`Handling thread create request for character: ${character.characterId}`)
-
-    try {
-      const request: CreateThreadRequest = {
-        characterId: character.characterId,
-        characterName: character.characterName || 'Unknown Character',
-        channelId,
-        guildId,
-        creatorId,
-        displayType
-      }
-
-      const result = await this.createCharacterThread(request, character)
-
-      if (result.success) {
-        // 成功イベントを発行
-        await this.typedEventService.emit('discord.thread.create.completed', {
-          threadId: result.threadId!,
-          threadUrl: result.threadUrl,
-          character,
-          source,
-          timestamp: new Date()
-        })
-      } else {
-        // 失敗イベントを発行
-        await this.typedEventService.emit('discord.thread.create.failed', {
-          characterId: character.characterId,
-          channelId,
-          error: result.error || 'Unknown error',
-          source,
-          timestamp: new Date()
-        })
-      }
-    } catch (error) {
-      this.logger.error('Failed to handle thread create request', error)
-
-      await this.typedEventService.emit('discord.thread.create.failed', {
-        characterId: character.characterId,
-        channelId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        source,
-        timestamp: new Date()
-      })
-    }
-  }
-
-  /**
-   * thread表示更新（イベント駆動で呼び出される公開メソッド）
-   */
-  async updateCharacterThreadDisplay(character: Character): Promise<void> {
-    this.logger.log(`Updating character thread display for: ${character.characterId}`)
-
-    try {
-      // characterにthreadIDがある場合のみ更新処理を実行
-      if (character.threadId) {
-        await this.updateThreadCharacterDisplay(character)
-        this.logger.log(`Thread display updated for character: ${character.characterId}, thread: ${character.threadId}`)
-      } else {
-        this.logger.debug(`Character ${character.characterId} does not have threadId, skipping thread update`)
-      }
-    } catch (error) {
-      this.logger.error(`Failed to update thread display for character: ${character.characterId}`, error)
-      throw error
-    }
-  }
-
-  /**
    * キャラクタースレッドを作成
    */
   async createCharacterThread(request: CreateThreadRequest, character: Character): Promise<CreateThreadResult> {
@@ -725,8 +651,8 @@ export class ThreadCreationService {
    * キャラクター編集URLを生成（DiscordチャンネルURL）
    */
   private generateCharacterEditUrl(character: Character, guildId: string): string | null {
-    // 編集専用チャンネルIDがあればそれを使用、なければ通常のチャンネルIDを使用
-    const editChannelId = character.discordEditChannelId || character.discordChannelId
+    // 編集は常に元のdiscordChannelIdを使用
+    const editChannelId = character.discordChannelId
 
     if (editChannelId) {
       // Discord チャンネルURLを生成
@@ -882,7 +808,7 @@ export class ThreadCreationService {
   }
 
   /**
-   * キャラクターのチャンネルIDを更新（編集チャンネルIDを保存してからスレッドIDに更新）
+   * キャラクターのスレッドチャンネルIDを更新（元のdiscordChannelIdはそのまま保持）
    */
   private async updateCharacterChannelIds(
     characterId: string,
@@ -890,19 +816,15 @@ export class ThreadCreationService {
     editChannelId?: string
   ): Promise<void> {
     try {
+      // discordChannelIdは変更せず、discordThreadIdのみを設定
       const updateData: any = {
-        discordChannelId: threadId
-      }
-
-      // 元のeditチャンネルIDが存在し、まだ設定されていない場合は保存
-      if (editChannelId && editChannelId !== threadId) {
-        updateData.discordEditChannelId = editChannelId
+        discordThreadId: threadId
       }
 
       await this.characterService.update(characterId, updateData)
-      this.logger.log(`Character channel IDs updated: ${characterId} -> thread: ${threadId}, edit: ${editChannelId}`)
+      this.logger.log(`Character thread channel ID updated: ${characterId} -> thread: ${threadId}`)
     } catch (error) {
-      this.logger.error(`Failed to update character channel IDs: ${characterId}`, error)
+      this.logger.error(`Failed to update character thread channel ID: ${characterId}`, error)
       // エラーが発生してもスレッド作成処理は継続
     }
   }

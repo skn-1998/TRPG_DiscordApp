@@ -282,17 +282,15 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
     this.logger.log(`Thread creation selection: ${selectedCharacterId}`)
 
     try {
-      await interaction.update({
-        content: `🔄 選択されたキャラクターでスレッドを作成中...`,
-        components: []
-      })
+      await interaction.deferUpdate()
 
       // キャラクター情報を取得
       const character = await this.characterService.findOne(selectedCharacterId)
 
       if (!character) {
         await interaction.editReply({
-          content: `❌ キャラクターID「${selectedCharacterId}」が見つかりませんでした。`
+          content: `❌ キャラクターID「${selectedCharacterId}」が見つかりませんでした。`,
+          components: []
         })
         return
       }
@@ -300,12 +298,17 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       // 権限チェック
       if (character.discordUserId !== interaction.user.id) {
         await interaction.editReply({
-          content: '❌ 他のユーザーのキャラクターは使用できません。'
+          content: '❌ 他のユーザーのキャラクターは使用できません。',
+          components: []
         })
         return
       }
 
-      console.log('character', character)
+      // 作成中メッセージを表示
+      await interaction.editReply({
+        content: `🔄 ${character.characterName}のスレッドを作成中...`,
+        components: []
+      })
 
       // TypedEventServiceを使用してスレッド作成イベントを発行
       await this.typedEventService.emit('discord.thread.create.requested', {
@@ -318,14 +321,20 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
         timestamp: new Date()
       })
 
-      await interaction.editReply({
-        content: `✅ ${character.characterName}のスレッドを作成しました。高度なキャラクター表示機能付きです！`
-      })
+      // await interaction.editReply({
+      //   content: `✅ ${character.characterName}のスレッドを作成しました。高度なキャラクター表示機能付きです！`
+      // })
     } catch (error) {
       this.logger.error(`Failed to create thread for character: ${selectedCharacterId}`, error)
-      await interaction.editReply({
-        content: '❌ スレッド作成中にエラーが発生しました。'
-      })
+
+      try {
+        await interaction.editReply({
+          content: '❌ スレッド作成中にエラーが発生しました。',
+          components: []
+        })
+      } catch (editError) {
+        this.logger.error('Failed to send error response', editError)
+      }
     }
   }
 

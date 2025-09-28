@@ -1,9 +1,9 @@
-import { Module, Global } from '@nestjs/common'
+import { Module, Global, forwardRef } from '@nestjs/common'
 import { EventEmitterModule } from '@nestjs/event-emitter'
-import { CharacterModule } from '../domains/character/character.module'
-import { DiscordIntegrationModule } from '../discord/application/discord-integration.module'
-// CharacterEditModuleのインポートを削除して循環依存を解決
-// import { CharacterEditModule } from '../discord/features/characterEdit/character-edit.module'
+import { CharacterModule } from 'domains/character/character.module'
+import { DiscordIntegrationModule } from 'discord/application/discord-integration.module'
+import { CharacterEditModule } from 'discord/features/characterEdit/character-edit.module'
+import { CharacterThreadFeatureModule } from 'discord/features/characterThread/character-thread-feature.module'
 
 // Legacy Bus Services (暫定的に保持)
 import { GlobalEventBusService } from './bus/global-event-bus.service'
@@ -24,8 +24,9 @@ import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.f
 import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
 import { CharacterCreationCompletedHandler } from './handlers/character.creation.completed'
 import { CharacterUpdateCompletedHandler } from './handlers/character.update.completed'
-import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
+// import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
 import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
+import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.create.requested'
 
 /**
  * File-based Events Module
@@ -67,8 +68,9 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
       ignoreErrors: false // エラーを無視しない
     }),
     CharacterModule, // Character domain services
-    DiscordIntegrationModule // Discord基盤サービス（DiscordUIService用）
-    // CharacterEditModuleのインポートを削除して循環依存を解決
+    DiscordIntegrationModule, // Discord基盤サービス
+    forwardRef(() => CharacterEditModule), // CharacterUIService用
+    forwardRef(() => CharacterThreadFeatureModule) // ThreadOrchestratorService用
   ],
   providers: [
     // ✅ NEW: File-based Event Registry & Handlers
@@ -79,8 +81,9 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
     CharacterFindByIdRequestedHandler,
     CharacterCreationCompletedHandler,
     CharacterUpdateCompletedHandler,
-    CharacterDeletionCompletedHandler,
+    // CharacterDeletionCompletedHandler,
     CharacterFindByNameRequestedHandler,
+    DiscordThreadCreateRequestedHandler,
 
     // 🔄 LEGACY: 暫定的に保持（段階的削除予定）
     GlobalEventBusService,

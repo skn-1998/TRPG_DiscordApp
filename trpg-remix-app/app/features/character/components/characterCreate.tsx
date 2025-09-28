@@ -55,7 +55,7 @@ export function CharacterCreate({ onCharacterCreated }: CharacterCreateProps) {
 
     try {
       const characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'> = {
-        characterId: `char_${Date.now()}`, // 仮のID生成
+        characterId: ``, // 仮のID生成
         characterName: characterName,
         gameSystemId: TRPGSystemValue.value,
         discordUserId: '', // TODO: 実際のユーザーIDを設定

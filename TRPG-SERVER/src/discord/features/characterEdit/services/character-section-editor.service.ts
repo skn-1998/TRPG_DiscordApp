@@ -20,6 +20,7 @@ import { TypedEventService } from '../../../../shared/application/typed-event.se
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
+import { getDisplayNumber } from '../../../../core/types/attribute.types'
 // import { discordSelectMenuType } from '../../../discord.type'
 
 /**
@@ -71,7 +72,7 @@ export class CharacterSectionEditorService {
       }
 
       // セクション選択の処理（メッセージ更新）
-      if (customId.includes('character-edit-section')) {
+      if (customId.includes('character-edit-section') || customId.includes('character-section-select')) {
         await this.handleSectionSelection(interaction, character, selectedValues[0] as EmbedSectionType)
       }
       // フィールド編集の処理
@@ -139,16 +140,11 @@ export class CharacterSectionEditorService {
       basic: '基本情報'
     }
 
-    const sectionName = sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]
-    const embed = new EmbedBuilder()
-      .setTitle(`${sectionName}編集`)
-      .setDescription(
-        `${character.characterName}の${sectionName}を編集します。\n下のメニューから編集したい項目を選択してください。`
-      )
-      .setColor('#3498db')
+    // 元のEmbedを保持
+    const originalEmbeds = interaction.message.embeds
 
     await interaction.editReply({
-      embeds: [embed],
+      embeds: originalEmbeds,
       components: [fieldRow, backRow]
     })
   }
@@ -176,8 +172,10 @@ export class CharacterSectionEditorService {
     fieldKey: string
   ): Promise<void> {
     const isNewField = fieldKey === 'add_new'
-    let currentValue = ''
     let fieldName = ''
+    let currentValues = ''
+    let currentDice = ''
+    let currentDescription = ''
 
     if (!isNewField) {
       // 既存フィールドの値を取得
@@ -186,22 +184,56 @@ export class CharacterSectionEditorService {
         const fieldValue = sectionData[fieldKey]
 
         if (typeof fieldValue === 'object' && fieldValue !== null) {
-          type NamedValued = { name?: unknown; value?: unknown }
-          if (
-            typeof fieldValue === 'object' &&
-            fieldValue !== null &&
-            'name' in (fieldValue as NamedValued) &&
-            'value' in (fieldValue as NamedValued)
-          ) {
-            const fv = fieldValue as NamedValued
-            fieldName = (typeof fv.name === 'string' && fv.name) || fieldKey
-            currentValue = String(fv.value ?? '')
+          const attr = fieldValue as any
+
+          if (attr.values && typeof attr.values === 'object') {
+            // AttributeValue形式の場合
+            fieldName = attr.name || fieldKey
+
+            // valuesを文字列として取得
+            if (Object.keys(attr.values).length > 0) {
+              const total = getDisplayNumber(attr)
+              currentValues = String(total)
+            }
+
+            // dice値を取得
+            if (attr.dice) {
+              currentDice = String(attr.dice)
+            }
+
+            // description値を取得
+            if (attr.description) {
+              currentDescription = String(attr.description)
+            }
           } else {
-            currentValue = JSON.stringify(fieldValue, null, 2)
+            // レガシー形式の場合は適切にマッピング
+            type NamedValued = { name?: unknown; value?: unknown }
+            if ('name' in attr && 'value' in attr) {
+              const fv = attr as NamedValued
+              fieldName = (typeof fv.name === 'string' && fv.name) || fieldKey
+
+              // 数値かどうかチェック
+              const numericValue = parseFloat(String(fv.value ?? ''))
+              if (!isNaN(numericValue)) {
+                currentValues = String(numericValue)
+              } else {
+                currentDescription = String(fv.value ?? '')
+              }
+            }
           }
         } else {
-          currentValue = String(fieldValue)
+          // プリミティブ値の場合
+          const numericValue = parseFloat(String(fieldValue))
+          if (!isNaN(numericValue)) {
+            currentValues = String(numericValue)
+          } else {
+            currentDescription = String(fieldValue)
+          }
         }
+
+        this.logger.debug(
+          `Field selection debug - fieldKey: ${fieldKey}, values: "${currentValues}", dice: "${currentDice}", description: "${currentDescription}"`
+        )
       }
       fieldName = fieldName || fieldKey
     }
@@ -212,7 +244,9 @@ export class CharacterSectionEditorService {
       sectionType,
       fieldKey,
       fieldName,
-      currentValue,
+      currentValues,
+      currentDice,
+      currentDescription,
       isNewField
     )
 
@@ -220,14 +254,16 @@ export class CharacterSectionEditorService {
   }
 
   /**
-   * 編集モーダルを作成
+   * 編集モーダルを作成（3フィールド統一版）
    */
   private async createEditModal(
     characterId: string,
     sectionType: EmbedSectionType,
     fieldKey: string,
     fieldName: string,
-    currentValue: string,
+    currentValues: string,
+    currentDice: string,
+    currentDescription: string,
     isNew: boolean
   ): Promise<ModalBuilder> {
     const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
@@ -254,35 +290,73 @@ export class CharacterSectionEditorService {
       .setCustomId(modalId)
       .setTitle(`${sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]}${isNew ? '追加' : '編集'}`)
 
-    // フィールド名入力（新規の場合のみ）
-    if (isNew) {
-      const nameInput = new TextInputBuilder()
-        .setCustomId('field-name')
-        .setLabel('項目名')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('例: HP, MP, 攻撃力')
-        .setRequired(true)
-        .setMaxLength(100)
+    // すべてのケースで統一された4フィールド構造
 
-      const nameRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput)
-      modal.addComponents(nameRow)
-    }
-
-    // 値入力
-    const valueInput = new TextInputBuilder()
-      .setCustomId('field-value')
-      .setLabel(isNew ? '値' : `${fieldName}の値`)
+    // 1. 項目名
+    const nameInput = new TextInputBuilder()
+      .setCustomId('field-name')
+      .setLabel('項目名')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('例: 100, 3d6+2, 魔法の剣')
-      .setRequired(true)
+      .setPlaceholder('例: HP, MP, 攻撃力')
+      .setRequired(isNew) // 新規時のみ必須
+      .setMaxLength(100)
+
+    if (!isNew && fieldName) {
+      nameInput.setValue(fieldName)
+    }
+    const nameRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput)
+
+    // 2. 数値 (values.base)
+    const valuesInput = new TextInputBuilder()
+      .setCustomId('field-values')
+      .setLabel('数値')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('例: 100, 50, 20 (数値の場合)')
+      .setRequired(false)
+      .setMaxLength(50)
+
+    if (currentValues && currentValues.trim() !== '') {
+      valuesInput.setValue(currentValues.trim())
+    }
+    const valuesRow = new ActionRowBuilder<TextInputBuilder>().addComponents(valuesInput)
+
+    // 3. ダイス記法
+    const diceInput = new TextInputBuilder()
+      .setCustomId('field-dice')
+      .setLabel('ダイス記法')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('例: 3d6+2, 1d20+5')
+      .setRequired(false)
+      .setMaxLength(100)
+
+    if (currentDice && currentDice.trim() !== '') {
+      diceInput.setValue(currentDice.trim())
+    }
+    const diceRow = new ActionRowBuilder<TextInputBuilder>().addComponents(diceInput)
+
+    // 4. 説明・備考
+    const descriptionInput = new TextInputBuilder()
+      .setCustomId('field-description')
+      .setLabel('説明・備考')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('例: 魔法の剣、特殊効果の説明など')
+      .setRequired(false)
       .setMaxLength(1000)
 
-    if (currentValue) {
-      valueInput.setValue(currentValue)
-    }
+    if (currentDescription && currentDescription.trim() !== '') {
+      // Discord TextInputの制限に合わせて値をサニタイズ
+      let sanitizedDescription = currentDescription.trim()
 
-    const valueRow = new ActionRowBuilder<TextInputBuilder>().addComponents(valueInput)
-    modal.addComponents(valueRow)
+      // 最大長制限
+      if (sanitizedDescription.length > 1000) {
+        sanitizedDescription = sanitizedDescription.substring(0, 997) + '...'
+      }
+
+      descriptionInput.setValue(sanitizedDescription)
+    }
+    const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput)
+
+    modal.addComponents(nameRow, valuesRow, diceRow, descriptionRow)
 
     return modal
   }
@@ -309,7 +383,12 @@ export class CharacterSectionEditorService {
       const result = await resultPromise
 
       if ('character' in result && result.character) {
-        return result.character as any
+        const character = result.character as any
+        // Mongooseドキュメントの場合は適切に変換
+        if (character.toObject) {
+          return character.toObject()
+        }
+        return character
       }
 
       return null
@@ -341,7 +420,12 @@ export class CharacterSectionEditorService {
    * カスタムIDからキャラクターIDを抽出
    */
   private extractCharacterIdFromCustomId(customId: string): string | null {
-    const patterns = [/character-edit-section-(.+)/, /character-field-edit-\w+-(.+)/, /character-field-add-\w+-(.+)/]
+    const patterns = [
+      /character-edit-section-(.+)/,
+      /character-field-edit-\w+-(.+)/,
+      /character-field-add-\w+-(.+)/,
+      /character-section-select-(.+)/ // character-ui.service.tsからのパターンも対応
+    ]
 
     for (const pattern of patterns) {
       const match = customId.match(pattern)

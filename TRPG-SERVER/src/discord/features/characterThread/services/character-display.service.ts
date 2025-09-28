@@ -20,7 +20,7 @@ import {
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
-import { EventPayload } from '../../../../shared/domain/events/event-contracts'
+import { EventPayload } from '../../../../events/contracts'
 
 /**
  * タブ表示タイプ

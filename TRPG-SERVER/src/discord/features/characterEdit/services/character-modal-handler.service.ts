@@ -19,6 +19,7 @@ import {
 import { Character } from '../../../../domains/character/models/character.model'
 import { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
 import { CharacterInputDto, AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
+import { AttributeValue } from '../../../../core/types/attribute.types'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
@@ -29,7 +30,9 @@ import { ModalSessionManagerService } from './modal-session-manager.service'
  */
 export interface FieldData {
   name?: string
-  value: string
+  values?: string
+  dice?: string
+  description?: string
 }
 
 @Injectable()
@@ -157,24 +160,32 @@ export class CharacterModalHandlerService {
     )
 
     if (success) {
-      await this.sendSuccessResponse(interaction, sectionType, formData.name || (fieldKey as string))
+      // 成功レスポンスは送信せず、静かに更新を完了
 
       // 最新のキャラクター情報を再取得してEmbedを更新
-      // データベース更新が確実に反映されるよう少し待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // データベース更新が確実に反映されるよう待機
+      await new Promise((resolve) => setTimeout(resolve, 200))
 
+      this.logger.debug(`Attempting to retrieve updated character data: ${character.characterId}`)
       const updatedCharacter = await this.getCharacter(character.characterId)
       if (updatedCharacter) {
-        this.logger.debug(`Successfully retrieved updated character data for embed update`)
+        this.logger.log(`Successfully retrieved updated character data, updating embed for: ${character.characterId}`)
         await this.updateExistingCharacterEditEmbed(updatedCharacter, interaction)
       } else {
-        this.logger.warn(`Failed to get updated character for embed update: ${character.characterId}`)
+        this.logger.warn(
+          `Failed to get updated character for embed update: ${character.characterId}, using original data`
+        )
         // フォールバック: 元のキャラクター情報でEmbed更新
         await this.updateExistingCharacterEditEmbed(character, interaction)
       }
 
       // セクション編集のEmbedとメニューをクリア
       await this.clearSectionEditEmbed(interaction, character.characterId)
+
+      // 成功時は何もレスポンスを返さずに静かに完了
+      await interaction.deleteReply().catch(() => {
+        // deleteに失敗した場合は無視（既に削除済みなど）
+      })
     } else {
       await this.sendErrorResponse(interaction, 'キャラクター情報の更新に失敗しました。')
     }
@@ -243,33 +254,56 @@ export class CharacterModalHandlerService {
    */
   private extractFormData(interaction: ModalSubmitInteraction): FieldData | null {
     try {
-      // 各フィールドを安全に取得
       let name: string | undefined = undefined
-      let value: string
+      let values: string | undefined = undefined
+      let dice: string | undefined = undefined
+      let description: string | undefined = undefined
 
-      // field-name フィールドが存在するかチェック（新規追加の場合のみ）
+      // field-name フィールド（新規追加時）
       try {
-        name = interaction.fields.getTextInputValue('field-name') || undefined
+        const rawName = interaction.fields.getTextInputValue('field-name')
+        name = rawName?.trim() || undefined
+        this.logger.debug(`Raw field-name value: "${rawName}" -> processed: "${name}"`)
       } catch (error) {
-        // field-name フィールドが存在しない場合（既存フィールド編集）
-        name = undefined
+        this.logger.debug('field-name field not found')
       }
 
-      // field-value フィールドは必須
+      // 新しい3フィールド形式をチェック
       try {
-        value = interaction.fields.getTextInputValue('field-value')
+        const rawValues = interaction.fields.getTextInputValue('field-values')
+        values = rawValues?.trim() || undefined
+        this.logger.debug(`Raw field-values: "${rawValues}"`)
       } catch (error) {
-        this.logger.error('Required field-value not found', error)
-        return null
+        // field-values フィールドが存在しない場合
       }
 
-      if (!value || value.trim() === '') {
+      try {
+        const rawDice = interaction.fields.getTextInputValue('field-dice')
+        dice = rawDice?.trim() || undefined
+        this.logger.debug(`Raw field-dice: "${rawDice}"`)
+      } catch (error) {
+        // field-dice フィールドが存在しない場合
+      }
+
+      try {
+        const rawDescription = interaction.fields.getTextInputValue('field-description')
+        description = rawDescription?.trim() || undefined
+        this.logger.debug(`Raw field-description: "${rawDescription}"`)
+      } catch (error) {
+        // field-description フィールドが存在しない場合
+      }
+
+      // データの有効性をチェック
+      if (!values && !dice && !description) {
+        this.logger.warn('No valid data found in form fields - values, dice, and description are all empty')
         return null
       }
 
       return {
-        name: name?.trim(),
-        value: value.trim()
+        name,
+        values,
+        dice,
+        description
       }
     } catch (error) {
       this.logger.error('Failed to extract form data', error)
@@ -290,23 +324,55 @@ export class CharacterModalHandlerService {
       // 更新するセクションのデータを取得
       const sectionData: Record<string, unknown> = { ...(this.getSectionData(character, sectionType) ?? {}) }
 
+      this.logger.debug(`Raw form data for ${character.characterId}:`, {
+        name: formData.name,
+        values: formData.values,
+        dice: formData.dice,
+        description: formData.description,
+        sectionType,
+        fieldKey,
+        isNewField: fieldKey === 'add_new'
+      })
+
       // フィールドキーを決定（新規の場合はフォームの名前を使用）
       const actualFieldKey = fieldKey === 'add_new' ? formData.name || `new_${Date.now()}` : fieldKey
 
-      // フィールドデータを構築
-      type FieldStructured = { name?: string; value: string }
-      let fieldValue: string | FieldStructured
-      if (formData.name && formData.name !== actualFieldKey) {
-        fieldValue = {
-          name: formData.name,
-          value: formData.value
+      // nameの決定: フォームのnameがある場合は使用、なければactualFieldKeyを使用
+      const finalName = formData.name && formData.name.trim() !== '' ? formData.name.trim() : actualFieldKey
+
+      // AttributeValue形式でフィールドデータを構築
+      const valuesObj: Record<string, number> = {}
+
+      // values フィールドの処理
+      if (formData.values && formData.values.trim() !== '') {
+        const numericValue = parseFloat(formData.values.trim())
+        if (!isNaN(numericValue)) {
+          valuesObj.base = numericValue
         }
-      } else {
-        fieldValue = formData.value
+      }
+
+      const attributeValue = {
+        name: finalName,
+        index: null,
+        values: valuesObj,
+        description: formData.description || null,
+        dice: formData.dice || null,
+        isVisible: true
+      }
+
+      this.logger.debug(`Creating AttributeValue for ${actualFieldKey}:`, JSON.stringify(attributeValue, null, 2))
+
+      // 値が有効かチェック
+      if (
+        !finalName ||
+        (Object.keys(attributeValue.values).length === 0 && !attributeValue.description && !attributeValue.dice)
+      ) {
+        this.logger.error(`Invalid data for field ${actualFieldKey}: no name or values/description/dice`)
+        return false
       }
 
       // セクションデータを更新
-      sectionData[actualFieldKey] = fieldValue
+      sectionData[actualFieldKey] = attributeValue
 
       // 更新DTOを作成
       let updateData: UpdateCharacterDto
@@ -336,12 +402,13 @@ export class CharacterModalHandlerService {
 
       // キャラクター更新イベントを発行
       await this.typedEventService.emit('character.update.requested', {
+        characterId: character.characterId,
         channelId: character.discordChannelId || '',
         updateData,
         userId: character.discordUserId,
         source: 'character-modal-handler',
         timestamp: new Date()
-      })
+      } as any)
 
       // 更新完了を待機
       const result = await resultPromise
@@ -350,7 +417,7 @@ export class CharacterModalHandlerService {
         this.logger.log(
           `Character field updated successfully: ${character.characterId} - ${sectionType}.${actualFieldKey}`
         )
-        this.logger.debug(`Updated field value: ${JSON.stringify(fieldValue)}`)
+        this.logger.debug(`Updated field value: ${JSON.stringify(attributeValue)}`)
         return true
       } else {
         this.logger.error(`Character update failed: ${character.characterId}`, result)
@@ -524,25 +591,23 @@ export class CharacterModalHandlerService {
       const characterEditMessage = this.findCharacterEditMessage(messages, character.characterId)
 
       if (characterEditMessage) {
-        // 既存メッセージを更新
+        // 既存メッセージを更新（更新メッセージなし）
         const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
 
         await characterEditMessage.edit({
-          content: `✅ ${character.characterName}の情報を更新しました`,
           embeds,
           components
         })
 
         this.logger.log(`Updated existing characterEdit embed for character: ${character.characterId}`)
       } else {
-        // 既存メッセージが見つからない場合は新規送信
+        // 既存メッセージが見つからない場合は新規送信（更新メッセージなし）
         this.logger.warn(
           `No existing characterEdit message found for character: ${character.characterId}, sending new message`
         )
 
         const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
         await textChannel.send({
-          content: `✅ ${character.characterName}の情報を更新しました`,
           embeds,
           components
         })
@@ -550,12 +615,11 @@ export class CharacterModalHandlerService {
     } catch (error) {
       this.logger.error('Failed to update existing characterEdit embed', error)
 
-      // フォールバック: 新しいメッセージを送信
+      // フォールバック: 新しいメッセージを送信（更新メッセージなし）
       try {
         if (interaction.channel && 'send' in interaction.channel) {
           const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
           await (interaction.channel as TextChannel).send({
-            content: `✅ ${character.characterName}の情報を更新しました`,
             embeds,
             components
           })
@@ -574,23 +638,38 @@ export class CharacterModalHandlerService {
       // ボット自身のメッセージのみを対象
       if (!message.author.bot) continue
 
-      // 更新ボタンまたは簡易表示ボタンがあるかチェック
-      type ButtonLike = { type?: number; customId?: string }
-      type ActionRowLike = { components?: ButtonLike[] }
+      // キャラクター編集関連のボタンやセレクトメニューがあるかチェック
+      type ComponentLike = { type?: number; customId?: string }
+      type ActionRowLike = { components?: ComponentLike[] }
       const actionRows: ActionRowLike[] = (message.components ?? []) as ActionRowLike[]
-      const hasCharacterEditButtons = actionRows.some((row) => {
-        const buttons: ButtonLike[] = row.components ?? []
-        return buttons.some((component) => {
-          if (component.type !== 2) return false // Button type = 2
+
+      const hasCharacterComponents = actionRows.some((row) => {
+        const components: ComponentLike[] = row.components ?? []
+        return components.some((component) => {
           const customId = component.customId ?? ''
           return (
-            customId.includes(`character-refresh-${characterId}`) ||
-            customId.includes(`character-compact-view-${characterId}`)
+            // ボタン (type = 2)
+            (component.type === 2 &&
+              (customId.includes(`character-refresh-${characterId}`) ||
+                customId.includes(`character-compact-view-${characterId}`))) ||
+            // セレクトメニュー (type = 3)
+            (component.type === 3 &&
+              (customId.includes(`character-section-select-${characterId}`) ||
+                customId.includes(`character-edit-section-${characterId}`) ||
+                customId.includes(`character-field-edit-`) ||
+                customId.includes(`character-field-add-`)))
           )
         })
       })
 
-      if (hasCharacterEditButtons) {
+      // Embedの内容もチェック（キャラクター名が含まれているか）
+      const hasCharacterEmbed = message.embeds.some((embed) => {
+        const title = embed.title ?? ''
+        const description = embed.description ?? ''
+        return title.includes('キャラクター情報') || description.includes('キャラクター')
+      })
+
+      if (hasCharacterComponents || hasCharacterEmbed) {
         return message
       }
     }

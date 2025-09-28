@@ -7,7 +7,7 @@ import { CommandManagerService } from './services/command-manager.service'
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
-import { DiscordPerformanceMonitorService } from './services/discord-performance-monitor.service'
+import { PerformanceOrchestratorService } from './services/monitoring/performance-orchestrator.service'
 import { InteractionsService } from './interactions/interactions.service'
 import { CommandsService } from './commands/commands.service'
 
@@ -33,7 +33,7 @@ export class DiscordFacadeService {
     private readonly interactionHandler: DiscordInteractionHandlerService,
     private readonly guildManager: DiscordGuildManagerService,
     private readonly channelManager: DiscordChannelManagerService,
-    private readonly performanceMonitor: DiscordPerformanceMonitorService
+    private readonly performanceOrchestrator: PerformanceOrchestratorService
   ) {
     this.client = this.discordClientService.getClient()
   }
@@ -52,7 +52,7 @@ export class DiscordFacadeService {
 
     try {
       // パフォーマンス監視開始
-      const initMetrics = this.performanceMonitor.startApiCall('discord.initialize', 'INIT')
+      const initMetrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.initialize', 'INIT')
 
       // TypedEventEmitterをクライアントにアタッチ（イベント駆動型）
       ;(this.client as any)['typedEventEmitter'] = this.typedEventEmitter
@@ -78,7 +78,7 @@ export class DiscordFacadeService {
       this.logger.log(`Discord初期化が完了しました (${duration}ms)`)
 
       // 初期化完了メトリクス記録
-      this.performanceMonitor.recordMemoryUsage()
+      // メモリ使用量は定期的に自動記録される
     } catch (error) {
       this.logger.error('Discord初期化に失敗しました', error)
       throw error
@@ -90,7 +90,7 @@ export class DiscordFacadeService {
    * GuildManagerサービスに委譲
    */
   async verifyChannelAccess(channelId: string, discordUserId: string): Promise<boolean> {
-    const metrics = this.performanceMonitor.startApiCall('discord.verifyChannelAccess', 'GET')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.verifyChannelAccess', 'GET')
     try {
       const result = await this.guildManager.verifyChannelAccess(this.client, channelId, discordUserId)
       metrics.end(true)
@@ -106,7 +106,7 @@ export class DiscordFacadeService {
    * GuildManagerサービスに委譲
    */
   async verifyGuildAccess(guildId: string, discordUserId: string): Promise<boolean> {
-    const metrics = this.performanceMonitor.startApiCall('discord.verifyGuildAccess', 'GET')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.verifyGuildAccess', 'GET')
     try {
       const result = await this.guildManager.verifyGuildAccess(this.client, guildId, discordUserId)
       metrics.end(true)
@@ -127,7 +127,7 @@ export class DiscordFacadeService {
     type: string
     guild: { id: string; name: string }
   } | null> {
-    const metrics = this.performanceMonitor.startApiCall('discord.getChannelInfo', 'GET')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.getChannelInfo', 'GET')
     try {
       const result = await this.channelManager.getChannelInfo(this.client, channelId)
       metrics.end(true)
@@ -165,7 +165,7 @@ export class DiscordFacadeService {
     memberCount: number
     channels: Array<{ id: string; name: string; type: string }>
   }> {
-    const metrics = this.performanceMonitor.startApiCall('discord.getGuildInfo', 'GET')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.getGuildInfo', 'GET')
     try {
       const result = await this.guildManager.getGuildInfo(this.client, guildId)
       metrics.end(true)
@@ -181,7 +181,7 @@ export class DiscordFacadeService {
    * ChannelManagerサービスに委譲
    */
   async sendMessage(channelId: string, content: string, options?: any): Promise<any> {
-    const metrics = this.performanceMonitor.startApiCall('discord.sendMessage', 'POST')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.sendMessage', 'POST')
     try {
       const result = await this.channelManager.sendMessage(this.client, channelId, content, options)
       metrics.end(true)
@@ -197,7 +197,7 @@ export class DiscordFacadeService {
    * ChannelManagerサービスに委譲
    */
   async createChannel(guildId: string, name: string, options?: any): Promise<any> {
-    const metrics = this.performanceMonitor.startApiCall('discord.createChannel', 'POST')
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.createChannel', 'POST')
     try {
       const result = await this.channelManager.createChannel(this.client, guildId, name, options)
       metrics.end(true)
@@ -229,7 +229,8 @@ export class DiscordFacadeService {
     }>
     alerts: string[]
   } {
-    return this.performanceMonitor.getStats()
+    const summary = this.performanceOrchestrator.getPerformanceSummary()
+    return summary.discord
   }
 
   /**
@@ -251,7 +252,7 @@ export class DiscordFacadeService {
       activeAlerts: number
     }
   } {
-    const performanceHealth = this.performanceMonitor.getHealthStatus()
+    const performanceHealth = this.performanceOrchestrator.getSystemHealth()
 
     return {
       status: performanceHealth.status,
@@ -262,7 +263,11 @@ export class DiscordFacadeService {
         channels: this.channelManager.isInitialized()
       },
       issues: performanceHealth.issues,
-      metrics: performanceHealth.metrics
+      metrics: {
+        avgResponseTime: performanceHealth.metrics.discord.avgResponseTime || 0,
+        errorRate: performanceHealth.metrics.discord.errorRate || 0,
+        activeAlerts: performanceHealth.metrics.alerts.active || 0
+      }
     }
   }
 
@@ -275,7 +280,7 @@ export class DiscordFacadeService {
 
     try {
       await Promise.all([
-        this.performanceMonitor.performMaintenance(),
+        // メンテナンスは定期的に自動実行される
         this.guildManager.cleanup(),
         this.channelManager.cleanup()
       ])

@@ -1,8 +1,17 @@
 import { Injectable, OnModuleInit, Logger, Inject, Optional, forwardRef } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import { Client, Interaction, ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
+import {
+  Client,
+  Interaction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+  AnySelectMenuInteraction,
+  StringSelectMenuInteraction
+} from 'discord.js'
 import { InteractionsController } from './interactions.controller'
+import { CharacterUIService } from '../features/characterEdit/services/character-ui.service'
+import { CharacterSectionEditorService } from '../features/characterEdit/services/character-section-editor.service'
 
 /**
  * Discord インタラクションサービス
@@ -22,6 +31,8 @@ export class InteractionsService implements OnModuleInit {
   constructor(
     private readonly moduleRef: ModuleRef,
     private readonly eventEmitter: EventEmitter2,
+    private readonly characterUIService: CharacterUIService,
+    private readonly characterSectionEditorService: CharacterSectionEditorService,
     // コントローラーを直接注入（Optionalでundefinedでも問題ないように設定）
     @Optional()
     @Inject(forwardRef(() => InteractionsController))
@@ -158,6 +169,45 @@ export class InteractionsService implements OnModuleInit {
    * インタラクション実行（discord-interaction-handler.service.tsとの互換性のため）
    */
   async execute(interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction): Promise<void> {
+    // 応答済みインタラクションの重複処理を防止
+    if (interaction.replied || interaction.deferred) {
+      this.logger.warn(`インタラクション(ID: ${interaction.id})は既に応答済みです。処理をスキップします。`)
+      return
+    }
+
+    // キャラクター関連セレクトメニューの特別処理
+    if (interaction.isStringSelectMenu()) {
+      // character-section-select- または character-edit- で始まるカスタムIDを処理
+      if (
+        interaction.customId.startsWith('character-section-select-') ||
+        interaction.customId.includes('character-edit-') ||
+        interaction.customId.includes('character-field-')
+      ) {
+        this.logger.debug(`Handling character section/field select: ${interaction.customId}`)
+
+        try {
+          await this.characterSectionEditorService.execute(interaction)
+          this.logger.debug(`Character section/field select processed successfully: ${interaction.customId}`)
+        } catch (error) {
+          this.logger.error(`Character section/field select processing failed: ${interaction.customId}`, error)
+
+          // エラー時の応答処理（まだ応答していない場合のみ）
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction
+              .reply({
+                content: 'セクション選択の処理中にエラーが発生しました。',
+                ephemeral: true
+              })
+              .catch((err) => {
+                this.logger.error(`Error reply failed: ${err.message}`)
+              })
+          }
+          throw error
+        }
+        return
+      }
+    }
+
     await this.handleInteraction(interaction)
   }
 }

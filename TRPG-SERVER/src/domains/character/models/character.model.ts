@@ -29,7 +29,7 @@ export class Character {
   discordChannelId: string
 
   @Prop()
-  discordEditChannelId?: string
+  discordThreadId?: string
 
   @Prop()
   threadId?: string

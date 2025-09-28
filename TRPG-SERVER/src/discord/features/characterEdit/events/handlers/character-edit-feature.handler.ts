@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../../../../shared/application/typed-event.service'
 import { GlobalEventBusService } from '../../../../../events'
-import { EventPayload } from '../../../../../shared/domain/events/event-contracts'
+import { EventPayload } from '../../../../../events/contracts'
 
 /**
  * Character Edit Feature Event Handler

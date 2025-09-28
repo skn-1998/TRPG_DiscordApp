@@ -1,7 +1,9 @@
 Speak Japanese
 npmコマンドの代わりにpnpmコマンドを使用して
 
+
 なによりも作業を開始する前にAI.mdを確認してください
+AI.mdはTRPG
 指示した内容によってはあなたが判断してAI.*.mdも確認して
 例えばdiscord関係ならばAI.discord.mdも確認するなど
 
@@ -14,3 +16,6 @@ AI.*.mdはAI.domain.mdだったりAI.test.mdだったり機能ごとの設計を
 AI.mdよりも詳細に記載しているので私が質問した事項で必要だと思ったら確認してください。
 
 作業終了後はAI.*.mdに状況を必ず記載してください
+
+TRPG-SERVERでpnpm run buildを実行したあとはpnpm run start:devやcheck:circularを実施し、依存関係をチェックすること
+UserDomainとAuthDomainの循環参照は許容されている

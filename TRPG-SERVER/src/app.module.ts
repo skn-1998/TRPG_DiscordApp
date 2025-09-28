@@ -18,9 +18,7 @@ import { AppConfigService } from './config/config.service'
 // AI.architecture.md Phase 3: アダプター層統合
 // import { AdapterModule } from './adapters/adapter.module' // 一時的にコメントアウト
 
-// プロトタイプモジュール
-import { PrototypeModule } from './domains/character/application/prototype/prototype.module'
-import { DiscordPrototypeModule } from './discord/application/prototype/discord-prototype.module'
+// プロトタイプモジュールは削除されました
 
 @Module({
   imports: [
@@ -41,10 +39,7 @@ import { DiscordPrototypeModule } from './discord/application/prototype/discord-
     UserModule,
     AuthModule,
     DiceRollModule,
-    DiscordModule,
-    // プロトタイプモジュール
-    PrototypeModule,
-    DiscordPrototypeModule
+    DiscordModule
   ],
   controllers: [AppController],
   providers: [AppService],

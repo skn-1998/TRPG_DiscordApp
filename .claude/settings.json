@@ -17,6 +17,8 @@
       "Bash(pnpm run build:dev)",
       "Bash",
       "Edit",
+      "Write",
+      "Update",
       "Bash(pnpm:*)",
       "Bash(git:*)",
       "Bash(gh:*)",
