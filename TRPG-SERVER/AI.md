@@ -950,6 +950,45 @@ const benefits = {
 
 ---
 
+## 🚨 **重要な最新変更・修正 [2025-08-24]**
+
+### **🔧 character.creation.completedイベント重複発行問題の解決** `[修正: 2025-08-24]`
+
+#### **⚠️ 発見された問題**
+`character.creation.completed`イベントが複数箇所で重複発行されていました：
+- CharacterService (`character.service.ts`)
+- CharacterController (`character.controller.ts`) 
+- CharacterCreationRequestedHandler (`character.creation.requested.ts`)
+
+#### **📋 解決内容**
+イベント駆動アーキテクチャの原則に従い、以下の修正を実施：
+
+```typescript
+// ❌ 修正前: 3箇所で重複発行
+// 1. CharacterService.create() - 削除済み
+// 2. CharacterController.create() - 削除済み  
+// 3. CharacterCreationRequestedHandler - 残存（単一発行源）
+
+// ✅ 修正後: 1箇所のみで発行
+// CharacterCreationRequestedHandlerのみでイベント発行
+```
+
+#### **🎯 修正ファイル**
+- `src/domains/character/character.service.ts`: イベント発行コード削除
+- `src/domains/character/character.controller.ts`: イベント発行コード削除
+
+#### **💡 技術的改善点**
+- **イベント発行の単一責任**: CharacterCreationRequestedHandlerが唯一の発行源
+- **循環依存回避**: ドメインサービスからの直接イベント発行を削除
+- **設計原則遵守**: イベント駆動アーキテクチャの適切な実装
+- **ログ改善**: 重複ログの削除による可読性向上
+
+#### **📊 効果**
+- **重複イベント**: 2回 → 1回（100%削減）
+- **ログノイズ**: 大幅削減
+- **パフォーマンス**: 不要なイベント処理の削除
+- **保守性**: イベント発行箇所の明確化
+
 ## 🚨 **重要な最新変更・修正 [2025-08-17]**
 
 ### **🔧 型の不一致問題の特定と解決策** `[発見: 2025-01-05]`

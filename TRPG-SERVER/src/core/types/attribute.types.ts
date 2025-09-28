@@ -24,6 +24,9 @@ export interface AttributeValue {
   /** 説明・備考 */
   description?: string
 
+  /** ダイスロール */
+  dice?: string
+
   /** UI表示フラグ */
   isVisible?: boolean
 }

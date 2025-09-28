@@ -65,11 +65,11 @@ export class CharacterRepository implements Repository<Character, string> {
   }
 
   /**
-   * ユーザーが所有するすべてのキャラクターを検索する
+   * ユーザーが所有するすべてのキャラクターを検索する（更新日順）
    * @param discordUserId DiscordユーザーID
    */
   async findByUserId(discordUserId: string): Promise<Character[]> {
-    return this.characterModel.find({ discordUserId }).exec()
+    return this.characterModel.find({ discordUserId }).sort({ updatedAt: -1 }).exec()
   }
 
   /**

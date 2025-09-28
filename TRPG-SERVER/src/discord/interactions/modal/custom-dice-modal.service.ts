@@ -4,8 +4,7 @@ import { discordModalType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { ErrorHandler } from 'src/utils/error-handler'
-import { DiceCalculationHandlerService } from 'src/discord/services/dice-calculation-handler.service'
-import { DiceNotationHandlerService } from 'src/discord/services/dice-notation-handler.service'
+import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
 
 @Injectable()
 export class CustomDiceModalService implements discordModalType {
@@ -14,8 +13,7 @@ export class CustomDiceModalService implements discordModalType {
 
   constructor(
     private readonly characterService: CharacterService,
-    private readonly diceCalculationHandlerService: DiceCalculationHandlerService,
-    private readonly diceNotationHandlerService: DiceNotationHandlerService
+    private readonly diceOrchestratorService: DiceOrchestratorService
   ) {}
 
   /**
@@ -74,7 +72,7 @@ export class CustomDiceModalService implements discordModalType {
 
         if (isParameterBased) {
           // パラメータベースダイス（キャラクターデータ使用）
-          calculationResult = await this.diceCalculationHandlerService.calculateAndRoll(
+          calculationResult = await this.diceOrchestratorService.calculateAndRoll(
             diceCommand,
             multiplier,
             modifier,
@@ -82,7 +80,7 @@ export class CustomDiceModalService implements discordModalType {
           )
         } else {
           // カスタムダイス（ダイス記法専用）
-          calculationResult = await this.diceNotationHandlerService.executeNotation(diceCommand, characterName)
+          calculationResult = await this.diceOrchestratorService.executeBasicNotation(diceCommand, characterName)
         }
 
         if (calculationResult.success && calculationResult.diceResult) {
@@ -91,8 +89,8 @@ export class CustomDiceModalService implements discordModalType {
             0
           )
           const resultEmoji = isParameterBased
-            ? this.diceCalculationHandlerService.getResultEmoji(calculationResult.diceResult, rollResult)
-            : this.diceNotationHandlerService.getResultEmoji(calculationResult.diceResult, rollResult)
+            ? this.diceOrchestratorService.getResultEmoji(calculationResult.diceResult, rollResult)
+            : this.diceOrchestratorService.getBasicResultEmoji(calculationResult.diceResult, rollResult)
 
           // 結果メッセージを構築
           const rollType = isParameterBased ? '柔軟ダイスロール' : 'カスタムダイスロール'
@@ -115,9 +113,9 @@ export class CustomDiceModalService implements discordModalType {
         // character-threadの場合は親チャンネルのみに送信
         if (interaction.channel?.type === ChannelType.PublicThread) {
           if (isParameterBased) {
-            await this.diceCalculationHandlerService.sendToParentChannel(interaction, resultMessage)
+            await this.diceOrchestratorService.sendToParentChannel(interaction, resultMessage)
           } else {
-            await this.diceNotationHandlerService.sendToParentChannel(interaction, resultMessage)
+            await this.diceOrchestratorService.sendToParentChannelBasic(interaction, resultMessage)
           }
           // Thread内には応答しない（親チャンネルのみに送信）
           await interaction.reply({ content: '親チャンネルにダイスロール結果を送信しました。', ephemeral: true })

@@ -81,6 +81,7 @@ export interface Character {
   gameSystemId: string
   discordChannelId?: string
   discordUserId?: string
+  discordThreadId?: string
   threadId?: string
   status: Record<string, any>
   parameter: Record<string, any>

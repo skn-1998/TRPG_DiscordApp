@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { TextChannel, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { EventPayload } from '../../../../events/contracts'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterDisplayService } from './character-display.service'
@@ -44,7 +45,7 @@ export class CharacterDisplayHandlerService {
    * キャラクター表示リクエストイベントの処理
    */
   private async handleCharacterDisplayRequested(
-    payload: import('../../../../shared/domain/events/event-contracts').EventPayload<'discord.character.display.requested'>
+    payload: EventPayload<'discord.character.display.requested'>
   ): Promise<void> {
     try {
       const { character, channelId, displayType, requesterId, source } = payload

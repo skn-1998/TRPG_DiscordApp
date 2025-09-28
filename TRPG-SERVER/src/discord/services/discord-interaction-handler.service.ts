@@ -162,12 +162,21 @@ export class DiscordInteractionHandlerService {
   private async handleSelectMenuInteraction(interaction: AnySelectMenuInteraction): Promise<void> {
     this.logger.debug(`Processing select menu: ${interaction.customId}`)
 
+    // 登録されたハンドラーを優先
     const handler = this.selects.get(interaction.customId)
     if (handler) {
       await handler.execute(interaction)
-    } else {
-      await this.interactionsService.execute(interaction)
+      return
     }
+
+    // character-section-selectパターンは直接InteractionsServiceで処理
+    if (interaction.customId.startsWith('character-section-select-')) {
+      await this.interactionsService.execute(interaction)
+      return
+    }
+
+    // その他のセレクトメニューもInteractionsServiceで処理
+    await this.interactionsService.execute(interaction)
   }
 
   /**

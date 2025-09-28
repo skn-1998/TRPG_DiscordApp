@@ -72,10 +72,10 @@ export class CharacterChannelOrchestratorService implements discordSelectMenuTyp
         return
       }
 
-      const characterChannelId = interaction.values[0]
+      const discordChannelId = interaction.values[0]
 
       // 【PHASE3】一時的な機能無効化メッセージ
-      await this.handlePhase3Transition(interaction, characterChannelId)
+      await this.handlePhase3Transition(interaction, discordChannelId)
     } catch (error) {
       this.logger.error('Failed to execute select menu interaction', error)
 
@@ -92,14 +92,14 @@ export class CharacterChannelOrchestratorService implements discordSelectMenuTyp
    */
   private async handlePhase3Transition(
     interaction: StringSelectMenuInteraction,
-    characterChannelId: string
+    discordChannelId: string
   ): Promise<void> {
     try {
-      this.logger.log(`[PHASE3] Character search request: ${characterChannelId}`)
+      this.logger.log(`[PHASE3] Character search request: ${discordChannelId}`)
 
       // 型安全なイベント発行
       await this.eventEmitter.emit('character.findByChannelId.requested', {
-        channelId: characterChannelId,
+        channelId: discordChannelId,
         source: 'character-channel-orchestrator-service',
         timestamp: new Date()
       })

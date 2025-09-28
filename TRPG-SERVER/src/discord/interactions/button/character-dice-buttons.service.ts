@@ -26,7 +26,7 @@ import { OnEvent } from '@nestjs/event-emitter'
 import { v4 as uuidv4 } from 'uuid'
 import { ErrorHandler, BackgroundTaskErrorHandler } from 'src/utils/error-handler'
 import { CharacterService } from 'src/domains/character/character.service'
-import { PresetDiceHandlerService } from 'src/discord/services/preset-dice-handler.service'
+import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
 
 @Injectable()
 export class CharacterDiceButtonsService implements discordButtonType {
@@ -44,7 +44,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
     private readonly diceRollService: DiceRollService,
     private readonly paginationService: DiceRollPaginationService,
     private readonly characterService: CharacterService,
-    private readonly presetDiceHandlerService: PresetDiceHandlerService
+    private readonly dicePresetService: DicePresetService
   ) {}
 
   // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
@@ -68,7 +68,7 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // プリセットダイスロールの場合
       if (customId.startsWith('preset-dice*')) {
         // PresetDiceHandlerServiceに処理を委譲（ImportとConstructorは既に追加済み）
-        await this.presetDiceHandlerService.handlePresetDiceRoll(interaction, customId)
+        await this.dicePresetService.handlePresetDiceRoll(interaction, customId)
         return
       }
 

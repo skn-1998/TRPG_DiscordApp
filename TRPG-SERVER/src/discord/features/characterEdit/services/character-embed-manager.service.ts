@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { randomBytes } from 'crypto'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
+import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 
@@ -269,25 +270,72 @@ export class CharacterEmbedManagerService {
    * キャラクターデータを処理してフィールド配列を作成
    */
   private processCharacterData(data: Record<string, any>, dataType: string): EmbedField[] {
+    this.logger.debug(`Processing ${dataType} data:`, JSON.stringify(data, null, 2))
     const fields: EmbedField[] = []
 
     for (const [key, value] of Object.entries(data)) {
-      if (!value || value === null || value === undefined) continue
+      this.logger.debug(`Processing ${dataType} entry - Key: ${key}`)
+      this.logger.debug(`Value:`, JSON.stringify(value, null, 2))
+      console.log(`[EMBED-MANAGER] Processing ${dataType} - ${key}:`, value)
+
+      if (!value || value === null || value === undefined) {
+        this.logger.debug(`Skipping ${key} - null/undefined value`)
+        continue
+      }
 
       let fieldValue: string
       let fieldName: string = key
 
-      // 値の型に応じて処理
+      // AttributeValue型に応じた処理
       if (typeof value === 'object' && value !== null) {
-        if ('name' in value && 'value' in value) {
-          fieldName = value.name || key
-          fieldValue = String(value.value || '')
-        } else if ('description' in value || 'desc' in value) {
-          fieldValue = String(value.description || value.desc || '')
-        } else {
-          // オブジェクトをJSON文字列として表示
-          fieldValue = JSON.stringify(value, null, 2)
+        const attr = value as AttributeValue
+
+        // 表示名は name プロパティを優先
+        fieldName = attr.name || key
+
+        // 表示値を構成
+        const valueParts: string[] = []
+
+        // values（合計値）がある場合
+        if (attr.values && Object.keys(attr.values).length > 0) {
+          this.logger.debug(`Processing values for ${fieldName}:`, JSON.stringify(attr.values, null, 2))
+          const totalValue = getDisplayNumber(attr)
+          this.logger.debug(`Calculated total value for ${fieldName}: ${totalValue}`)
+          valueParts.push(`**合計:** ${totalValue}`)
+
+          // 詳細内訳を表示（基本値、バフ等）
+          const detailParts: string[] = []
+          Object.entries(attr.values).forEach(([partKey, partValue]) => {
+            this.logger.debug(`Processing part - Key: ${partKey}, Value: ${partValue}, Type: ${typeof partValue}`)
+            console.log(`[EMBED-MANAGER] partKey: ${partKey}, partValue: ${partValue}, type: ${typeof partValue}`)
+            if (typeof partValue === 'number' && partValue !== 0) {
+              const formattedPart = `${partKey}: ${partValue > 0 ? '+' : ''}${partValue}`
+              detailParts.push(formattedPart)
+              this.logger.debug(`Added detail part: ${formattedPart}`)
+            } else {
+              this.logger.debug(`Skipped part - not a number or zero: ${partKey} = ${partValue}`)
+            }
+          })
+
+          this.logger.debug(`Detail parts for ${fieldName}:`, detailParts)
+          if (detailParts.length > 0) {
+            const detailText = `(${detailParts.join(', ')})`
+            valueParts.push(detailText)
+            this.logger.debug(`Added detail text: ${detailText}`)
+          }
         }
+
+        // dice（ダイス）がある場合
+        if (attr.dice) {
+          valueParts.push(`🎲 **ダイス:** ${attr.dice}`)
+        }
+
+        // description（説明）がある場合
+        if (attr.description) {
+          valueParts.push(`💬 ${attr.description}`)
+        }
+
+        fieldValue = valueParts.length > 0 ? valueParts.join('\n') : '値が設定されていません'
       } else {
         fieldValue = String(value)
       }
@@ -567,9 +615,47 @@ export class CharacterEmbedManagerService {
       let displayName = key
       let displayValue = String(value)
 
-      // オブジェクトの場合は名前を優先
-      if (typeof value === 'object' && value !== null && 'name' in value) {
-        displayName = value.name || key
+      // AttributeValue型またはレガシー形式を処理
+      if (typeof value === 'object' && value !== null) {
+        const attr = value as any
+
+        this.logger.debug(`Field select menu - processing object: ${key}`, attr)
+
+        if (attr.values && typeof attr.values === 'object') {
+          // AttributeValue形式の場合
+          displayName = attr.name || key
+
+          // 表示値を構成
+          const displayParts: string[] = []
+
+          // values（合計値）がある場合
+          if (Object.keys(attr.values).length > 0) {
+            const totalValue = getDisplayNumber(attr)
+            displayParts.push(`合計: ${totalValue}`)
+          }
+
+          // dice（ダイス）がある場合
+          if (attr.dice) {
+            displayParts.push(`ダイス: ${attr.dice}`)
+          }
+
+          // description（説明）がある場合
+          if (attr.description) {
+            displayParts.push(attr.description)
+          }
+
+          displayValue = displayParts.length > 0 ? displayParts.join(' | ') : '設定値なし'
+        } else if (attr.name && 'value' in attr) {
+          // レガシー形式の場合
+          displayName = attr.name || key
+          displayValue = String(attr.value || '値なし')
+        } else {
+          // その他のオブジェクト形式
+          displayName = key
+          displayValue = 'オブジェクト形式'
+        }
+
+        this.logger.debug(`Field select menu - final display: ${displayName} = ${displayValue}`)
       }
 
       // 表示用に短縮

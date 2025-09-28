@@ -9,9 +9,6 @@ import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.mo
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
 import { TypedEventService } from '../../shared/application/typed-event.service'
 import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
-// AI.architecture.md Phase 3: ランタイム型検証統合
-// import { RuntimeValidationIntegration } from '../../adapters/runtime-validation.integration' // 一時的にコメントアウト
-// import { ValidationUtils } from '../../adapters/validation.utils' // 一時的にコメントアウト
 
 /**
  * キャラクターサービス
@@ -56,6 +53,7 @@ export class CharacterService {
     if (dto.characterName !== undefined) converted.characterName = dto.characterName
     if (dto.gameSystemId !== undefined) converted.gameSystemId = dto.gameSystemId
     if (dto.discordChannelId !== undefined) converted.discordChannelId = dto.discordChannelId
+    if (dto.discordThreadId !== undefined) converted.discordThreadId = dto.discordThreadId
     if (dto.status !== undefined) converted.status = this.convertDtoSectionToAttributeSection(dto.status)
     if (dto.skill !== undefined) converted.skill = this.convertDtoSectionToAttributeSection(dto.skill)
     if (dto.parameter !== undefined) converted.parameter = this.convertDtoSectionToAttributeSection(dto.parameter)
@@ -79,29 +77,8 @@ export class CharacterService {
   async create(createCharacterDto: CharacterInputDto): Promise<Character> {
     this.logger.log(`Creating character: ${createCharacterDto.characterName}`)
 
-    // AI.architecture.md Phase 3: ランタイム型検証の統合
-    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
-    // const validationResult = RuntimeValidationIntegration.validateCharacterCreation(
-    //   createCharacterDto,
-    //   { enableBusinessRules: true, strictMode: false }
-    // )
-
-    // if (!validationResult.isValid) {
-    //   const validationReport = RuntimeValidationIntegration.createValidationReport(
-    //     validationResult,
-    //     {
-    //       operation: 'character.create',
-    //       timestamp: new Date(),
-    //       correlationId: createCharacterDto.characterId
-    //     }
-    //   )
-    //
-    //   this.logger.error(`Character creation validation failed: ${validationReport.summary}`)
-    //   throw new Error(`Validation failed: ${validationResult.errors.map(e => e.message).join(', ')}`)
-    // }
-
     // 必要なデータの取得
-    const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
+    const { gameSystemId, characterName, discordUserId, discordChannelId, discordThreadId } = createCharacterDto
 
     // キャラクターIDがない場合はエラー（IDは外部で生成される想定）
     if (!createCharacterDto.characterId) {
@@ -115,6 +92,7 @@ export class CharacterService {
       characterName,
       discordUserId,
       discordChannelId,
+      discordThreadId,
       status: this.convertDtoSectionToAttributeSection(createCharacterDto.status),
       skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill),
       parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter),
@@ -122,43 +100,11 @@ export class CharacterService {
       description: this.convertDtoSectionToAttributeSection(createCharacterDto.description)
     }
 
-    // パフォーマンス監視付きでキャラクター作成
-    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
-    // const createResult = RuntimeValidationIntegration.withPerformanceMonitoring(
-    //   () => this.characterRepository.create(character),
-    //   'character.repository.create',
-    //   { warningMs: 500, errorMs: 2000 }
-    // )
-
-    // if (createResult.performance.status !== 'ok') {
-    //   this.logger.warn(`Character creation performance issue: ${createResult.performance.message}`)
-    // }
-
-    // const createdCharacter = createResult.result
     const createdCharacter = await this.characterRepository.create(character)
 
-    // 作成後検証（オプション）
-    // 一時的にコメントアウト（adaptersモジュール復旧後に有効化）
-    // const postValidation = ValidationUtils.validateCharacterComplete(createdCharacter, {
-    //   enableBusinessRules: true
-    // })
-
-    // if (!postValidation.isValid) {
-    //   this.logger.warn(`Created character failed post-validation: ${postValidation.errors.map(e => e.message).join(', ')}`)
-    // }
-
-    // キャラクター作成完了イベントを発行（イベント駆動アーキテクチャ）
-    await this.typedEventService.emit('character.created', {
-      character: createdCharacter,
-      source: 'character-service',
-      timestamp: new Date()
-      // validation: {
-      //   preValidation: validationResult,
-      //   postValidation: postValidation
-      // }
-    })
-
-    this.logger.log(`Character created event emitted for: ${createdCharacter.characterId}`)
+    // キャラクター作成完了イベントはCharacterCreationRequestedHandlerで発行されるため、
+    // ここでは発行しない（重複回避）
+    this.logger.log(`Character created successfully: ${createdCharacter.characterId}`)
 
     return createdCharacter
   }

@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { EventHandler, EventContext } from './_shared/event-handler.base'
-import { DiscordUIService } from '../../discord/services/discord-ui.service'
-import { CharacterUpdateCompletedEvent } from '../contracts/unified-event-contracts'
+import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
+import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
+import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
+import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
 
 /**
  * character.update.completed 専用ハンドラー
@@ -13,7 +14,10 @@ import { CharacterUpdateCompletedEvent } from '../contracts/unified-event-contra
  */
 @Injectable()
 export class CharacterUpdateCompletedHandler extends EventHandler<CharacterUpdateCompletedEvent> {
-  constructor(private readonly discordUIService: DiscordUIService) {
+  constructor(
+    private readonly characterUIService: CharacterUIService,
+    private readonly threadOrchestratorService: ThreadOrchestratorService
+  ) {
     super()
   }
 
@@ -55,7 +59,7 @@ export class CharacterUpdateCompletedHandler extends EventHandler<CharacterUpdat
       this.logger.debug(`Updating character embed in channel: ${character.discordChannelId}`)
 
       try {
-        await this.discordUIService.updateCharacterEmbed(character.discordChannelId, character as any)
+        await this.characterUIService.updateCharacterEmbed(character.discordChannelId, character as any)
         this.logger.debug(`✅ Character embed updated successfully`)
       } catch (error) {
         this.logger.warn(`⚠️ Character embed update failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -63,26 +67,41 @@ export class CharacterUpdateCompletedHandler extends EventHandler<CharacterUpdat
       }
     }
 
-    // 2. 重要な更新の場合は通知を送信
-    if (character.discordChannelId && this.shouldNotifyUpdate(updatedFields)) {
+    // // 2. 重要な更新の場合は通知を送信
+    // if (character.discordChannelId && this.shouldNotifyUpdate(updatedFields)) {
+    //   try {
+    //     await this.characterUIService.sendCharacterUpdateNotification(
+    //       character.discordChannelId,
+    //       character as any,
+    //       updatedFields || [],
+    //       character.discordUserId
+    //     )
+    //     this.logger.debug(`✅ Update notification sent successfully`)
+    //   } catch (error) {
+    //     this.logger.warn(`⚠️ Update notification failed: ${error instanceof Error ? error.message : String(error)}`)
+    //     // 通知の失敗は致命的ではないため、処理を続行
+    //   }
+    // }
+
+    // 3. スレッドが存在する場合、Thread内のEmbedを更新
+    if (character.discordThreadId) {
+      this.logger.debug(`Updating character thread display in thread: ${(character as any).discordThreadId}`)
+
       try {
-        await this.discordUIService.sendCharacterUpdateNotification(
-          character.discordChannelId,
-          character as any,
-          updatedFields || [],
-          character.discordUserId
-        )
-        this.logger.debug(`✅ Update notification sent successfully`)
+        await this.threadOrchestratorService.updateCharacterThreadDisplay(character as any)
+        this.logger.debug(`✅ Character thread display updated successfully`)
       } catch (error) {
-        this.logger.warn(`⚠️ Update notification failed: ${error instanceof Error ? error.message : String(error)}`)
-        // 通知の失敗は致命的ではないため、処理を続行
+        this.logger.warn(
+          `⚠️ Character thread display update failed: ${error instanceof Error ? error.message : String(error)}`
+        )
+        // Thread Embed更新の失敗は致命的ではないため、処理を続行
       }
     }
 
-    // 3. ステータス変更の場合はステータス表示を更新
+    // 4. ステータス変更の場合はステータス表示を更新
     if (updatedFields?.includes('status') && character.discordChannelId) {
       try {
-        await this.discordUIService.updateChannelStatusDisplay(character.discordChannelId, character as any)
+        await this.characterUIService.updateChannelStatusDisplay(character.discordChannelId, character as any)
         this.logger.debug(`✅ Channel status display updated successfully`)
       } catch (error) {
         this.logger.warn(

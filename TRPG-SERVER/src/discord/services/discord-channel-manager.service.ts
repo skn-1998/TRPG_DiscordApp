@@ -12,9 +12,7 @@ import {
   OverwriteResolvable
 } from 'discord.js'
 import { AppConfigService } from '../../config/config.service'
-import { MessageManagerService } from './message-manager.service'
-import { ChannelCacheService } from './channel-cache.service'
-import { ChannelCreatorService } from './channel-creator.service'
+import { MessageManagerService, ChannelCacheService, ChannelCreatorService } from './channel'
 
 /**
  * Discord チャンネル管理オーケストレーターサービス

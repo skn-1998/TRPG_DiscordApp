@@ -56,9 +56,22 @@ export class CharacterEmbedService {
    * 強化表示：詳細なキャラクター情報
    */
   private async postEnhancedCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+    // DiscordチャンネルURLを生成
+    const guildId = thread.guildId
+    const channelUrl = character.discordChannelId
+      ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
+      : null
+
+    const description = [
+      `**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+      channelUrl ? `**編集チャンネル**: [キャラクター編集](${channelUrl})` : null
+    ]
+      .filter(Boolean)
+      .join('\n')
+
     const embed = new EmbedBuilder()
       .setTitle(`🎭 ${character.characterName}`)
-      .setDescription(`**ゲームシステム**: ${character.gameSystemId || '未設定'}`)
+      .setDescription(description)
       .setColor(0x00ae86)
       .setTimestamp()
 
@@ -109,9 +122,22 @@ export class CharacterEmbedService {
    * コンパクト表示：最小限の情報
    */
   private async postCompactCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+    // DiscordチャンネルURLを生成
+    const guildId = thread.guildId
+    const channelUrl = character.discordChannelId
+      ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
+      : null
+
+    const description = [
+      `**${character.gameSystemId || 'システム未設定'}**`,
+      channelUrl ? `[編集チャンネル](${channelUrl})` : null
+    ]
+      .filter(Boolean)
+      .join('\n')
+
     const embed = new EmbedBuilder()
       .setTitle(`🎭 ${character.characterName}`)
-      .setDescription(`**${character.gameSystemId || 'システム未設定'}**`)
+      .setDescription(description)
       .setColor(0x36393f)
       .setTimestamp()
 
@@ -130,9 +156,22 @@ export class CharacterEmbedService {
    * 基本表示：標準的な情報
    */
   private async postBasicCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+    // DiscordチャンネルURLを生成
+    const guildId = thread.guildId
+    const channelUrl = character.discordChannelId
+      ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
+      : null
+
+    const description = [
+      `**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+      channelUrl ? `**編集チャンネル**: [キャラクター編集](${channelUrl})` : null
+    ]
+      .filter(Boolean)
+      .join('\n')
+
     const embed = new EmbedBuilder()
       .setTitle(`🎭 ${character.characterName}`)
-      .setDescription(`**ゲームシステム**: ${character.gameSystemId || '未設定'}`)
+      .setDescription(description)
       .setColor(0x0099ff)
       .setTimestamp()
 
@@ -198,25 +237,118 @@ export class CharacterEmbedService {
    */
   async updateCharacterDisplay(character: Character): Promise<void> {
     try {
-      if (!character.threadId) {
+      if (!character.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${character.characterId}`)
         return
       }
 
-      const thread = await this.discordClient.channels.fetch(character.threadId)
+      const thread = await this.discordClient.channels.fetch(character.discordThreadId)
       if (!thread?.isThread()) {
-        this.logger.warn(`Thread not found or invalid: ${character.threadId}`)
+        this.logger.warn(`Thread not found or invalid: ${character.discordThreadId}`)
         return
       }
 
-      // 既存のメッセージを削除して新しい表示を投稿
-      // （実装の簡素化のため、新しいメッセージを投稿）
-      await this.postCharacterDisplay(thread as ThreadChannel, character, 'enhanced')
+      // 既存のキャラクター情報Embedメッセージを検索して更新
+      await this.updateExistingCharacterEmbed(thread as ThreadChannel, character)
 
       this.logger.debug(`Character display updated: ${character.characterName}`)
     } catch (error) {
       this.logger.error(`Failed to update character display: ${character.characterName}`, error)
       throw error
+    }
+  }
+
+  /**
+   * 既存のキャラクター情報Embedメッセージを検索して更新
+   */
+  private async updateExistingCharacterEmbed(thread: ThreadChannel, character: Character): Promise<void> {
+    try {
+      // 最近の50メッセージを取得してキャラクター情報Embedを検索
+      const messages = await thread.messages.fetch({ limit: 50 })
+
+      // ボットが送信したキャラクター情報Embedを検索
+      const characterEmbedMessage = messages.find(
+        (message) =>
+          message.author.id === this.discordClient.user?.id &&
+          message.embeds.length > 0 &&
+          message.embeds[0].title?.includes(character.characterName) &&
+          message.embeds[0].title?.includes('🎭')
+      )
+
+      if (characterEmbedMessage) {
+        // 既存メッセージを更新
+        this.logger.debug(`Found existing character embed message, updating: ${characterEmbedMessage.id}`)
+
+        // 新しいEmbed情報を生成
+        const guildId = thread.guildId
+        const channelUrl = character.discordChannelId
+          ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
+          : null
+
+        const description = [
+          `**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
+          channelUrl ? `**編集チャンネル**: [キャラクター編集](${channelUrl})` : null
+        ]
+          .filter(Boolean)
+          .join('\n')
+
+        const embed = new EmbedBuilder()
+          .setTitle(`🎭 ${character.characterName}`)
+          .setDescription(description)
+          .setColor(0x00ae86)
+          .setTimestamp()
+
+        // ステータス情報
+        if (character.status && Object.keys(character.status).length > 0) {
+          const statusText = this.formatAttributeSection(character.status)
+          if (statusText) {
+            embed.addFields({ name: '📊 ステータス', value: statusText, inline: true })
+          }
+        }
+
+        // パラメータ情報
+        if (character.parameter && Object.keys(character.parameter).length > 0) {
+          const parameterText = this.formatAttributeSection(character.parameter)
+          if (parameterText) {
+            embed.addFields({ name: '⚡ パラメータ', value: parameterText, inline: true })
+          }
+        }
+
+        // スキル情報（上位5個まで）
+        if (character.skill && Object.keys(character.skill).length > 0) {
+          const skillText = this.formatAttributeSection(character.skill, 5)
+          if (skillText) {
+            embed.addFields({ name: '🎯 スキル', value: skillText, inline: false })
+          }
+        }
+
+        // アイテム情報（上位3個まで）
+        if (character.item && Object.keys(character.item).length > 0) {
+          const itemText = this.formatAttributeSection(character.item, 3)
+          if (itemText) {
+            embed.addFields({ name: '🎒 アイテム', value: itemText, inline: false })
+          }
+        }
+
+        // 説明情報
+        if (character.description && Object.keys(character.description).length > 0) {
+          const descriptionText = this.formatAttributeSection(character.description, 1)
+          if (descriptionText) {
+            embed.addFields({ name: '📖 説明', value: descriptionText, inline: false })
+          }
+        }
+
+        await characterEmbedMessage.edit({ embeds: [embed] })
+        this.logger.debug(`Character embed message updated successfully`)
+      } else {
+        // 既存メッセージが見つからない場合は新しいメッセージを投稿
+        this.logger.debug(`No existing character embed found, posting new message`)
+        await this.postCharacterDisplay(thread, character, 'enhanced')
+      }
+    } catch (error) {
+      this.logger.error(`Failed to update existing character embed: ${error}`)
+      // エラー時は新しいメッセージを投稿
+      await this.postCharacterDisplay(thread, character, 'enhanced')
     }
   }
 }

@@ -92,13 +92,8 @@ export class CharacterController {
 
       const character = await this.characterService.create(createCharacterDto)
 
-      // キャラクター作成イベントを発行（Discord連携）
-      await this.typedEventService.emit('character.created', {
-        character: character,
-        source: 'character-controller',
-        timestamp: new Date()
-      })
-
+      // キャラクター作成完了イベントはCharacterCreationRequestedHandlerで発行されるため、
+      // ここでは発行しない（重複回避）
       ApiResponseUtil.success(res, character, 'character', 201, 'キャラクターを作成しました')
     } catch (error) {
       if (error instanceof UnauthorizedException) {

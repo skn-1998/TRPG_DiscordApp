@@ -5,7 +5,7 @@ import { discordButtonType } from '../../discord.type'
 import { DiceButtonUIService } from './dice-button-ui.service'
 import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceHistoryService } from './dice-history.service'
-import { PresetDiceHandlerService } from '../../services/preset-dice-handler.service'
+import { DicePresetService } from '../../services/dice/dice-preset.service'
 
 import { DiceRollRequest } from '../../utils/dice-roll.interface'
 import { ErrorHandler } from '../../../utils/error-handler'
@@ -28,7 +28,7 @@ export class CharacterDiceOrchestratorService implements discordButtonType {
     private readonly diceRollLogic: DiceRollLogicService,
     private readonly diceHistory: DiceHistoryService,
     private readonly characterService: CharacterService,
-    private readonly presetDiceHandlerService: PresetDiceHandlerService
+    private readonly dicePresetService: DicePresetService
   ) {
     this.logger.debug('Character dice orchestrator service initialized')
   }
@@ -53,7 +53,7 @@ export class CharacterDiceOrchestratorService implements discordButtonType {
 
       // プリセットダイスロールの場合
       if (customId.startsWith('preset-dice*')) {
-        await this.presetDiceHandlerService.handlePresetDiceRoll(interaction, customId)
+        await this.dicePresetService.handlePresetDiceRoll(interaction, customId)
         return
       }
 

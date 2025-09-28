@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { EventPayload } from '../../../../events/contracts'
 
 import { ThreadManagerService, CreateThreadRequest, CreateThreadResult } from './thread-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
@@ -32,9 +33,7 @@ export class ThreadOrchestratorService {
   /**
    * スレッド作成リクエストイベントを処理
    */
-  async handleThreadCreateRequest(
-    payload: import('../../../../shared/domain/events/event-contracts').EventPayload<'discord.thread.create.requested'>
-  ): Promise<void> {
+  async handleThreadCreateRequest(payload: EventPayload<'discord.thread.create.requested'>): Promise<void> {
     const { character, channelId, guildId, creatorId, displayType, source } = payload
 
     this.logger.log(`Handling thread create request for character: ${character.characterId}`)
@@ -56,16 +55,22 @@ export class ThreadOrchestratorService {
         throw new Error(result.error || 'Thread creation failed')
       }
 
-      // 2. スレッドIDをキャラクターに保存
+      // 2. スレッドIDをキャラクターに保存（新しい設計：discordThreadIdに保存）
+      this.logger.log(`[ORCHESTRATOR] Updating character ${character.characterId} with threadId: ${result.threadId}`)
       await this.characterService.update(character.characterId, {
-        threadId: result.threadId
+        threadId: result.threadId,
+        discordThreadId: result.threadId
       })
+      this.logger.log(`[ORCHESTRATOR] Character updated successfully`)
 
       // 3. スレッドを取得
+      this.logger.log(`[ORCHESTRATOR] Fetching created thread: ${result.threadId}`)
       const thread = await this.threadManager.getThreadChannel(result.threadId)
       if (!thread) {
+        this.logger.error(`[ORCHESTRATOR] Created thread not found: ${result.threadId}`)
         throw new Error(`Created thread not found: ${result.threadId}`)
       }
+      this.logger.log(`[ORCHESTRATOR] Thread fetched successfully: ${thread.name} (archived: ${thread.archived})`)
 
       // 4. キャラクター情報を投稿
       await this.characterEmbed.postCharacterDisplay(thread, character, displayType)
@@ -103,14 +108,14 @@ export class ThreadOrchestratorService {
    */
   async updateCharacterThreadDisplay(character: Character): Promise<void> {
     try {
-      if (!character.threadId) {
+      if (!character.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${character.characterId}`)
         return
       }
 
-      const thread = await this.threadManager.getThreadChannel(character.threadId)
+      const thread = await this.threadManager.getThreadChannel(character.discordThreadId)
       if (!thread) {
-        this.logger.warn(`Thread not found: ${character.threadId}`)
+        this.logger.warn(`Thread not found: ${character.discordThreadId}`)
         return
       }
 
@@ -129,15 +134,15 @@ export class ThreadOrchestratorService {
   async archiveCharacterThread(characterId: string): Promise<boolean> {
     try {
       const character = await this.characterService.findOne(characterId)
-      if (!character?.threadId) {
+      if (!character?.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${characterId}`)
         return false
       }
 
-      const result = await this.threadManager.archiveThread(character.threadId)
+      const result = await this.threadManager.archiveThread(character.discordThreadId)
 
       if (result) {
-        this.logger.log(`Character thread archived: ${character.threadId}`)
+        this.logger.log(`Character thread archived: ${character.discordThreadId}`)
       }
 
       return result
@@ -153,15 +158,15 @@ export class ThreadOrchestratorService {
   async unarchiveCharacterThread(characterId: string): Promise<boolean> {
     try {
       const character = await this.characterService.findOne(characterId)
-      if (!character?.threadId) {
+      if (!character?.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${characterId}`)
         return false
       }
 
-      const result = await this.threadManager.unarchiveThread(character.threadId)
+      const result = await this.threadManager.unarchiveThread(character.discordThreadId)
 
       if (result) {
-        this.logger.log(`Character thread unarchived: ${character.threadId}`)
+        this.logger.log(`Character thread unarchived: ${character.discordThreadId}`)
       }
 
       return result

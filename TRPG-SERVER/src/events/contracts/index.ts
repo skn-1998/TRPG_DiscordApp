@@ -23,6 +23,215 @@ import { SystemEventType } from './system-events.contract'
 export type GlobalEventType = CharacterDomainEventType | DiscordIntegrationEventType | SystemEventType
 
 // ============================================================================
+// TypedEventService互換性のための型定義
+// ============================================================================
+
+// Character関連のイベント契約（TypedEventService用）
+export interface CharacterEventContracts {
+  // Character検索関連
+  'character.findByChannelId.requested': {
+    channelId: string
+    source: 'character-channel-service' | 'character-tab-buttons-service' | 'discord-facade' | string
+    timestamp: Date
+    tabType?: string
+  }
+
+  'character.findByChannelId.completed': {
+    channelId: string
+    character: any | null
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByChannelId.failed': {
+    channelId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.findById.requested': {
+    characterId: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.findById.completed': {
+    characterId: string
+    character: any | null
+    source: string
+    timestamp: Date
+  }
+
+  'character.findById.failed': {
+    characterId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByName.requested': {
+    characterName: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByName.completed': {
+    characterName: string
+    character: any | null
+    source: string
+    timestamp: Date
+  }
+
+  'character.findByName.failed': {
+    characterName: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // Character更新関連
+  'character.update.requested': {
+    channelId: string
+    updateData: any
+    userId?: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.update.completed': {
+    channelId: string
+    character: any
+    source: string
+    timestamp: Date
+  }
+
+  'character.update.failed': {
+    channelId: string
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // Character作成関連
+  'character.creation.requested': {
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
+    requester?: any
+    userId: string
+    source: string
+    timestamp: Date
+  }
+
+  'character.creation.completed': {
+    character: any
+    source: string
+    timestamp: Date
+  }
+
+  'character.creation.failed': {
+    createData: {
+      characterName: string
+      gameSystemId?: string
+      discordUserId?: string
+      discordChannelId?: string
+      threadId?: string
+      status?: Record<string, any>
+      parameter?: Record<string, any>
+      skill?: Record<string, any>
+      item?: Record<string, any>
+      description?: Record<string, any>
+    }
+    error: string
+    source: string
+    timestamp: Date
+  }
+
+  // Character更新イベント（汎用）
+  'character.updated': {
+    character: any
+    updateType: string
+    channelId?: string
+    source: string
+    timestamp: Date
+  }
+
+  // Character作成イベント（汎用）
+  'character.created': {
+    character: any
+    source: string
+    timestamp: Date
+  }
+
+  // Character削除イベント（汎用）
+  'character.deleted': {
+    character: any
+    source: string
+    timestamp: Date
+  }
+
+  // Discord関連のイベント
+  'discord.character.display.requested': {
+    character: any
+    channelId: string
+    guildId: string
+    requesterId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
+    source: string
+    timestamp: Date
+  }
+
+  'discord.embed.character.update.requested': {
+    character: any
+    channelId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
+    source: string
+    timestamp: Date
+  }
+
+  'discord.thread.create.requested': {
+    character: any
+    channelId: string
+    guildId: string
+    creatorId: string
+    displayType?: 'basic' | 'enhanced' | 'compact'
+    source: string
+    timestamp: Date
+  }
+
+  // すべてのイベント名を許可（any型で）
+  [eventName: string]: any
+}
+
+// 統合されたイベント契約
+export interface AppEventContracts extends CharacterEventContracts {}
+
+// イベント名の型
+export type EventName = string
+
+// 特定のイベントの引数の型を取得するヘルパー型
+export type EventPayload<T extends EventName> = T extends keyof AppEventContracts ? AppEventContracts[T] : any
+
+// イベントハンドラーの型
+export type TypedEventHandler<T extends EventName> = (payload: EventPayload<T>) => Promise<void> | void
+
+// イベントリスナーの型
+export interface TypedEventListener<T extends EventName> {
+  event: T
+  handler: TypedEventHandler<T>
+}
+
+// ============================================================================
 // Event Category Mapping
 // ============================================================================
 

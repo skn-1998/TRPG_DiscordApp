@@ -13,6 +13,9 @@ import { ChannelManagerService } from './services/channel-manager.service'
 import { DiceUIBuilderService } from './services/dice-ui-builder.service'
 import { CharacterChannelOrchestratorService } from './services/character-channel-orchestrator.service'
 import { CharacterEmbedService } from './services/character-embed.service'
+import { ThreadOrchestratorService } from './services/thread-orchestrator.service'
+import { ThreadManagerService } from './services/thread-manager.service'
+import { ThreadInteractionService } from './services/thread-interaction.service'
 
 @Module({
   imports: [CharacterModule, SharedModule, forwardRef(() => DiscordIntegrationModule)],
@@ -27,7 +30,10 @@ import { CharacterEmbedService } from './services/character-embed.service'
     ChannelManagerService,
     DiceUIBuilderService,
     CharacterChannelOrchestratorService,
-    CharacterEmbedService
+    CharacterEmbedService,
+    ThreadOrchestratorService,
+    ThreadManagerService,
+    ThreadInteractionService
   ],
   exports: [
     ThreadCreationService,
@@ -40,7 +46,10 @@ import { CharacterEmbedService } from './services/character-embed.service'
     ChannelManagerService,
     DiceUIBuilderService,
     CharacterChannelOrchestratorService,
-    CharacterEmbedService
+    CharacterEmbedService,
+    ThreadOrchestratorService,
+    ThreadManagerService,
+    ThreadInteractionService
   ]
 })
 export class CharacterThreadFeatureModule {}

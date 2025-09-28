@@ -22,6 +22,7 @@ import {
 } from 'discord.js'
 import { Character } from '../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../shared/application/typed-event.service'
+import { EventPayload } from '../../../events/contracts'
 import { ErrorHandler } from '../../../utils/error-handler'
 import { AttributeValue } from '../../../core/types/attribute.types'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
@@ -276,9 +277,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * キャラクター自動更新イベントの処理（character-edit専用）
    */
-  private async handleCharacterAutoUpdate(
-    payload: import('../../../shared/domain/events/event-contracts').EventPayload<'character.updated'>
-  ): Promise<void> {
+  private async handleCharacterAutoUpdate(payload: EventPayload<'character.updated'>): Promise<void> {
     const { character, updateType } = payload
 
     this.logger.log(`[CHARACTER-EDIT] Character updated: ${character.characterId} (${updateType})`)
@@ -307,7 +306,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    * Discord Embed更新リクエストイベントの処理
    */
   async handleDiscordEmbedUpdateRequested(
-    payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.embed.character.update.requested'>
+    payload: EventPayload<'discord.embed.character.update.requested'>
   ): Promise<void> {
     try {
       const { character, channelId, displayType, source } = payload
@@ -349,9 +348,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * キャラクター表示リクエストイベントの処理
    */
-  async handleCharacterDisplayRequested(
-    payload: import('../../../shared/domain/events/event-contracts').EventPayload<'discord.character.display.requested'>
-  ): Promise<void> {
+  async handleCharacterDisplayRequested(payload: EventPayload<'discord.character.display.requested'>): Promise<void> {
     try {
       const { character, channelId, displayType, source } = payload
 

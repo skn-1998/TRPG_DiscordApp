@@ -161,15 +161,30 @@ export class DiscordIntegrationHandler implements OnModuleInit {
    * Discord スレッド作成リクエストハンドラー
    */
   private async handleThreadCreateRequested(event: DiscordThreadCreateRequestedEvent): Promise<void> {
-    this.logger.log(`🧵 Discord Thread Create Requested: ${event.threadData.name}`)
+    this.logger.log(`🧵 Discord Thread Create Requested: ${event.threadData?.name || 'Unknown Thread'}`)
 
     try {
-      // リクエストログ記録
-      // 実際のスレッド作成処理はThreadCreationServiceが担当
+      // 監査ログ発行（File-based Event Handlerが実際の処理を担当）
+      await this.globalEventBus.emit({
+        type: 'system.audit.logged',
+        timestamp: new Date(),
+        source: 'system',
+        audit: {
+          action: 'discord.thread.create.requested',
+          userId: event.userId || 'unknown',
+          resource: `thread:${event.threadData?.name || 'unknown'}`,
+          details: {
+            channelId: event.channelId,
+            guildId: event.guildId,
+            characterId: event.characterId
+          },
+          outcome: 'success'
+        }
+      })
 
-      this.logger.debug(`Thread creation requested for character: ${event.characterId}`)
+      this.logger.debug(`Thread creation request logged for character: ${event.characterId || 'unknown'}`)
     } catch (error) {
-      this.logger.error(`❌ Discord thread create request processing failed`, error)
+      this.logger.error(`❌ Discord thread create request logging failed`, error)
     }
   }
 

@@ -10,12 +10,11 @@ import { DiscordCommandRegistrationService } from './services/discord-command-re
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
-import { MessageManagerService } from './services/message-manager.service'
-import { ChannelCacheService } from './services/channel-cache.service'
-import { ChannelCreatorService } from './services/channel-creator.service'
-import { DiscordPerformanceMonitorService } from './services/discord-performance-monitor.service'
-import { PerformanceMetricsIntegrationService } from './services/performance-metrics-integration.service'
-import { AlertSystemService } from './services/alert-system.service'
+import { MessageManagerService, ChannelCacheService, ChannelCreatorService } from './services/channel'
+import { PerformanceOrchestratorService } from './services/monitoring/performance-orchestrator.service'
+import { MetricsCollectorService } from './services/monitoring/metrics-collector.service'
+import { AlertManagerService } from './services/monitoring/alert-manager.service'
+import { DiscordMonitorService } from './services/monitoring/discord-monitor.service'
 import { AuthModule } from '../domains/auth/auth.module'
 import { DiscordController } from './discord.controller'
 import { PerformanceDashboardController } from './controllers/performance-dashboard.controller'
@@ -41,16 +40,16 @@ import { CharacterModule } from '../domains/character/character.module'
     DiscordInteractionHandlerService,
     DiscordGuildManagerService,
     DiscordChannelManagerService,
-    DiscordPerformanceMonitorService,
-
     // チャンネル管理専門サービス（分割結果）
     MessageManagerService,
     ChannelCacheService,
     ChannelCreatorService,
 
-    // パフォーマンス監視系
-    PerformanceMetricsIntegrationService,
-    AlertSystemService,
+    // 統合された監視系
+    PerformanceOrchestratorService,
+    MetricsCollectorService,
+    AlertManagerService,
+    DiscordMonitorService,
 
     // 後方互換性のために保持
     DiscordService,
@@ -66,16 +65,17 @@ import { CharacterModule } from '../domains/character/character.module'
     DiscordInteractionHandlerService,
     DiscordGuildManagerService,
     DiscordChannelManagerService,
-    DiscordPerformanceMonitorService,
 
-    // チャンネル管理専門サービス（高度な利用向け）
+    // チャンネル管理専門サービス（分割結果）
     MessageManagerService,
     ChannelCacheService,
     ChannelCreatorService,
 
-    // パフォーマンス監視系
-    PerformanceMetricsIntegrationService,
-    AlertSystemService,
+    // 統合された監視系
+    PerformanceOrchestratorService,
+    MetricsCollectorService,
+    AlertManagerService,
+    DiscordMonitorService,
 
     // 後方互換性のために保持
     DiscordService,

@@ -137,46 +137,125 @@ export class InteractionsController {
    * ボタンインタラクション処理
    */
   private async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
-    // Enhanced Character Edit Service（統合済み）
-    await this.enhancedCharacterEditService.handleButtonInteraction(interaction)
+    this.logger.debug(`ボタン処理: ${interaction.customId}`)
 
-    // 通常のボタン処理
-    await this.doInteractions(this.diceButtonService, { customId: 'dice_button' })
-    await this.doInteractions(this.characterTabButtonsService, {
-      customId: characterThreadIds.characterTabButtons.customId
-    })
-    await this.doInteractions(this.characterDiceButtonsService, { customId: 'character-dice' })
-    await this.doInteractions(this.dicePagePrevButtonService, { customId: 'dice-page-prev' })
-    await this.doInteractions(this.dicePageNextButtonService, { customId: 'dice-page-next' })
-    await this.doInteractions(this.dicePageFirstButtonService, { customId: 'dice-page-first' })
-    await this.doInteractions(this.dicePageLastButtonService, { customId: 'dice-page-last' })
-    await this.doInteractions(this.dicePageCancelButtonService, { customId: 'dice-page-cancel' })
+    // キャラクター関連ボタンの場合
+    if (
+      interaction.customId.startsWith('character-refresh-') ||
+      interaction.customId.startsWith('character-edit-') ||
+      interaction.customId.includes('character-tab-')
+    ) {
+      await this.enhancedCharacterEditService.handleButtonInteraction(interaction)
+      return
+    }
+
+    // ダイスページネーション関連ボタン
+    if (interaction.customId === 'dice-page-prev') {
+      await this.doInteractions(this.dicePagePrevButtonService, { customId: 'dice-page-prev' })
+      return
+    }
+    if (interaction.customId === 'dice-page-next') {
+      await this.doInteractions(this.dicePageNextButtonService, { customId: 'dice-page-next' })
+      return
+    }
+    if (interaction.customId === 'dice-page-first') {
+      await this.doInteractions(this.dicePageFirstButtonService, { customId: 'dice-page-first' })
+      return
+    }
+    if (interaction.customId === 'dice-page-last') {
+      await this.doInteractions(this.dicePageLastButtonService, { customId: 'dice-page-last' })
+      return
+    }
+    if (interaction.customId === 'dice-page-cancel') {
+      await this.doInteractions(this.dicePageCancelButtonService, { customId: 'dice-page-cancel' })
+      return
+    }
+
+    // ダイス関連ボタン
+    if (interaction.customId.startsWith('character-dice')) {
+      await this.doInteractions(this.characterDiceButtonsService, { customId: 'character-dice' })
+      return
+    }
+    if (interaction.customId === 'dice_button') {
+      await this.doInteractions(this.diceButtonService, { customId: 'dice_button' })
+      return
+    }
+
+    // キャラクタータブボタン（character-thread用）
+    if (interaction.customId === characterThreadIds.characterTabButtons.customId) {
+      await this.doInteractions(this.characterTabButtonsService, {
+        customId: characterThreadIds.characterTabButtons.customId
+      })
+      return
+    }
+
+    // その他のボタン処理
+    this.logger.warn(`Unknown button customId: ${interaction.customId}`)
   }
 
   /**
    * セレクトメニューインタラクション処理
    */
   private async handleSelectMenuInteraction(interaction: AnySelectMenuInteraction): Promise<void> {
+    const customId = interaction.customId
+
+    // Character Thread Create Select（専用処理）
+    if (customId === 'character-thread-create-select') {
+      await this.doInteractions(this.characterThreadSelectService, { customId: 'character-thread-create-select' })
+      return
+    }
+
     // Enhanced Character Edit Service（統合済み）
-    await this.enhancedCharacterEditService.handleSelectMenuInteraction(interaction as any)
+    if (
+      customId.startsWith('character-edit-') ||
+      customId.startsWith('character-section-select-') ||
+      customId.startsWith('character-field-')
+    ) {
+      await this.enhancedCharacterEditService.handleSelectMenuInteraction(interaction as any)
+      return
+    }
 
     // 通常のセレクトメニュー処理
-    await this.doInteractions(this.diceCharacterSelectService, { customId: 'dice-character-select' })
-    await this.doInteractions(this.characterThreadSelectService, {
-      customId: characterThreadIds.selectCharacterChannel.customId
-    })
-    await this.doInteractions(this.dicePageSelectMenuService, { customId: 'dice-page-select' })
+    if (customId === 'dice-character-select') {
+      await this.doInteractions(this.diceCharacterSelectService, { customId: 'dice-character-select' })
+      return
+    }
+
+    if (customId === characterThreadIds.selectCharacterChannel.customId) {
+      await this.doInteractions(this.characterThreadSelectService, {
+        customId: characterThreadIds.selectCharacterChannel.customId
+      })
+      return
+    }
+
+    if (customId === 'dice-page-select') {
+      await this.doInteractions(this.dicePageSelectMenuService, { customId: 'dice-page-select' })
+      return
+    }
+
+    this.logger.warn(`Unknown select menu customId: ${customId}`)
   }
 
   /**
    * モーダル送信インタラクション処理
    */
   private async handleModalSubmitInteraction(interaction: ModalSubmitInteraction): Promise<void> {
-    // Enhanced Character Edit Service（統合済み）
-    await this.enhancedCharacterEditService.handleModalSubmitInteraction(interaction)
+    this.interaction = interaction
 
-    // 通常のモーダル処理
-    await this.doInteractions(this.customDiceModalService, { customId: 'custom-dice-modal' })
+    // キャラクター編集モーダルの場合
+    if (interaction.customId.startsWith('char-edit-') || interaction.customId.startsWith('char-edit-modal-')) {
+      await this.enhancedCharacterEditService.handleModalSubmitInteraction(interaction)
+      return
+    }
+
+    // カスタムダイスモーダルの場合
+    if (interaction.customId === 'custom-dice-modal') {
+      await this.doInteractions(this.customDiceModalService, { customId: 'custom-dice-modal' })
+      return
+    }
+
+    // その他のモーダル処理
+    this.logger.warn(`Unknown modal customId: ${interaction.customId}`)
   }
 
   /**

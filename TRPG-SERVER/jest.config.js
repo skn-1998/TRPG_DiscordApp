@@ -15,9 +15,32 @@ module.exports = {
     }]
   },
   
-  // モジュールパスマッピング
+  // モジュールパスマッピング（tsconfig.jsonと一致）
   moduleNameMapper: {
+    // エイリアス（tsconfig.jsonのpathsと一致）
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@app/(.*)$': '<rootDir>/src/$1',
+    '^@config/(.*)$': '<rootDir>/src/config/$1',
+    '^@domains/(.*)$': '<rootDir>/src/domains/$1',
+    '^@auth/(.*)$': '<rootDir>/src/auth/$1',
+    '^@discord/(.*)$': '<rootDir>/src/discord/$1',
+    '^@events/(.*)$': '<rootDir>/src/events/$1',
+    '^@shared/(.*)$': '<rootDir>/src/shared/$1',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@middleware/(.*)$': '<rootDir>/src/middleware/$1',
+    
+    // ドメイン別エイリアス（絶対パス）
+    '^domains/(.*)$': '<rootDir>/src/domains/$1',
+    '^discord/(.*)$': '<rootDir>/src/discord/$1',
+    '^events/(.*)$': '<rootDir>/src/events/$1',
+    '^shared/(.*)$': '<rootDir>/src/shared/$1',
+    '^utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^middleware/(.*)$': '<rootDir>/src/middleware/$1',
+    
+    // srcからの絶対パス（最後にする）
     '^src/(.*)$': '<rootDir>/src/$1',
+    
+    // テスト用
     '^test/(.*)$': '<rootDir>/test/$1'
   },
   

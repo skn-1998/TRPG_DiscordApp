@@ -15,7 +15,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,html}\" --log-level warn"
   },
   "dependencies": {
-    "@humanwhocodes/config-array": "0.13.0 @humanwhocodes/object-schema@2.0.3 eslint@8.57.1",
+    "@eslint/config-array": "^0.21.0",
     "@mantine/core": "^7.8.0",
     "@mantine/form": "^7.8.0",
     "@mantine/hooks": "^7.8.0",

@@ -63,13 +63,13 @@ export class CharacterChannelService implements discordSelectMenuType {
 
     try {
       const targetChannel = interaction.channel
-      const characterChannelId = interaction.values[0]
+      const discordChannelId = interaction.values[0]
 
       // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更（型安全）
-      console.log(`[PHASE3] キャラクター情報取得をスキップ: ${characterChannelId}`)
+      console.log(`[PHASE3] キャラクター情報取得をスキップ: ${discordChannelId}`)
 
       // 型安全なイベント発行
-      await this.eventEmitter.requestCharacterSearch(characterChannelId, 'character-channel-service')
+      await this.eventEmitter.requestCharacterSearch(discordChannelId, 'character-channel-service')
 
       // 【PHASE3】 一時的に機能を無効化
       await interaction.reply({
@@ -80,7 +80,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       return
 
       // 以下は Phase 3 完了後に削除予定
-      // const character = await this.discordFacadeService.getCharacterByChannelId(characterChannelId)
+      // const character = await this.discordFacadeService.getCharacterByChannelId(discordChannelId)
 
       // // キャラクターの存在チェック
       // if (!character) {

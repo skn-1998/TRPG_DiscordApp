@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../../shared/application/typed-event.service'
-import { EventPayload } from '../../../shared/domain/events/event-contracts'
+import { EventPayload } from '../../../events/contracts'
 import { CharacterRepository } from '../repositories/character.repository'
 import { UserService } from '../../user/user.service'
 import { CreateCharacterDto } from '../dto/create-character.dto'
@@ -129,14 +129,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       )
 
       if (updatedCharacter) {
-        // 成功イベントを発行
-        await this.typedEventService.emit('character.update.completed', {
-          channelId: payload.channelId,
-          character: updatedCharacter,
-          source: payload.source,
-          timestamp: new Date()
-        })
-
+        // 更新完了通知は character.update.requested -> completed 経由で自動処理される
         this.logger.log(`Character updated successfully: ${updatedCharacter.characterName}`)
       } else {
         throw new Error('Character not found or update failed')
