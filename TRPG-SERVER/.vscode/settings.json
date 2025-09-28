@@ -1,9 +1,5 @@
 {
-  "cSpell.words": [
-    "APPLICATIONID",
-    "Chara",
-    "CLIENTSECRET",
-    "GUILDID",
-    "Repliable"
-  ]
+  "cSpell.words": ["APPLICATIONID", "Chara", "CLIENTSECRET", "GUILDID", "Repliable"],
+  "eslint.useESLintClass": true,
+  "eslint.useFlatConfig": true
 }
