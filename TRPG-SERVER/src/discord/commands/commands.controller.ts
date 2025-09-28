@@ -98,11 +98,7 @@ export class CommandsController {
     await this.doAutoComplete(this.userDefinedDiceService, userDefinedDiceConfig)
   }
 
-  async doEvents(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    discordClass: discordCommandType | discordContextMenuType,
-    config: commandType
-  ): Promise<void> {
+  async doEvents(discordClass: discordCommandType | discordContextMenuType, config: commandType): Promise<void> {
     if (isUndefined(config.name)) return
     if (!(this.interaction instanceof CommandInteraction)) return
     if (this.interaction?.commandName === config.name) {
@@ -110,11 +106,7 @@ export class CommandsController {
     }
   }
 
-  async doAutoComplete(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    discordClass: discordCommandType | discordContextMenuType,
-    config: commandType
-  ): Promise<void> {
+  async doAutoComplete(discordClass: discordCommandType | discordContextMenuType, config: commandType): Promise<void> {
     if (isUndefined(config.name)) return
     if (!(this.interaction instanceof AutocompleteInteraction)) return
     if (this.interaction?.commandName === config.name) {
