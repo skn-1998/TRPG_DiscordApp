@@ -718,14 +718,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 ```typescript
 // ❌ 潜在的なパフォーマンス問題
-- 不要な再レンダリング
-- 大きなバンドルサイズ
-- 画像の最適化不足
-
-// ✅ 最適化項目
-- React.memo, useMemo, useCallbackの適切な使用
-- コード分割の実装
-- 画像の遅延読み込み・WebP対応
+;(-不要な再レンダリング -
+  大きなバンドルサイズ -
+  画像の最適化不足 -
+  // ✅ 最適化項目
+  React.memo,
+  useMemo,
+  useCallbackの適切な使用 - コード分割の実装 - 画像の遅延読み込み・WebP対応)
 ```
 
 #### 11. **アクセシビリティの向上**

@@ -146,7 +146,7 @@ importers:
         specifier: ^3.3.1
         version: 3.3.1
       '@eslint/js':
-        specifier: ^9.30.1
+        specifier: ^9.36.0
         version: 9.36.0
       '@nestjs/cli':
         specifier: ^10.0.0
@@ -209,7 +209,7 @@ importers:
         specifier: ^5.5.4
         version: 5.5.4(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.36.0))(eslint@9.36.0)(prettier@3.6.2)
       globals:
-        specifier: ^16.3.0
+        specifier: ^16.4.0
         version: 16.4.0
       jest:
         specifier: ^29.5.0
@@ -244,6 +244,9 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.2
+      typescript-eslint:
+        specifier: ^8.44.0
+        version: 8.44.1(eslint@9.36.0)(typescript@5.9.2)
       webpack:
         specifier: ^5.99.6
         version: 5.101.3(webpack-cli@6.0.1)
@@ -4565,6 +4568,13 @@ packages:
         optional: true
       typeorm-aurora-data-api-driver:
         optional: true
+
+  typescript-eslint@8.44.1:
+    resolution: {integrity: sha512-0ws8uWGrUVTjEeN2OM4K1pLKHK/4NiNP/vz6ns+LjT/6sqpaYzIVFajZb1fj/IDwpsrrHb3Jy0Qm5u9CPcKaeg==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: ^8.57.0 || ^9.0.0
+      typescript: '>=4.8.4 <6.0.0'
 
   typescript@5.7.2:
     resolution: {integrity: sha512-i5t66RHxDvVN40HfDd1PsEThGNnlMCMT3jMUuoh9/0TaqWevNontacunWyN02LA9/fIbEWlcHZcgTKb9QoaLfg==}
@@ -10186,6 +10196,17 @@ snapshots:
       ts-node: 10.9.2(@types/node@20.19.17)(typescript@5.9.2)
     transitivePeerDependencies:
       - babel-plugin-macros
+      - supports-color
+
+  typescript-eslint@8.44.1(eslint@9.36.0)(typescript@5.9.2):
+    dependencies:
+      '@typescript-eslint/eslint-plugin': 8.44.1(@typescript-eslint/parser@8.44.1(eslint@9.36.0)(typescript@5.9.2))(eslint@9.36.0)(typescript@5.9.2)
+      '@typescript-eslint/parser': 8.44.1(eslint@9.36.0)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.44.1(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.44.1(eslint@9.36.0)(typescript@5.9.2)
+      eslint: 9.36.0
+      typescript: 5.9.2
+    transitivePeerDependencies:
       - supports-color
 
   typescript@5.7.2: {}

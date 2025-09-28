@@ -1,104 +1,242 @@
-const js = require('@eslint/js');
-const { FlatCompat } = require('@eslint/eslintrc');
-const typescript = require('@typescript-eslint/eslint-plugin');
-const typescriptParser = require('@typescript-eslint/parser');
-const globals = require('globals');
+import globals from 'globals'
+import eslint from '@eslint/js'
+import { defineConfig } from 'eslint/config'
+import tseslint from 'typescript-eslint'
+import eslintConfigPrettier from 'eslint-config-prettier/flat'
+import pluginJest from 'eslint-plugin-jest'
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-});
-
-module.exports = [
-  js.configs.recommended,
-  
-  // TypeScript設定
+export default defineConfig(
   {
-    files: ['**/*.ts'],
-    languageOptions: {
-      parser: typescriptParser,
-      parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: __dirname,
-        sourceType: 'module',
-      },
-      globals: {
-        ...globals.node,
-        ...globals.es2022,
-      },
-    },
-    plugins: {
-      '@typescript-eslint': typescript,
-    },
-    rules: {
-      ...typescript.configs.recommended.rules,
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'error',
-      'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', {
-        varsIgnorePattern: '^_',
-        argsIgnorePattern: '^_',
-      }],
-      'prefer-const': 'error',
-      'no-console': 'warn',
-      '@typescript-eslint/no-namespace': 'off',
-      indent: ['error', 2, { SwitchCase: 1 }],
-    },
+    ignores: ['eslint.config.js', 'jest.config.js', 'prettier.config.js', 'webpack-hmr.config.js', 'dist/**/*', 'node_modules/**/*']
   },
-
-  // テストファイル設定
+  eslint.configs.recommended,
+  tseslint.configs.recommendedTypeChecked,
   {
-    files: ['**/*.spec.ts', '**/*.test.ts', 'test/**/*.ts'],
+    plugins: { jest: pluginJest },
     languageOptions: {
-      parser: typescriptParser,
+      parserOptions: {
+        project: ['tsconfig.json', 'tsconfig.e2e.json'],
+        tsconfigRootDir: import.meta.dirname
+      },
+      sourceType: 'module',
       globals: {
         ...globals.node,
         ...globals.jest,
-      },
+        ...pluginJest.environments.globals.globals,
+        ...globals.es2015
+      }
     },
-    plugins: {
-      '@typescript-eslint': typescript,
+    rules: {
+      ...pluginJest.configs.recommended.rules,
+      // '@typescript-eslint/interface-name-prefix': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      // '@typescript-eslint/explicit-module-boundary-types': 'off',
+      // '@typescript-eslint/no-explicit-any': 'off',
+
+      // 未使用変数の警告設定 - DIパターンに優しい設定
+      'no-unused-vars': 'off', // 基本のルールをオフにする
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          vars: 'all',
+          args: 'after-used',
+          ignoreRestSiblings: true,
+          // プライベートクラスプロパティ（コンストラクタインジェクション用）を無視
+          varsIgnorePattern: '^_',
+          // コンストラクタパラメータを無視
+          argsIgnorePattern: '^_',
+          // クラスプロパティなどの分割代入を無視
+          destructuredArrayIgnorePattern: '^_',
+          // キャッチされた例外も同じパターンで無視
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_'
+        }
+      ],
+
+      'prefer-const': 'error',
+      // "no-console": "warn",
+      indent: ['error', 2, { SwitchCase: 1 }]
+      // "linebreak-style": ["error", "windows"]
+    }
+  },
+  {
+    // 全てのテストファイル（.spec.ts）
+    files: ['**/*.spec.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['tsconfig.spec.json']
+      },
+      globals: {
+        ...globals.jest,
+        ...pluginJest.environments.globals.globals
+      }
+    },
+    rules: {
+      ...pluginJest.configs.recommended.rules,
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off',
+      'jest/no-disabled-tests': 'warn',
+      'jest/no-focused-tests': 'error',
+      'jest/no-identical-title': 'error',
+      'jest/prefer-to-have-length': 'warn',
+      'jest/valid-expect': 'error'
+    }
+  },
+  {
+    // E2Eテスト用の設定
+    files: ['test/**/*.e2e-spec.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['tsconfig.e2e.json']
+      },
+      globals: {
+        ...globals.jest,
+        ...pluginJest.environments.globals.globals
+      }
+    },
+    rules: {
+      ...pluginJest.configs.recommended.rules,
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off',
+      'jest/no-disabled-tests': 'warn',
+      'jest/no-focused-tests': 'error',
+      'jest/no-identical-title': 'error',
+      'jest/prefer-to-have-length': 'warn',
+      'jest/valid-expect': 'error'
+    }
+  },
+  {
+    // テストディレクトリ内の全てのTypeScriptファイル
+    files: ['test/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['tsconfig.spec.json']
+      }
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       'no-unused-vars': 'off',
-      'no-console': 'off',
-    },
+      'no-console': 'off'
+    }
   },
-
-  // NestJS特有のパターン用設定
   {
-    files: [
-      '**/*.service.ts',
-      '**/*.controller.ts',
-      '**/*.module.ts',
-      '**/*.guard.ts',
-      '**/*.strategy.ts',
-    ],
+    // モックファイル
+    files: ['**/*.mock.ts', '**/*mock*.ts'],
     languageOptions: {
-      parser: typescriptParser,
-    },
-    plugins: {
-      '@typescript-eslint': typescript,
+      parserOptions: {
+        project: ['tsconfig.spec.json']
+      }
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', {
-        varsIgnorePattern: '^([a-zA-Z0-9]+)(Service|Repository|Controller|Gateway|Guard|Strategy|Interceptor)$|^_',
-        argsIgnorePattern: '^_',
-      }],
-    },
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off'
+    }
   },
-
-  // 除外設定
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      'jest.config.js',
-      'webpack-hmr.config.js',
-      'src/DB/**/*',
-      'src/domains/discord/**/*',
-    ],
+    // ファクトリーファイル
+    files: ['**/*.factory.ts', '**/*factory*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['tsconfig.spec.json']
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off'
+    }
   },
-];
+  {
+    // テストヘルパー・ユーティリティファイル
+    files: ['**/*helper*.ts', '**/*util*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        ...pluginJest.environments.globals.globals
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      'jest/no-standalone-expect': 'off',
+      'jest/no-jasmine-globals': 'off',
+      'jest/valid-title': 'off'
+    }
+  },
+  {
+    // 認証関連ファイル（外部ライブラリとの接続でany使用が必要）
+    files: ['**/auth/**/*.ts', '**/*.strategy.ts', '**/discord.service.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off'
+    }
+  },
+  {
+    // NestJSの依存性注入を使ったファイルパターン
+    files: [
+      '**/services/*.ts',
+      '**/controllers/*.ts',
+      '**/providers/*.ts',
+      '**/guards/*.ts',
+      '**/*.service.ts',
+      '**/*.controller.ts',
+      '**/*.guard.ts',
+      '**/*.strategy.ts',
+      '**/*.module.ts',
+      '**/*.interface.ts',
+      '**/*.model.ts',
+      '**/*.config.ts'
+    ],
+    rules: {
+      // 依存性注入でよく使用されるパターンについての警告を緩和
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          // クラスプロパティ用 (private readonly someService: SomeService)
+          varsIgnorePattern:
+            '^([a-zA-Z0-9]+)Service$|^([a-zA-Z0-9]+)Repository$|^([a-zA-Z0-9]+)Controller$|^([a-zA-Z0-9]+)Gateway$|^([a-zA-Z0-9]+)Guard$|^([a-zA-Z0-9]+)Strategy$|^([a-zA-Z0-9]+)Interceptor$|^_',
+          // 特定のインジェクションパターンを無視
+          argsIgnorePattern: '^_'
+        }
+      ]
+    }
+  },
+  eslintConfigPrettier
+)
