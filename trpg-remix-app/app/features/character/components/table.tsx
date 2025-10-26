@@ -1,5 +1,5 @@
 import { ChangeEvent, ChangeEventHandler, ReactNode, useState } from 'react'
-import styles from './flexTable2.module.css'
+import styles from './table.module.css'
 import { CloseButton } from '@mantine/core'
 
 type TextCellProps = {
@@ -36,8 +36,7 @@ function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
               type="number"
               className={styles.inputNumber}
               onChange={changeHandler}
-              // value={value}
-              value={'10000'}
+              value={value}
               disabled={disabled}
             />
           </div>

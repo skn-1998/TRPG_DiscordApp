@@ -10,11 +10,12 @@ export type { User, CreateUserDto, UpdateUserDto } from './user'
 // キャラクター関連の型
 export type {
   Character,
+  CharacterAttributeValue,
   CharacterAttribute,
-  UpdatePrimary,
-  CreateCharacterDto,
-  PartialInputCharacterDto,
-  UpdateCharacterDto
+  CharacterBaseInfo,
+  CharacterDiscordInfo,
+  CharacterAttributeType,
+  CharacterAttributeNumberParts
 } from './character'
 
 // 認証関連の型
