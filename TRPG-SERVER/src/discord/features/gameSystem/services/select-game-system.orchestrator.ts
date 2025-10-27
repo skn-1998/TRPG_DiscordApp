@@ -51,7 +51,7 @@ export class SelectGameSystemOrchestrator {
     const channelName = inputChannelName ? inputChannelName : gameSystem.NAME
 
     const gameSystemCategory =
-      getCategory(interaction.guild!, CATEGORY_NAME) || (await createCategory(interaction.guild!, CATEGORY_NAME))
+      getCategory(interaction.guild, CATEGORY_NAME) || (await createCategory(interaction.guild, CATEGORY_NAME))
 
     const topic = `ここでは「${gameSystem.NAME}」のダイスが振れます\nID:${gameSystem.ID}\n※チャンネルトピックは変更しないでください ゲームシステムを認識できなくなる可能性があります`
 

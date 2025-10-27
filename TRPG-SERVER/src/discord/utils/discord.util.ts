@@ -69,5 +69,5 @@ export async function createTextChannel(
   return guild.channels.create({
     ...options,
     type: ChannelType.GuildText
-  }) as Promise<TextChannel>
+  })
 }

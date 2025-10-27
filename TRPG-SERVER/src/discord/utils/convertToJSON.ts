@@ -64,7 +64,7 @@ export function convertCharacterJsonToString(data: Character, updatePrimary: Upd
   // オブジェクトを配列に変換
   const dataArray = Object.entries(recordData).map(([key, value]) => {
     // 型安全に処理
-    const item = value as unknown as {
+    const item = value as {
       name?: string
       other?: number
       index?: number

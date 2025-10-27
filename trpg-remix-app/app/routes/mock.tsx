@@ -1,7 +1,21 @@
 import { Outlet } from '@remix-run/react'
 import { MockButton, Header, ScrollTest } from '~/features/mock'
-import { AppShell, useMantineTheme, darken, lighten, Burger, ScrollArea, Center, Flex, Container } from '@mantine/core'
+import {
+  AppShell,
+  useMantineTheme,
+  darken,
+  lighten,
+  Burger,
+  ScrollArea,
+  Center,
+  Flex,
+  Container,
+  Stack,
+  Button,
+  Group
+} from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
+import { Link } from '@remix-run/react'
 
 export default function MockIndex() {
   const theme = useMantineTheme()
@@ -32,8 +46,18 @@ export default function MockIndex() {
           </AppShell.Section>
         </AppShell.Navbar>
         <AppShell.Main>
-          <MockButton />
-          <Outlet />
+          <Stack gap="md">
+            <Group>
+              <MockButton />
+              <Button component={Link} to="/mock/template-editor" variant="outline">
+                テンプレートエディタ
+              </Button>
+              <Button component={Link} to="/mock/template-gallery" variant="outline">
+                テンプレートギャラリー
+              </Button>
+            </Group>
+            <Outlet />
+          </Stack>
         </AppShell.Main>
       </AppShell>
     </>

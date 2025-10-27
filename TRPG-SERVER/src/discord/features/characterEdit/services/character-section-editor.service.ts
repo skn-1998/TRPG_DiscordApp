@@ -179,7 +179,7 @@ export class CharacterSectionEditorService {
 
     if (!isNewField) {
       // 既存フィールドの値を取得
-      const sectionData = this.getSectionData(character, sectionType) as Record<string, unknown> | undefined
+      const sectionData = this.getSectionData(character, sectionType)
       if (sectionData && fieldKey in sectionData) {
         const fieldValue = sectionData[fieldKey]
 
@@ -383,7 +383,7 @@ export class CharacterSectionEditorService {
       const result = await resultPromise
 
       if ('character' in result && result.character) {
-        const character = result.character as any
+        const character = result.character
         // Mongooseドキュメントの場合は適切に変換
         if (character.toObject) {
           return character.toObject()

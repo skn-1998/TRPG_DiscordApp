@@ -72,7 +72,7 @@ export class ThreadManagerService {
         throw new Error(`Text channel not found: ${request.channelId}`)
       }
 
-      const textChannel = channel as TextChannel
+      const textChannel = channel
       const thread = await this.createDiscordThread(textChannel, request.characterName)
 
       // スレッド作成完了イベントを発行

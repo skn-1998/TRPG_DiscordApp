@@ -393,7 +393,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
       if ('character' in result && result.character) {
         // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
-        return result.character as any as Character
+        return result.character as Character
       }
 
       return null
@@ -424,7 +424,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
       if ('character' in result && result.character) {
         // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
-        return result.character as any as Character
+        return result.character as Character
       }
 
       return null

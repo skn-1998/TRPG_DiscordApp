@@ -137,8 +137,8 @@ describe('CharacterController', () => {
       .compile()
 
     controller = module.get<CharacterController>(CharacterController)
-    characterService = module.get(CharacterService) as jest.Mocked<CharacterService>
-    authService = module.get(AuthService) as jest.Mocked<AuthService>
+    characterService = module.get(CharacterService)
+    authService = module.get(AuthService)
   })
 
   afterEach(() => {

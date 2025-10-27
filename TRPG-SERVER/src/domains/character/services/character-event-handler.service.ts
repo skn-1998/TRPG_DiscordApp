@@ -123,10 +123,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.log(`Character update requested for channel: ${payload.channelId}`)
 
       // チャンネルIDでキャラクターを更新
-      const updatedCharacter = await this.characterRepository.updateByChannelId(
-        payload.channelId,
-        payload.updateData as any
-      )
+      const updatedCharacter = await this.characterRepository.updateByChannelId(payload.channelId, payload.updateData)
 
       if (updatedCharacter) {
         // 更新完了通知は character.update.requested -> completed 経由で自動処理される

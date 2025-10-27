@@ -50,7 +50,7 @@ describe('Any Usage in Test Files', () => {
 
     expect(mockUser.id).toBe('custom-id')
     expect(mockUser.name).toBe('default-name')
-    expect((mockUser as any).customProperty).toBe('custom-value')
+    expect(mockUser.customProperty).toBe('custom-value')
   })
 
   it('should allow any in test helper functions', () => {

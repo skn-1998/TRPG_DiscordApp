@@ -38,7 +38,7 @@ export class CharacterTabButtonsService implements discordButtonType {
       // CharacterDisplayServiceを使用してEmbedを作成
       const embed = await this.characterDisplayService.createCharacterEmbed(
         channelId,
-        this.characterDisplayService.isValidTabType(tabType) ? (tabType as TabType) : 'basic'
+        this.characterDisplayService.isValidTabType(tabType) ? tabType : 'basic'
       )
 
       if (embed) {
