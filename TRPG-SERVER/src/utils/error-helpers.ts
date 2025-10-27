@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * エラーヘルパー関数
  * エラー型の判定と安全な処理のためのユーティリティ

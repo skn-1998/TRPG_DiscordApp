@@ -228,9 +228,9 @@ export class DiscordGuildManagerService {
         channels: Array.from(channels.values())
           .filter((channel) => channel !== null)
           .map((channel) => ({
-            id: channel!.id,
-            name: channel!.name,
-            type: ChannelType[channel!.type]
+            id: channel.id,
+            name: channel.name,
+            type: ChannelType[channel.type]
           }))
       }
     } catch (error) {

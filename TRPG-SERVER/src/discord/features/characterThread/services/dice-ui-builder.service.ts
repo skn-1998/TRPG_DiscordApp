@@ -71,7 +71,7 @@ export class DiceUIBuilderService {
 
     if (character.skill && Object.keys(character.skill).length > 0) {
       const skillItems = Object.entries(character.skill)
-        .map(([name, value]) => ({ name, value: value as AttributeValue }))
+        .map(([name, value]) => ({ name, value: value }))
         .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value)) // 値が大きい順にソート
         .slice(0, 5) // 上位5件を取得
 
@@ -101,7 +101,7 @@ export class DiceUIBuilderService {
     const abilityButtons = new ActionRowBuilder<ButtonBuilder>()
 
     const abilityItems = Object.entries(character.parameter ?? {})
-      .map(([name, value]) => ({ name, value: value as AttributeValue }))
+      .map(([name, value]) => ({ name, value: value }))
       .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
       .slice(0, 5) // 上位5件を取得
 
@@ -168,7 +168,7 @@ export class DiceUIBuilderService {
     }
 
     const skillItems = Object.entries(character.skill)
-      .map(([name, value]) => ({ name, value: value as AttributeValue }))
+      .map(([name, value]) => ({ name, value: value }))
       .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
       .slice(0, 25) // Discord制限：最大25個
 

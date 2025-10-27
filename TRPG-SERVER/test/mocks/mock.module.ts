@@ -67,7 +67,7 @@ class MockCharacterMongooseModel {
   }
   static find(filter: any = {}) {
     const filtered = mockCharacters.filter((c) => {
-      return Object.entries(filter).every(([k, v]) => (c as any)[k] === v)
+      return Object.entries(filter).every(([k, v]) => c[k] === v)
     })
     return {
       exec: () => Promise.resolve(filtered)
@@ -76,7 +76,7 @@ class MockCharacterMongooseModel {
   static findOne(filter: any = {}) {
     const result =
       mockCharacters.find((c) => {
-        return Object.entries(filter).every(([k, v]) => (c as any)[k] === v)
+        return Object.entries(filter).every(([k, v]) => c[k] === v)
       }) || null
     const chain: any = {
       select: (_: string) => chain,
@@ -87,7 +87,7 @@ class MockCharacterMongooseModel {
   }
   static findOneAndUpdate(filter: any, update: any, opts: any) {
     const index = mockCharacters.findIndex((c) => {
-      return Object.entries(filter).every(([k, v]) => (c as any)[k] === v)
+      return Object.entries(filter).every(([k, v]) => c[k] === v)
     })
     if (index >= 0) {
       mockCharacters[index] = { ...mockCharacters[index], ...update, updatedAt: new Date() }
@@ -99,7 +99,7 @@ class MockCharacterMongooseModel {
   static deleteOne(filter: any) {
     const before = mockCharacters.length
     for (let i = mockCharacters.length - 1; i >= 0; i--) {
-      if (Object.entries(filter).every(([k, v]) => (mockCharacters[i] as any)[k] === v)) {
+      if (Object.entries(filter).every(([k, v]) => mockCharacters[i][k] === v)) {
         mockCharacters.splice(i, 1)
       }
     }

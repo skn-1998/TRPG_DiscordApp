@@ -617,7 +617,7 @@ export class CharacterEmbedManagerService {
 
       // AttributeValue型またはレガシー形式を処理
       if (typeof value === 'object' && value !== null) {
-        const attr = value as any
+        const attr = value
 
         this.logger.debug(`Field select menu - processing object: ${key}`, attr)
 

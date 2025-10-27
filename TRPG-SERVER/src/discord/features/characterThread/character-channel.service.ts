@@ -252,9 +252,9 @@ export class CharacterChannelService implements discordSelectMenuType {
       // ステータスの追加（HPなど）
       if (character.status && Object.keys(character.status).length > 0) {
         // HP, MP, SANの取得
-        const hp = character.status['HP'] as AttributeValue
-        const mp = character.status['MP'] as AttributeValue
-        const san = character.status['SAN'] as AttributeValue
+        const hp = character.status['HP']
+        const mp = character.status['MP']
+        const san = character.status['SAN']
 
         if (hp) {
           const v = getDisplayNumber(hp)
@@ -277,7 +277,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       if (character.parameter && Object.keys(character.parameter).length > 0) {
         const parameterItems = Object.entries(character.parameter).map(([name, value]) => ({
           name,
-          value: value as AttributeValue
+          value: value
         }))
 
         // パラメータを4つずつのグループに分割して表示
@@ -309,7 +309,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       // スキルの追加（上位5件）
       if (character.skill && Object.keys(character.skill).length > 0) {
         const skillItems = Object.entries(character.skill)
-          .map(([name, value]) => ({ name, value: value as AttributeValue }))
+          .map(([name, value]) => ({ name, value: value }))
           .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
           .slice(0, 5) // 上位5件を取得
 
@@ -438,7 +438,7 @@ export class CharacterChannelService implements discordSelectMenuType {
 
       if (character.skill && Object.keys(character.skill).length > 0) {
         const skillItems = Object.entries(character.skill)
-          .map(([name, value]) => ({ name, value: value as AttributeValue }))
+          .map(([name, value]) => ({ name, value: value }))
           .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value)) // 値が大きい順にソート
           .slice(0, 5) // 上位5件を取得
 
@@ -462,7 +462,7 @@ export class CharacterChannelService implements discordSelectMenuType {
       const abilityButtons = new ActionRowBuilder<ButtonBuilder>()
 
       const abilityItems = Object.entries(character.parameter ?? {})
-        .map(([name, value]) => ({ name, value: value as AttributeValue }))
+        .map(([name, value]) => ({ name, value: value }))
         .sort((a, b) => getDisplayNumber(b.value) - getDisplayNumber(a.value))
         .slice(0, 5) // 上位5件を取得
 

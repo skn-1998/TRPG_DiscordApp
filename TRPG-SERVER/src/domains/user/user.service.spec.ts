@@ -40,7 +40,7 @@ describe('UserService', () => {
     }).compile()
 
     service = module.get<UserService>(UserService)
-    repository = module.get(UserRepository) as jest.Mocked<UserRepository>
+    repository = module.get(UserRepository)
   })
 
   it('should be defined', () => {

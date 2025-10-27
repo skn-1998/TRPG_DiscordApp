@@ -155,7 +155,7 @@ export class CharacterModalHandlerService {
     const success = await this.updateCharacterField(
       character,
       sectionType,
-      fieldKey as string, // nullチェック済み
+      fieldKey, // nullチェック済み
       formData
     )
 

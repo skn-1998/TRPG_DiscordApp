@@ -151,7 +151,7 @@ export class ChannelNameSyncService {
       ])
 
       if ('character' in result && result.character) {
-        return result.character as any
+        return result.character
       }
 
       return null

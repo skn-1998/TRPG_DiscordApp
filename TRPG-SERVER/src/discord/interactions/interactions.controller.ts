@@ -277,7 +277,7 @@ export class InteractionsController {
     client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel) => {
       if (channel.type !== ChannelType.GuildText) return
 
-      const textChannel = channel as TextChannel
+      const textChannel = channel
       this.logger.log(`チャンネル作成検出: ${textChannel.name} (${textChannel.id})`)
 
       try {

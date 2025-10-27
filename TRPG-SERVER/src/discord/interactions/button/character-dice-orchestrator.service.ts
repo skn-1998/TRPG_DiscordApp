@@ -198,7 +198,7 @@ export class CharacterDiceOrchestratorService implements discordButtonType {
       }
 
       if (channel.type === ChannelType.GuildText) {
-        return channel as TextChannel
+        return channel
       }
 
       if (channel.isThread()) {

@@ -180,7 +180,7 @@ export class DiceParserService {
         if (param === 'dodge') {
           value = this.extractNumericValue(character.skill?.dodge) || 0
         } else {
-          value = this.extractNumericValue(character.parameter?.[param as keyof typeof character.parameter]) || 0
+          value = this.extractNumericValue(character.parameter?.[param]) || 0
         }
 
         processedFormula = processedFormula.replace(regex, value.toString())

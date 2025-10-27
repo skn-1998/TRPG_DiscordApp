@@ -1114,3 +1114,13 @@ await characterService.update(characterId, updateData)
 - **通知設定**: 更新通知のON/OFF設定機能
 - **履歴機能**: 更新履歴の表示機能
 
+
+
+
+メイン
+A
+
+サブ
+a1
+a2
+

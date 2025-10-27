@@ -160,7 +160,7 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
         await this.typedEventServiceLocal.emit('discord.character.display.requested', {
           character: {
             ...character,
-            discordChannelId: character.discordChannelId! // 確実に存在するためNon-null assertion
+            discordChannelId: character.discordChannelId // 確実に存在するためNon-null assertion
           } as Character,
           channelId: character.discordChannelId,
           guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
