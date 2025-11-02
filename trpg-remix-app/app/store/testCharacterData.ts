@@ -27,9 +27,9 @@ export const testCharacterData = {
       name: 'sample',
       index: 0,
       values: {
-        initial: 10,
-        job: 0,
-        other: 0
+        initial: 0
+        // job: 0,
+        // other: 0
       },
       description: '',
       dice: '',

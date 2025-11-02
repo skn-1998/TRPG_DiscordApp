@@ -1,9 +1,9 @@
-import { TestTable } from '~/features/character/components/table'
+import { CharacterTable } from '~/features/character/components/characterTable'
 
 export default function GridStudy() {
   return (
     <>
-      <TestTable />
+      <CharacterTable />
     </>
   )
 }

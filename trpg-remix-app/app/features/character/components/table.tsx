@@ -1,4 +1,4 @@
-import { ChangeEvent, ChangeEventHandler, ReactNode, useState } from 'react'
+import { ChangeEventHandler, ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import styles from './table.module.css'
 import { CloseButton } from '@mantine/core'
 
@@ -6,7 +6,7 @@ type TextCellProps = {
   text: string
 }
 
-function TextCell({ text }: TextCellProps) {
+export function TextCell({ text }: TextCellProps) {
   return (
     <>
       <div className={`${styles.textCell} ${styles.textCellCommon}`}>
@@ -21,12 +21,26 @@ function TextCell({ text }: TextCellProps) {
 }
 
 type InputCellProps = {
-  value: string
+  defaultValue: string
   changeHandler?: ChangeEventHandler<HTMLInputElement>
   disabled?: boolean
+  dispatch?: (value: string) => void
+  value?: string
 }
 
-function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
+export function InputCell({ defaultValue, dispatch, disabled = false }: InputCellProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    console.log(defaultValue)
+  }, [defaultValue])
+
+  const changeHandler = () => {
+    console.log(inputRef.current?.value)
+    const value = inputRef.current?.value
+    if (value !== undefined && dispatch) dispatch(value)
+  }
+
   return (
     <>
       <div className={`${styles.inputCell} ${styles.inputCellCommon}`}>
@@ -36,7 +50,9 @@ function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
               type="number"
               className={styles.inputNumber}
               onChange={changeHandler}
-              value={value}
+              // value={value}
+              defaultValue={defaultValue}
+              ref={inputRef}
               disabled={disabled}
             />
           </div>
@@ -46,7 +62,7 @@ function InputCell({ value, changeHandler, disabled = false }: InputCellProps) {
   )
 }
 
-function SideInputCell({ value, changeHandler }: InputCellProps) {
+export function SideInputCell({ value, changeHandler }: InputCellProps) {
   return (
     <>
       <div className={`${styles.textCell} ${styles.textCellCommon}`}>
@@ -65,7 +81,7 @@ type SideGroupProps = {
   children: ReactNode
 }
 
-function SideGroup({ headerText, children }: SideGroupProps) {
+export function SideGroup({ headerText, children }: SideGroupProps) {
   return (
     <>
       <div className={styles.textGroup}>
@@ -78,48 +94,12 @@ function SideGroup({ headerText, children }: SideGroupProps) {
   )
 }
 
-//
-function SideCellGroup() {
-  const [value, setValue] = useState('運転（）')
-
-  const changeHandler = (e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value)
-
-  return (
-    <>
-      <SideInputCell value={value} changeHandler={changeHandler} />
-    </>
-  )
-}
-
-function SideCellGroup2() {
-  return (
-    <>
-      <TextCell text="qqq" />
-      <TextCell text="www" />
-      <TextCell text="eee" />
-      <TextCell text="rrr" />
-    </>
-  )
-}
-
-export function TestSideGroup() {
-  return (
-    <>
-      <SideGroup headerText="hello">
-        <SideCellGroup />
-        <SideCellGroup2 />
-      </SideGroup>
-    </>
-  )
-}
-//
-
 type ColumnProps = {
   headerText: string
   children: ReactNode
 }
 
-function Column({ headerText, children }: ColumnProps) {
+export function Column({ headerText, children }: ColumnProps) {
   return (
     <>
       <div className={styles.inputBunch}>
@@ -132,65 +112,11 @@ function Column({ headerText, children }: ColumnProps) {
   )
 }
 
-//
-type aaa = {
-  text: string
-  disabled?: boolean
-}
-
-function TestColumn({ text, disabled = false }: aaa) {
-  return (
-    <>
-      <Column headerText={text}>
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-        <InputCell value="" disabled={disabled} />
-      </Column>
-    </>
-  )
-}
-
-export function TestTable() {
-  return (
-    <>
-      <div className={styles.widthWrap}>
-        <div className={styles.tableWrap}>
-          <TestSideGroup />
-          <TestColumn text="初期値" disabled={true} />
-          <TestColumn text="職業P" />
-          <TestColumn text="興味P" />
-          <TestColumn text="その他" />
-          <TestColumn text="合計" disabled={true} />
-          <TestButtonColumn text="" />
-        </div>
-      </div>
-    </>
-  )
-}
-
-function TestButtonColumn({ text }: aaa) {
-  return (
-    <>
-      <Column headerText={text}>
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-        <ButtonCell />
-      </Column>
-    </>
-  )
-}
-
-//
-
 type ButtonCellProps = {
   clickHandler?: () => void
 }
 
-function ButtonCell({ clickHandler }: ButtonCellProps) {
+export function ButtonCell({ clickHandler }: ButtonCellProps) {
   return (
     <>
       <div className={`${styles.inputCell} ${styles.inputCellCommon}`}>

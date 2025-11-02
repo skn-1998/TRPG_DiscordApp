@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { StateCreator } from 'zustand'
 import { RootState } from '.'
 import {
@@ -49,7 +50,6 @@ export const createCharacterSlice: StateCreator<
     set((state) => {
       const attributeValue = state.character[attributeType]?.[attributeKey]
       if (!attributeValue) return
-      if (!attributeValue.values?.[valuesKey]) return
       attributeValue.values[valuesKey] = value
     }),
   addCharacterAttributeValue: (attributeType, values) =>
