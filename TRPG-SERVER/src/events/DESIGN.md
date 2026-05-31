@@ -31,8 +31,16 @@
 
 - **T1: デッドな EventRouterService 撤去**（低リスク・本PR）
   `event-router.service.ts` 削除、`events.module.ts` の import/providers/exports と `events/index.ts` の re-export を除去。利用ゼロを確認済み。
-- **T2: GlobalEventBusService の消費者を TypedEventService / File-based handler へ移行 → GlobalEventBus 撤去**（中〜高）
-  対象: `CharacterEventHandler`・`DiscordIntegrationHandler`・`CharacterCreationCompletedHandler`・`discord/features/.../character-edit-feature.handler.ts`。各 `on()` 登録を File-based handler 化し、最後に GlobalEventBus を削除。
+- **T2: GlobalEventBusService の消費者を TypedEventService へ移行 → GlobalEventBus 撤去**（中〜高）
+  到達可能性の精査（2026-05-31）で、2バスが別 EventEmitter2 で隔離されている前提のもと、各消費者を LIVE/DEAD/BRIDGE に分類した：
+  - `CharacterEventHandler`（events/handlers/character-event.handler.ts）= **完全 DEAD**。listen 対象（character.updated/deleted/update.requested/deletion.requested/creation.failed）は全て TypedEventService 側で emit され GlobalEventBus には届かないため発火しない。
+  - `DiscordIntegrationHandler` = **部分 LIVE**。`discord.embed.update.requested` と `discord.notification.requested` のみ、ブリッジ役が GlobalEventBus に emit→受信して実際の Discord 通知/Embed更新を行う**生フロー**。他の listen（channel/thread.create.requested 等）は未発行で DEAD。
+  - `CharacterCreationCompletedHandler`（File-based, TypedEventService 登録）＝ **BRIDGE**。上記2イベントを GlobalEventBus へ emit。
+  - `CharacterEditFeatureHandler`（discord/features, TypedEventService listen）＝ **BRIDGE**。`discord.embed.update.requested` を GlobalEventBus へ emit。
+  - **サブステップ**:
+    - **T2a**: 完全 DEAD の `CharacterEventHandler` を削除（events.module の providers/exports・index の re-export 除去）。低リスク。
+    - **T2b**: 生フローを TypedEventService へ移設 — ブリッジ2件の `discord.embed.update.requested`/`discord.notification.requested` emit を GlobalEventBus→TypedEventService に、`DiscordIntegrationHandler` の当該2 listen を TypedEventService に揃える。DEAD な listen は除去。**⚠️ 実 Discord 通知/Embed 更新フローに触れ、E2E spec が削除済みで自動テストが無いため要手動確認**。
+    - **T2c**: 残存利用が消えた `GlobalEventBusService` を削除（events.module/index/プロバイダ）。
 - **T3: events→features 逆流の解消**（設計重・高）
   完了系ハンドラ（`character.*.completed`）の Discord UI 更新を、ポート（interface＋DI トークン）越し、または discord 層購読へ移し、`events.module.ts` の feature import と handlers の `discord/features` import を撤去。
 - **T4（任意）: TypedEventService の配置見直し**
