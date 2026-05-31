@@ -79,6 +79,20 @@ export class EnvironmentValidator {
       this.validateUrl(result.FRONTEND_URL, 'FRONTEND_URL', errors)
       this.validateMongoUri(result.MONGODB_URI, errors)
 
+      // 機密値の最小長(32文字)検証は本番(production)でのみ強制する。
+      // 必須チェック（値の存在自体）は全環境で行うが、最小長は本番のみエラーにする。
+      // dev/test では最小長未満を許容（警告のみ・本番で強制）し、ローカルの短い秘密でも起動できるようにする。
+      // （このファイルは Nest 起動前の静的バリデータで Logger を持たないため、警告は出力しない）
+      if (result.NODE_ENV === 'production') {
+        this.validateSecretMinLength(result.JWT_SECRET, 'JWT_SECRET', 32, errors)
+        this.validateSecretMinLength(result.DISCORD_TOKEN_ENCRYPTION_KEY, 'DISCORD_TOKEN_ENCRYPTION_KEY', 32, errors)
+      }
+
+      // REDIRECT_URLは値が設定されている場合のみURL形式を検証
+      if (result.REDIRECT_URL) {
+        this.validateUrl(result.REDIRECT_URL, 'REDIRECT_URL', errors)
+      }
+
       if (errors.length > 0) {
         return { success: false, errors }
       }
@@ -135,6 +149,29 @@ export class EnvironmentValidator {
         variable: 'MONGODB_URI',
         message: 'MONGODB_URIはmongodbスキームで始まる必要があります',
         value: uri
+      })
+    }
+  }
+
+  /**
+   * 機密値の最小長バリデーション
+   * 機密の中身は error.value に含めず、長さのみをメッセージに含める
+   */
+  private static validateSecretMinLength(
+    value: string,
+    variable: string,
+    min: number,
+    errors: ValidationError[]
+  ): void {
+    // 必須チェックは別途行われるため、未設定（空）の場合はここでは検証しない
+    if (!value) {
+      return
+    }
+    if (value.length < min) {
+      errors.push({
+        variable,
+        message: `${variable}は${min}文字以上で指定してください (長さ: ${value.length}文字)`
+        // 機密値のため value は渡さない
       })
     }
   }

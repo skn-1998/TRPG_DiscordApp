@@ -3,7 +3,7 @@ import { User } from './models/user.model'
 import { UserRepository } from './repositories/user.repository'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
-import { CryptoUtil } from '../../utils/crypto.util'
+import { CryptoService } from '../../core/shared/services/crypto.service'
 import { HttpClientService } from '../../core/shared/services/http.service'
 import { firstValueFrom } from 'rxjs'
 
@@ -28,7 +28,8 @@ export class UserService {
 
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly httpService: HttpClientService
+    private readonly httpService: HttpClientService,
+    private readonly cryptoService: CryptoService
   ) {}
 
   /**
@@ -135,7 +136,7 @@ export class UserService {
 
     try {
       // 暗号化されたトークンを復号化
-      return CryptoUtil.decrypt(user.discordAccessToken)
+      return this.cryptoService.decrypt(user.discordAccessToken)
     } catch (error) {
       // 復号化に失敗した場合はnullを返す
       return null
