@@ -4,6 +4,7 @@ import { CommandsService } from '../commands/commands.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { SlashCommandBuilder } from 'discord.js'
 import { v4 as uuidv4 } from 'uuid'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * Discord コマンド登録サービス
@@ -15,7 +16,8 @@ export class DiscordCommandRegistrationService implements OnModuleInit {
 
   constructor(
     private readonly commandManagerService: CommandManagerService,
-    private readonly commandsService: CommandsService
+    private readonly commandsService: CommandsService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   /**
@@ -23,7 +25,10 @@ export class DiscordCommandRegistrationService implements OnModuleInit {
    */
   async onModuleInit(): Promise<void> {
     // テストやモック環境ではDiscord API登録をスキップ
-    if (process.env.NODE_ENV === 'test' || process.env.TEST_MOCK_DISCORD === 'true') {
+    if (
+      this.appConfigService.get('app.environment') === 'test' ||
+      this.appConfigService.get('discord.testMockDiscord')
+    ) {
       this.logger.log('TEST環境のためDiscordコマンド登録をスキップします')
       this.registerCommands()
       return
