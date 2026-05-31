@@ -51,7 +51,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    * モジュール初期化
    */
   async onModuleInit(): Promise<void> {
-    // イベントハンドラー登録は削除 - EventRouterServiceで一元管理
+    // イベントハンドラー登録は削除 - File-based handlers（EventRegistryService）で一元管理
     this.logger.log('Enhanced Character Edit Service initialized')
   }
 
