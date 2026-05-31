@@ -56,3 +56,6 @@ out/
 .env
 
 .pnpm-store/
+
+# Claude Code agent worktrees (harness-managed, embedded git repos)
+.claude/worktrees/

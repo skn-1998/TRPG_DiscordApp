@@ -1,0 +1,35 @@
+# Testcontainers E2E Setup
+
+このフォルダは **いつでも削除できる** Testcontainers 用の独立設定です。
+
+## 目的
+
+- ローカル/CI で使い捨て MongoDB コンテナを自動起動する
+- 既存の `test:e2e` を壊さず、別コマンドで切り替える
+
+## 実行コマンド
+
+- `pnpm test:e2e:tc`
+
+## 構成
+
+- `global-setup.ts`
+  - MongoDB コンテナを起動
+  - 接続情報を `.runtime-state.json` に保存
+- `setup-test-env.ts`
+  - 既存 `setupTestEnvironment()` を呼ぶ
+  - `.runtime-state.json` から `MONGODB_URI` を上書き
+- `global-teardown.ts`
+  - 起動した MongoDB コンテナを停止・削除
+  - `.runtime-state.json` を削除
+- `runtime-state.ts`
+  - ランタイム状態ファイルのパス定義
+
+## 削除手順
+
+1. `test/testcontainers/` フォルダを削除
+2. `package.json` から `test:e2e:tc` を削除
+3. `test/jest-e2e.testcontainers.json` を削除
+4. `devDependencies` から `testcontainers` を削除
+
+これで元の構成に戻せます。

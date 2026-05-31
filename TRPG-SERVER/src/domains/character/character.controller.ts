@@ -56,9 +56,7 @@ export class CharacterController {
    * 認証されたユーザーを取得するヘルパーメソッド
    */
   private extractAuthenticatedUser(req: Request): JwtTokenPayload {
-    const headerRaw = req.headers['user'] as string | undefined
-    const headerUser: Partial<JwtTokenPayload> | undefined = headerRaw ? JSON.parse(headerRaw) : undefined
-    const user = (req.user as unknown as JwtTokenPayload | undefined) ?? (headerUser as JwtTokenPayload | undefined)
+    const user = req.user
 
     if (!user || !user.discordUserId) {
       throw new UnauthorizedException('認証トークンがありません')

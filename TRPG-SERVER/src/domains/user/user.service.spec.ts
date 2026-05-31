@@ -4,6 +4,8 @@ import { UserRepository } from './repositories/user.repository'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { User } from './models/user.model'
+import { HttpClientService } from '../../core/shared/services/http.service'
+import { CryptoService } from '../../core/shared/services/crypto.service'
 
 describe('UserService', () => {
   let service: UserService
@@ -29,12 +31,30 @@ describe('UserService', () => {
       updateDiscordTokens: jest.fn()
     }
 
+    // UserService が依存する副作用境界（HTTP / 暗号化）はモックする
+    const httpServiceMock = {
+      get: jest.fn(),
+      post: jest.fn()
+    }
+    const cryptoServiceMock = {
+      encrypt: jest.fn(),
+      decrypt: jest.fn()
+    }
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
         {
           provide: UserRepository,
           useValue: userRepositoryMock
+        },
+        {
+          provide: HttpClientService,
+          useValue: httpServiceMock
+        },
+        {
+          provide: CryptoService,
+          useValue: cryptoServiceMock
         }
       ]
     }).compile()
@@ -143,11 +163,12 @@ describe('UserService', () => {
 
   describe('remove', () => {
     it('should remove a user', async () => {
-      repository.remove.mockResolvedValue(undefined)
+      repository.remove.mockResolvedValue(mockUser)
 
-      await service.remove('test-discord-id')
+      const result = await service.remove('test-discord-id')
 
       expect(repository.remove).toHaveBeenCalledWith('test-discord-id')
+      expect(result).toEqual(mockUser)
     })
   })
 })

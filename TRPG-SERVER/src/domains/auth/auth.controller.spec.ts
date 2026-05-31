@@ -14,11 +14,11 @@ import {
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
 import { User } from '../user/models/user.model'
+import { CookieService } from '../../utils/cookie.service'
 
-// RequestWithUser型の定義
-interface RequestWithUser extends Request {
-  user: DiscordUserProfile & Record<string, unknown>
-}
+// Express の Request.user は src/types/express/index.d.ts で
+// `user?: JwtTokenPayload` として拡張されている。テストではこれに準拠する。
+type RequestWithUser = Request & { user: JwtTokenPayload }
 
 describe('AuthController', () => {
   let controller: AuthController
@@ -105,9 +105,7 @@ describe('AuthController', () => {
       signInAndRegisterUserInfo: jest.fn(),
       signInAndRegisterUserInfoWithTokens: jest.fn(),
       authenticate: jest.fn(),
-      getUserInfo: jest.fn(),
-      getDiscordGuildsWithToken: jest.fn(),
-      getUserDiscordGuilds: jest.fn()
+      getUserInfo: jest.fn()
     }
 
     // UserService モック
@@ -140,7 +138,10 @@ describe('AuthController', () => {
         {
           provide: ConfigService,
           useValue: configServiceMock
-        }
+        },
+        // CookieService は res を操作するだけの副作用境界。外部依存が無いため
+        // モックせず実体を登録し、res.cookie / res.clearCookie の呼び出しを検証する。
+        CookieService
       ]
     }).compile()
 
@@ -162,7 +163,6 @@ describe('AuthController', () => {
       expect(controller.login).toBeDefined()
       expect(controller.logout).toBeDefined()
       expect(controller.getUser).toBeDefined()
-      expect(controller.getDiscordGuilds).toBeDefined()
     })
   })
 
@@ -235,7 +235,7 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          message: '成功',
           data: expect.objectContaining({
             username: mockJwtPayload.username,
             discordUserId: mockJwtPayload.discordUserId
@@ -260,14 +260,17 @@ describe('AuthController', () => {
       )
     })
 
-    it('should handle missing authorization header (DTO validation)', async () => {
+    it('should delegate empty authorization header to AuthService (DTO validation is handled by pipes)', async () => {
+      // 空ヘッダーのバリデーションは NestJS のパイプ層で行われるため、
+      // コントローラー単体では AuthService にそのまま委譲される。
       const headers = { Authorization: '' } as any
       const res = mockResponse()
-      // DTOバリデーションはNestJSのパイプで行われるため、ここでは省略
-      // 実際のe2eテストで検証するのが望ましい
-      // ここではサービスが呼ばれないことを確認
+      authService.validateToken.mockRejectedValue(new Error('認証ヘッダーが無効または欠落しています'))
+
       await controller.validateToken(headers, res)
-      expect(authService.validateToken).not.toHaveBeenCalled()
+
+      expect(authService.validateToken).toHaveBeenCalledWith('')
+      expect(res.status).toHaveBeenCalledWith(401)
     })
   })
 
@@ -296,10 +299,13 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: '認証成功',
-          discordUserId: mockDiscordProfile.id,
-          userName: mockDiscordProfile.username,
-          token: 'test-jwt-token'
+          success: true,
+          data: expect.objectContaining({
+            message: '認証成功',
+            discordUserId: mockDiscordProfile.id,
+            userName: mockDiscordProfile.username,
+            token: 'test-jwt-token'
+          })
         })
       )
     })
@@ -359,12 +365,15 @@ describe('AuthController', () => {
 
       expect(res.clearCookie).toHaveBeenCalledWith('jwt', expect.any(Object))
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK)
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'ログアウト成功'
-      })
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '成功',
+          data: expect.objectContaining({ message: 'ログアウト成功' })
+        })
+      )
     })
 
-    it('should handle localhost environment properly', async () => {
+    it('should clear the jwt cookie on logout', async () => {
       const req = mockRequest()
       req.get.mockReturnValue('localhost:3000')
       const res = mockResponse()
@@ -373,8 +382,8 @@ describe('AuthController', () => {
 
       await controller.logout(req, res)
 
-      // localhost環境での複数パターンのクッキー削除が行われることを確認
-      expect(res.clearCookie.mock.calls.length).toBeGreaterThan(1)
+      // CookieService.clearJwtCookie により jwt クッキーが削除されることを確認
+      expect(res.clearCookie).toHaveBeenCalledWith('jwt', { path: '/' })
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK)
     })
 
@@ -402,10 +411,12 @@ describe('AuthController', () => {
       await controller.logout(req, res)
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR)
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'ログアウトに失敗しました',
-        error: 'Cookie clear failed'
-      })
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'ログアウトに失敗しました',
+          error: 'Cookie clear failed'
+        })
+      )
     })
   })
 
@@ -421,7 +432,7 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          message: '成功',
           data: expect.objectContaining({
             user: mockUser
           })
@@ -439,8 +450,8 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(404)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('が見つかりません'),
-          error: expect.any(String)
+          success: false,
+          error: expect.stringContaining('が見つかりません')
         })
       )
     })
@@ -461,13 +472,17 @@ describe('AuthController', () => {
       )
     })
 
-    it('should handle missing userId (DTO validation)', async () => {
+    it('should delegate empty userId to UserService (DTO validation is handled by pipes)', async () => {
+      // userId のバリデーションは NestJS のパイプ層で行われるため、
+      // コントローラー単体では UserService にそのまま委譲される。
       const params = { userId: '' } as any
       const res = mockResponse()
-      // DTOバリデーションはNestJSのパイプで行われるため、ここでは省略
-      // ここではサービスが呼ばれないことを確認
+      userService.findOne.mockResolvedValue(null)
+
       await controller.getUser(params, res)
-      expect(userService.findOne).not.toHaveBeenCalled()
+
+      expect(userService.findOne).toHaveBeenCalledWith('')
+      expect(res.status).toHaveBeenCalledWith(404)
     })
   })
 

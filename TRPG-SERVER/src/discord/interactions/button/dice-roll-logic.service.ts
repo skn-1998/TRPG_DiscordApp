@@ -120,8 +120,24 @@ export class DiceRollLogicService {
         throw new Error(`Invalid dice roll result for: ${cleanExpression}`)
       }
 
-      // BCDiceの結果形式に合わせて処理
-      const total = parseInt(result.text.replace(/.*?(\d+).*/, '$1')) || 0
+      // BCDiceの結果からtotalを取得
+      // 方法1: randsから合計を計算（最も正確）
+      let total = 0
+      if (result.rands && Array.isArray(result.rands)) {
+        total = result.rands.reduce((acc: number, curr: number[]) => acc + (curr[0] || 0), 0)
+      }
+
+      // 方法2: randsがない場合はtextから抽出
+      // BCDiceの形式: "(1D100) ＞ 73" または "(2D6) ＞ 7[3,4]"
+      if (total === 0 && result.text) {
+        // "＞" または ">" の後の数字を取得
+        const match = result.text.match(/[＞>]\s*(\d+)/)
+        if (match && match[1]) {
+          total = parseInt(match[1], 10)
+        }
+      }
+
+      this.logger.debug(`Dice roll result: ${cleanExpression} = ${total} (${result.text})`)
 
       return {
         total,

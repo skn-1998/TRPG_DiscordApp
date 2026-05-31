@@ -10,6 +10,7 @@ import {
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { DiceRollText } from 'src/domains/dice-roll/models/dice-roll-text.model'
+import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
 
 // ページネーションの状態を保持するためのインターフェース
 export interface PaginatedDiceRoll {
@@ -54,7 +55,10 @@ export class DiceRollPaginationService {
   private readonly CACHE_TTL = 5000 // 5秒（ダイスロール間隔に合わせて短く設定）
   private readonly CHARACTER_CACHE_TTL = 60000 // 1分（キャラクター情報は頻繁に変わらない）
 
-  constructor(private readonly diceRollService: DiceRollService) {}
+  constructor(
+    private readonly diceRollService: DiceRollService,
+    private readonly characterProvider: DiceRollCharacterProviderService
+  ) {}
 
   /**
    * ダイスロール結果をページネーション形式のEmbedに変換
@@ -72,7 +76,7 @@ export class DiceRollPaginationService {
       const diceRolls = await this.diceRollService.findTextsByChannelId(channelId)
       if (!diceRolls || diceRolls.length === 0) {
         console.log(`[PHASE3] ダイスロールデータが見つかりません: ${channelId}`)
-        return this.createEmptyEmbed(characterId)
+        return this.createEmptyEmbed(channelId, characterId)
       }
 
       // キャラクターIDが指定されている場合、フィルタリング
@@ -99,18 +103,28 @@ export class DiceRollPaginationService {
       const pageLimit = 500 // Embedの安全上限より少なめに設定
 
       // キャラクター名を取得してタイトルに追加（特定キャラクターの場合）
-      // 【PHASE3】 一時的にキャラクター名取得をスキップ
       if (characterId && characterId !== 'all') {
-        console.log(`[PHASE3] キャラクター指定: ${characterId}`)
-        currentPage.setTitle(`キャラクター(${characterId})のダイスロール`)
+        // キャッシュからキャラクター名を取得
+        const characters = this.getCharactersFromCache(channelId)
+        const character = characters?.find((c) => c.characterId === characterId)
+        const characterName = character?.characterName || characterId
+        console.log(`[DiceRollPagination] キャラクター指定: ${characterName}`)
+        currentPage.setTitle(`${characterName}のダイスロール履歴`)
       }
 
       // ロール履歴がない場合
       if (limitedRolls.length === 0) {
+        // キャラクター名を取得
+        let title = 'ダイスロール履歴'
+        if (characterId && characterId !== 'all') {
+          const characters = this.getCharactersFromCache(channelId)
+          const character = characters?.find((c) => c.characterId === characterId)
+          const characterName = character?.characterName || characterId
+          title = `${characterName}のダイスロール履歴`
+        }
+
         const emptyEmbed = new EmbedBuilder()
-          .setTitle(
-            characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
-          )
+          .setTitle(title)
           .setColor('#ff6b6b')
           .setDescription('ダイスロール履歴がありません。')
           .setTimestamp()
@@ -129,11 +143,17 @@ export class DiceRollPaginationService {
           // ページ制限を超える場合は新しいページを作成
           if (newLength > pageLimit && currentPage.data.description) {
             pages.push(currentPage)
-            currentPage = new EmbedBuilder()
-              .setTitle(
-                characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
-              )
-              .setColor('#0099ff')
+
+            // 新しいページのタイトルを設定
+            let title = 'ダイスロール履歴'
+            if (characterId && characterId !== 'all') {
+              const characters = this.getCharactersFromCache(channelId)
+              const character = characters?.find((c) => c.characterId === characterId)
+              const characterName = character?.characterName || characterId
+              title = `${characterName}のダイスロール履歴`
+            }
+
+            currentPage = new EmbedBuilder().setTitle(title).setColor('#0099ff')
             currentLength = 0
           }
 
@@ -154,7 +174,7 @@ export class DiceRollPaginationService {
 
       // 空の場合は空のEmbedを返す
       if (pages.length === 0) {
-        return this.createEmptyEmbed(characterId)
+        return this.createEmptyEmbed(channelId, characterId)
       }
 
       // フッターを設定
@@ -167,18 +187,25 @@ export class DiceRollPaginationService {
       return pagesWithFooter
     } catch (error) {
       console.error('[PHASE3] ページネーション生成エラー:', error)
-      return this.createEmptyEmbed(characterId)
+      return this.createEmptyEmbed(channelId, characterId)
     }
   }
 
   /**
    * 空のEmbedを作成
    */
-  private createEmptyEmbed(characterId?: string): EmbedBuilder[] {
+  private createEmptyEmbed(channelId: string, characterId?: string): EmbedBuilder[] {
+    let title = 'ダイスロール履歴'
+    if (characterId && characterId !== 'all') {
+      // キャッシュからキャラクター名を取得
+      const characters = this.getCharactersFromCache(channelId)
+      const character = characters?.find((c) => c.characterId === characterId)
+      const characterName = character?.characterName || characterId
+      title = `${characterName}のダイスロール履歴`
+    }
+
     const emptyEmbed = new EmbedBuilder()
-      .setTitle(
-        characterId && characterId !== 'all' ? `キャラクター(${characterId})のダイスロール` : 'ダイスロール履歴'
-      )
+      .setTitle(title)
       .setColor('#ff6b6b')
       .setDescription('ダイスロール履歴がありません。')
       .setTimestamp()
@@ -225,11 +252,6 @@ export class DiceRollPaginationService {
   ): Promise<(ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[]> {
     const rows: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[] = []
 
-    // ページ数が1以下の場合は何も表示しない
-    if (totalPages <= 1) {
-      return rows
-    }
-
     // 現在の状態を取得
     const state = this.getPaginationState(channelId, messageId)
 
@@ -268,7 +290,7 @@ export class DiceRollPaginationService {
       await this.addPageSelectMenu(rows, messageId, channelId, state?.currentPage || 1, totalPages)
     }
 
-    // キャラクター選択メニューを追加
+    // キャラクター選択メニューを追加（ページ数に関係なく表示）
     await this.addCharacterSelectMenu(rows, messageId, channelId, state)
 
     return rows
@@ -381,11 +403,55 @@ export class DiceRollPaginationService {
     state: PaginatedDiceRoll | null
   ): Promise<void> {
     try {
-      // 【PHASE3】 キャラクター選択メニューを一時的に無効化
-      console.log('[PHASE3] キャラクター選択メニューは一時的に無効化されています')
-      return
+      console.log(`[DiceRollPagination] キャラクター選択メニュー生成開始: ${channelId}`)
+
+      // キャッシュから取得
+      let characters = this.getCharactersFromCache(channelId)
+      if (!characters) {
+        characters = await this.characterProvider.findCharactersByChannelId(channelId)
+        this.saveCharactersToCache(channelId, characters)
+      }
+
+      // キャラクターが見つからない場合は何も表示しない
+      if (characters.length === 0) {
+        console.log('[DiceRollPagination] キャラクター情報なし - 選択メニューをスキップ')
+        return
+      }
+
+      // セレクトメニューオプションを作成
+      const characterOptions: APISelectMenuOption[] = [
+        {
+          label: '全て表示',
+          value: 'all',
+          description: '全キャラクターのダイスロール履歴を表示',
+          default: !state?.characterId || state.characterId === 'all'
+        }
+      ]
+
+      // キャラクターオプションを追加（最大24件、Discord制限）
+      const maxCharacters = Math.min(characters.length, 24)
+      for (let i = 0; i < maxCharacters; i++) {
+        const char = characters[i]
+        characterOptions.push({
+          label: char.characterName || `キャラクター ${i + 1}`,
+          value: char.characterId,
+          description: `${char.characterName || 'キャラクター'}のダイスロール履歴`,
+          default: state?.characterId === char.characterId
+        })
+      }
+
+      // セレクトメニューを作成
+      const characterSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`dice-char-select*${messageId}*${channelId}`)
+        .setPlaceholder('キャラクターを選択')
+        .addOptions(characterOptions)
+
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(characterSelectMenu)
+      rows.push(selectRow)
+
+      console.log(`[DiceRollPagination] キャラクター選択メニュー生成完了: ${characterOptions.length}オプション`)
     } catch (error) {
-      console.error('[PHASE3] キャラクター選択メニュー作成エラー:', error)
+      console.error('[DiceRollPagination] キャラクター選択メニュー作成エラー:', error)
       // エラーをスローしない - ボタンだけでも表示できるようにする
     }
   }
@@ -406,17 +472,10 @@ export class DiceRollPaginationService {
     return cached.characters
   }
 
-  /**
-   * キャラクター情報を取得してキャッシュに保存
-   */
-  private async fetchCharacters(channelId: string): Promise<Character[]> {
-    try {
-      // 【PHASE3】 キャラクター情報取得を一時的に無効化
-      console.log('[PHASE3] キャラクター情報取得は一時的に無効化されています')
-      return []
-    } catch (error) {
-      console.error('[PHASE3] キャラクター情報取得エラー:', error)
-      return []
+  private saveCharactersToCache(channelId: string, characters: Character[]): void {
+    this.characterCache[channelId] = {
+      characters,
+      timestamp: Date.now()
     }
   }
 
