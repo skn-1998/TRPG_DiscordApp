@@ -5,10 +5,7 @@ import { DiscordIntegrationModule } from 'discord/application/discord-integratio
 import { CharacterEditModule } from 'discord/features/characterEdit/character-edit.module'
 import { CharacterThreadFeatureModule } from 'discord/features/characterThread/character-thread-feature.module'
 
-// Legacy Bus Services (暫定的に保持)
-import { GlobalEventBusService } from './bus/global-event-bus.service'
-
-// Legacy Event Handlers (暫定的に保持)
+// Discord 統合（TypedEventService 経由のログ処理）
 import { DiscordIntegrationHandler } from './handlers/discord-integration.handler'
 
 // 🚨 Event Bridge削除対象（レガシー）
@@ -83,17 +80,13 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
     CharacterFindByNameRequestedHandler,
     DiscordThreadCreateRequestedHandler,
 
-    // 🔄 LEGACY: 暫定的に保持（段階的削除予定）
-    GlobalEventBusService,
+    // Discord 統合（TypedEventService 経由のログ処理）
     DiscordIntegrationHandler
-    // UniversalEventBridge, // 🚨 削除済み
   ],
   exports: [
     // ✅ NEW: File-based Event System
     EventRegistryService,
 
-    // 🔄 LEGACY: 後方互換性のため暫定保持
-    GlobalEventBusService,
     DiscordIntegrationHandler,
 
     // EventEmitterModule for direct usage

@@ -1,32 +1,24 @@
 import { Test } from '@nestjs/testing'
-// 本体ハンドラは barrel（events/index.ts）から GlobalEventBusService を import しており、
-// その barrel は EventsModule → CharacterEditModule → character-ui.service と連鎖して
-// スコープ外の既存型エラー（character-ui.service の never 推論）を巻き込む。
-// jest.mock で barrel を軽量スタブに差し替え、実体読み込みと型診断の連鎖を断つ。
-jest.mock('../../../../../events', () => ({
-  GlobalEventBusService: class GlobalEventBusService {}
-}))
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { GlobalEventBusService } = require('../../../../../events')
 import { CharacterEditFeatureHandler } from './character-edit-feature.handler'
 import { TypedEventService } from '../../../../../shared/application/typed-event.service'
 
 /**
- * CharacterEditFeatureHandler の現状挙動を固定するユニットテスト（T2b 安全網）
+ * CharacterEditFeatureHandler の現状挙動を固定するユニットテスト（T2c 後）
  *
- * このハンドラは characterEdit.* を TypedEventService で listen し、Feature 内部イベントと
- * グローバルイベント（GlobalEventBus）の橋渡しを行う。
+ * このハンドラは characterEdit.* を TypedEventService で listen し、Feature 内部イベントを処理する。
  *
  * onModuleInit() で typedEventService.on() に登録されるため、モックした on() で
- * イベント名→コールバックをキャプチャし、該当コールバックを直接呼んで挙動を検証する
- * （private を覗かず、どのバスで受けるかに依存しない形）。
+ * イベント名→コールバックをキャプチャし、該当コールバックを直接呼んで挙動を検証する（private を覗かない）。
  *
- * T2b で「どちらのバスに何を emit するか」が変わったら、この assert を更新して差分を検出する。
+ * T2c でレガシーバスへの dead emit を撤去した:
+ *  - modal.submitted の character.update.requested（レガシーバス行き／dead。実際の modal→更新は
+ *    character-modal-handler.service が TypedEventService 経由で別途処理する）
+ *  - error.occurred(severity=high) の system.error.occurred（レガシーバス行き／dead）
+ * 観測可能な挙動（TypedEventService 経由の発行・ログ）は不変であり、本テストはそれを引き続き保証する。
  */
 describe('CharacterEditFeatureHandler', () => {
   let handler: CharacterEditFeatureHandler
   let typedEventService: { on: jest.Mock; emit: jest.Mock }
-  let globalEventBus: { emit: jest.Mock }
   // イベント名 → 登録されたハンドラコールバック
   let registered: Map<string, (event: any) => Promise<void> | void>
 
@@ -40,14 +32,9 @@ describe('CharacterEditFeatureHandler', () => {
       }),
       emit: jest.fn().mockResolvedValue(undefined)
     }
-    globalEventBus = { emit: jest.fn().mockResolvedValue(true) }
 
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        CharacterEditFeatureHandler,
-        { provide: TypedEventService, useValue: typedEventService },
-        { provide: GlobalEventBusService, useValue: globalEventBus }
-      ]
+      providers: [CharacterEditFeatureHandler, { provide: TypedEventService, useValue: typedEventService }]
     }).compile()
 
     handler = moduleRef.get(CharacterEditFeatureHandler)
@@ -78,26 +65,6 @@ describe('CharacterEditFeatureHandler', () => {
       }
     })
 
-    it('GlobalEventBus へ character.update.requested を期待ペイロードで emit する', async () => {
-      // Arrange
-      const cb = registered.get('characterEdit.modal.submitted')!
-
-      // Act
-      await cb(buildEvent())
-
-      // Assert
-      expect(globalEventBus.emit).toHaveBeenCalledTimes(1)
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'character.update.requested',
-          characterId: 'char-1',
-          source: 'discord',
-          userId: 'user-1',
-          updateData: { status: { hp: 10 } }
-        })
-      )
-    })
-
     it('TypedEventService へ characterEdit.embed.refresh.requested を emit する', async () => {
       // Arrange
       const cb = registered.get('characterEdit.modal.submitted')!
@@ -105,7 +72,9 @@ describe('CharacterEditFeatureHandler', () => {
       // Act
       await cb(buildEvent())
 
-      // Assert
+      // Assert: dead だった character.update.requested(レガシーバス) は撤去済みのため、
+      // emit されるのは embed.refresh.requested の1件のみ
+      expect(typedEventService.emit).toHaveBeenCalledTimes(1)
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.embed.refresh.requested',
         expect.objectContaining({
@@ -119,10 +88,10 @@ describe('CharacterEditFeatureHandler', () => {
       )
     })
 
-    it('GlobalEventBus.emit が失敗すると characterEdit.error.occurred を発行する', async () => {
-      // Arrange
+    it('embed.refresh.requested の emit が失敗すると characterEdit.error.occurred を発行する', async () => {
+      // Arrange: refresh の emit を失敗させ、その後の error.occurred emit は成功させる
       const cb = registered.get('characterEdit.modal.submitted')!
-      globalEventBus.emit.mockRejectedValueOnce(new Error('emit failed'))
+      typedEventService.emit.mockRejectedValueOnce(new Error('emit failed')).mockResolvedValue(undefined)
 
       // Act
       await cb(buildEvent())
@@ -159,9 +128,7 @@ describe('CharacterEditFeatureHandler', () => {
       // Act
       await cb(event)
 
-      // Assert: payload 内容は不変。バスのみ GlobalEventBus → TypedEventService へ repoint
-      // （GlobalEventBus へは emit されなくなる）
-      expect(globalEventBus.emit).not.toHaveBeenCalled()
+      // Assert
       expect(typedEventService.emit).toHaveBeenCalledTimes(1)
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'discord.embed.update.requested',
@@ -180,7 +147,7 @@ describe('CharacterEditFeatureHandler', () => {
   })
 
   describe('characterEdit.validation.completed ハンドラ', () => {
-    it('検証成功時はグローバルイベントを発行しない', async () => {
+    it('検証成功時はイベントを発行しない', async () => {
       // Arrange
       const cb = registered.get('characterEdit.validation.completed')!
       const event = {
@@ -195,11 +162,10 @@ describe('CharacterEditFeatureHandler', () => {
       await cb(event)
 
       // Assert
-      expect(globalEventBus.emit).not.toHaveBeenCalled()
       expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('検証失敗時もグローバルイベントは発行しない（現状はログのみ）', async () => {
+    it('検証失敗時もイベントは発行しない（現状はログのみ）', async () => {
       // Arrange
       const cb = registered.get('characterEdit.validation.completed')!
       const event = {
@@ -220,12 +186,12 @@ describe('CharacterEditFeatureHandler', () => {
       await cb(event)
 
       // Assert
-      expect(globalEventBus.emit).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 
   describe('characterEdit.error.occurred ハンドラ', () => {
-    it('severity=high のエラーは system.error.occurred を GlobalEventBus へ発行する', async () => {
+    it('severity=high のエラーでもレガシーバスへの dead 発行は撤去済みのため何も emit しない（ログのみ）', async () => {
       // Arrange
       const cb = registered.get('characterEdit.error.occurred')!
       const event = {
@@ -241,26 +207,12 @@ describe('CharacterEditFeatureHandler', () => {
         }
       }
 
-      // Act
-      await cb(event)
-
-      // Assert
-      expect(globalEventBus.emit).toHaveBeenCalledTimes(1)
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'system.error.occurred',
-          source: 'system',
-          error: expect.objectContaining({
-            code: 'SOME_ERROR',
-            message: 'failure',
-            severity: 'high',
-            context: expect.objectContaining({ feature: 'characterEdit', characterId: 'char-1' })
-          })
-        })
-      )
+      // Act & Assert: 例外なくログ記録のみで完了する（バス再発行なし）
+      await expect(cb(event)).resolves.toBeUndefined()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('severity=medium のエラーはグローバル発行しない', async () => {
+    it('severity=medium のエラーも何も emit しない', async () => {
       // Arrange
       const cb = registered.get('characterEdit.error.occurred')!
       const event = {
@@ -280,7 +232,7 @@ describe('CharacterEditFeatureHandler', () => {
       await cb(event)
 
       // Assert
-      expect(globalEventBus.emit).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 })

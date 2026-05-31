@@ -118,7 +118,7 @@ characterEdit → characterThread の順。
 
 - `DiscordService`（deprecated ラッパー）
 - `interactions/button/` 残存ファイル
-- `GlobalEventBusService` 等（`events/` 側と連動）
+- レガシー global event bus 等（`events/` 側と連動）→ 撤去済み（B-2 T2c, 2026-05-31）
 
 ---
 

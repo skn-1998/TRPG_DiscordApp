@@ -300,7 +300,7 @@ export const DicePageCustomId = {
 ### Phase 4 — core 抽出 & Legacy 削除
 
 - [ ] `DiscordService` deprecated 削除（Facade 移行完了後）
-- [ ] `GlobalEventBusService` 等 legacy events 削除
+- [x] レガシー global event bus 等 legacy events 削除（B-2 T2c, 2026-05-31）
 - [ ] `commands/` を各 feature の `commands/` へ段階移動
 - [ ] `RegisterHandler` デコレータ + 自動登録（任意・低優先）
 

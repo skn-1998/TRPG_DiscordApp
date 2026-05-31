@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing'
 import { CharacterCreationCompletedHandler } from './character.creation.completed'
 import { CharacterEmbedManagerService } from '../../discord/features/characterEdit/services/character-embed-manager.service'
 import { DiscordClientService } from '../../discord/services/discord-client.service'
-import { GlobalEventBusService } from '../bus/global-event-bus.service'
 import { TypedEventService } from '../../shared/application/typed-event.service'
 
 // CharacterUIService は構築上 DI トークンとしてのみ必要で、本テストでは一切呼ばない。
@@ -15,23 +14,21 @@ jest.mock('../../discord/features/characterEdit/services/character-ui.service', 
 const { CharacterUIService } = require('../../discord/features/characterEdit/services/character-ui.service')
 
 /**
- * CharacterCreationCompletedHandler の現状挙動を固定するユニットテスト（T2b 安全網）
+ * CharacterCreationCompletedHandler の現状挙動を固定するユニットテスト（T2c 後）
  *
  * このハンドラは「生フロー」の橋渡し役。handle(event) を呼ぶと
  *  - discord.notification.requested / discord.embed.update.requested を TypedEventService へ emit（T2b 移設済み）
  *  - discord.thread.create.requested / discord.character.display.requested を TypedEventService へ emit
- *  - system.audit.logged を GlobalEventBus へ emit
  *  - Discord UI（EmbedManager / DiscordClient）を呼ぶ
  *
- * T2b で生フロー2件を GlobalEventBus → TypedEventService へ移設したため assert を repoint した。
- * イベント名・payload 内容・呼ばれる依存メソッドは不変（変わったのは「どのバスを通るか」だけ）。
+ * T2c でレガシーバスへの dead emit（system.audit.logged / system.error.occurred）を撤去した。
+ * 観測可能な挙動（TypedEventService の生フロー・Discord UI 呼び出し）は不変であり、本テストはそれを引き続き保証する。
  */
 describe('CharacterCreationCompletedHandler', () => {
   let handler: CharacterCreationCompletedHandler
   let characterUIService: { [k: string]: jest.Mock }
   let embedManager: jest.Mocked<Pick<CharacterEmbedManagerService, 'createSectionedEmbeds'>>
   let discordClientService: jest.Mocked<Pick<DiscordClientService, 'getClient'>>
-  let globalEventBus: { emit: jest.Mock }
   let typedEventService: { emit: jest.Mock }
 
   const baseCharacter = {
@@ -68,7 +65,6 @@ describe('CharacterCreationCompletedHandler', () => {
       // デフォルトはクライアント無し（UI 送信はスキップされるが致命的ではない）
       getClient: jest.fn().mockReturnValue(null)
     }
-    globalEventBus = { emit: jest.fn().mockResolvedValue(true) }
     typedEventService = { emit: jest.fn().mockResolvedValue(undefined) }
 
     const moduleRef = await Test.createTestingModule({
@@ -77,7 +73,6 @@ describe('CharacterCreationCompletedHandler', () => {
         { provide: CharacterUIService, useValue: characterUIService },
         { provide: CharacterEmbedManagerService, useValue: embedManager },
         { provide: DiscordClientService, useValue: discordClientService },
-        { provide: GlobalEventBusService, useValue: globalEventBus },
         { provide: TypedEventService, useValue: typedEventService }
       ]
     }).compile()
@@ -96,7 +91,7 @@ describe('CharacterCreationCompletedHandler', () => {
       // Act
       await handler.handle(buildEvent())
 
-      // Assert: payload 内容・依存検証は不変。バスのみ GlobalEventBus → TypedEventService へ repoint
+      // Assert: payload 内容・依存検証は不変
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'discord.notification.requested',
         expect.objectContaining({
@@ -157,22 +152,6 @@ describe('CharacterCreationCompletedHandler', () => {
       )
     })
 
-    it('GlobalEventBus へ system.audit.logged を outcome=success で emit する', async () => {
-      await handler.handle(buildEvent())
-
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'system.audit.logged',
-          audit: expect.objectContaining({
-            action: 'character.created',
-            userId: 'user-1',
-            resource: 'character:char-1',
-            outcome: 'success'
-          })
-        })
-      )
-    })
-
     it('Discord UI（EmbedManager.createSectionedEmbeds）を呼ぶ', async () => {
       await handler.handle(buildEvent())
 
@@ -180,16 +159,11 @@ describe('CharacterCreationCompletedHandler', () => {
       expect(discordClientService.getClient).toHaveBeenCalled()
     })
 
-    it('emit の振り分け（T2b 移設後: GlobalEventBus=1件 / TypedEventService=4件）', async () => {
-      // T2b で生フロー2件（notification / embed.update）を TypedEventService へ移設したため、
-      // GlobalEventBus には system.audit.logged のみが残り、TypedEventService が4件を受ける。
-      // イベント名・発行順は不変（バスの割り当てだけが変わる）。
+    it('TypedEventService へ生フロー4件をこの順で emit する', async () => {
       await handler.handle(buildEvent())
 
-      const globalTypes = globalEventBus.emit.mock.calls.map((c) => c[0].type)
       const typedEvents = typedEventService.emit.mock.calls.map((c) => c[0])
 
-      expect(globalTypes).toEqual(['system.audit.logged'])
       expect(typedEvents).toEqual([
         'discord.notification.requested',
         'discord.thread.create.requested',
@@ -200,16 +174,14 @@ describe('CharacterCreationCompletedHandler', () => {
   })
 
   describe('handle - discordChannelId が無い場合', () => {
-    it('通知・Embed・display は emit せず、監査ログのみ GlobalEventBus へ emit する', async () => {
+    it('通知・Embed・thread・display は一切 emit しない', async () => {
       // Arrange: channelId/threadId 無し
       const event = buildEvent({ discordChannelId: undefined, threadId: undefined })
 
       // Act
       await handler.handle(event)
 
-      // Assert: 通知/Embed/thread/display は呼ばれない
-      const globalTypes = globalEventBus.emit.mock.calls.map((c) => c[0].type)
-      expect(globalTypes).toEqual(['system.audit.logged'])
+      // Assert
       expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
@@ -223,28 +195,13 @@ describe('CharacterCreationCompletedHandler', () => {
   })
 
   describe('handle - 統合通知処理でエラーが発生した場合', () => {
-    it('GlobalEventBus.emit が失敗すると system.error.occurred を発行し、再スローしない', async () => {
+    it('TypedEventService.emit が失敗しても再スローしない（致命的ではない）', async () => {
       // Arrange: 最初の emit（notification）で失敗させる
-      globalEventBus.emit.mockRejectedValueOnce(new Error('emit failed')).mockResolvedValue(true)
+      typedEventService.emit.mockRejectedValueOnce(new Error('emit failed')).mockResolvedValue(undefined)
       const event = buildEvent()
 
       // Act / Assert: handle 自体は完了する（throw しない）
       await expect(handler.handle(event)).resolves.toBeUndefined()
-
-      // エラーイベントが severity=medium で発行されている
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'system.error.occurred',
-          error: expect.objectContaining({
-            code: 'CHARACTER_CREATION_NOTIFICATION_ERROR',
-            severity: 'medium',
-            context: expect.objectContaining({
-              characterId: 'char-1',
-              eventType: 'character.creation.completed'
-            })
-          })
-        })
-      )
     })
   })
 })

@@ -6,9 +6,6 @@
 // Event Contracts
 export * from './contracts'
 
-// Event Bus Services
-export { GlobalEventBusService } from './bus/global-event-bus.service'
-
 // Event Handlers
 export { DiscordIntegrationHandler } from './handlers/discord-integration.handler'
 
