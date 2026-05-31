@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { TypedEventService } from '../../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../../domains/character/character.service'
 import { CharacterCreationService } from '../../services/character-creation.service'
 import { CharacterNotificationService } from '../../services/character-notification.service'

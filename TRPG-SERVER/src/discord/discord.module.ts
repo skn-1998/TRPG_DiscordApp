@@ -18,7 +18,6 @@ import { DiscordMonitorService } from './services/monitoring/discord-monitor.ser
 import { AuthModule } from '../domains/auth/auth.module'
 import { DiscordController } from './discord.controller'
 import { PerformanceDashboardController } from './controllers/performance-dashboard.controller'
-import { SharedModule } from '../shared/shared.module'
 import { DiscordIntegrationModule } from './application/discord-integration.module'
 import { CharacterModule } from '../domains/character/character.module'
 import { DiscordEventHandlersModule } from './events/discord-event-handlers.module'
@@ -27,7 +26,6 @@ import { DiscordEventHandlersModule } from './events/discord-event-handlers.modu
   imports: [
     ConfigModule,
     ScheduleModule.forRoot(), // パフォーマンス監視の定期実行用
-    SharedModule,
     forwardRef(() => InteractionsModule),
     CommandsModule,
     AuthModule,

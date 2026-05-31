@@ -23,7 +23,7 @@ import { randomBytes } from 'crypto'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 
 /**

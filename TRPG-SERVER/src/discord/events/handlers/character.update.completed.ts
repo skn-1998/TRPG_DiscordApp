@@ -3,7 +3,7 @@ import { EventHandler, EventContext } from 'events/handlers/_shared/event-handle
 import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
-import { TypedEventService } from 'shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 /**
  * character.update.completed 専用ハンドラー

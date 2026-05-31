@@ -35,7 +35,7 @@ import { AuthGuard } from '@nestjs/passport'
 import { AuthService } from '../auth/services/auth.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { ApiResponseUtil } from '../../utils/api-response.util'
-import { TypedEventService } from '../../shared/application/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 
 /**
  * キャラクターコントローラー

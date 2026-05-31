@@ -1,6 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
-import { SharedModule } from '../../../shared/shared.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 
 // Feature Events
@@ -39,7 +38,6 @@ import { CharacterUIService } from './services/character-ui.service'
  */
 @Module({
   imports: [
-    SharedModule, // TypedEventService用
     forwardRef(() => CharacterModule),
     DiscordIntegrationModule // 循環依存解消により安全にインポート可能
     // Note: AppConfigServiceはグローバルモジュールのためインポート不要

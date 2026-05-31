@@ -7,7 +7,7 @@ import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.
 import { CharacterInputDto } from './dto/create-character.dto'
 import { UserService } from '../user/user.service'
 import { AppConfigService } from '../../config/config.service'
-import { TypedEventEmitter, TypedEventService } from '../../shared/application/typed-event.service'
+import { TypedEventEmitter, TypedEventService } from '../../core/events/typed-event.service'
 
 /**
  * Character Simple CRUD Test

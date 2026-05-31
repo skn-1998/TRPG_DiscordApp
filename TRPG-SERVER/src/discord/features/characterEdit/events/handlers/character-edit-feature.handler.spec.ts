@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { CharacterEditFeatureHandler } from './character-edit-feature.handler'
-import { TypedEventService } from '../../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../../core/events/typed-event.service'
 
 /**
  * CharacterEditFeatureHandler の現状挙動を固定するユニットテスト（T2c 後）

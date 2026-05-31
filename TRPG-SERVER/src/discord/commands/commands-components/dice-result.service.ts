@@ -4,7 +4,7 @@ import { SlashCommandBuilder, CommandInteraction } from 'discord.js'
 import { diceResultConfig } from 'src/discord/commands/commands.list'
 import { DiceResultOrchestrator } from 'src/discord/features/diceRoll'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 @Injectable()
 export class DiceResultService extends BaseCommandService implements discordCommandType {

@@ -3,7 +3,7 @@ import { WinstonModule } from 'nest-winston'
 
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
-import { SharedModule } from './shared/shared.module'
+import { CoreEventsModule } from './core/events/core-events.module'
 import { AppConfigModule } from './config/config.module'
 import { DatabaseModule } from './core/database/database.module'
 import { CharacterModule } from './domains/character/character.module'
@@ -28,7 +28,7 @@ import { AppConfigService } from './config/config.service'
       },
       inject: [AppConfigService]
     }),
-    SharedModule,
+    CoreEventsModule,
     AppConfigModule,
     DatabaseModule,
     // AI.architecture.md Phase 3: アダプター層を早期に初期化

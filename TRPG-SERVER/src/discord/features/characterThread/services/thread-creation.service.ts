@@ -23,7 +23,7 @@ import {
 import { Character } from '../../../../domains/character/models/character.model'
 import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 
 /**

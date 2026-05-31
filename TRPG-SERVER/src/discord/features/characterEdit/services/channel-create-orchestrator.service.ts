@@ -4,7 +4,7 @@ import { EventPayload } from '../../../../events/contracts'
 import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { CharacterUIService } from './character-ui.service'
 

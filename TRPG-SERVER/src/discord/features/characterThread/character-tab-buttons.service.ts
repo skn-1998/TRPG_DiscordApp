@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel } from 'discord.js'
 import { discordButtonType } from '../../discord.type'
-import { TypedEventService } from '../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../core/events/typed-event.service'
 import { CharacterDisplayService, TabType } from './services'
 import { ErrorHandler, ErrorContext } from '../../../utils/error-handler'
 

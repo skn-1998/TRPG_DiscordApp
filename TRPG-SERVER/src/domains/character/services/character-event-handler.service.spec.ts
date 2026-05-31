@@ -3,7 +3,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter'
 import { CharacterEventHandlerService } from './character-event-handler.service'
 import { CharacterRepository } from '../repositories/character.repository'
 import { UserService } from '../../user/user.service'
-import { TypedEventService } from '../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../core/events/typed-event.service'
 import { Character } from '../models/character.model'
 import { v4 as uuidv4 } from 'uuid'
 

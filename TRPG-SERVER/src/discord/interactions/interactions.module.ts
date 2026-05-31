@@ -22,7 +22,6 @@ import { DicePageCancelButtonService } from '../features/diceRoll/adapters/dice-
 import { DiceCharacterSelectService } from '../features/diceRoll/adapters/dice-character-select.adapter'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { DiceButtonService } from '../features/diceRoll/adapters/dice-button.adapter'
-import { SharedModule } from '../../shared/shared.module'
 import { CharacterThreadFeatureModule } from '../features/characterThread/character-thread-feature.module'
 import { CharacterModule } from '../../domains/character/character.module'
 import { CustomDiceModalService } from './modal/custom-dice-modal.service'
@@ -212,7 +211,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollModule,
     EventEmitterModule,
     CharacterEditModule, // Modern Services + Legacy Services (統合)
-    SharedModule, // TypedEventService用
     CharacterThreadFeatureModule,
     CharacterModule // CharacterService用
   ]
