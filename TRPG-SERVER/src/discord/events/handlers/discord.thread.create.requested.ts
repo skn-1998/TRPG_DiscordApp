@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common'
-import { EventHandler, EventContext } from './_shared/event-handler.base'
-import { ThreadOrchestratorService } from '../../discord/features/characterThread/services/thread-orchestrator.service'
-import type { EventPayload } from '../contracts'
+import { Injectable, OnModuleInit } from '@nestjs/common'
+import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
+import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
+import { TypedEventService } from 'shared/application/typed-event.service'
+import type { EventPayload } from 'events/contracts'
 
 /**
  * discord.thread.create.requested 専用ハンドラー
@@ -10,11 +11,30 @@ import type { EventPayload } from '../contracts'
  * - Discord スレッド作成リクエストの処理
  * - ThreadOrchestratorService への処理委譲
  * - File-based Event Handler アーキテクチャに準拠
+ *
+ * 🏗️ 登録方式:
+ * - discord 層へ移設し、OnModuleInit で TypedEventService に自己購読する
+ *   （旧: events 層の EventRegistryService による集中登録）
+ * - EventHandler 基底の execute()（検証・ログ・統計・リトライ）は維持
  */
 @Injectable()
-export class DiscordThreadCreateRequestedHandler extends EventHandler<EventPayload<'discord.thread.create.requested'>> {
-  constructor(private readonly threadOrchestrator: ThreadOrchestratorService) {
+export class DiscordThreadCreateRequestedHandler
+  extends EventHandler<EventPayload<'discord.thread.create.requested'>>
+  implements OnModuleInit
+{
+  constructor(
+    private readonly threadOrchestrator: ThreadOrchestratorService,
+    private readonly typedEventServiceLocal: TypedEventService
+  ) {
     super()
+  }
+
+  /**
+   * モジュール初期化: TypedEventService への自己購読
+   */
+  onModuleInit(): void {
+    this.setTypedEventService(this.typedEventServiceLocal)
+    this.typedEventServiceLocal.on(this.getEventName(), (event) => this.execute(event))
   }
 
   /**
