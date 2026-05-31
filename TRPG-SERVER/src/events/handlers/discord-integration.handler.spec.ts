@@ -1,22 +1,28 @@
 import { Test } from '@nestjs/testing'
 import { GlobalEventBusService } from '../bus/global-event-bus.service'
+import { TypedEventService } from '../../shared/application/typed-event.service'
 import { DiscordIntegrationHandler } from './discord-integration.handler'
 
 /**
  * DiscordIntegrationHandler の現状挙動を固定するユニットテスト（T2b 安全網）
  *
- * このハンドラの全メソッドは private で、onModuleInit() で globalEventBus.on() に登録される。
+ * このハンドラの全メソッドは private で、onModuleInit() でバスに登録される。
+ * T2b で生フロー2件（discord.embed.update.requested / discord.notification.requested）は
+ * GlobalEventBus → TypedEventService へ移設済み。それ以外の listen は GlobalEventBus のまま。
+ *
  * テストでは「どのバスで受けるか」に依存しないよう、モックした on() でイベント名→コールバックを
  * キャプチャし、該当コールバックを直接呼ぶことで挙動を検証する（private を覗かない）。
+ * 生フロー2件は typedEventService.on から、それ以外は globalEventBus.on からキャプチャする。
  *
  * assert の中心は「globalEventBus.emit が、どのイベント型で呼ばれた/呼ばれなかったか」。
  * 実コードは Discord 通知/Embed 更新を直接は行わず、監査ログ・メトリクス・エラーイベントの
- * 発行のみを行う点を記録する。
+ * 発行のみを行う点を記録する（＝バスを移設しても挙動は不変）。
  */
 describe('DiscordIntegrationHandler', () => {
   let handler: DiscordIntegrationHandler
   let globalEventBus: { emit: jest.Mock; on: jest.Mock }
-  // イベント名 → 登録されたハンドラコールバック
+  let typedEventService: { on: jest.Mock }
+  // イベント名 → 登録されたハンドラコールバック（GlobalEventBus / TypedEventService 両方を集約）
   let registered: Map<string, (event: any) => Promise<void> | void>
 
   beforeEach(async () => {
@@ -29,20 +35,40 @@ describe('DiscordIntegrationHandler', () => {
         registered.set(eventType, cb)
       })
     }
+    typedEventService = {
+      on: jest.fn((eventType: string, cb: (event: any) => Promise<void> | void) => {
+        registered.set(eventType, cb)
+      })
+    }
 
     const moduleRef = await Test.createTestingModule({
-      providers: [DiscordIntegrationHandler, { provide: GlobalEventBusService, useValue: globalEventBus }]
+      providers: [
+        DiscordIntegrationHandler,
+        { provide: GlobalEventBusService, useValue: globalEventBus },
+        { provide: TypedEventService, useValue: typedEventService }
+      ]
     }).compile()
 
     handler = moduleRef.get(DiscordIntegrationHandler)
 
-    // onModuleInit を実行してハンドラを globalEventBus.on() に登録させる
+    // onModuleInit を実行してハンドラを各バスに登録させる
     handler.onModuleInit()
   })
 
   describe('onModuleInit / ハンドラ登録', () => {
-    it('生フローで保護対象となるイベントを globalEventBus に登録する', () => {
-      // Assert: 主要イベントが on() で登録されている
+    it('生フロー2件は TypedEventService に、それ以外は GlobalEventBus に登録する', () => {
+      // Assert: 生フロー2件は TypedEventService.on で登録（T2b 移設）
+      expect(typedEventService.on).toHaveBeenCalledWith('discord.embed.update.requested', expect.any(Function))
+      expect(typedEventService.on).toHaveBeenCalledWith('discord.notification.requested', expect.any(Function))
+
+      // Assert: それ以外は GlobalEventBus.on で登録（移設対象外）
+      expect(globalEventBus.on).toHaveBeenCalledWith('discord.embed.updated', expect.any(Function))
+      expect(globalEventBus.on).toHaveBeenCalledWith('discord.notification.sent', expect.any(Function))
+      expect(globalEventBus.on).toHaveBeenCalledWith('discord.integration.error', expect.any(Function))
+      expect(globalEventBus.on).toHaveBeenCalledWith('discord.channel.create.requested', expect.any(Function))
+      expect(globalEventBus.on).toHaveBeenCalledWith('discord.thread.create.requested', expect.any(Function))
+
+      // Assert: 登録自体は両バス合わせて確認できる
       expect(registered.has('discord.embed.update.requested')).toBe(true)
       expect(registered.has('discord.notification.requested')).toBe(true)
       expect(registered.has('discord.embed.updated')).toBe(true)

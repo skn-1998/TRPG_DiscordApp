@@ -134,8 +134,7 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
 
     try {
       // グローバルDiscord Embed更新イベント発行
-      await this.globalEventBus.emit({
-        type: 'discord.embed.update.requested',
+      await this.typedEventService.emit('discord.embed.update.requested', {
         timestamp: new Date(),
         source: 'discord',
         channelId: event.embed.channelId,

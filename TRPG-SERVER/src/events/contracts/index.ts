@@ -209,6 +209,35 @@ export interface CharacterEventContracts {
     timestamp: Date
   }
 
+  // Discord Embed 更新リクエスト（生フロー: ブリッジ役 → DiscordIntegrationHandler）
+  // GlobalEventBus 形式の `type` フィールドを除いた payload（イベント名は emit 第1引数で表現）
+  'discord.embed.update.requested': {
+    timestamp: Date
+    source: 'discord' | 'system'
+    channelId?: string
+    embedData: {
+      channelId: string
+      characterId: string
+      embedType: 'character' | 'status' | 'enhanced' | 'parameter' | 'compact'
+      updateMode: 'create' | 'update' | 'refresh'
+    }
+  }
+
+  // Discord 通知リクエスト（生フロー: ブリッジ役 → DiscordIntegrationHandler）
+  'discord.notification.requested': {
+    timestamp: Date
+    source: 'discord' | 'system'
+    channelId?: string
+    notification: {
+      type: 'character.created' | 'character.updated' | 'character.deleted' | 'system.alert'
+      channelId: string
+      title: string
+      message: string
+      color?: number
+      characterId?: string
+    }
+  }
+
   // すべてのイベント名を許可（any型で）
   [eventName: string]: any
 }

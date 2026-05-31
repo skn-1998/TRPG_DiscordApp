@@ -141,7 +141,7 @@ describe('CharacterEditFeatureHandler', () => {
   })
 
   describe('characterEdit.embed.refresh.requested ハンドラ', () => {
-    it('GlobalEventBus へ discord.embed.update.requested を updateMode=refresh で emit する', async () => {
+    it('TypedEventService へ discord.embed.update.requested を updateMode=refresh で emit する（T2b 移設）', async () => {
       // Arrange
       const cb = registered.get('characterEdit.embed.refresh.requested')!
       const event = {
@@ -159,11 +159,13 @@ describe('CharacterEditFeatureHandler', () => {
       // Act
       await cb(event)
 
-      // Assert
-      expect(globalEventBus.emit).toHaveBeenCalledTimes(1)
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
+      // Assert: payload 内容は不変。バスのみ GlobalEventBus → TypedEventService へ repoint
+      // （GlobalEventBus へは emit されなくなる）
+      expect(globalEventBus.emit).not.toHaveBeenCalled()
+      expect(typedEventService.emit).toHaveBeenCalledTimes(1)
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.embed.update.requested',
         expect.objectContaining({
-          type: 'discord.embed.update.requested',
           source: 'discord',
           channelId: 'ch-1',
           embedData: expect.objectContaining({
