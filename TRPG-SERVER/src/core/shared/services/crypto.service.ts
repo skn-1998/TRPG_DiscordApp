@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, InternalServerErrorException } from '@nestjs/common'
 import { AppConfigService } from '../../../config/config.service'
 import { CryptoUtil } from '../../../utils/crypto.util'
 
@@ -18,7 +18,7 @@ export class CryptoService {
   private getEncryptionKey(): string {
     const key = this.appConfigService.get('security.discordTokenEncryptionKey')
     if (!key) {
-      throw new Error('DISCORD_TOKEN_ENCRYPTION_KEY environment variable is required')
+      throw new InternalServerErrorException('DISCORD_TOKEN_ENCRYPTION_KEY environment variable is required')
     }
     return key
   }

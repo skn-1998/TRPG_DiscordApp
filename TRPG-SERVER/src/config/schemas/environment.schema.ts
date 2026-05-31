@@ -13,6 +13,10 @@ export interface EnvironmentSchema {
   DISCORD_APPLICATIONID: string
   DISCORD_SECRET: string
   GUILDID?: string // オプショナル
+  DISCORD_CACHE_TTL?: number // オプショナル（チャンネルキャッシュTTL）
+  DISCORD_MESSAGE_CACHE_LIMIT?: number // オプショナル（メッセージキャッシュ上限）
+  DISCORD_CHANNEL_CACHE_LIMIT?: number // オプショナル（チャンネルキャッシュ上限）
+  TEST_MOCK_DISCORD?: boolean // オプショナル（Discordモック制御）
 
   // 認証設定
   JWT_SECRET: string
@@ -52,6 +56,10 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
   FRONTEND_URL: 'http://127.0.0.1:5173', // IPv6回避のため127.0.0.1を使用
   CHARACTER_CATEGORY: 'キャラクター',
   DICE_ROLL_CATEGORY: 'ダイスロールチャンネル',
+  DISCORD_CACHE_TTL: 300000, // 5分
+  DISCORD_MESSAGE_CACHE_LIMIT: 30,
+  DISCORD_CHANNEL_CACHE_LIMIT: 50,
+  TEST_MOCK_DISCORD: false,
   LOG_LEVEL: 'info',
   LOG_FILE_ENABLE: true,
   LOG_CONSOLE_ENABLE: true,

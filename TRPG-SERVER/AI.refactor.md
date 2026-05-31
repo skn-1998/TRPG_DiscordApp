@@ -150,7 +150,8 @@ Phase S 完了後の状況を実コードで再確認し、着手順を整理し
 
 ### B. High 課題（ARCHITECTURE.md の移行順・推奨シーケンス）
 
-1. **H7 設定集約** … `process.env` 直読み**9ファイル**を `AppConfigService` へ。小〜中・mechanical で効果大（crypto は S2 済）。**次の着手候補**。
+1. **H7 設定集約** … `process.env` 直読みを `AppConfigService` へ。**DI 可能な3クラスは移行完了**（2026-05-31, ブランチ `refactor/config-aggregation`）：`channel-cache.service`・`discord-command-registration.service`・`performance-dashboard.controller`。`DISCORD_CACHE_TTL`/`MESSAGE_CACHE_LIMIT`/`CHANNEL_CACHE_LIMIT`/`TEST_MOCK_DISCORD` を schema/validator/configuration/ConfigPaths へ追加し `discord.*` で公開、NODE_ENV は既存 `app.environment` を使用。
+   - **残**（DI 困難・別途）：`core/dto/api-response.dto.ts`・`utils/error-handler.ts` の NODE*ENV 直読み（DTO/静的 util で DI 不可）。設定層の読み取り（`config.service`・`configuration` の PROTOTYPE*\*・`environment.validator`）は env→config 境界として維持。
 2. **H2/H4 イベントバス一本化＋Interactions registry** … ARCHITECTURE の本丸（大）。`events/DESIGN.md` 作成→3系統(EventBus/GlobalEventBus/TypedEvent)を `TypedEventService` に統一→registry/router/manager 一本化→`contracts` の逆流依存撤去→`EventsModule`/`InteractionsModule` の feature import 排除。
 3. **H9 エラーハンドリング統合** … Controller の `@Res()` 手動レスポンス→グローバル例外フィルタ/インターセプタ（中）。
 4. **H3/H5 Discord 巨大サービス分割** … pagination 等の分割＋（再精査後の）デッド整理（中〜大）。

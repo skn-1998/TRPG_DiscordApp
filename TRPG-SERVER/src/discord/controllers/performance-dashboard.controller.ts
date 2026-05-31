@@ -2,6 +2,7 @@ import { Controller, Get, Post, Query, UseGuards, Logger, HttpException, HttpSta
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../domains/auth/guards/jwt-auth.guard'
 import { PerformanceOrchestratorService } from '../services/monitoring/performance-orchestrator.service'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * パフォーマンスダッシュボードコントローラー
@@ -14,7 +15,10 @@ import { PerformanceOrchestratorService } from '../services/monitoring/performan
 export class PerformanceDashboardController {
   private readonly logger = new Logger(PerformanceDashboardController.name)
 
-  constructor(private readonly performanceOrchestrator: PerformanceOrchestratorService) {}
+  constructor(
+    private readonly performanceOrchestrator: PerformanceOrchestratorService,
+    private readonly appConfigService: AppConfigService
+  ) {}
 
   /**
    * 総合パフォーマンス統計を取得
@@ -414,7 +418,7 @@ export class PerformanceDashboardController {
           cpu: process.cpuUsage()
         },
         environment: {
-          nodeEnv: process.env.NODE_ENV || 'development',
+          nodeEnv: this.appConfigService.get('app.environment'),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           locale: Intl.DateTimeFormat().resolvedOptions().locale
         }
