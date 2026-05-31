@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { CommandInteraction, AutocompleteInteraction, ChatInputCommandInteraction } from 'discord.js'
 import { ErrorHandler } from '../../utils/error-handler'
-import { TypedEventService } from '../../shared/application/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 
 @Injectable()
 export abstract class BaseCommandService {

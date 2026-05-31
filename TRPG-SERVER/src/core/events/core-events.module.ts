@@ -1,10 +1,13 @@
 import { Global, Module } from '@nestjs/common'
 import { EventEmitterModule, EventEmitter2 } from '@nestjs/event-emitter'
-import { TypedEventService, TypedEventEmitter } from './application/typed-event.service'
+import { TypedEventService, TypedEventEmitter } from './typed-event.service'
 
 /**
- * 共有モジュール
- * アプリケーション全体で使用される共通サービスを提供
+ * コアイベントモジュール
+ * アプリケーション全体で使用されるイベント基盤（EventEmitter2 / TypedEventService）を提供
+ *
+ * 注: 旧 SharedModule (src/shared/shared.module.ts) から移設したもの。
+ * イベントバスは config と同様に正当なグローバル基盤であり、@Global で全域提供する。
  */
 @Global()
 @Module({
@@ -47,4 +50,4 @@ import { TypedEventService, TypedEventEmitter } from './application/typed-event.
   ],
   exports: [TypedEventService, TypedEventEmitter]
 })
-export class SharedModule {}
+export class CoreEventsModule {}

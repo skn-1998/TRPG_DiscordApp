@@ -6,7 +6,7 @@ import dice from 'src/discord/utils/dice'
 import { getGameSystemIdFromTopic, getParentChannelTopic } from 'src/discord/features/diceRoll'
 import { diceFromContextMenuConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 @Injectable()
 export class DiceFromContextMenuService extends BaseCommandService implements discordContextMenuType {

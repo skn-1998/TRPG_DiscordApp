@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
-import { TypedEventService } from '../shared/application/typed-event.service'
+import { TypedEventService } from '../core/events/typed-event.service'
 import { EventHandler, EventContext } from './handlers/_shared/event-handler.base'
 import { CharacterEventContracts } from './contracts'
 

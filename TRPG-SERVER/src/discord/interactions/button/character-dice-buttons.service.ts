@@ -15,7 +15,7 @@ import {
   TextChannel
 } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
-import { TypedEventEmitter } from 'src/shared/application/typed-event.service'
+import { TypedEventEmitter } from 'src/core/events/typed-event.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { isNull } from 'lodash'
 import dice from 'src/discord/utils/dice'

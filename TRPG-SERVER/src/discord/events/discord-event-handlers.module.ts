@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common'
-import { SharedModule } from '../../shared/shared.module'
 import { DiscordIntegrationModule } from '../application/discord-integration.module'
 import { CharacterEditModule } from '../features/characterEdit/character-edit.module'
 import { CharacterThreadFeatureModule } from '../features/characterThread/character-thread-feature.module'
@@ -27,7 +26,7 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
  * - EventHandler 基底の execute()（検証・ログ・統計・リトライ）は維持。
  *
  * 📦 依存:
- * - SharedModule: TypedEventService
+ * - CoreEventsModule(@Global): TypedEventService
  * - DiscordIntegrationModule: DiscordClientService
  * - CharacterEditModule: CharacterUIService / CharacterEmbedManagerService
  * - CharacterThreadFeatureModule: ThreadOrchestratorService
@@ -36,7 +35,7 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
  *    挙動保存のため provider に登録するが自己購読は行わない。
  */
 @Module({
-  imports: [SharedModule, DiscordIntegrationModule, CharacterEditModule, CharacterThreadFeatureModule],
+  imports: [DiscordIntegrationModule, CharacterEditModule, CharacterThreadFeatureModule],
   providers: [
     CharacterCreationCompletedHandler,
     CharacterUpdateCompletedHandler,

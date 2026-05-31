@@ -17,7 +17,7 @@ import _, { isNull, isUndefined } from 'lodash'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
-import { TypedEventEmitter } from '../../../shared/application/typed-event.service'
+import { TypedEventEmitter } from '../../../core/events/typed-event.service'
 
 @Injectable()
 export class CharacterChannelService implements discordSelectMenuType {

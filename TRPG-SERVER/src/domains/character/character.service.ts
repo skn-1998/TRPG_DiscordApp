@@ -7,7 +7,7 @@ import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.mo
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
-import { TypedEventService } from '../../shared/application/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
 
 /**
