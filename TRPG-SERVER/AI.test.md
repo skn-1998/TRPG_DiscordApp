@@ -580,4 +580,27 @@ pnpm test -- --testPathPattern="discord-test-utils.spec"
 
 ---
 
+## 作業履歴: auth/user spec のドリフト修復 (2026-05-31)
+
+実コードへのドリフトで TS コンパイル不能だった auth/user の 4 spec を現行コードに合わせて修復。
+
+対象（本体コードは不変更、spec のみ修正）:
+
+- `src/domains/auth/auth.controller.spec.ts`
+- `src/domains/auth/services/auth.service.spec.ts`
+- `src/domains/user/user.controller.spec.ts`
+- `src/domains/user/user.service.spec.ts`
+
+主な修正方針:
+
+- **削除**: `AuthService.getDiscordGuildsWithToken` / `getUserDiscordGuilds` のテスト（機能は `UserService` へ移管済み・AuthService に該当メソッドなし）。`AuthController.getDiscordGuilds` の存在チェック（メソッドは `UserController.getDiscordGuilds` へ移管済み）。
+- **import パス**: `./http.service` → `core/shared/services/http.service`。
+- **DI モック補完**: AuthService 実体化に `CryptoService`、UserService 実体化に `HttpClientService` / `CryptoService`、AuthController に `CookieService`（副作用境界のため実体登録）を追加。
+- **レスポンス形**: `ApiResponseUtil.success` は `SuccessResponse`（`success`/`data`/`message:'成功'`）でラップされる。`ApiResponseUtil.error` は `ErrorResponse`（`success:false`/`error`/`message`）。テストの期待値をこの構造（`objectContaining`）へ統一。
+- **型**: `RequestWithUser` を `Request & { user: JwtTokenPayload }`（`src/types/express/index.d.ts` 準拠）へ。
+
+検証: `tsc -p tsconfig.spec.json` で 4 ファイルのエラーゼロ（character/discord 系の既存エラーはスコープ外で残置）。`jest` で 4 スイート 62 テスト全 pass。`pnpm run build` 成功。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_

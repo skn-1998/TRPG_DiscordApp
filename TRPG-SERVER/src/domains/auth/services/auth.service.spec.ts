@@ -4,7 +4,8 @@ import { ConfigService } from '@nestjs/config'
 import { UnauthorizedException, HttpException } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { UserService } from '../../user/user.service'
-import { HttpClientService } from './http.service'
+import { HttpClientService } from '../../../core/shared/services/http.service'
+import { CryptoService } from '../../../core/shared/services/crypto.service'
 import { AppConfigService } from '../../../config/config.service'
 import { DiscordUserProfile } from '../models/discord-user.model'
 import { User } from '../../user/models/user.model'
@@ -18,6 +19,7 @@ describe('AuthService', () => {
   let userService: jest.Mocked<UserService>
   let configService: jest.Mocked<ConfigService>
   let appConfigService: jest.Mocked<AppConfigService>
+  let cryptoService: jest.Mocked<CryptoService>
 
   // テストデータ
   const mockUser: User = {
@@ -71,6 +73,12 @@ describe('AuthService', () => {
       get: jest.fn()
     }
 
+    // CryptoService モック
+    const cryptoServiceMock = {
+      encrypt: jest.fn(),
+      decrypt: jest.fn()
+    }
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -93,6 +101,10 @@ describe('AuthService', () => {
         {
           provide: AppConfigService,
           useValue: appConfigServiceMock
+        },
+        {
+          provide: CryptoService,
+          useValue: cryptoServiceMock
         }
       ]
     }).compile()
@@ -103,6 +115,7 @@ describe('AuthService', () => {
     userService = module.get(UserService)
     configService = module.get(ConfigService)
     appConfigService = module.get(AppConfigService)
+    cryptoService = module.get(CryptoService)
   })
 
   describe('基本機能', () => {
@@ -312,43 +325,9 @@ describe('AuthService', () => {
     })
   })
 
-  describe('getDiscordGuildsWithToken', () => {
-    const mockDiscordGuilds = [
-      {
-        id: 'guild-1',
-        name: 'Test Guild 1',
-        icon: 'guild-icon-1',
-        owner: true,
-        permissions: '8',
-        features: []
-      }
-    ]
-
-    it('should get Discord guilds successfully', async () => {
-      const mockToken = 'access-token'
-      httpService.get.mockReturnValue(of({ data: mockDiscordGuilds }) as any)
-
-      const result = await service.getDiscordGuildsWithToken(mockToken)
-
-      expect(result).toEqual(mockDiscordGuilds)
-    })
-
-    it('should handle getDiscordGuilds errors', async () => {
-      const mockToken = 'invalid-token'
-      httpService.get.mockReturnValue(throwError(() => new Error('Get guilds failed')) as any)
-
-      await expect(service.getDiscordGuildsWithToken(mockToken)).rejects.toThrow()
-    })
-  })
-
-  describe('getUserDiscordGuilds', () => {
-    it('should throw error when user not found', async () => {
-      const mockDiscordUserId = 'nonexistent-user'
-      userService.findOne.mockResolvedValue(null)
-
-      await expect(service.getUserDiscordGuilds(mockDiscordUserId)).rejects.toThrow()
-    })
-  })
+  // NOTE: Discord Guild 取得機能（getDiscordGuildsWithToken / getUserDiscordGuilds）は
+  // AuthService から UserService（src/domains/user/user.service.ts）へ移管済みのため、
+  // 該当テストは削除した。Guild 関連のテストは UserService 側で扱う。
 
   describe('getValidDiscordAccessToken', () => {
     it('should throw error when user not found', async () => {
