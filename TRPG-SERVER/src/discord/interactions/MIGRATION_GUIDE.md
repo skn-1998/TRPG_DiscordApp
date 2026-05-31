@@ -1,0 +1,148 @@
+# Interactions 移行ガイド
+
+**最終更新**: 2026-05-30  
+**参照**: [../DESIGN.md](../DESIGN.md)
+
+Registry 方式への移行と、InteractionsModule から feature への所有権移譲手順。
+
+---
+
+## 移行ステータス
+
+| 項目                                      | 状態                         |
+| ----------------------------------------- | ---------------------------- |
+| `InteractionsController` → Registry 委譲  | ✅ 完了                      |
+| Handler 24 件 + Registry 基盤             | ✅ 完了                      |
+| customId 契約の一本化                     | 🟡 Phase 0 一部着手 / 未完了 |
+| diceRoll → FeatureModule 分離             | ❌ Phase 1 未着手            |
+| InteractionsModule slim 化                | ❌ Phase 2 未着手            |
+| ルーティング 1 本化（Map / 特例 if 削除） | ❌ Phase 2 未着手            |
+
+---
+
+## Phase 0: customId 統一
+
+**PR 単位で完結させる。Module 構造は触らない。**
+
+### チェックリスト
+
+1. `features/diceRoll/custom-id/dice-page.custom-id.ts` を新設
+2. `dice-roll-pagination.service.ts` の `setCustomId(...)` を Factory 呼び出しに置換
+3. `character-dice-buttons.service.ts` の `dice-prev*` → `dice-page-prev*`
+4. `features/diceRoll/adapters/dice-page-*-button.adapter.ts` の template customId を更新
+5. 各 Handler の `getCustomIdPattern()` を `DicePageCustomId.patterns.*` に統一
+6. `handlers.integration.spec.ts` に Factory ↔ pattern 一致テストを追加
+7. pagination state / spec を 1-indexed 前提に統一
+8. 未参照の `interactions/button/dice-page-*.service.ts` を削除
+
+### 検証
+
+```powershell
+cd TRPG-SERVER
+pnpm test -- handlers.integration.spec
+pnpm test -- dice-roll-pagination
+```
+
+---
+
+## Phase 1: diceRoll Feature 分離
+
+### 移動手順
+
+1. ディレクトリ作成
+
+   ```
+   features/diceRoll/
+     handlers/      ← interactions/handlers/dice-roll/*
+     pagination/    ← components/pagination/*
+     ports/         ← dice-roll-character-provider.service.ts
+     custom-id/
+   ```
+
+2. import パスを一括更新
+
+3. `DiceRollFeatureModule` を拡張
+   - pagination / ports / custom-id を providers に追加
+   - diceRoll handlers を providers に追加
+   - `implements OnModuleInit` で `registry.registerHandlers([...])`
+
+4. `InteractionsModule` から削除
+   - dice-roll handlers
+   - pagination services
+   - diceRoll adapters（InteractionsModule 側の duplicate provide）
+
+5. `DiceRollFeatureModule` の `imports: [InteractionsModule]` は **Registry export の取得に必要なら維持**
+
+`InteractionsModule` が `DiceRollFeatureModule` を import しないこと。feature 側が registry を import して handler を登録する一方向依存にする。
+
+### 完了条件
+
+- diceRoll 関連の変更が `features/diceRoll/` 内で完結する
+- `InteractionsModule` に diceRoll adapter / pagination が存在しない
+
+---
+
+## Phase 2: Interactions slim 化
+
+### チェックリスト
+
+1. `InteractionsModule.exports` を以下のみに
+   - `InteractionRegistryService`
+   - `PatternMatcherService`
+
+2. `DiscordInteractionHandlerService`
+   - `buttons` / `modals` / `selects` Map を削除
+   - 全 component interaction を `interactionsService.handleInteraction()` → Registry へ
+
+3. `InteractionsService.execute()`
+   - `character-section-select-*` 等の特例 if を該当 Handler へ移管
+   - `ModuleRef.get(InteractionsController)` → コンストラクタ注入
+
+4. `PerformanceOrchestratorService` 等を `DiscordModule` のみで provide
+
+5. `forwardRef(() => InteractionsModule)` の必要性を再評価・削除
+
+6. `InteractionRegistryService` の `ModuleRef` 依存を削除し、handler は module からの明示登録に統一
+
+---
+
+## Phase 3: 他 Feature の customId 整理
+
+characterEdit → characterThread の順。
+
+各 feature に `custom-id/` を設置し、[DESIGN.md §6](../DESIGN.md#6-customid-契約) の形式に従う。
+
+---
+
+## Phase 4: Legacy 削除
+
+- `DiscordService`（deprecated ラッパー）
+- `interactions/button/` 残存ファイル
+- `GlobalEventBusService` 等（`events/` 側と連動）
+
+---
+
+## 新 Handler 追加手順（現行）
+
+1. `handlers/{feature}/xxx.handler.ts` を作成（基底クラス継承）
+2. `getCustomIdPattern()` / `getInteractionType()` / `execute()` を実装
+3. `InteractionsModule.providers` に追加（Phase 1 後は FeatureModule.providers）
+4. `onModuleInit` の `registerHandlers([...])` に追加
+5. `handlers.integration.spec.ts` に pattern テストを追加
+6. customId 生成側が Factory 経由であることを確認
+
+---
+
+## トラブルシューティング
+
+### 「⚠️ このインタラクションは現在処理できません。」
+
+1. ログの customId を確認
+2. `interactionRegistry.debugInfo()` で未登録集計を確認
+3. [DESIGN.md §6.3](../DESIGN.md#63-legacy廃止対象) の Legacy 形式で生成されていないか確認
+4. Handler pattern と生成 customId の prefix が一致するか確認
+
+### Handler が意図しないものにマッチする
+
+- `PatternMatcherService.detectConflicts()` が起動時に警告を出す
+- より具体的な pattern（完全一致 > 長い prefix > 正規表現）を使用する

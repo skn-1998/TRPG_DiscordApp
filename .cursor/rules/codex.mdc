@@ -1,0 +1,7 @@
+---
+globs: ./
+alwaysApply: false
+---
+
+設計をメインで行う
+コードの実装は"codex"を用いて委譲する

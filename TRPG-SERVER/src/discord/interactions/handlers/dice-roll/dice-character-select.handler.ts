@@ -1,0 +1,25 @@
+import { Injectable } from '@nestjs/common'
+import { StringSelectMenuInteraction } from 'discord.js'
+import { SelectMenuInteractionHandler } from '../base/interaction-handler.base'
+import { DiceCharacterSelectService } from '../../../features/diceRoll/adapters/dice-character-select.adapter'
+
+/**
+ * ダイスキャラクター選択メニューハンドラー
+ *
+ * customId: dice-char-select*{messageId}*{channelId}
+ */
+@Injectable()
+export class DiceCharacterSelectHandler extends SelectMenuInteractionHandler {
+  constructor(private readonly diceCharacterSelectService: DiceCharacterSelectService) {
+    super()
+  }
+
+  getCustomIdPattern(): string {
+    return 'dice-char-select'
+  }
+
+  async execute(interaction: StringSelectMenuInteraction): Promise<void> {
+    this.logger.debug(`Handling dice character select: ${interaction.customId}`)
+    await this.diceCharacterSelectService.execute(interaction)
+  }
+}

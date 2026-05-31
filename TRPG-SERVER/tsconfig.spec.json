@@ -4,6 +4,11 @@
     "outDir": "./dist",
     "module": "commonjs",
     "types": ["jest", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@discord-test-utils": ["./test/discord-test-utils/index.ts"],
+      "@discord-test-utils/*": ["./test/discord-test-utils/*"]
+    },
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
@@ -19,13 +24,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.e2e-spec.ts"
-  ]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.e2e-spec.ts"]
 }
