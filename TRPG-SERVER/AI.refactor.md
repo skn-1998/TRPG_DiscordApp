@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-06-01 H9 エラーハンドリング統合（auth/user controller のみ・挙動完全保存）
+
+ブランチ `refactor/error-handling-h9`。対象は `domains/auth/auth.controller.ts` と `domains/user/user.controller.ts` の 2 つのみ。`character.controller` 他・`ApiResponseUtil` 本体は不変。**レスポンス形（envelope/status/message）を一切変えない**ことを成功条件に、`@Res()`＋try/catch＋`ApiResponseUtil` 直呼びの NestJS アンチパターンを宣言的方式へ置換した。
+
+### 追加した仕組み（`src/core/http/`、controller スコープ適用・グローバル登録なし）
+
+- **`ResponseInterceptor`**：ハンドラ戻り値を `ApiResponseUtil.success` と同一の `SuccessResponse(data, message, undefined, uuidv4())` でラップ。message は `@ResponseMessage` メタ（無ければ '成功'）。`SuccessResponse` 既存インスタンスは二重ラップしない。
+- **`HttpExceptionFilter`（`@Catch()`）**：throw を `ApiResponseUtil.error` と同一の `ErrorResponse(errorMessage, label, undefined, undefined, stack, uuidv4())` に整形。
+  - `ApiError`（独自 `HttpException`）が throw された場合は最優先で status/label/errorPayload を採用（個別 404/401 分岐の再現）。
+  - 素の例外は `@ApiErrorResponse(status, label)` メタを fallback として適用（= 変換前の「catch が全エラーを固定 status＋固定 label に潰す」挙動の再現）。メタも無ければ既定 500/'エラーが発生しました'。
+- **デコレータ**：`@ResponseMessage(msg)` / `@ApiErrorResponse(status,label)` / `@SkipResponseWrapper()`（redirect・空返却の非封筒化マーカー）。
+- envelope は `ApiResponseUtil` と**同一クラス（`SuccessResponse`/`ErrorResponse`）・requestId=uuid・timestamp**を再利用し形を完全一致。
+
+### エンドポイント別 保存マッピング
+
+auth: validate-token=success 200/'成功'・error 401/'トークン検証に失敗しました' ／ login=200/'成功'・401/'ログインに失敗しました'（code 無し BadRequestException も catch 同様 401 に潰れる挙動を保存）／ logout=200/'成功'・500/'ログアウトに失敗しました'（失敗時ログ出力も保持）／ getUser=200/'成功'・not found は `ApiError(404,'エラーが発生しました','ユーザーID … が見つかりません')`／DB エラー 500/'ユーザー情報の取得に失敗しました'。discordLoginCallback は動的 redirect のため `@Res({passthrough})`＋`@SkipResponseWrapper()`＋`@ApiErrorResponse(401,'Discord認証コールバックに失敗しました')`。
+user: 全 success 200/'成功'。create=err 500/'ユーザー作成に失敗しました'、findOne=500/'ユーザー取得に失敗しました'（not found は `ApiError(404,…,'ユーザーが見つかりません')`）、getDiscordGuilds=500/'Discord Guild一覧取得に失敗しました'（user 不在 `ApiError(401,…,'認証トークンがありません')`）、update/addCharacter/removeCharacter/remove も同様に各 500 ラベル＋not found 404。全エンドポイント `@HttpCode(200)` で 200 を保存。
+
+### 検証結果
+
+- `pnpm run build` 成功。
+- `pnpm test src/domains/auth src/domains/user src/core/http`：6 suites / 67 tests 緑。controller spec は「戻り値/throw を検証」＋「実機同様の interceptor/filter を介した最終 envelope が変換前の `ApiResponseUtil.success/error` と一致（requestId/timestamp 除き完全一致）」を保証。interceptor/filter 単体テストも追加。
+- `pnpm run check:circular`：許容済み UserDomain⇄AuthDomain 1 件のみ（新規循環なし。core/http は依存を一方向に保つ）。
+- `@Res()`（引数なし）：対象 2 controller で 0 件。残る `@Res({passthrough:true})` は cookie 設定/redirect の副作用境界のみで、レスポンス本体は interceptor/filter が封筒化。
+
+### 残課題・注意
+
+- `discordLoginCallback` は動的 redirect のため `@Res({passthrough:true})` を維持。`@HttpCode` でなく redirect なので envelope 対象外。passthrough で redirect 後にハンドラが undefined を返す経路は controller spec では緑だが、実 HTTP（redirect 後の二重送信有無）は **E2E 未検証**。本番投入前に手動/E2E で redirect 動作の確認推奨。
+- `ApiResponseUtil` は character 等が継続使用のため温存。将来 character spec の AttributeValue ドリフト解消後、同方式を character.controller へ展開し最終的にグローバル登録へ寄せる案。
+
 ## 2026-05-30 全フォルダ監査を実施（NestJS ベストプラクティス照合）
 
 `src` 直下10フォルダ（domains, discord, events, core, config, auth, middleware, shared, types, utils）に
@@ -159,7 +189,7 @@ Phase S 完了後の状況を実コードで再確認し、着手順を整理し
    - **T4**: `TypedEventService` を `shared/application`→`core/events` へ移設、@Global `CoreEventsModule` 新設、旧 `src/shared/shared.module` 削除（import 48ファイル更新）。
    - **T5**: `src/events/AI.event.md` 冒頭に現状の正アーキテクチャ節を追加し以降を履歴と明示。
    - 正本は `src/events/AI.event.md` 冒頭節＋`src/events/DESIGN.md`。登録は events 層=EventRegistry（File-based）／discord 層=自己購読 の2経路。監査の「contracts 逆流」は実在せず、逆流は handlers→features / EventsModule→feature の import だった（T3 で是正済み）。
-3. **H9 エラーハンドリング統合** … Controller の `@Res()` 手動レスポンス→グローバル例外フィルタ/インターセプタ（中）。
+3. **H9 エラーハンドリング統合** … **auth/user controller 完了（2026-06-01, ブランチ `refactor/error-handling-h9`）**。`core/http` の controller スコープ例外フィルタ＋レスポンスインターセプタへ置換、envelope/status/message を完全保存（詳細は冒頭 2026-06-01 節）。残: character 他は spec ドリフト解消後に展開し、最終的にグローバル登録へ寄せる。
 4. **H3/H5 Discord 巨大サービス分割** … pagination 等の分割＋（再精査後の）デッド整理（中〜大）。
 5. **H6 auth/user forwardRef 解消** … port 切り出し＋`src/auth`/`domains/auth` 統合。影響最大＝最後（大）。
 6. 随時: **H1/H8** 横断コード・型の置き場所決定表＋`any` 削減。
