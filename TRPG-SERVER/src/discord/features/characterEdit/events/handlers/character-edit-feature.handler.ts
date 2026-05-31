@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../../../../shared/application/typed-event.service'
-import { GlobalEventBusService } from '../../../../../events'
 import { EventPayload } from '../../../../../events/contracts'
 
 /**
@@ -12,10 +11,7 @@ import { EventPayload } from '../../../../../events/contracts'
 export class CharacterEditFeatureHandler implements OnModuleInit {
   private readonly logger = new Logger(CharacterEditFeatureHandler.name)
 
-  constructor(
-    private readonly typedEventService: TypedEventService,
-    private readonly globalEventBus: GlobalEventBusService
-  ) {}
+  constructor(private readonly typedEventService: TypedEventService) {}
 
   onModuleInit(): void {
     this.registerFeatureEventHandlers()
@@ -70,21 +66,9 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
 
     try {
       // Feature内部での値更新処理は別のサービスが担当
+      // （実際の modal → キャラ更新は character-modal-handler.service が
+      //  TypedEventService 経由で character.update.requested を発行して処理する）
       // ここではイベントログ記録とワークフロー管理のみ
-
-      // グローバルキャラクター更新イベント発行
-      await this.globalEventBus.emit({
-        type: 'character.update.requested',
-        characterId: event.characterId,
-        timestamp: new Date(),
-        source: 'discord',
-        userId: event.userId,
-        updateData: {
-          [event.modal.sectionType]: {
-            [event.modal.fieldKey]: event.modal.newValue
-          }
-        }
-      })
 
       // Embed更新リクエスト発行
       await this.typedEventService.emit('characterEdit.embed.refresh.requested', {
@@ -173,30 +157,7 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
    */
   private async handleFeatureError(event: EventPayload<'characterEdit.error.occurred'>): Promise<void> {
     this.logger.error(`🚨 Character Edit Feature Error: ${event.error.code} - ${event.error.message}`)
-
-    try {
-      // 重要度に基づいてグローバルエラーイベント発行
-      if (event.error.severity === 'high') {
-        await this.globalEventBus.emit({
-          type: 'system.error.occurred',
-          timestamp: new Date(),
-          source: 'system',
-          error: {
-            code: event.error.code,
-            message: event.error.message,
-            context: {
-              feature: 'characterEdit',
-              operation: event.error.operation,
-              characterId: event.characterId,
-              details: event.error.details
-            },
-            severity: event.error.severity === 'high' ? 'high' : 'medium'
-          }
-        })
-      }
-    } catch (error) {
-      this.logger.error(`❌ Feature error event processing failed`, error)
-    }
+    // 旧レガシーバスへの system.error.occurred 発行は dead のため撤去（ログ記録のみ）
   }
 
   /**
