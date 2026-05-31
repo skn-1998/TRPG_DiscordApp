@@ -112,8 +112,7 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
     try {
       // 1. Discord統合通知イベント発行
       if (character.discordChannelId) {
-        await this.globalEventBus.emit({
-          type: 'discord.notification.requested',
+        await this.typedEventServiceLocal.emit('discord.notification.requested', {
           timestamp: new Date(),
           source: 'system',
           channelId: character.discordChannelId,
@@ -143,8 +142,7 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
 
       // 3. Embed更新リクエスト
       if (character.discordChannelId) {
-        await this.globalEventBus.emit({
-          type: 'discord.embed.update.requested',
+        await this.typedEventServiceLocal.emit('discord.embed.update.requested', {
           timestamp: new Date(),
           source: 'system',
           channelId: character.discordChannelId,
