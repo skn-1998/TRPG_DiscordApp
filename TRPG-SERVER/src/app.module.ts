@@ -1,9 +1,8 @@
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { WinstonModule } from 'nest-winston'
 
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
-import { CorsMiddleware } from './middleware/cors.middleware'
 import { SharedModule } from './shared/shared.module'
 import { AppConfigModule } from './config/config.module'
 import { DatabaseModule } from './core/database/database.module'
@@ -45,8 +44,4 @@ import { AppConfigService } from './config/config.service'
   providers: [AppService],
   exports: [AppService]
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(CorsMiddleware).forRoutes('*')
-  }
-}
+export class AppModule {}

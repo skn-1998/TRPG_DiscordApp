@@ -2,7 +2,6 @@
 import 'source-map-support/register'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
-import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { AppConfigService } from './config/config.service'
 import { Logger } from '@nestjs/common'
@@ -22,6 +21,9 @@ async function bootstrap() {
 
     // フロントエンドのURLを設定
     const frontendUrl = configService.get('app.frontendUrl')
+    if (!frontendUrl) {
+      throw new Error('FRONTEND_URL is required for CORS configuration but is not set')
+    }
 
     // クッキーパーサーを設定
     app.use(cookieParser())
