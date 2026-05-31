@@ -59,9 +59,7 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'Return the user Discord guilds.' })
   async getDiscordGuilds(@Req() req: Request, @Res() res: Response): Promise<void> {
     try {
-      const headerRaw = req.headers['user'] as string | undefined
-      const headerUser: Partial<JwtTokenPayload> | undefined = headerRaw ? JSON.parse(headerRaw) : undefined
-      const user = (req.user as unknown as JwtTokenPayload | undefined) ?? (headerUser as JwtTokenPayload | undefined)
+      const user = req.user
       if (!user || !user.discordUserId) {
         ApiResponseUtil.error(res, '認証トークンがありません', 401)
         return
