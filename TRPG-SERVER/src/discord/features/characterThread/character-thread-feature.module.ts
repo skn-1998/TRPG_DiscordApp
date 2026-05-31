@@ -7,7 +7,6 @@ import { CharacterDisplayService } from './services/character-display.service'
 import { CharacterChannelService } from './character-channel.service'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
 import { CharacterDisplayHandlerService } from './services/character-display-handler.service'
-import { SharedModule } from '../../../shared/shared.module'
 // 新しい分割サービス
 import { ChannelManagerService } from './services/channel-manager.service'
 import { DiceUIBuilderService } from './services/dice-ui-builder.service'
@@ -18,7 +17,7 @@ import { ThreadManagerService } from './services/thread-manager.service'
 import { ThreadInteractionService } from './services/thread-interaction.service'
 
 @Module({
-  imports: [CharacterModule, SharedModule, forwardRef(() => DiscordIntegrationModule)],
+  imports: [CharacterModule, forwardRef(() => DiscordIntegrationModule)],
   providers: [
     ThreadCreationService,
     CharacterThreadOrchestrator,

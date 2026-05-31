@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ChannelCreationContext } from './channel-detection.service'
 
 // ============================================================================

@@ -17,7 +17,7 @@ import {
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
 
 @Injectable()

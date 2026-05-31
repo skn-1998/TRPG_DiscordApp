@@ -16,7 +16,7 @@ import {
   StringSelectMenuBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'

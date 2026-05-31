@@ -3,7 +3,7 @@ import { discordCommandType } from 'src/discord/discord.type'
 import { SlashCommandBuilder, CommandInteraction } from 'discord.js'
 import { rollDiceConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 // featuresへ委譲
 import { RollDiceOrchestrator } from 'src/discord/features/diceRoll'

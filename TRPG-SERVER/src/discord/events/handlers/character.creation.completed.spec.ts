@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing'
 import { CharacterCreationCompletedHandler } from './character.creation.completed'
 import { CharacterEmbedManagerService } from '../../features/characterEdit/services/character-embed-manager.service'
 import { DiscordClientService } from '../../services/discord-client.service'
-import { TypedEventService } from '../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../core/events/typed-event.service'
 
 // CharacterUIService は構築上 DI トークンとしてのみ必要で、本テストでは一切呼ばない。
 // 本体ファイルにスコープ外の既存型エラー（AttributeValue ドリフト等）があるため、

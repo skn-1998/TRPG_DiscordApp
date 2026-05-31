@@ -4,7 +4,7 @@ import { CommandInteraction, SlashCommandBuilder, AutocompleteInteraction } from
 import { SelectGameSystemOrchestrator } from 'src/discord/features/gameSystem'
 import { selectGameSystemConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 export type GameSystemJSON = { ID: string; NAME: string; SORT_KEY: string; HELP_MESSAGE: string }
 

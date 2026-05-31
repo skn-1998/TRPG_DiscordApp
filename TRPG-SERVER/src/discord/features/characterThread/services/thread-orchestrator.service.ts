@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EventPayload } from '../../../../events/contracts'
 
 import { ThreadManagerService, CreateThreadRequest, CreateThreadResult } from './thread-manager.service'

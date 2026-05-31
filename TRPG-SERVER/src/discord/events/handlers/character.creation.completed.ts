@@ -6,7 +6,7 @@ import { DiscordClientService } from 'discord/services/discord-client.service'
 import { CharacterCreationCompletedEvent } from 'events/contracts/unified-event-contracts'
 import { TextChannel } from 'discord.js'
 import { Character } from 'domains/character/models/character.model'
-import { TypedEventService } from 'shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 /**
  * character.creation.completed 専用ハンドラー

@@ -7,7 +7,7 @@ import {
   StringSelectMenuOptionBuilder
 } from 'discord.js'
 import { discordSelectMenuType } from '../../../discord.type'
-import { TypedEventService } from '../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { Character } from '../../../../domains/character/models/character.model'
 import { ChannelManagerService } from './channel-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
