@@ -42,6 +42,13 @@
 - `character/schemas/character.schema.ts`（zod 248行、参照ゼロの未配線並行実装）
 - `CharacterEventHandlerService`（自称レガシー、リスナー登録は空・private 群は呼び出し元なし）
 
+> ⚠️ **2026-05-31 訂正（実コード再確認）**: 上記デッドコード3点の判定は**実態と乖離しており当てにできない**。
+>
+> - `character-id.service.ts`（`CharacterIdService`）は **4ファイルで参照・使用中**（`CharacterCreationRequestedHandler`
+>   経由でキャラ作成のユニーク ID 採番に使われる現役経路）。「利用箇所ゼロ」は**誤り**。削除すればキャラ作成が壊れる。
+> - `character/schemas/character.schema.ts` は参照1件、`CharacterEventHandlerService` は参照3件あり、完全な死蔵とは限らない。
+> - **結論: これらは安易に削除しない。削除前に必ず実コードで再精査すること。** 監査レポートの同記述も同様に要訂正。
+
 ### 推奨着手順（ARCHITECTURE.md の移行順序に整合）
 
 1. 規約の明文化（横断コード／型の置き場所の決定表、`req.user` の any 排除）
@@ -125,3 +132,35 @@
   これら spec の修復は別タスク。
 - **【未着手】** `cors` パッケージの package.json からの削除、`discord.controller.ts` の独自
   `AuthenticatedRequest` 型一本化（Phase T 型整理へ）。
+
+---
+
+## 2026-05-31 次フェーズ計画（整理）
+
+Phase S 完了後の状況を実コードで再確認し、着手順を整理した。`process.env` 直読みは監査の「約25」ではなく
+**実際は9ファイル**（非 spec）。デッドコード3点の判定は誤り（上の訂正注記参照）。
+
+### A. 現ブランチ（refactor/security-phase-s）の締め
+
+- [x] auth/user の壊れた spec を修復（4 suites / 62 tests green）。Guild 系メソッドは Auth→User へ移管済みと判明（`AI.test.md` 記載）。
+- [x] pre-commit フックの健全化（`git add .` 撤去・ステージ限定）とテンプレート同期、`prettier.config.js` の CommonJS 化。
+- [x] 監査の「デッドコード3点」記述を訂正（本書・監査レポート）。
+- [ ] **develop へマージ**（前に `pnpm run build`→`start:dev`→`check:circular` の最終確認。push 要否はユーザー判断）。
+- [ ] Phase S スピンオフのバックログ化（下記「別 Issue」群：token の Cookie 専用移行 / 未使用 `cors` パッケージ削除 / 本番 env 32文字必須の周知）。
+
+### B. High 課題（ARCHITECTURE.md の移行順・推奨シーケンス）
+
+1. **H7 設定集約** … `process.env` 直読み**9ファイル**を `AppConfigService` へ。小〜中・mechanical で効果大（crypto は S2 済）。**次の着手候補**。
+2. **H2/H4 イベントバス一本化＋Interactions registry** … ARCHITECTURE の本丸（大）。`events/DESIGN.md` 作成→3系統(EventBus/GlobalEventBus/TypedEvent)を `TypedEventService` に統一→registry/router/manager 一本化→`contracts` の逆流依存撤去→`EventsModule`/`InteractionsModule` の feature import 排除。
+3. **H9 エラーハンドリング統合** … Controller の `@Res()` 手動レスポンス→グローバル例外フィルタ/インターセプタ（中）。
+4. **H3/H5 Discord 巨大サービス分割** … pagination 等の分割＋（再精査後の）デッド整理（中〜大）。
+5. **H6 auth/user forwardRef 解消** … port 切り出し＋`src/auth`/`domains/auth` 統合。影響最大＝最後（大）。
+6. 随時: **H1/H8** 横断コード・型の置き場所決定表＋`any` 削減。
+
+### C. テスト負債（別トラック）
+
+- `character`/`discord` 系 spec が **AttributeValue モデルドリフト**でコンパイル不能（Phase S 着手前から）。`test-expansion`/`create-test` で別タスク修復。auth/user spec は A で修復済み。
+
+### 進め方
+
+各 High 課題は `trpg-refactor` スキル（理解→nestjs-best-practices へ実装委譲→build/check:circular 検証→AI.\*.md 記録）で小さな PR に分割して進める。循環参照は UserDomain⇄AuthDomain のみ許容。
