@@ -9,7 +9,6 @@ import { CharacterThreadFeatureModule } from 'discord/features/characterThread/c
 import { GlobalEventBusService } from './bus/global-event-bus.service'
 
 // Legacy Event Handlers (暫定的に保持)
-import { CharacterEventHandler } from './handlers/character-event.handler'
 import { DiscordIntegrationHandler } from './handlers/discord-integration.handler'
 
 // 🚨 Event Bridge削除対象（レガシー）
@@ -86,7 +85,6 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
 
     // 🔄 LEGACY: 暫定的に保持（段階的削除予定）
     GlobalEventBusService,
-    CharacterEventHandler,
     DiscordIntegrationHandler
     // UniversalEventBridge, // 🚨 削除済み
   ],
@@ -96,7 +94,6 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
 
     // 🔄 LEGACY: 後方互換性のため暫定保持
     GlobalEventBusService,
-    CharacterEventHandler,
     DiscordIntegrationHandler,
 
     // EventEmitterModule for direct usage
