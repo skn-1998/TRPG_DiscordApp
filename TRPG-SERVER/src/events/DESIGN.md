@@ -40,6 +40,7 @@
   - **サブステップ**:
     - **T2a**: 完全 DEAD の `CharacterEventHandler` を削除（events.module の providers/exports・index の re-export 除去）。低リスク。
     - **T2b**: 生フローを TypedEventService へ移設 — ブリッジ2件の `discord.embed.update.requested`/`discord.notification.requested` emit を GlobalEventBus→TypedEventService に、`DiscordIntegrationHandler` の当該2 listen を TypedEventService に揃える。DEAD な listen は除去。**⚠️ 実 Discord 通知/Embed 更新フローに触れ、E2E spec が削除済みで自動テストが無いため要手動確認**。
+      - **✅ 完了（2026-05-31）**: `contracts/index.ts` の `CharacterEventContracts` に2イベントを型付き追加（payload は GlobalEventBus 形式の `type` を除いた形＝`embedData`/`notification`/`channelId`/`timestamp`/`source` を保持）。producer 3箇所（`character.creation.completed.ts` の notification/embed.update、`character-edit-feature.handler.ts` の embed.update.refresh）を `typedEventService.emit('<name>', {...})` に移設。consumer `discord-integration.handler.ts` は `TypedEventService` を inject し当該2 listen を `typedEventService.on(...)` に変更（他 listen・GlobalEventBus への emit は T2c 対象として不変）。当該2イベントは TypedEventService 側でブリッジ以外に producer 無しを確認（二重ハンドリング無し）。安全網30テストは挙動不変のまま緑（assert はバスのみ repoint、イベント名・payload・依存検証は不変）。build / check:circular（既存の UserDomain⇄AuthDomain のみ）OK。GlobalEventBus 本体・DEAD listen の削除は T2c に残す。
     - **T2c**: 残存利用が消えた `GlobalEventBusService` を削除（events.module/index/プロバイダ）。
 - **T3: events→features 逆流の解消**（設計重・高）
   完了系ハンドラ（`character.*.completed`）の Discord UI 更新を、ポート（interface＋DI トークン）越し、または discord 層購読へ移し、`events.module.ts` の feature import と handlers の `discord/features` import を撤去。

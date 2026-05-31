@@ -1,15 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { GlobalEventBusService } from '../bus/global-event-bus.service'
+import { TypedEventService } from '../../shared/application/typed-event.service'
 import {
   DiscordChannelCreateRequestedEvent,
   DiscordChannelCreatedEvent,
   DiscordThreadCreateRequestedEvent,
   DiscordThreadCreatedEvent,
-  DiscordEmbedUpdateRequestedEvent,
   DiscordEmbedUpdatedEvent,
-  DiscordNotificationRequestedEvent,
   DiscordNotificationSentEvent,
-  DiscordIntegrationErrorEvent
+  DiscordIntegrationErrorEvent,
+  EventPayload
 } from '../contracts'
 
 /**
@@ -21,7 +21,10 @@ import {
 export class DiscordIntegrationHandler implements OnModuleInit {
   private readonly logger = new Logger(DiscordIntegrationHandler.name)
 
-  constructor(private readonly globalEventBus: GlobalEventBusService) {}
+  constructor(
+    private readonly globalEventBus: GlobalEventBusService,
+    private readonly typedEventService: TypedEventService
+  ) {}
 
   onModuleInit(): void {
     this.registerEventHandlers()
@@ -41,11 +44,13 @@ export class DiscordIntegrationHandler implements OnModuleInit {
     this.globalEventBus.on('discord.thread.created', this.handleThreadCreated.bind(this))
 
     // Embed Events
-    this.globalEventBus.on('discord.embed.update.requested', this.handleEmbedUpdateRequested.bind(this))
+    // discord.embed.update.requested は生フローを TypedEventService へ移設（T2b）
+    this.typedEventService.on('discord.embed.update.requested', this.handleEmbedUpdateRequested.bind(this))
     this.globalEventBus.on('discord.embed.updated', this.handleEmbedUpdated.bind(this))
 
     // Notification Events
-    this.globalEventBus.on('discord.notification.requested', this.handleNotificationRequested.bind(this))
+    // discord.notification.requested は生フローを TypedEventService へ移設（T2b）
+    this.typedEventService.on('discord.notification.requested', this.handleNotificationRequested.bind(this))
     this.globalEventBus.on('discord.notification.sent', this.handleNotificationSent.bind(this))
 
     // Error Events
@@ -216,7 +221,7 @@ export class DiscordIntegrationHandler implements OnModuleInit {
   /**
    * Discord Embed更新リクエストハンドラー
    */
-  private async handleEmbedUpdateRequested(event: DiscordEmbedUpdateRequestedEvent): Promise<void> {
+  private async handleEmbedUpdateRequested(event: EventPayload<'discord.embed.update.requested'>): Promise<void> {
     this.logger.debug(
       `🎨 Discord Embed Update Requested: ${event.embedData.embedType} for ${event.embedData.characterId}`
     )
@@ -264,7 +269,7 @@ export class DiscordIntegrationHandler implements OnModuleInit {
   /**
    * Discord 通知リクエストハンドラー
    */
-  private async handleNotificationRequested(event: DiscordNotificationRequestedEvent): Promise<void> {
+  private async handleNotificationRequested(event: EventPayload<'discord.notification.requested'>): Promise<void> {
     this.logger.debug(`📢 Discord Notification Requested: ${event.notification.type}`)
 
     try {

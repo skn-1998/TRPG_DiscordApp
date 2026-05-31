@@ -18,13 +18,13 @@ const { CharacterUIService } = require('../../discord/features/characterEdit/ser
  * CharacterCreationCompletedHandler の現状挙動を固定するユニットテスト（T2b 安全網）
  *
  * このハンドラは「生フロー」の橋渡し役。handle(event) を呼ぶと
- *  - discord.notification.requested / discord.embed.update.requested を GlobalEventBus へ emit
+ *  - discord.notification.requested / discord.embed.update.requested を TypedEventService へ emit（T2b 移設済み）
  *  - discord.thread.create.requested / discord.character.display.requested を TypedEventService へ emit
  *  - system.audit.logged を GlobalEventBus へ emit
  *  - Discord UI（EmbedManager / DiscordClient）を呼ぶ
  *
- * T2b ではこの「どちらのバスに何を emit するか」が変わる予定のため、現状を assert で記録する。
- * バスを移設したらこのテストの assert を更新し、差分が検出できるようにする。
+ * T2b で生フロー2件を GlobalEventBus → TypedEventService へ移設したため assert を repoint した。
+ * イベント名・payload 内容・呼ばれる依存メソッドは不変（変わったのは「どのバスを通るか」だけ）。
  */
 describe('CharacterCreationCompletedHandler', () => {
   let handler: CharacterCreationCompletedHandler
@@ -92,14 +92,14 @@ describe('CharacterCreationCompletedHandler', () => {
   })
 
   describe('handle - discordChannelId がある場合（生フロー本流）', () => {
-    it('GlobalEventBus へ discord.notification.requested を期待ペイロードで emit する', async () => {
+    it('TypedEventService へ discord.notification.requested を期待ペイロードで emit する（T2b 移設）', async () => {
       // Act
       await handler.handle(buildEvent())
 
-      // Assert
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
+      // Assert: payload 内容・依存検証は不変。バスのみ GlobalEventBus → TypedEventService へ repoint
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.notification.requested',
         expect.objectContaining({
-          type: 'discord.notification.requested',
           source: 'system',
           channelId: 'ch-1',
           notification: expect.objectContaining({
@@ -111,12 +111,12 @@ describe('CharacterCreationCompletedHandler', () => {
       )
     })
 
-    it('GlobalEventBus へ discord.embed.update.requested を updateMode=create で emit する', async () => {
+    it('TypedEventService へ discord.embed.update.requested を updateMode=create で emit する（T2b 移設）', async () => {
       await handler.handle(buildEvent())
 
-      expect(globalEventBus.emit).toHaveBeenCalledWith(
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.embed.update.requested',
         expect.objectContaining({
-          type: 'discord.embed.update.requested',
           source: 'system',
           channelId: 'ch-1',
           embedData: expect.objectContaining({
@@ -180,19 +180,22 @@ describe('CharacterCreationCompletedHandler', () => {
       expect(discordClientService.getClient).toHaveBeenCalled()
     })
 
-    it('emit の振り分けが現状どおり（GlobalEventBus=3件 / TypedEventService=2件）', async () => {
-      // T2b でバスを移設したら、この件数 assert を更新して差分を検出する
+    it('emit の振り分け（T2b 移設後: GlobalEventBus=1件 / TypedEventService=4件）', async () => {
+      // T2b で生フロー2件（notification / embed.update）を TypedEventService へ移設したため、
+      // GlobalEventBus には system.audit.logged のみが残り、TypedEventService が4件を受ける。
+      // イベント名・発行順は不変（バスの割り当てだけが変わる）。
       await handler.handle(buildEvent())
 
       const globalTypes = globalEventBus.emit.mock.calls.map((c) => c[0].type)
       const typedEvents = typedEventService.emit.mock.calls.map((c) => c[0])
 
-      expect(globalTypes).toEqual([
+      expect(globalTypes).toEqual(['system.audit.logged'])
+      expect(typedEvents).toEqual([
         'discord.notification.requested',
+        'discord.thread.create.requested',
         'discord.embed.update.requested',
-        'system.audit.logged'
+        'discord.character.display.requested'
       ])
-      expect(typedEvents).toEqual(['discord.thread.create.requested', 'discord.character.display.requested'])
     })
   })
 
