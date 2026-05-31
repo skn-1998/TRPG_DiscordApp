@@ -6,7 +6,7 @@ import { CharacterRepository } from './repositories/character.repository'
 import { UserService } from '../user/user.service'
 import { DiscordService } from '../../discord/discord.service'
 import { AppConfigService } from '../../config/config.service'
-import { TypedEventService } from '../../shared/application/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { Character } from './models/character.model'
 

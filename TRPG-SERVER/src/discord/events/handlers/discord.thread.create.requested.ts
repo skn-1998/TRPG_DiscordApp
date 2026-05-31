@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
-import { TypedEventService } from 'shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 import type { EventPayload } from 'events/contracts'
 
 /**

@@ -11,7 +11,7 @@ import {
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import { CharacterThreadOrchestrator } from '../../features/characterThread/services'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
 
 @Injectable()

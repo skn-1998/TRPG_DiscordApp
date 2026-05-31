@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client } from 'discord.js'
-import { TypedEventEmitter } from '../shared/application/typed-event.service'
+import { TypedEventEmitter } from '../core/events/typed-event.service'
 import { AppConfigService } from '../config/config.service'
 import { DiscordClientService } from './services/discord-client.service'
 import { CommandManagerService } from './services/command-manager.service'

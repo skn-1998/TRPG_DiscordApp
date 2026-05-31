@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { TypedEventService } from '../../../../../shared/application/typed-event.service'
+import { TypedEventService } from '../../../../../core/events/typed-event.service'
 import { EventPayload } from '../../../../../events/contracts'
 
 /**

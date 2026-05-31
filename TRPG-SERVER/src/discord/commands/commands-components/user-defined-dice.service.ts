@@ -4,7 +4,7 @@ import { SlashCommandBuilder, CommandInteraction, AutocompleteInteraction } from
 import { UserDefinedDiceOrchestrator } from 'src/discord/features/userDefinedDice'
 import { userDefinedDiceConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 const options = {
   threshold: 0.4,

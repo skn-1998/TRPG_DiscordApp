@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { Character } from 'src/domains/character/models/character.model'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
-import { TypedEventService } from 'src/shared/application/typed-event.service'
+import { TypedEventService } from 'src/core/events/typed-event.service'
 
 @Injectable()
 export class DiceRollCharacterProviderService {
