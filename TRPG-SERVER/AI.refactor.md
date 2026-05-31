@@ -152,7 +152,13 @@ Phase S 完了後の状況を実コードで再確認し、着手順を整理し
 
 1. **H7 設定集約** … `process.env` 直読みを `AppConfigService` へ。**DI 可能な3クラスは移行完了**（2026-05-31, ブランチ `refactor/config-aggregation`）：`channel-cache.service`・`discord-command-registration.service`・`performance-dashboard.controller`。`DISCORD_CACHE_TTL`/`MESSAGE_CACHE_LIMIT`/`CHANNEL_CACHE_LIMIT`/`TEST_MOCK_DISCORD` を schema/validator/configuration/ConfigPaths へ追加し `discord.*` で公開、NODE_ENV は既存 `app.environment` を使用。
    - **残**（DI 困難・別途）：`core/dto/api-response.dto.ts`・`utils/error-handler.ts` の NODE*ENV 直読み（DTO/静的 util で DI 不可）。設定層の読み取り（`config.service`・`configuration` の PROTOTYPE*\*・`environment.validator`）は env→config 境界として維持。
-2. **H2/H4 イベントバス一本化＋Interactions registry** … ARCHITECTURE の本丸（大）。**着手済み**（ブランチ `refactor/events-bus-unification`）：`events/DESIGN.md` を作成し段階計画 T1〜T5 を定義。実態は TypedEventService（主流・統一先）／EventRegistry（File-based 登録）／GlobalEventBus（レガシー16利用）／EventRouter（デッド）。**T1=デッドな EventRouterService 撤去 完了**。なお audit の「contracts 逆流」は実際には無く、逆流は handlers→discord/features と EventsModule→feature の import（T3 で是正）。**T3=events→features 逆流解消 完了**（2026-05-31, ブランチ `refactor/events-layer-inversion-t3`）：完了系4ハンドラを `src/discord/events/handlers/` へ移設し `DiscordEventHandlersModule`（DiscordModule から import）へ集約、各ハンドラを `OnModuleInit`＋`TypedEventService.on()` の自己購読化（基底 execute/handle は不変＝挙動保存）。`events.module.ts` の `CharacterEditModule`/`CharacterThreadFeatureModule` forwardRef を撤去し events 層は domains/core/shared 依存のみに。検証: grep0件 / build成功 / 移設spec緑 / check:circular は許容1件のみ。詳細は `src/events/AI.event.md`。残: T2 GlobalEventBus 消費者移行→撤去 / T4 TypedEventService 配置見直し(任意) / T5 登録経路統一＋AI.event.md 刷新。
+2. **H2/H4 イベントバス一本化＋Interactions registry** … **完了（2026-05-31）**。`events/DESIGN.md` の T1〜T5 を全実施し、安全網テスト（挙動固定）＋build/check:circular/start:dev で挙動不変を都度証明しつつ develop へ段階マージ。
+   - **T1**: デッドな `EventRouterService` 撤去。
+   - **T2(a/b/c)**: レガシー `GlobalEventBusService` を完全撤去し**バスを `TypedEventService` 1系統に統一**（3系統並存を解消）。生フローは型付き契約に追加のうえ移設、dead 利用は削除。
+   - **T3**: events→features 逆流を解消。完了系4ハンドラを `src/discord/events/handlers/`（`DiscordEventHandlersModule`）へ移設し `TypedEventService.on` 自己購読化。EventsModule の feature `forwardRef` import を撤去 → events 層は domains/core/shared 依存のみ。
+   - **T4**: `TypedEventService` を `shared/application`→`core/events` へ移設、@Global `CoreEventsModule` 新設、旧 `src/shared/shared.module` 削除（import 48ファイル更新）。
+   - **T5**: `src/events/AI.event.md` 冒頭に現状の正アーキテクチャ節を追加し以降を履歴と明示。
+   - 正本は `src/events/AI.event.md` 冒頭節＋`src/events/DESIGN.md`。登録は events 層=EventRegistry（File-based）／discord 層=自己購読 の2経路。監査の「contracts 逆流」は実在せず、逆流は handlers→features / EventsModule→feature の import だった（T3 で是正済み）。
 3. **H9 エラーハンドリング統合** … Controller の `@Res()` 手動レスポンス→グローバル例外フィルタ/インターセプタ（中）。
 4. **H3/H5 Discord 巨大サービス分割** … pagination 等の分割＋（再精査後の）デッド整理（中〜大）。
 5. **H6 auth/user forwardRef 解消** … port 切り出し＋`src/auth`/`domains/auth` 統合。影響最大＝最後（大）。
