@@ -210,7 +210,7 @@ export interface CharacterEventContracts {
   }
 
   // Discord Embed 更新リクエスト（生フロー: ブリッジ役 → DiscordIntegrationHandler）
-  // GlobalEventBus 形式の `type` フィールドを除いた payload（イベント名は emit 第1引数で表現）
+  // レガシーバス形式の `type` フィールドを除いた payload（イベント名は emit 第1引数で表現）
   'discord.embed.update.requested': {
     timestamp: Date
     source: 'discord' | 'system'

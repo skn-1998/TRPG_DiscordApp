@@ -621,4 +621,19 @@ pnpm test -- --testPathPattern="discord-test-utils.spec"
 
 ---
 
+## 2026-05-31 レガシーバス撤去に伴う安全網 spec 更新（B-2 T2c）
+
+T2c でレガシーバス（旧 global event bus サービス）本体と dead な listen/emit を撤去したのに合わせ、上記3 spec を更新。
+dead だった emit/listen 由来の assert を落とし、**LIVE な TypedEventService 経由の assert（イベント名・payload・依存呼び出し）は緑のまま維持**。3 スイート / 21 テスト全 pass。
+
+- `discord-integration.handler.spec.ts`: レガシーバス listen/emit 系の describe を全削除。残すのは TypedEventService の2 listen（embed.update.requested / notification.requested）の登録確認と「再発行しない（ログのみ・例外なし）」検証。
+- `character.creation.completed.spec.ts`: レガシーバスの provider・`system.audit.logged`/`system.error.occurred` assert を削除。TypedEventService 生フロー4件（notification/thread.create/embed.update/character.display）の payload・順序・Discord UI 呼び出しは維持。エラー時は再スローしないことを TypedEventService の reject で検証。
+- `character-edit-feature.handler.spec.ts`: レガシーバス barrel mock・provider を削除（本体が barrel import を止めたため不要に）。`character.update.requested`/`system.error.occurred` の dead emit assert を削除。modal.submitted は embed.refresh.requested の1件 emit を、error.occurred は「何も emit しない（ログのみ）」を固定。
+
+実 modal→キャラ更新は `character-modal-handler.service.ts` が TypedEventService 経由で `character.update.requested` を emit→`CharacterUpdateRequestedHandler` が処理する別 LIVE 経路で機能しており、本撤去で挙動は不変。
+
+注: 全体テストには既存の落ちている重スイート（config/dice/character integration 等）があるが、本変更の前後で失敗数は不変（events 関連6スイート=12 失敗が baseline と同一）。新規破壊なし。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
