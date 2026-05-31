@@ -1,17 +1,17 @@
 import { Test } from '@nestjs/testing'
 import { CharacterCreationCompletedHandler } from './character.creation.completed'
-import { CharacterEmbedManagerService } from '../../discord/features/characterEdit/services/character-embed-manager.service'
-import { DiscordClientService } from '../../discord/services/discord-client.service'
-import { TypedEventService } from '../../shared/application/typed-event.service'
+import { CharacterEmbedManagerService } from '../../features/characterEdit/services/character-embed-manager.service'
+import { DiscordClientService } from '../../services/discord-client.service'
+import { TypedEventService } from '../../../shared/application/typed-event.service'
 
 // CharacterUIService は構築上 DI トークンとしてのみ必要で、本テストでは一切呼ばない。
 // 本体ファイルにスコープ外の既存型エラー（AttributeValue ドリフト等）があるため、
 // jest.mock で実体読み込みと型診断を回避してダミーのトークンを得る。
-jest.mock('../../discord/features/characterEdit/services/character-ui.service', () => ({
+jest.mock('../../features/characterEdit/services/character-ui.service', () => ({
   CharacterUIService: class CharacterUIService {}
 }))
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { CharacterUIService } = require('../../discord/features/characterEdit/services/character-ui.service')
+const { CharacterUIService } = require('../../features/characterEdit/services/character-ui.service')
 
 /**
  * CharacterCreationCompletedHandler の現状挙動を固定するユニットテスト（T2c 後）

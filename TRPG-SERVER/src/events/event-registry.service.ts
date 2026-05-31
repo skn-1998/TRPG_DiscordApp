@@ -4,15 +4,14 @@ import { EventHandler, EventContext } from './handlers/_shared/event-handler.bas
 import { CharacterEventContracts } from './contracts'
 
 // ハンドラーのインポート
+// 注: Discord UI を更新する「完了系」ハンドラー（creation/update/deletion.completed,
+//     discord.thread.create.requested）は discord 層へ移設し、TypedEventService への
+//     自己購読で動作する（events→discord/features の逆流依存を解消）。
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
 import { CharacterUpdateRequestedHandler } from './handlers/character.update.requested'
 import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.findByChannelId.requested'
 import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
-import { CharacterCreationCompletedHandler } from './handlers/character.creation.completed'
-import { CharacterUpdateCompletedHandler } from './handlers/character.update.completed'
-// import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
 import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
-import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.create.requested'
 
 /**
  * File-based Event Registry Service
@@ -41,11 +40,7 @@ export class EventRegistryService implements OnModuleInit {
     private readonly characterUpdateHandler: CharacterUpdateRequestedHandler,
     private readonly characterFindByChannelIdHandler: CharacterFindByChannelIdRequestedHandler,
     private readonly characterFindByIdHandler: CharacterFindByIdRequestedHandler,
-    private readonly characterCreationCompletedHandler: CharacterCreationCompletedHandler,
-    private readonly characterUpdateCompletedHandler: CharacterUpdateCompletedHandler,
-    // private readonly characterDeletionCompletedHandler: CharacterDeletionCompletedHandler,
-    private readonly characterFindByNameHandler: CharacterFindByNameRequestedHandler,
-    private readonly discordThreadCreateRequestedHandler: DiscordThreadCreateRequestedHandler
+    private readonly characterFindByNameHandler: CharacterFindByNameRequestedHandler
     // 新しいハンドラーはここに追加
   ) {}
 
@@ -72,11 +67,7 @@ export class EventRegistryService implements OnModuleInit {
       this.characterUpdateHandler,
       this.characterFindByChannelIdHandler,
       this.characterFindByIdHandler,
-      this.characterCreationCompletedHandler,
-      this.characterUpdateCompletedHandler,
-      // this.characterDeletionCompletedHandler,
-      this.characterFindByNameHandler,
-      this.discordThreadCreateRequestedHandler
+      this.characterFindByNameHandler
       // 新しいハンドラーはここに追加
     ]
 
