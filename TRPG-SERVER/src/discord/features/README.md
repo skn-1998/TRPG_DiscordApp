@@ -1,5 +1,7 @@
 # Discord Features Documentation
 
+> **アーキテクチャ全体・リファクタ計画**: [../DESIGN.md](../DESIGN.md)
+
 ## 📋 概要
 
 TRPGサーバーのDiscord機能モジュール群のドキュメント。各機能は独立したモジュールとして設計され、特定のTRPG用途に特化したサービスを提供します。
@@ -9,10 +11,12 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ## 🗂️ フィーチャー構成と役割
 
 ### characterEdit/
+
 **役割**: キャラクター編集機能の統合管理
 **責務**: キャラクター作成・編集・更新のDiscord UIとロジック
 
 **主要コンポーネント**:
+
 - `character-edit.module.ts` - モジュール定義と依存関係管理
 - `enhanced-character-edit.service.ts` - キャラクター編集の中核サービス
 - `events/` - キャラクター編集イベントの管理
@@ -26,10 +30,12 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
   - `character-ui.service.ts` - UI コンポーネント管理
 
 **アーキテクチャパターン**: Feature Module + Event-Driven Architecture
+
 - 機能の完全カプセル化
 - イベントによる疎結合な連携
 
 **主要ワークフロー**:
+
 ```
 1. キャラクター編集開始 → モーダル表示
 2. ユーザー入力 → バリデーション・保存
@@ -38,14 +44,16 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ```
 
 ### characterThread/
+
 **役割**: キャラクタースレッド機能管理
 **責務**: キャラクター専用スレッドの作成・表示・管理
 
 **主要コンポーネント**:
+
 - `character-thread-feature.module.ts` - フィーチャーモジュール定義
 - `services/` - スレッド管理専門サービス群
   - `character-thread.orchestrator.ts` - スレッド統合管理
-  - `thread-creation.service.ts` - スレッド作成ロジック  
+  - `thread-creation.service.ts` - スレッド作成ロジック
   - `character-display.service.ts` - キャラクター表示管理
   - `character-embed.service.ts` - Embed生成・フォーマット
   - `dice-ui-builder.service.ts` - ダイスUI構築
@@ -53,10 +61,12 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 - `events/character-thread.ids.ts` - イベント識別子
 
 **設計パターン**: Orchestrator Pattern + Builder Pattern
+
 - 複雑な業務フローの統合管理
 - UI コンポーネントの段階的構築
 
 **主要機能フロー**:
+
 ```
 1. スレッド作成要求 → バリデーション
 2. キャラクターデータ取得 → Embed生成
@@ -65,10 +75,12 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ```
 
 ### diceRoll/
+
 **役割**: ダイスロール機能統合
 **責務**: TRPG用ダイス処理のDiscord UI統合
 
 **主要コンポーネント**:
+
 - `dice-roll.module.ts` - ダイスロール機能モジュール
 - `adapters/` - Discord インタラクション アダプター群
   - `dice-button.adapter.ts` - ダイスボタンインタラクション
@@ -81,10 +93,12 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 - `utils/channel-topic.util.ts` - チャンネルトピック管理
 
 **設計パターン**: Adapter Pattern + Command Pattern
+
 - Discord APIとビジネスロジックの分離
 - ダイス操作のコマンド化
 
 **ダイス処理フロー**:
+
 ```
 1. ダイスボタン押下 → アダプター処理
 2. キャラクター・ダイス選択 → バリデーション
@@ -93,19 +107,23 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ```
 
 ### gameSystem/
+
 **役割**: ゲームシステム選択機能
 **責務**: TRPG システム（CoC、D&D等）の選択・設定管理
 
 **主要コンポーネント**:
+
 - `game-system.module.ts` - ゲームシステム機能モジュール
 - `services/select-game-system.orchestrator.ts` - システム選択統合管理
 - `utils/search.util.ts` - システム検索・フィルタリング
 
 **設計パターン**: Strategy Pattern + Factory Pattern
+
 - ゲームシステム別の処理戦略
 - システム固有オブジェクトの生成
 
 **システム選択フロー**:
+
 ```
 1. システム選択UI表示 → 利用可能システム一覧
 2. ユーザー選択 → システム固有設定ロード
@@ -114,18 +132,22 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ```
 
 ### userDefinedDice/
+
 **役割**: ユーザー定義ダイス機能
 **責務**: カスタムダイス設定の作成・管理・実行
 
 **主要コンポーネント**:
+
 - `user-defined-dice.module.ts` - カスタムダイス機能モジュール
 - `services/user-defined-dice.orchestrator.ts` - カスタムダイス統合管理
 
 **設計パターン**: Template Method Pattern + Interpreter Pattern
+
 - カスタムダイス処理のテンプレート化
 - ユーザー定義記法の解釈実行
 
 **カスタムダイス処理**:
+
 ```
 1. ダイス定義作成 → 構文バリデーション
 2. 定義保存・管理 → ユーザー設定統合
@@ -138,12 +160,13 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 ## 🏗️ アーキテクチャ設計
 
 ### フィーチャー間依存関係
+
 ```
 Feature Dependencies Flow
 ├── characterEdit
 │   ├── → characterThread (スレッド作成)
 │   └── → gameSystem (システム設定適用)
-├── characterThread  
+├── characterThread
 │   ├── → diceRoll (ダイスUI構築)
 │   └── → characterEdit (編集リンク)
 ├── diceRoll
@@ -156,6 +179,7 @@ Feature Dependencies Flow
 ```
 
 ### 共通アーキテクチャパターン
+
 ```
 Feature Module Pattern
 ├── Module Definition (*.module.ts)
@@ -175,6 +199,7 @@ Feature Module Pattern
 ```
 
 ### 外部依存関係
+
 ```
 External Integration
 ├── Discord Services Layer
@@ -200,13 +225,14 @@ External Integration
 ## 🚀 使用方法
 
 ### フィーチャーモジュール統合
+
 ```typescript
 // メインDiscordモジュールでの統合
 @Module({
   imports: [
     // Discord基盤サービス
     DiscordServicesModule,
-    
+
     // フィーチャーモジュール群
     CharacterEditModule,
     CharacterThreadFeatureModule,
@@ -219,6 +245,7 @@ export class DiscordModule {}
 ```
 
 ### 機能横断的な処理例
+
 ```typescript
 // キャラクター作成 → スレッド作成 → ダイス設定
 @Injectable()
@@ -233,35 +260,34 @@ export class TRPGWorkflowService {
   async createCompleteCharacter(userId: string, characterData: any) {
     // 1. ゲームシステム設定
     const system = await this.gameSystem.selectSystem(characterData.system)
-    
+
     // 2. キャラクター作成
     const character = await this.characterEdit.createCharacter({
       ...characterData,
       gameSystem: system
     })
-    
+
     // 3. 専用スレッド作成
     const thread = await this.characterThread.createCharacterThread({
       characterId: character.id,
       userId: userId
     })
-    
+
     // 4. ダイス設定初期化
     await this.diceRoll.initializeDiceForCharacter(character.id, system)
-    
+
     return { character, thread, system }
   }
 }
 ```
 
 ### イベント駆動連携例
+
 ```typescript
 // 横断的イベント処理
 @Injectable()
 export class FeatureEventCoordinator {
-  constructor(
-    private eventEmitter: EventEmitter2
-  ) {
+  constructor(private eventEmitter: EventEmitter2) {
     this.setupEventHandlers()
   }
 
@@ -289,15 +315,17 @@ export class FeatureEventCoordinator {
 ## 📊 パフォーマンス特性
 
 ### 機能別レスポンス時間
-| 機能 | 平均レスポンス | 複雑度 | 主要ボトルネック |
-|------|---------------|--------|------------------|
-| characterEdit | ~200-500ms | 高 | データベース書き込み |
-| characterThread | ~100-300ms | 中 | Discord API呼び出し |
-| diceRoll | ~50-150ms | 低 | ダイス計算処理 |
-| gameSystem | ~100-200ms | 中 | システム設定ロード |
-| userDefinedDice | ~80-200ms | 中 | カスタム記法解釈 |
+
+| 機能            | 平均レスポンス | 複雑度 | 主要ボトルネック     |
+| --------------- | -------------- | ------ | -------------------- |
+| characterEdit   | ~200-500ms     | 高     | データベース書き込み |
+| characterThread | ~100-300ms     | 中     | Discord API呼び出し  |
+| diceRoll        | ~50-150ms      | 低     | ダイス計算処理       |
+| gameSystem      | ~100-200ms     | 中     | システム設定ロード   |
+| userDefinedDice | ~80-200ms      | 中     | カスタム記法解釈     |
 
 ### リソース使用量
+
 ```typescript
 // 機能別メモリ使用量（推定）
 characterEdit:    ~5-15MB  // UI状態・一時データ
@@ -308,6 +336,7 @@ userDefinedDice:  ~2-6MB   // カスタムダイス定義
 ```
 
 ### 同時利用制限
+
 - **Discord API制限**: レート制限遵守（50req/秒）
 - **データベース接続**: プール管理（最大20接続）
 - **メモリ使用量**: フィーチャー合計で~50-100MB
@@ -318,46 +347,53 @@ userDefinedDice:  ~2-6MB   // カスタムダイス定義
 ## 🔧 設定とカスタマイズ
 
 ### 環境変数設定
+
 ```typescript
 // フィーチャー固有設定
-CHARACTER_EDIT_AUTO_THREAD=true        // 自動スレッド作成
-DICE_ROLL_HISTORY_LIMIT=50            // ダイス履歴保持数
-GAME_SYSTEM_CACHE_TTL=3600000         // システム設定キャッシュ（1時間）
-USER_DICE_LIMIT_PER_USER=20           // ユーザー別カスタムダイス上限
+CHARACTER_EDIT_AUTO_THREAD = true // 自動スレッド作成
+DICE_ROLL_HISTORY_LIMIT = 50 // ダイス履歴保持数
+GAME_SYSTEM_CACHE_TTL = 3600000 // システム設定キャッシュ（1時間）
+USER_DICE_LIMIT_PER_USER = 20 // ユーザー別カスタムダイス上限
 
 // パフォーマンス設定
-FEATURE_CONCURRENT_LIMIT=10           // 同時処理数制限
-FEATURE_TIMEOUT_MS=30000              // 処理タイムアウト
-FEATURE_RETRY_ATTEMPTS=3              // 失敗時再試行回数
+FEATURE_CONCURRENT_LIMIT = 10 // 同時処理数制限
+FEATURE_TIMEOUT_MS = 30000 // 処理タイムアウト
+FEATURE_RETRY_ATTEMPTS = 3 // 失敗時再試行回数
 ```
 
 ### 機能別カスタマイズ
+
 ```typescript
 // キャラクター編集カスタマイズ
 const characterEditConfig = {
-  maxFieldLength: 2000,           // フィールド文字数制限
-  autoSaveInterval: 30000,        // 自動保存間隔
-  validationRules: {              // バリデーションルール
+  maxFieldLength: 2000, // フィールド文字数制限
+  autoSaveInterval: 30000, // 自動保存間隔
+  validationRules: {
+    // バリデーションルール
     required: ['name', 'system'],
     optional: ['background', 'notes']
   }
 }
 
-// ダイスロールカスタマイズ  
+// ダイスロールカスタマイズ
 const diceRollConfig = {
-  maxDiceCount: 100,              // 最大ダイス数
-  maxSides: 1000,                 // 最大面数
-  resultFormat: 'detailed',       // 結果表示形式
-  animationEnabled: true          // アニメーション有効化
+  maxDiceCount: 100, // 最大ダイス数
+  maxSides: 1000, // 最大面数
+  resultFormat: 'detailed', // 結果表示形式
+  animationEnabled: true // アニメーション有効化
 }
 
 // ゲームシステムカスタマイズ
 const gameSystemConfig = {
-  supportedSystems: [             // サポートシステム
-    'CoC', 'D&D5e', 'Pathfinder', 'Custom'
+  supportedSystems: [
+    // サポートシステム
+    'CoC',
+    'D&D5e',
+    'Pathfinder',
+    'Custom'
   ],
-  defaultSystem: 'CoC',           // デフォルトシステム
-  allowCustomSystems: true        // カスタムシステム許可
+  defaultSystem: 'CoC', // デフォルトシステム
+  allowCustomSystems: true // カスタムシステム許可
 }
 ```
 
@@ -384,6 +420,7 @@ const gameSystemConfig = {
    - 対処: イベント処理確認、API状態確認、キャッシュ更新
 
 ### 診断手順
+
 ```typescript
 // フィーチャー状態診断
 async function diagnoseFeatures() {
@@ -391,15 +428,15 @@ async function diagnoseFeatures() {
   const characterEditHealth = await characterEditService.healthCheck()
   const threadCreationHealth = await threadService.healthCheck()
   const diceRollHealth = await diceService.healthCheck()
-  
+
   // 2. 依存関係確認
   const dbConnection = await databaseService.ping()
   const discordApiStatus = await discordClient.ping()
-  
+
   // 3. リソース使用量確認
   const memoryUsage = process.memoryUsage()
   const eventQueueSize = eventEmitter.listenerCount()
-  
+
   return {
     features: { characterEditHealth, threadCreationHealth, diceRollHealth },
     dependencies: { dbConnection, discordApiStatus },
@@ -411,31 +448,32 @@ async function diagnoseFeatures() {
 async function recoverFromErrors() {
   // イベントキュー クリア
   eventEmitter.removeAllListeners()
-  
+
   // キャッシュ更新
   await gameSystemService.refreshCache()
-  
+
   // 接続再初期化
   await discordClientService.reconnect()
 }
 ```
 
 ### メンテナンス推奨
+
 ```typescript
 // 定期メンテナンス（週次実行推奨）
 async function weeklyMaintenance() {
   // 1. 古いセッション データ クリーンアップ
   await characterEditService.cleanupExpiredSessions()
-  
+
   // 2. ダイス履歴の整理
   await diceRollService.archiveOldHistory()
-  
+
   // 3. 使用されていないカスタムダイス削除
   await userDefinedDiceService.cleanupUnusedDice()
-  
+
   // 4. システム設定最適化
   await gameSystemService.optimizeSettings()
-  
+
   // 5. パフォーマンス統計レポート生成
   const report = await generatePerformanceReport()
   logger.info('Weekly maintenance completed', report)
@@ -444,4 +482,4 @@ async function weeklyMaintenance() {
 
 ---
 
-*最終更新: 2025-08-21*
+_最終更新: 2025-08-21_

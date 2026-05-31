@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "nestjs": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "a95e34b64300f885c133e0adc96e6862d631e7550d744e821153c20e60923d59"
+    }
+  }
+}

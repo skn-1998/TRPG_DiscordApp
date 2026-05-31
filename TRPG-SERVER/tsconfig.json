@@ -14,7 +14,7 @@
       // srcからの相対パス（推奨）
       "*": ["./*"],
       "src/*": ["./*"],
-      
+
       // エイリアスパス（オプション）
       "@/*": ["./*"],
       "@app/*": ["./*"],
@@ -29,7 +29,7 @@
     },
     "incremental": true,
     "skipLibCheck": true,
-    
+
     // 🔥 実用的な厳密型チェック設定
     "strict": true,
     "strictNullChecks": true,
@@ -37,34 +37,26 @@
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
     "strictPropertyInitialization": false, // DIコンテナ使用のため無効化
-    
+
     // 🔍 実装可能なコード品質設定
     "noUnusedLocals": false, // 段階的修正のため一時的に無効化
     "noUnusedParameters": false, // 段階的修正のため一時的に無効化
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    
+
     // 🚀 将来の強化予定（現在は互換性のため無効化）
     "exactOptionalPropertyTypes": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false,
-    
+
     // その他の設定（既存）
     "esModuleInterop": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
-  "include": [
-    "src/**/*",
-    "src/config/**/*.ts",
-    "src/types/**/*.d.ts"
-  ],
-  "exclude": [
-    "node_modules", 
-    "dist", 
-    "src/**/*.spec.ts"
-  ]
+  "include": ["src/**/*", "src/config/**/*.ts", "src/types/**/*.d.ts", "test/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
 }
