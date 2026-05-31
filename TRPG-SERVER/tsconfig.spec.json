@@ -7,7 +7,17 @@
     "baseUrl": ".",
     "paths": {
       "@discord-test-utils": ["./test/discord-test-utils/index.ts"],
-      "@discord-test-utils/*": ["./test/discord-test-utils/*"]
+      "@discord-test-utils/*": ["./test/discord-test-utils/*"],
+      // src を baseUrl とした本体コードの import 解決（tsconfig.json と同等）
+      "src/*": ["./src/*"],
+      "events/*": ["./src/events/*"],
+      "discord/*": ["./src/discord/*"],
+      "shared/*": ["./src/shared/*"],
+      "domains/*": ["./src/domains/*"],
+      "auth/*": ["./src/auth/*"],
+      "config/*": ["./src/config/*"],
+      "utils/*": ["./src/utils/*"],
+      "middleware/*": ["./src/middleware/*"]
     },
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

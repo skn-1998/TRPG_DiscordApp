@@ -603,4 +603,22 @@ pnpm test -- --testPathPattern="discord-test-utils.spec"
 
 ---
 
+## 2026-05-31 イベント基盤フローのユニットテスト追加（B-2 T2b の安全網）
+
+イベントバス一本化（B-2）の T2b（生フローを GlobalEventBus→TypedEventService へ移設）を安全に行うため、
+移設前の挙動を固定するユニットテストを `create-test` スキルで作成。3 スイート / 30 テスト全 pass。
+
+- `src/events/handlers/discord-integration.handler.spec.ts`（10）… on() 登録キャプチャ方式で消費側の挙動を固定。
+  実装は**ログ・監査・エラーイベント発行のみ**で実 Discord 通知はしていない点を契約として記録。
+- `src/events/handlers/character.creation.completed.spec.ts`（11）… `handle()` が GlobalEventBus へ3件・
+  TypedEventService へ2件 emit する現状の振り分けと payload を固定。
+- `src/discord/features/characterEdit/events/handlers/character-edit-feature.handler.spec.ts`（9）… characterEdit.\*
+  listen → discord.embed.update.requested 等の emit 先（現状 GlobalEventBus）を固定。
+- 併せて `tsconfig.spec.json` に本体 import 解決用の paths（events/\*, discord/\* 等、tsconfig.json と同等）を補完。tsc 全体エラーは 140→82 に減少。
+
+**T2b 実施時の申し送り**: バス移設後、上記 spec の「どのバスへ emit/listen するか」の assert を移設先（TypedEventService）に更新し、
+イベント名・payload・呼ばれる依存メソッドが**不変**であることを確認する（テストが移設の差分検出器になる）。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
