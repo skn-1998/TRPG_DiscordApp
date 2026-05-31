@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { DiceRollPaginationService } from './dice-roll-pagination.service'
+import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
 
@@ -66,6 +67,7 @@ describe('DiceRollPaginationService', () => {
   let service: DiceRollPaginationService
   let mockDiceRollService: any
   let mockCharacterService: any
+  let mockCharacterProvider: any
 
   const mockDiceRollData = [
     {
@@ -97,11 +99,13 @@ describe('DiceRollPaginationService', () => {
   const mockCharacterData = [
     {
       id: 'char-1',
+      characterId: 'char-1',
       characterName: 'テストキャラクター1',
       discordChannelId: 'channel-1'
     },
     {
       id: 'char-2',
+      characterId: 'char-2',
       characterName: 'テストキャラクター2',
       discordChannelId: 'channel-1'
     }
@@ -120,10 +124,15 @@ describe('DiceRollPaginationService', () => {
       findByChannelId: jest.fn().mockResolvedValue(mockCharacterData)
     }
 
+    mockCharacterProvider = {
+      findCharactersByChannelId: jest.fn().mockResolvedValue(mockCharacterData)
+    }
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DiceRollPaginationService,
         { provide: DiceRollService, useValue: mockDiceRollService },
+        { provide: DiceRollCharacterProviderService, useValue: mockCharacterProvider },
         { provide: CharacterService, useValue: mockCharacterService }
       ]
     }).compile()
@@ -172,7 +181,7 @@ describe('DiceRollPaginationService', () => {
       expect(embeds).toHaveLength(1)
       expect(embeds[0]).toBeDefined()
       expect(embeds[0].data).toBeDefined()
-      expect(embeds[0].data.title).toBe('テストキャラクター1のダイスロール')
+      expect(embeds[0].data.title).toBe('char-1のダイスロール履歴')
     })
 
     it('should handle empty dice roll history', async () => {
@@ -181,30 +190,25 @@ describe('DiceRollPaginationService', () => {
       const embeds = await service.createPaginatedEmbeds(channelId)
 
       expect(embeds).toHaveLength(1)
-      expect(embeds[0].data.description).toBe('ダイスロール履歴がありません')
+      expect(embeds[0].data.description).toBe('ダイスロール履歴がありません。')
     })
 
     it('should handle character not found', async () => {
-      mockCharacterService.findOne.mockResolvedValue(null)
       const channelId = 'test-channel'
       const characterId = 'non-existent'
       const embeds = await service.createPaginatedEmbeds(channelId, characterId)
 
       expect(embeds).toHaveLength(1)
-      expect(embeds[0].data.title).toBe('ダイスロール履歴')
+      expect(embeds[0].data.title).toBe('non-existentのダイスロール履歴')
     })
 
-    it('should handle character service error', async () => {
-      mockCharacterService.findOne.mockRejectedValue(new Error('Character service error'))
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
-
+    it('should not require character lookup while creating embeds', async () => {
       const channelId = 'test-channel'
       const characterId = 'char-1'
       const embeds = await service.createPaginatedEmbeds(channelId, characterId)
 
       expect(embeds).toHaveLength(1)
-      expect(consoleSpy).toHaveBeenCalledWith('キャラクター情報取得エラー:', expect.any(Error))
-      consoleSpy.mockRestore()
+      expect(mockCharacterProvider.findCharactersByChannelId).not.toHaveBeenCalled()
     })
 
     it('should filter dice rolls by character', async () => {
@@ -214,7 +218,7 @@ describe('DiceRollPaginationService', () => {
       await service.createPaginatedEmbeds(channelId, characterId)
 
       expect(mockDiceRollService.findTextsByChannelId).toHaveBeenCalledWith(channelId)
-      expect(mockCharacterService.findOne).toHaveBeenCalledWith(characterId)
+      expect(mockCharacterService.findOne).not.toHaveBeenCalled()
     })
   })
 
@@ -246,7 +250,7 @@ describe('DiceRollPaginationService', () => {
     const mockState = {
       pages: [{ data: { title: 'Test Page' } }] as any,
       totalPages: 1,
-      currentPage: 0,
+      currentPage: 1,
       messageId: messageId
     }
 
@@ -308,7 +312,7 @@ describe('DiceRollPaginationService', () => {
       expect(result).toBeDefined()
 
       const state = service.getPaginationState(channelId, messageId)
-      expect(state?.currentPage).toBe(0)
+      expect(state?.currentPage).toBe(1)
     })
 
     it('should update to first page', () => {
@@ -317,7 +321,7 @@ describe('DiceRollPaginationService', () => {
       expect(result).toBeDefined()
 
       const state = service.getPaginationState(channelId, messageId)
-      expect(state?.currentPage).toBe(0)
+      expect(state?.currentPage).toBe(1)
     })
 
     it('should update to last page', () => {
@@ -326,7 +330,7 @@ describe('DiceRollPaginationService', () => {
       expect(result).toBeDefined()
 
       const state = service.getPaginationState(channelId, messageId)
-      expect(state?.currentPage).toBe(2)
+      expect(state?.currentPage).toBe(3)
     })
 
     it('should return null for non-existent state', () => {
@@ -342,7 +346,7 @@ describe('DiceRollPaginationService', () => {
     const mockState = {
       pages: pages,
       totalPages: 3,
-      currentPage: 0,
+      currentPage: 1,
       messageId: messageId
     }
 
@@ -356,19 +360,23 @@ describe('DiceRollPaginationService', () => {
       expect(result).toBeDefined()
 
       const state = service.getPaginationState(channelId, messageId)
-      expect(state?.currentPage).toBe(1) // 0-indexed
+      expect(state?.currentPage).toBe(1)
     })
 
     it('should handle invalid page number (too high)', () => {
       const result = service.jumpToPage(channelId, messageId, 10)
 
-      expect(result).toBeNull()
+      expect(result).toBeDefined()
+      const state = service.getPaginationState(channelId, messageId)
+      expect(state?.currentPage).toBe(3)
     })
 
     it('should handle invalid page number (too low)', () => {
       const result = service.jumpToPage(channelId, messageId, -1)
 
-      expect(result).toBeNull()
+      expect(result).toBeDefined()
+      const state = service.getPaginationState(channelId, messageId)
+      expect(state?.currentPage).toBe(1)
     })
 
     it('should return null for non-existent state', () => {
@@ -401,7 +409,7 @@ describe('DiceRollPaginationService', () => {
     const mockState = {
       pages: [{ data: { title: 'Original Page' } }] as any,
       totalPages: 1,
-      currentPage: 0,
+      currentPage: 1,
       messageId: messageId
     }
 
@@ -483,7 +491,7 @@ describe('DiceRollPaginationService', () => {
       const result = await service.createPaginatedEmbeds(channelId)
       expect(result).toBeDefined()
       expect(result.length).toBeGreaterThan(0)
-      expect(result[0].data.description).toContain('履歴の読み込み中にエラーが発生しました')
+      expect(result[0].data.description).toContain('ダイスロール履歴がありません。')
     })
   })
 })

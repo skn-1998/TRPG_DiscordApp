@@ -1,14 +1,32 @@
-import {
-  ButtonInteraction,
-  ChatInputCommandInteraction,
-  ModalSubmitInteraction,
-  StringSelectMenuInteraction,
-  Guild,
-  Channel,
-  User,
-  Message,
-  GuildMember
-} from 'discord.js'
+/**
+ * Discord モック - 後方互換性のためのラッパー
+ *
+ * 新規テストでは直接 @discord-test-utils を使用してください：
+ * ```typescript
+ * import { createMockButtonInteraction } from '@discord-test-utils'
+ * ```
+ *
+ * このファイルは既存コードの後方互換性のために残しています。
+ */
+export {
+  createMockChatInputInteraction,
+  createMockButtonInteraction,
+  createMockSelectMenuInteraction,
+  createMockModalInteraction,
+  createMockAutocompleteInteraction,
+  createMockDiscordClient,
+  createMockTextChannel,
+  createMockGuild,
+  createMockUser,
+  createMockMember,
+  DEFAULT_MOCK_USER,
+  DEFAULT_MOCK_GUILD,
+  DEFAULT_MOCK_CHANNEL
+} from '../discord-test-utils/index'
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 以下は後方互換性のための既存コード
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // Discord テストデータ
 export const mockDiscordData = {
@@ -93,7 +111,9 @@ export const mockDiscordClient = {
   }
 }
 
-// Discord Interaction モック
+/**
+ * @deprecated createMockButtonInteraction / createMockChatInputInteraction 等を使用してください
+ */
 export const createMockInteraction = (type: 'button' | 'command' | 'modal' | 'select') => {
   const baseInteraction = {
     id: 'test-interaction-id',

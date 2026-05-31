@@ -1,20 +1,23 @@
 module.exports = {
   // テスト環境の設定
   testEnvironment: 'node',
-  
+
   // ファイル拡張子
   moduleFileExtensions: ['js', 'json', 'ts'],
-  
+
   // テストファイルのパターン
   testRegex: '.*\\.spec\\.ts$',
-  
+
   // TypeScript変換
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', {
-      tsconfig: 'tsconfig.spec.json'
-    }]
+    '^.+\\.(t|j)s$': [
+      'ts-jest',
+      {
+        tsconfig: 'tsconfig.spec.json'
+      }
+    ]
   },
-  
+
   // モジュールパスマッピング（tsconfig.jsonと一致）
   moduleNameMapper: {
     // エイリアス（tsconfig.jsonのpathsと一致）
@@ -28,7 +31,7 @@ module.exports = {
     '^@shared/(.*)$': '<rootDir>/src/shared/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@middleware/(.*)$': '<rootDir>/src/middleware/$1',
-    
+
     // ドメイン別エイリアス（絶対パス）
     '^domains/(.*)$': '<rootDir>/src/domains/$1',
     '^discord/(.*)$': '<rootDir>/src/discord/$1',
@@ -36,20 +39,20 @@ module.exports = {
     '^shared/(.*)$': '<rootDir>/src/shared/$1',
     '^utils/(.*)$': '<rootDir>/src/utils/$1',
     '^middleware/(.*)$': '<rootDir>/src/middleware/$1',
-    
+
     // srcからの絶対パス（最後にする）
     '^src/(.*)$': '<rootDir>/src/$1',
-    
+
     // テスト用
-    '^test/(.*)$': '<rootDir>/test/$1'
+    '^test/(.*)$': '<rootDir>/test/$1',
+    // Discord テストユーティリティ（プロジェクト内拡張モックライブラリ）
+    '^@discord-test-utils$': '<rootDir>/test/discord-test-utils/index.ts',
+    '^@discord-test-utils/(.*)$': '<rootDir>/test/discord-test-utils/$1'
   },
-  
+
   // セットアップファイル
-  setupFilesAfterEnv: [
-    '<rootDir>/test/setup-test-env.ts',
-    '<rootDir>/test/utils/jest-setup.ts'
-  ],
-  
+  setupFilesAfterEnv: ['<rootDir>/test/setup-test-env.ts', '<rootDir>/test/utils/jest-setup.ts'],
+
   // カバレッジ設定
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
@@ -61,7 +64,7 @@ module.exports = {
     '!src/main.ts',
     '!src/**/*module.ts'
   ],
-  
+
   // カバレッジ閾値
   coverageThreshold: {
     global: {
@@ -83,35 +86,30 @@ module.exports = {
       statements: 90
     }
   },
-  
+
   // カバレッジレポート形式
-  coverageReporters: [
-    'text',
-    'text-summary',
-    'html',
-    'lcov'
-  ],
-  
+  coverageReporters: ['text', 'text-summary', 'html', 'lcov'],
+
   // テストタイムアウト
   testTimeout: 10000,
-  
+
   // 並列実行設定
   maxWorkers: '50%',
-  
+
   // 詳細出力
   verbose: true,
-  
+
   // エラー時の詳細表示
   errorOnDeprecated: true,
-  
+
   // クリアモック
   clearMocks: true,
   restoreMocks: true,
-  
+
   // グローバル設定
   globals: {
     'ts-jest': {
       tsconfig: 'tsconfig.spec.json'
     }
   }
-} 
+}

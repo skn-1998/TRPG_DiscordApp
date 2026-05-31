@@ -44,7 +44,7 @@ export class DiceResultOrchestrator {
     const paginationState: PaginatedDiceRoll = {
       pages,
       totalPages: pages.length,
-      currentPage: 0,
+      currentPage: 1,
       characterId: characterOption || undefined,
       messageId
     }

@@ -100,10 +100,7 @@ export class AuthController {
   @Get('validate-token')
   async validateToken(@Headers() headers: ValidateTokenHeaderDto, @Res() res: Response): Promise<void> {
     try {
-      console.log('validateToken')
       const { Authorization } = headers
-      console.log('Authorization', Authorization)
-      console.log('headers', headers)
       const payload = await this.authService.validateToken(Authorization)
       // レスポンスDTOで型付け
       const output: TokenValidationOutputDto = {
@@ -130,11 +127,8 @@ export class AuthController {
       if (!code) {
         throw new BadRequestException('認証コードが指定されていません')
       }
-      console.log('login')
       const authData = await this.authService.authenticate(code)
       const userInfo = await this.authService.getUserInfo(authData.access_token)
-      this.logger.debug(`User info: ${JSON.stringify(userInfo)}`)
-      this.logger.debug(`Avatar hash from Discord: ${userInfo.avatar}`)
       const user: Partial<User> = {
         name: userInfo.username,
         discordUserId: userInfo.id,
@@ -145,7 +139,6 @@ export class AuthController {
         discordTokenExpiresAt: new Date(Date.now() + authData.expires_in * 1000),
         discordTokenScope: authData.scope
       }
-      this.logger.debug(`User object to save: ${JSON.stringify(user)}`)
       await this.authService.signInAndRegisterUserInfoWithTokens(user, authData)
       const jwt = await this.authService.generateJwt(user)
       const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
