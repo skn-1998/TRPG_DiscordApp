@@ -1,5 +1,37 @@
 # AI.event.md - File-based Event System Documentation
 
+> ## 📌 現在のイベント基盤アーキテクチャ（2026-05-31 時点・これが正）
+>
+> **この節が現状の正本。以降（`## 🎯 …完了報告` 以下）は 2025-01〜2025-08 の履歴アーカイブで、実態と異なる箇所がある。**
+> 2026-05-31 の B-2 リファクタ（バス一本化）でイベント基盤を以下に整理した。設計と段階計画は `src/events/DESIGN.md` を参照。
+>
+> ### バスは TypedEventService 1系統
+>
+> - 唯一のイベントバスは **`TypedEventService`**（`src/core/events/typed-event.service.ts`）。内部は専用の `EventEmitter2`
+>   インスタンス（プロバイダ `'TYPED_EVENT_EMITTER'`）。**@Global な `CoreEventsModule`（`src/core/events/core-events.module.ts`）**が
+>   提供・export し、AppModule に配線。型安全 API：`emit(name, payload)` / `on` / `once` / `waitForEvent`（`EventName`/`EventPayload` は `src/events/contracts`）。
+> - **撤去済み（B-2 T1/T2）**: レガシーの `GlobalEventBusService`・`EventRouterService`（`src/events/bus/`）は削除。
+>   かつて並存した3系統（GlobalEventBus / EventRouter / TypedEvent）は TypedEventService 1系統に統一済み。
+>
+> ### ハンドラ登録は2経路（層ごとに適切に分離）
+>
+> - **events 層（ドメイン処理）**: `*.requested` 系（`character.creation/update/findBy*.requested`）は `EventRegistryService`
+>   （`src/events/event-registry.service.ts`）が File-based で集中登録。これらは domain の `CharacterService` 等を呼ぶ（events→domains＝許可方向）。
+> - **discord 層（Discord UI 更新）**: `*.completed` 系と `discord.thread.create.requested` は `src/discord/events/handlers/` に置き、
+>   **`DiscordEventHandlersModule`** が提供。各ハンドラが `onModuleInit` で `TypedEventService.on(...)` 自己購読する。
+>   これらは `discord/features` のサービスを呼ぶ（discord→features＝許可方向）。
+>
+> ### 依存方向（B-2 T3 で逆流解消）
+>
+> - **events 層は domains/core/shared のみに依存**。`discord/features` への import や、EventsModule からの feature module import（旧 forwardRef）は**撤去済み**。
+> - Discord UI を更新するハンドラは discord 層が所有・購読する（events 層は持たない）。
+>
+> ### 変更時の原則
+>
+> - 新イベントは `src/events/contracts` に型を追加してから `TypedEventService.emit(name, payload)` で発行。
+> - ドメイン処理ハンドラは events 層＋EventRegistry、Discord UI ハンドラは discord 層＋自己購読、に置く（層を跨いで import しない）。
+> - リファクタ時は挙動を変えず、動作保証テスト（`src/discord/events/handlers/*.spec.ts` 等）を緑に保つこと。
+
 ## 🎯 イベント経路最適化作業完了報告
 
 **日付**: 2025-01-18  
