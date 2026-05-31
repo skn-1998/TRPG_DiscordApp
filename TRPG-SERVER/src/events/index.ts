@@ -8,7 +8,6 @@ export * from './contracts'
 
 // Event Bus Services
 export { GlobalEventBusService } from './bus/global-event-bus.service'
-export { EventRouterService } from './bus/event-router.service'
 
 // Event Handlers
 export { CharacterEventHandler } from './handlers/character-event.handler'
