@@ -11,7 +11,7 @@ import { JwtTokenPayload } from '../models/auth.token.model'
 import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.model'
 import axios from 'axios'
 import { AppConfigService } from 'src/config/config.service'
-import { CryptoUtil } from '../../../utils/crypto.util'
+import { CryptoService } from '../../../core/shared/services/crypto.service'
 import { ErrorHandler } from '../../../utils/error-handler'
 
 /**
@@ -27,7 +27,8 @@ export class AuthService {
     private readonly httpService: HttpClientService,
     private readonly userService: UserService,
     private readonly configService: ConfigService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly cryptoService: CryptoService
   ) {}
 
   /**
@@ -180,8 +181,8 @@ export class AuthService {
       const tokenExpiresAt = new Date(Date.now() + authResponse.expires_in * 1000)
 
       // トークンを暗号化
-      const encryptedAccessToken = CryptoUtil.encrypt(authResponse.access_token)
-      const encryptedRefreshToken = CryptoUtil.encrypt(authResponse.refresh_token)
+      const encryptedAccessToken = this.cryptoService.encrypt(authResponse.access_token)
+      const encryptedRefreshToken = this.cryptoService.encrypt(authResponse.refresh_token)
 
       const userData = {
         discordUserId: user.discordUserId,
@@ -237,7 +238,7 @@ export class AuthService {
 
     // 有効なトークンを復号化して返す
     try {
-      return CryptoUtil.decrypt(user.discordAccessToken)
+      return this.cryptoService.decrypt(user.discordAccessToken)
     } catch (error) {
       this.logger.error(`トークン復号化エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       throw new UnauthorizedException('トークンの復号化に失敗しました')
@@ -256,7 +257,7 @@ export class AuthService {
     }
 
     try {
-      const refreshToken = CryptoUtil.decrypt(user.discordRefreshToken)
+      const refreshToken = this.cryptoService.decrypt(user.discordRefreshToken)
       const url = 'https://discord.com/api/oauth2/token'
       const applicationId = this.appConfigService.get('discord.applicationId')
       const clientSecret = this.appConfigService.get('discord.secret')
@@ -278,8 +279,8 @@ export class AuthService {
 
       // 新しいトークンを暗号化して保存
       const tokenExpiresAt = new Date(Date.now() + authData.expires_in * 1000)
-      const encryptedAccessToken = CryptoUtil.encrypt(authData.access_token)
-      const encryptedRefreshToken = CryptoUtil.encrypt(authData.refresh_token)
+      const encryptedAccessToken = this.cryptoService.encrypt(authData.access_token)
+      const encryptedRefreshToken = this.cryptoService.encrypt(authData.refresh_token)
 
       await this.userService.update(discordUserId, {
         discordAccessToken: encryptedAccessToken,
@@ -313,9 +314,6 @@ export class AuthService {
       )
       const userData = response.data
 
-      this.logger.debug(`Discord user info response: ${JSON.stringify(userData)}`)
-      this.logger.debug(`Avatar hash: ${userData.avatar}`)
-
       return userData
     } catch (error) {
       this.logger.error(`Discordユーザー情報取得エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
@@ -335,7 +333,6 @@ export class AuthService {
     const redirectUri = this.appConfigService.get('app.frontendUrl') + '/login'
     const applicationId = this.appConfigService.get('discord.applicationId')
     const clientSecret = this.appConfigService.get('discord.secret')
-    console.log(redirectUri)
     const params = new URLSearchParams()
     params.append('client_id', applicationId)
     params.append('client_secret', clientSecret)
@@ -346,10 +343,6 @@ export class AuthService {
 
     this.logger.debug(`認証リクエスト: redirect_uri=${redirectUri}`)
     this.logger.debug(`認証スコープ: identify email guilds`)
-    this.logger.debug(`Client ID: ${applicationId}`)
-    for (const [key, value] of params.entries()) {
-      this.logger.debug(`${key}: ${value}`)
-    }
 
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded'

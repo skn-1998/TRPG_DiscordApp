@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { HttpModule } from '@nestjs/axios'
 import { HttpClientService } from './services/http.service'
+import { CryptoService } from './services/crypto.service'
 
 /**
  * 共通モジュール
@@ -8,7 +9,7 @@ import { HttpClientService } from './services/http.service'
  */
 @Module({
   imports: [HttpModule],
-  providers: [HttpClientService],
-  exports: [HttpClientService]
+  providers: [HttpClientService, CryptoService],
+  exports: [HttpClientService, CryptoService]
 })
 export class SharedModule {}
