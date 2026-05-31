@@ -6,7 +6,6 @@ import { DiscordClientService } from 'discord/services/discord-client.service'
 import { CharacterCreationCompletedEvent } from 'events/contracts/unified-event-contracts'
 import { TextChannel } from 'discord.js'
 import { Character } from 'domains/character/models/character.model'
-import { GlobalEventBusService } from 'events/bus/global-event-bus.service'
 import { TypedEventService } from 'shared/application/typed-event.service'
 
 /**
@@ -24,7 +23,6 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
     private readonly characterUIService: CharacterUIService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly discordClientService: DiscordClientService,
-    private readonly globalEventBus: GlobalEventBusService,
     private readonly typedEventServiceLocal: TypedEventService
   ) {
     super()
@@ -47,7 +45,7 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
       // 1. Discord UI更新処理
       await this.updateDiscordUI(event, context)
 
-      // 2. 統合通知・監査処理（旧GlobalEventBus処理を統合）
+      // 2. 統合通知処理（TypedEventService 経由の生フロー発行）
       await this.processIntegratedNotifications(event)
 
       this.logger.log(`✅ Character creation completed processing finished: ${event.character.characterId}`)
@@ -104,7 +102,7 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
   }
 
   /**
-   * 統合通知・監査処理（旧GlobalEventBus処理を統合）
+   * 統合通知処理（TypedEventService 経由の生フロー発行）
    */
   private async processIntegratedNotifications(event: CharacterCreationCompletedEvent): Promise<void> {
     const { character } = event
@@ -171,40 +169,9 @@ export class CharacterCreationCompletedHandler extends EventHandler<CharacterCre
         this.logger.log(`🎨 CharacterEdit Enhanced Embed requested: ${character.characterId}`)
       }
 
-      // 4. システム監査ログ
-      await this.globalEventBus.emit({
-        type: 'system.audit.logged',
-        timestamp: new Date(),
-        source: 'system',
-        audit: {
-          action: 'character.created',
-          userId: character.discordUserId,
-          resource: `character:${character.characterId}`,
-          details: {
-            characterName: character.characterName,
-            gameSystemId: character.gameSystemId,
-            source: event.source
-          },
-          outcome: 'success'
-        }
-      })
-
       this.logger.log(`✅ Integrated notifications processed: ${character.characterId}`)
     } catch (error) {
       this.logger.error(`❌ Integrated notifications failed: ${character.characterId}`, error)
-
-      // エラーイベント発行
-      await this.globalEventBus.emit({
-        type: 'system.error.occurred',
-        timestamp: new Date(),
-        source: 'system',
-        error: {
-          code: 'CHARACTER_CREATION_NOTIFICATION_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          context: { characterId: character.characterId, eventType: 'character.creation.completed' },
-          severity: 'medium'
-        }
-      })
     }
   }
 

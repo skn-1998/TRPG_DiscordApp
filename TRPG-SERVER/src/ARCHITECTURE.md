@@ -176,7 +176,7 @@ features/*/events
 - `EventsModule` は feature module を import しない
 - feature module が event registry / bus を import し、自分の handler を登録する
 - global integration event と feature-local event を分ける
-- `GlobalEventBusService` / `EventRouterService` は legacy として廃止計画に入れる
+- レガシーバス（旧 `EventRouterService` / 旧 global event bus）は撤去済み（B-2 T1/T2c, 2026-05-31）。バスは TypedEventService 1系統
 - `TypedEventService.on()` の直接登録は段階的に registry 経由へ寄せる
 
 ---
