@@ -10,6 +10,11 @@ import { CharacterDeletionCompletedEvent } from 'events/contracts/unified-event-
  * - キャラクター削除完了時のDiscord UI更新
  * - チャンネルの削除・アーカイブ処理
  * - 削除完了通知の送信
+ *
+ * ⚠️ 登録方式:
+ * - 旧 events 層の EventRegistry でも「未登録（コメントアウト）」だった。
+ *   逆流 import を断つため discord 層へ移設したが、挙動保存のため
+ *   自己購読は行わない（イベント購読は依然として無効）。
  */
 @Injectable()
 export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDeletionCompletedEvent> {

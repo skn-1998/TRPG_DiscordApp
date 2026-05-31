@@ -1327,6 +1327,7 @@ File-based Event Handlers (完全統一) - 8個
 
 **更新履歴**:
 
+- **2026-05-31**: **B-2 T3 完了** — events→discord/features 逆流依存を解消。Discord UI を更新する「完了系」ハンドラー（`character.creation.completed` / `character.update.completed` / `character.deletion.completed` / `discord.thread.create.requested`）を `src/discord/events/handlers/` へ移設し、新規 `DiscordEventHandlersModule`（`DiscordModule` から import）に集約。各ハンドラーは `OnModuleInit` で `TypedEventService.on()` に自己購読する方式へ変更（旧: events 層 `EventRegistryService` の集中登録）。`EventHandler` 基底の execute()（検証・ログ・統計・リトライ）と handle() ロジックは不変＝挙動保存。`events.module.ts` から `CharacterEditModule`/`CharacterThreadFeatureModule` の `forwardRef` import を撤去し、events 層は domains/core/shared のみ依存に。`EventRegistryService` は `*.requested` 系5件のみ登録（completed系は除外）。`character.deletion.completed` は旧 registry でも未登録だったため移設のみ・自己購読なし（挙動保存）。検証: build成功 / 移設spec+残存spec緑 / check:circular は UserDomain⇄AuthDomain の1件のみ（新規循環ゼロ）/ start:dev 起動成功。
 - **2025-08-18**: TypedEventService.on()移行作業完了・重複登録問題解決
 - **2025-08-18**: TypedEventService.on()移行対象分析追加
 - **2025-08-18**: File-based Event Handlers完全移行完了（DiscordIntegrationService消失メソッド復旧）

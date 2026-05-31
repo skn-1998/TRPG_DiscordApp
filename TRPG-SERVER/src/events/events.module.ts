@@ -1,9 +1,7 @@
-import { Module, Global, forwardRef } from '@nestjs/common'
+import { Module, Global } from '@nestjs/common'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { CharacterModule } from 'domains/character/character.module'
 import { DiscordIntegrationModule } from 'discord/application/discord-integration.module'
-import { CharacterEditModule } from 'discord/features/characterEdit/character-edit.module'
-import { CharacterThreadFeatureModule } from 'discord/features/characterThread/character-thread-feature.module'
 
 // Discord 統合（TypedEventService 経由のログ処理）
 import { DiscordIntegrationHandler } from './handlers/discord-integration.handler'
@@ -12,16 +10,15 @@ import { DiscordIntegrationHandler } from './handlers/discord-integration.handle
 // import { UniversalEventBridge } from './handlers/universal-event-bridge'
 
 // ✅ NEW: File-based Event Handlers
+// 注: Discord UI を更新する「完了系」ハンドラー（creation/update/deletion.completed,
+//     discord.thread.create.requested）は discord 層（DiscordEventHandlersModule）へ移設した。
+//     これにより events→discord/features の逆流依存（forwardRef）を撤去している。
 import { EventRegistryService } from './event-registry.service'
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
 import { CharacterUpdateRequestedHandler } from './handlers/character.update.requested'
 import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.findByChannelId.requested'
 import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
-import { CharacterCreationCompletedHandler } from './handlers/character.creation.completed'
-import { CharacterUpdateCompletedHandler } from './handlers/character.update.completed'
-// import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
 import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
-import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.create.requested'
 
 /**
  * File-based Events Module
@@ -63,9 +60,9 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
       ignoreErrors: false // エラーを無視しない
     }),
     CharacterModule, // Character domain services
-    DiscordIntegrationModule, // Discord基盤サービス
-    forwardRef(() => CharacterEditModule), // CharacterUIService用
-    forwardRef(() => CharacterThreadFeatureModule) // ThreadOrchestratorService用
+    DiscordIntegrationModule // Discord基盤サービス
+    // 注: CharacterEditModule / CharacterThreadFeatureModule の forwardRef は撤去した。
+    //     完了系ハンドラーは discord 層（DiscordEventHandlersModule）へ移設済み。
   ],
   providers: [
     // ✅ NEW: File-based Event Registry & Handlers
@@ -74,11 +71,7 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
     CharacterUpdateRequestedHandler,
     CharacterFindByChannelIdRequestedHandler,
     CharacterFindByIdRequestedHandler,
-    CharacterCreationCompletedHandler,
-    CharacterUpdateCompletedHandler,
-    // CharacterDeletionCompletedHandler,
     CharacterFindByNameRequestedHandler,
-    DiscordThreadCreateRequestedHandler,
 
     // Discord 統合（TypedEventService 経由のログ処理）
     DiscordIntegrationHandler
