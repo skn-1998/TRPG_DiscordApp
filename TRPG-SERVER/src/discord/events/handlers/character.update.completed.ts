@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, OnModuleInit } from '@nestjs/common'
 import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
 import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
+import { TypedEventService } from 'shared/application/typed-event.service'
 
 /**
  * character.update.completed 専用ハンドラー
@@ -11,14 +12,31 @@ import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-co
  * - キャラクター更新完了時のDiscord UI更新
  * - チャンネルEmbedの更新
  * - 更新完了通知の送信
+ *
+ * 🏗️ 登録方式:
+ * - discord 層へ移設し、OnModuleInit で TypedEventService に自己購読する
+ *   （旧: events 層の EventRegistryService による集中登録）
+ * - EventHandler 基底の execute()（検証・ログ・統計・リトライ）は維持
  */
 @Injectable()
-export class CharacterUpdateCompletedHandler extends EventHandler<CharacterUpdateCompletedEvent> {
+export class CharacterUpdateCompletedHandler
+  extends EventHandler<CharacterUpdateCompletedEvent>
+  implements OnModuleInit
+{
   constructor(
     private readonly characterUIService: CharacterUIService,
-    private readonly threadOrchestratorService: ThreadOrchestratorService
+    private readonly threadOrchestratorService: ThreadOrchestratorService,
+    private readonly typedEventServiceLocal: TypedEventService
   ) {
     super()
+  }
+
+  /**
+   * モジュール初期化: TypedEventService への自己購読
+   */
+  onModuleInit(): void {
+    this.setTypedEventService(this.typedEventServiceLocal)
+    this.typedEventServiceLocal.on(this.getEventName(), (event) => this.execute(event))
   }
 
   /**

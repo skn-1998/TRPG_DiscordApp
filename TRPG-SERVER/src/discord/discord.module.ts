@@ -21,6 +21,7 @@ import { PerformanceDashboardController } from './controllers/performance-dashbo
 import { SharedModule } from '../shared/shared.module'
 import { DiscordIntegrationModule } from './application/discord-integration.module'
 import { CharacterModule } from '../domains/character/character.module'
+import { DiscordEventHandlersModule } from './events/discord-event-handlers.module'
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { CharacterModule } from '../domains/character/character.module'
     CommandsModule,
     AuthModule,
     CharacterModule, // DiscordControllerでCharacterServiceが必要
-    DiscordIntegrationModule // DiscordIntegrationServiceとその依存関係
+    DiscordIntegrationModule, // DiscordIntegrationServiceとその依存関係
+    DiscordEventHandlersModule // Discord UI を更新する完了系イベントハンドラー（events 層から移設）
   ],
   controllers: [DiscordController, PerformanceDashboardController],
   providers: [
