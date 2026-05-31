@@ -54,6 +54,16 @@ export class EnvironmentValidator {
       result.DISCORD_APPLICATIONID = TYPE_CONVERTERS.string(env.DISCORD_APPLICATIONID)
       result.DISCORD_SECRET = TYPE_CONVERTERS.string(env.DISCORD_SECRET)
       result.GUILDID = env.GUILDID ? TYPE_CONVERTERS.string(env.GUILDID) : undefined
+      result.DISCORD_CACHE_TTL = TYPE_CONVERTERS.number(env.DISCORD_CACHE_TTL, DEFAULT_VALUES.DISCORD_CACHE_TTL)
+      result.DISCORD_MESSAGE_CACHE_LIMIT = TYPE_CONVERTERS.number(
+        env.DISCORD_MESSAGE_CACHE_LIMIT,
+        DEFAULT_VALUES.DISCORD_MESSAGE_CACHE_LIMIT
+      )
+      result.DISCORD_CHANNEL_CACHE_LIMIT = TYPE_CONVERTERS.number(
+        env.DISCORD_CHANNEL_CACHE_LIMIT,
+        DEFAULT_VALUES.DISCORD_CHANNEL_CACHE_LIMIT
+      )
+      result.TEST_MOCK_DISCORD = TYPE_CONVERTERS.boolean(env.TEST_MOCK_DISCORD, DEFAULT_VALUES.TEST_MOCK_DISCORD)
 
       // 認証設定
       result.JWT_SECRET = TYPE_CONVERTERS.string(env.JWT_SECRET)
@@ -81,11 +91,14 @@ export class EnvironmentValidator {
 
       // 機密値の最小長(32文字)検証は本番(production)でのみ強制する。
       // 必須チェック（値の存在自体）は全環境で行うが、最小長は本番のみエラーにする。
-      // dev/test では最小長未満を許容（警告のみ・本番で強制）し、ローカルの短い秘密でも起動できるようにする。
-      // （このファイルは Nest 起動前の静的バリデータで Logger を持たないため、警告は出力しない）
+      // dev/test では最小長未満でも起動を止めないが、弱い秘密に気づけるよう警告のみ出す
+      // （Nest 起動前の静的バリデータで Logger を持たないため console.warn を用いる。値は出さず長さのみ）。
       if (result.NODE_ENV === 'production') {
         this.validateSecretMinLength(result.JWT_SECRET, 'JWT_SECRET', 32, errors)
         this.validateSecretMinLength(result.DISCORD_TOKEN_ENCRYPTION_KEY, 'DISCORD_TOKEN_ENCRYPTION_KEY', 32, errors)
+      } else {
+        this.warnSecretMinLength(result.JWT_SECRET, 'JWT_SECRET', 32)
+        this.warnSecretMinLength(result.DISCORD_TOKEN_ENCRYPTION_KEY, 'DISCORD_TOKEN_ENCRYPTION_KEY', 32)
       }
 
       // REDIRECT_URLは値が設定されている場合のみURL形式を検証
@@ -173,6 +186,18 @@ export class EnvironmentValidator {
         message: `${variable}は${min}文字以上で指定してください (長さ: ${value.length}文字)`
         // 機密値のため value は渡さない
       })
+    }
+  }
+
+  /**
+   * 機密値の最小長を満たさない場合に「警告のみ」出す（dev/test 用・起動は止めない）
+   * 機密の中身は出力せず、長さのみを表示する
+   */
+  private static warnSecretMinLength(value: string, variable: string, min: number): void {
+    if (value && value.length < min) {
+      console.warn(
+        `⚠️ ${variable} が推奨最小長 ${min} 文字未満です (長さ: ${value.length}文字)。本番(production)では起動に失敗します。`
+      )
     }
   }
 
