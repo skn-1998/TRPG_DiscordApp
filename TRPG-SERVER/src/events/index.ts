@@ -10,7 +10,6 @@ export * from './contracts'
 export { GlobalEventBusService } from './bus/global-event-bus.service'
 
 // Event Handlers
-export { CharacterEventHandler } from './handlers/character-event.handler'
 export { DiscordIntegrationHandler } from './handlers/discord-integration.handler'
 
 // Events Module
