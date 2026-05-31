@@ -96,7 +96,15 @@ export const generateAppConfig = () => {
       // キャラクターカテゴリー名
       characterCategory: env.CHARACTER_CATEGORY!,
       // ダイスロールカテゴリー名
-      diceRollCategory: env.DICE_ROLL_CATEGORY!
+      diceRollCategory: env.DICE_ROLL_CATEGORY!,
+      // チャンネルキャッシュのTTL（ミリ秒）
+      cacheTtl: env.DISCORD_CACHE_TTL!,
+      // チャンネルごとのメッセージキャッシュ上限
+      messageCacheLimit: env.DISCORD_MESSAGE_CACHE_LIMIT!,
+      // チャンネルキャッシュの上限数
+      channelCacheLimit: env.DISCORD_CHANNEL_CACHE_LIMIT!,
+      // Discordモックモード（テスト等でDiscord API登録をスキップ）
+      testMockDiscord: env.TEST_MOCK_DISCORD!
     },
 
     // 認証設定
@@ -157,6 +165,10 @@ export type ConfigPaths =
   | 'discord.guildId'
   | 'discord.characterCategory'
   | 'discord.diceRollCategory'
+  | 'discord.cacheTtl'
+  | 'discord.messageCacheLimit'
+  | 'discord.channelCacheLimit'
+  | 'discord.testMockDiscord'
   | 'auth.jwtSecret'
   | 'auth.jwtExpiresIn'
   | 'auth.redirectUrl'

@@ -31,10 +31,10 @@ export class ChannelCacheService {
   private readonly MAX_CHANNEL_CACHE: number
 
   constructor(private readonly appConfigService: AppConfigService) {
-    // 環境変数またはデフォルト値を使用
-    this.CACHE_TTL = Number(process.env.DISCORD_CACHE_TTL) || 300000 // 5分
-    this.MESSAGE_CACHE_LIMIT = Number(process.env.DISCORD_MESSAGE_CACHE_LIMIT) || 30 // メモリ効率化
-    this.MAX_CHANNEL_CACHE = Number(process.env.DISCORD_CHANNEL_CACHE_LIMIT) || 50 // メモリ効率化
+    // 型安全な設定値を使用（既定値は config 層に集約済み）
+    this.CACHE_TTL = this.appConfigService.get('discord.cacheTtl') // 5分
+    this.MESSAGE_CACHE_LIMIT = this.appConfigService.get('discord.messageCacheLimit') // メモリ効率化
+    this.MAX_CHANNEL_CACHE = this.appConfigService.get('discord.channelCacheLimit') // メモリ効率化
     this.logger.debug(
       `Channel cache service initialized with limits: ${this.MAX_CHANNEL_CACHE} channels, ${this.MESSAGE_CACHE_LIMIT} messages/channel`
     )
