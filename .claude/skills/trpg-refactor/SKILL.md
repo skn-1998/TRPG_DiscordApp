@@ -36,8 +36,13 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
   影響範囲・危険な変更の洗い出し）、ステップ分割、委譲プロンプト作成、サブエージェントの成果の裏取り、
   ユーザー判断の上申、AI.*.md への記録。**自分では大きな実装をしない**（小さな確認・grep・diff 確認は可）。
 - **nestjs-best-practices スキル = 実装担当**：確定した変更内容をサブエージェントとして実装する。
-- **test-expansion / create-test / refactor-for-testability = テスト担当**：変更箇所のテストを評価・生成する。
-- **trpg-architecture スキル = 地図**：全体像・依存方向・正本ドキュメントの在り処を掴みたいとき参照。
+- **test 系スキル = テスト担当（司令塔は test-expansion）**：`test-expansion` で対象選定とテスタビリティ評価（緑/黄/赤）
+  を行い、緑/黄は `create-test` で素直にテスト生成、**赤（今のままではテストが書けない）は `refactor-for-testability`
+  でテスト可能な構造へ作り変えてから `create-test`**。安全網（characterization テスト）の作成も test 系へ委譲する。
+- **trpg-architecture スキル = 地図**：全体像・依存方向・正本ドキュメントの在り処を掴むために参照する。さらに重要なのは、
+  ここで得たプロジェクト制約（依存方向 `features→domains→core→shared`／循環ゼロ／純粋層に DI を持ち込まない／成果記録は
+  `AI.test.md`）を、**汎用スキルである `refactor-for-testability` への委譲プロンプトに注入する**こと。地図の知識を変換スキルへ
+  渡すのが、このスキルにおける「地図とテスタビリティ委譲の統合」の要。
 
 ## ワークフロー
 
@@ -45,6 +50,9 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
 - `TRPG-SERVER/AI.md` と、テーマに応じた `AI.*.md`（例: `AI.refactor.md`, `AI.discord.md`, `AI.test.md`）を読む。
 - モジュール境界・依存方向に関わるなら `TRPG-SERVER/src/ARCHITECTURE.md` を読む（依存方向 `features → domains
   → core → shared`、`@Global`/`forwardRef` 原則禁止 などの正本）。
+- 全体像・依存方向・正本ドキュメントの在り処が曖昧なら、**`trpg-architecture` スキル（地図）で方向づけ**してよい。
+  そこで掴んだ依存方向・循環ゼロ規約・「純粋層に DI を持ち込まない」方針は、後段のテスタビリティ委譲（Phase 3）で
+  `refactor-for-testability` にそのまま渡す制約になる。
 - 計画書がある場合（`document/*.md`, `CLAUDE_HANDOFF.md`）はそれを起点にする。
 
 ### Phase 1: コード理解と計画精緻化（ここが最重要・自分でやる）
@@ -66,8 +74,14 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
 挙動に影響し得る変更（フロー移設・依存差し替え・大きな分割・モジュール境界の変更 等）は、**着手前に現挙動を
 固定する characterization テスト（特性化テスト）を用意し、リファクタ前のコードで緑になることを確認**してから
 実装に入る。これがあるとリファクタ後に「同じテストが緑」＝挙動不変を証明でき、安心して構造を変えられる。
-- テスト作成は test 系スキルへ委譲（`test-expansion` で対象選定・テスタビリティ評価 → 緑/黄は `create-test`、
-  赤は `refactor-for-testability`）。「どの入力で何が呼ばれ・何を emit し・どの戻り値か」を固定し、内部実装に密結合しない。
+- テスト作成は test 系スキルへ委譲する。`test-expansion` で対象選定とテスタビリティ評価を行い、**緑/黄は `create-test`**、
+  **赤（依存が絡まり characterization すら書けない）は `refactor-for-testability` でテスト可能点を作ってから `create-test`**。
+  どの場合も「どの入力で何が呼ばれ・何を emit し・どの戻り値か」を固定し、内部実装に密結合しない。
+- **`refactor-for-testability` へ委譲するときは地図(architecture)の制約を必ず注入する**。同スキルは汎用で本プロジェクト規約を
+  知らないため、委譲プロンプトで補う：①純粋層に DI を持ち込まない、②循環を増やさない（`features→domains→core→shared`）、
+  ③NestJS の DI 流儀に沿う、④成果は `AI.test.md` に記録。同スキルは自前で characterization テスト（手順0）を張ってから
+  構造を変えるが、その構造変更が循環を増やしていないかは Phase 6 でメインが `build`/`check:circular` により裏取りする。
+  具体的な渡し方は下記「委譲プロンプトの型（テスタビリティ・リファクタ）」。
 - 自動テストが書けない/コスト過大な領域（例: 実 Discord 連携）は、最低限の手動確認手順を Phase 7 の上申に含める。
 - **例外（テスト前倒し不要）**: デッドコード削除や純粋な再export整理など、build/check:circular で十分担保できる
   低リスク変更。この場合も「なぜテスト不要と判断したか」を一言記録する。
@@ -147,11 +161,52 @@ CLAUDE.md 規約「作業終了後は AI.*.md に状況を必ず記載」に従�
 ポイント：①スキル起動を必須化、②変更対象だけでなく**禁止事項**を明示、③検証コマンドと**報告フォーマット**を
 固定、④コミット禁止。これで成果が均質になり、裏取りしやすくなる。
 
+## 委譲プロンプトの型（テスタビリティ・リファクタ＝refactor-for-testability スキルへ）
+
+テスト評価で「赤（今のままではテストが書けない）」と判定した対象を、テスト可能な構造へ作り変えるときに使う。
+nestjs 用の型との違いは、①起動スキルが `refactor-for-testability`、②**地図(architecture)の制約を注入**する点。
+
+```
+あなたは C:\workspace\dokcer-trpg-remix-app\TRPG-SERVER のテスタビリティ改善リファクタ実装担当です。
+
+【最初に必須】Skill ツールで refactor-for-testability スキルを起動し、その手順（手順0で characterization テストを
+張ってから Pure 関数抽出・副作用の DI 分離）に従う。完了後は create-test でテストを追加。
+応答は日本語、コマンドは pnpm。作業ディレクトリは TRPG-SERVER。
+
+# 対象: <ファイル:行（赤判定の関数/クラス）>
+<背景：なぜテスト不能か（副作用とロジックが混在 等）>
+
+## このプロジェクトの制約（地図 architecture 由来・厳守）
+- 純粋層（Pure 関数）に DI を持ち込まない。副作用の境界にだけ interface を導入する。
+- 循環依存を増やさない（依存方向 features→domains→core→shared、@Global/forwardRef 原則禁止）。
+- NestJS の DI 流儀に沿う（Service/Repository の責務、Module 登録）。
+- 成果（抽出した Pure 関数・DI 化した依存・残課題）は AI.test.md に記録する申し送りを残す。
+
+## 保つべき挙動
+- <入出力・副作用の結果は元と同一に保つ。手順0の characterization テストが緑のままであることで証明する>
+
+## 検証（この順で実行し結果を報告）
+1. pnpm run build
+2. pnpm run test <characterization/追加テスト>（緑）
+3. pnpm run check:circular（循環ゼロが正常＝No circular dependency found。新規循環なし）
+4. git diff --stat で変更範囲が想定内か確認
+
+## 報告フォーマット
+- 抽出した Pure 関数一覧・DI 化した interface・各関数の責務
+- 改善指標（関数の長さ before/after、Pure 関数の割合、外部依存の DI 化数）
+- build / test / check:circular の結果（失敗ならエラー全文）
+- 守った制約（純粋層に DI 無し・新規循環無し）の確認
+
+コミットはしないでください（メインが後でまとめて行う）。
+```
+
 ## やらないこと
 - コードを理解せずに委譲しない。計画書の行番号を実コードで確認せずに渡さない。
 - サブエージェントの「build 成功」報告を鵜呑みにしない。最低限メインで build/check:circular を再実行する。
 - 1 つのサブエージェントに無関係な複数ステップを詰め込まない（独立コミット単位で分ける）。
 - **挙動に影響し得るリファクタを、動作保証テスト（安全網）無しで進めない。** 低リスクで省く場合は理由を記録する。
 - スコープ外のテスト負債や型負債まで巻き込まない。見つけたら記録し別タスク化する。
+- **`refactor-for-testability` へ地図(architecture)の制約を注入せずに丸投げしない。** 汎用スキルなので、純粋層へ DI を
+  持ち込まない・循環を増やさない等のプロジェクト規約を委譲プロンプトに明記する（Phase 6 で build/check:circular を裏取り）。
 - 自動コミットしない。挙動を変える変更を「テスト追加のため」に紛れ込ませない。
 - フロント（trpg-remix-app）の改修が必要な変更を、影響確認なしに進めない。
