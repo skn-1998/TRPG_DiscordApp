@@ -8,6 +8,7 @@ import { UserService } from '../../user/user.service'
 import { User } from '../../user/models/user.model'
 import { HttpClientService } from '../../../core/shared/services/http.service'
 import { JwtTokenPayload } from '../models/auth.token.model'
+import { JwtTokenService } from '../token/jwt-token.service'
 import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.model'
 import axios from 'axios'
 import { AppConfigService } from 'src/config/config.service'
@@ -28,7 +29,8 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly configService: ConfigService,
     private readonly appConfigService: AppConfigService,
-    private readonly cryptoService: CryptoService
+    private readonly cryptoService: CryptoService,
+    private readonly jwtTokenService: JwtTokenService
   ) {}
 
   /**
@@ -53,27 +55,9 @@ export class AuthService {
    * @returns JWTトークンペイロード
    */
   async validateToken(authorization: string): Promise<JwtTokenPayload> {
-    if (!authorization || !authorization.startsWith('Bearer ')) {
-      throw new UnauthorizedException('認証ヘッダーが無効または欠落しています')
-    }
-
-    const jwt = authorization.replace('Bearer ', '')
-
-    try {
-      return await this.parseJwt(jwt)
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          action: 'validate-token',
-          additionalData: { hasAuthorization: !!authorization }
-        },
-        'AuthService'
-      )
-
-      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
-      throw new UnauthorizedException('トークンが無効です')
-    }
+    // JWT 検証プリミティブは JwtTokenService に集約済み（循環解消のため）。
+    // 挙動（検証ロジック・例外・戻り値）は不変。
+    return this.jwtTokenService.validateToken(authorization)
   }
 
   /**
@@ -100,23 +84,8 @@ export class AuthService {
    * @returns 解析されたトークンペイロード
    */
   async parseJwt(token: string): Promise<JwtTokenPayload> {
-    try {
-      const jwt = this.jwtService.verify<JwtTokenPayload>(token)
-      this.logger.debug('JWT検証成功')
-      return jwt
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          action: 'parse-jwt',
-          additionalData: { hasToken: !!token }
-        },
-        'AuthService'
-      )
-
-      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
-      throw new UnauthorizedException('トークンが無効です')
-    }
+    // JWT 検証プリミティブは JwtTokenService に集約済み（循環解消のため）。挙動は不変。
+    return this.jwtTokenService.parseJwt(token)
   }
 
   /**
