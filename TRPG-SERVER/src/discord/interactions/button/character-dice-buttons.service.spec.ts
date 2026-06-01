@@ -3,6 +3,8 @@ import { CharacterDiceButtonsService } from './character-dice-buttons.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
+import { TypedEventEmitter } from '../../../core/events/typed-event.service'
+import { DicePresetService } from '../../services/dice/dice-preset.service'
 
 // モック設定
 jest.mock('../../../discord/utils/dice', () => jest.fn())
@@ -103,7 +105,17 @@ describe('CharacterDiceButtonsService', () => {
     mockPaginationService = {
       createPaginatedDiceRoll: jest.fn(),
       updatePaginatedDiceRoll: jest.fn(),
-      handlePageNavigation: jest.fn()
+      handlePageNavigation: jest.fn(),
+      invalidateCache: jest.fn()
+    }
+
+    // 副作用境界のモック（イベント発行・プリセット取得）
+    const mockTypedEventEmitter = {
+      emit: jest.fn()
+    }
+    const mockDicePresetService = {
+      getPresets: jest.fn(),
+      getPreset: jest.fn()
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -111,7 +123,9 @@ describe('CharacterDiceButtonsService', () => {
         CharacterDiceButtonsService,
         { provide: CharacterService, useValue: mockCharacterService },
         { provide: DiceRollService, useValue: mockDiceRollService },
-        { provide: DiceRollPaginationService, useValue: mockPaginationService }
+        { provide: DiceRollPaginationService, useValue: mockPaginationService },
+        { provide: TypedEventEmitter, useValue: mockTypedEventEmitter },
+        { provide: DicePresetService, useValue: mockDicePresetService }
       ]
     }).compile()
 
@@ -213,19 +227,19 @@ describe('CharacterDiceButtonsService', () => {
       const diceCommand = '1d100'
       const channelId = 'test-channel-id'
 
-      // mockCharacterService.findByName をモック
+      // 現実装はチャンネルIDでキャラクターを検索する
       const mockCharacter = {
         characterId: 'test-char-id',
         characterName: 'テストキャラクター'
       }
-      mockCharacterService.findByName = jest.fn().mockResolvedValue(mockCharacter)
+      mockCharacterService.findByChannelId = jest.fn().mockResolvedValue(mockCharacter)
 
       await (service as any).saveRollResult(characterName, resultText, result, diceCommand, channelId)
 
       // 実際の実装では Promise チェーンなので少し待つ
       await new Promise((resolve) => setTimeout(resolve, 10))
 
-      expect(mockCharacterService.findByName).toHaveBeenCalledWith(characterName)
+      expect(mockCharacterService.findByChannelId).toHaveBeenCalledWith(channelId)
       expect(mockDiceRollService.createText).toHaveBeenCalledWith(
         expect.objectContaining({
           characterId: 'test-char-id',
@@ -281,7 +295,8 @@ describe('CharacterDiceButtonsService', () => {
   describe('handleDiceRoll (public method)', () => {
     let mockInteraction: any
     const mockRequest = {
-      diceCommand: '1d100',
+      channelId: 'test-channel-id',
+      diceType: '1d100',
       notation: '1d100',
       characterName: 'テストキャラクター',
       characterId: 'test-char-id'
