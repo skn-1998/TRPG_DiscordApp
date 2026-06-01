@@ -1,7 +1,6 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { UnauthorizedException, NotFoundException } from '@nestjs/common'
 import { CharacterController } from './character.controller'
 import { CharacterService } from './character.service'
 import { AuthService } from '../auth/services/auth.service'
@@ -9,8 +8,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
-import { CharacterIdParamDto, CharacterInputDto } from './dto/create-character.dto'
-import { ApiResponseUtil } from '../../utils/api-response.util'
+import { CharacterInputDto } from './dto/create-character.dto'
+import { TypedEventService } from '../../core/events/typed-event.service'
 import { Request, Response } from 'express'
 
 // RequestWithUser型の定義は不要
@@ -19,6 +18,7 @@ describe('CharacterController', () => {
   let controller: CharacterController
   let characterService: jest.Mocked<CharacterService>
   let authService: jest.Mocked<AuthService>
+  let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
 
   // モックデータ定義
   const mockUser = {
@@ -33,11 +33,11 @@ describe('CharacterController', () => {
     characterName: 'テストキャラクター',
     gameSystemId: 'test-system',
     discordChannelId: 'test-channel-123',
-    status: { HP: 100, MP: 50 },
-    skill: { 魔法: 80, 剣術: 70 },
-    parameter: { STR: 15, DEX: 12 },
-    item: { 魔法の剣: '1d8+2ダメージ' },
-    description: { 年齢: 25, 職業: '冒険者' }
+    status: { HP: { values: { base: 100 } }, MP: { values: { base: 50 } } },
+    skill: { 魔法: { values: { base: 80 } }, 剣術: { values: { base: 70 } } },
+    parameter: { STR: { values: { base: 15 } }, DEX: { values: { base: 12 } } },
+    item: { 魔法の剣: { description: '1d8+2ダメージ' } },
+    description: { 年齢: { values: { base: 25 } }, 職業: { description: '冒険者' } }
   }
 
   const mockCharacter: Character = {
@@ -46,11 +46,11 @@ describe('CharacterController', () => {
     gameSystemId: 'test-system',
     discordUserId: 'test-discord-user-123',
     discordChannelId: 'test-channel-123',
-    status: { HP: 100, MP: 50 },
-    skill: { 魔法: 80, 剣術: 70 },
-    parameter: { STR: 15, DEX: 12 },
-    item: { 魔法の剣: '1d8+2ダメージ' },
-    description: { 年齢: 25, 職業: '冒険者' }
+    status: { HP: { values: { base: 100 } }, MP: { values: { base: 50 } } },
+    skill: { 魔法: { values: { base: 80 } }, 剣術: { values: { base: 70 } } },
+    parameter: { STR: { values: { base: 15 } }, DEX: { values: { base: 12 } } },
+    item: { 魔法の剣: { description: '1d8+2ダメージ' } },
+    description: { 年齢: { values: { base: 25 } }, 職業: { description: '冒険者' } }
   }
 
   const mockCharacterSummary: CharacterSummaryDto = {
@@ -62,8 +62,8 @@ describe('CharacterController', () => {
 
   const mockUpdateCharacterDto: UpdateCharacterDto = {
     characterName: '更新されたキャラクター',
-    status: { HP: 150, MP: 75 },
-    skill: { 魔法: 90, 剣術: 80 }
+    status: { HP: { values: { base: 150 } }, MP: { values: { base: 75 } } },
+    skill: { 魔法: { values: { base: 90 } }, 剣術: { values: { base: 80 } } }
   }
 
   // mockRequest: Express.Request型に準拠
@@ -119,6 +119,11 @@ describe('CharacterController', () => {
       getValidDiscordAccessToken: jest.fn()
     }
 
+    // TypedEventService（副作用境界）用のモック
+    const typedEventServiceMock = {
+      emit: jest.fn()
+    }
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CharacterController],
       providers: [
@@ -129,6 +134,10 @@ describe('CharacterController', () => {
         {
           provide: AuthService,
           useValue: authServiceMock
+        },
+        {
+          provide: TypedEventService,
+          useValue: typedEventServiceMock
         }
       ]
     })
@@ -139,6 +148,7 @@ describe('CharacterController', () => {
     controller = module.get<CharacterController>(CharacterController)
     characterService = module.get(CharacterService)
     authService = module.get(AuthService)
+    typedEventService = module.get(TypedEventService)
   })
 
   afterEach(() => {
@@ -163,57 +173,62 @@ describe('CharacterController', () => {
   })
 
   describe('POST /character', () => {
-    it('should create character successfully and return ApiResponseUtil.success', async () => {
+    it('作成に成功すると201でServiceにdiscordUserIdを付与して委譲する', async () => {
+      // Arrange
       const req: any = mockRequest()
       const res: any = mockResponse()
       characterService.create.mockResolvedValue(mockCharacter)
 
+      // Act
       await controller.create(mockCharacterDto, req, res)
 
+      // Assert: 委譲とレスポンスの両方を検証
       expect(characterService.create).toHaveBeenCalledWith({
         ...mockCharacterDto,
         discordUserId: mockUser.discordUserId
       })
-      expect(res.status).toHaveBeenCalledWith(200)
+      expect(res.status).toHaveBeenCalledWith(201)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          success: true,
           data: expect.objectContaining(mockCharacter)
         })
       )
     })
 
-    it('should throw UnauthorizedException when user is missing', async () => {
+    it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
       const res: any = mockResponse()
 
-      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(
-        new UnauthorizedException('認証トークンがありません')
-      )
+      await controller.create(mockCharacterDto, req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.create).not.toHaveBeenCalled()
     })
 
-    it('should throw UnauthorizedException when discordUserId is missing', async () => {
+    it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
       const res: any = mockResponse()
 
-      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(
-        new UnauthorizedException('認証トークンがありません')
-      )
+      await controller.create(mockCharacterDto, req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.create).not.toHaveBeenCalled()
     })
 
-    it('should handle character service creation error', async () => {
+    it('Service作成エラー時は500を返す', async () => {
       const req: any = mockRequest()
       const res: any = mockResponse()
       characterService.create.mockRejectedValue(new Error('Character creation failed'))
 
-      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow('Character creation failed')
+      await controller.create(mockCharacterDto, req, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('GET /character', () => {
-    it('should return all characters for authenticated user', async () => {
+    it('認証済みユーザーの全キャラクターを200で返す', async () => {
       const req: any = mockRequest()
       const res: any = mockResponse()
       const mockCharacters = [mockCharacter, { ...mockCharacter, characterId: 'character-002' }]
@@ -221,43 +236,49 @@ describe('CharacterController', () => {
 
       await controller.findAll(req, res)
 
-      expect(characterService.findHavingAll).toHaveBeenCalledWith(mockUser.userId)
+      expect(characterService.findHavingAll).toHaveBeenCalledWith(mockUser.discordUserId)
       expect(res.status).toHaveBeenCalledWith(200)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          success: true,
           data: expect.arrayContaining(mockCharacters)
         })
       )
     })
 
-    it('should throw UnauthorizedException when user is missing', async () => {
+    it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
       const res: any = mockResponse()
 
-      await expect(controller.findAll(req, res)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
+      await controller.findAll(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
-    it('should throw UnauthorizedException when discordUserId is missing', async () => {
+    it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
       const res: any = mockResponse()
 
-      await expect(controller.findAll(req, res)).rejects.toThrow(new UnauthorizedException('認証トークンがありません'))
+      await controller.findAll(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
-    it('should handle character service findHavingAll error', async () => {
+    it('ServiceのfindHavingAllエラー時は500を返す', async () => {
       const req: any = mockRequest()
       const res: any = mockResponse()
       characterService.findHavingAll.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findAll(req, res)).rejects.toThrow('Database error')
+      await controller.findAll(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('GET /character/summaries', () => {
-    it('should return character summaries for authenticated user', async () => {
+    it('認証済みユーザーのサマリー一覧を200で返す', async () => {
       const req: any = mockRequest()
       const res: any = mockResponse()
       const mockSummaries = [mockCharacterSummary, { ...mockCharacterSummary, characterId: 'character-002' }]
@@ -269,43 +290,45 @@ describe('CharacterController', () => {
       expect(res.status).toHaveBeenCalledWith(200)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          success: true,
           data: expect.arrayContaining(mockSummaries)
         })
       )
     })
 
-    it('should throw UnauthorizedException when user is missing', async () => {
+    it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
       const res: any = mockResponse()
 
-      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(
-        new UnauthorizedException('認証トークンがありません')
-      )
+      await controller.findUserCharacterSummaries(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
-    it('should throw UnauthorizedException when discordUserId is missing', async () => {
+    it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
       const res: any = mockResponse()
 
-      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(
-        new UnauthorizedException('認証トークンがありません')
-      )
+      await controller.findUserCharacterSummaries(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
-    it('should handle character service findUserCharacterSummaries error', async () => {
+    it('ServiceのfindUserCharacterSummariesエラー時は500を返す', async () => {
       const req: any = mockRequest()
       const res: any = mockResponse()
       characterService.findUserCharacterSummaries.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow('Database error')
+      await controller.findUserCharacterSummaries(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('GET /character/:id', () => {
-    it('should return specific character', async () => {
+    it('指定IDのキャラクターを200で返す', async () => {
       const characterId = 'test-character-001'
       const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(mockCharacter)
@@ -316,33 +339,35 @@ describe('CharacterController', () => {
       expect(res.status).toHaveBeenCalledWith(200)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          success: true,
           data: expect.objectContaining(mockCharacter)
         })
       )
     })
 
-    it('should throw NotFoundException when character is not found', async () => {
+    it('キャラクターが見つからない場合は404を返す', async () => {
       const characterId = 'non-existent-character'
       const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(null)
 
-      await expect(controller.findOne({ id: characterId }, res)).rejects.toThrow(
-        new NotFoundException('キャラクターが見つかりません')
-      )
+      await controller.findOne({ id: characterId }, res)
+
+      expect(res.status).toHaveBeenCalledWith(404)
     })
 
-    it('should handle character service findOne error', async () => {
+    it('ServiceのfindOneエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const res: any = mockResponse()
       characterService.findOne.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.findOne({ id: characterId }, res)).rejects.toThrow('Database error')
+      await controller.findOne({ id: characterId }, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('PUT /character/:id', () => {
-    it('should update character successfully', async () => {
+    it('更新に成功すると200を返しcharacter.updatedイベントを発行する', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
       const res: any = mockResponse()
@@ -351,105 +376,124 @@ describe('CharacterController', () => {
       await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
 
       expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
+      // 副作用（イベント発行）の検証
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.updated',
+        expect.objectContaining({
+          character: updatedCharacter,
+          source: 'character-controller'
+        })
+      )
       expect(res.status).toHaveBeenCalledWith(200)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
+          success: true,
           data: expect.objectContaining(updatedCharacter)
         })
       )
     })
 
-    it('should throw NotFoundException when character to update is not found', async () => {
+    it('更新対象が見つからない場合は404を返しイベントを発行しない', async () => {
       const characterId = 'non-existent-character'
       const res: any = mockResponse()
       characterService.update.mockResolvedValue(null)
 
-      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, res)).rejects.toThrow(
-        new NotFoundException('キャラクターが見つかりません')
-      )
+      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
+
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('should handle character service update error', async () => {
+    it('Serviceのupdateエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const res: any = mockResponse()
       characterService.update.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, res)).rejects.toThrow(
-        'Database error'
-      )
+      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('DELETE /character/:id', () => {
-    it('should delete character successfully', async () => {
+    it('削除に成功すると200を返しcharacter.deletedイベントを発行する', async () => {
       const characterId = 'test-character-001'
       const res: any = mockResponse()
-      characterService.remove.mockResolvedValue(undefined)
+      characterService.remove.mockResolvedValue(mockCharacter)
 
       await controller.remove({ id: characterId }, res)
 
       expect(characterService.remove).toHaveBeenCalledWith(characterId)
+      // 副作用（イベント発行）の検証
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.deleted',
+        expect.objectContaining({
+          character: mockCharacter,
+          source: 'character-controller'
+        })
+      )
       expect(res.status).toHaveBeenCalledWith(200)
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'success',
-          data: undefined
+          success: true,
+          data: expect.objectContaining({ characterId })
         })
       )
     })
 
-    it('should handle character service remove error', async () => {
+    it('削除対象が見つからない場合は404を返しイベントを発行しない', async () => {
+      const characterId = 'non-existent-character'
+      const res: any = mockResponse()
+      characterService.remove.mockResolvedValue(null)
+
+      await controller.remove({ id: characterId }, res)
+
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('Serviceのremoveエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const res: any = mockResponse()
       characterService.remove.mockRejectedValue(new Error('Database error'))
 
-      await expect(controller.remove({ id: characterId }, res)).rejects.toThrow('Database error')
+      await controller.remove({ id: characterId }, res)
+
+      expect(res.status).toHaveBeenCalledWith(500)
     })
   })
 
   describe('認証ガードテスト', () => {
-    it('should be protected by JwtAuthGuard', () => {
-      // すべてのエンドポイントでJwtAuthGuardが使用されていることを確認
-      const createMethod = Reflect.getMetadata('__guards__', controller.constructor.prototype.create)
-      const findAllMethod = Reflect.getMetadata('__guards__', controller.constructor.prototype.findAll)
-
-      // JwtAuthGuardが設定されているか、もしくはオーバーライドされていることを確認
+    it('controllerと依存が正しく構築されている', () => {
       expect(controller).toBeDefined()
       expect(characterService).toBeDefined()
-
-      // モックガードが正常に動作していることを確認
-      const req: any = mockRequest()
-      const res: any = mockResponse()
-      expect(async () => await controller.create(mockCharacterDto, req, res)).not.toThrow()
+      expect(authService).toBeDefined()
     })
   })
 
   describe('エラーハンドリング統合テスト', () => {
-    it('should handle various authentication errors consistently', async () => {
-      const testCases = [
-        { user: null, expectedError: '認証トークンがありません' },
-        { user: {}, expectedError: '認証トークンがありません' },
-        { user: { discordUserId: null }, expectedError: '認証トークンがありません' },
-        { user: { discordUserId: '' }, expectedError: '認証トークンがありません' }
-      ]
+    it('各種の認証欠落パターンで一貫して401を返す', async () => {
+      const userCases = [null, {}, { discordUserId: null }, { discordUserId: '' }]
 
-      for (const testCase of testCases) {
-        const req: any = { user: testCase.user }
+      for (const user of userCases) {
+        const req: any = { user }
         const res: any = mockResponse()
 
-        await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow(testCase.expectedError)
-        await expect(controller.findAll(req, res)).rejects.toThrow(testCase.expectedError)
-        await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow(testCase.expectedError)
+        await controller.create(mockCharacterDto, req, res)
+        await controller.findAll(req, res)
+        await controller.findUserCharacterSummaries(req, res)
+
+        // create/findAll/findUserCharacterSummaries の3回とも401
+        expect(res.status).toHaveBeenCalledWith(401)
+        expect(res.status).toHaveBeenCalledTimes(3)
       }
     })
 
-    it('should handle service errors gracefully', async () => {
+    it('全メソッドでServiceエラーは500として返る（throwしない）', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
       const serviceError = new Error('Service unavailable')
 
-      // 各メソッドでサービスエラーが適切に伝播されることを確認
+      // 各メソッドでサービスエラーが500レスポンスに変換されることを確認
       characterService.create.mockRejectedValue(serviceError)
       characterService.findHavingAll.mockRejectedValue(serviceError)
       characterService.findUserCharacterSummaries.mockRejectedValue(serviceError)
@@ -457,14 +501,17 @@ describe('CharacterController', () => {
       characterService.update.mockRejectedValue(serviceError)
       characterService.remove.mockRejectedValue(serviceError)
 
-      await expect(controller.create(mockCharacterDto, req, res)).rejects.toThrow('Service unavailable')
-      await expect(controller.findAll(req, res)).rejects.toThrow('Service unavailable')
-      await expect(controller.findUserCharacterSummaries(req, res)).rejects.toThrow('Service unavailable')
-      await expect(controller.findOne({ id: 'test-id' }, res)).rejects.toThrow('Service unavailable')
-      await expect(controller.update({ id: 'test-id' }, mockUpdateCharacterDto, res)).rejects.toThrow(
-        'Service unavailable'
-      )
-      await expect(controller.remove({ id: 'test-id' }, res)).rejects.toThrow('Service unavailable')
+      for (const act of [
+        () => controller.create(mockCharacterDto, req, mockResponse() as any),
+        () => controller.findAll(req, mockResponse() as any),
+        () => controller.findUserCharacterSummaries(req, mockResponse() as any),
+        () => controller.findOne({ id: 'test-id' }, mockResponse() as any),
+        () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto, mockResponse() as any),
+        () => controller.remove({ id: 'test-id' }, mockResponse() as any)
+      ]) {
+        // throwせずに解決すること自体が「graceful」を保証
+        await expect(act()).resolves.toBeUndefined()
+      }
     })
   })
 })
