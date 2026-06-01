@@ -109,6 +109,51 @@ character-edit の中核オーケストレーター（6 interaction handler が�
 
 ---
 
+## 🧩 **H3 巨大サービス分割: CharacterUIService** **[完了: 2026-06-01]**
+
+### **概要**
+
+`src/discord/features/characterEdit/services/character-ui.service.ts`（739行）を分割。
+Discord API ラッパー（channel/message I/O 中心）で spec が無かったため、**characterization テスト先行**で
+現挙動を固定してから純粋構築ロジックを util へ抽出（挙動保存の安全網）。公開メソッド/コンストラクタは不変。
+
+### **テスタビリティ評価（緑/黄/赤）**
+
+- **緑（モックで素直に固定）**: sendMessage / getTextChannel / sendCharacterDeletionNotification /
+  updateChannelName / archiveChannel / addChannelArchiveEmoji / updateChannelStatusDisplay /
+  sendCharacterEmbedWithSelectMenu / handleSectionSelectInteraction
+- **黄（messages.fetch の Collection.find/filter を扱う）**: updateCharacterEmbed / removeCharacterEmbeds /
+  createOrUpdateCharacterEmbed … 実 discord.js `Collection` を使えば固定可能（赤に落とさず緑化）
+- **赤**: なし。全公開メソッドを書ける範囲で characterization 済み
+
+### **抽出した純粋ロジック（`utils/character-ui.util.ts`・I/O非依存）**
+
+- Embed: `buildCharacterEmbedData` / `buildCharacterEmbed`（withTimestamp 差異を保存）
+- 文言: `buildCharacterUpdateNotificationMessage` / `buildCharacterDeletionNotificationMessage` / `buildChannelStatusText`
+- SelectMenu/Row: `buildSectionSelectMenu` / `buildSectionSelectMenuWithBack` / `buildFieldSelectMenu` / `toSelectMenuRow`
+- customId: `isSectionSelectCustomId` / `extractCharacterIdFromSectionSelect`、定数 `CHARACTER_EMBED_TITLE_KEYWORD` 等
+
+discord.js のビルダー生成は行うが channel.fetch/send/edit には依存しない。`CharacterUIService` は薄い I/O
+オーケストレーターに（embed/select menu の重複定義を util へ集約）。I/O 薄ラッパ（fetch→send/edit/setName 等）は
+過剰分割を避け据え置き。**character-ui.service.ts は 739行 → 476行**。
+
+### **デッドコード（呼び出し元の無い公開メソッド・報告のみ）**
+
+8 consumer のうち live に呼ばれるのは update/deletion 系（character.update.completed / character.deletion.completed）。
+以下は本体内 or コメントアウトのみで**外部 live caller なし**だが、タスク指定の公開 API 保持方針に従い**削除せず温存**:
+`createChannel` / `createOrUpdateCharacterEmbed` / `getTextChannel` / `sendCharacterUpdateNotification`（コメントアウト参照のみ）/
+`sendCharacterEmbedWithSelectMenu` / `handleSectionSelectInteraction`。
+また `channel-create-orchestrator.service` / `character.creation.completed` / `interactions.service` は
+`CharacterUIService` を DI のみで未使用（将来の不要 injection 整理候補として報告）。
+
+### **検証結果**
+
+- `pnpm run build` 成功
+- characterization 23 PASS / 純関数 21 PASS（分割前→分割後とも characterization 緑＝挙動不変）
+- `pnpm run check:circular` → **No circular dependency found（循環ゼロ・新規循環なし）**
+
+---
+
 ## 🆕 **@discord-test-utils ライブラリ導入** **[完了: 2026-04-03]**
 
 ### **概要**
