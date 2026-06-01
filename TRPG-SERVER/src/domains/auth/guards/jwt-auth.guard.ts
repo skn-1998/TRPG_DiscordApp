@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common'
-import { AuthService } from '../services/auth.service'
+import { JwtTokenService } from '../token/jwt-token.service'
 
 /**
  * JWT認証ガード
@@ -9,7 +9,7 @@ import { AuthService } from '../services/auth.service'
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name)
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly jwtTokenService: JwtTokenService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest()
@@ -33,7 +33,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const tokenPayload = await this.authService.validateToken(token)
+      const tokenPayload = await this.jwtTokenService.validateToken(token)
       request.user = tokenPayload
       this.logger.debug(`認証成功 - ユーザー: ${tokenPayload.username}`)
       return true

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { UnauthorizedException, HttpException } from '@nestjs/common'
 import { AuthService } from './auth.service'
+import { JwtTokenService } from '../token/jwt-token.service'
 import { UserService } from '../../user/user.service'
 import { HttpClientService } from '../../../core/shared/services/http.service'
 import { CryptoService } from '../../../core/shared/services/crypto.service'
@@ -82,6 +83,10 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        // JWT 検証プリミティブは JwtTokenService に集約済み。AuthService.validateToken /
+        // parseJwt は委譲するだけなので、実体の JwtTokenService（同一の JwtService モックを使用）を
+        // 登録して従来どおり jwtService.verify の呼び出しを検証する。
+        JwtTokenService,
         {
           provide: JwtService,
           useValue: jwtServiceMock

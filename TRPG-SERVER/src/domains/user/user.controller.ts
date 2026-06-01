@@ -21,7 +21,7 @@ import { CreateUserDto, DiscordUserIdParamDto, CharacterIdParamDto } from './dto
 import { UpdateUserDto } from './dto/update-user.dto'
 import { User } from './models/user.model'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { AuthService } from '../auth/services/auth.service'
+import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
 import { ResponseInterceptor, HttpExceptionFilter, ApiErrorResponse, ApiError } from '../../core/http'
@@ -43,7 +43,7 @@ interface RequestWithUser extends Request {
 export class UserController {
   constructor(
     private readonly userService: UserService,
-    private readonly authService: AuthService
+    private readonly jwtTokenService: JwtTokenService
   ) {}
 
   @Post()
@@ -63,7 +63,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @ApiErrorResponse(500, 'ユーザー取得に失敗しました')
   async findOne(@Headers('Authorization') authorization: string): Promise<User> {
-    const token = await this.authService.validateToken(authorization)
+    const token = await this.jwtTokenService.validateToken(authorization)
     const user = await this.userService.findByDiscordId(token.discordUserId)
     if (!user) {
       // 変換前: ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)

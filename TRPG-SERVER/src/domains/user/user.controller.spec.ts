@@ -7,7 +7,7 @@ import { UserController } from './user.controller'
 import { UserService } from './user.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
-import { AuthService } from '../auth/services/auth.service'
+import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { ResponseInterceptor, HttpExceptionFilter, ApiError } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 
@@ -31,7 +31,7 @@ describe('UserController', () => {
     remove: jest.fn()
   }
 
-  const mockAuthService = {
+  const mockJwtTokenService = {
     validateToken: jest.fn().mockResolvedValue({
       discordUserId: 'discord123',
       username: 'testuser'
@@ -96,7 +96,7 @@ describe('UserController', () => {
       controllers: [UserController],
       providers: [
         { provide: UserService, useValue: mockUserService },
-        { provide: AuthService, useValue: mockAuthService }
+        { provide: JwtTokenService, useValue: mockJwtTokenService }
       ]
     }).compile()
 
@@ -131,7 +131,7 @@ describe('UserController', () => {
 
       const data = await controller.findOne('Bearer valid-token')
 
-      expect(mockAuthService.validateToken).toHaveBeenCalledWith('Bearer valid-token')
+      expect(mockJwtTokenService.validateToken).toHaveBeenCalledWith('Bearer valid-token')
       expect(service.findByDiscordId).toHaveBeenCalledWith('discord123')
       expect(data).toEqual(mockUser)
       await expectSuccessEnvelope('findOne', data)
