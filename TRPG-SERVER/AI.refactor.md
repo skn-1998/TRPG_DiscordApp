@@ -258,6 +258,7 @@ Phase S 完了後の状況を実コードで再確認し、着手順を整理し
    - 正本は `src/events/AI.event.md` 冒頭節＋`src/events/DESIGN.md`。登録は events 層=EventRegistry（File-based）／discord 層=自己購読 の2経路。監査の「contracts 逆流」は実在せず、逆流は handlers→features / EventsModule→feature の import だった（T3 で是正済み）。
 3. **H9 エラーハンドリング統合** … **auth/user controller 完了（2026-06-01, ブランチ `refactor/error-handling-h9`）**。`core/http` の controller スコープ例外フィルタ＋レスポンスインターセプタへ置換、envelope/status/message を完全保存（詳細は冒頭 2026-06-01 節）。残: character 他は spec ドリフト解消後に展開し、最終的にグローバル登録へ寄せる。
 4. **H3/H5 Discord 巨大サービス分割** … pagination 等の分割＋（再精査後の）デッド整理（中〜大）。
+   - **H3 `character-dice-buttons.service.ts` 分割完了（2026-06-01, ブランチ `refactor/discord-service-split-dicebuttons`, 挙動保存）**：848→287 行。純粋整形ロジック（getResultEmoji/formatResultText/getSuccessText/formatDiceRollResultAsText）を `button/character-dice-format.util.ts`（discord.js/Nest 非依存・§12 の feature 配下 util）へ抽出し新規ユニットテスト 23 件追加。履歴・保存・ページネーション表示（saveRollResult/createPaginatedDiceRoll/updateDiceRollHistoryAsync/handleParentChannelMessage/createFallbackControls＋throttle/lock 状態）を `button/character-dice-history.service.ts` へ抽出。公開 API（data/execute/handleDiceRoll/コンストラクタ）不変。コンストラクタ不変制約のため history service は注入済み依存から内部 `new` で生成・再利用（DI provider 追加なし＝module 無変更）。既存 21 テスト緑維持、build 成功、check:circular 循環ゼロ。残デッド：`handleParentChannelMessage` は未呼び出し（移設のみ・削除は別タスク）。
 5. **H6 auth/user forwardRef 解消** … port 切り出し＋`src/auth`/`domains/auth` 統合。影響最大＝最後（大）。
 6. 随時: **H1/H8** 横断コード・型の置き場所決定表＋`any` 削減。
 
