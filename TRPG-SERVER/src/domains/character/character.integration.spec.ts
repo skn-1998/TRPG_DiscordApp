@@ -11,7 +11,7 @@ import { TypedEventEmitter, TypedEventService } from '../../core/events/typed-ev
 import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
 import { CharacterInputDto, CreateCharacterDto } from './dto/create-character.dto'
 import { v4 as uuidv4 } from 'uuid'
-import { EventPayload } from '../../shared/domain/events/event-contracts'
+import { EventPayload } from '../../events/contracts'
 
 /**
  * Character CRUD Events Integration Test
