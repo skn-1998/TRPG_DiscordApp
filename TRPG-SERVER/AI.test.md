@@ -786,4 +786,37 @@ dead だった emit/listen 由来の assert を落とし、**LIVE な TypedEvent
 
 ---
 
+## 2026-06-01 H3 巨大サービス分割: character-modal-handler（characterization 先行）
+
+`character-modal-handler.service.ts`（755行・spec 無し）の純粋ロジック抽出に先立ち、現挙動を固定する
+characterization spec を作成 → 緑確認 → 分割 → 再度緑、の順で挙動保存を担保。
+
+- **characterization**: `character-modal-handler.service.spec.ts`（10 テスト）。`@discord-test-utils` の
+  `createMockModalInteraction` で代表入力を与え、「どの依存(embedManager.createCharacter / TypedEventService.emit /
+  modalSessionManager.getSession など)が・どの引数で呼ばれ・どの reply/editReply/deleteReply が返るか」を固定。
+  作成成功 / 作成データ無効 / createCharacter null / 編集成功(deleteReply) / セッション無し / フォーム空 /
+  キャラ未発見 / 更新失敗 / レガシー customId / 例外時エラー応答 を網羅。
+  - **重要な現挙動の発見（テストで固定）**: ①`ErrorHandler.handleServiceError` は **再 throw** する（catch 内で呼ぶと
+    `handleModalSubmit` は reject）。エラー応答 4 分岐は try 内の正常フローで `sendErrorResponse` を呼ぶため throw 経路と別。
+    ②編集時 `name` 未入力だと `finalName=fieldKey` となり、既存 sectionData の AttributeValue が **丸ごと置換**される。
+  - **テスト基盤メモ**: グローバル `test/utils/jest-setup.ts` の discord.js モックは `EmbedBuilder.setTimestamp` 等を
+    持たず本サービスの応答生成がこける。embed-manager spec と同様 `jest.mock('discord.js', () => jest.requireActual('discord.js'))`
+    で実 discord.js を使用して回避（`.data.title` 等を直接検証）。`TypedEventService.waitForEvent` は `Promise.race` で
+    2 回呼ばれるため、`mockResolvedValueOnce` 連結より **event 名で分岐する mockImplementation** が race に頑健。
+
+- **分割**: discord.js 非依存の純関数を `character-modal-handler.util.ts`（225行）へ抽出し、`*.util.spec.ts`（28 テスト）を新規作成。
+  抽出: `parseEditCustomId`(session/legacy/invalid 判定。セッション取得=副作用はサービスに残置) /
+  `parseCreationCustomId` / `buildFieldData`(trim・空判定) / `buildAttributeValueFromForm`(now 注入で純粋化) /
+  `isValidAttributeValue` / `getSectionData` / `buildUpdateData`。サービスは薄いオーケストレーターに。
+  `readTextInput` で discord.js I/O 境界を分離。
+- **デッドコード削除**（characterization 緑のまま）: `sendSuccessResponse`（呼び出しゼロ）と、それに伴う未使用 import
+  `ActionRowBuilder/ButtonBuilder/ButtonStyle`。重複していた private `getSectionData`/`parseCreationCustomId` は util へ集約。
+- **公開 API 不変**: `handleModalSubmit(interaction)` のシグネチャ・コンストラクタ（TypedEventService /
+  CharacterEmbedManagerService / ModalSessionManagerService）は変更なし。`FieldData` 型は util へ移動し service から再エクスポートして互換維持。
+- **行数**: service 755→597（純粋ロジック 225 を util へ移管＋重複/デッドコード削減）。
+- **検証**: `pnpm run build` 成功 / 対象 2 spec 計 38 テスト全 pass（characterization は分割前後で不変・緑）/
+  `pnpm run check:circular` → **No circular dependency found!**（循環ゼロ・新規循環なし）。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
