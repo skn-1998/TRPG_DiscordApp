@@ -219,21 +219,23 @@ domain の変更結果を通知したい場合は、feature/application 層が e
 
 ## 10. Auth / User 方針
 
-`AuthModule <-> UserModule` の循環依存は解消対象。
+`AuthModule <-> UserModule` の循環依存は **H6（2026-06-01）で解消済み**。トークン検証を依存の軽い
+`JwtTokenService`（JwtService のみ依存・UserService 非依存）へ切り出し、`JwtAuthGuard` をそれに繋ぎ替え、
+両者を提供する `AuthTokenModule` を auth/user 双方が import する形にして `UserModule -> AuthModule` を撤去。
+`check:circular` は循環ゼロ（No circular dependency found）。
 
-目標:
+目標（達成済み）:
 
 ```txt
-AuthFeature
-  -> UserDomain
-  -> core/config, core/http
+AuthFeature -> UserDomain -> core/config, core/http
+AuthModule / UserModule -> AuthTokenModule（JwtTokenService / JwtAuthGuard）
 ```
 
-方針:
+方針（維持）:
 
 - `AuthService -> UserService` は許容
-- `UserModule -> AuthModule` は原則禁止
-- JWT guard / OAuth strategy / cookie は auth feature に閉じる
+- `UserModule -> AuthModule` は禁止（解消済み。再導入しない）
+- JWT 検証 primitive は `AuthTokenModule`（`JwtTokenService`/`JwtAuthGuard`）に閉じ、OAuth strategy / cookie は auth feature に閉じる
 - user domain は認証方式を知らない
 
 ---
