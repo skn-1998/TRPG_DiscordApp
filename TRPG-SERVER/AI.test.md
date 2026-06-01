@@ -817,6 +817,37 @@ characterization spec を作成 → 緑確認 → 分割 → 再度緑、の順�
 - **検証**: `pnpm run build` 成功 / 対象 2 spec 計 38 テスト全 pass（characterization は分割前後で不変・緑）/
   `pnpm run check:circular` → **No circular dependency found!**（循環ゼロ・新規循環なし）。
 
+### H3: ThreadCreationService 分割（characterThread/services/thread-creation）
+
+- **対象**: `thread-creation.service.ts`（881行）。公開は `createCharacterThread(request, character)`（`CharacterThreadOrchestrator` が利用）。
+  Discord thread/channel I/O と、スレッド名・Embed・ボタン・セレクトメニュー等の構築ロジックが混在していた。spec 無し → characterization 先行。
+- **テスタビリティ評価**:
+  - 緑（純粋・util 抽出）: スレッド名生成 / threadUrl / editUrl / `formatCharacterData` / `extractNumericValue` /
+    basic・detailed Embed 生成 / パラメータ選択メニュー / プリセットボタン / スキルロールボタン構築（discord.js Builder は
+    副作用なしの値オブジェクトのため純粋関数として扱える）。
+  - 黄（I/O・サービス残置）: `createCharacterThread` オーケストレーション / `getGuild`・`getTextChannel`（fetch+instanceof）/
+    `createDiscordThread`（threads.create）/ `post*`（thread.send）/ `updateCharacter*`（characterService.update）。
+  - 赤（characterization 困難）: 実 Discord fetch + `instanceof TextChannel` を伴う `getGuild`/`getTextChannel` の
+    統合経路は E2E/手動推奨。characterization では private を spy で差し替え公開オーケストレーション挙動を固定した。
+- **characterization**: `thread-creation.service.spec.ts`（8 テスト）。`jest.requireActual('discord.js')` で実 Builder を使用。
+  成功パス（basic/enhanced）で「getGuild/getTextChannel の引数・threads.create のスレッド名フォーマット・thread.send の各メッセージ
+  （Embed/ダイスロール/スキルロール/柔軟ダイスメニュー/プリセット）・characterService.update 2 回・返り値 threadId/threadUrl」を固定。
+  失敗分岐（guild無/channel無/表示投稿失敗→basicフォールバック/DB更新失敗握りつぶし）を網羅。**分割前後で 8/8 緑（挙動不変の根拠）**。
+  - **重要な現挙動の発見（テストで固定）**: catch 内の `ErrorHandler.handleServiceError` は **再 throw** するため、
+    thread.create 等で例外が起きると `return { success:false }` には到達せず **HttpException が伝播**する（catch の return はデッド経路）。
+- **分割**: discord.js 非依存（Builder は可）の純関数を `thread-creation.util.ts`（約420行）へ抽出し `*.util.spec.ts`（28 テスト）を新規作成。
+  抽出: `buildThreadName`(date 注入で純粋化) / `buildThreadUrl` / `generateCharacterEditUrl` / `formatCharacterData` /
+  `extractNumericValue` / `createBasicCharacterEmbed` / `createDetailedCharacterEmbed` / `createDiceRollActionRow` /
+  `createParameterSelectMenu` / `createPresetButtons` / `chunkButtonsIntoRows` / `createSkillRollActionRows`。
+  サービスは薄い I/O オーケストレーターに。`postCharacterDisplay` の各分岐で重複していた 4 つの UI 投稿を共通化（正常系の挙動は同一）。
+- **デッドコード削除**（characterization 緑のまま）: `updateThreadCharacterDisplay`（呼び出しゼロ）と、その唯一の呼び出し元から
+  しか使われない `getThreadChannel`、旧下位互換 `updateCharacterChannelId`（呼び出しゼロ）を削除。未使用 import も整理。
+- **公開 API 不変**: `createCharacterThread(request, character)` のシグネチャ・コンストラクタ（DiscordClientService /
+  TypedEventService / CharacterService）・`CreateThreadRequest`/`CreateThreadResult` 型は変更なし。module 登録も変更不要。
+- **行数**: service 881→322（純粋ロジック約420 を util へ移管＋デッドコード削減）。
+- **検証**: `pnpm run build` 成功 / 対象 2 spec 計 36 テスト全 pass（characterization 分割前後で不変・緑）/
+  `pnpm run check:circular` → **No circular dependency found!**（循環ゼロ・新規循環なし）。
+
 ---
 
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
