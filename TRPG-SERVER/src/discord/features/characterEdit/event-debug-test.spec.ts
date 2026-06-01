@@ -8,6 +8,8 @@ import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
+import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
+import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { DiscordClientService } from '../../services/discord-client.service'
 
 /**
@@ -98,7 +100,10 @@ describe('CharacterEdit Event Debug Test', () => {
         {
           provide: CharacterModalHandlerService,
           useValue: mockModalHandlerService
-        }
+        },
+        // H3 分割で追加された EnhancedCharacterEditService の協力者（実体登録で DI 解決）
+        CharacterEditEventEmitterService,
+        CharacterEditMessageUpdaterService
       ]
     }).compile()
 
