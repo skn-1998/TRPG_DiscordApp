@@ -1,0 +1,85 @@
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common'
+import { Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
+import {
+  AuthenticationErrorResponse,
+  ErrorResponse,
+  InternalServerErrorResponse,
+  NotFoundErrorResponse
+} from '../../core/dto/api-response.dto'
+
+/**
+ * character コントローラ専用のエラー封筒化フィルタ。
+ *
+ * 変換前の character.controller は汎用の ApiResponseUtil.error ではなく、
+ * 専用ヘルパ（authenticationError / notFoundError / internalServerError）を使っており、
+ * これらは ErrorResponse のサブクラス（errorCode・固定 message を持つ）を生成していた。
+ *
+ * core/http の共通 HttpExceptionFilter は ApiError / @ApiErrorResponse 由来の
+ * 汎用 ErrorResponse しか作れず、errorCode・専用 message を再現できない。
+ * そこで character スコープでのみ使う最小フィルタを追加し、
+ * 変換前と完全一致の envelope（success/status/message/error/errorCode）を保存する。
+ *
+ * - CharacterAuthenticationException → 401 / AuthenticationErrorResponse
+ *   （変換前 ApiResponseUtil.authenticationError(res, message) と一致）
+ * - CharacterNotFoundException      → 404 / NotFoundErrorResponse
+ *   （変換前 ApiResponseUtil.notFoundError(res, resource) と一致）
+ * - それ以外（素の Error 等）        → 500 / InternalServerErrorResponse
+ *   （変換前 ApiResponseUtil.internalServerError(res, error) と一致）
+ *
+ * グローバル登録はせず、character.controller の @UseFilters でのみ適用する。
+ */
+@Catch()
+export class CharacterHttpExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp()
+    const res = ctx.getResponse<Response>()
+    const requestId = uuidv4()
+
+    if (exception instanceof CharacterAuthenticationException) {
+      // 変換前: ApiResponseUtil.authenticationError(res, message)
+      const response = new AuthenticationErrorResponse(exception.userMessage, requestId)
+      res.status(HttpStatus.UNAUTHORIZED).json(response)
+      return
+    }
+
+    if (exception instanceof CharacterNotFoundException) {
+      // 変換前: ApiResponseUtil.notFoundError(res, resource)
+      const response = new NotFoundErrorResponse(exception.resource, requestId)
+      res.status(HttpStatus.NOT_FOUND).json(response)
+      return
+    }
+
+    // 変換前: catch ブロックの ApiResponseUtil.internalServerError(res, error)
+    const errorMessage = exception instanceof Error ? exception.message : String(exception)
+    const stack = exception instanceof Error ? exception.stack : undefined
+    const response: ErrorResponse = new InternalServerErrorResponse(errorMessage, stack, requestId)
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json(response)
+  }
+}
+
+/**
+ * 認証欠落（変換前の UnauthorizedException → authenticationError）を表す例外。
+ * userMessage は AuthenticationErrorResponse の error フィールドへ反映される。
+ */
+export class CharacterAuthenticationException extends HttpException {
+  readonly userMessage: string
+
+  constructor(userMessage: string) {
+    super(userMessage, HttpStatus.UNAUTHORIZED)
+    this.userMessage = userMessage
+  }
+}
+
+/**
+ * リソース未発見（変換前の notFoundError(res, resource)）を表す例外。
+ * resource は NotFoundErrorResponse の `${resource}が見つかりません` に反映される。
+ */
+export class CharacterNotFoundException extends HttpException {
+  readonly resource: string
+
+  constructor(resource: string) {
+    super(`${resource}が見つかりません`, HttpStatus.NOT_FOUND)
+    this.resource = resource
+  }
+}
