@@ -6,34 +6,26 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import {
-  ModalSubmitInteraction,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  TextChannel,
-  Message,
-  Collection
-} from 'discord.js'
+import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
-import { CharacterInputDto, AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
-import { AttributeValue } from '../../../../core/types/attribute.types'
+import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
+import {
+  FieldData,
+  parseEditCustomId,
+  parseCreationCustomId,
+  buildFieldData,
+  buildAttributeValueFromForm,
+  isValidAttributeValue,
+  getSectionData,
+  buildUpdateData
+} from './character-modal-handler.util'
 
-/**
- * フィールドデータ構造
- */
-export interface FieldData {
-  name?: string
-  values?: string
-  dice?: string
-  description?: string
-}
+// 後方互換: 既存の import 元を維持するため再エクスポート
+export type { FieldData } from './character-modal-handler.util'
 
 @Injectable()
 export class CharacterModalHandlerService {
@@ -89,7 +81,7 @@ export class CharacterModalHandlerService {
     }
 
     // カスタムIDからchannelIdとuserIdを抽出
-    const { channelId, userId } = this.parseCreationCustomId(interaction.customId)
+    const { channelId, userId } = parseCreationCustomId(interaction.customId)
     if (!channelId || !userId) {
       await this.sendErrorResponse(interaction, 'チャンネル情報の取得に失敗しました。')
       return
@@ -201,52 +193,44 @@ export class CharacterModalHandlerService {
   } {
     this.logger.debug(`Parsing modal customId: ${customId}`)
 
-    // セッションベース形式: char-edit-modal-{sessionId}
-    const sessionFormatPrefix = 'char-edit-modal-'
-    if (customId.startsWith(sessionFormatPrefix)) {
-      const sessionId = customId.slice(sessionFormatPrefix.length)
-      this.logger.debug(`Using session-based customId with sessionId: ${sessionId}`)
+    const parsed = parseEditCustomId(customId)
 
-      // ModalSessionManagerServiceからセッションデータを取得
-      const sessionData = this.modalSessionManager.getSession(sessionId)
-      if (sessionData) {
-        this.logger.debug(`Session found: ${JSON.stringify(sessionData)}`)
-        // セッション使用後は削除
-        this.modalSessionManager.removeSession(sessionId)
-        return {
-          characterId: sessionData.characterId,
-          sectionType: sessionData.sectionType,
-          fieldKey: sessionData.fieldKey
+    switch (parsed.kind) {
+      case 'session': {
+        this.logger.debug(`Using session-based customId with sessionId: ${parsed.sessionId}`)
+
+        // ModalSessionManagerServiceからセッションデータを取得（副作用）
+        const sessionData = this.modalSessionManager.getSession(parsed.sessionId)
+        if (sessionData) {
+          this.logger.debug(`Session found: ${JSON.stringify(sessionData)}`)
+          // セッション使用後は削除
+          this.modalSessionManager.removeSession(parsed.sessionId)
+          return {
+            characterId: sessionData.characterId,
+            sectionType: sessionData.sectionType,
+            fieldKey: sessionData.fieldKey
+          }
         }
-      } else {
-        this.logger.warn(`Session not found for sessionId: ${sessionId}`)
-        return { characterId: null, sectionType: null, fieldKey: null }
-      }
-    }
 
-    // 従来の形式をサポート（後方互換）
-    const oldFormatPrefix = 'char-edit-'
-    if (customId.startsWith(oldFormatPrefix) && !customId.startsWith(sessionFormatPrefix)) {
-      const rest = customId.slice(oldFormatPrefix.length)
-      const parts = rest.split('-')
-      this.logger.debug(`Using legacy format, CustomId parts: ${JSON.stringify(parts)}`)
-
-      if (parts.length < 3) {
-        this.logger.warn(`CustomId has insufficient parts: ${parts.length}, expected at least 3`)
+        this.logger.warn(`Session not found for sessionId: ${parsed.sessionId}`)
         return { characterId: null, sectionType: null, fieldKey: null }
       }
 
-      const sectionType = parts[0] as EmbedSectionType
-      const fieldKey = parts[1]
-      const characterId = parts.slice(2).join('-')
+      case 'legacy': {
+        this.logger.debug(
+          `Legacy parsed: sectionType=${parsed.sectionType}, fieldKey=${parsed.fieldKey}, characterId=${parsed.characterId}`
+        )
+        return {
+          characterId: parsed.characterId,
+          sectionType: parsed.sectionType,
+          fieldKey: parsed.fieldKey
+        }
+      }
 
-      this.logger.debug(`Legacy parsed: sectionType=${sectionType}, fieldKey=${fieldKey}, characterId=${characterId}`)
-
-      return { characterId, sectionType, fieldKey }
+      default:
+        this.logger.warn(`CustomId format not recognized: ${customId}`)
+        return { characterId: null, sectionType: null, fieldKey: null }
     }
-
-    this.logger.warn(`CustomId format not recognized: ${customId}`)
-    return { characterId: null, sectionType: null, fieldKey: null }
   }
 
   /**
@@ -254,60 +238,34 @@ export class CharacterModalHandlerService {
    */
   private extractFormData(interaction: ModalSubmitInteraction): FieldData | null {
     try {
-      let name: string | undefined = undefined
-      let values: string | undefined = undefined
-      let dice: string | undefined = undefined
-      let description: string | undefined = undefined
-
-      // field-name フィールド（新規追加時）
-      try {
-        const rawName = interaction.fields.getTextInputValue('field-name')
-        name = rawName?.trim() || undefined
-        this.logger.debug(`Raw field-name value: "${rawName}" -> processed: "${name}"`)
-      } catch (error) {
-        this.logger.debug('field-name field not found')
+      // discord.js I/O: 各フィールドの生値を取得（存在しない場合は例外/空）
+      const raw = {
+        name: this.readTextInput(interaction, 'field-name'),
+        values: this.readTextInput(interaction, 'field-values'),
+        dice: this.readTextInput(interaction, 'field-dice'),
+        description: this.readTextInput(interaction, 'field-description')
       }
 
-      // 新しい3フィールド形式をチェック
-      try {
-        const rawValues = interaction.fields.getTextInputValue('field-values')
-        values = rawValues?.trim() || undefined
-        this.logger.debug(`Raw field-values: "${rawValues}"`)
-      } catch (error) {
-        // field-values フィールドが存在しない場合
-      }
-
-      try {
-        const rawDice = interaction.fields.getTextInputValue('field-dice')
-        dice = rawDice?.trim() || undefined
-        this.logger.debug(`Raw field-dice: "${rawDice}"`)
-      } catch (error) {
-        // field-dice フィールドが存在しない場合
-      }
-
-      try {
-        const rawDescription = interaction.fields.getTextInputValue('field-description')
-        description = rawDescription?.trim() || undefined
-        this.logger.debug(`Raw field-description: "${rawDescription}"`)
-      } catch (error) {
-        // field-description フィールドが存在しない場合
-      }
-
-      // データの有効性をチェック
-      if (!values && !dice && !description) {
+      // 変換・バリデーションは純関数へ委譲
+      const fieldData = buildFieldData(raw)
+      if (!fieldData) {
         this.logger.warn('No valid data found in form fields - values, dice, and description are all empty')
-        return null
       }
-
-      return {
-        name,
-        values,
-        dice,
-        description
-      }
+      return fieldData
     } catch (error) {
       this.logger.error('Failed to extract form data', error)
       return null
+    }
+  }
+
+  /**
+   * モーダルフィールドの生値を読む（I/O 境界）。存在しない場合は undefined。
+   */
+  private readTextInput(interaction: ModalSubmitInteraction, customId: string): string | undefined {
+    try {
+      return interaction.fields.getTextInputValue(customId)
+    } catch {
+      return undefined
     }
   }
 
@@ -321,8 +279,8 @@ export class CharacterModalHandlerService {
     formData: FieldData
   ): Promise<boolean> {
     try {
-      // 更新するセクションのデータを取得
-      const sectionData: Record<string, unknown> = { ...(this.getSectionData(character, sectionType) ?? {}) }
+      // 更新するセクションのデータを取得（純関数）
+      const sectionData: Record<string, unknown> = { ...(getSectionData(character, sectionType) ?? {}) }
 
       this.logger.debug(`Raw form data for ${character.characterId}:`, {
         name: formData.name,
@@ -334,39 +292,13 @@ export class CharacterModalHandlerService {
         isNewField: fieldKey === 'add_new'
       })
 
-      // フィールドキーを決定（新規の場合はフォームの名前を使用）
-      const actualFieldKey = fieldKey === 'add_new' ? formData.name || `new_${Date.now()}` : fieldKey
-
-      // nameの決定: フォームのnameがある場合は使用、なければactualFieldKeyを使用
-      const finalName = formData.name && formData.name.trim() !== '' ? formData.name.trim() : actualFieldKey
-
-      // AttributeValue形式でフィールドデータを構築
-      const valuesObj: Record<string, number> = {}
-
-      // values フィールドの処理
-      if (formData.values && formData.values.trim() !== '') {
-        const numericValue = parseFloat(formData.values.trim())
-        if (!isNaN(numericValue)) {
-          valuesObj.base = numericValue
-        }
-      }
-
-      const attributeValue = {
-        name: finalName,
-        index: null,
-        values: valuesObj,
-        description: formData.description || null,
-        dice: formData.dice || null,
-        isVisible: true
-      }
+      // AttributeValue を構築（純関数）
+      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm(fieldKey, formData, Date.now())
 
       this.logger.debug(`Creating AttributeValue for ${actualFieldKey}:`, JSON.stringify(attributeValue, null, 2))
 
-      // 値が有効かチェック
-      if (
-        !finalName ||
-        (Object.keys(attributeValue.values).length === 0 && !attributeValue.description && !attributeValue.dice)
-      ) {
+      // 値が有効かチェック（純関数）
+      if (!isValidAttributeValue(attributeValue)) {
         this.logger.error(`Invalid data for field ${actualFieldKey}: no name or values/description/dice`)
         return false
       }
@@ -374,24 +306,10 @@ export class CharacterModalHandlerService {
       // セクションデータを更新
       sectionData[actualFieldKey] = attributeValue
 
-      // 更新DTOを作成
-      let updateData: UpdateCharacterDto
-
-      switch (sectionType) {
-        case 'status':
-          updateData = { status: sectionData as Record<string, AttributeValueDto> }
-          break
-        case 'parameter':
-          updateData = { parameter: sectionData as Record<string, AttributeValueDto> }
-          break
-        case 'skill':
-          updateData = { skill: sectionData as Record<string, AttributeValueDto> }
-          break
-        case 'item':
-          updateData = { item: sectionData as Record<string, AttributeValueDto> }
-          break
-        default:
-          return false
+      // 更新DTOを作成（純関数）
+      const updateData = buildUpdateData(sectionType, sectionData)
+      if (!updateData) {
+        return false
       }
 
       // 先に待受をセットしてからemit（レースコンディション回避）
@@ -460,61 +378,6 @@ export class CharacterModalHandlerService {
   }
 
   /**
-   * セクションデータを取得
-   */
-  private getSectionData(character: Character, sectionType: EmbedSectionType): Record<string, unknown> | undefined {
-    switch (sectionType) {
-      case 'status':
-        return character.status
-      case 'parameter':
-        return character.parameter
-      case 'skill':
-        return character.skill
-      case 'item':
-        return character.item
-      default:
-        return undefined
-    }
-  }
-
-  /**
-   * 成功レスポンスを送信
-   */
-  private async sendSuccessResponse(
-    interaction: ModalSubmitInteraction,
-    sectionType: EmbedSectionType,
-    fieldName: string
-  ): Promise<void> {
-    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
-      status: 'ステータス',
-      parameter: 'パラメータ',
-      skill: 'スキル',
-      item: 'アイテム',
-      basic: '基本情報'
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle('✅ 更新完了')
-      .setDescription(
-        `${sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]}「${fieldName}」を更新しました。`
-      )
-      .setColor('#27ae60')
-      .setTimestamp()
-
-    const refreshButton = new ButtonBuilder()
-      .setCustomId('character-refresh-embeds')
-      .setLabel('🔄 表示を更新')
-      .setStyle(ButtonStyle.Primary)
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(refreshButton)
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: [row]
-    })
-  }
-
-  /**
    * エラーレスポンスを送信
    */
   private async sendErrorResponse(interaction: ModalSubmitInteraction, message: string): Promise<void> {
@@ -547,27 +410,6 @@ export class CharacterModalHandlerService {
     } catch (error) {
       this.logger.error('Failed to extract character creation data', error)
       return null
-    }
-  }
-
-  /**
-   * 作成モーダルのカスタムIDを解析
-   */
-  private parseCreationCustomId(customId: string): {
-    channelId: string | null
-    userId: string | null
-  } {
-    // character-create-basic-{channelId}-{userId}
-    const pattern = /character-create-basic-(.+?)-(.+)$/
-    const match = customId.match(pattern)
-
-    if (!match) {
-      return { channelId: null, userId: null }
-    }
-
-    return {
-      channelId: match[1],
-      userId: match[2]
     }
   }
 
