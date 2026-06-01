@@ -1,6 +1,50 @@
 # TRPG-SERVER テスト戦略・実装ドキュメント
 
-## 📋 **ドキュメント概要** **[最終更新: 2026-04-03]**
+## 📋 **ドキュメント概要** **[最終更新: 2026-06-01]**
+
+---
+
+## 🧩 **H3 巨大サービス分割: CharacterEmbedManagerService** **[完了: 2026-06-01]**
+
+### **背景**
+
+`src/discord/features/characterEdit/services/character-embed-manager.service.ts`（831行）を
+責務分割。spec が無かったため、**characterization テスト先行**で現挙動を固定してから分割（挙動保存の安全網）。
+
+### **テスタビリティ評価: 緑**
+
+- embed 生成系は discord.js の `EmbedBuilder` を生成するが `.toJSON()` で構造を決定的に検証可能。
+- `processCharacterData`（AttributeValue 合算・整形）が純粋ロジックの中心で出力決定的。
+- DI は `TypedEventService` のみ（embed 生成では未使用）。
+- **注意点**: グローバル `test/utils/jest-setup.ts` が `discord.js` をスタブモックしており
+  `EmbedBuilder.toJSON()` / `setTimestamp()` が無い。実 builder を検証するため spec 冒頭で
+  `jest.unmock('discord.js'); jest.mock('discord.js', () => jest.requireActual('discord.js'))` を宣言する
+  （embed 構造を検証したいテストでは必須のパターン）。
+
+### **作成テスト**
+
+- `services/character-embed-manager.service.spec.ts`（characterization, 13 PASS）
+  - 固定した挙動: 5 embed の順序とタイトル、基本情報の色/フィールド（gameSystemId 有無）、
+    ステータス embed の AttributeValue 整形（合計/内訳/ダイス/説明）、空セクションの説明文、
+    24 件超の切り詰め + footer 省略数、`createFieldSelectMenu`（既存/空/未知タイプ）、
+    `createNewCharacterEmbed` / `createCharacterCreatedEmbed`、`sendSectionedEmbeds` の送信内容。
+- `utils/character-embed.util.spec.ts`（抽出純関数ユニット, 20 PASS）
+
+### **分割設計**
+
+- 新規 `utils/character-embed.util.ts`（156行, discord.js 非依存の純粋関数）へ抽出:
+  - `generateShortCharacterId()` / `formatAttributeFieldValue()` / `buildAttributeFields()`
+    / `buildFieldOptionDisplay()` / `extractDiceRollValue()`
+- `CharacterEmbedManagerService` は薄いオーケストレーターへ。status/parameter/skill/item の
+  4 メソッドを共通 `createSectionEmbed()` に集約。**公開 API（メソッド名・シグネチャ・コンストラクタ）は不変**。
+- ログ出力（logger.debug / console.log）は embed 出力に無関係な副作用のため util では除去（出力文字列は不変）。
+- 元サービス **831 行 → 535 行**（-296 行 ≒ -36%。util 156 行へ移設）。
+
+### **検証結果**
+
+- `pnpm run build` 成功
+- characterization 13 PASS / 純関数 20 PASS（分割前→分割後とも characterization 緑＝挙動不変）
+- `pnpm run check:circular` → **No circular dependency found（循環ゼロ・新規循環なし）**
 
 ---
 
