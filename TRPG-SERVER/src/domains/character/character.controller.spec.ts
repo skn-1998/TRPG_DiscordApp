@@ -1,6 +1,10 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
+import { ExecutionContext, CallHandler, ArgumentsHost } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { Response } from 'express'
+import { lastValueFrom, of } from 'rxjs'
 import { CharacterController } from './character.controller'
 import { CharacterService } from './character.service'
 import { AuthService } from '../auth/services/auth.service'
@@ -10,15 +14,32 @@ import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { TypedEventService } from '../../core/events/typed-event.service'
-import { Request, Response } from 'express'
+import { Request } from 'express'
+import { ResponseInterceptor } from '../../core/http'
+import { SuccessResponse } from '../../core/dto/api-response.dto'
+import {
+  CharacterHttpExceptionFilter,
+  CharacterAuthenticationException,
+  CharacterNotFoundException
+} from './character-http.exception'
+import { ApiResponseUtil } from '../../utils/api-response.util'
 
-// RequestWithUser型の定義は不要
-
+/**
+ * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
+ * 例外は CharacterAuthenticationException / CharacterNotFoundException / 素の Error を throw する。
+ * 封筒化は ResponseInterceptor（成功）/ CharacterHttpExceptionFilter（異常）が担う。
+ *
+ * 本 spec は実機同様に interceptor / filter を通して最終 envelope を再現し、
+ * 変換前の ApiResponseUtil.success / authenticationError / notFoundError / internalServerError と
+ * 同一（success/status/message/error/errorCode）であることを検証する（requestId/timestamp は除外）。
+ */
 describe('CharacterController', () => {
   let controller: CharacterController
   let characterService: jest.Mocked<CharacterService>
   let authService: jest.Mocked<AuthService>
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
+
+  const reflector = new Reflector()
 
   // モックデータ定義
   const mockUser = {
@@ -27,7 +48,6 @@ describe('CharacterController', () => {
     userName: 'テストユーザー'
   }
 
-  // CharacterInputDtoを使用した型安全なモックデータ
   const mockCharacterDto: CharacterInputDto = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
@@ -66,31 +86,63 @@ describe('CharacterController', () => {
     skill: { 魔法: { values: { base: 90 } }, 剣術: { values: { base: 80 } } }
   }
 
-  // mockRequest: Express.Request型に準拠
   const mockRequest = (user: any = mockUser): Request => {
     return {
       user,
-      // Express.Requestの必須プロパティを最低限追加
       headers: {},
       body: {},
       query: {},
       params: {},
       get: jest.fn()
-      // ...他の必要なプロパティはテストごとに追加
     } as unknown as Request
   }
 
-  // mockResponse: Express.Response型に準拠
-  const mockResponse = (): Response => {
-    const res = {} as Partial<Response>
-    res.status = jest.fn().mockReturnValue(res)
-    res.json = jest.fn().mockReturnValue(res)
-    // ...他の必要なメソッドはテストごとに追加
-    return res as Response
+  // --- envelope 再現ヘルパ（実機の interceptor / filter を直接利用） ---
+
+  /** ハンドラ戻り値を ResponseInterceptor に通して最終 envelope（成功）を得る */
+  const wrapSuccess = async (method: keyof CharacterController, data: unknown): Promise<any> => {
+    const interceptor = new ResponseInterceptor(reflector)
+    const ctx = { getHandler: () => controller[method] } as unknown as ExecutionContext
+    const next: CallHandler = { handle: () => of(data) }
+    return lastValueFrom(interceptor.intercept(ctx, next))
+  }
+
+  /** throw された例外を CharacterHttpExceptionFilter に通して { status, body } を得る */
+  const filterError = (error: unknown): { status: number; body: any } => {
+    const filter = new CharacterHttpExceptionFilter()
+    const captured: { status?: number; body?: any } = {}
+    const res = {
+      status: (s: number) => {
+        captured.status = s
+        return res
+      },
+      json: (b: any) => {
+        captured.body = b
+        return res
+      }
+    } as unknown as Response
+    const host = {
+      switchToHttp: () => ({ getResponse: () => res, getRequest: () => ({}) })
+    } as unknown as ArgumentsHost
+    filter.catch(error, host)
+    return { status: captured.status!, body: captured.body }
+  }
+
+  /** requestId / timestamp を除いた比較用オブジェクト */
+  const stripVolatile = (payload: any): Record<string, unknown> => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { requestId, timestamp, ...rest } = payload
+    return rest
+  }
+
+  /** ApiResponseUtil.* が生成する envelope を取り出す（参照値） */
+  const refEnvelope = (fn: (res: Response) => void): any => {
+    const ref: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() }
+    fn(ref as Response)
+    return ref.json.mock.calls[0][0]
   }
 
   beforeEach(async () => {
-    // CharacterService用のモック
     const characterServiceMock = {
       create: jest.fn(),
       findHavingAll: jest.fn(),
@@ -104,7 +156,6 @@ describe('CharacterController', () => {
       search: jest.fn()
     }
 
-    // AuthService用のモック
     const authServiceMock = {
       validateToken: jest.fn(),
       generateJwt: jest.fn(),
@@ -119,7 +170,6 @@ describe('CharacterController', () => {
       getValidDiscordAccessToken: jest.fn()
     }
 
-    // TypedEventService（副作用境界）用のモック
     const typedEventServiceMock = {
       emit: jest.fn()
     }
@@ -127,18 +177,9 @@ describe('CharacterController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CharacterController],
       providers: [
-        {
-          provide: CharacterService,
-          useValue: characterServiceMock
-        },
-        {
-          provide: AuthService,
-          useValue: authServiceMock
-        },
-        {
-          provide: TypedEventService,
-          useValue: typedEventServiceMock
-        }
+        { provide: CharacterService, useValue: characterServiceMock },
+        { provide: AuthService, useValue: authServiceMock },
+        { provide: TypedEventService, useValue: typedEventServiceMock }
       ]
     })
       .overrideGuard(JwtAuthGuard)
@@ -174,195 +215,212 @@ describe('CharacterController', () => {
 
   describe('POST /character', () => {
     it('作成に成功すると201でServiceにdiscordUserIdを付与して委譲する', async () => {
-      // Arrange
       const req: any = mockRequest()
-      const res: any = mockResponse()
       characterService.create.mockResolvedValue(mockCharacter)
 
-      // Act
-      await controller.create(mockCharacterDto, req, res)
+      const data = await controller.create(mockCharacterDto, req)
 
-      // Assert: 委譲とレスポンスの両方を検証
       expect(characterService.create).toHaveBeenCalledWith({
         ...mockCharacterDto,
         discordUserId: mockUser.discordUserId
       })
-      expect(res.status).toHaveBeenCalledWith(201)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.objectContaining(mockCharacter)
-        })
+      expect(data).toEqual(mockCharacter)
+
+      // interceptor 経由の最終 envelope（status は @HttpCode(201)、message は @ResponseMessage で保持）
+      const envelope = await wrapSuccess('create', data)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(res, mockCharacter, 'character', 201, 'キャラクターを作成しました')
+          )
+        )
       )
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
-      const res: any = mockResponse()
 
-      await controller.create(mockCharacterDto, req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      await expect(controller.create(mockCharacterDto, req)).rejects.toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.create).not.toHaveBeenCalled()
     })
 
     it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
-      const res: any = mockResponse()
 
-      await controller.create(mockCharacterDto, req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      let thrown: unknown
+      try {
+        await controller.create(mockCharacterDto, req)
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.create).not.toHaveBeenCalled()
+
+      // filter 経由の最終 envelope が authenticationError と一致
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(401)
+      expect(stripVolatile(body)).toEqual(
+        stripVolatile(refEnvelope((res) => ApiResponseUtil.authenticationError(res, '認証トークンがありません')))
+      )
     })
 
     it('Service作成エラー時は500を返す', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
-      characterService.create.mockRejectedValue(new Error('Character creation failed'))
+      const error = new Error('Character creation failed')
+      characterService.create.mockRejectedValue(error)
 
-      await controller.create(mockCharacterDto, req, res)
+      await expect(controller.create(mockCharacterDto, req)).rejects.toBe(error)
 
-      expect(res.status).toHaveBeenCalledWith(500)
+      // filter 経由で internalServerError と一致
+      const { status, body } = filterError(error)
+      expect(status).toBe(500)
+      expect(stripVolatile(body)).toEqual(
+        stripVolatile(refEnvelope((res) => ApiResponseUtil.internalServerError(res, error)))
+      )
     })
   })
 
   describe('GET /character', () => {
-    it('認証済みユーザーの全キャラクターを200で返す', async () => {
+    it('認証済みユーザーの全キャラクターを200で返す（meta付き）', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
       const mockCharacters = [mockCharacter, { ...mockCharacter, characterId: 'character-002' }]
       characterService.findHavingAll.mockResolvedValue(mockCharacters)
 
-      await controller.findAll(req, res)
+      const result = await controller.findAll(req)
 
       expect(characterService.findHavingAll).toHaveBeenCalledWith(mockUser.discordUserId)
-      expect(res.status).toHaveBeenCalledWith(200)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.arrayContaining(mockCharacters)
-        })
+      // findAll は meta 保持のため SuccessResponse を直接返す
+      expect(result).toBeInstanceOf(SuccessResponse)
+
+      const meta = { total: 2, page: 1, limit: 2, hasNext: false, hasPrev: false }
+      // interceptor は SuccessResponse を素通しするため最終 envelope = result
+      const envelope = await wrapSuccess('findAll', result)
+      expect(envelope).toBe(result)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(res, mockCharacters, 'character', 200, 'キャラクター一覧を取得しました', meta)
+          )
+        )
       )
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
-      const res: any = mockResponse()
 
-      await controller.findAll(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      await expect(controller.findAll(req)).rejects.toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
     it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
-      const res: any = mockResponse()
 
-      await controller.findAll(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      await expect(controller.findAll(req)).rejects.toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
     it('ServiceのfindHavingAllエラー時は500を返す', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
-      characterService.findHavingAll.mockRejectedValue(new Error('Database error'))
+      const error = new Error('Database error')
+      characterService.findHavingAll.mockRejectedValue(error)
 
-      await controller.findAll(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(500)
+      await expect(controller.findAll(req)).rejects.toBe(error)
+      expect(filterError(error).status).toBe(500)
     })
   })
 
   describe('GET /character/summaries', () => {
-    it('認証済みユーザーのサマリー一覧を200で返す', async () => {
+    it('認証済みユーザーのサマリー一覧を200で返す（meta付き）', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
       const mockSummaries = [mockCharacterSummary, { ...mockCharacterSummary, characterId: 'character-002' }]
       characterService.findUserCharacterSummaries.mockResolvedValue(mockSummaries)
 
-      await controller.findUserCharacterSummaries(req, res)
+      const result = await controller.findUserCharacterSummaries(req)
 
       expect(characterService.findUserCharacterSummaries).toHaveBeenCalledWith(mockUser.discordUserId)
-      expect(res.status).toHaveBeenCalledWith(200)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.arrayContaining(mockSummaries)
-        })
+      expect(result).toBeInstanceOf(SuccessResponse)
+
+      const meta = { total: 2, page: 1, limit: 2, hasNext: false, hasPrev: false }
+      const envelope = await wrapSuccess('findUserCharacterSummaries', result)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(res, mockSummaries, 'character', 200, 'キャラクターサマリーを取得しました', meta)
+          )
+        )
       )
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = { user: null }
-      const res: any = mockResponse()
 
-      await controller.findUserCharacterSummaries(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      await expect(controller.findUserCharacterSummaries(req)).rejects.toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
     it('discordUserIdが無い場合は401を返しServiceを呼ばない', async () => {
       const req: any = mockRequest({ ...mockUser, discordUserId: '' } as any)
-      const res: any = mockResponse()
 
-      await controller.findUserCharacterSummaries(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(401)
+      await expect(controller.findUserCharacterSummaries(req)).rejects.toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
     it('ServiceのfindUserCharacterSummariesエラー時は500を返す', async () => {
       const req: any = mockRequest()
-      const res: any = mockResponse()
-      characterService.findUserCharacterSummaries.mockRejectedValue(new Error('Database error'))
+      const error = new Error('Database error')
+      characterService.findUserCharacterSummaries.mockRejectedValue(error)
 
-      await controller.findUserCharacterSummaries(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(500)
+      await expect(controller.findUserCharacterSummaries(req)).rejects.toBe(error)
+      expect(filterError(error).status).toBe(500)
     })
   })
 
   describe('GET /character/:id', () => {
     it('指定IDのキャラクターを200で返す', async () => {
       const characterId = 'test-character-001'
-      const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(mockCharacter)
 
-      await controller.findOne({ id: characterId }, res)
+      const data = await controller.findOne({ id: characterId })
 
       expect(characterService.findOne).toHaveBeenCalledWith(characterId)
-      expect(res.status).toHaveBeenCalledWith(200)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.objectContaining(mockCharacter)
-        })
+      expect(data).toEqual(mockCharacter)
+
+      const envelope = await wrapSuccess('findOne', data)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(res, mockCharacter, 'character', 200, 'キャラクターを取得しました')
+          )
+        )
       )
     })
 
     it('キャラクターが見つからない場合は404を返す', async () => {
       const characterId = 'non-existent-character'
-      const res: any = mockResponse()
       characterService.findOne.mockResolvedValue(null)
 
-      await controller.findOne({ id: characterId }, res)
+      let thrown: unknown
+      try {
+        await controller.findOne({ id: characterId })
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterNotFoundException)
 
-      expect(res.status).toHaveBeenCalledWith(404)
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(404)
+      expect(stripVolatile(body)).toEqual(
+        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
+      )
     })
 
     it('ServiceのfindOneエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
-      const res: any = mockResponse()
-      characterService.findOne.mockRejectedValue(new Error('Database error'))
+      const error = new Error('Database error')
+      characterService.findOne.mockRejectedValue(error)
 
-      await controller.findOne({ id: characterId }, res)
-
-      expect(res.status).toHaveBeenCalledWith(500)
+      await expect(controller.findOne({ id: characterId })).rejects.toBe(error)
+      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -370,96 +428,114 @@ describe('CharacterController', () => {
     it('更新に成功すると200を返しcharacter.updatedイベントを発行する', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
-      const res: any = mockResponse()
       characterService.update.mockResolvedValue(updatedCharacter)
 
-      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
+      const data = await controller.update({ id: characterId }, mockUpdateCharacterDto)
 
       expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
-      // 副作用（イベント発行）の検証
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'character.updated',
-        expect.objectContaining({
-          character: updatedCharacter,
-          source: 'character-controller'
-        })
+        expect.objectContaining({ character: updatedCharacter, source: 'character-controller' })
       )
-      expect(res.status).toHaveBeenCalledWith(200)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.objectContaining(updatedCharacter)
-        })
+      expect(data).toEqual(updatedCharacter)
+
+      const envelope = await wrapSuccess('update', data)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(res, updatedCharacter, 'character', 200, 'キャラクターを更新しました')
+          )
+        )
       )
     })
 
     it('更新対象が見つからない場合は404を返しイベントを発行しない', async () => {
       const characterId = 'non-existent-character'
-      const res: any = mockResponse()
       characterService.update.mockResolvedValue(null)
 
-      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
-
-      expect(res.status).toHaveBeenCalledWith(404)
+      let thrown: unknown
+      try {
+        await controller.update({ id: characterId }, mockUpdateCharacterDto)
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterNotFoundException)
       expect(typedEventService.emit).not.toHaveBeenCalled()
+
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(404)
+      expect(stripVolatile(body)).toEqual(
+        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
+      )
     })
 
     it('Serviceのupdateエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
-      const res: any = mockResponse()
-      characterService.update.mockRejectedValue(new Error('Database error'))
+      const error = new Error('Database error')
+      characterService.update.mockRejectedValue(error)
 
-      await controller.update({ id: characterId }, mockUpdateCharacterDto, res)
-
-      expect(res.status).toHaveBeenCalledWith(500)
+      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto)).rejects.toBe(error)
+      expect(filterError(error).status).toBe(500)
     })
   })
 
   describe('DELETE /character/:id', () => {
     it('削除に成功すると200を返しcharacter.deletedイベントを発行する', async () => {
       const characterId = 'test-character-001'
-      const res: any = mockResponse()
       characterService.remove.mockResolvedValue(mockCharacter)
 
-      await controller.remove({ id: characterId }, res)
+      const data = await controller.remove({ id: characterId })
 
       expect(characterService.remove).toHaveBeenCalledWith(characterId)
-      // 副作用（イベント発行）の検証
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'character.deleted',
-        expect.objectContaining({
-          character: mockCharacter,
-          source: 'character-controller'
-        })
+        expect.objectContaining({ character: mockCharacter, source: 'character-controller' })
       )
-      expect(res.status).toHaveBeenCalledWith(200)
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({ characterId })
-        })
+      expect(data).toEqual({ message: 'キャラクターを削除しました', characterId })
+
+      const envelope = await wrapSuccess('remove', data)
+      expect(stripVolatile(envelope)).toEqual(
+        stripVolatile(
+          refEnvelope((res) =>
+            ApiResponseUtil.success(
+              res,
+              { message: 'キャラクターを削除しました', characterId },
+              'character',
+              200,
+              'キャラクターを削除しました'
+            )
+          )
+        )
       )
     })
 
     it('削除対象が見つからない場合は404を返しイベントを発行しない', async () => {
       const characterId = 'non-existent-character'
-      const res: any = mockResponse()
       characterService.remove.mockResolvedValue(null)
 
-      await controller.remove({ id: characterId }, res)
-
-      expect(res.status).toHaveBeenCalledWith(404)
+      let thrown: unknown
+      try {
+        await controller.remove({ id: characterId })
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterNotFoundException)
       expect(typedEventService.emit).not.toHaveBeenCalled()
+
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(404)
+      expect(stripVolatile(body)).toEqual(
+        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
+      )
     })
 
     it('Serviceのremoveエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
-      const res: any = mockResponse()
-      characterService.remove.mockRejectedValue(new Error('Database error'))
+      const error = new Error('Database error')
+      characterService.remove.mockRejectedValue(error)
 
-      await controller.remove({ id: characterId }, res)
-
-      expect(res.status).toHaveBeenCalledWith(500)
+      await expect(controller.remove({ id: characterId })).rejects.toBe(error)
+      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -472,28 +548,34 @@ describe('CharacterController', () => {
   })
 
   describe('エラーハンドリング統合テスト', () => {
-    it('各種の認証欠落パターンで一貫して401を返す', async () => {
+    it('各種の認証欠落パターンで一貫して401(CharacterAuthenticationException)を投げる', async () => {
       const userCases = [null, {}, { discordUserId: null }, { discordUserId: '' }]
 
       for (const user of userCases) {
         const req: any = { user }
-        const res: any = mockResponse()
 
-        await controller.create(mockCharacterDto, req, res)
-        await controller.findAll(req, res)
-        await controller.findUserCharacterSummaries(req, res)
-
-        // create/findAll/findUserCharacterSummaries の3回とも401
-        expect(res.status).toHaveBeenCalledWith(401)
-        expect(res.status).toHaveBeenCalledTimes(3)
+        for (const act of [
+          () => controller.create(mockCharacterDto, req),
+          () => controller.findAll(req),
+          () => controller.findUserCharacterSummaries(req)
+        ]) {
+          let thrown: unknown
+          try {
+            await act()
+          } catch (e) {
+            thrown = e
+          }
+          expect(thrown).toBeInstanceOf(CharacterAuthenticationException)
+          // filter 経由で 401 envelope（authenticationError と一致）
+          expect(filterError(thrown).status).toBe(401)
+        }
       }
     })
 
-    it('全メソッドでServiceエラーは500として返る（throwしない）', async () => {
+    it('全メソッドでServiceエラーは500 envelope に整形される', async () => {
       const req: any = mockRequest()
       const serviceError = new Error('Service unavailable')
 
-      // 各メソッドでサービスエラーが500レスポンスに変換されることを確認
       characterService.create.mockRejectedValue(serviceError)
       characterService.findHavingAll.mockRejectedValue(serviceError)
       characterService.findUserCharacterSummaries.mockRejectedValue(serviceError)
@@ -502,15 +584,21 @@ describe('CharacterController', () => {
       characterService.remove.mockRejectedValue(serviceError)
 
       for (const act of [
-        () => controller.create(mockCharacterDto, req, mockResponse() as any),
-        () => controller.findAll(req, mockResponse() as any),
-        () => controller.findUserCharacterSummaries(req, mockResponse() as any),
-        () => controller.findOne({ id: 'test-id' }, mockResponse() as any),
-        () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto, mockResponse() as any),
-        () => controller.remove({ id: 'test-id' }, mockResponse() as any)
+        () => controller.create(mockCharacterDto, req),
+        () => controller.findAll(req),
+        () => controller.findUserCharacterSummaries(req),
+        () => controller.findOne({ id: 'test-id' }),
+        () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto),
+        () => controller.remove({ id: 'test-id' })
       ]) {
-        // throwせずに解決すること自体が「graceful」を保証
-        await expect(act()).resolves.toBeUndefined()
+        let thrown: unknown
+        try {
+          await act()
+        } catch (e) {
+          thrown = e
+        }
+        // 変換前は res に 500 を書いて解決していた。変換後は throw → filter が 500 envelope へ整形
+        expect(filterError(thrown).status).toBe(500)
       }
     })
   })
