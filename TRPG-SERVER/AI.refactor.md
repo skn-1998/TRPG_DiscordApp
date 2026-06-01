@@ -33,6 +33,45 @@
 
 ---
 
+## 2026-06-01 H9-character エラーハンドリング統合（character.controller・挙動完全保存）
+
+ブランチ `refactor/error-handling-h9-character`。対象は `domains/character/character.controller.ts`（9 メソッド全てが `@Res()`＋手動 try/catch＋`ApiResponseUtil` 直呼び）。auth/user と同様に `core/http` の `ResponseInterceptor`＋例外フィルタへ controller スコープで置換し、**envelope/status/message/error/errorCode を完全保存**。`ApiResponseUtil` 本体・他 controller・core/http 共通実装は不変。グローバル登録なし。
+
+### auth/user との差分と最小追加
+
+character は汎用 `ApiResponseUtil.error` ではなく**専用ヘルパ**（`authenticationError`/`notFoundError`/`internalServerError`）を使っており、これらは `errorCode` と固定 `message`（'認証エラー'/'未発見エラー'/'サーバーエラー'）を持つ `ErrorResponse` サブクラスを生成していた。共通 `HttpExceptionFilter` は `errorCode` を再現できないため、character スコープ専用に最小追加した（`src/domains/character/character-http.exception.ts`）。
+
+- **`CharacterHttpExceptionFilter`（`@Catch()`）**：`CharacterAuthenticationException`→`AuthenticationErrorResponse`(401)、`CharacterNotFoundException`→`NotFoundErrorResponse`(404)、それ以外→`InternalServerErrorResponse`(500)。いずれも core/http の DTO を再利用するため envelope は `ApiResponseUtil.authenticationError/notFoundError/internalServerError` と完全一致。
+- 成功封筒化は共通 `ResponseInterceptor`＋`@ResponseMessage`/`@HttpCode` を流用。**meta を持つ一覧系**（findAll/summaries）は interceptor が meta を落とすため、`SuccessResponse(data, message, meta, uuidv4())` を直接 return（interceptor は `instanceof SuccessResponse` を素通し）して meta を保存。
+
+### エンドポイント別 保存マッピング
+
+| method                     | success (status / message)                                                                | error                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| create                     | 201 / 'キャラクターを作成しました'                                                        | 認証欠落 401(authenticationError,'認証トークンがありません') / DB 500(internalServerError) |
+| findAll                    | 200 / 'キャラクター一覧を取得しました'（meta 付き）                                       | 同上 401 / 500                                                                             |
+| findUserCharacterSummaries | 200 / 'キャラクターサマリーを取得しました'（meta 付き）                                   | 同上 401 / 500                                                                             |
+| findOne                    | 200 / 'キャラクターを取得しました'                                                        | not found 404(notFoundError,'キャラクター') / 500                                          |
+| update                     | 200 / 'キャラクターを更新しました'（character.updated emit）                              | 404 / 500                                                                                  |
+| remove                     | 200 / 'キャラクターを削除しました'（`{message,characterId}`・character.deleted emit）     | 404 / 500                                                                                  |
+| updateDiscordEmbed         | 200 / 'キャラクター情報の取得が完了しました'                                              | 認証 401 / not found 404 / 500                                                             |
+| createDiscordThread        | 201 / 'Discordスレッド作成を開始しました'（discord.thread.create.requested emit）         | 401 / 404 / 500                                                                            |
+| displayCharacterOnDiscord  | 200 / 'Discordキャラクター表示を開始しました'（discord.character.display.requested emit） | 401 / 404 / 500                                                                            |
+
+Discord 連携 3 メソッドは cookie/redirect の副作用が無く、`@Res()` を完全に return 化（`@SkipResponseWrapper` 不要）。`extractAuthenticatedUser` は `UnauthorizedException`→`CharacterAuthenticationException` に変更（catch 経由の authenticationError と同一 envelope）。
+
+### 検証結果
+
+- `git grep '@Res()' character.controller.ts`：0 件。
+- `pnpm run build` 成功。
+- `pnpm test character.controller.spec.ts`：**26/26 緑**。spec は新方式（戻り値/throw 検証）＋実機同様の interceptor/filter を介した最終 envelope を `ApiResponseUtil.success/authenticationError/notFoundError/internalServerError` と requestId/timestamp 除き完全一致比較。
+- `pnpm run check:circular`：**No circular dependency found**（新規循環なし。character-http.exception は core/dto のみ参照）。
+- 既存の `character.integration.spec.ts`（実 DB 依存・トランザクション/イベント）は**変更前から 7 failed の pre-existing**（stash で確認、本変更と無関係）。`character.crud.spec.ts` は単独実行で 9/9 緑（フル並列実行時のみ DB 競合で flaky）。
+
+### 残課題
+
+- 実 HTTP 経由の E2E は未実施。最終的に auth/user/character を共通フィルタ＋グローバル登録へ寄せる際、character の専用 errorCode 保存をどう一般化するか（共通 `HttpExceptionFilter` の `ApiError` 拡張 or 専用例外の昇格）を検討。
+
 ## 2026-06-01 H9 エラーハンドリング統合（auth/user controller のみ・挙動完全保存）
 
 ブランチ `refactor/error-handling-h9`。対象は `domains/auth/auth.controller.ts` と `domains/user/user.controller.ts` の 2 つのみ。`character.controller` 他・`ApiResponseUtil` 本体は不変。**レスポンス形（envelope/status/message）を一切変えない**ことを成功条件に、`@Res()`＋try/catch＋`ApiResponseUtil` 直呼びの NestJS アンチパターンを宣言的方式へ置換した。
