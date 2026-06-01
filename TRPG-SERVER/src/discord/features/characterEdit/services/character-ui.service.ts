@@ -1,40 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common'
 import {
+  ActionRowBuilder,
   ChannelType,
-  EmbedBuilder,
   TextChannel,
   MessageCreateOptions,
-  ActionRowBuilder,
   StringSelectMenuBuilder,
-  ButtonBuilder,
   StringSelectMenuInteraction
 } from 'discord.js'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { SendMessageDto, EmbedDto } from '../../../dto/send-message.dto'
+import { SendMessageDto } from '../../../dto/send-message.dto'
 import { CreateChannelDto } from '../../../dto/create-channel.dto'
 import { Character } from '../../../../domains/character/models/character.model'
-
-interface GuildInfo {
-  id: string
-  name: string
-  memberCount: number
-  channels: Array<{ id: string; name: string; type: string }>
-}
-
-interface EmbedData {
-  title: string
-  description: string
-  color: number
-  fields: Array<{
-    name: string
-    value: string
-    inline: boolean
-  }>
-}
+import {
+  CHARACTER_EMBED_TITLE_KEYWORD,
+  GuildInfo,
+  buildChannelStatusText,
+  buildCharacterDeletionNotificationMessage,
+  buildCharacterEmbed,
+  buildCharacterEmbedData,
+  buildCharacterUpdateNotificationMessage,
+  buildFieldSelectMenu,
+  buildSectionSelectMenu,
+  buildSectionSelectMenuWithBack,
+  extractCharacterIdFromSectionSelect,
+  isSectionSelectCustomId,
+  toSelectMenuRow
+} from '../utils/character-ui.util'
 
 /**
  * キャラクター関連のDiscord UI操作サービス
  * キャラクター機能専用のUI操作を担当
+ *
+ * 純粋な構築ロジック（embed / select menu / 文言整形）は character-ui.util.ts に分離し、
+ * 本サービスは channel 取得・送信・編集などの Discord I/O オーケストレーションを担う。
  */
 @Injectable()
 export class CharacterUIService {
@@ -129,12 +127,7 @@ export class CharacterUIService {
       // 既存のキャラクターEmbedを検索
       const existingEmbed = await this.findExistingCharacterEmbed(channel as TextChannel)
 
-      const embedData = this.createCharacterEmbedData(character, guildInfo)
-      const embed = new EmbedBuilder()
-        .setTitle(embedData.title)
-        .setDescription(embedData.description)
-        .setColor(embedData.color)
-        .addFields(embedData.fields)
+      const embed = buildCharacterEmbed(buildCharacterEmbedData(character, guildInfo))
 
       if (existingEmbed) {
         // 既存のEmbedを更新
@@ -166,7 +159,7 @@ export class CharacterUIService {
           (msg) =>
             msg.author.id === client.user!.id &&
             msg.embeds.length > 0 &&
-            msg.embeds[0].title?.includes('キャラクター情報')
+            msg.embeds[0].title?.includes(CHARACTER_EMBED_TITLE_KEYWORD)
         ) || null
       )
     } catch (error) {
@@ -200,56 +193,6 @@ export class CharacterUIService {
   }
 
   /**
-   * キャラクターEmbedデータを作成
-   */
-  private createCharacterEmbedData(character: Character, guildInfo: GuildInfo): EmbedData {
-    const fields: Array<{ name: string; value: string; inline: boolean }> = []
-
-    // 基本情報
-    if (character.characterName) {
-      fields.push({ name: 'キャラクター名', value: character.characterName, inline: true })
-    }
-
-    // ステータス情報
-    if (character.status) {
-      try {
-        const statusObj = typeof character.status === 'string' ? JSON.parse(character.status) : character.status
-        Object.entries(statusObj).forEach(([key, value]) => {
-          if (value) {
-            fields.push({ name: key, value: String(value), inline: true })
-          }
-        })
-      } catch {
-        fields.push({ name: 'ステータス', value: String(character.status), inline: false })
-      }
-    }
-
-    // スキル情報
-    if (character.skill) {
-      try {
-        const skillObj = typeof character.skill === 'string' ? JSON.parse(character.skill) : character.skill
-        const skillText = Object.entries(skillObj)
-          .filter(([, value]) => value)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('\n')
-
-        if (skillText) {
-          fields.push({ name: 'スキル', value: skillText, inline: false })
-        }
-      } catch {
-        fields.push({ name: 'スキル', value: String(character.skill), inline: false })
-      }
-    }
-
-    return {
-      title: `🎭 キャラクター情報 - ${character.characterName || '未設定'}`,
-      description: `サーバー: ${guildInfo.name}\nチャンネル: <#${character.discordChannelId}>`,
-      color: 0x00ff00,
-      fields
-    }
-  }
-
-  /**
    * キャラクターEmbedの更新
    */
   async updateCharacterEmbed(channelId: string, character: Character): Promise<void> {
@@ -270,7 +213,7 @@ export class CharacterUIService {
         (msg) =>
           msg.author.id === client.user?.id &&
           msg.embeds.length > 0 &&
-          msg.embeds[0].title?.includes('キャラクター情報')
+          msg.embeds[0].title?.includes(CHARACTER_EMBED_TITLE_KEYWORD)
       )
 
       // 簡易的なguildInfo作成（getGuildInfoメソッドが見つからないため）
@@ -280,13 +223,7 @@ export class CharacterUIService {
         memberCount: 0,
         channels: []
       }
-      const embedData = this.createCharacterEmbedData(character, guildInfo)
-      const embed = new EmbedBuilder()
-        .setTitle(embedData.title)
-        .setDescription(embedData.description)
-        .setColor(embedData.color)
-        .addFields(embedData.fields)
-        .setTimestamp()
+      const embed = buildCharacterEmbed(buildCharacterEmbedData(character, guildInfo), true)
 
       if (embedMessage) {
         // 既存のEmbedを更新
@@ -312,30 +249,7 @@ export class CharacterUIService {
     updatedFields: string[],
     userId?: string
   ): Promise<void> {
-    const fieldNames = updatedFields
-      .map((field) => {
-        switch (field) {
-          case 'characterName':
-            return 'キャラクター名'
-          case 'status':
-            return 'ステータス'
-          case 'skill':
-            return 'スキル'
-          case 'level':
-            return 'レベル'
-          case 'hp':
-            return 'HP'
-          case 'mp':
-            return 'MP'
-          default:
-            return field
-        }
-      })
-      .join(', ')
-
-    const message = userId
-      ? `<@${userId}> 「${character.characterName}」の${fieldNames}が更新されました！✨`
-      : `「${character.characterName}」の${fieldNames}が更新されました！✨`
+    const message = buildCharacterUpdateNotificationMessage(character, updatedFields, userId)
 
     await this.sendMessage({
       channelId,
@@ -347,9 +261,7 @@ export class CharacterUIService {
    * キャラクター削除完了通知の送信
    */
   async sendCharacterDeletionNotification(channelId: string, characterName: string, userId?: string): Promise<void> {
-    const message = userId
-      ? `<@${userId}> キャラクター「${characterName}」が削除されました。`
-      : `キャラクター「${characterName}」が削除されました。`
+    const message = buildCharacterDeletionNotificationMessage(characterName, userId)
 
     await this.sendMessage({
       channelId,
@@ -378,7 +290,7 @@ export class CharacterUIService {
         (msg) =>
           msg.author.id === client.user?.id &&
           msg.embeds.length > 0 &&
-          msg.embeds[0].title?.includes('キャラクター情報')
+          msg.embeds[0].title?.includes(CHARACTER_EMBED_TITLE_KEYWORD)
       )
 
       // Embedメッセージを削除
@@ -413,18 +325,7 @@ export class CharacterUIService {
         throw new Error('Invalid text channel')
       }
 
-      let statusText = `🎭 ${character.characterName}`
-
-      if (character.status) {
-        try {
-          const statusObj = typeof character.status === 'string' ? JSON.parse(character.status) : character.status
-          if (statusObj.hp) statusText += ` | HP: ${statusObj.hp}`
-          if (statusObj.mp) statusText += ` | MP: ${statusObj.mp}`
-          if (statusObj.level) statusText += ` | Lv: ${statusObj.level}`
-        } catch {
-          // JSON parse失敗時は無視
-        }
-      }
+      const statusText = buildChannelStatusText(character)
 
       await channel.setTopic(statusText)
       this.logger.debug('Channel status display updated')
@@ -517,54 +418,20 @@ export class CharacterUIService {
         throw new Error('Invalid channel')
       }
 
-      // 既にインポート済みのコンポーネントを使用
-
       // キャラクター情報Embedを作成
-      const guildInfo = {
+      const guildInfo: GuildInfo = {
         id: '',
         name: 'TRPG Server',
         memberCount: 0,
         channels: []
       }
-      const embedData = this.createCharacterEmbedData(character, guildInfo)
-      const embed = new EmbedBuilder()
-        .setTitle(embedData.title)
-        .setDescription(embedData.description)
-        .setColor(embedData.color)
-        .addFields(embedData.fields)
-        .setTimestamp()
+      const embed = buildCharacterEmbed(buildCharacterEmbedData(character, guildInfo), true)
 
       // 情報更新セレクトメニューを作成
-      const sectionSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`character-section-select-${character.characterId}`)
-        .setPlaceholder('編集するセクションを選択')
-        .addOptions([
-          {
-            label: '📊 ステータス',
-            value: 'status',
-            description: '基本ステータスを編集'
-          },
-          {
-            label: '⚙️ パラメータ',
-            value: 'parameter',
-            description: '能力値やパラメータを編集'
-          },
-          {
-            label: '⚔️ スキル',
-            value: 'skill',
-            description: '技能や特技を編集'
-          },
-          {
-            label: '🎒 アイテム',
-            value: 'item',
-            description: '装備品やアイテムを編集'
-          }
-        ])
-
-      const sectionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sectionSelectMenu)
+      const sectionRow = toSelectMenuRow(buildSectionSelectMenu(character.characterId))
 
       // Embedとセレクトメニューを送信
-      await (channel as any).send({
+      await (channel as TextChannel).send({
         embeds: [embed],
         components: [sectionRow]
       })
@@ -585,13 +452,13 @@ export class CharacterUIService {
       const customId = interaction.customId
 
       // character-section-select-${characterId} パターンの確認
-      if (!customId.startsWith('character-section-select-')) {
+      if (!isSectionSelectCustomId(customId)) {
         this.logger.warn(`Invalid customId pattern: ${customId}`)
         return
       }
 
       // characterIdを抽出
-      const characterId = customId.replace('character-section-select-', '')
+      const characterId = extractCharacterIdFromSectionSelect(customId)
       if (!characterId) {
         await interaction.reply({
           content: 'キャラクター情報の取得に失敗しました。',
@@ -610,33 +477,7 @@ export class CharacterUIService {
 
       // 「戻る」が選択された場合は元のメニューに戻す
       if (selectedSection === 'back') {
-        const mainSelectMenu = new StringSelectMenuBuilder()
-          .setCustomId(`character-section-select-${characterId}`)
-          .setPlaceholder('編集するセクションを選択')
-          .addOptions([
-            {
-              label: '📊 ステータス',
-              value: 'status',
-              description: '基本ステータスを編集'
-            },
-            {
-              label: '⚙️ パラメータ',
-              value: 'parameter',
-              description: '能力値やパラメータを編集'
-            },
-            {
-              label: '⚔️ スキル',
-              value: 'skill',
-              description: '技能や特技を編集'
-            },
-            {
-              label: '🎒 アイテム',
-              value: 'item',
-              description: '装備品やアイテムを編集'
-            }
-          ])
-
-        const mainRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(mainSelectMenu)
+        const mainRow = toSelectMenuRow(buildSectionSelectMenu(characterId))
 
         await interaction.editReply({
           embeds: originalEmbeds,
@@ -646,49 +487,16 @@ export class CharacterUIService {
       }
 
       // 選択されたセクションに応じた詳細編集メニューを作成
-      const fieldSelectMenu = this.createFieldSelectMenu(selectedSection, characterId)
+      const fieldSelectMenu = buildFieldSelectMenu(selectedSection, characterId)
 
-      // 戻るボタンのセレクトメニューも追加
-      const backSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`character-section-select-${characterId}`)
-        .setPlaceholder('別のセクションを選択するか戻る')
-        .addOptions([
-          {
-            label: '⬅️ セクション選択に戻る',
-            value: 'back',
-            description: 'メインのセクション選択画面に戻ります'
-          },
-          {
-            label: '📊 ステータス',
-            value: 'status',
-            description: '基本ステータスを編集'
-          },
-          {
-            label: '⚙️ パラメータ',
-            value: 'parameter',
-            description: '能力値やパラメータを編集'
-          },
-          {
-            label: '⚔️ スキル',
-            value: 'skill',
-            description: '技能や特技を編集'
-          },
-          {
-            label: '🎒 アイテム',
-            value: 'item',
-            description: '装備品やアイテムを編集'
-          }
-        ])
-
-      const components = []
+      const components: ActionRowBuilder<StringSelectMenuBuilder>[] = []
 
       if (fieldSelectMenu) {
-        const fieldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(fieldSelectMenu)
-        components.push(fieldRow)
+        components.push(toSelectMenuRow(fieldSelectMenu))
       }
 
-      const backRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backSelectMenu)
-      components.push(backRow)
+      // 戻るボタンのセレクトメニューも追加
+      components.push(toSelectMenuRow(buildSectionSelectMenuWithBack(characterId)))
 
       await interaction.editReply({
         embeds: originalEmbeds, // 元のEmbedを維持
@@ -704,36 +512,5 @@ export class CharacterUIService {
         })
       }
     }
-  }
-
-  /**
-   * フィールド選択メニューの作成
-   */
-  private createFieldSelectMenu(sectionType: string, characterId: string): StringSelectMenuBuilder | null {
-    const sectionNames: Record<string, string> = {
-      status: 'ステータス',
-      parameter: 'パラメータ',
-      skill: 'スキル',
-      item: 'アイテム'
-    }
-
-    const sectionName = sectionNames[sectionType]
-    if (!sectionName) return null
-
-    return new StringSelectMenuBuilder()
-      .setCustomId(`character-field-edit-${sectionType}-${characterId}`)
-      .setPlaceholder(`編集する${sectionName}を選択`)
-      .addOptions([
-        {
-          label: `➕ 新しい${sectionName}を追加`,
-          value: 'add_new',
-          description: `新しい${sectionName}項目を追加します`
-        },
-        {
-          label: '🔧 編集機能準備中',
-          value: 'coming_soon',
-          description: '詳細な編集機能は準備中です'
-        }
-      ])
   }
 }
