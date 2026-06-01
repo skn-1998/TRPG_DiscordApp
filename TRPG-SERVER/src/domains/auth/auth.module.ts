@@ -1,51 +1,30 @@
-import { forwardRef, Module } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { PassportModule } from '@nestjs/passport'
-import { JwtModule } from '@nestjs/jwt'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
 import { DiscordStrategy } from './discord.strategy'
-import { JwtAuthGuard } from './guards/jwt-auth.guard'
-//  ここの循環参照は、問題ない
-// eslint-disable-next-line import/no-cycle
 import { UserModule } from '../user/user.module'
+import { AuthTokenModule } from './token/auth-token.module'
 import { SharedModule } from '../../core/shared/shared.module'
 import { CookieService } from '../../utils/cookie.service'
 
 /**
  * 認証モジュール
  * 認証と認可に関する機能を提供
+ *
+ * auth -> user は許容方向。H6 で Auth ⇄ User の循環を解消したため、
+ * UserModule は forwardRef ではなく通常 import で参照する。
+ *
+ * JWT 検証プリミティブ（JwtTokenService）と JwtAuthGuard、JwtModule の登録は
+ * 下位の共通モジュール AuthTokenModule に切り出した。AuthModule はそれを import し、
+ * 従来 AuthModule から JwtAuthGuard を解決していた下流モジュール（Character / Discord）の
+ * 互換性のために re-export する。
  */
 @Module({
-  imports: [
-    PassportModule,
-    forwardRef(() => UserModule),
-    ConfigModule,
-    SharedModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET')
-        if (!secret) {
-          throw new Error('JWT_SECRET is required but not configured')
-        }
-
-        return {
-          secret,
-          signOptions: {
-            expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
-            algorithm: 'HS256' as const
-          },
-          verifyOptions: {
-            algorithms: ['HS256' as const] // 使用するアルゴリズムを明示
-          }
-        }
-      }
-    })
-  ],
+  imports: [PassportModule, UserModule, ConfigModule, SharedModule, AuthTokenModule],
   controllers: [AuthController],
-  providers: [AuthService, DiscordStrategy, JwtAuthGuard, ConfigService, CookieService],
-  exports: [AuthService]
+  providers: [AuthService, DiscordStrategy, ConfigService, CookieService],
+  exports: [AuthService, AuthTokenModule]
 })
 export class AuthModule {}
