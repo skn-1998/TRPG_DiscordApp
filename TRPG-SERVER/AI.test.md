@@ -4,6 +4,67 @@
 
 ---
 
+## 🧩 **H3 巨大サービス分割: EnhancedCharacterEditService** **[完了: 2026-06-01]**
+
+### **背景**
+
+`src/discord/features/characterEdit/enhanced-character-edit.service.ts`（815行）は
+character-edit の中核オーケストレーター（6 interaction handler が依存する現役）。spec が無かったため
+**characterization テスト先行**で現挙動を固定してから分割（挙動保存の安全網）。
+
+### **テスタビリティ評価: 緑**
+
+- 公開メソッド7つは「イベント発火 + 依存サービス委譲 + interaction 応答」のオーケストレーション。
+  `@discord-test-utils` の `createMockButtonInteraction` / `createMockSelectMenuInteraction` /
+  `createMockModalInteraction` で全公開挙動を固定可能だった。
+- **重要な現挙動の発見（characterization で確定）**:
+  - `ErrorHandler.handleServiceError` は**常に HttpException を再スロー**する。よって
+    `handleButton/Select/ModalSubmitInteraction` のエラー時は error.occurred を emit した**後に
+    HttpException が呼び出し元へ伝播**する（握りつぶさない）。`displayEnhancedCharacterEdit` も
+    embed 生成失敗時は catch 先頭の handleServiceError で再スローし、フォールバック emit には到達しない。
+  - モーダル送信の characterId 抽出は customId を `-` split し**最後の要素**を採用
+    （`char-edit-status-hp-char-123` → characterId=`'123'`）。一方 error.occurred 側は
+    `extractCharacterIdFromCustomId`（refresh/compact パターンのみ）を使うため `char-edit-*` は
+    マッチせず `'unknown'`。この非対称性は現挙動として固定した。
+
+### **作成テスト**
+
+- `enhanced-character-edit.service.spec.ts`（characterization, 17 PASS）
+  - 固定した挙動: 7 公開メソッドの依存呼び出し・引数・emit イベント名/payload・
+    interaction 応答（showModal/update/deferUpdate+followUp/deferReply+editReply）・エラー時の
+    error.occurred emit と HttpException 再スロー。
+- `utils/enhanced-character-edit.util.spec.ts`（抽出純関数ユニット, 18 PASS）
+
+### **分割設計**
+
+- 新規 `utils/enhanced-character-edit.util.ts`（114行, discord.js 非依存の純粋関数）:
+  `extractCharacterIdFromCustomId` / `parseModalSubmitCustomId` / `parseSectionSelectValue` /
+  `normalizeSectionType` / `messageHasCharacterEditButtons`（Message の最小構造のみ受ける純化版）。
+- 新規 focused service 2つ（character-edit.module の providers に登録・@Global/forwardRef 不使用）:
+  - `services/character-edit-event-emitter.service.ts`（152行）: characterEdit.\* イベント発行
+    （modal.opened/submitted, section.selected+field.selected, embed.refresh.requested, error.occurred）。
+  - `services/character-edit-message-updater.service.ts`（91行）: refresh ボタン時の
+    既存メッセージ探索・編集（`updateExistingCharacterEditEmbed` + `findCharacterEditMessage`）。
+- `EnhancedCharacterEditService` は薄いオーケストレーターへ。**公開 7 メソッド・コンストラクタの
+  公開シグネチャ（追加した協力者2つは新引数だが、6 handler は本サービスを DI 取得するだけで影響なし）は不変**。
+- **デッドコード削除**: `handleCharacterUpdated` / `handleCharacterAutoUpdate`（呼び出し元ゼロ・
+  onModuleInit のイベント登録は既に撤去済みで到達不能）を characterization 緑のまま削除。
+  併せて未使用の private（`isCharacterEditChannel` は handleCharacterDisplayRequested で使用のため残置）。
+- 元サービス **815 行 → 453 行**（-362行 ≒ -44%。util/2 service へ移設）。
+
+### **検証結果**
+
+- `pnpm run build` 成功
+- characterization 17 PASS / 純関数 18 PASS（**分割前→分割後とも characterization 緑＝挙動不変**）
+- `pnpm run check:circular` → **No circular dependency found（循環ゼロ・新規循環なし）**
+- 回帰確認: 同コンストラクタを実体登録していた `event-debug-test.spec.ts` に新協力者2つを
+  provider 追加（テスト意図は不変）。これで baseline と同じ 4 failed/3 passed に復帰。
+  他の既存失敗5スイート（character-notification の `interactions.list` 欠落、channel系の
+  discord.js モック起因 `reading 'ChannelCreate'/'close'`）は `EnhancedCharacterEditService` 非依存で
+  本変更と無関係（stash 比較で baseline と同一を確認）。
+
+---
+
 ## 🧩 **H3 巨大サービス分割: CharacterEmbedManagerService** **[完了: 2026-06-01]**
 
 ### **背景**

@@ -20,6 +20,8 @@ import { CharacterSectionEditorService } from './services/character-section-edit
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
 import { ModalSessionManagerService } from './services/modal-session-manager.service'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
+import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
+import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { CharacterUIService } from './services/character-ui.service'
 
 // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
@@ -66,6 +68,8 @@ import { CharacterUIService } from './services/character-ui.service'
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
+    CharacterEditEventEmitterService,
+    CharacterEditMessageUpdaterService,
     EnhancedCharacterEditService,
     CharacterUIService
 
