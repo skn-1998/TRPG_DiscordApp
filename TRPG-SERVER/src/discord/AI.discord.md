@@ -14,6 +14,23 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ---
 
+## 📝 最新メモ（2026-06-01）
+
+### H3 巨大サービス分割: `dice-roll-pagination.service.ts`（挙動保存）
+
+監査 H3「Discord 巨大サービスが単一責任を超過」対応。`components/pagination/dice-roll-pagination.service.ts`（590 行）を責務ごとに分割。
+
+- **抽出した責務（同 feature 配下に co-locate）**
+  - `dice-roll-pagination.util.ts`（101 行）… 純粋関数（discord.js 非依存・I/O なし）: `resolveHistoryTitle` / `filterRollsByCharacter` / `sortRollsByCreatedAtDesc` / `limitRolls` / `formatDiceRoll` / `computeNewPage` / `clampPage` / `isSpecificCharacter`。モック不要でユニットテスト可能。
+  - `dice-roll-pagination.builder.ts`（196 行）… discord.js の Embed / コンポーネント生成（状態を持たない関数群）: `buildHistoryPages` / `setPageFooters` / `createEmptyEmbed` / `buildPageButtonRow` / `buildPageSelectRow` / `buildCharacterSelectRow`。
+  - `dice-roll-pagination.store.ts`（116 行）… インメモリ状態 + ページ/キャラクターキャッシュ（TTL）。`PaginatedDiceRoll` 型の正本もここへ移し service から再エクスポート。
+  - `dice-roll-pagination.service.ts`（234 行）… 上記を束ねる薄いオーケストレーター。
+- **公開 API は不変**（コンストラクタ 2 引数も維持＝`character-select.spec.ts` が直接 `new` するため）。`@Global`/`forwardRef` 増やさず、provider 登録（interactions.module）も変更なし。
+- 純粋関数の置き場所は ARCHITECTURE §12 に従い「pagination 固有 → 同 feature 配下の util」。`shared/` は横断純関数専用のため使わず。
+- **検証**: `pnpm build` 成功 / `pnpm test src/discord/components/pagination` = 既存 33 + 新規 25（util.spec）= **58 緑** / `check:circular` は許容済み Auth⇄User の 1 件のみ（新規循環なし）。`src/discord` 全体の 13 失敗は本変更前から同数・同一（event-debug の timing 系）で本件と無関係。
+
+---
+
 ## 📝 最新メモ（2026-05-30）
 
 ### Discord 層 統合設計書を作成
