@@ -15,16 +15,18 @@ import {
   ButtonStyle,
   TextChannel,
   ThreadChannel,
-  ComponentType,
   EmbedField
 } from 'discord.js'
-import { v4 as uuidv4 } from 'uuid'
-import { randomBytes } from 'crypto'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
-import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
+import {
+  generateShortCharacterId,
+  buildAttributeFields,
+  buildFieldOptionDisplay,
+  extractDiceRollValue
+} from '../utils/character-embed.util'
 
 /**
  * Embed分割タイプ
@@ -45,21 +47,6 @@ export class CharacterEmbedManagerService {
   private readonly logger = new Logger(CharacterEmbedManagerService.name)
 
   constructor(private readonly typedEventService: TypedEventService) {}
-
-  /**
-   * 短いキャラクターIDを生成（8文字）
-   */
-  private generateShortCharacterId(): string {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-    let result = ''
-    const bytes = randomBytes(8)
-
-    for (let i = 0; i < 8; i++) {
-      result += chars[bytes[i] % chars.length]
-    }
-
-    return result
-  }
 
   /**
    * キャラクター情報を分割Embedで表示
@@ -150,211 +137,67 @@ export class CharacterEmbedManagerService {
    * ステータスEmbed を作成
    */
   private createStatusEmbed(character: Character): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle(`📊 ${character.characterName} - ステータス`)
-      .setColor('#e74c3c')
-      .setTimestamp()
-
-    if (!character.status || Object.keys(character.status).length === 0) {
-      embed.setDescription('ステータス情報がありません。\n編集ボタンから追加してください。')
-      return embed
-    }
-
-    // statusフィールドを処理
-    const fields = this.processCharacterData(character.status, 'ステータス')
-
-    if (fields.length > 0) {
-      // Discord Embedの25フィールド制限を考慮
-      embed.addFields(...fields.slice(0, 24))
-
-      if (fields.length > 24) {
-        embed.setFooter({ text: `${fields.length - 24}個のステータスが省略されています` })
-      }
-    } else {
-      embed.setDescription('表示可能なステータス情報がありません。')
-    }
-
-    return embed
+    return this.createSectionEmbed('📊', 'ステータス', '#e74c3c', character.characterName, character.status)
   }
 
   /**
    * パラメータEmbed を作成
    */
   private createParameterEmbed(character: Character): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle(`⚙️ ${character.characterName} - パラメータ`)
-      .setColor('#34495e')
-      .setTimestamp()
-
-    if (!character.parameter || Object.keys(character.parameter).length === 0) {
-      embed.setDescription('パラメータ情報がありません。\n編集ボタンから追加してください。')
-      return embed
-    }
-
-    // parameterフィールドを処理
-    const fields = this.processCharacterData(character.parameter, 'パラメータ')
-
-    if (fields.length > 0) {
-      // Discord Embedの25フィールド制限を考慮
-      embed.addFields(...fields.slice(0, 24))
-
-      if (fields.length > 24) {
-        embed.setFooter({ text: `${fields.length - 24}個のパラメータが省略されています` })
-      }
-    } else {
-      embed.setDescription('表示可能なパラメータ情報がありません。')
-    }
-
-    return embed
+    return this.createSectionEmbed('⚙️', 'パラメータ', '#34495e', character.characterName, character.parameter)
   }
 
   /**
    * スキルEmbedを作成
    */
   private createSkillEmbed(character: Character): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle(`⚔️ ${character.characterName} - スキル`)
-      .setColor('#9b59b6')
-      .setTimestamp()
-
-    if (!character.skill || Object.keys(character.skill).length === 0) {
-      embed.setDescription('スキル情報がありません。\n編集ボタンから追加してください。')
-      return embed
-    }
-
-    const fields = this.processCharacterData(character.skill, 'スキル')
-
-    if (fields.length > 0) {
-      embed.addFields(...fields.slice(0, 24))
-
-      if (fields.length > 24) {
-        embed.setFooter({ text: `${fields.length - 24}個のスキルが省略されています` })
-      }
-    } else {
-      embed.setDescription('表示可能なスキル情報がありません。')
-    }
-
-    return embed
+    return this.createSectionEmbed('⚔️', 'スキル', '#9b59b6', character.characterName, character.skill)
   }
 
   /**
    * アイテムEmbedを作成
    */
   private createItemEmbed(character: Character): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle(`🎒 ${character.characterName} - アイテム`)
-      .setColor('#f39c12')
-      .setTimestamp()
-
-    if (!character.item || Object.keys(character.item).length === 0) {
-      embed.setDescription('アイテム情報がありません。\n編集ボタンから追加してください。')
-      return embed
-    }
-
-    const fields = this.processCharacterData(character.item, 'アイテム')
-
-    if (fields.length > 0) {
-      embed.addFields(...fields.slice(0, 24))
-
-      if (fields.length > 24) {
-        embed.setFooter({ text: `${fields.length - 24}個のアイテムが省略されています` })
-      }
-    } else {
-      embed.setDescription('表示可能なアイテム情報がありません。')
-    }
-
-    return embed
+    return this.createSectionEmbed('🎒', 'アイテム', '#f39c12', character.characterName, character.item)
   }
 
   /**
-   * キャラクターデータを処理してフィールド配列を作成
+   * セクション別Embedを作成する共通処理
+   *
+   * status/parameter/skill/item の共通の表示ロジックを集約。
+   * フィールドの整形は純粋関数 buildAttributeFields に委譲する。
    */
-  private processCharacterData(data: Record<string, any>, dataType: string): EmbedField[] {
-    this.logger.debug(`Processing ${dataType} data:`, JSON.stringify(data, null, 2))
-    const fields: EmbedField[] = []
+  private createSectionEmbed(
+    emoji: string,
+    sectionName: string,
+    color: `#${string}`,
+    characterName: string,
+    data: Record<string, any> | undefined
+  ): EmbedBuilder {
+    const embed = new EmbedBuilder()
+      .setTitle(`${emoji} ${characterName} - ${sectionName}`)
+      .setColor(color)
+      .setTimestamp()
 
-    for (const [key, value] of Object.entries(data)) {
-      this.logger.debug(`Processing ${dataType} entry - Key: ${key}`)
-      this.logger.debug(`Value:`, JSON.stringify(value, null, 2))
-      console.log(`[EMBED-MANAGER] Processing ${dataType} - ${key}:`, value)
-
-      if (!value || value === null || value === undefined) {
-        this.logger.debug(`Skipping ${key} - null/undefined value`)
-        continue
-      }
-
-      let fieldValue: string
-      let fieldName: string = key
-
-      // AttributeValue型に応じた処理
-      if (typeof value === 'object' && value !== null) {
-        const attr = value as AttributeValue
-
-        // 表示名は name プロパティを優先
-        fieldName = attr.name || key
-
-        // 表示値を構成
-        const valueParts: string[] = []
-
-        // values（合計値）がある場合
-        if (attr.values && Object.keys(attr.values).length > 0) {
-          this.logger.debug(`Processing values for ${fieldName}:`, JSON.stringify(attr.values, null, 2))
-          const totalValue = getDisplayNumber(attr)
-          this.logger.debug(`Calculated total value for ${fieldName}: ${totalValue}`)
-          valueParts.push(`**合計:** ${totalValue}`)
-
-          // 詳細内訳を表示（基本値、バフ等）
-          const detailParts: string[] = []
-          Object.entries(attr.values).forEach(([partKey, partValue]) => {
-            this.logger.debug(`Processing part - Key: ${partKey}, Value: ${partValue}, Type: ${typeof partValue}`)
-            console.log(`[EMBED-MANAGER] partKey: ${partKey}, partValue: ${partValue}, type: ${typeof partValue}`)
-            if (typeof partValue === 'number' && partValue !== 0) {
-              const formattedPart = `${partKey}: ${partValue > 0 ? '+' : ''}${partValue}`
-              detailParts.push(formattedPart)
-              this.logger.debug(`Added detail part: ${formattedPart}`)
-            } else {
-              this.logger.debug(`Skipped part - not a number or zero: ${partKey} = ${partValue}`)
-            }
-          })
-
-          this.logger.debug(`Detail parts for ${fieldName}:`, detailParts)
-          if (detailParts.length > 0) {
-            const detailText = `(${detailParts.join(', ')})`
-            valueParts.push(detailText)
-            this.logger.debug(`Added detail text: ${detailText}`)
-          }
-        }
-
-        // dice（ダイス）がある場合
-        if (attr.dice) {
-          valueParts.push(`🎲 **ダイス:** ${attr.dice}`)
-        }
-
-        // description（説明）がある場合
-        if (attr.description) {
-          valueParts.push(`💬 ${attr.description}`)
-        }
-
-        fieldValue = valueParts.length > 0 ? valueParts.join('\n') : '値が設定されていません'
-      } else {
-        fieldValue = String(value)
-      }
-
-      // 空の値をスキップ
-      if (!fieldValue || fieldValue.trim() === '' || fieldValue === 'undefined') continue
-
-      // Discord Embed field length limits
-      if (fieldName.length > 256) fieldName = fieldName.substring(0, 253) + '...'
-      if (fieldValue.length > 1024) fieldValue = fieldValue.substring(0, 1021) + '...'
-
-      fields.push({
-        name: fieldName,
-        value: fieldValue,
-        inline: true
-      })
+    if (!data || Object.keys(data).length === 0) {
+      embed.setDescription(`${sectionName}情報がありません。\n編集ボタンから追加してください。`)
+      return embed
     }
 
-    return fields
+    const fields = buildAttributeFields(data)
+
+    if (fields.length > 0) {
+      // Discord Embedの25フィールド制限を考慮
+      embed.addFields(...fields.slice(0, 24))
+
+      if (fields.length > 24) {
+        embed.setFooter({ text: `${fields.length - 24}個の${sectionName}が省略されています` })
+      }
+    } else {
+      embed.setDescription(`表示可能な${sectionName}情報がありません。`)
+    }
+
+    return embed
   }
 
   /**
@@ -478,22 +321,8 @@ export class CharacterEmbedManagerService {
     for (const [key, value] of Object.entries(data)) {
       if (buttonCount >= maxTotalButtons) break
 
-      let name: string
-      let rollValue: number
-
-      // データの形式を判定
-      if (value && typeof value === 'object') {
-        if ('name' in value && 'value' in value) {
-          name = value.name as string
-          rollValue = Number(value.value) || 0
-        } else {
-          name = key
-          rollValue = Number(value) || 0
-        }
-      } else {
-        name = key
-        rollValue = Number(value) || 0
-      }
+      // データの形式を判定（純粋関数へ委譲）
+      const { name, rollValue } = extractDiceRollValue(key, value)
 
       // ロール値が0以下の場合はスキップ
       if (rollValue <= 0) continue
@@ -612,55 +441,8 @@ export class CharacterEmbedManagerService {
     const fieldEntries = Object.entries(data).slice(0, 23) // Discord制限考慮
 
     for (const [key, value] of fieldEntries) {
-      let displayName = key
-      let displayValue = String(value)
-
-      // AttributeValue型またはレガシー形式を処理
-      if (typeof value === 'object' && value !== null) {
-        const attr = value
-
-        this.logger.debug(`Field select menu - processing object: ${key}`, attr)
-
-        if (attr.values && typeof attr.values === 'object') {
-          // AttributeValue形式の場合
-          displayName = attr.name || key
-
-          // 表示値を構成
-          const displayParts: string[] = []
-
-          // values（合計値）がある場合
-          if (Object.keys(attr.values).length > 0) {
-            const totalValue = getDisplayNumber(attr)
-            displayParts.push(`合計: ${totalValue}`)
-          }
-
-          // dice（ダイス）がある場合
-          if (attr.dice) {
-            displayParts.push(`ダイス: ${attr.dice}`)
-          }
-
-          // description（説明）がある場合
-          if (attr.description) {
-            displayParts.push(attr.description)
-          }
-
-          displayValue = displayParts.length > 0 ? displayParts.join(' | ') : '設定値なし'
-        } else if (attr.name && 'value' in attr) {
-          // レガシー形式の場合
-          displayName = attr.name || key
-          displayValue = String(attr.value || '値なし')
-        } else {
-          // その他のオブジェクト形式
-          displayName = key
-          displayValue = 'オブジェクト形式'
-        }
-
-        this.logger.debug(`Field select menu - final display: ${displayName} = ${displayValue}`)
-      }
-
-      // 表示用に短縮
-      if (displayName.length > 100) displayName = displayName.substring(0, 97) + '...'
-      if (displayValue.length > 100) displayValue = displayValue.substring(0, 97) + '...'
+      // AttributeValue / レガシー形式の表示整形を純粋関数へ委譲（短縮処理含む）
+      const { displayName, displayValue } = buildFieldOptionDisplay(key, value)
 
       options.push(
         new StringSelectMenuOptionBuilder()
@@ -711,7 +493,7 @@ export class CharacterEmbedManagerService {
 
       // CharacterInputDtoからCreateCharacterDtoに変換
       const createData = {
-        characterId: characterData.characterId || this.generateShortCharacterId(),
+        characterId: characterData.characterId || generateShortCharacterId(),
         characterName: characterData.characterName || '',
         gameSystemId: characterData.gameSystemId || '',
         discordUserId: userId,
