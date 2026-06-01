@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-06-01 H6 AuthModule⇄UserModule 循環の解消（forwardRef 撤去・挙動保存）
+
+ブランチ `refactor/auth-user-cycle-h6`。最後まで残っていた `domains/auth/auth.module.ts ⇄ domains/user/user.module.ts`（forwardRef）を解消。ARCHITECTURE §10（AuthService→UserService 許容 / UserModule→AuthModule 原則禁止 / 共通 port 切り出し）に準拠。**認証・トークン検証の挙動は不変**。
+
+循環の真因：`JwtAuthGuard` が `AuthService` を注入していたため、guard を使う UserModule が AuthService→UserService を引き込んで循環していた。さらに UserController が `AuthService.validateToken` を直接利用。
+
+破断方式（JWT 検証 primitive を下位モジュールへ抽出）：
+
+- **新設 `JwtTokenService`**（`src/domains/auth/token/jwt-token.service.ts`）：`AuthService.validateToken`/`parseJwt` のロジックをそのまま移設。依存は `JwtService` のみ（UserService に依存しない）。検証ロジック・例外・戻り値は不変。
+- **新設 `AuthTokenModule`**（`src/domains/auth/token/auth-token.module.ts`）：`JwtModule.registerAsync`（旧 AuthModule の設定を移設）と `ConfigModule` を import し、`JwtTokenService` / `JwtAuthGuard` / `JwtModule` を providers/exports。`@Global` 不使用の下位共通モジュール。
+- **`JwtAuthGuard`**：`AuthService` 注入 → `JwtTokenService` 注入へ繋ぎ替え（`request.user = payload` 等の挙動は不変）。
+- **`AuthService.validateToken`/`parseJwt`**：`JwtTokenService` へ委譲する薄いラッパに変更（AuthController の validate-token 等の既存呼び出しは挙動不変）。
+- **`UserController`**：`AuthService` 注入を撤去し `JwtTokenService` を注入（findOne の validateToken）。`JwtAuthGuard` は AuthTokenModule 由来。`JwtTokenPayload` は型 import のまま。
+
+モジュール配線 before/after：
+
+- `AuthModule`：`forwardRef(() => UserModule)` → 通常 import に戻す。`JwtModule` 登録を撤去し `AuthTokenModule` を import＋**re-export**（下流の Character/Discord が従来どおり AuthModule 経由で JwtAuthGuard を解決できるよう互換維持）。providers から `JwtAuthGuard` 除去。
+- `UserModule`：`forwardRef(() => AuthModule)` を削除し `AuthTokenModule` を import。これで user→auth(module) が消滅。
+
+検証結果：
+
+- `pnpm run build`：成功。
+- `pnpm run check:circular`：**No circular dependency found!（0 件）**。これまで許容していた auth⇄user が消滅し、循環ゼロを達成。
+- `pnpm test src/domains/auth src/domains/user`：5 suites / 66 tests 緑。既存 spec のモック構造を追従（auth.service.spec は実体 JwtTokenService を登録、user.controller.spec は AuthService モック→JwtTokenService モックへ）。新規 `jwt-token.service.spec.ts`（有効/無効トークン検証）を追加。
+- `pnpm run start:dev`：AuthTokenModule/UserModule/AuthModule/CharacterModule/DiscordModule の DI 解決成功、"Nest application successfully started"。
+
+---
+
 ## 2026-06-01 H9 エラーハンドリング統合（auth/user controller のみ・挙動完全保存）
 
 ブランチ `refactor/error-handling-h9`。対象は `domains/auth/auth.controller.ts` と `domains/user/user.controller.ts` の 2 つのみ。`character.controller` 他・`ApiResponseUtil` 本体は不変。**レスポンス形（envelope/status/message）を一切変えない**ことを成功条件に、`@Res()`＋try/catch＋`ApiResponseUtil` 直呼びの NestJS アンチパターンを宣言的方式へ置換した。
