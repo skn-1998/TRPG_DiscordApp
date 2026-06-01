@@ -88,8 +88,9 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
 ### Phase 6: 検証（サブエージェントの主張を自分で裏取りする）
 報告を鵜呑みにせず、メインで最低限を再確認する：
 - `pnpm run build`（nest build）
-- `pnpm run check:circular`（madge --circular）。**UserDomain⇄AuthDomain の 1 件のみ許容**、それ以外の
-  新規循環が出ていないこと。SharedModule 等を経由して循環を増やしていないか必ず確認。
+- `pnpm run check:circular`（madge --circular）。**循環依存はゼロが正常（「No circular dependency found!」）**。
+  かつて許容していた UserDomain⇄AuthDomain は H6 で解消済みなので、**いかなる循環も新規混入させない**こと
+  （SharedModule 等を経由して循環を増やしていないか必ず確認）。
 - Phase 3/5 の動作保証テストを自分で実行して緑を確認。必要なら `pnpm run start:dev` で起動確認。
 - `git diff` で変更範囲が想定どおりか、機密ログ等が消えたかを grep で確認。
 （CLAUDE.md 規約：build 後は start:dev と check:circular を実施して依存関係を確認すること）
@@ -131,7 +132,7 @@ CLAUDE.md 規約「作業終了後は AI.*.md に状況を必ず記載」に従�
 ## 検証（この順で実行し結果を報告）
 1. pnpm run build
 2. pnpm run test <動作保証テスト/関連spec>（緑のまま保つ）
-3. pnpm run check:circular（UserDomain⇄AuthDomain のみ許容・新規循環なし）
+3. pnpm run check:circular（循環ゼロが正常＝No circular dependency found。新規循環なし）
 4. git diff --stat で変更範囲が想定内か確認
 
 ## 報告フォーマット
