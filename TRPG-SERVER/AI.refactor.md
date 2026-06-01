@@ -95,7 +95,7 @@ user: 全 success 200/'成功'。create=err 500/'ユーザー作成に失敗し�
 
 ### 次にやること
 
-- [ ] 横断コード／型の置き場所の決定表を作成し本書と `AI.types.md` に追記
+- [x] 横断コード／型の置き場所の決定表を作成し本書と `AI.types.md` に追記 → **H1 完了（2026-06-01）**：`src/ARCHITECTURE.md` §12 を決定表化（core=DIサービス/インフラ、shared=純粋関数、utils 解消方針、型は core/types 一本化、express 拡張は例外）。`AI.types.md` に正本ポインタ追記。適用（utils/types のファイル移動）は挙動保存の小 PR で順次。
 - [x] `auth.controller.ts` 等の機密 console.log を削除（セキュリティ最優先）→ **Phase S で完了（下記）**
 - [ ] `src/events/DESIGN.md` を作成（バス一本化の具体設計）
 - [ ] High 課題を Issue / Phase plan 化して着手順に並べる

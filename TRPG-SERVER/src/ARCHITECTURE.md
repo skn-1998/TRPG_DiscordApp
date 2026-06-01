@@ -257,34 +257,34 @@ AuthFeature
 
 ---
 
-## 12. Types / Utils 方針
+## 12. 横断コード / 型の置き場所（決定表）
 
-### Types
+横断（cross-cutting）コードと型の置き場所は、「純粋関数か」「DI/フレームワーク依存か」「横断か feature/domain 固有か」で機械的に決める。乱立（`core`/`shared`/`utils`/`types` 重複、型の多系統）を防ぐための規約。
 
-`types/` は全体横断の型だけに限定する。
+### 決定表（コード）
 
-feature / domain 固有型は各 module に置く。
+| 種類                                                                          | 置き場所                          | 例                                                                                                                                                          | 禁止                                                     |
+| ----------------------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 横断インフラ・DI サービス（framework 依存 OK）                                | `core/<領域>/`                    | `core/events`(TypedEventService) / `core/http`(interceptor・filter・decorator) / `core/database` / `core/shared/services`(HttpClientService・CryptoService) | —                                                        |
+| 純粋関数（Nest/discord.js/express を import しない・I/O なし・config 非依存） | `shared/`（純粋関数の単一ホーム） | id 生成・文字列/計算ユーティリティ                                                                                                                          | DI / I/O / framework / config / DB・Discord・HTTP access |
+| feature / domain 固有                                                         | 各 module 配下                    | `domains/character/*` / `discord/features/*`                                                                                                                | 横断扱いにしない                                         |
 
-```txt
-domains/character/types
-features/discord/types
-core/events/contracts
-shared/types
-```
+- **`shared/` と `core/shared` の区別**：`shared/`＝**純粋関数のみ**（依存方向の最下層・誰からも依存され得る・依存ゼロ）。`core/shared`＝**DI サービス**（HttpClient・Crypto 等）。「DI が要るなら core、要らない純関数なら shared」で判断。
+- **`src/utils/` は段階的に解消する**（新規の横断コードを置かない）。現中身の振り分け先：純粋関数（`crypto.util` 等）→ `shared/`、DI サービス（`cookie.service`）→ `core/http` か `auth`、エラー処理（`error-handler`/`error-helpers`）→ `core/http`（H9 の例外フィルタへ統合）。
 
-### Utils
+### 決定表（型）
 
-`utils/` は純粋関数のみ。
+- **横断型は `core/types` に一本化**する（旧 `src/types`・`shared/types` の分散を解消。`shared/types` は撤去済み。残る `src/types` は `core/types` へ集約していく）。
+- feature / domain 固有型は各 module に置く：`domains/*/types`、`discord/features/*/types`、イベント契約は `core/events`/`events/contracts`。
+- **例外（安易に動かさない）**：express の global 型拡張（`src/types/express/index.d.ts` の `Request.user: JwtTokenPayload`）は tsconfig の型解決（typeRoots/include）に関わる。移設するなら tsconfig を必ず整合させる、または express 拡張だけ別管理にする。
 
-禁止:
+### 現状の違反と移行（各々 小さな PR・挙動保存で順次）
 
-- DI が必要な service
-- I/O
-- framework 依存
-- config access
-- database / Discord / HTTP access
+- `src/utils/*` … 上記の振り分け（純関数→`shared`、`cookie.service`→`core`、`error-*`→`core/http`）。
+- `src/types/*` → `core/types` へ集約（express 拡張は上記例外に注意）。
+- `src/shared/utils/id-generator.util.ts` … 純粋関数の単一ホーム方針に沿って配置を確定（`core/shared` と紛らわしくしない）。
 
-`CookieService` のような DI service は `auth` または `core/http` へ移す。
+> この決定表が「どこに何を置くか」の正本。新規コード・リファクタ時はまずこの表で置き場所を決める。型の詳細は `AI.types.md` も参照。
 
 ---
 
