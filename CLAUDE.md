@@ -23,4 +23,4 @@ AI.mdよりも詳細に記載しているので私が質問した事項で必要
 作業終了後はAI.*.mdに状況を必ず記載してください
 
 TRPG-SERVERでpnpm run buildを実行したあとはpnpm run start:devやcheck:circularを実施し、依存関係をチェックすること
-UserDomainとAuthDomainの循環参照は許容されている
+循環依存はゼロ（`check:circular` は「No circular dependency found!」が正常）。かつて許容していた UserDomain⇄AuthDomain は H6（2026-06-01）で解消済み。新たな循環参照は禁止。

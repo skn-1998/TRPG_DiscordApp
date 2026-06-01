@@ -41,9 +41,9 @@ description: >-
 - 日本語で対応し、`pnpm` を使う。着手前に `AI.md`／関連 `AI.*.md` を読み、終了後に状況を `AI.*.md` へ記載する。
 - **TRPG-SERVER で `pnpm run build` 後は `pnpm run start:dev` と `pnpm run check:circular` を実行**し、
   依存関係（循環参照）を確認する。`check:circular` は `madge --circular` による検出。
-- **UserDomain ⇄ AuthDomain の循環参照は許容**（現状 1 件のみ検出される既知の循環）。
-  それ以外の循環参照は禁止。なお `src/ARCHITECTURE.md` では「AuthModule⇄UserModule は将来の解消対象」
-  と位置づけられている（＝今は許容、目標は解消）。
+- **循環依存はゼロ**（`check:circular` は「No circular dependency found!」が正常）。かつて許容していた
+  UserDomain ⇄ AuthDomain の循環は **H6（2026-06-01）で解消済み**（トークン検証を `JwtTokenService`/
+  `AuthTokenModule` へ切り出し、UserModule→AuthModule を撤去）。以後、いかなる循環参照も禁止。
 
 ## バックエンド：TRPG-SERVER（NestJS）
 
