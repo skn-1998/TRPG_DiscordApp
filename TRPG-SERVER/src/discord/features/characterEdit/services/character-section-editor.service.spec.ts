@@ -20,7 +20,7 @@ import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 
-type AnyInteraction = Record<string, jest.Mock | unknown>
+type AnyInteraction = Record<string, unknown>
 
 describe('CharacterSectionEditorService', () => {
   let service: CharacterSectionEditorService

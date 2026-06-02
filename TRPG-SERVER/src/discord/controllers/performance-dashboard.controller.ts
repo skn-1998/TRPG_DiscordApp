@@ -324,7 +324,6 @@ export class PerformanceDashboardController {
       this.logger.log('アクティブアラート取得要求')
 
       const discordStats = this.performanceOrchestrator.getPerformanceSummary().discord
-      const healthStatus = this.performanceOrchestrator.getSystemHealth()
 
       // アラートの重要度分類（簡易実装）
       const criticalAlerts = discordStats.alerts.filter(

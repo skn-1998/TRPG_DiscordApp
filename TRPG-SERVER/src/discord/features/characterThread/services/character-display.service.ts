@@ -294,7 +294,7 @@ export class CharacterDisplayService implements OnModuleInit {
   async findExistingCharacterEmbed(
     channel: TextChannel | NewsChannel | ThreadChannel,
     characterId: string
-  ): Promise<any | null> {
+  ): Promise<any> {
     try {
       // 最新100件のメッセージを検索
       const messages = await channel.messages.fetch({ limit: 100 })

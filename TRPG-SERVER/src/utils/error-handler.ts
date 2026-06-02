@@ -75,8 +75,6 @@ export class ErrorHandler {
    * @param context エラーコンテキスト
    */
   static async handleError(error: unknown, context: ErrorContext): Promise<void> {
-    const errorMessage = this.extractErrorMessage(error)
-
     // ログ記録
     this.logError(error, context, 'GENERAL_ERROR')
 
@@ -374,8 +372,6 @@ export class BackgroundTaskErrorHandler {
    * @param context エラーコンテキスト
    */
   static handleBackgroundError(error: unknown, taskName: string, context: ErrorContext = {}): void {
-    const errorMessage = ErrorHandler['extractErrorMessage'](error)
-
     ErrorHandler['logError'](
       error,
       {
