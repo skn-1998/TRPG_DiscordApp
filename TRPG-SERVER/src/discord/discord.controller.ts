@@ -338,18 +338,18 @@ export class DiscordController {
         topic: `${character.characterName}のキャラクター情報`
       })
 
-      // NOTE: 現状の挙動を維持するため fire-and-forget のまま void で明示。
-      // discordChannelId の永続化を await せず後続処理へ進む点は実バグ疑い（報告参照）。
-      void this.characterService.update(postCharacterDto.characterId, {
-        discordChannelId: createChannelResult.channelId
-      })
-
+      // チャンネル作成の成否を先に判定（失敗時は永続化せず 500）
       if (!createChannelResult.success || !createChannelResult.channelId) {
         throw new HttpException(
           createChannelResult.error || 'チャンネル作成に失敗しました',
           HttpStatus.INTERNAL_SERVER_ERROR
         )
       }
+
+      // 作成したチャンネルIDを await して永続化（完了・エラーを成功応答前に保証）
+      await this.characterService.update(postCharacterDto.characterId, {
+        discordChannelId: createChannelResult.channelId
+      })
 
       const targetChannel = { id: createChannelResult.channelId }
 
