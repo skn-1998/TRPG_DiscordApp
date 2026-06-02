@@ -1640,4 +1640,36 @@ ts-jest が import グラフ全体を型チェックするため、本番1ファ
 
 ---
 
+## テスト基盤負債の解消＋未追跡 spec 取り込み（2026-06-02・タスク B/C）
+
+### B-3: jest-setup の discord.js モック恒久補完
+
+`test/utils/jest-setup.ts` の discord.js モックに **ChannelType 全列挙（実値）・Events・PermissionsBitField.Flags・ThreadAutoArchiveDuration・StringSelectMenuOptionBuilder・各 Builder の不足メソッド（EmbedBuilder.setTimestamp/setFooter/setThumbnail/setAuthor/setURL/setImage/setFields、ButtonBuilder.setDisabled/setEmoji/setURL、StringSelectMenuBuilder.setDisabled）** を補完。各 spec の `jest.requireActual`/ローカル上書きを将来不要にする。**全体スイートで新規失敗ゼロ**を確認（既存値は不変・実 discord.js と同値で追加のみ）。
+
+### B-4: 既存赤 spec の triage（安全分のみ修正・製品バグは masking せず報告）
+
+develop 既存の失敗 spec 17本を分類し、**安全・機械的修正のみ適用**：
+
+- 修正4本: `config.service.spec`(discord 設定の正当追加キーを期待値へ)／`typed-event.service.spec`(stale import を実在パスへ＝スイート起動回復)／`character-id.service.spec`(期待 12→13・テストデータ実長に追従)／`character-notification.service.spec`(不在モジュールの jest.mock 残骸除去・期待を現仕様へ)。
+- 削除4本（負の遺産・依存未解決の `should be defined` 雛形、対象は commands.controller/commands.service spec で別途カバー済み）: `select-game-system.service.spec`／`user-defined-dice.service.spec`／`dice-from-context-menu.service.spec`／`roll-dice.service.spec`。
+- 結果: 全体スイート **19→10 suites / 58→53 tests failed**（新規失敗ゼロ）。
+
+### C: 前セッション由来の未追跡 spec 109本を取り込み
+
+test-expansion 過去セッションで作成され未追跡だった spec を全件取り込み。TS コンパイルエラーだった2本（`character-tab-buttons`：型述語キャスト／`character-embed`：`createThread` 返り値型）を最小キャスト修正で緑化。本番不変・build/check:circular 緑。
+
+### 🔴 残存（B カテゴリ＝要深掘り・別タスク。10 suites/53 tests）
+
+masking 回避のため未修正で残置。次サイクルの対象：
+
+1. **`typed-event.service.ts` の `off()` ＝実バグ濃厚**：`on()` は handler をラップした匿名関数を登録するが `off()` は元 handler を渡すため解除されない。修正案：登録時に original→wrapped の Map を保持し `off` で wrapped を解除。**製品コード修正のため要レビュー**（イベント基盤・影響広）。
+2. `discord.service.spec`：DiscordService の薄いファサード化に spec が未追従（registerButton 等は handler 層へ移設済）。spec 再構築相当。
+3. `characterEdit/character-channel.service.spec`：DTO `CharacterAttribute`→`AttributeValue` 構造移行にテストデータ未追従。
+4. `channel-create-orchestrator`/`character-creation`：本体に追加された依存（CharacterUIService/TypedEventService）の provider 追従漏れ。
+5. `channel-detection.service.spec`：`creatorId` が本体 null・test 期待 `test-user-id`。製品バグかセットアップ不足か切り分け要。
+6. character ドメイン3本（`character.service` 17件／`character.integration` 7件／`character-event-handler` 8件）：イベント駆動 feature flag 分岐・emit ペイロード・ハンドラ登録の不一致。#1 の off() バグ解消後に再評価推奨。
+7. `event-debug-test.spec`：実 EventEmitter 結合のデバッグ用 spec、ハンドラ登録0件。#6 と同根の可能性。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
