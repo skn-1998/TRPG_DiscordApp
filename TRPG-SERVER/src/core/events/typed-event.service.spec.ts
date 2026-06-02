@@ -432,9 +432,9 @@ describe('TypedEventService', () => {
         source: 'test-source'
       }
 
-      // Act - emit event after a short delay
-      setTimeout(async () => {
-        await typedEventService.emit('test.event.simple' as any, testPayload)
+      // Act - emit event after a short delay（setTimeout は戻り値を待たないため emit は void で発火）
+      setTimeout(() => {
+        void typedEventService.emit('test.event.simple' as any, testPayload)
       }, 10)
 
       const receivedPayload = await typedEventService.waitForEvent('test.event.simple' as any, 100)

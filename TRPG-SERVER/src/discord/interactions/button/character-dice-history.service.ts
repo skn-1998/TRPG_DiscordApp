@@ -465,15 +465,15 @@ export class CharacterDiceHistoryService {
             }
           } catch (error) {
             console.error('既存メッセージの更新に失敗:', error)
-            // 失敗した場合は新しいページネーションを作成
-            this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
+            // 失敗した場合は新しいページネーションを作成（完了を待たない fire-and-forget）
+            void this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
           }
         } else {
           console.log(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`)
         }
       } else {
-        // embedIdがない場合は新しくページネーションを作成
-        this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
+        // embedIdがない場合は新しくページネーションを作成（完了を待たない fire-and-forget）
+        void this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
       }
     } catch (error) {
       console.error('履歴更新処理エラー:', error)

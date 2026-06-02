@@ -58,8 +58,12 @@ export class DiscordFacadeService {
       ;(this.client as any)['typedEventEmitter'] = this.typedEventEmitter
 
       // 各サービスにクライアントを設定（並列処理）
+      // loadClient は同期 void だが、初期化処理の塊として Promise.all 内にまとめている。
+      // 構造を変えると初期化順序・並列性が変わり得るため現状維持し、await-thenable は意図的に許容する。
       await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/await-thenable -- loadClient は同期 void。Promise.all の塊として意図的に内包
         this.interactionsService.loadClient(this.client),
+        // eslint-disable-next-line @typescript-eslint/await-thenable -- loadClient は同期 void。Promise.all の塊として意図的に内包
         this.commandsService.loadClient(this.client),
         this.interactionHandler.initialize(this.client),
         this.guildManager.initialize(this.client),
@@ -281,6 +285,7 @@ export class DiscordFacadeService {
     try {
       await Promise.all([
         // メンテナンスは定期的に自動実行される
+        // eslint-disable-next-line @typescript-eslint/await-thenable -- guildManager.cleanup は同期 void。channelManager.cleanup（async）と並列実行する塊として意図的に内包
         this.guildManager.cleanup(),
         this.channelManager.cleanup()
       ])
