@@ -13,7 +13,7 @@ export class CharacterChannelCreateService {
    * @param channel 作成されたチャンネル
    * @param categoryId カテゴリID
    */
-  async execute(channel: TextChannel, categoryId: string): Promise<void> {
+  async execute(channel: TextChannel, _categoryId: string): Promise<void> {
     this.logger.log(`キャラクターチャンネル作成処理開始: ${channel.name}`)
 
     try {

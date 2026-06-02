@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import {
   Client,
-  Guild,
   TextChannel,
   NewsChannel,
   ThreadChannel,

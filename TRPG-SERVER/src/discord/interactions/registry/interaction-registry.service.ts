@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
-import { Interaction, ButtonInteraction, AnySelectMenuInteraction, ModalSubmitInteraction } from 'discord.js'
+import { Interaction } from 'discord.js'
 import { InteractionHandler } from '../handlers/base/interaction-handler.base'
 import { PatternMatcherService } from './pattern-matcher.service'
 
@@ -92,7 +92,7 @@ export class InteractionRegistryService implements OnModuleInit {
         if (handler && handler instanceof InteractionHandler) {
           this.registerHandler(handler)
         }
-      } catch (error) {
+      } catch {
         // ハンドラーが見つからない場合はスキップ（Phase 2で実装予定）
         this.logger.debug(`Handler not found: ${token.name || token}`)
       }

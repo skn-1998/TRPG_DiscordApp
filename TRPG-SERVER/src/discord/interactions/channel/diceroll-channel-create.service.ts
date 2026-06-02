@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Client, AuditLogEvent, TextChannel } from 'discord.js'
+import { Client, TextChannel } from 'discord.js'
 import { getChannelIdByName } from '../../utils/searchChannelID'
 import { AppConfigService } from 'src/config/config.service'
 import { DiceRollChannelInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-channel.dto'

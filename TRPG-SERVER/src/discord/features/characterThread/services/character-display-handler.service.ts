@@ -48,7 +48,7 @@ export class CharacterDisplayHandlerService {
     payload: EventPayload<'discord.character.display.requested'>
   ): Promise<void> {
     try {
-      const { character, channelId, displayType, requesterId, source } = payload
+      const { character, channelId, displayType, source } = payload
 
       this.logger.log(
         `Character display requested for: ${character.characterId}, channel: ${channelId}, displayType: ${displayType}, source: ${source}`

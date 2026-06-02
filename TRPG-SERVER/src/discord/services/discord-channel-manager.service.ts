@@ -35,7 +35,7 @@ export class DiscordChannelManagerService {
   /**
    * サービスを初期化
    */
-  async initialize(client: Client): Promise<void> {
+  async initialize(_client: Client): Promise<void> {
     if (this.initialized) {
       return
     }

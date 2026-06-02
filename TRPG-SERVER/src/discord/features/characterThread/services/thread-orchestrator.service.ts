@@ -4,7 +4,7 @@ import { CharacterService } from '../../../../domains/character/character.servic
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EventPayload } from '../../../../events/contracts'
 
-import { ThreadManagerService, CreateThreadRequest, CreateThreadResult } from './thread-manager.service'
+import { ThreadManagerService, CreateThreadRequest } from './thread-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
 import { ThreadInteractionService } from './thread-interaction.service'
 
@@ -34,7 +34,7 @@ export class ThreadOrchestratorService {
    * スレッド作成リクエストイベントを処理
    */
   async handleThreadCreateRequest(payload: EventPayload<'discord.thread.create.requested'>): Promise<void> {
-    const { character, channelId, guildId, creatorId, displayType, source } = payload
+    const { character, channelId, guildId, creatorId, displayType } = payload
 
     this.logger.log(`Handling thread create request for character: ${character.characterId}`)
 

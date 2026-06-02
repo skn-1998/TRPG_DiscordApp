@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { AppConfigService } from 'src/config/config.service'
 
 import { Client, GatewayIntentBits, Events, ClientOptions } from 'discord.js'

@@ -1,9 +1,9 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { CharacterRepository } from './repositories/character.repository'
 import { CharacterInputDto, AttributeValueDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
-import { Character, UpdatePrimary, CHARACTER_MODEL } from './models/character.model'
+import { Character, UpdatePrimary } from './models/character.model'
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
@@ -249,7 +249,7 @@ export class CharacterService {
    * @param id キャラクターID
    * @param userId ユーザーID（将来の権限チェック用、現在は未使用）
    */
-  async remove(id: string, userId?: string): Promise<Character | null> {
+  async remove(id: string, _userId?: string): Promise<Character | null> {
     this.logger.log(`Deleting character: ${id}`)
     const deletedCharacter = await this.characterRepository.remove(id)
 
@@ -272,7 +272,7 @@ export class CharacterService {
    * @param channelId DiscordチャンネルID
    * @param userId ユーザーID（将来の権限チェック用、現在は未使用）
    */
-  async removeByChannelId(channelId: string, userId?: string): Promise<void> {
+  async removeByChannelId(channelId: string, _userId?: string): Promise<void> {
     this.logger.log(`Deleting character by channelId: ${channelId}`)
 
     // 削除前にキャラクター情報を取得

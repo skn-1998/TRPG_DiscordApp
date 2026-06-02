@@ -71,7 +71,7 @@ describe('CharacterNotificationService', () => {
 
       try {
         await service.notifyCharacterCreation(mockTextChannel, 'test-character-id', 'test-character')
-      } catch (error) {
+      } catch {
         // Expected error
       }
 

@@ -1,8 +1,6 @@
 import { IsOptional, IsString, IsNotEmpty, IsNumber, IsBoolean, ValidateNested } from 'class-validator'
 import { Type, Transform } from 'class-transformer'
 import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
-import { AttributeSection } from '../../../core/types/attribute.types'
-import { AttributeObject } from '../../../core/dto/domain.dto'
 
 /**
  * AttributeValue用DTO

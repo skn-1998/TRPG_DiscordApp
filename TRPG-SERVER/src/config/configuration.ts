@@ -32,35 +32,6 @@ function getValidatedEnvironment(): EnvironmentSchema {
 }
 
 /**
- * 文字列変換またはデフォルト値を返す
- */
-const convertOrDefault = (raw: string | undefined, defaultValue: string): string => {
-  if (!raw) return defaultValue
-  return raw
-}
-
-/**
- * 数値変換またはデフォルト値を返す
- */
-const convertIntOrDefault = (raw: string | undefined, defaultValue: number): number => {
-  if (!raw) return defaultValue
-  const parsed = Number.parseInt(raw, 10)
-  if (Number.isNaN(parsed)) return defaultValue
-  return parsed
-}
-
-/**
- * 真偽値変換またはデフォルト値を返す
- */
-const convertBooleanOrDefault = (raw: string | undefined, defaultValue: boolean): boolean => {
-  if (!raw) return defaultValue
-  if (raw !== 'true' && raw !== 'false') return defaultValue
-  if (raw === 'true') return true
-  if (raw === 'false') return false
-  return defaultValue
-}
-
-/**
  * アプリケーション設定値を生成する
  * 新しいバリデーションシステムを使用して型安全性を確保
  */

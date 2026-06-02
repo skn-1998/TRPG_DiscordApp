@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { ChannelDetectionService } from './channel-detection.service'
 import { AppConfigService } from 'src/config/config.service'

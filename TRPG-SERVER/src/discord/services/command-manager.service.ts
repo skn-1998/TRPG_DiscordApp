@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Client, REST, Routes, Interaction, AutocompleteInteraction, CommandInteraction } from 'discord.js'
+import { REST, Routes, AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { CommandsService } from '../commands/commands.service'

@@ -201,7 +201,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   /**
    * CharacterEdit Feature向け処理
    */
-  private async handleCharacterEditCreation(event: CharacterCreationRequestedEvent, context?: EventContext) {
+  private async handleCharacterEditCreation(event: CharacterCreationRequestedEvent, _context?: EventContext) {
     this.logger.debug('Handling CharacterEdit creation')
 
     // ユニークなキャラクターIDの生成（未設定の場合）
@@ -262,7 +262,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   private async emitSuccessEvent(
     character: any,
     originalEvent: CharacterCreationRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const successEvent = {
       character,
@@ -281,7 +281,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   private async emitFailureEvent(
     error: Error,
     originalEvent: CharacterCreationRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const failureEvent = {
       createData: {

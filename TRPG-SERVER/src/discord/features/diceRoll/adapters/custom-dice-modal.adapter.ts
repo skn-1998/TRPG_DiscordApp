@@ -35,7 +35,7 @@ export class CustomDiceModalService implements discordModalType {
         resultMessage = `【${comment}】 ${resultMessage}`
       }
       await interaction.reply({ content: resultMessage })
-    } catch (error) {
+    } catch {
       if (!interaction.replied) {
         await interaction.reply({ content: 'エラーが発生しました。もう一度お試しください。', ephemeral: true })
       }

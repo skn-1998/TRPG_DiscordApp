@@ -406,7 +406,7 @@ export class CharacterUIService {
   /**
    * セレクトメニュー付きキャラクターEmbedの送信
    */
-  async sendCharacterEmbedWithSelectMenu(channelId: string, character: Character, userId?: string): Promise<void> {
+  async sendCharacterEmbedWithSelectMenu(channelId: string, character: Character, _userId?: string): Promise<void> {
     try {
       const client = this.discordClientService.getClient()
       if (!client) {

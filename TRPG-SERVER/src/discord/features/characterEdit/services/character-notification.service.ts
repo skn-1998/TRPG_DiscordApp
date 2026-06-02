@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel } from 'discord.js'
+import { TextChannel } from 'discord.js'
 import { generateAppConfig } from 'src/config/configuration'
-import { characterEditIds } from '../events/character-edit.ids'
 
 // ============================================================================
 // Character Notification Service
@@ -36,11 +35,8 @@ export class CharacterNotificationService {
   /**
    * キャラクター作成完了通知（イベント統合サービス用）
    */
-  async notifyCharacterCreated(characterId: string, channelId: string, creatorId: string): Promise<void> {
+  async notifyCharacterCreated(characterId: string, _channelId: string, _creatorId: string): Promise<void> {
     try {
-      const clientUrl = generateAppConfig().app.frontendUrl
-      const url = `${clientUrl}/characters/${characterId}`
-
       this.logger.log(`キャラクター作成完了通知: ${characterId}`)
       // 実際の通知処理は必要に応じて実装
     } catch (error) {
