@@ -77,7 +77,7 @@ describe('EnvironmentValidator', () => {
       it('引数を省略した場合は process.env を参照する', () => {
         const original = { ...process.env }
         try {
-          process.env = validEnv() as NodeJS.ProcessEnv
+          process.env = validEnv()
 
           const result = EnvironmentValidator.validate()
 

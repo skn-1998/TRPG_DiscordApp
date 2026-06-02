@@ -20,9 +20,9 @@ describe('DiceRollModalHandler', () => {
     const pattern = handler.getCustomIdPattern()
     // Assert
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('custom-dice-modal')).toBe(true)
-    expect((pattern as RegExp).test('param-dice-modal*char123')).toBe(true)
-    expect((pattern as RegExp).test('other-modal')).toBe(false)
+    expect(pattern.test('custom-dice-modal')).toBe(true)
+    expect(pattern.test('param-dice-modal*char123')).toBe(true)
+    expect(pattern.test('other-modal')).toBe(false)
   })
 
   it('execute は委譲先 execute へ interaction を渡す', async () => {

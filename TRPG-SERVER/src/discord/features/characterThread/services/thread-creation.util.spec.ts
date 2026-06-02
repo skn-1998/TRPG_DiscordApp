@@ -205,7 +205,7 @@ describe('thread-creation.util', () => {
       // 6 値 ×(×3,×2) だが maxButtons=10 で 10 ボタン → 2 行 (5+5)
       const rows = chunkButtonsIntoRows(buttons)
       expect(rows).toHaveLength(2)
-      expect((rows[0].toJSON().components as any[]).length).toBe(5)
+      expect(rows[0].toJSON().components as any[]).toHaveLength(5)
     })
 
     it('空配列なら空の行配列', () => {

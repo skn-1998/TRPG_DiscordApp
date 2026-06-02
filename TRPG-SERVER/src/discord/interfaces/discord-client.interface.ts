@@ -21,7 +21,7 @@ export interface DiscordClientInterface {
    * @param event イベント名
    * @param handler イベントハンドラ
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   on(event: string, handler: (...args: any[]) => void): void
 
   /**
@@ -29,6 +29,6 @@ export interface DiscordClientInterface {
    * @param event イベント名
    * @param handler イベントハンドラ
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   once(event: string, handler: (...args: any[]) => void): void
 }

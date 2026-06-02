@@ -20,11 +20,11 @@ describe('DiceRollGeneralHandler', () => {
     const pattern = handler.getCustomIdPattern()
     // Assert
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('roll*1d100')).toBe(true)
-    expect((pattern as RegExp).test('roll*2d6')).toBe(true)
+    expect(pattern.test('roll*1d100')).toBe(true)
+    expect(pattern.test('roll*2d6')).toBe(true)
     // スキルロール（_区切り）やcustomにはマッチしない
-    expect((pattern as RegExp).test('roll*custom')).toBe(false)
-    expect((pattern as RegExp).test('roll*戦闘_1234567890')).toBe(false)
+    expect(pattern.test('roll*custom')).toBe(false)
+    expect(pattern.test('roll*戦闘_1234567890')).toBe(false)
   })
 
   it('execute は委譲先 execute へ interaction を渡す', async () => {

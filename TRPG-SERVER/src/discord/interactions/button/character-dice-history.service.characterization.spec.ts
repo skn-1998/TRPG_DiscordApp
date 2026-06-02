@@ -224,7 +224,7 @@ describe('CharacterDiceHistoryService (characterization)', () => {
       const editArg = edit.mock.calls[edit.mock.calls.length - 1][0]
       expect(editArg.embeds).toEqual(['embed-1'])
       expect(Array.isArray(editArg.components)).toBe(true)
-      expect(editArg.components.length).toBe(1)
+      expect(editArg.components).toHaveLength(1)
     })
 
     it('ロック中（同チャンネルで処理進行中）なら即 return する', async () => {

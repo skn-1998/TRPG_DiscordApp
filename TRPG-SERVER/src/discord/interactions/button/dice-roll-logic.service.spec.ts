@@ -104,7 +104,7 @@ describe('DiceRollLogicService', () => {
       const interaction = createMockButtonInteraction()
 
       // Act
-      const result = await service.handleDiceRoll(interaction as ButtonInteraction, req)
+      const result = await service.handleDiceRoll(interaction, req)
 
       // Assert: 失敗結果
       expect(result.success).toBe(false)
@@ -126,7 +126,7 @@ describe('DiceRollLogicService', () => {
       const interaction = createMockButtonInteraction()
 
       // Act
-      const result = await service.handleDiceRoll(interaction as ButtonInteraction, req)
+      const result = await service.handleDiceRoll(interaction, req)
 
       // Assert: 成功結果
       expect(result).toMatchObject({
@@ -156,7 +156,7 @@ describe('DiceRollLogicService', () => {
       const interaction = createMockButtonInteraction()
 
       // Act
-      await service.handleDiceRoll(interaction as ButtonInteraction, { channelId: 'ch-1', diceType: '1d100' })
+      await service.handleDiceRoll(interaction, { channelId: 'ch-1', diceType: '1d100' })
 
       // Assert: ファクトリ既定ユーザーの id が使われる
       expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ userId: DEFAULT_MOCK_USER.id }))
@@ -170,7 +170,7 @@ describe('DiceRollLogicService', () => {
       const interaction = createMockButtonInteraction()
 
       // Act
-      const result = await service.handleDiceRoll(interaction as ButtonInteraction, req)
+      const result = await service.handleDiceRoll(interaction, req)
 
       // Assert: text から抽出した 42、gameSystemId 欠落時は 'unknown'
       expect(result.total).toBe(42)
@@ -184,7 +184,7 @@ describe('DiceRollLogicService', () => {
       const interaction = createMockButtonInteraction()
 
       // Act
-      const result = await service.handleDiceRoll(interaction as ButtonInteraction, req)
+      const result = await service.handleDiceRoll(interaction, req)
 
       // Assert: executeDiceRoll が throw し失敗結果になる
       expect(result.success).toBe(false)
@@ -194,7 +194,7 @@ describe('DiceRollLogicService', () => {
   })
 
   describe('handleSkillRoll', () => {
-    const interaction = () => createMockButtonInteraction() as ButtonInteraction
+    const interaction = () => createMockButtonInteraction()
 
     it('出目がスキル値以下なら成功として保存し、successLevel を含む結果を返す', async () => {
       // Arrange: skillValue=50、出目=40 → 成功 / hardSuccess(25)超なのでレギュラー成功
@@ -289,7 +289,7 @@ describe('DiceRollLogicService', () => {
   })
 
   describe('handleCustomDiceRoll', () => {
-    const interaction = () => createMockButtonInteraction() as ButtonInteraction
+    const interaction = () => createMockButtonInteraction()
 
     it('成功時は isCustomRoll=true の結果を返し保存する', async () => {
       // Arrange

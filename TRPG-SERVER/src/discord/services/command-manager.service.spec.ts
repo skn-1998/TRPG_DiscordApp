@@ -342,7 +342,7 @@ describe('CommandManagerService', () => {
 
       await service.registerCommandsToDiscord()
 
-      const body = (mockRestPut.mock.calls[0][1] as any).body
+      const body = mockRestPut.mock.calls[0][1].body
       expect(body).toHaveLength(2)
       expect(body).toEqual(
         expect.arrayContaining([

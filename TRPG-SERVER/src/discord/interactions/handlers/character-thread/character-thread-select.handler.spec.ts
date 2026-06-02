@@ -21,7 +21,7 @@ describe('CharacterThreadSelectHandler', () => {
     const pattern = handler.getCustomIdPattern()
     // Assert
     expect(pattern).toBeInstanceOf(RegExp)
-    const regExp = pattern as RegExp
+    const regExp = pattern
     expect(regExp.test('character-thread-select')).toBe(true)
     expect(regExp.test('character-thread-select-with-thread')).toBe(true)
     expect(regExp.test('character-thread-select-current')).toBe(true)
@@ -29,7 +29,7 @@ describe('CharacterThreadSelectHandler', () => {
 
   it('customId パターン（正規表現）は無関係な customId にマッチしない', () => {
     // Act
-    const regExp = handler.getCustomIdPattern() as RegExp
+    const regExp = handler.getCustomIdPattern()
     // Assert
     expect(regExp.test('character-thread-create-select')).toBe(false)
     expect(regExp.test('character-thread-select-unknown')).toBe(false)

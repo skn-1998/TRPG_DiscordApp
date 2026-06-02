@@ -18,8 +18,8 @@ describe('CharacterEditCreateHandler', () => {
   it('customId パターンが /^character-create-(basic|cancel)-/ で basic/cancel にマッチする', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('character-create-basic-channel123')).toBe(true)
-    expect((pattern as RegExp).test('character-create-cancel-channel123')).toBe(true)
+    expect(pattern.test('character-create-basic-channel123')).toBe(true)
+    expect(pattern.test('character-create-cancel-channel123')).toBe(true)
   })
 
   it('execute は handleButtonInteraction へ interaction を委譲する', async () => {

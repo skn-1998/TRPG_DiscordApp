@@ -73,7 +73,7 @@ export interface DiscordSelectMenu extends DiscordInteraction {
    * @param interaction セレクトメニューの相互作用オブジェクト
    * @param config 追加設定（オプション）
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   execute(interaction: AnySelectMenuInteraction, config?: any): Promise<void>
 }
 

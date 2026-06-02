@@ -169,7 +169,7 @@ describe('Character CRUD Integration Test', () => {
     })
 
     it('should find character directly by channelId', async () => {
-      const found = await characterService.findByChannelId(testCharacter.discordChannelId!)
+      const found = await characterService.findByChannelId(testCharacter.discordChannelId)
 
       expect(found).not.toBeNull()
       expect(found!.characterId).toBe(testCharacter.characterId)
@@ -226,7 +226,7 @@ describe('Character CRUD Integration Test', () => {
       }
 
       // Act
-      const updated = await characterService.updateByChannelId(testCharacter.discordChannelId!, updateData)
+      const updated = await characterService.updateByChannelId(testCharacter.discordChannelId, updateData)
 
       // Assert - 戻り値
       expect(updated).not.toBeNull()
@@ -284,7 +284,7 @@ describe('Character CRUD Integration Test', () => {
       })
 
       // Act
-      await characterService.removeByChannelId(testCharacter.discordChannelId!, 'test-user-123')
+      await characterService.removeByChannelId(testCharacter.discordChannelId, 'test-user-123')
       await new Promise((resolve) => setTimeout(resolve, 50))
 
       // Assert - イベント

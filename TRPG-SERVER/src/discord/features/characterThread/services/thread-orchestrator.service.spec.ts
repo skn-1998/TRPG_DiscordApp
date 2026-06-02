@@ -227,7 +227,7 @@ describe('ThreadOrchestratorService', () => {
   describe('archiveCharacterThread', () => {
     it('キャラが存在しスレッドがあればアーカイブし結果を返す', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue(buildCharacter() as never)
+      characterService.findOne.mockResolvedValue(buildCharacter())
       threadManager.archiveThread.mockResolvedValue(true)
 
       // Act
@@ -240,7 +240,7 @@ describe('ThreadOrchestratorService', () => {
 
     it('キャラに discordThreadId が無ければ false を返しアーカイブしない', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue(buildCharacter({ discordThreadId: null }) as never)
+      characterService.findOne.mockResolvedValue(buildCharacter({ discordThreadId: null }))
 
       // Act
       const result = await service.archiveCharacterThread('char-1')
@@ -265,7 +265,7 @@ describe('ThreadOrchestratorService', () => {
   describe('unarchiveCharacterThread', () => {
     it('キャラが存在しスレッドがあればアンアーカイブし結果を返す', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue(buildCharacter() as never)
+      characterService.findOne.mockResolvedValue(buildCharacter())
       threadManager.unarchiveThread.mockResolvedValue(true)
 
       // Act
@@ -278,7 +278,7 @@ describe('ThreadOrchestratorService', () => {
 
     it('キャラに discordThreadId が無ければ false を返しアンアーカイブしない', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue(buildCharacter({ discordThreadId: '' }) as never)
+      characterService.findOne.mockResolvedValue(buildCharacter({ discordThreadId: '' }))
 
       // Act
       const result = await service.unarchiveCharacterThread('char-1')

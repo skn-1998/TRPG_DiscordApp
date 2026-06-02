@@ -109,7 +109,7 @@ describe('DiceUIBuilderService', () => {
         '説得(50%)',
         '図書館(40%)'
       ])
-      expect((skillRow.components[0] as any).custom_id).toBe('roll*_聞き耳-80')
+      expect(skillRow.components[0].custom_id).toBe('roll*_聞き耳-80')
       expect(skillRow.components.every((c: any) => c.style === ButtonStyle.Secondary)).toBe(true)
     })
 
@@ -131,7 +131,7 @@ describe('DiceUIBuilderService', () => {
         'CON(12)',
         'INT(11)'
       ])
-      expect((abilityRow.components[0] as any).custom_id).toBe('roll*_DEX-15')
+      expect(abilityRow.components[0].custom_id).toBe('roll*_DEX-15')
       expect(abilityRow.components.every((c: any) => c.style === ButtonStyle.Success)).toBe(true)
     })
 
