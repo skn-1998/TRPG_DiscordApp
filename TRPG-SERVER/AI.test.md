@@ -4,6 +4,57 @@
 
 ---
 
+## 🔧 **赤 triage（B3）: channel-detection / discord.service / event-debug-test** **[完了: 2026-06-02]**
+
+3 spec の赤を本体 Read で現挙動を確認のうえ test 側で安全修正（製品コード未変更）。
+
+### **1. channel-detection.service.spec.ts（A: test 修正で緑）**
+
+- **原因**: 本体 `ChannelDetectionService.extractCreatorId` が `AuditLogEvent.ChannelCreate` を
+  参照するが、グローバル discord.js モック（`test/utils/jest-setup.ts`）に `AuditLogEvent` が
+  欠落 → `undefined.ChannelCreate` で TypeError → catch で `creatorId=null`。
+  さらに `should detect...` / `should handle missing executor...` の mock が `entries: new Map([...])`
+  だったが、本体は `entries.find(...)` を使う。素の `Map` に `.find` は無く（実 discord.js の
+  `Collection` のみ持つ）これも例外要因だった。
+- **対応**:
+  - `jest-setup.ts` の discord.js モックに `AuditLogEvent`（ChannelCreate=10 ほか実値）を恒久追加。
+  - spec 2ケースの `entries` を `find` を備えた Collection 互換オブジェクトへ修正。
+  - → 5/5 PASS。本体は正常仕様（creatorId 解決ロジックにバグなし）。
+
+### **2. discord.service.spec.ts（A: 現仕様へ全面置換）**
+
+- **原因**: `DiscordService` は H 系で薄いファサードラッパー（deprecated）化済み。旧 spec は
+  `registerButton/registerModal/registerSelectMenu`・`interactionCreate` ハンドリング等、
+  既に**除去された責務**を前提に陳腐化していた。
+- **移設先カバー確認**: register/interaction 処理は `DiscordInteractionHandlerService`
+  （`discord-interaction-handler.service.spec.ts`）、`InteractionsService`
+  （`interactions/interactions.service.spec.ts`）、`initializeDiscord` は
+  `DiscordFacadeService`（`discord-facade.service.spec.ts`）でカバー済み。
+- **対応**: 旧責務検証ケースを削除し、現仕様＝「各 deprecated メソッドが `DiscordFacadeService`
+  へ正しく委譲するか」を検証する spec へ置換（DTO 展開・null時例外・getBotStatus 集約・
+  verifyGuildManagePermission の failure 握り潰し等を網羅）。→ 19/19 PASS。
+
+### **3. event-debug-test.spec.ts（A: 削除）**
+
+- **原因**: `character.findById.requested` のリスナーは現アーキテクチャでは File-based handler
+  `CharacterFindByIdRequestedHandler` が担当。一方 `CharacterEventHandlerService` の
+  `registerEventListeners()` は本体コメント通り**意図的に無効化済み**（File-based へ移行）。
+  この spec は「`onModuleInit` でリスナーが張られる」という古い前提のデバッグ用 spec で、
+  `listenerCount > 0` を満たせず4件赤。製品バグではなく spec が現設計と矛盾。
+- **カバー確認**: findById のイベントフローは `character.findById.requested.spec.ts`（充実した
+  unit）、`on/emit` 動作は `core/events/typed-event.service.spec.ts`、`getCharacterById` フローは
+  `enhanced-character-edit.service.spec.ts` でカバー済み。
+- **対応**: デバッグ専用かつ重複ゆえ削除。
+
+### **(B) 残課題（本タスク対象外・別途）**
+
+- `src/discord/features/characterEdit/character-channel.service.spec.ts:766` で TS2345 型エラー
+  （`description` fixture が `Character.description: AttributeSection` 型に不一致）。本タスクで
+  触っていない別 spec の既存型ドリフト。`postCharacterEmbeds` に渡す fixture の型整合が必要。
+  推奨: fixture の `description` を `AttributeSection` 形へ修正、または `as any` キャストで解凍。
+
+---
+
 ## 🧪 **テスタビリティ改善（赤）: ThreadManagerService** **[完了: 2026-06-02]**
 
 ### **背景**
@@ -1658,17 +1709,85 @@ develop 既存の失敗 spec 17本を分類し、**安全・機械的修正の�
 
 test-expansion 過去セッションで作成され未追跡だった spec を全件取り込み。TS コンパイルエラーだった2本（`character-tab-buttons`：型述語キャスト／`character-embed`：`createThread` 返り値型）を最小キャスト修正で緑化。本番不変・build/check:circular 緑。
 
-### 🔴 残存（B カテゴリ＝要深掘り・別タスク。10 suites/53 tests）
+### ✅ 残存（B カテゴリ）＝全件解消（2026-06-02・深掘り完了）
 
-masking 回避のため未修正で残置。次サイクルの対象：
+着手時 19 suites/58 tests 失敗 → **全体スイート 197 suites / 2681 tests 全緑（失敗ゼロ）** まで到達。`pnpm run build` 成功・`check:circular`「No circular dependency found!」をメインが裏取り。**製品コード変更は `typed-event.service.ts` の off() 実バグ修正のみ**（下記）。他はすべて test 側の現挙動追従／DI provider 補完／負の遺産整理。
 
-1. **`typed-event.service.ts` の `off()` ＝実バグ濃厚**：`on()` は handler をラップした匿名関数を登録するが `off()` は元 handler を渡すため解除されない。修正案：登録時に original→wrapped の Map を保持し `off` で wrapped を解除。**製品コード修正のため要レビュー**（イベント基盤・影響広）。
-2. `discord.service.spec`：DiscordService の薄いファサード化に spec が未追従（registerButton 等は handler 層へ移設済）。spec 再構築相当。
-3. `characterEdit/character-channel.service.spec`：DTO `CharacterAttribute`→`AttributeValue` 構造移行にテストデータ未追従。
-4. `channel-create-orchestrator`/`character-creation`：本体に追加された依存（CharacterUIService/TypedEventService）の provider 追従漏れ。
-5. `channel-detection.service.spec`：`creatorId` が本体 null・test 期待 `test-user-id`。製品バグかセットアップ不足か切り分け要。
-6. character ドメイン3本（`character.service` 17件／`character.integration` 7件／`character-event-handler` 8件）：イベント駆動 feature flag 分岐・emit ペイロード・ハンドラ登録の不一致。#1 の off() バグ解消後に再評価推奨。
-7. `event-debug-test.spec`：実 EventEmitter 結合のデバッグ用 spec、ハンドラ登録0件。#6 と同根の可能性。
+1. ✅ `typed-event.service.ts` の `off()` 実バグ → 修正完了（下記専用節）。**唯一の製品コード変更**。
+2. ✅ `discord.service.spec`：ファサード委譲を検証する spec へ全面置換（19緑）。旧責務は handler/facade/interactions spec でカバー済み確認。
+3. ✅ `characterEdit/character-channel.service.spec`：DTO を `AttributeValue/AttributeSection` へ移行＋DI provider（TypedEventEmitter）補完＋Phase3 メンテ挙動へアサーション追従（37緑）。※ `characterThread/character-channel.service.spec`（19緑）と**同一本体を import する重複 spec**＝置き忘れの疑い。削除候補として要判断（今回は緑化のみ）。
+4. ✅ `channel-create-orchestrator`(12緑)/`character-creation`(4緑)：現本体コンストラクタに合わせ mock provider 補完＋イベント駆動/File-based Handlers 移行後の挙動へアサーション追従。
+5. ✅ `channel-detection.service.spec`(5緑)：真因は jest-setup の `AuditLogEvent` 欠落で本体 `extractCreatorId` が TypeError→null 化。jest-setup に `AuditLogEvent` を恒久追加＋entries を Collection 互換へ。製品バグではなかった。
+6. ✅ character ドメイン3本（`character.service` 13緑／`character.integration` 9緑／`character-event-handler` 4緑）：全件 (A)＝test が旧実装に未追従。本番不変。
+7. ✅ `event-debug-test.spec`：File-based Handlers 移行で前提が崩れたデバッグ用 spec。findById フロー等は他 spec でカバー済み確認のうえ削除。
+
+**未コミット注記**：上記の修正群（off() 製品修正・各 spec 修復・jest-setup の AuditLogEvent 追加・event-debug-test 削除）はユーザー指示により**コミットしていない**（working tree に保持）。
+
+---
+
+## ✅ TypedEventService.off() 実バグ修正（2026-06-02・characterization 先行→製品コード修正）
+
+`src/core/events/typed-event.service.ts`。残存 B カテゴリ #1 を消化。
+
+### バグ内容（製品コード）
+
+`on()` は渡された handler を検証・ログ・例外再 throw を行う**匿名 async ラッパー**で包んで `eventEmitter.on` に登録していたが、`off()` は元 handler をそのまま `eventEmitter.off` に渡していた。EventEmitter2 は登録時のラッパー参照と一致しないと解除しないため、**`off()` が常に no-op となりリスナーが残留**（リーク・二重発火）。
+
+### 修正方針（採用）
+
+`TypedEventService` に対応表 `handlerWrappers: Map<event, Map<元handler, ラッパー配列>>` を追加。
+
+- `on()`: ラッパー生成 → `trackWrapper()` で対応記録 → `eventEmitter.on(event, ラッパー)`。
+- `off()`: `takeWrapper()` で元 handler に対応するラッパーを1つ取り出し（同一 handler 複数登録時は**最後に登録した1つだけ**解除＝Node `removeListener` のセマンティクスに準拠）、`eventEmitter.off(event, ラッパー)`。未登録 handler の `off` は **no-op**（例外を投げない）。
+- `removeAllListeners()`: emitter 解除と同時に対応表からも当該 event を削除（stale ラッパー残留防止）。
+- `once()` は対象外（自己解除のため off 連携不要・スコープ最小化）。
+
+### characterization（修正前に固定）
+
+`typed-event.service.spec.ts` の `off` describe に3ケース追加（修正前は #1 既存赤含め赤、修正後緑）：
+
+- `should only remove the specified handler and leave others active`（他 handler 非干渉）
+- `should remove only one registration when the same handler is registered twice`（重複登録は1回の off で1登録のみ解除）
+- `should not throw when removing a handler that was never registered`（未登録 off は no-op）
+
+### 検証
+
+- 対象 spec: **21/21 緑**（既存 `should remove event listener` 含む。修正前は 1 赤）。
+- `pnpm run build`: ✅ 成功 / `pnpm run check:circular`: ✅ No circular dependency found!（483 files）。
+- 全体スイート: **10 suites/53 tests failed → 9 suites/52 tests failed**（typed-event スイート緑化分のみ改善・**新規失敗ゼロ**）。
+- 製品側 consumer: `typedEventService.off(` の呼び出しは spec のみで本番コードに存在せず、外部挙動の回帰リスクなし。
+
+> 残存 B #6（character ドメイン3本）は「off() バグ解消後に再評価推奨」とされていたため、次サイクルで再 triage 対象。
+
+---
+
+## ✅ character ドメイン3 spec ドリフト修復（2026-06-02・残存 B #6 消化）
+
+`character.service.spec` / `character-event-handler.service.spec` / `character.integration.spec` の3本。
+本体 Read で全失敗を triage した結果、**全件 (A)＝test が旧実装に未追従**。本番コードは一切変更せず spec のみ現仕様へ更新。
+
+### 切り分け根拠（本体現挙動）
+
+- `character.service.ts`: feature flag `prototype.eventDriven` 分岐・`[DIRECT]`/`[EVENT-DRIVEN]` ログ・`waitForCharacterSearchResult`/`waitForCharacterUpdateResult` 待機メソッドは**全て削除済み**（331行コメント「EventDriven待機メソッドを削除」）。`AppConfigService`/`UserService`/`DiscordService` 依存も削除（8-9・68-69行）。`create` は characterId 必須で throw・作成完了イベントは emit しない（105-107行コメント）。`update`/`remove`/`removeByChannelId` が `character.updated`/`character.deleted` を emit。ログは `Searching character by channelId:` 等（`[DIRECT]` プレフィックス無し）。
+- `character-event-handler.service.ts`: `registerEventListeners()` は**何も登録しない**（44-47行「すべてのイベントリスナーは File-based Event Handlers に移行済み・重複登録回避のため無効化」）。private ハンドラメソッドは残るが onModuleInit から呼ばれない。レガシーサービス（41行）。
+- 実際の CRUD イベント処理は `src/events/handlers/character.*.requested.ts`（File-based Event Handlers）が担い、それらの spec は緑（例: findByChannelId+creation で 45 tests pass）。
+- `typed-event.service.ts` に `listenerCount` メソッドは存在しない（spec の `listenerCount is not a function` の原因）。
+
+### (A) 適用内容
+
+1. **`character.service.spec.ts`**（17赤→13緑）: feature flag/旧依存（AppConfig/User/Discord）/`waitFor*` spy/`[DIRECT]`・`[EVENT-DRIVEN]` ログ期待を全削除。DI は `CharacterRepository` + `TypedEventService` の2 provider のみ。現仕様の直接 CRUD・`create` の characterId 必須 throw・`update`/`remove`/`removeByChannelId` の `character.updated`/`character.deleted` emit・現行ログ文言を検証。
+2. **`character-event-handler.service.spec.ts`**（8赤→4緑）: emit→completed/failed 期待と `listenerCount` 期待を撤廃。現仕様「onModuleInit が安全に完了し**リスナーを一切登録しない**／requested を emit してもこのサービス由来の完了イベント・repository 呼び出しが発生しない」を固定。
+3. **`character.integration.spec.ts`**（7赤→9緑・実 MongoDB 使用）: DB 永続化は機能していた（失敗は全て「`CharacterEventHandlerService` がリスナー未登録のため completed イベントが届かない」点のみ）。旧契約（`create()` が `creation.completed` を emit／`TypedEventEmitter.requestCharacterByChannelId/Update` が当サービスのリスナーを起動）を撤廃し、**サービス経由の直接 CRUD が DB に反映されること＋`update`/`remove` の統合イベント発行**を検証する形へ再構成。完了イベント検証は File-based Handlers 側 spec の責務として委譲。
+
+### (B) 未対応（製品バグ疑い）
+
+- **なし**。3本とも (A) で解消。本体に手は入れていない。
+
+### 検証
+
+- 個別: `character.service` 13/13・`character-event-handler` 4/4・`character.integration` 9/9 緑。
+- `pnpm exec jest src/domains/character`: **8 suites / 108 tests 全緑**（before: 3 suites fail / 32 tests fail）。新規失敗ゼロ。
+- 本番コード（`character.service.ts` 等）は未変更。
 
 ---
 
