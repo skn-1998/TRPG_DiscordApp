@@ -1845,7 +1845,7 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
   - `event-handler.base` の `setTimeout` リトライ: 意図的 FAF。
   - `discord-facade`: 同期 void メソッドを `Promise.all` の初期化塊に内包（構造保存のため await-thenable 許容）。
 - **設計起因でない**: 背景送信・`bootstrap()`・test factory の mock 呼出は `void` 明示（挙動不変）。`cache.get` 等の同期オペランドへの不要 `await` は除去。
-- **⚠️ 実バグ疑い（masking せず flag・現挙動は void で保存・要レビュー）**: `discord/discord.controller.ts:341` `postCharacter` の `characterService.update(...)` が**応答前に await されず fire-and-forget**。`discordChannelId` 永続化前に成功応答する可能性。NOTE コメント済み。await すべきか（DB 反映を保証）要判断。
+- **✅ 実バグ修正済み（2026-06-02）**: `discord/discord.controller.ts` `postCharacter` の `characterService.update(...)` が**成否判定より前に fire-and-forget**されていた（①チャンネル作成失敗時に `discordChannelId=undefined` を永続化＝データ破損、②更新失敗を握り潰し success 応答）。**成功判定を update より前へ移動＋update を await**で修正（失敗時は永続化せず、更新失敗は 500 へ伝播）。成功時 body 不変・フロント `postCharacterToDiscord` は 500 を catch 済みで影響なし。spec に「失敗時 update 呼ばない」「update 失敗→500」を追加。全体スイート 2774 緑。
 - 結果: ESLint **errors=0 / warnings=20**（残は全て意図的受容パターン: no-require-imports 7・no-empty 7・`'literal'|string` 3・no-namespace 3）。
 
 ---
