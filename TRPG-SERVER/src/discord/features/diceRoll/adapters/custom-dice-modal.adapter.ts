@@ -43,7 +43,7 @@ export class CustomDiceModalService implements discordModalType {
   }
 
   private validateDiceCommand(command: string): string | null {
-    const dicePattern = /^\s*(\d+)[dD](\d+)([\+\-]\d+)?\s*$/
+    const dicePattern = /^\s*(\d+)[dD](\d+)([+-]\d+)?\s*$/
     const match = command.match(dicePattern)
     if (!match) return null
     const numDice = parseInt(match[1], 10)

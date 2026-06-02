@@ -256,7 +256,7 @@ export class PerformanceDashboardController {
                 ? periodData.discord.totalResponseTime / periodData.discord.commandsExecuted
                 : 0
             break
-          case 'error_rate':
+          case 'error_rate': {
             const totalOps =
               (periodData.discord?.commandsExecuted || 0) +
               (periodData.http?.requests || 0) +
@@ -265,6 +265,7 @@ export class PerformanceDashboardController {
               (periodData.discord?.errors || 0) + (periodData.http?.errors || 0) + (periodData.database?.errors || 0)
             value = totalOps > 0 ? (totalErrors / totalOps) * 100 : 0
             break
+          }
           case 'throughput':
             value =
               (periodData.discord?.commandsExecuted || 0) +

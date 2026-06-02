@@ -243,7 +243,7 @@ export interface CharacterEventContracts {
 }
 
 // 統合されたイベント契約
-export interface AppEventContracts extends CharacterEventContracts {}
+export type AppEventContracts = CharacterEventContracts
 
 // イベント名の型
 export type EventName = string

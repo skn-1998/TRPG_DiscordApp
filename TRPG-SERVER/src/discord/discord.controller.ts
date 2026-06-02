@@ -329,7 +329,7 @@ export class DiscordController {
       const channelName = character.characterName
         .toLowerCase()
         .replace(/\s+/g, '-')
-        .replace(/[^\w\-]/g, '')
+        .replace(/[^\w-]/g, '')
       const createChannelResult = await this.discordService.createChannel({
         guildId: postCharacterDto.guildId,
         name: channelName,
