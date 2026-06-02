@@ -183,7 +183,7 @@ describe('CharacterIdService', () => {
       const stats = await service.getIdGenerationStats()
 
       expect(stats.totalCharacters).toBe(3)
-      expect(stats.averageIdLength).toBe(12) // All IDs are 12 characters
+      expect(stats.averageIdLength).toBe(13) // All IDs are 13 characters (e.g. 'char_abc123de')
       expect(stats.prefixDistribution).toEqual({
         char_: 2,
         test_: 1

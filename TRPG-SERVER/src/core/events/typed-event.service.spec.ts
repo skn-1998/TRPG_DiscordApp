@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { TypedEventService, TypedEventEmitter } from './typed-event.service'
-import { EventPayload } from '../domain/events/event-contracts'
+import { EventPayload } from '../../events/contracts'
 
 // テスト用イベント契約の拡張
 interface TestEventContracts {
