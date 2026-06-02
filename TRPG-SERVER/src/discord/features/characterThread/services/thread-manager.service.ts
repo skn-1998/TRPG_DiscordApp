@@ -1,9 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
+import { Client, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
+import {
+  buildThreadUrl,
+  nextBackoffDelay,
+  buildCreationCompletedPayload,
+  buildCreationFailedPayload
+} from './thread-manager.util'
 
 /**
  * スレッド作成リクエスト
@@ -49,16 +54,27 @@ export class ThreadManagerService {
   }
 
   /**
+   * 現在時刻（ミリ秒）を返す seam。
+   * 本番は Date.now をそのまま使うが、テストでは差し替えて poll ループや
+   * タイミングログを決定的にできる（本番のタイミング挙動は不変）。
+   */
+  protected now(): number {
+    return Date.now()
+  }
+
+  /**
+   * 指定ミリ秒だけ待機する seam。
+   * 本番は setTimeout による実待機。テストでは 0 遅延フェイクに差し替えて
+   * テストを遅延させない（本番の待機時間自体は不変）。
+   */
+  protected sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
    * キャラクター用スレッドを作成
    */
-  async createCharacterThread(request: CreateThreadRequest, character: Character): Promise<CreateThreadResult> {
-    const context: ErrorContext = {
-      operation: 'createCharacterThread',
-      characterId: request.characterId,
-      channelId: request.channelId,
-      guildId: request.guildId
-    }
-
+  async createCharacterThread(request: CreateThreadRequest, _character: Character): Promise<CreateThreadResult> {
     try {
       this.logger.log(`Creating thread for character: ${request.characterName}`)
 
@@ -75,43 +91,52 @@ export class ThreadManagerService {
       const textChannel = channel
       const thread = await this.createDiscordThread(textChannel, request.characterName)
 
+      const threadUrl = buildThreadUrl(request.guildId, thread.id)
+
       // スレッド作成完了イベントを発行
-      await this.typedEventService.emit('character-thread.creation.completed', {
-        threadId: thread.id,
-        discordThreadId: thread.id,
-        threadUrl: `https://discord.com/channels/${request.guildId}/${thread.id}`,
-        characterId: request.characterId,
-        characterName: request.characterName,
-        channelId: request.channelId,
-        creatorId: request.creatorId,
-        guildId: request.guildId,
-        timestamp: new Date(),
-        source: 'thread-manager-service'
-      })
+      await this.typedEventService.emit(
+        'character-thread.creation.completed',
+        buildCreationCompletedPayload(
+          {
+            threadId: thread.id,
+            characterId: request.characterId,
+            characterName: request.characterName,
+            channelId: request.channelId,
+            creatorId: request.creatorId,
+            guildId: request.guildId
+          },
+          threadUrl,
+          new Date()
+        )
+      )
 
       this.logger.log(`Thread created successfully: ${thread.id}`)
 
       return {
         success: true,
         threadId: thread.id,
-        threadUrl: `https://discord.com/channels/${request.guildId}/${thread.id}`
+        threadUrl
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       this.logger.error(`Failed to create thread: ${errorMessage}`, error)
 
       // スレッド作成失敗イベントを発行
-      await this.typedEventService.emit('character-thread.creation.failed', {
-        threadId: `temp-${Date.now()}`,
-        characterId: request.characterId,
-        characterName: request.characterName,
-        channelId: request.channelId,
-        creatorId: request.creatorId,
-        guildId: request.guildId,
-        error: errorMessage,
-        timestamp: new Date(),
-        source: 'thread-manager-service'
-      })
+      await this.typedEventService.emit(
+        'character-thread.creation.failed',
+        buildCreationFailedPayload(
+          {
+            characterId: request.characterId,
+            characterName: request.characterName,
+            channelId: request.channelId,
+            creatorId: request.creatorId,
+            guildId: request.guildId
+          },
+          `temp-${this.now()}`,
+          errorMessage,
+          new Date()
+        )
+      )
 
       return {
         success: false,
@@ -130,7 +155,7 @@ export class ThreadManagerService {
     )
 
     try {
-      const startTime = Date.now()
+      const startTime = this.now()
 
       // Discord APIコール実行
       const thread = await channel.threads.create({
@@ -140,12 +165,12 @@ export class ThreadManagerService {
         reason: `Character thread for ${characterName}`
       })
 
-      const apiResponseTime = Date.now() - startTime
+      const apiResponseTime = this.now() - startTime
 
       // 実験: ログなしでの即座検証
-      const immediateVerifyStart = Date.now()
+      const immediateVerifyStart = this.now()
       const immediateThread = await this.discordClient.channels.fetch(thread.id)
-      const immediateVerifyTime = Date.now() - immediateVerifyStart
+      const immediateVerifyTime = this.now() - immediateVerifyStart
 
       this.logger.log(`[THREAD-CREATE] ===== API Response Analysis =====`)
       this.logger.log(`[THREAD-CREATE] API response time: ${apiResponseTime}ms`)
@@ -162,7 +187,7 @@ export class ThreadManagerService {
 
       // 実験: 明示的待機での検証
       this.logger.log(`[THREAD-CREATE] Testing explicit wait strategy...`)
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await this.sleep(50)
       const delayedThread = await this.discordClient.channels.fetch(thread.id)
       this.logger.log(`[THREAD-CREATE] After 50ms delay fetchable: ${!!delayedThread}`)
 
@@ -201,8 +226,8 @@ export class ThreadManagerService {
 
         if (attempt < retryCount) {
           this.logger.debug(`[THREAD-FETCH] Waiting ${delayMs}ms before retry...`)
-          await new Promise((resolve) => setTimeout(resolve, delayMs))
-          delayMs *= 2 // Exponential backoff
+          await this.sleep(delayMs)
+          delayMs = nextBackoffDelay(delayMs) // Exponential backoff
         } else {
           this.logger.error(`[THREAD-FETCH] All ${retryCount} attempts failed for thread: ${threadId}`, error)
           return null
@@ -221,27 +246,27 @@ export class ThreadManagerService {
     maxWaitMs = 5000,
     pollIntervalMs = 100
   ): Promise<ThreadChannel | null> {
-    const startTime = Date.now()
+    const startTime = this.now()
     let attempts = 0
 
     this.logger.debug(`[THREAD-WAIT] Starting to wait for thread availability: ${threadId}`)
 
-    while (Date.now() - startTime < maxWaitMs) {
+    while (this.now() - startTime < maxWaitMs) {
       attempts++
 
       try {
         const thread = await this.getThreadChannel(threadId, 1, 0) // Single attempt, no internal retry
         if (thread) {
           this.logger.log(
-            `[THREAD-WAIT] Thread became available after ${Date.now() - startTime}ms (${attempts} attempts)`
+            `[THREAD-WAIT] Thread became available after ${this.now() - startTime}ms (${attempts} attempts)`
           )
           return thread
         }
-      } catch (error) {
+      } catch {
         this.logger.debug(`[THREAD-WAIT] Attempt ${attempts} failed, continuing...`)
       }
 
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+      await this.sleep(pollIntervalMs)
     }
 
     this.logger.error(`[THREAD-WAIT] Thread did not become available within ${maxWaitMs}ms after ${attempts} attempts`)

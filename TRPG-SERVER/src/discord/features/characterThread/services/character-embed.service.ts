@@ -227,7 +227,7 @@ export class CharacterEmbedService {
   /**
    * キャラクター情報をスレッドに投稿（従来のpostCharacterInfo互換メソッド）
    */
-  async postCharacterInfo(thread: ThreadChannel, character: Character, userName?: string): Promise<void> {
+  async postCharacterInfo(thread: ThreadChannel, character: Character, _userName?: string): Promise<void> {
     this.logger.debug(`Posting character info: ${character.characterName}`)
     await this.postCharacterDisplay(thread, character, 'enhanced')
   }

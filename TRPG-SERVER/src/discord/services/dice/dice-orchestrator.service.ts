@@ -189,7 +189,7 @@ export class DiceOrchestratorService {
   private validateDiceNotation(notation: string): boolean {
     // 基本的なダイス記法のパターン
     // 例: 1d100, 2d6+3, 3d10-5, 1d20+2-1
-    const dicePattern = /^(\d+)d(\d+)([\+\-]\d+)*$/
+    const dicePattern = /^(\d+)d(\d+)([+-]\d+)*$/
 
     if (!dicePattern.test(notation)) {
       return false

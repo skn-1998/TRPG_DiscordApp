@@ -38,7 +38,7 @@ export interface CharacterEventContracts {
 
   'character.findByChannelId.completed': {
     channelId: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }
@@ -58,7 +58,7 @@ export interface CharacterEventContracts {
 
   'character.findById.completed': {
     characterId: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }
@@ -78,7 +78,7 @@ export interface CharacterEventContracts {
 
   'character.findByName.completed': {
     characterName: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }
@@ -243,7 +243,7 @@ export interface CharacterEventContracts {
 }
 
 // 統合されたイベント契約
-export interface AppEventContracts extends CharacterEventContracts {}
+export type AppEventContracts = CharacterEventContracts
 
 // イベント名の型
 export type EventName = string

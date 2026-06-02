@@ -1,66 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { MongooseModule } from '@nestjs/mongoose'
 import { EventEmitterModule } from '@nestjs/event-emitter'
-import { Logger } from '@nestjs/common'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
-import { CharacterEventHandlerService } from './services/character-event-handler.service'
-import { UserService } from '../user/user.service'
-import { AppConfigService } from '../../config/config.service'
-import { TypedEventEmitter, TypedEventService } from '../../core/events/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
-import { CharacterInputDto, CreateCharacterDto } from './dto/create-character.dto'
+import { CharacterInputDto } from './dto/create-character.dto'
 import { v4 as uuidv4 } from 'uuid'
 import { EventPayload } from '../../events/contracts'
 
 /**
- * Character CRUD Events Integration Test
- * 実際のMongoDBを使用してCRUDイベントの動作を検証
+ * Character CRUD 結合テスト（実 MongoDB 使用）
+ *
+ * 現行 CharacterService の挙動に追従:
+ * - create は characterId 必須・直接 DB へ永続化し、作成完了イベントは発行しない
+ *   （character.creation.completed は File-based Event Handlers が character.creation.requested を
+ *    受けて発行する責務であり、create() 自体は発行しない）
+ * - update / updateByChannelId は DB を更新し、update は character.updated を emit
+ * - remove / removeByChannelId は DB から削除し character.deleted を emit
+ *
+ * よって本テストは「サービス経由の直接 CRUD が DB に正しく反映されること」と
+ * 「update/remove で対応する統合イベントが発行されること」を検証する。
+ * findByChannelId.completed / update.completed といった完了イベントの検証は
+ * File-based Event Handlers 側の spec が担うため、ここでは扱わない。
  */
-describe('Character CRUD Events Integration Test', () => {
+describe('Character CRUD Integration Test', () => {
   let module: TestingModule
   let characterService: CharacterService
   let characterRepository: CharacterRepository
-  let characterEventHandler: CharacterEventHandlerService
   let typedEventService: TypedEventService
-  let typedEventEmitter: TypedEventEmitter
 
-  // テスト用のMongoDB URI (MongoDB Atlas with test database)
+  // テスト用のMongoDB URI
   const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
   const mongoUri = baseUri.includes('mongodb+srv://')
     ? baseUri.replace('/?', '/trpg_integration_test_db?')
     : 'mongodb://localhost:27017/trpg_integration_test_db'
 
-  // モックサービス
-  const mockUserService = {
-    findUserById: jest.fn().mockResolvedValue({
-      discordUserId: 'test-user-123',
-      username: 'test-user'
-    }),
-    findOrCreateUser: jest.fn(),
-    addCharacterId: jest.fn().mockResolvedValue(undefined)
-  }
-
-  const mockConfigService = {
-    get: jest.fn().mockImplementation((key: string) => {
-      if (key === 'prototype.eventDriven') return false // 直接DB操作を行う
-      return null
-    })
-  }
-
-  // TypedEventServiceは既にmockTypedEventServiceで定義済み
-
   beforeEach(async () => {
-    // イベント受信用のハンドラーを初期化
-    const eventHandlers = {
-      creationCompleted: jest.fn(),
-      creationFailed: jest.fn(),
-      updateCompleted: jest.fn(),
-      updateFailed: jest.fn(),
-      findCompleted: jest.fn(),
-      findFailed: jest.fn()
-    }
-
     module = await Test.createTestingModule({
       imports: [
         MongooseModule.forRoot(mongoUri),
@@ -75,7 +51,6 @@ describe('Character CRUD Events Integration Test', () => {
       providers: [
         CharacterService,
         CharacterRepository,
-        CharacterEventHandlerService,
         TypedEventService,
         {
           provide: 'TYPED_EVENT_EMITTER',
@@ -86,62 +61,28 @@ describe('Character CRUD Events Integration Test', () => {
               maxListeners: 10,
               ignoreErrors: false
             })
-        },
-        {
-          provide: TypedEventEmitter,
-          useFactory: (service: TypedEventService) => new TypedEventEmitter(service),
-          inject: [TypedEventService]
-        },
-        {
-          provide: UserService,
-          useValue: mockUserService
-        },
-        {
-          provide: AppConfigService,
-          useValue: mockConfigService
         }
-        // DiscordIntegrationServiceの依存を削除（イベント駆動に移行済み）
       ]
     }).compile()
 
     characterService = module.get<CharacterService>(CharacterService)
     characterRepository = module.get<CharacterRepository>(CharacterRepository)
-    characterEventHandler = module.get<CharacterEventHandlerService>(CharacterEventHandlerService)
     typedEventService = module.get<TypedEventService>(TypedEventService)
-    typedEventEmitter = module.get<TypedEventEmitter>(TypedEventEmitter)
 
-    // テスト開始前にデータベースをクリア
     await clearTestDatabase()
-
-    // イベントハンドラーを登録
-    typedEventService.on('character.creation.completed', eventHandlers.creationCompleted)
-    typedEventService.on('character.creation.failed', eventHandlers.creationFailed)
-    typedEventService.on('character.update.completed', eventHandlers.updateCompleted)
-    typedEventService.on('character.update.failed', eventHandlers.updateFailed)
-    typedEventService.on('character.findByChannelId.completed', eventHandlers.findCompleted)
-    typedEventService.on('character.findByChannelId.failed', eventHandlers.findFailed)
   })
 
   afterEach(async () => {
-    // テスト後にデータベースをクリア
     await clearTestDatabase()
 
-    // イベントリスナーをクリア（undefined チェック）
     if (typedEventService) {
-      typedEventService.removeAllListeners('character.creation.completed')
-      typedEventService.removeAllListeners('character.creation.failed')
-      typedEventService.removeAllListeners('character.update.completed')
-      typedEventService.removeAllListeners('character.update.failed')
-      typedEventService.removeAllListeners('character.findByChannelId.completed')
-      typedEventService.removeAllListeners('character.findByChannelId.failed')
+      typedEventService.removeAllListeners('character.updated')
+      typedEventService.removeAllListeners('character.deleted')
     }
 
     await module.close()
   })
 
-  /**
-   * テスト用データベースクリア
-   */
   async function clearTestDatabase(): Promise<void> {
     try {
       const characters = await characterRepository.findAll()
@@ -153,12 +94,9 @@ describe('Character CRUD Events Integration Test', () => {
     }
   }
 
-  /**
-   * CREATE操作のテスト
-   */
-  describe('Character Creation Events', () => {
-    it('should create character and emit creation.completed event', async () => {
-      // Arrange - 新しいAttributeValue形式でテストデータを作成
+  describe('Character Creation', () => {
+    it('should create character and persist it to the database', async () => {
+      // Arrange
       const createData: CharacterInputDto = {
         characterId: uuidv4(),
         characterName: 'Test Character',
@@ -185,25 +123,10 @@ describe('Character CRUD Events Integration Test', () => {
         }
       }
 
-      let createdCharacter: Character | null = null
-      let eventReceived = false
-
-      // イベントリスナーを設定
-      typedEventService.once(
-        'character.creation.completed',
-        (payload: EventPayload<'character.creation.completed'>) => {
-          createdCharacter = payload.character
-          eventReceived = true
-        }
-      )
-
       // Act
       const result = await characterService.create(createData)
 
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Assert - サービスからの戻り値検証
+      // Assert - サービス戻り値
       expect(result).toBeDefined()
       expect(result.characterId).toBe(createData.characterId)
       expect(result.characterName).toBe(createData.characterName)
@@ -211,66 +134,30 @@ describe('Character CRUD Events Integration Test', () => {
       expect(result.discordUserId).toBe(createData.discordUserId)
       expect(result.discordChannelId).toBe(createData.discordChannelId)
 
-      // Assert - データベース永続化検証
+      // Assert - DB 永続化
       const savedCharacter = await characterRepository.findById(createData.characterId!)
       expect(savedCharacter).not.toBeNull()
       expect(savedCharacter!.characterName).toBe(createData.characterName)
       expect(savedCharacter!.status).toEqual(createData.status)
       expect(savedCharacter!.parameter).toEqual(createData.parameter)
-
-      // Assert - イベント発火検証
-      expect(eventReceived).toBe(true)
-      expect(createdCharacter).not.toBeNull()
-      expect(createdCharacter!.characterId).toBe(createData.characterId)
     })
 
-    it('should emit creation.failed event when duplicate characterId', async () => {
-      // Arrange
-      const characterId = uuidv4()
-      const createData: CharacterInputDto = {
-        characterId,
-        characterName: 'Test Character',
+    it('should throw when characterId is not provided', async () => {
+      const createData = {
+        characterName: 'No-Id Character',
         gameSystemId: 'coc',
         discordUserId: 'test-user-123',
         discordChannelId: 'test-channel-456'
-      }
+      } as CharacterInputDto
 
-      let errorReceived = ''
-      let failedEventReceived = false
-
-      // 最初にキャラクターを作成
-      await characterService.create(createData)
-
-      // 失敗イベントリスナーを設定
-      typedEventService.once('character.creation.failed', (payload: EventPayload<'character.creation.failed'>) => {
-        errorReceived = payload.error
-        failedEventReceived = true
-      })
-
-      // Act - 同じIDで再度作成を試行
-      try {
-        await characterService.create(createData)
-      } catch (error) {
-        // エラーは期待される
-      }
-
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Assert
-      expect(failedEventReceived).toBe(true)
-      expect(errorReceived).toContain('duplicate')
+      await expect(characterService.create(createData)).rejects.toThrow('CharacterID is required')
     })
   })
 
-  /**
-   * READ操作のテスト
-   */
-  describe('Character Find Events', () => {
+  describe('Character Find', () => {
     let testCharacter: Character
 
     beforeEach(async () => {
-      // テスト用キャラクターを作成
       const createData: CharacterInputDto = {
         characterId: uuidv4(),
         characterName: 'Find Test Character',
@@ -278,71 +165,27 @@ describe('Character CRUD Events Integration Test', () => {
         discordUserId: 'test-user-123',
         discordChannelId: 'find-test-channel-456'
       }
-
       testCharacter = await characterService.create(createData)
-      // 作成完了まで待機
-      await new Promise((resolve) => setTimeout(resolve, 50))
     })
 
-    it('should find character by channelId and emit findByChannelId.completed event', async () => {
-      // Arrange
-      let foundCharacter: Character | null = null
-      let eventReceived = false
+    it('should find character directly by channelId', async () => {
+      const found = await characterService.findByChannelId(testCharacter.discordChannelId)
 
-      typedEventService.once(
-        'character.findByChannelId.completed',
-        (payload: EventPayload<'character.findByChannelId.completed'>) => {
-          foundCharacter = payload.character
-          eventReceived = true
-        }
-      )
-
-      // Act
-      await typedEventEmitter.requestCharacterByChannelId(testCharacter.discordChannelId, 'integration-test')
-
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Assert
-      expect(eventReceived).toBe(true)
-      expect(foundCharacter).not.toBeNull()
-      expect(foundCharacter!.characterId).toBe(testCharacter.characterId)
-      expect(foundCharacter!.characterName).toBe(testCharacter.characterName)
+      expect(found).not.toBeNull()
+      expect(found!.characterId).toBe(testCharacter.characterId)
+      expect(found!.characterName).toBe(testCharacter.characterName)
     })
 
-    it('should emit findByChannelId.completed with null character for non-existent channel', async () => {
-      // Arrange
-      let foundCharacter: Character | null = null
-      let eventReceived = false
-
-      typedEventService.once(
-        'character.findByChannelId.completed',
-        (payload: EventPayload<'character.findByChannelId.completed'>) => {
-          foundCharacter = payload.character
-          eventReceived = true
-        }
-      )
-
-      // Act
-      await typedEventEmitter.requestCharacterByChannelId('non-existent-channel-id', 'integration-test')
-
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Assert
-      expect(eventReceived).toBe(true)
-      expect(foundCharacter).toBeNull() // キャラクターが見つからない場合はnull
+    it('should return null for a non-existent channel', async () => {
+      const found = await characterService.findByChannelId('non-existent-channel-id')
+      expect(found).toBeNull()
     })
   })
 
-  /**
-   * UPDATE操作のテスト
-   */
-  describe('Character Update Events', () => {
+  describe('Character Update', () => {
     let testCharacter: Character
 
     beforeEach(async () => {
-      // テスト用キャラクターを作成
       const createData: CharacterInputDto = {
         characterId: uuidv4(),
         characterName: 'Update Test Character',
@@ -359,14 +202,10 @@ describe('Character CRUD Events Integration Test', () => {
           }
         }
       }
-
       testCharacter = await characterService.create(createData)
-      // 作成完了まで待機
-      await new Promise((resolve) => setTimeout(resolve, 50))
     })
 
-    it('should update character and emit update.completed event', async () => {
-      // Arrange - 新しいAttributeValue形式での更新データ
+    it('should update character by channelId and persist changes', async () => {
       const updateData = {
         status: {
           HP: {
@@ -386,93 +225,85 @@ describe('Character CRUD Events Integration Test', () => {
         }
       }
 
-      let updatedCharacter: Character | null = null
-      let eventReceived = false
-
-      typedEventService.once('character.update.completed', (payload: EventPayload<'character.update.completed'>) => {
-        updatedCharacter = payload.character
-        eventReceived = true
-      })
-
       // Act
-      await typedEventEmitter.requestCharacterUpdate(testCharacter.discordChannelId, updateData, 'integration-test')
+      const updated = await characterService.updateByChannelId(testCharacter.discordChannelId, updateData)
 
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Assert - 戻り値
+      expect(updated).not.toBeNull()
+      expect(updated!.characterId).toBe(testCharacter.characterId)
 
-      // Assert - イベント検証
-      expect(eventReceived).toBe(true)
-      expect(updatedCharacter).not.toBeNull()
-      expect(updatedCharacter!.characterId).toBe(testCharacter.characterId)
-
-      // Assert - データベース更新検証
+      // Assert - DB 反映
       const savedCharacter = await characterRepository.findById(testCharacter.characterId)
       expect(savedCharacter).not.toBeNull()
-      expect(savedCharacter!.status).toEqual(updateData.status)
       expect((savedCharacter!.status as any).HP.values.base).toBe(30)
       expect((savedCharacter!.status as any).MP.values.base).toBe(20)
       expect((savedCharacter!.status as any).MP.values.other).toBe(5)
     })
 
-    it('should handle update request for non-existent character gracefully', async () => {
-      // Arrange
-      const updateData = {
-        status: {
-          HP: {
-            name: 'HP',
-            index: 1,
-            values: { base: 999, other: 0 },
-            description: 'ヒットポイント',
-            isVisible: true
-          }
-        }
-      }
-
-      let completedEventReceived = false
-      let failedEventReceived = false
-
-      typedEventService.once('character.update.completed', () => {
-        completedEventReceived = true
+    it('should emit character.updated when updating by id', async () => {
+      let emittedPayload: EventPayload<'character.updated'> | null = null
+      typedEventService.once('character.updated', (payload) => {
+        emittedPayload = payload
       })
 
-      typedEventService.once('character.update.failed', () => {
-        failedEventReceived = true
+      await characterService.update(testCharacter.characterId, { characterName: 'Renamed Character' })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(emittedPayload).not.toBeNull()
+      expect(emittedPayload!.character.characterId).toBe(testCharacter.characterId)
+      expect(emittedPayload!.updateType).toBe('update')
+      expect(emittedPayload!.source).toBe('character-service')
+    })
+
+    it('should return null when updating a non-existent channel', async () => {
+      const updated = await characterService.updateByChannelId('non-existent-channel-id', {
+        characterName: 'Ghost'
+      })
+      expect(updated).toBeNull()
+    })
+  })
+
+  describe('Character Delete', () => {
+    let testCharacter: Character
+
+    beforeEach(async () => {
+      const createData: CharacterInputDto = {
+        characterId: uuidv4(),
+        characterName: 'Delete Test Character',
+        gameSystemId: 'coc',
+        discordUserId: 'test-user-123',
+        discordChannelId: 'delete-test-channel-456'
+      }
+      testCharacter = await characterService.create(createData)
+    })
+
+    it('should remove character by channelId, emit character.deleted, and clear DB', async () => {
+      let emittedPayload: EventPayload<'character.deleted'> | null = null
+      typedEventService.once('character.deleted', (payload) => {
+        emittedPayload = payload
       })
 
       // Act
-      await typedEventEmitter.requestCharacterUpdate('non-existent-channel-id', updateData, 'integration-test')
+      await characterService.removeByChannelId(testCharacter.discordChannelId, 'test-user-123')
+      await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // イベント発火を待機
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Assert - イベント
+      expect(emittedPayload).not.toBeNull()
+      expect(emittedPayload!.character.characterId).toBe(testCharacter.characterId)
+      expect(emittedPayload!.source).toBe('character-service')
 
-      // Assert - 存在しないチャンネルの場合、更新に失敗するか完了するかを確認
-      expect(completedEventReceived || failedEventReceived).toBe(true)
-      if (failedEventReceived) {
-        expect(completedEventReceived).toBe(false)
-      }
+      // Assert - DB から削除済み
+      const savedCharacter = await characterRepository.findById(testCharacter.characterId)
+      expect(savedCharacter).toBeNull()
     })
   })
 
-  /**
-   * DELETE操作のテスト（将来の拡張用）
-   */
-  describe('Character Delete Events', () => {
-    it('should prepare for delete event implementation', async () => {
-      // 現在のイベント契約にはdeleteイベントが定義されていないため、
-      // 将来の実装に備えたプレースホルダー
-      expect(true).toBe(true)
-    })
-  })
-
-  /**
-   * エンドツーエンドCRUDフローテスト
-   */
   describe('End-to-End CRUD Flow', () => {
-    it('should handle complete CRUD lifecycle with events', async () => {
+    it('should handle complete create -> find -> update -> delete lifecycle', async () => {
       const characterId = uuidv4()
       const channelId = 'e2e-test-channel-789'
 
-      // 1. CREATE - キャラクター作成
+      // 1. CREATE
       const createData: CharacterInputDto = {
         characterId,
         characterName: 'E2E Test Character',
@@ -490,25 +321,15 @@ describe('Character CRUD Events Integration Test', () => {
         }
       }
 
-      const createdCharacter = await characterService.create(createData)
-      expect(createdCharacter.characterId).toBe(characterId)
+      const created = await characterService.create(createData)
+      expect(created.characterId).toBe(characterId)
 
-      // 作成完了まで待機
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // 2. READ
+      const found = await characterService.findByChannelId(channelId)
+      expect(found).not.toBeNull()
+      expect(found!.characterId).toBe(characterId)
 
-      // 2. READ - 作成されたキャラクターの検索
-      let foundCharacter: Character | null = null
-      typedEventService.once('character.findByChannelId.completed', (payload) => {
-        foundCharacter = payload.character
-      })
-
-      await typedEventEmitter.requestCharacterByChannelId(channelId, 'e2e-test')
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      expect(foundCharacter).not.toBeNull()
-      expect(foundCharacter!.characterId).toBe(characterId)
-
-      // 3. UPDATE - キャラクターの更新
+      // 3. UPDATE
       const updateData = {
         status: {
           HP: {
@@ -528,23 +349,21 @@ describe('Character CRUD Events Integration Test', () => {
         }
       }
 
-      let updatedCharacter: Character | null = null
-      typedEventService.once('character.update.completed', (payload) => {
-        updatedCharacter = payload.character
-      })
+      const updated = await characterService.updateByChannelId(channelId, updateData)
+      expect(updated).not.toBeNull()
+      expect((updated!.status as any).HP.values.base).toBe(75)
+      expect((updated!.status as any).MP.values.base).toBe(50)
 
-      await typedEventEmitter.requestCharacterUpdate(channelId, updateData, 'e2e-test')
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      expect(updatedCharacter).not.toBeNull()
-      expect((updatedCharacter!.status as any).HP.values.base).toBe(75)
-      expect((updatedCharacter!.status as any).MP.values.base).toBe(50)
-
-      // 4. 最終検証 - データベース確認
+      // 4. 最終検証
       const finalCharacter = await characterRepository.findById(characterId)
       expect(finalCharacter).not.toBeNull()
       expect((finalCharacter!.status as any).HP.values.base).toBe(75)
       expect((finalCharacter!.status as any).MP.values.base).toBe(50)
+
+      // 5. DELETE
+      await characterService.removeByChannelId(channelId, 'test-user-123')
+      const deleted = await characterRepository.findById(characterId)
+      expect(deleted).toBeNull()
     })
   })
 })

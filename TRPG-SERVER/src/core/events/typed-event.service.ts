@@ -10,6 +10,15 @@ import { EventName, EventPayload, TypedEventHandler, TypedEventListener } from '
 export class TypedEventService {
   private readonly logger = new Logger(TypedEventService.name)
 
+  /**
+   * `on()` で登録した元 handler と、実際に EventEmitter2 へ登録したラッパー関数の対応表。
+   * `off()` で元 handler から正しいラッパーを引いて解除するために保持する。
+   * 構造: event 名 → (元 handler → ラッパー配列)。
+   * 同一 handler の複数登録に対応するため値は配列とし、`off()` は1回につき1ラッパーのみ解除する。
+   */
+
+  private readonly handlerWrappers = new Map<string, Map<(...args: any[]) => any, Array<(...args: any[]) => any>>>()
+
   constructor(@Inject('TYPED_EVENT_EMITTER') private readonly eventEmitter: EventEmitter2) {}
 
   /**
@@ -38,7 +47,7 @@ export class TypedEventService {
   on<T extends EventName>(event: T, handler: TypedEventHandler<T>): void {
     this.logger.log(`[TYPED-EVENT] Registering handler for event: ${event}`)
 
-    this.eventEmitter.on(event, async (payload: EventPayload<T>) => {
+    const wrapper = async (payload: EventPayload<T>) => {
       this.logger.debug(`[TYPED-EVENT] Handling event: ${event}`)
 
       try {
@@ -48,7 +57,12 @@ export class TypedEventService {
         this.logger.error(`[TYPED-EVENT] Error handling event ${event}:`, error)
         throw error
       }
-    })
+    }
+
+    // off() で解除できるよう、元 handler → ラッパーの対応を記録してから登録する
+    this.trackWrapper(event, handler, wrapper)
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- emit() は emitAsync で async リスナーを await する設計。async wrapper の登録は意図的（同期化すると emit のエラー伝播が壊れる）
+    this.eventEmitter.on(event, wrapper)
   }
 
   /**
@@ -59,6 +73,7 @@ export class TypedEventService {
   once<T extends EventName>(event: T, handler: TypedEventHandler<T>): void {
     this.logger.log(`[TYPED-EVENT] Registering one-time handler for event: ${event}`)
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- emitAsync が async リスナーを await する設計のため意図的
     this.eventEmitter.once(event, async (payload: EventPayload<T>) => {
       this.logger.debug(`[TYPED-EVENT] Handling one-time event: ${event}`)
 
@@ -79,14 +94,22 @@ export class TypedEventService {
    */
   off<T extends EventName>(event: T, handler: TypedEventHandler<T>): void {
     this.logger.log(`[TYPED-EVENT] Removing handler for event: ${event}`)
-    this.eventEmitter.off(event, handler)
+
+    const wrapper = this.takeWrapper(event, handler)
+    if (!wrapper) {
+      // on() 経由で登録されていない handler の off は no-op（多重 off や未登録 off を安全に無視）
+      this.logger.debug(`[TYPED-EVENT] No registered wrapper found for event: ${event}`)
+      return
+    }
+
+    this.eventEmitter.off(event, wrapper)
   }
 
   /**
    * 複数のイベントリスナーを一括登録
    * @param listeners イベントリスナーの配列
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   registerMultiple(listeners: TypedEventListener<any>[]): void {
     this.logger.log(`[TYPED-EVENT] Registering ${listeners.length} event listeners`)
 
@@ -102,6 +125,46 @@ export class TypedEventService {
   removeAllListeners<T extends EventName>(event: T): void {
     this.logger.log(`[TYPED-EVENT] Removing all listeners for event: ${event}`)
     this.eventEmitter.removeAllListeners(event)
+    // 解除済みラッパーが対応表に残らないよう同時にクリアする
+    this.handlerWrappers.delete(event)
+  }
+
+  /**
+   * on() 登録時に元 handler → ラッパーの対応を記録する
+   */
+
+  private trackWrapper(event: string, handler: (...args: any[]) => any, wrapper: (...args: any[]) => any): void {
+    let byHandler = this.handlerWrappers.get(event)
+    if (!byHandler) {
+      byHandler = new Map()
+      this.handlerWrappers.set(event, byHandler)
+    }
+    const wrappers = byHandler.get(handler) ?? []
+    wrappers.push(wrapper)
+    byHandler.set(handler, wrappers)
+  }
+
+  /**
+   * off() 用に元 handler に対応するラッパーを1つ取り出す（取り出したものは対応表から除去）。
+   * 同一 handler が複数登録されている場合は最後に登録したものから解除する。
+   * 対応するラッパーが無ければ undefined を返す。
+   */
+
+  private takeWrapper(event: string, handler: (...args: any[]) => any): ((...args: any[]) => any) | undefined {
+    const byHandler = this.handlerWrappers.get(event)
+    const wrappers = byHandler?.get(handler)
+    if (!byHandler || !wrappers || wrappers.length === 0) {
+      return undefined
+    }
+
+    const wrapper = wrappers.pop()
+    if (wrappers.length === 0) {
+      byHandler.delete(handler)
+      if (byHandler.size === 0) {
+        this.handlerWrappers.delete(event)
+      }
+    }
+    return wrapper
   }
 
   /**

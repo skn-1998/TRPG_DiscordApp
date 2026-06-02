@@ -10,7 +10,7 @@ import { TypedEventService } from '../../../core/events/typed-event.service'
 jest.mock('../../features/characterEdit/services/character-ui.service', () => ({
   CharacterUIService: class CharacterUIService {}
 }))
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const { CharacterUIService } = require('../../features/characterEdit/services/character-ui.service')
 
 /**

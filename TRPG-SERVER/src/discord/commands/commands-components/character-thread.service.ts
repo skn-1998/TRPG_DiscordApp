@@ -5,14 +5,13 @@
  * 疎結合な設計により、表示タイプを指定してfeatures/に委譲
  */
 
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import {
   ActionRowBuilder,
   CacheType,
   CommandInteraction,
   SlashCommandBuilder,
-  StringSelectMenuBuilder,
-  ApplicationCommandOptionType
+  StringSelectMenuBuilder
 } from 'discord.js'
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'

@@ -59,13 +59,23 @@ jest.mock('discord.js', () => ({
   ButtonBuilder: jest.fn().mockImplementation(() => ({
     setCustomId: jest.fn().mockReturnThis(),
     setLabel: jest.fn().mockReturnThis(),
-    setStyle: jest.fn().mockReturnThis()
+    setStyle: jest.fn().mockReturnThis(),
+    setDisabled: jest.fn().mockReturnThis(),
+    setEmoji: jest.fn().mockReturnThis(),
+    setURL: jest.fn().mockReturnThis()
   })),
   EmbedBuilder: jest.fn().mockImplementation(() => ({
     setTitle: jest.fn().mockReturnThis(),
     setDescription: jest.fn().mockReturnThis(),
     setColor: jest.fn().mockReturnThis(),
-    addFields: jest.fn().mockReturnThis()
+    addFields: jest.fn().mockReturnThis(),
+    setFields: jest.fn().mockReturnThis(),
+    setTimestamp: jest.fn().mockReturnThis(),
+    setURL: jest.fn().mockReturnThis(),
+    setFooter: jest.fn().mockReturnThis(),
+    setThumbnail: jest.fn().mockReturnThis(),
+    setAuthor: jest.fn().mockReturnThis(),
+    setImage: jest.fn().mockReturnThis()
   })),
   ActionRowBuilder: jest.fn().mockImplementation(() => ({
     addComponents: jest.fn().mockReturnThis()
@@ -82,7 +92,9 @@ jest.mock('discord.js', () => ({
     setPlaceholder: jest.fn().mockReturnThis(),
     setRequired: jest.fn().mockReturnThis(),
     setMinLength: jest.fn().mockReturnThis(),
-    setMaxLength: jest.fn().mockReturnThis()
+    setMaxLength: jest.fn().mockReturnThis(),
+    // 実 discord.js には存在するが旧モックに欠けていたため補完（既存値の復元に使用）
+    setValue: jest.fn().mockReturnThis()
   })),
   ButtonStyle: {
     Primary: 1,
@@ -124,15 +136,72 @@ jest.mock('discord.js', () => ({
     setMinValues: jest.fn().mockReturnThis(),
     setMaxValues: jest.fn().mockReturnThis(),
     addOptions: jest.fn().mockReturnThis(),
-    setOptions: jest.fn().mockReturnThis()
+    setOptions: jest.fn().mockReturnThis(),
+    setDisabled: jest.fn().mockReturnThis()
+  })),
+  StringSelectMenuOptionBuilder: jest.fn().mockImplementation(() => ({
+    setLabel: jest.fn().mockReturnThis(),
+    setValue: jest.fn().mockReturnThis(),
+    setDescription: jest.fn().mockReturnThis(),
+    setDefault: jest.fn().mockReturnThis(),
+    setEmoji: jest.fn().mockReturnThis()
   })),
   ApplicationCommandType: {
     ChatInput: 1,
     User: 2,
     Message: 3
   },
+  // 実 discord.js と同じ値で全列挙を提供（旧モックは PublicThread のみで各 spec が個別補完していた）
   ChannelType: {
-    PublicThread: 11
+    GuildText: 0,
+    DM: 1,
+    GuildVoice: 2,
+    GroupDM: 3,
+    GuildCategory: 4,
+    GuildAnnouncement: 5,
+    AnnouncementThread: 10,
+    PublicThread: 11,
+    PrivateThread: 12,
+    GuildStageVoice: 13,
+    GuildDirectory: 14,
+    GuildForum: 15,
+    GuildMedia: 16
+  },
+  // 監査ログイベント種別（実 discord.js の数値に一致・主要分のみ）
+  // ChannelDetectionService.extractCreatorId が AuditLogEvent.ChannelCreate を参照するため必須
+  AuditLogEvent: {
+    ChannelCreate: 10,
+    ChannelUpdate: 11,
+    ChannelDelete: 12,
+    MemberKick: 20,
+    MemberBanAdd: 22
+  },
+  // よく参照されるイベント名（実 discord.js の文字列値に一致）
+  Events: {
+    ClientReady: 'ready',
+    InteractionCreate: 'interactionCreate',
+    ChannelCreate: 'channelCreate',
+    MessageCreate: 'messageCreate',
+    GuildCreate: 'guildCreate',
+    Error: 'error'
+  },
+  // 権限フラグ（実 discord.js の bigint 値に一致・主要分のみ）
+  PermissionsBitField: {
+    Flags: {
+      ManageChannels: 16n,
+      ViewChannel: 1024n,
+      SendMessages: 2048n,
+      ManageThreads: 17179869184n,
+      CreatePublicThreads: 34359738368n,
+      Administrator: 8n
+    }
+  },
+  // スレッド自動アーカイブ期間（実 discord.js の値に一致）
+  ThreadAutoArchiveDuration: {
+    OneHour: 60,
+    OneDay: 1440,
+    ThreeDays: 4320,
+    OneWeek: 10080
   },
   Colors: {
     White: 0xffffff,

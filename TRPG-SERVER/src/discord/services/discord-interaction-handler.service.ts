@@ -1,9 +1,8 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import {
   Client,
   Events,
   Interaction,
-  InteractionType,
   ButtonInteraction,
   ModalSubmitInteraction,
   AnySelectMenuInteraction,
@@ -63,6 +62,7 @@ export class DiscordInteractionHandlerService {
    */
   setupInteractionListeners(client: Client): void {
     // インタラクション処理の登録
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- discord.js の Client.on は async リスナーを await しない設計（handler 内で try/catch 済み）。fire-and-forget は意図的
     client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await this.handleInteraction(interaction)
     })
@@ -84,7 +84,7 @@ export class DiscordInteractionHandlerService {
       this.processedInteractions.add(interaction.id)
 
       // インタラクションタイプ別の並列処理
-      const handlers = []
+      const handlers: Promise<void>[] = []
 
       if (interaction.isCommand()) {
         handlers.push(this.handleCommandInteraction(interaction))
@@ -227,8 +227,7 @@ export class DiscordInteractionHandlerService {
    * キャッシュクリア（メモリ管理）
    */
   clearExpiredInteractions(): void {
-    const cutoffTime = Date.now() - 300000 // 5分前
-    const toDelete = Array.from(this.processedInteractions).filter((id) => {
+    const toDelete = Array.from(this.processedInteractions).filter((_id) => {
       // IDから時間を抽出できない場合は削除
       return true
     })

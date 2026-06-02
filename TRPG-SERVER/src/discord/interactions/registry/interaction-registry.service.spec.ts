@@ -134,7 +134,7 @@ describe('InteractionRegistryService', () => {
       service.registerHandler(modalHandler)
 
       const handlers = service.getAllHandlers()
-      expect(handlers.length).toBe(3)
+      expect(handlers).toHaveLength(3)
     })
   })
 
@@ -144,7 +144,7 @@ describe('InteractionRegistryService', () => {
 
       service.registerHandlers(handlers)
 
-      expect(service.getAllHandlers().length).toBe(3)
+      expect(service.getAllHandlers()).toHaveLength(3)
     })
   })
 
@@ -157,19 +157,19 @@ describe('InteractionRegistryService', () => {
 
     it('buttonタイプのハンドラーを取得できる', () => {
       const handlers = service.getHandlersByType('button')
-      expect(handlers.length).toBe(1)
+      expect(handlers).toHaveLength(1)
       expect(handlers[0].getInteractionType()).toBe('button')
     })
 
     it('selectタイプのハンドラーを取得できる', () => {
       const handlers = service.getHandlersByType('select')
-      expect(handlers.length).toBe(1)
+      expect(handlers).toHaveLength(1)
       expect(handlers[0].getInteractionType()).toBe('select')
     })
 
     it('modalタイプのハンドラーを取得できる', () => {
       const handlers = service.getHandlersByType('modal')
-      expect(handlers.length).toBe(1)
+      expect(handlers).toHaveLength(1)
       expect(handlers[0].getInteractionType()).toBe('modal')
     })
   })

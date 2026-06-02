@@ -144,7 +144,8 @@ export class CharacterDiceButtonsService implements discordButtonType {
               // テキストメッセージでダイスロール結果を送信
               await parentChannel.send({ content: resultText })
 
-              this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
+              // 履歴保存の完了は待たない fire-and-forget
+              void this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
             }
           }
         }
@@ -306,8 +307,8 @@ export class CharacterDiceButtonsService implements discordButtonType {
       // ページネーションのキャッシュを無効化して最新データを反映
       this.paginationService.invalidateCache(channelId)
 
-      // ダイスロール履歴を非同期で更新（バックグラウンド処理）
-      this.historyService.updateDiceRollHistoryAsync(interaction, parentChannel, channelId)
+      // ダイスロール履歴を非同期で更新（バックグラウンド処理・完了を待たない fire-and-forget）
+      void this.historyService.updateDiceRollHistoryAsync(interaction, parentChannel, channelId)
     } catch (error) {
       console.error('ダイスロール処理エラー:', error)
       await interaction.editReply('ダイスロールの処理中にエラーが発生しました。')

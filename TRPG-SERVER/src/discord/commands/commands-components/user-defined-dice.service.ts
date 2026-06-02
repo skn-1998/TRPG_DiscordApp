@@ -6,14 +6,6 @@ import { userDefinedDiceConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 
-const options = {
-  threshold: 0.4,
-  distance: 250,
-  keys: ['name']
-}
-
-const CATEGORY_NAME = 'オリジナル表'
-
 @Injectable()
 export class UserDefinedDiceService extends BaseCommandService implements discordCommandType {
   constructor(

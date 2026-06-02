@@ -39,21 +39,16 @@ export class DicePresetService {
         return
       }
 
-      const [, characterId, section, key, value, multiplierStr] = parts
+      const [, characterId, , key, , multiplierStr] = parts
       const multiplier = parseInt(multiplierStr) || 1
-      const parameterValue = parseInt(value) || 0
 
       // キャラクター情報を取得
       let character: Character | undefined = undefined
-      let characterName = 'プレイヤー'
 
       if (characterId) {
         try {
           const foundCharacter = await this.characterService.findOne(characterId)
           character = foundCharacter || undefined
-          if (character) {
-            characterName = character.characterName || characterName
-          }
         } catch (error) {
           this.logger.warn(`Character not found: ${characterId}`, error)
         }

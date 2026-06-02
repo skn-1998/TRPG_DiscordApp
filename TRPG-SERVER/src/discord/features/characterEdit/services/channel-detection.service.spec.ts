@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { ChannelDetectionService } from './channel-detection.service'
 import { AppConfigService } from 'src/config/config.service'
@@ -54,16 +53,18 @@ describe('ChannelDetectionService', () => {
 
   describe('detectCharacterChannel', () => {
     it('should detect character channel correctly', async () => {
+      // 実 discord.js の fetchAuditLogs().entries は Collection で .find() を持つ。
+      // 素の Map には .find() が無いため Collection 互換の find を備えたオブジェクトで模す。
+      const auditEntries = [
+        {
+          target: { id: 'test-channel-id' },
+          executor: { id: 'test-user-id' }
+        }
+      ]
       const mockAuditLogs = {
-        entries: new Map([
-          [
-            'test-entry',
-            {
-              target: { id: 'test-channel-id' },
-              executor: { id: 'test-user-id' }
-            }
-          ]
-        ])
+        entries: {
+          find: (predicate: (entry: any) => boolean) => auditEntries.find(predicate)
+        }
       }
 
       mockTextChannel.guild.fetchAuditLogs = jest.fn().mockResolvedValue(mockAuditLogs)
@@ -103,16 +104,16 @@ describe('ChannelDetectionService', () => {
     })
 
     it('should handle missing executor in audit log', async () => {
+      const auditEntries = [
+        {
+          target: { id: 'test-channel-id' },
+          executor: null
+        }
+      ]
       const mockAuditLogs = {
-        entries: new Map([
-          [
-            'test-entry',
-            {
-              target: { id: 'test-channel-id' },
-              executor: null
-            }
-          ]
-        ])
+        entries: {
+          find: (predicate: (entry: any) => boolean) => auditEntries.find(predicate)
+        }
       }
 
       mockTextChannel.guild.fetchAuditLogs = jest.fn().mockResolvedValue(mockAuditLogs)

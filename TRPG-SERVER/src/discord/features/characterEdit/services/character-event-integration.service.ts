@@ -3,7 +3,6 @@ import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
-import { TextChannel } from 'discord.js'
 
 /**
  * Character Event Integration Service
@@ -54,7 +53,7 @@ export class CharacterEventIntegrationService implements OnModuleInit {
    * チャンネルIDによるキャラクター検索を処理
    */
   private async handleCharacterSearchByChannelId(payload: any): Promise<void> {
-    const { channelId, source, timestamp } = payload
+    const { channelId, source } = payload
 
     this.logger.debug(`[CHARACTER-SEARCH] チャンネルID検索: ${channelId}`)
 
@@ -87,7 +86,7 @@ export class CharacterEventIntegrationService implements OnModuleInit {
    * IDによるキャラクター検索を処理
    */
   private async handleCharacterSearchById(payload: any): Promise<void> {
-    const { characterId, source, timestamp } = payload
+    const { characterId, source } = payload
 
     this.logger.debug(`[CHARACTER-SEARCH] ID検索: ${characterId}`)
 
@@ -120,7 +119,7 @@ export class CharacterEventIntegrationService implements OnModuleInit {
    * キャラクター更新リクエストを処理
    */
   private async handleCharacterUpdateRequest(payload: any): Promise<void> {
-    const { channelId, updateData, userId, source, timestamp } = payload
+    const { channelId, updateData, source } = payload
 
     this.logger.debug(`[CHARACTER-UPDATE] 更新リクエスト: ${channelId}`)
 

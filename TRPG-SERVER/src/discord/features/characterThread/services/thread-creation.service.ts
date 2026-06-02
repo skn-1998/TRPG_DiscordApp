@@ -298,7 +298,7 @@ export class ThreadCreationService {
   private async updateCharacterChannelIds(
     characterId: string,
     threadId: string,
-    editChannelId?: string
+    _editChannelId?: string
   ): Promise<void> {
     try {
       // discordChannelIdは変更せず、discordThreadIdのみを設定

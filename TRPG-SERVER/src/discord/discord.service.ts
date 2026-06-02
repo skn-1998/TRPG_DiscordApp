@@ -13,17 +13,6 @@ interface GuildInfo {
   channels: Array<{ id: string; name: string; type: string }>
 }
 
-interface EmbedData {
-  title: string
-  description: string
-  color: number
-  fields: Array<{
-    name: string
-    value: string
-    inline: boolean
-  }>
-}
-
 /**
  * Discord統合サービス
  *
@@ -177,7 +166,7 @@ export class DiscordService {
   /**
    * @deprecated Character-specific functionality moved to features/characterEdit/ and features/characterThread/
    */
-  async createCharacterEmbed(character: Character, guildId: string): Promise<any> {
+  async createCharacterEmbed(_character: Character, _guildId: string): Promise<any> {
     this.logger.error(
       'createCharacterEmbed is deprecated. Use features/characterThread/ or features/characterEdit/ instead.'
     )
@@ -187,7 +176,7 @@ export class DiscordService {
   /**
    * @deprecated Use features/characterThread/CharacterDisplayService instead
    */
-  async createOrUpdateCharacterEmbed(character: Character, channelId: string, guildInfo?: any): Promise<any> {
+  async createOrUpdateCharacterEmbed(_character: Character, _channelId: string, _guildInfo?: any): Promise<any> {
     this.logger.error(
       'createOrUpdateCharacterEmbed is deprecated. Use CharacterDisplayService in features/characterThread/ instead.'
     )

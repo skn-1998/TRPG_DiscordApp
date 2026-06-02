@@ -16,7 +16,7 @@ import { discordSelectMenuType } from 'src/discord/discord.type'
 import _, { isNull, isUndefined } from 'lodash'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
-import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
+import { getDisplayNumber } from 'src/core/types/attribute.types'
 import { TypedEventEmitter } from '../../../core/events/typed-event.service'
 
 @Injectable()
@@ -62,7 +62,6 @@ export class CharacterChannelService implements discordSelectMenuType {
     }
 
     try {
-      const targetChannel = interaction.channel
       const discordChannelId = interaction.values[0]
 
       // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更（型安全）
@@ -389,7 +388,8 @@ export class CharacterChannelService implements discordSelectMenuType {
       await this.createDiceButtons(thread, character)
     } catch (error) {
       console.error('キャラクター情報表示エラー:', error)
-      thread.send({ content: 'キャラクター情報の表示中にエラーが発生しました' })
+      // エラー通知は待たない fire-and-forget
+      void thread.send({ content: 'キャラクター情報の表示中にエラーが発生しました' })
     }
   }
 
@@ -507,7 +507,8 @@ export class CharacterChannelService implements discordSelectMenuType {
       })
     } catch (error) {
       console.error('ダイスボタン作成エラー:', error)
-      thread.send({ content: 'ダイスボタンの作成中にエラーが発生しました' })
+      // エラー通知は待たない fire-and-forget
+      void thread.send({ content: 'ダイスボタンの作成中にエラーが発生しました' })
     }
   }
 
@@ -532,7 +533,8 @@ export class CharacterChannelService implements discordSelectMenuType {
     } catch (error) {
       console.error('スレッド情報投稿エラー:', error)
       try {
-        thread.send({ content: 'キャラクター情報の取得に失敗しました' })
+        // エラー通知は待たない fire-and-forget
+        void thread.send({ content: 'キャラクター情報の取得に失敗しました' })
 
         if (!interaction.replied && interaction.isRepliable()) {
           await interaction.reply({ content: 'キャラクター情報の取得に失敗しました', ephemeral: true })

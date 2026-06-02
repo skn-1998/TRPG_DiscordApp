@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import {
   Client,
-  Guild,
   TextChannel,
   NewsChannel,
   ThreadChannel,
@@ -12,6 +11,17 @@ import {
 } from 'discord.js'
 import { ErrorHandler } from '../../../utils/error-handler'
 import { AppConfigService } from '../../../config/config.service'
+import {
+  buildChannelInfo,
+  buildChannelCreateOptions,
+  buildThreadCreateOptions,
+  buildCategoryCreateOptions,
+  buildPermissionOverwrites,
+  buildDeniedPermissionMap,
+  summarizePermissions,
+  hasAnyPermission,
+  convertChannelType
+} from './channel-creator.pure'
 
 /**
  * チャンネル作成・権限管理サービス
@@ -51,27 +61,18 @@ export class ChannelCreatorService {
         return null
       }
 
-      const result: any = {
+      // 組立ロジックは純関数 buildChannelInfo に委譲（I/O 値だけを抜き出して渡す）。
+      const isThread = channel.isThread()
+      const result = buildChannelInfo({
         id: channel.id,
-        name: 'name' in channel ? channel.name : 'Unknown',
-        type: ChannelType[channel.type] || 'Unknown'
-      }
-
-      if ('guildId' in channel && channel.guildId) {
-        result.guildId = channel.guildId
-      }
-
-      if ('parentId' in channel && channel.parentId) {
-        result.parentId = channel.parentId
-      }
-
-      if ('topic' in channel && channel.topic) {
-        result.topic = channel.topic
-      }
-
-      if (channel.isThread()) {
-        result.memberCount = channel.memberCount
-      }
+        type: channel.type,
+        name: 'name' in channel ? channel.name : undefined,
+        guildId: 'guildId' in channel ? channel.guildId : undefined,
+        parentId: 'parentId' in channel ? channel.parentId : undefined,
+        topic: 'topic' in channel ? channel.topic : undefined,
+        isThread,
+        memberCount: isThread ? channel.memberCount : undefined
+      })
 
       this.logger.debug(`Retrieved channel info: ${channelId}`)
       return result
@@ -117,46 +118,9 @@ export class ChannelCreatorService {
         throw new Error(`Guild not found: ${guildId}`)
       }
 
-      const channelOptions: any = {
-        name: name,
-        type: options?.type || ChannelType.GuildText
-      }
+      const channelOptions = buildChannelCreateOptions(name, options)
 
-      if (options?.parent) {
-        channelOptions.parent = options.parent
-      }
-
-      if (options?.topic) {
-        channelOptions.topic = options.topic
-      }
-
-      if (options?.permissions) {
-        channelOptions.permissionOverwrites = options.permissions
-      }
-
-      if (options?.position !== undefined) {
-        channelOptions.position = options.position
-      }
-
-      if (options?.nsfw !== undefined) {
-        channelOptions.nsfw = options.nsfw
-      }
-
-      if (options?.rateLimitPerUser !== undefined) {
-        channelOptions.rateLimitPerUser = options.rateLimitPerUser
-      }
-
-      // ボイスチャンネル固有のオプション
-      if (options?.type === ChannelType.GuildVoice) {
-        if (options?.bitrate) {
-          channelOptions.bitrate = options.bitrate
-        }
-        if (options?.userLimit) {
-          channelOptions.userLimit = options.userLimit
-        }
-      }
-
-      const channel = await guild.channels.create(channelOptions)
+      const channel = await guild.channels.create(channelOptions as any)
 
       this.logger.log(`Channel created successfully: ${channel.id} (${name}) in guild ${guildId}`)
       return channel as TextChannel | NewsChannel
@@ -198,20 +162,9 @@ export class ChannelCreatorService {
         throw new Error(`Channel ${channelId} cannot create threads`)
       }
 
-      const threadOptions: any = {
-        name: name,
-        type: options?.type || ChannelType.PublicThread
-      }
+      const threadOptions = buildThreadCreateOptions(name, options)
 
-      if (options?.autoArchiveDuration) {
-        threadOptions.autoArchiveDuration = options.autoArchiveDuration
-      }
-
-      if (options?.reason) {
-        threadOptions.reason = options.reason
-      }
-
-      const thread = await (channel as TextChannel).threads.create(threadOptions)
+      const thread = await (channel as TextChannel).threads.create(threadOptions as any)
 
       this.logger.log(`Thread created successfully: ${thread.id} (${name}) in channel ${channelId}`)
       return thread
@@ -252,19 +205,16 @@ export class ChannelCreatorService {
       if (!channel || !('guild' in channel) || !channel.guild) {
         return {
           hasAccess: false,
-          permissions: Object.fromEntries(permissions.map((p) => [p, false]))
+          permissions: buildDeniedPermissionMap(permissions)
         }
       }
 
       const member = await channel.guild.members.fetch(userId)
-      const permissionResults: Record<string, boolean> = {}
+      const permissionResults = summarizePermissions(permissions, (permission) =>
+        member.permissions.has(permission as any)
+      )
 
-      for (const permission of permissions) {
-        const hasPermission = member.permissions.has(permission as any)
-        permissionResults[permission] = hasPermission
-      }
-
-      const hasAccess = Object.values(permissionResults).some(Boolean)
+      const hasAccess = hasAnyPermission(permissionResults)
 
       this.logger.debug(`Permission check completed for user ${userId} in channel ${channelId}`)
 
@@ -289,7 +239,7 @@ export class ChannelCreatorService {
 
       return {
         hasAccess: false,
-        permissions: Object.fromEntries(permissions.map((p) => [p, false]))
+        permissions: buildDeniedPermissionMap(permissions)
       }
     }
   }
@@ -314,17 +264,9 @@ export class ChannelCreatorService {
         throw new Error(`Channel ${channelId} does not support permission overwrites`)
       }
 
-      const overwrites: any = {}
+      const overwrites = buildPermissionOverwrites(permissions)
 
-      if (permissions.allow) {
-        overwrites.allow = permissions.allow
-      }
-
-      if (permissions.deny) {
-        overwrites.deny = permissions.deny
-      }
-
-      await (channel as TextChannel | NewsChannel).permissionOverwrites.create(targetId, overwrites)
+      await (channel as TextChannel | NewsChannel).permissionOverwrites.create(targetId, overwrites as any)
 
       this.logger.log(`Permissions set for ${isRole ? 'role' : 'user'} ${targetId} in channel ${channelId}`)
       return true
@@ -366,20 +308,9 @@ export class ChannelCreatorService {
         throw new Error(`Guild not found: ${guildId}`)
       }
 
-      const categoryOptions: any = {
-        name: name,
-        type: ChannelType.GuildCategory
-      }
+      const categoryOptions = buildCategoryCreateOptions(name, options)
 
-      if (options?.position !== undefined) {
-        categoryOptions.position = options.position
-      }
-
-      if (options?.permissions) {
-        categoryOptions.permissionOverwrites = options.permissions
-      }
-
-      const category = await guild.channels.create(categoryOptions)
+      const category = await guild.channels.create(categoryOptions as any)
 
       this.logger.log(`Category created successfully: ${category.id} (${name}) in guild ${guildId}`)
       return category as CategoryChannel
@@ -404,18 +335,8 @@ export class ChannelCreatorService {
    * チャンネルタイプを変換
    */
   convertChannelType(type: string): ChannelType {
-    const typeMap: Record<string, ChannelType> = {
-      text: ChannelType.GuildText,
-      voice: ChannelType.GuildVoice,
-      category: ChannelType.GuildCategory,
-      news: ChannelType.GuildAnnouncement,
-      stage: ChannelType.GuildStageVoice,
-      forum: ChannelType.GuildForum,
-      public_thread: ChannelType.PublicThread,
-      private_thread: ChannelType.PrivateThread
-    }
-
-    return typeMap[type.toLowerCase()] || ChannelType.GuildText
+    // 変換ロジックは純関数に委譲（公開 API は維持）。
+    return convertChannelType(type)
   }
 
   /**

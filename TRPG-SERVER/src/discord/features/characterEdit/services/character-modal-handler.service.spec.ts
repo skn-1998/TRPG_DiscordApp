@@ -226,7 +226,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       // findById イベントが発行されている
       const findByIdCalls = mockTypedEventService.emit.mock.calls.filter((c) => c[0] === 'character.findById.requested')
-      expect(findByIdCalls.length).toBe(2)
+      expect(findByIdCalls).toHaveLength(2)
 
       // 成功時は deleteReply が呼ばれる
       expect(interaction.deleteReply).toHaveBeenCalled()

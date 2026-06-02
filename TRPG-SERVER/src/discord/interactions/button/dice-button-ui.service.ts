@@ -259,17 +259,7 @@ export class DiceButtonUIService implements discordButtonType {
       .setEmoji('⏩')
       .setDisabled(isLast)
 
-    // キャンセルボタン
-    const cancelButton = new ButtonBuilder()
-      .setCustomId(`dice_page_cancel_${channelId}`)
-      .setLabel('閉じる')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('❌')
-
     row.addComponents(firstButton, prevButton, pageButton, nextButton, lastButton)
-
-    // キャンセルボタンは別の行に配置
-    const cancelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(cancelButton)
 
     return row // メインの行のみ返す（キャンセル行は必要に応じて別途作成）
   }

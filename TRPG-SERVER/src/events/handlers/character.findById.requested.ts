@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { EventHandler, EventContext, ValidationError } from './_shared/event-handler.base'
 import { validateRequired, validateCharacterId } from './_shared/validation.utils'
 import { CharacterService } from '../../domains/character/character.service'
@@ -65,9 +65,9 @@ export class CharacterFindByIdRequestedHandler extends EventHandler<CharacterFin
    * 成功イベントの発行
    */
   private async emitSuccessEvent(
-    character: any | null,
+    character: any,
     originalEvent: CharacterFindByIdRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const successEvent = {
       characterId: originalEvent.characterId,
@@ -87,7 +87,7 @@ export class CharacterFindByIdRequestedHandler extends EventHandler<CharacterFin
   private async emitFailureEvent(
     error: Error,
     originalEvent: CharacterFindByIdRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const failureEvent = {
       characterId: originalEvent.characterId,

@@ -1,5 +1,4 @@
 import { PartialType, OmitType, PickType } from '@nestjs/mapped-types'
-import { Type } from 'class-transformer'
 
 /**
  * ドメインDTO作成ユーティリティ

@@ -82,7 +82,7 @@ export abstract class EventHandler<TEvent = any> {
   /**
    * カスタムバリデーション（継承先で実装）
    */
-  protected async customValidation(event: TEvent): Promise<void> {
+  protected async customValidation(_event: TEvent): Promise<void> {
     // Override in subclass if needed
   }
 
@@ -207,6 +207,7 @@ export abstract class EventHandler<TEvent = any> {
         `⏳ Scheduling retry for ${this.getEventName()} in ${retryDelay}ms (attempt ${(context.retryCount || 0) + 1}/${maxRetries})`
       )
 
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- リトライは setTimeout による意図的な fire-and-forget（execute 内でエラー処理する）
       setTimeout(async () => {
         const retryContext = {
           ...context,

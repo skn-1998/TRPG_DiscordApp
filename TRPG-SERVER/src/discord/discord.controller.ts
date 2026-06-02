@@ -329,7 +329,7 @@ export class DiscordController {
       const channelName = character.characterName
         .toLowerCase()
         .replace(/\s+/g, '-')
-        .replace(/[^\w\-]/g, '')
+        .replace(/[^\w-]/g, '')
       const createChannelResult = await this.discordService.createChannel({
         guildId: postCharacterDto.guildId,
         name: channelName,
@@ -338,16 +338,18 @@ export class DiscordController {
         topic: `${character.characterName}のキャラクター情報`
       })
 
-      this.characterService.update(postCharacterDto.characterId, {
-        discordChannelId: createChannelResult.channelId
-      })
-
+      // チャンネル作成の成否を先に判定（失敗時は永続化せず 500）
       if (!createChannelResult.success || !createChannelResult.channelId) {
         throw new HttpException(
           createChannelResult.error || 'チャンネル作成に失敗しました',
           HttpStatus.INTERNAL_SERVER_ERROR
         )
       }
+
+      // 作成したチャンネルIDを await して永続化（完了・エラーを成功応答前に保証）
+      await this.characterService.update(postCharacterDto.characterId, {
+        discordChannelId: createChannelResult.channelId
+      })
 
       const targetChannel = { id: createChannelResult.channelId }
 

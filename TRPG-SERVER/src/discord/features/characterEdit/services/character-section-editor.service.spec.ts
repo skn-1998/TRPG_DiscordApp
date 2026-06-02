@@ -1,0 +1,281 @@
+/**
+ * CharacterSectionEditorService characterization tests
+ *
+ * 手順0: リファクタ前の現挙動を固定する characterization テスト。
+ * execute(interaction) の外部挙動（どの分岐でどの interaction メソッドを呼ぶか、
+ * どの依存をどう呼ぶか）を、依存を最小モックして記録する。
+ * リファクタ後もこれらが緑であることで挙動不変を証明する。
+ *
+ * 注: discord.js builder はグローバル jest.mock（test/utils/jest-setup.ts）で
+ * モック化されており .data などの内部構造を持たない。そのため modal の中身
+ * （fieldName / values / dice / description の 3 分岐振り分け）は本テストでは検証せず、
+ * 抽出した Pure 関数 extractFieldEditValues の単体テスト（同ディレクトリ）で固定する。
+ * ここでは「どの interaction メソッドが呼ばれたか」「依存への引数」を固定する。
+ */
+
+import { Test, TestingModule } from '@nestjs/testing'
+import { CharacterSectionEditorService } from './character-section-editor.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { CharacterEmbedManagerService } from './character-embed-manager.service'
+import { ModalSessionManagerService } from './modal-session-manager.service'
+import { ErrorHandler } from '../../../../utils/error-handler'
+
+type AnyInteraction = Record<string, unknown>
+
+describe('CharacterSectionEditorService', () => {
+  let service: CharacterSectionEditorService
+  let typedEventService: { emit: jest.Mock; waitForEvent: jest.Mock }
+  let embedManager: {
+    createFieldSelectMenu: jest.Mock
+    createSectionedEmbeds: jest.Mock
+  }
+  let modalSessionManager: { createSession: jest.Mock }
+
+  const buildCharacter = (overrides: Record<string, unknown> = {}) => ({
+    characterId: 'abc123', // 短いID (<=8) -> 直接 customId
+    characterName: 'テスト太郎',
+    status: {},
+    parameter: {},
+    skill: {},
+    item: {},
+    ...overrides
+  })
+
+  /** getCharacter の emit→waitForEvent(race) を成功させるモック設定 */
+  const mockCharacterFound = (character: unknown) => {
+    typedEventService.waitForEvent.mockImplementation((eventName: string) => {
+      if (eventName === 'character.findById.completed') {
+        return Promise.resolve({ character })
+      }
+      // failed 側は永久に解決しない（race で completed が勝つ）
+      return new Promise(() => {})
+    })
+    typedEventService.emit.mockResolvedValue(undefined)
+  }
+
+  const mockCharacterNotFound = () => {
+    typedEventService.waitForEvent.mockImplementation((eventName: string) => {
+      if (eventName === 'character.findById.completed') {
+        return Promise.resolve({}) // character 無し -> null
+      }
+      return new Promise(() => {})
+    })
+    typedEventService.emit.mockResolvedValue(undefined)
+  }
+
+  /**
+   * interaction モック。deferUpdate が呼ばれたら deferred=true に遷移させ、
+   * sendErrorMessage の editReply/reply 分岐を現挙動どおり再現する。
+   */
+  const buildInteraction = (customId: string, values: string[] = []): AnyInteraction => {
+    const interaction: AnyInteraction = {
+      customId,
+      values,
+      user: { id: 'user-1' },
+      deferred: false,
+      replied: false,
+      message: { embeds: [{ title: 'original-embed' }] },
+      editReply: jest.fn().mockResolvedValue(undefined),
+      reply: jest.fn().mockResolvedValue(undefined),
+      showModal: jest.fn().mockResolvedValue(undefined)
+    }
+    interaction.deferUpdate = jest.fn().mockImplementation(() => {
+      interaction.deferred = true
+      return Promise.resolve(undefined)
+    })
+    return interaction
+  }
+
+  beforeEach(async () => {
+    typedEventService = { emit: jest.fn(), waitForEvent: jest.fn() }
+    embedManager = {
+      createFieldSelectMenu: jest.fn(),
+      createSectionedEmbeds: jest.fn()
+    }
+    modalSessionManager = { createSession: jest.fn() }
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CharacterSectionEditorService,
+        { provide: TypedEventService, useValue: typedEventService },
+        { provide: CharacterEmbedManagerService, useValue: embedManager },
+        { provide: ModalSessionManagerService, useValue: modalSessionManager }
+      ]
+    }).compile()
+
+    service = module.get(CharacterSectionEditorService)
+    jest.spyOn(ErrorHandler, 'handleServiceError').mockImplementation(() => undefined as never)
+  })
+
+  afterEach(() => jest.restoreAllMocks())
+
+  describe('defer 分岐 (characterization)', () => {
+    it('フィールド操作以外 (section選択) は deferUpdate する', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockReturnValue(undefined) // 失敗で早期 return
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('フィールド編集 (character-field-edit) は deferUpdate せず showModal する', async () => {
+      mockCharacterFound(buildCharacter())
+      const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled()
+      expect(interaction.showModal).toHaveBeenCalledTimes(1)
+    })
+
+    it('フィールド追加 (character-field-add) は deferUpdate せず showModal する', async () => {
+      mockCharacterFound(buildCharacter())
+      const interaction = buildInteraction('character-field-add-status-abc123', ['add_new'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled()
+      expect(interaction.showModal).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('characterId 抽出失敗 (characterization)', () => {
+    it('抽出できない customId はエラーメッセージを editReply する (defer 済み)', async () => {
+      const interaction = buildInteraction('totally-unknown-id', ['x'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.showModal).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('character 取得失敗 (characterization)', () => {
+    it('キャラクターが見つからない場合は editReply でエラー', async () => {
+      mockCharacterNotFound()
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.showModal).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('セクション選択 (characterization)', () => {
+    it('section選択で createFieldSelectMenu を正しい引数で呼び editReply する', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(
+        expect.objectContaining({ characterId: 'abc123' }),
+        'status',
+        'abc123'
+      )
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
+      // 元 embed を保持し、2 行 (field + back) を返す
+      expect(arg.embeds).toEqual([{ title: 'original-embed' }])
+      expect(arg.components).toHaveLength(2)
+    })
+
+    it('character-section-select でも section選択として扱う', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
+      const interaction = buildInteraction('character-section-select-abc123', ['skill'])
+
+      await service.execute(interaction as never)
+
+      expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(expect.anything(), 'skill', 'abc123')
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+    })
+
+    it('back 選択は main section menu (createSectionedEmbeds) を editReply', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createSectionedEmbeds.mockResolvedValue({
+        embeds: [{ title: 'main' }],
+        components: [{ __row: true }]
+      })
+      const interaction = buildInteraction('character-edit-section-abc123', ['back'])
+
+      await service.execute(interaction as never)
+
+      expect(embedManager.createSectionedEmbeds).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        embeds: [{ title: 'main' }],
+        components: [{ __row: true }]
+      })
+    })
+
+    it('createFieldSelectMenu が falsy なら editReply でエラー (showModal せず)', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockReturnValue(undefined)
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.showModal).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('フィールド選択 modal 生成 (characterization)', () => {
+    it('短いID + 既存 AttributeValue 形式でも showModal が 1 回呼ばれる', async () => {
+      const character = buildCharacter({
+        status: { hp: { name: 'HP', values: { base: 10, buff: 5 }, dice: '3d6', description: '生命力' } }
+      })
+      mockCharacterFound(character)
+      const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.showModal).toHaveBeenCalledTimes(1)
+      // session 採番は短いIDでは使われない
+      expect(modalSessionManager.createSession).not.toHaveBeenCalled()
+    })
+
+    it('長いID (>8) は session 採番 (createSession) を使う', async () => {
+      const character = buildCharacter({ characterId: 'a-very-long-character-id-1234567890' })
+      mockCharacterFound(character)
+      modalSessionManager.createSession.mockReturnValue('SESSION99')
+      const interaction = buildInteraction('character-field-add-status-a-very-long-character-id-1234567890', [
+        'add_new'
+      ])
+
+      await service.execute(interaction as never)
+
+      expect(modalSessionManager.createSession).toHaveBeenCalledWith(
+        'a-very-long-character-id-1234567890',
+        'status',
+        'add_new'
+      )
+      expect(interaction.showModal).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('例外処理 (characterization)', () => {
+    it('処理中の例外は ErrorHandler 経由でログしエラーメッセージを返す', async () => {
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockImplementation(() => {
+        throw new Error('boom')
+      })
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(ErrorHandler.handleServiceError).toHaveBeenCalledWith(
+        expect.any(Error),
+        { customId: 'character-edit-section-abc123', userId: 'user-1' },
+        'CharacterSectionEditorService'
+      )
+      // defer 済みのため最後の応答は editReply
+      expect(interaction.editReply).toHaveBeenCalled()
+    })
+  })
+})

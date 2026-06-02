@@ -137,7 +137,7 @@ export class UserService {
     try {
       // 暗号化されたトークンを復号化
       return this.cryptoService.decrypt(user.discordAccessToken)
-    } catch (error) {
+    } catch {
       // 復号化に失敗した場合はnullを返す
       return null
     }

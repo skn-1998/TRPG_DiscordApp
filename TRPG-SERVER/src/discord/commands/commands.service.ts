@@ -123,7 +123,7 @@ export class CommandsService {
     }
   }
 
-  loadClient(client: Client): void {
+  loadClient(_client: Client): void {
     // クライアント設定が必要な場合は各サービスに委譲
     this.logger.log('Discord クライアントが設定されました')
   }

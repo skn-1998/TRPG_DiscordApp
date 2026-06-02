@@ -4,6 +4,7 @@ import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
 import dice from 'src/discord/utils/dice'
+import { evaluateArithmetic } from '../../../shared/utils/arithmetic-evaluator.util'
 
 /**
  * 統一されたダイス計算処理サービス
@@ -250,9 +251,9 @@ export class DiceCalculationService {
    */
   private evaluateFormula(formula: string): number {
     try {
-      // 安全な数式評価（基本的な演算のみ）
+      // 安全な数式評価（基本的な演算のみ・Function/eval 不使用）
       const sanitized = formula.replace(/[^0-9+\-*/().\s]/g, '')
-      return Function('"use strict"; return (' + sanitized + ')')()
+      return evaluateArithmetic(sanitized)
     } catch (error) {
       this.logger.error('数式評価エラー:', error)
       return 1

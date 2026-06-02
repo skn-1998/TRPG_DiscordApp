@@ -136,7 +136,7 @@ describe('PatternMatcherService', () => {
       const handlers = [prefixHandler, exactHandler]
       const results = service.findAllMatches('test-exact', handlers)
 
-      expect(results.length).toBe(1)
+      expect(results).toHaveLength(1)
       expect(results[0].handler).toBe(exactHandler)
     })
   })
@@ -147,7 +147,7 @@ describe('PatternMatcherService', () => {
       const handler2 = new MockExactHandler() // 同じパターン
 
       const conflicts = service.detectConflicts([handler1, handler2])
-      expect(conflicts.length).toBe(1)
+      expect(conflicts).toHaveLength(1)
       expect(conflicts[0].conflictType).toBe('duplicate')
     })
 
@@ -156,7 +156,7 @@ describe('PatternMatcherService', () => {
       const prefixHandler = new MockPrefixHandler()
 
       const conflicts = service.detectConflicts([exactHandler, prefixHandler])
-      expect(conflicts.length).toBe(0)
+      expect(conflicts).toHaveLength(0)
     })
   })
 

@@ -6,7 +6,6 @@
 import { join } from 'path'
 import * as winston from 'winston'
 import { AppConfigService } from './config.service'
-import { AppConfig } from './configuration'
 
 /**
  * Winston設定を生成する
