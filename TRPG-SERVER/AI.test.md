@@ -1,8 +1,59 @@
 # TRPG-SERVER テスト戦略・実装ドキュメント
 
-## 📋 **ドキュメント概要** **[最終更新: 2026-06-01]**
+## 📋 **ドキュメント概要** **[最終更新: 2026-06-02]**
 
 ---
+
+## 🧪 **テスタビリティ改善（赤）: ThreadManagerService** **[完了: 2026-06-02]**
+
+### **背景**
+
+`src/discord/features/characterThread/services/thread-manager.service.ts`（298行・赤判定）。
+コンストラクタで `discordClientService.getClient()` を保持し、`Date.now()` / `setTimeout` /
+`guild.channels.fetch` / `channel.threads.create` / `client.channels.fetch` / `typedEventService.emit`
+が密結合でテスト不能だった。**挙動保存（characterization 同時固定）＋ seam 分離**で改善。
+
+### **抽出した Pure 関数（新規 `services/thread-manager.util.ts`・DI なし・discord.js 非依存）**
+
+- `buildThreadUrl(guildId, threadId)` → `https://discord.com/channels/${guildId}/${threadId}`
+- `nextBackoffDelay(current)` → `current * 2`（exponential backoff）
+- `buildCreationCompletedPayload(input, threadUrl, timestamp)` → completed emit payload 組立
+  （threadId を discordThreadId に複製・source 固定。Date は注入）
+- `buildCreationFailedPayload(input, tempThreadId, error, timestamp)` → failed emit payload 組立
+
+### **seam（副作用境界）**
+
+- `protected now(): number`（既定 `Date.now()`）— poll ループ条件・タイミングログ・`temp-${now}` に使用。
+- `protected sleep(ms): Promise<void>`（既定 `setTimeout`）— createDiscordThread の 50ms 待機・
+  getThreadChannel の retry backoff・waitForThreadAvailability の poll 間隔に使用。
+- client は **DiscordClientService 経由のまま**（注入済みなので mock 可）。
+- **本番タイミング挙動は不変**（50ms 待機・retry 回数・×2 backoff・poll 間隔そのまま）。テストでは
+  `now`/`sleep` を差し替え 0 遅延化し、テストを遅延させない（spec 18件 5.5s）。
+
+### **作成テスト**
+
+- `thread-manager.service.spec.ts`（characterization, 14 PASS）: 公開 6 メソッドの外部挙動
+  （戻り値・emit イベント名 `character-thread.creation.completed`/`.failed` と payload キー・
+  retry/poll の最終結果）を固定。グローバル discord.js モックは `jest.unmock` し実 ChannelType 使用。
+- `thread-manager.util.spec.ts`（純関数ユニット, 4 PASS）: モック不要の入出力検証。
+
+### **守った制約**
+
+- 公開 API（`createCharacterThread`/`getThreadChannel`/`waitForThreadAvailability`/`threadExists`/
+  `archiveThread`/`unarchiveThread`）のシグネチャ・外部挙動・emit イベント名/payload キー・
+  CreateThreadResult・threadUrl 形式は不変。
+- 純粋層に DI を持ち込まず（util は引数/戻り値のみ）。`now`/`sleep` の seam のみ副作用境界に追加。
+- 既存の冗長ログ・多重 fetch（実験コード）は**挙動保存**のため削除せず seam 化のみ。
+
+### **検証結果**
+
+- 対象 2 spec: **18 PASS**（characterization 14 + 純関数 4）。
+- `tsc --noEmit -p tsconfig.json`: thread-manager 関連エラー **0 件**（型クリーン）。
+- `pnpm run check:circular` → **No circular dependency found!**（新規循環ゼロ）。
+- **既知のベースライン破損**: `pnpm run build` は別作業（channel-creator.pure.ts / channel-creator.service.ts）
+  の未コミット型エラー 2件で失敗する。本対象ファイルを `git stash` して build しても同じ 2件が残ることを
+  確認済み＝**本改善由来の新規破損はゼロ**。
+- 元サービス 298 行 → 331 行（seam メソッド + 純ヘルパ呼び出しへの置換）。Pure ロジックは util へ移設。
 
 ## 🧩 **H3 巨大サービス分割: EnhancedCharacterEditService** **[完了: 2026-06-01]**
 
@@ -847,6 +898,745 @@ characterization spec を作成 → 緑確認 → 分割 → 再度緑、の順�
 - **行数**: service 881→322（純粋ロジック約420 を util へ移管＋デッドコード削減）。
 - **検証**: `pnpm run build` 成功 / 対象 2 spec 計 36 テスト全 pass（characterization 分割前後で不変・緑）/
   `pnpm run check:circular` → **No circular dependency found!**（循環ゼロ・新規循環なし）。
+
+---
+
+## 🗺️ **全体テスタビリティ評価マップ（未テスト195ファイル）** **[作成: 2026-06-02]**
+
+### **目的・方法**
+
+単体テスト拡充の前段として、**spec の無い本体実装ファイル全件（195）を「緑/黄/赤/対象外」で評価**し、
+「どこから書くか（緑優先）」「どこは設計負債で deferred か（赤）」の地図を作成した。
+ユーザー方針：**赤（mock 作成困難＝設計ミス疑い）は本ドキュメントに記録して deferred とし、挙動を変える
+リファクタは別途承認を得てから着手**。このセッションでは**評価のみ・テストは未作成**。
+
+評価方法：構造的シグナル（constructor 依存・discord.js 実行時 I/O・副作用パターン）を機械抽出した上で、
+6 クラスタに分割し並列でコード実読して分類。判定基準：
+
+- **対象外**: 型/interface/DTO（デコレータのみ）/Mongoose schema・model/イベント契約(contract)/定数/`main.ts` 等。ロジック無し＝ユニットテスト価値が低い。
+- **緑**: 純関数 or DI 無し or repository/純サービスのみ依存。discord.js 実行時 I/O なし。単純 mock で素直に書ける。
+- **黄**: discord.js interaction を `@discord-test-utils` で固定可能、またはサービス依存を mock すれば書ける。embed 構造検証時は `jest.requireActual('discord.js')` が必要。
+- **赤（mock地獄＝設計負債）**: 実 Discord API I/O（channel/guild/message の `fetch`＋`instanceof`＋`create`/`send`/`edit`/`Collection.find`）や横断初期化・retry・可変状態がロジックと密結合し、mock 困難。
+
+> 注：緑/黄の境界は「repository/Model mock を緑とみなすか」で評価者間に揺れがある（domain repositories は本マップでは黄に寄せた）。実装時は緑から着手し、黄は `@discord-test-utils`＋Model mock で順次。
+
+### **集計（概算）**
+
+| 分類      | 件数 | 位置づけ                                                                                 |
+| --------- | ---- | ---------------------------------------------------------------------------------------- |
+| 🟢 緑     | 約25 | **次セッションの最優先バックログ**（mock 地獄なし・カバレッジ ROI 高）                   |
+| 🟡 黄     | 約95 | 緑の次。薄い interaction handler（25行委譲×25）と domain repositories が大半＝安価       |
+| 🔴 赤     | 約20 | **設計負債・deferred**。テスト前に `refactor-for-testability`（Adapter/Port 分離）が必要 |
+| ⚪ 対象外 | 約55 | 型/DTO/contract/schema/定数/bootstrap                                                    |
+
+### **🟢 緑：最優先テスト対象（次セッションで `create-test`）**
+
+純ロジック中心。`dice` 系が本丸（ビジネスロジック核）。
+
+- **dice ロジック**: `src/discord/services/dice/dice-parser.service.ts`（DI 無し・最優先）/ `dice-calculation.service.ts`（CharacterService mock）/ `dice-orchestrator.service.ts`（委譲）
+- **dice ユーティリティ**: `src/discord/utils/dice.util.ts`（Math.random stub）/ `dice.ts`（bcdice wrapper）/ `table-dice.util.ts`
+- **pagination 純ロジック**: `src/discord/components/pagination/dice-roll-pagination.builder.ts`（embed 検証は `jest.requireActual`）/ `dice-roll-pagination.store.ts`（TTL・`jest.useFakeTimers`）
+- **UI ビルダー（純構築）**: `src/discord/interactions/button/dice-button-ui.service.ts` / `src/discord/features/characterThread/services/dice-ui-builder.service.ts` / `thread-interaction.service.ts`（UI 構築は純・`thread.send` のみ I/O）
+- **インメモリ状態/純関数**: `src/discord/features/characterEdit/services/modal-session-manager.service.ts`（Map セッション）/ `src/discord/features/diceRoll/utils/channel-topic.util.ts` / `src/discord/features/gameSystem/utils/search.util.ts`（moji 変換）
+- **guild cache 純ヘルパ**: `src/discord/utils/discord.utils.ts` / `getCategory.ts` / `searchChannelID.ts`（guild mock で即）
+- **core/config 純関数**: `src/core/types/attribute.types.ts`（属性値計算・複数所で使用＝高価値）/ `src/events/handlers/_shared/validation.utils.ts` / `src/config/environment.validator.ts` / `src/app.service.ts` / `src/core/testing/repository.mock.factory.ts`
+- **監視（stateful だが EventEmitter2 mock で可）**: `src/discord/services/monitoring/alert-manager.service.ts` / `metrics-collector.service.ts` / `src/discord/services/command-manager.service.ts`
+
+### **🔴 赤：設計負債・deferred（テスト前に要 `refactor-for-testability`）**
+
+mock 困難の根本は **Discord API I/O とロジックの密結合**。H3 の巨大サービス分割と同型で、**副作用境界（Adapter/Port）を切り出してから characterization → テスト**の順で着手する（挙動保存）。**本セッションでは触らない**。
+
+**A. Discord I/O（fetch/instanceof/create/send/edit/Collection）がロジックと密結合** → seam: `ChannelPort`/`MessagePort`/`ThreadPort` を切り出し純ロジックを残す
+
+- `src/discord/services/channel/channel-creator.service.ts`（guild.channels.create＋権限チェック）
+- `src/discord/services/channel/message-manager.service.ts`（messages.fetch/send/edit/delete/bulkDelete＋Collection）
+- `src/discord/services/discord-guild-manager.service.ts`（guilds/channels/members.fetch＋TTLキャッシュ＋権限）
+- `src/discord/features/characterThread/services/thread-manager.service.ts`（threads.create＋retry/polling＋setArchived）
+- `src/discord/features/characterThread/services/character-embed.service.ts`（thread.send＋messages.fetch＋edit）
+- `src/discord/features/characterEdit/services/character-edit-message-updater.service.ts`（messages.fetch＋find＋edit）
+- `src/discord/features/gameSystem/services/select-game-system.orchestrator.ts`（channels.create＋send＋pin＋Fuse）
+- `src/discord/features/userDefinedDice/services/user-defined-dice.orchestrator.ts`（channels.filter＋messages.fetch(100)＋Fuse＋tableDice）
+- `src/discord/interactions/button/character-dice-history.service.ts`（messages.fetch＋lock Map＋複雑ページング）
+- `src/discord/discord.controller.ts`（findOne＋guild.fetch＋category.filter＋channel.create を1メソッドに混在）
+
+**B. Client/リスナー初期化・横断 orchestration** → seam: Client lifecycle/listener 登録を setup 層へ、分岐を Registry/Strategy へ
+
+- `src/discord/services/discord-client.service.ts`（Client 生成＋login＋on(Events)）
+- `src/discord/services/discord-interaction-handler.service.ts`（on(InteractionCreate)＋5型分岐＋setTimeout＋重複防止Set）
+- `src/discord/discord-facade.service.ts`（8 DI orchestration＋client lifecycle）
+
+**C. EventHandler＋retry＋Discord I/O 混在** → seam: retry/error 分類を分離、channel I/O を port 化
+
+- `src/discord/events/handlers/character.deletion.completed.ts`（archive/rename/emoji の fallback 試行）
+- `src/discord/events/handlers/character.update.completed.ts`（updateEmbed が messages.fetch＋instanceof＋edit）
+
+**D. イベント駆動の状態/タイムアウト混在** → seam: 統計/clock/state を注入可能に
+
+- `src/events/event-registry.service.ts`（setter DI＋統計蓄積＋実行ロジック混在）
+- `src/discord/features/characterEdit/services/channel-name-sync.service.ts`（channel.setName＋Promise.race(waitForEvent)）
+- `src/discord/utils/discord-api-rate-limiter.ts`（可変 bucket Map＋cleanup timer・_黄寄りだが clock 注入が要_）
+
+**E. customId 多分岐が1サービスに集中** → seam: customId dispatcher / per-pattern handler 分離
+
+- `src/discord/interactions/select/character-thread-select.service.ts`（7分岐の routing＋各フロー副作用）
+
+**F. OAuth passport strategy（borderline）** → `validate()` を `AuthService` 委譲に整理すれば緑化可
+
+- `src/domains/auth/discord.strategy.ts`
+
+**別枠：機能無効化中（テスト対象外・別タスク）**
+
+- `src/discord/features/characterThread/character-channel.service.ts` — **Phase3 メンテナンス中**（74-77行で無効化メッセージ表示・本体は大半コメントアウト）。テスト価値なし。**デッドコード整理 or Phase3 完了の別タスク**として扱う。
+
+### **🟡 黄：緑の次（グループ要約）**
+
+- **薄い interaction handler（最安・約25件）**: `src/discord/interactions/handlers/**`（character-edit/character-thread/dice-roll の `*.handler.ts`）。`execute()` がサービスへ1行委譲。`@discord-test-utils` で「正しい引数で委譲先が呼ばれる」を検証。**バッチで一気に書ける**。
+- **diceRoll adapters（約9件）**: `src/discord/features/diceRoll/adapters/*.adapter.ts`（paginationService へ委譲）。同上。
+- **domain repositories（約5件）**: `character.repository` / `dice-roll-*.repository` / `user.repository`。Mongoose Model mock の CRUD 検証。
+- **domain/event services**: `src/domains/dice-roll/dice-roll.service.ts`（repo mock）/ `src/events/handlers/character.*.requested.ts`（CharacterService mock＋emit 検証）/ `event-handler.base.ts`。
+- **feature orchestrators**: `thread-orchestrator` / `character-thread.orchestrator` / `dice-result.orchestrator` / `roll-dice.orchestrator` / `character-channel-orchestrator` 等（依存サービス mock）。
+- **その他**: `jwt-auth.guard` / `http.service` / `winston.config` / `configuration` / `performance-dashboard.controller` / `base-command.service` / `custom-dice-modal.service` / `dice-character-select.service` / `dice-history.service` / pagination ボタン群 ほか。
+
+### **次アクション（申し送り）**
+
+1. 次セッション：**🟢 緑から `test-expansion`→`create-test`** で着手。`dice-parser`/`dice-calculation`/`dice.util`/`attribute.types` を起点に。
+2. **🟡 黄の薄い handler 群はバッチ生成**でカバレッジを一気に底上げ（`@discord-test-utils`）。
+3. **🔴 赤は本マップを設計負債レジスタとして扱い、`refactor-for-testability`（Adapter/Port 分離）→ characterization → テストの順**で、1件ずつ独立 PR・挙動保存で。着手は別途承認後。共通 seam は「Discord I/O の Port 化」。
+4. `character-channel.service.ts` は Phase3 完了 or デッドコード整理の別タスクへ。
+
+---
+
+## 🟢 **緑テスト拡充: 実装ログ** **[着手: 2026-06-02]**
+
+評価マップの 🟢 緑から `create-test` で順次テスト追加（本体コードは不変・挙動保存）。
+
+### Wave1（pipeline 検証・完了）
+
+| spec                                                                   | テスト  | 対象カバレッジ |
+| ---------------------------------------------------------------------- | ------- | -------------- |
+| `src/discord/services/dice/dice-parser.service.spec.ts`                | 25 PASS | 87.96%         |
+| `src/discord/utils/dice.util.spec.ts`                                  | 18 PASS | 100%           |
+| `src/core/types/attribute.types.spec.ts`                               | 27 PASS | 100%           |
+| `src/discord/components/pagination/dice-roll-pagination.store.spec.ts` | 24 PASS | 100%           |
+
+テスト基盤（tsconfig.spec paths / moduleNameMapper / jest-setup の discord.js スタブ）は新規 spec で設定変更不要を確認。
+
+### Wave2（純util/core緑・完了）
+
+| spec                                                                                | テスト  | 対象カバレッジ |
+| ----------------------------------------------------------------------------------- | ------- | -------------- |
+| `src/discord/utils/dice.spec.ts`                                                    | 7 PASS  | 100%           |
+| `src/discord/utils/table-dice.util.spec.ts`                                         | 7 PASS  | 100%           |
+| `src/events/handlers/_shared/validation.utils.spec.ts`                              | 75 PASS | 100%           |
+| `src/config/environment.validator.spec.ts`                                          | 33 PASS | 93.1%          |
+| `src/app.service.spec.ts`                                                           | 1 PASS  | 100%           |
+| `src/core/testing/repository.mock.factory.spec.ts`                                  | 20 PASS | 100%           |
+| `src/discord/features/characterEdit/services/modal-session-manager.service.spec.ts` | 15 PASS | 100%           |
+| `src/discord/features/diceRoll/utils/channel-topic.util.spec.ts`                    | 15 PASS | 100%           |
+| `src/discord/features/gameSystem/utils/search.util.spec.ts`                         | 8 PASS  | 100%           |
+| `src/discord/services/dice/dice-calculation.service.spec.ts`                        | 20 PASS | 95.19%         |
+| `src/discord/services/dice/dice-orchestrator.service.spec.ts`                       | 37 PASS | 98.66%         |
+
+### Wave3（discord.js builder・`jest.requireActual` パターン・完了）
+
+| spec                                                                               | テスト  | 対象カバレッジ |
+| ---------------------------------------------------------------------------------- | ------- | -------------- |
+| `src/discord/components/pagination/dice-roll-pagination.builder.spec.ts`           | 21 PASS | 96.42%         |
+| `src/discord/interactions/button/dice-button-ui.service.spec.ts`                   | 31 PASS | 97.18%         |
+| `src/discord/features/characterThread/services/dice-ui-builder.service.spec.ts`    | 19 PASS | 97.43%         |
+| `src/discord/features/characterThread/services/thread-interaction.service.spec.ts` | 26 PASS | 98.87%         |
+
+### Wave4（監視・guild-cache ヘルパー・完了）
+
+| spec                                                                | テスト  | 対象カバレッジ |
+| ------------------------------------------------------------------- | ------- | -------------- |
+| `src/discord/services/monitoring/alert-manager.service.spec.ts`     | 25 PASS | 98.71%         |
+| `src/discord/services/monitoring/metrics-collector.service.spec.ts` | 26 PASS | 98.73%         |
+| `src/discord/services/command-manager.service.spec.ts`              | 22 PASS | 100%           |
+| `src/discord/utils/discord.utils.spec.ts`                           | 8 PASS  | —              |
+| `src/discord/utils/getCategory.spec.ts`                             | 4 PASS  | —              |
+| `src/discord/utils/searchChannelID.spec.ts`                         | 3 PASS  | —              |
+
+### ✅ 裏取り（メインで再実行・全件）
+
+- **新規 spec 25 ファイル / 517 テストを一括実行 → 全緑**（相互干渉なし。13.9s）。
+- `pnpm run check:circular` → **No circular dependency found!**（循環ゼロ）
+- `pnpm run build`（nest build）→ **成功**
+- **本体コード（src/**）の変更ゼロ\*\*（git で確認）・`jest.config.js`/`tsconfig.spec.json` 未変更・コミットなし。
+- 全 spec は discord.js を扱う場合 `@discord-test-utils` または `jest.requireActual('discord.js')` を使用し `as any` 手動モックの新規追加なし。
+
+**緑バックログはこれで概ね消化**（評価マップの 🟢 緑 ≈25 を実装）。次は 🟡 黄（薄い interaction handler のバッチ・domain repositories）→ 🔴 赤（要 refactor-for-testability・承認後）。
+
+### ⚠️ テスト作成中に発見した本体の不具合（将来修正予定・本体未変更）
+
+- **`dice-parser.service.ts` の日本語パラメータ置換が機能しない**：`substituteCharacterValues` は
+  `new RegExp(\`\\b${key}\\b\`, 'gi')` で置換するが、`\b`は`\w`（英数字_）境界のため、`筋力`/`体力`/`回避`等の**日本語キーは前後が常に非単語文字となり一切マッチしない**。実機で`筋力`単体を渡すと未置換のまま
+最終検証で`isValid:false`。英語キー（STR 等）は動作する。
+  → 現挙動を characterization テストで固定済み（「日本語キーは置換されない」を pin）。日本語対応が意図なら
+  本体修正（境界判定を日本語対応の正規表現へ）が必要。**修正時は固定済みテストの assert 更新が必要**。
+- 補足（軽微）: `dice-parser` は `1d6` 等のダイス記法を `validateProcessedFormula` が弾く（数値・演算子のみ許可）。
+  名称と乖離があるが、後段で別途ダイス処理する設計と思われる。要確認。
+- **`dice-calculation.service.ts` の `calculateAndRoll` が async な `dice()` を await していない**（71行目
+  `const diceResult = dice(...)`）。`dice` は Promise を返すため、本番では `diceResult` に Promise が入り
+  以降の結果整形が壊れる疑い（挙動バグ候補）。テストは「`dice` が正しい `Nb10` コマンドで呼ばれること」を
+  検証する形で緑化し、本体は未変更で報告のみ。**要修正検討**。
+- 補足（軽微）: `channel-topic.util` の `replace(/^ID:/, '')` は先頭行の `ID:` のみ除去。プレフィックス無しの
+  行はそのまま topic リスト照合に乗る（現挙動を characterization で固定）。
+- **`dice-roll-pagination.builder.ts` の `buildPageSelectRow` が 26 ページ以上で null を返す**：25 件 + 省略表示
+  1 件 = 26 オプションを `addOptions` するが StringSelectMenu のオプション上限は 25 件のため例外→catch で null。
+  結果**26 ページ超の履歴ではページ選択メニューが消える**潜在バグ。現挙動を `toBeNull()` で固定済み。要修正検討。
+- 補足（軽微・別タスク候補）: `command-manager.service.ts` 127行目にデバッグ用 `console.log(applicationId, guildId)`
+  が残存。挙動保存のため未変更。クリーンアップ候補。
+
+---
+
+## 🟡 **黄テスト拡充: interaction handlers ＋ diceRoll adapters** **[完了: 2026-06-02]**
+
+評価マップの 🟡 黄から「薄い handler のバッチ」「diceRoll adapters」を `create-test` で実装（本体コード不変・spec 追加のみ）。
+4 サブエージェントに並列委譲（dice-roll / character-edit / character-thread handlers ＋ adapters）し、メインで一括裏取り。
+
+### 着手前に判明した未記録 spec（前セッション分・本セッションで緑を裏取りし正式記録）
+
+緑バックログ消化後、Wave 表に未記載のまま **9 spec が既に存在**していた（前セッションが 🟡 黄へ踏み込んだが記録漏れ）。
+メインで一括実行し **9 suites / 174 tests 全緑**を確認：
+
+| spec                                                                  | 分類                        |
+| --------------------------------------------------------------------- | --------------------------- |
+| `domains/auth/guards/jwt-auth.guard.spec.ts`                          | guard                       |
+| `domains/character/repositories/character.repository.spec.ts`         | repository                  |
+| `domains/user/repositories/user.repository.spec.ts`                   | repository                  |
+| `domains/dice-roll/repositories/dice-roll-channel.repository.spec.ts` | repository                  |
+| `domains/dice-roll/repositories/dice-roll-text.repository.spec.ts`    | repository                  |
+| `domains/dice-roll/dice-roll.service.spec.ts`                         | domain service（repo mock） |
+| `events/handlers/character.creation.requested.spec.ts`                | event handler               |
+| `events/handlers/character.findByChannelId.requested.spec.ts`         | event handler               |
+| `events/handlers/character.findById.requested.spec.ts`                | event handler               |
+
+→ domain repositories（4）・jwt-auth.guard・dice-roll.service・event handler（3）は 🟡 黄として **消化済み**。
+
+### 本セッションで新規作成（34 spec / 146 tests・全緑）
+
+| グループ                                                   | 件数 | テスト | 内容                                                    |
+| ---------------------------------------------------------- | ---- | ------ | ------------------------------------------------------- |
+| `interactions/handlers/dice-roll/*.handler.spec.ts`        | 12   | 48     | 種別・customId パターン・execute 委譲・エラー伝播       |
+| `interactions/handlers/character-edit/*.handler.spec.ts`   | 6    | 18     | 同上（委譲先は EnhancedCharacterEditService.handleXxx） |
+| `interactions/handlers/character-thread/*.handler.spec.ts` | 7    | 27     | 同上（dice-generic / flexible-dice-select は分岐多め）  |
+| `features/diceRoll/adapters/*.adapter.spec.ts`             | 9    | 53     | 委譲＋分岐網羅                                          |
+
+- handler は全て「依存1個・`execute()` は1行委譲」の薄いアダプタ。NestJS TestingModule 不要で `new Handler(mock)` 直接生成、
+  interaction は `@discord-test-utils` ファクトリ。**customId マッチング全網羅は既存 `handlers.integration.spec.ts` にあるため重複させず**、
+  各 handler は `execute()` 委譲のカバレッジを主目的に 3〜5 テスト。
+- **設計負債候補（🔴）はゼロ**（今回の 34 件は全て素直にテスト可能。ユーザー方針の「mock 困難＝設計負債は deferred」に該当なし）。
+
+### ⚠️ 評価マップの訂正（adapters は「単純委譲」ではない）
+
+評価マップ（2026-06-02）は diceRoll adapters を「paginationService へ委譲（薄い）」と分類していたが、**実態はオーケストレーション型**：
+各 adapter が `DiceRollPaginationService` の複数メソッド（updatePage / getPaginationState / createPaginationControls / jumpToPage 等）を呼び、
+interaction へ `deferUpdate`/`editReply`/`followUp` を出し分け、customId 欠落・境界・状態なし・例外 catch の分岐を持つ。
+`@discord-test-utils` ＋ pagination モックで網羅できたため 🟡 黄のままだが、「薄い」評価は誤り。`dice-button.adapter` は
+1d100 ロール＋親 GuildText への send という実 I/O（`dice` モック＋`jest.requireActual('discord.js')` でガード分岐まで網羅）。
+
+### 軽微な所見（本体未変更・報告のみ）
+
+- `flexible-dice-select.handler.ts`：本体が `handleDiceRoll(interaction as any, request)` と select を button 互換にキャストして委譲。
+  挙動は固定済み。型整理の候補（負債とまでは言えない）。
+
+### 検証（メインで裏取り）
+
+- 新規 34 spec 一括 → **34 suites / 146 tests 全緑**（相互干渉なし）。前述 9 spec を含め追加分は全緑。
+- 全体スイート：**41 failed / 1462 passed（17 suites failed / 110 passed / 127 total）**。失敗 17 suites は全て本変更前からの既存破損
+  （`commands-components/*`・`characterEdit/services/*`・`character.integration`・`config.service`・`core/events/typed-event.service`・
+  `discord.service`・`character-channel`(Phase3 無効化) 等）で、**新規 spec は一切 FAIL に含まれない**
+  （Jest のテストファイル単位分離＋本体未変更により新規破損ゼロ）。
+- `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!**（madge 376→410 file・spec は leaf import で循環を生まない）。
+- 本体コード（src/\*_）変更ゼロ（git 確認・非 spec 差分は AI._.md のみ）。`as any` 手動 interaction モックの新規追加なし。
+
+### 残 🟡 黄バックログ（次セッション）
+
+handlers（25）・adapters（9）・repositories（4）・jwt-auth.guard・dice-roll.service・event handler（3）は消化。残りは：
+
+- 他の `events/handlers/*.requested.ts`（未作成分）・`event-handler.base.ts`
+- feature orchestrators（thread-orchestrator / character-thread.orchestrator / dice-result.orchestrator / roll-dice.orchestrator / character-channel-orchestrator 等）
+- misc：`http.service` / `winston.config` / `configuration` / `performance-dashboard.controller` / `base-command.service` / `custom-dice-modal.service`（commands 側）/ `dice-character-select.service` / `dice-history.service` / pagination ボタン群
+
+その後 🔴 赤（約20・要 `refactor-for-testability`・**着手はユーザー承認後**）。`character-channel.service.ts` は Phase3 完了 or デッド整理の別タスク。
+
+---
+
+## 🟡 **黄テスト拡充 第2バッチ: event handlers / orchestrators / misc** **[完了: 2026-06-02]**
+
+🟡 黄の残（薄い handler・adapters・repository 消化後）を `create-test` で実装（本体不変・spec 追加のみ）。
+5 サブエージェントへ並列委譲（event handlers / orchestrators×2 / misc×2）し、メインで全体スイート裏取り。
+
+### 新規作成（18 spec / 236 tests・全緑）
+
+| グループ       | ファイル                                                                                                         | テスト |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- | ------ |
+| event handlers | `events/handlers/character.update.requested.spec.ts`                                                             | 31     |
+|                | `events/handlers/character.findByName.requested.spec.ts`                                                         | 18     |
+|                | `events/handlers/_shared/event-handler.base.spec.ts`（抽象基底・spec 内に具象 TestHandler／retry は fakeTimers） | 32     |
+| orchestrators  | `characterThread/services/thread-orchestrator.service.spec.ts`                                                   | 14     |
+|                | `characterThread/services/character-thread.orchestrator.spec.ts`                                                 | 6      |
+|                | `characterThread/services/character-channel-orchestrator.service.spec.ts`                                        | 18     |
+|                | `services/monitoring/performance-orchestrator.service.spec.ts`                                                   | 16     |
+|                | `features/diceRoll/services/dice-result.orchestrator.spec.ts`                                                    | 5      |
+|                | `features/diceRoll/services/roll-dice.orchestrator.spec.ts`                                                      | 5      |
+|                | `interactions/button/character-dice-orchestrator.service.spec.ts`                                                | 8      |
+| misc           | `core/shared/services/http.service.spec.ts`                                                                      | 4      |
+|                | `config/configuration.spec.ts`                                                                                   | 7      |
+|                | `config/winston.config.spec.ts`                                                                                  | 8      |
+|                | `discord/commands/base-command.service.spec.ts`（抽象・具象サブクラス）                                          | 8      |
+|                | `discord/controllers/performance-dashboard.controller.spec.ts`                                                   | 18     |
+|                | `interactions/modal/custom-dice-modal.service.spec.ts`                                                           | 9      |
+|                | `interactions/select/dice-character-select.service.spec.ts`                                                      | 8      |
+|                | `interactions/button/dice-history.service.spec.ts`                                                               | 21     |
+
+- event handler は既存手本 `character.creation.requested.spec.ts` を踏襲（CharacterService/Repository mock＋`setTypedEventService` で emit 検証・customValidation 分岐・純粋ヘルパ・isRetryableError/getMaxRetries）。
+- orchestrators は全て「注入サービスを mock するオーケストレーション型」で素直にテスト可能（実 Discord I/O は配下サービス内＝mock 対象）。embed/select builder を実検証する spec は `jest.requireActual('discord.js')` を使用。
+- misc は DI / module mock / 設定取得 mock で網羅。controller は `overrideGuard(JwtAuthGuard)`。
+
+### 🔴 新規の設計負債候補（テストは書けたが脆い・将来 refactor 推奨）
+
+- **`dice-history.service.ts`（中）**: `updateDiceRollHistoryAsync` が `performBackgroundHistoryUpdate` を fire-and-forget 起動し、内部の rate-limit 用 `Map`＋`Date.now`＋lock `Map`＋`parentChannel.send` が密結合。テストは `await Promise.resolve()` 連鎖で背景処理を待つ必要があり**脆い**。推奨 seam: ①`Clock`(now())注入で時刻決定化、②背景更新を public 別メソッドへ分離し直接 await、③rate-limit を純関数 `shouldUpdate(last, now, interval)` 抽出。`refactor-for-testability` の候補として 🔴 レジスタへ追加（`character-dice-history.service.ts` とは別物）。
+
+### ⚠️ テスト基盤の負債（別タスク候補）
+
+- グローバル `test/utils/jest-setup.ts` の `jest.mock('discord.js')` の `EmbedBuilder` モックが `setTimestamp`/`setURL`/`setFooter` を欠き `Colors` 未定義。embed を組む本体を呼ぶ spec が落ちるため、各 spec が個別に `jest.requireActual` やローカル mock で回避している（重複コスト）。グローバルモックに上記を補完すれば各 spec のローカル上書きが不要になる。
+
+### 検証（メインで裏取り）
+
+- 全体スイート：**41 failed / 1691 passed（17 suites failed / 128 passed / 145 total）**。失敗 17 suites は前バッチと**完全に同一の既存破損**で、**新規18 spec は1件も FAIL に含まれない**（失敗数 41 不変＝新規破損ゼロ）。
+- `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!**（428 files）。
+- 本体コード変更ゼロ（git・非 spec 差分は AI.\*.md のみ）。`as any` 手動 interaction モック新規追加なし。
+
+### 🟡 黄バックログ現況
+
+評価マップで**名指しされた 黄 項目はほぼ消化**（handlers/adapters/repositories/guard/dice-roll.service/event handlers 全5＋base／orchestrators 7／misc 8）。残りは：
+
+- マップに個別名のない 黄 残（`dice-roll-logic.service` / `dice-preset.service` 等、`test-expansion` 棚卸しで再抽出が必要）。
+- 🔴 赤（約20＋今回の `dice-history`）= `refactor-for-testability`＋characterization、**着手はユーザー承認後**。
+- 既存 41 失敗テスト（17 suites）の修復 = テスト負債の別トラック。
+
+---
+
+## 🗺️ **黄残の再棚卸し（第2次テスタビリティ評価マップ）** **[作成: 2026-06-02]**
+
+緑＋黄（第1・2バッチ）消化後、**spec の無い本体ロジック 64 ファイル**（型/DTO/model/schema/contract/定数/module/index/main を機械除外した残り）を 5 サブエージェントで実読し再分類（**評価のみ・テスト未作成**）。元マップ未記載の黄を洗い出すのが目的。
+
+### 集計（64件）
+
+| 分類         | 件数 | 位置づけ                                                         |
+| ------------ | ---- | ---------------------------------------------------------------- |
+| 🟢 緑        | 3    | 最優先（純ロジック中心）                                         |
+| 🟡 黄        | 約25 | 次バックログ（dead code 5 を除く）                               |
+| 🔴 赤        | 約26 | 設計負債（既知＋新規3）・要 refactor-for-testability・**承認後** |
+| ⚪ 対象外    | 約8  | 型/デコレータ/定数/ids/list                                      |
+| ☠️ dead code | 5    | adapter と重複の未使用実装＝削除候補（テスト不要）               |
+
+### 🟢 緑（最優先・次に書く）
+
+- `discord/interactions/button/dice-roll-logic.service.ts` — repo/Character/TypedEvent mock＋`dice` mock。`cleanDiceExpression`/`validateDiceExpression`/`determineSuccessLevel` は純関数。**ダイス核ロジックで高価値**。
+- `discord/services/monitoring/discord-monitor.service.ts` — discord.js I/O 無し。EventEmitter2 mock＋fake timers で集計（getStats/getHealthStatus）検証。
+- `utils/error-helpers.ts` — 純関数（型述語・文字列整形）、依存ゼロ。
+
+### 🟡 黄（actionable バックログ・dead code 除く約25）
+
+- **util/core（緑寄り・着手容易）**: `utils/api-response.util.ts`（Response mock）/ `utils/cookie.service.ts` / `domains/character/character-http.exception.ts`（ExceptionFilter）/ `domains/auth/discord.strategy.ts`（validate を authService mock）/ `discord/utils/file.util.ts`・`loadJsonFile.ts`（`jest.mock('fs')`）/ `discord/utils/tableDice.ts`（`jest.mock('bcdice')`）
+- **dice/commands**: `discord/services/dice/dice-preset.service.ts` / `discord/commands/commands-components/dice-result.service.ts`（BaseCommandService 委譲）
+- **characterEdit**: `events/handlers/character-edit-creation.handler.ts` / `services/channel-name-sync.service.ts`（setName mock）/ `services/character-edit-event-emitter.service.ts` / `services/character-event-integration.service.ts`（現状 no-op 固定のみ）
+- **characterThread/channel**: `character-tab-buttons.service.ts` / `services/character-display-handler.service.ts` / `services/character-display.service.ts` / `services/character-embed.service.ts`（embed 構築の純ロジック優先）/ `discord/services/discord-channel-manager.service.ts`（委譲層・最易）/ `discord/services/discord-command-registration.service.ts`
+- **top-level/events**: `discord/discord.controller.ts`（deps mock）/ `interactions/channel/character-channel-create.service.ts`・`diceroll-channel-create.service.ts` / `interactions/select/character-thread-select.service.ts`（customId ルーティング）/ `discord/events/handlers/character.deletion.completed.ts`（自己購読なし）/ `features/userDefinedDice/services/user-defined-dice.orchestrator.ts`（副作用は interaction 経由・@discord-test-utils 固定）
+
+### 🔴 新規の赤（赤レジスタへ追加・要 refactor-for-testability・**着手は承認後**）
+
+- `discord/features/characterEdit/services/character-section-editor.service.ts` — interaction I/O（deferUpdate/editReply/showModal/reply＋message.embeds）とフィールド抽出ロジック密結合。seam: interaction 応答／getCharacter(emit+race)／embedManager を分離。
+- `discord/features/characterThread/services/channel-manager.service.ts` — `guild.channels.fetch`＋instanceof＋`threads.create`＋cache.filter が全メソッド密結合。seam: guild.channels(fetch/cache)・threads.create を Port 化。
+- `discord/services/channel/channel-cache.service.ts` — `setInterval` 常駐＋TTL/LRU Map＋`client.channels.fetch`。seam: constructor の setInterval・client.channels.fetch を分離（`extractTimestampFromSnowflake` のみ純関数）。
+- 既知の赤（据え置き）: message-manager / thread-manager / channel-creator / discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-interaction-handler / discord-facade / interactions.controller / interactions.service / character.update.completed / discord.thread.create.requested / select-game-system.orchestrator / event-registry / character-channel(Phase3) / createCategory / discord.util / discord-api-rate-limiter。
+  - **消化状況（2026-06-02 更新・末尾「据え置き赤 順次消化」セクション参照）**: ✅完了 = `thread-manager` / `channel-creator`（refactor-for-testability）, `character.update.completed` / `discord.thread.create.requested` / `createCategory` / `discord.util`（実は🟡=create-test 直行）, `message-manager`/`discord-interaction-handler`（型注釈で spec 解凍済・**直接 spec は未**）。残: discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-facade / interactions.controller / interactions.service / select-game-system.orchestrator / event-registry。`discord-api-rate-limiter` は該当ソース無し（要確認）。
+
+### ☠️ dead code（テスト不要・削除候補・別タスク）
+
+`discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts`（5本）は、テスト済み `features/diceRoll/adapters/dice-page-*-button.adapter.ts` と**同名クラスを重複定義した未使用実装**。DI 登録・import は adapter 版のみ（service 版は `dependency-analysis.json` 以外から参照なし）。テストではなく**削除で対応すべき**（削除前に実コードで参照ゼロを再確認）。
+
+### ⚠️ 元マップとの不一致（評価者間で揺れた境界・実装時に再確認）
+
+本パスで元マップ 🔴 → 黄 に**再評価**したもの: `character-embed.service`・`character-thread-select.service`・`user-defined-dice.orchestrator`・`discord.controller`・`channel-name-sync.service`（いずれも「依存 mock＋@discord-test-utils で固定可能」と判断）。実装時に mock 地獄なら赤へ差し戻し報告する。
+
+### 次アクション
+
+1. 🟢 緑3（特に `dice-roll-logic.service`）→ 🟡 黄（util/core の易しい順）で `create-test` 継続。
+2. dead code 5本は削除タスクへ（テスト対象外）。
+3. 新規赤3は赤レジスタで deferred、承認後に `refactor-for-testability`。
+
+---
+
+## ✅ **赤レジスタ消化: `channel-cache.service.ts` テスタビリティ改善完了** **[2026-06-02]**
+
+第2次マップで 🔴 だった `discord/services/channel/channel-cache.service.ts`（ChannelCacheService）を `refactor-for-testability` → `create-test` で改善。**公開 API シグネチャ・本番挙動・stats 戻り値の形は不変**。
+
+### 手順0: characterization 先行（安全網）
+
+- `channel-cache.service.characterization.spec.ts`（19 ケース）を**抽出前に**作成し現挙動を固定 → 構造変更後も**同 19 件が緑**であることで挙動不変を証明。
+- 固定した挙動: TTL ヒット時 fetch せずキャッシュ返却＋lastAccess 更新 / TTL 超過・未キャッシュ時 fetch→text-based なら格納・非 text-based は null / MAX 超過時の最古 evict / message cache 往復＋limit 超過削除 / stats 集計（`memory = channels*2 + messages*1`）/ `extractTimestampFromSnowflake` 数値 / 例外時 ErrorHandler 経由（`handleServiceError` は HttpException を**再スロー**するため現状は例外伝播する点も固定）/ タイマー駆動クリーンアップ。
+
+### 抽出した Pure 関数（新規 `channel-cache.pure.ts`・DI なし・discord.js 非依存）
+
+| 関数                                                    | 責務                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `extractTimestampFromSnowflake(snowflake, fallbackNow)` | snowflake→ms 変換。失敗時は引数 `fallbackNow` を返す（時刻取得を外出し） |
+| `isSnowflakeParsable(snowflake)`                        | BigInt 解釈可否（ログ出力要否の判断にのみ使用）                          |
+| `isCacheEntryFresh(lastAccess, now, ttl)`               | TTL ヒット判定（`now-lastAccess < ttl`）                                 |
+| `selectExpiredChannelIds(entries, now, ttl)`            | 期限切れ id 一覧（`> ttl` のみ）                                         |
+| `selectOldestChannelId(entries)`                        | LRU eviction 対象 id（空は null・同値は挿入順先頭）                      |
+| `computeCacheStats(entries)`                            | stats 集計（memory 概算式を踏襲）                                        |
+
+Map の実体操作（delete/set）は呼び出し側（imperative shell = サービス）に残し、純関数は**判断のみ**。入力は `CacheEntryMeta { id, lastAccess, messageCacheSize }` の最小スナップショットで discord.js 型に触れない（`shared/` 制約に抵触しないが、新規循環回避のため同ディレクトリ配置）。
+
+### seam 化した依存（3つ）
+
+- **Clock**: `Date.now()` 直呼び（全メソッド）→ `@Optional() @Inject(CHANNEL_CACHE_CLOCK)` で注入する `now: () => number`（既定 `Date.now`）。
+- **Timer**: コンストラクタの `setInterval` 常駐 → `onModuleInit` での起動に移し、`@Optional() @Inject(CHANNEL_CACHE_AUTO_START_CLEANUP)`（既定 true）で制御。`onModuleDestroy` で `clearInterval`（**リーク防止という副次改善**）。本番は標準プロバイダ登録なので NestJS が両フックを自動呼出し → **定期クリーンアップ挙動は不変**。テストは `autoStart=false` 注入で常駐タイマーを起動せず安定化。
+- **fetch I/O**: `client.channels.fetch` を `protected fetchChannel()` に分離（将来 Port 化の足場）。
+
+### 改善指標（before → after）
+
+- 本体 `channel-cache.service.ts`: 347行 → 約410行（seam・ライフサイクル・JSDoc 追加分。各メソッドは判断ロジックを純関数へ委譲し短縮）。最長メソッド `getChannel` の分岐は純関数委譲で簡素化。
+- 純関数の割合: 判断ロジック（TTL/LRU/stats/snowflake）を**6 純関数**として完全分離 → モック不要でテスト可能。
+- 外部依存の seam 化: **3**（Clock / Timer / fetch）。直接呼び出し 0。
+- Cyclomatic Complexity: 純関数は各 1〜3。
+
+### テスト結果
+
+- `channel-cache.pure.spec.ts`（**18 ケース・モック不要**）+ characterization（**19 ケース**）= **37 passed**。
+- `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!（448 files）**。
+
+### 守った制約（確認済み）
+
+純粋層に DI 無し（純関数は引数のみ）/ 新規循環なし / 公開 API シグネチャ不変（`getChannel`/`getCacheStats`/`performMaintenance`/`clearCache`/`addMessageToCache`/`getMessageFromCache`/`removeMessageFromCache`/`evictChannelCache`/`extractTimestampFromSnowflake`）/ 本番タイマー挙動不変。
+
+### 残課題・申し送り
+
+- 消費者 `discord-channel-manager.service.spec.ts` は**実行不可（コンパイルエラー）だが本改善とは無関係**。原因は同ディレクトリの既存負債 `message-manager.service.ts:198` の `const batches = []` が `never[]` 推論される TS バグ（`tsconfig.spec.json` で顕在化）。本改善前の状態を git stash で再現し、同一エラーで失敗することを確認済み。`message-manager.service.ts` 自体が赤レジスタ据え置き項目なので、その修復トラックで `const batches: string[][] = []` と型注釈すれば解消する見込み。
+- `fetchChannel` は現状 `protected` メソッド分離まで。完全な Port 化（interface 注入）は未実施（YAGNI・現テスト要件は満たす）。
+
+## 🔴→🟢 赤2: ChannelManagerService テスタビリティ改善（characterThread/services/channel-manager）
+
+**対象**: `src/discord/features/characterThread/services/channel-manager.service.ts`（赤レジスタ済み）。
+全メソッドが `guild.channels.fetch`（async I/O）・`guild.channels.cache.find/filter`・`instanceof TextChannel/ThreadChannel`・`threads.create` に密結合。とくに `getCharacterChannelOptions` の「カテゴリ検索→テキストch抽出→createdTimestamp降順→25件制限→option整形」という純選別ロジックがキャッシュ操作と混在しテスト不能だった。
+
+### 抽出した Pure 関数（新規 `channel-manager.util.ts`・DI 無し・discord.js 型に非依存／Builder は値オブジェクト）
+
+| 関数                                               | 責務                                                                                                                                           |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `matchesCharacterCategory(channel, categoryNames)` | カテゴリ判定 predicate（type===GuildCategory かつ name 一致）                                                                                  |
+| `isTextChannelInCategory(channel, categoryId)`     | カテゴリ直下テキストch 判定 predicate（type===GuildText かつ parentId 一致）                                                                   |
+| `selectChannelOptions(channels, limit=25)`         | **最重要**。ChannelSnapshot 配列を createdTimestamp 降順ソート＋slice(25)＋`{label,value}` 整形（入力非破壊・null は 0 扱い・id は String 化） |
+| `buildSelectOptions(options)`                      | `{label,value}[]` → `StringSelectMenuOptionBuilder[]`（edge 変換）                                                                             |
+| `buildFallbackOption(label, value)`                | 単一フォールバック option 生成                                                                                                                 |
+
+入力は `ChannelSnapshot { id,name,type,parentId,createdTimestamp }` の最小スナップショット。サービス側で cache 要素から写し取り（imperative shell）→ 純関数で選別、という functional core/imperative shell 構成。
+
+### seam 化した副作用境界
+
+- `guild.channels.cache.find/filter` の **判定述語**を純 predicate へ委譲（cache 走査自体はサービスに残す）。
+- `getCharacterChannelOptions`：cache 抽出後に `ChannelSnapshot` へ写し取り、選別ロジックは純関数へ完全移譲。
+- `validateCharacterCategory`：同じ `matchesCharacterCategory` を共有しロジック重複を解消。
+- `fetch`＋`instanceof`＋`threads.create` は characterization テストで固定（実 discord.js prototype を `Object.create` したフェイクで instanceof 成立させて検証）。
+
+### 改善指標（before → after）
+
+- 本体 service.ts: 165行 → 162行（純選別ロジック40行強を util へ移し、サービスは「取得→判定委譲→整形委譲」の薄い殻に）。`getCharacterChannelOptions` の最長メソッドが大幅簡素化。
+- 純関数の割合: 選別・判定ロジックを **5 純関数**として完全分離（モック不要）。
+- 外部依存の seam 化: cache 判定述語の純化（find/filter の predicate を2つ純関数化）。
+- Cyclomatic Complexity: 純関数は各 1〜2。
+
+### テスト結果
+
+- `channel-manager.service.spec.ts`（characterization・**17 ケース**）+ `channel-manager.util.spec.ts`（純関数・モック不要・**17 ケース**）= **34 passed**。
+- 消費者 `character-channel-orchestrator.service.spec.ts` = **16 passed**（破損なし）。
+- `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!（451 files）**。
+
+### 守った制約（確認済み）
+
+純粋層に DI 無し（純関数は引数のみ）/ 新規循環なし / 公開 API シグネチャ・外部挙動不変（`createCharacterThread`/`getCharacterChannelOptions`/`validateCharacterCategory`/`validateTextChannel`/`validateThread`/`logChannelInfo`、フォールバック option の形・25件上限・降順順序すべて維持）/ フロント非依存。
+
+- 副次: 未使用だった `CommandInteraction` import を削除（挙動非影響）。
+
+### 残課題・申し送り
+
+- `instanceof`／`fetch`／`threads.create` の完全な Port 化は未実施（characterization で固定済みのため現テスト要件は満たす・YAGNI）。将来 Discord I/O Port 化の共通 seam に乗せる際にまとめて対応。
+- 既存の壊れた spec（`message-manager.service.ts:198` 由来のコンパイルエラー）は本対象と無関係・本改善で新規破損ゼロ。
+
+---
+
+## 🔧 **赤3: character-section-editor.service テスタビリティ改善（refactor-for-testability）** **[2026-06-02]**
+
+対象: `src/discord/features/characterEdit/services/character-section-editor.service.ts`（`CharacterSectionEditorService`）。
+赤判定3件中もっとも複雑（interaction I/O・emit+race・静的 ErrorHandler・discord.js builder・埋もれた3分岐ロジックが密結合）。
+
+### 手順0: characterization（挙動固定）
+
+- `character-section-editor.service.spec.ts` を新規作成（12件）。`execute(interaction)` の外部挙動を最小モックで固定：
+  - defer 分岐（field操作は deferUpdate せず showModal／それ以外は deferUpdate）
+  - characterId 抽出失敗→editReply エラー／character 取得失敗→editReply エラー
+  - section選択（`character-edit-section`/`character-section-select`）→ createFieldSelectMenu 正引数＋元embed保持で2行 editReply／`back`→ createSectionedEmbeds
+  - フィールド選択→ showModal（短いID=直接、長いID=session採番 createSession）
+  - 例外→ ErrorHandler.handleServiceError 経由
+- 重要な落とし穴: グローバル `test/utils/jest-setup.ts` の `jest.mock('discord.js')` の **`TextInputBuilder` に `setValue` が欠落**しており、既存値ありの編集で本番コードが落ちていた（モックの不備）。実 discord.js には存在するメソッドなので **`setValue: jest.fn().mockReturnThis()` を1行追加**（他テスト非影響を全 characterEdit spec で確認）。
+  → modal builder はモックで `.data` を持たないため、3分岐の値振り分け検証は characterization では行わず、抽出した純関数の単体テストへ委譲する設計とした。
+
+### 抽出した Pure 関数（新規 `character-section-editor.util.ts`・DI 無し・discord.js import 無し）
+
+- **`extractFieldEditValues(sectionData, fieldKey)`**（最重要）: 旧 handleFieldSelection 180〜238行の AttributeValue／レガシー name+value／プリミティブの3分岐を純化。戻り `{ fieldName, currentValues, currentDice, currentDescription }`。
+- `extractCharacterIdFromCustomId` / `extractSectionFromCustomId`（customId 解析・4パターン正規表現／部分文字列）。
+- `isFieldOperationCustomId` / `isSectionSelectionCustomId`（分岐判定）。
+- `shouldUseDirectModalId`（≤8 判定）/ `buildDirectModalId` / `buildSessionModalId`（modalId 純粋部分）。
+- `buildModalTitle` / `getSectionDisplayName`（表示名）。
+- `sanitizeDescriptionValue`（trim＋1000字制限 997+'...'）。
+- `getSectionData(character, sectionType)`（switch）。
+
+### seam 化した依存
+
+- modal customId 決定を **`resolveModalId()` private に隔離**：短いIDは純関数で生成、長いIDのみ `modalSessionManager.createSession`（副作用）を呼ぶ＝副作用を1箇所に集約。
+- `getCharacter`（emit+`Promise.race(waitForEvent)`）・interaction 応答（defer/editReply/showModal/reply）・`ErrorHandler` は薄い殻（execute / sendErrorMessage）に残置。
+
+### 改善指標
+
+- `character-section-editor.service.ts`: 469行→約300行（**-157 / +49**）。`handleFieldSelection` の本体ロジック約60行→純関数1呼び出しに。`createEditModal` から modalId 分岐・タイトル・サニタイズの直書きを排除。デッドコード（未使用 `sectionNames`）も削除。
+- Pure 関数の割合: util 12関数すべてモック不要。カバレッジ util.ts **100%**（stmt/branch/func/line）、service.ts **96%/90.9%/100%/95.9%**。
+- 外部依存: DI 3件（typedEventService/embedManager/modalSessionManager）は維持。新規注入ゼロ。
+
+### 追加テスト
+
+- `character-section-editor.util.spec.ts`（**51件**・純関数・モック無し、3分岐＋境界＋異常系網羅）。
+- `character-section-editor.service.spec.ts`（**12件**・characterization）。対象2 spec 計 **63 passed**。
+
+### 検証結果
+
+- `pnpm run build` 成功。
+- 対象2 spec = **63 passed**。消費者 `enhanced-character-edit.service.spec.ts` = **17 passed**（破損なし）。
+- `pnpm run check:circular` → **No circular dependency found!（454 files）**。
+- `git diff --numstat`: service.ts `-157/+49`、jest-setup.ts `+3/-1`。新規3ファイル（util.ts / util.spec.ts / service.spec.ts）。
+
+### 守った制約（確認済み）
+
+純粋層に DI 無し（純関数は引数のみ・discord.js import 無し）/ 新規循環なし / 公開 API は `execute(interaction)` のみ・シグネチャ＆外部挙動不変（defer分岐・customId生成形 `char-edit-${section}-${field}-${id}`／`char-edit-modal-${sessionId}`／`character-edit-section-${id}`・3分岐の値振り分けすべて維持）/ フロント非依存（HTTP 返さず）。
+
+### 予期せず詰まった点／新規破損ゼロの証拠
+
+- 上記の `TextInputBuilder.setValue` 欠落（モック不備）が真因で、初版 characterization が落ちた。jest-setup へ1行補完で解消（実 discord.js 準拠・安全）。
+- characterEdit feature 全 spec をベースライン比較（tracked変更 stash＋新規ファイル退避）: **ベースライン 6 failed/20 tests failed**（channel-detection 等・本対象と無関係の既存負債）→ **改善後も 6 failed/20 tests failed**（failed 数同一）、passed は **204→267（+63＝本追加分のみ）**。本改善による**新規破損ゼロ**を確認。
+
+---
+
+## ✅ 黄バックログ消化＋型負債2件解消（2026-06-02・create-test 並列委譲）
+
+第2次マップ 🟡黄の未テスト分を再 discovery（`find` で spec 有無を厳密確認）した結果、**大半は前セッションで spec 済み**で、真に未テストは6ファイルのみと判明。6本を `create-test` へ並列委譲し全緑化。司令塔が build/check:circular/全 spec を裏取り。
+
+| 対象                                                                          | spec 件数 | 備考                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `discord/discord.controller.ts`                                               | 25        | 5 endpoint の正常/403/400/404/500・権限・バリデーション網羅                                                                                                                                                                                                                                                  |
+| `discord/interactions/channel/character-channel-create.service.ts`            | 2         | orchestrator 委譲・例外握り潰し                                                                                                                                                                                                                                                                              |
+| `discord/interactions/channel/diceroll-channel-create.service.ts`             | 4         | parentId 一致/不一致・createOrGetChannel 委譲                                                                                                                                                                                                                                                                |
+| `discord/interactions/select/character-thread-select.service.ts`              | 18        | customId ルーティング＋純 private(extractCharacterId/getSectionEmoji)。**赤差し戻し不要**（`@discord-test-utils` で interaction 充足）。ただし**モーダル構築物の中身検証は将来の赤候補**（ModalBuilder/TextInputBuilder 生成が execute に密結合）。本番 39行目の `console.log('test root')` 混入は別途要清掃 |
+| `discord/events/handlers/character.deletion.completed.ts`                     | 17        | EventHandler 継承・通知/アーカイブ/embed削除の個別失敗握り潰し・isRetryableError/getMaxRetries                                                                                                                                                                                                               |
+| `discord/features/userDefinedDice/services/user-defined-dice.orchestrator.ts` | 13        | autocomplete(Fuse/カテゴリ絞込/25件)・execute(tableDice 委譲)。実 Collection/TextChannel.prototype で instanceof 成立                                                                                                                                                                                        |
+
+### 付随：`never[]` 型負債2件を解消（テストのコンパイル不能を解凍・挙動不変）
+
+ts-jest が import グラフ全体を型チェックするため、本番1ファイルの型エラーが同グラフの spec を全滅させていた。型注釈のみ（ランタイム不変）で解消：
+
+- `discord/services/channel/message-manager.service.ts`: `const batches = []` → `const batches: string[][] = []`。→ `discord-channel-manager.service.spec.ts` が **18 passed** に解凍。
+- `discord/services/discord-interaction-handler.service.ts`: `const handlers = []` → `const handlers: Promise<void>[] = []`。→ `discord.controller.spec.ts` の **25 passed** が成立。
+
+### 検証結果（司令塔裏取り）
+
+- `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!**
+- 上記6 spec＋解凍2 spec 含む **9 suites / 120 passed**。
+- 本番コードの変更は**型注釈2行のみ**（diff 確認済み）。他は新規 spec（未追跡）。新規破損ゼロ。
+
+---
+
+## ✅ 🔴赤: channel-creator.service テスタビリティ改善（2026-06-02・refactor-for-testability→create-test）
+
+`discord/services/channel/channel-creator.service.ts`（ChannelCreatorService・494行・9メソッド）。全メソッドが discord.js の I/O（`channels.fetch`/`guilds.fetch`/`channels.create`/`threads.create`/`permissionOverwrites.create`/`.edit`/`.delete`/`members.fetch`）と try/catch＋`ErrorHandler.handleServiceError` に密結合し、option 組立・型変換・権限集計・channel info 組立が I/O に埋もれていた。
+
+### 手順0：characterization 先行（安全網）
+
+`channel-creator.service.characterization.spec.ts`（**30 passed**）で現挙動を固定してから抽出。固定した重要挙動：
+
+- **`ErrorHandler.handleServiceError` は常に throw する**実装のため、catch 内の `return null`/`return false` には到達せず**例外が伝播する**のが現挙動（指示書の「例外→null」は handleServiceError をモックする前提の話で、実 ErrorHandler では throw）。これを `.rejects.toBeDefined()` で固定。
+- getChannelInfo: fetch null→null、name/guildId/parentId/topic の条件付き組立、isThread 時の memberCount。
+- createChannel/createThread/createCategory: option 分岐・type デフォルト・GuildVoice 固有。
+- checkChannelPermissions: guild 無し→hasAccess:false＋全 false map、集計、some(Boolean)。
+- set/update/delete: サポート外→throw、成功→true。convertChannelType: 既知→対応・未知→GuildText。
+
+### 抽出した Pure 関数（新規 `channel-creator.pure.ts`・DI 無し・I/O 呼ばない）
+
+`buildChannelInfo` / `buildChannelCreateOptions` / `buildThreadCreateOptions` / `buildCategoryCreateOptions` / `buildPermissionOverwrites` / `buildDeniedPermissionMap` / `summarizePermissions` / `hasAnyPermission` / `convertChannelType`。discord.js の `ChannelType`/`OverwriteResolvable` 型には触れるが I/O メソッドは呼ばない方針で、`services/channel/` 配下の純モジュールとして配置（`shared/` の discord.js import 禁止制約には抵触しない）。
+
+### seam（副作用境界に残したもの）
+
+各メソッドの I/O 呼び出し（fetch/create/edit/delete/members.fetch/permissionOverwrites）と try/catch＋ErrorHandler は service 本体（imperative shell）に残置。本体は「取得→（純関数で組立/集計）→ I/O 実行」の薄いオーケストレーションに縮小（494→419行）。
+
+### create-test：純関数の単体テスト（`channel-creator.pure.spec.ts`・**35 passed**・モック不要）
+
+全分岐（truthy/undefined 判定・0/false の付与・GuildVoice 固有・toLowerCase・未知フォールバック）を網羅。
+
+- **モック注意**: グローバル jest-setup は `ChannelType` を `{ PublicThread: 11 }` のみに差し替えるため GuildText/GuildVoice/PrivateThread 等が全て undefined となり分岐を区別できない。pure.spec のみ**ファイルローカル `jest.mock('discord.js', ...)` で必要な enum 値を付与**（本体 pure.ts も同一モック参照を使うので比較は一致）。characterization 側は本体・テスト同一参照で比較するため上書き不要。
+
+### 検証結果
+
+- `pnpm run build` 成功。
+- channel ディレクトリ全 4 suites = **102 passed**（うち本対象 characterization 30＋pure 35）。
+- `pnpm run check:circular` → **No circular dependency found!（470 files）**。
+- `git diff --stat`: `channel-creator.service.ts` `+41/-116`。新規3ファイル（pure.ts 275行 / pure.spec.ts / characterization.spec.ts）。
+
+### 守った制約（確認済み）
+
+純粋層に DI 無し（純関数は引数のみ）/ 新規循環ゼロ / **9 公開メソッドのシグネチャ・外部挙動・戻り値（null/false/throw のフォールバック形）不変**（characterization 30 が抽出前後とも緑で証明）/ ChannelType の値・option キー名不変・フロント非依存。
+
+---
+
+## 🔴→🟢 据え置き赤 順次消化（2026-06-02・低→高リスクでバッチ実施・司令塔裏取り）
+
+ユーザー承認のもと「据え置き赤」を低リスク順にバッチ消化中。各バッチ characterization 先行・公開API/挙動保存・build/check:circular/spec をメインが裏取り。
+
+### Batch A（実は🟡＝refactor 不要・create-test 直行／本番変更ゼロ）
+
+- `discord/utils/discord.util.ts`（9件）/ `discord/utils/createCategory.ts`（3件）/ `events/handlers/character.update.completed.ts`（25件・deletion.completed と同型）/ `events/handlers/discord.thread.create.requested.ts`（12件）。計 **49 passed**。
+- 教訓: 旧マップで🔴扱いでも EventHandler 継承系・util 系は mock で素直にテスト可能（`deletion.completed` と同様）。型注釈2件（`message-manager`/`discord-interaction-handler` の `never[]`）で import グラフ上の spec 群が解凍された影響も大きい。
+
+### Batch B（🔴 refactor-for-testability＝channel-manager と同型の Port/seam 化）
+
+- `discord/services/channel/channel-creator.service.ts`: 9純関数を `channel-creator.pure.ts` へ（convertChannelType/各 option builder/buildChannelInfo/権限集計）。本体 494→419行。pure35＋characterization30=65緑。**発見: `ErrorHandler.handleServiceError` は常に throw する**ため「例外→null/false」分岐は実 ErrorHandler 下では到達せず例外伝播が真の現挙動（characterization で固定）。
+- `discord/features/characterThread/services/thread-manager.service.ts`: `buildThreadUrl`/`nextBackoffDelay`/event payload 組立を `thread-manager.util.ts` へ。`now()`/`sleep()` を protected seam 化（本番タイミング=50ms待機・retry・×2 backoff 不変）。util4＋characterization14=18緑。
+
+### バッチ横断の検証
+
+- 結合状態で `pnpm run build` 成功 / `pnpm run check:circular` → **No circular dependency found!** / Batch B 関連 **83 passed**。
+- 本番コードの変更は「型注釈2行＋Batch B の2サービス（純抽出・seam）」に限定。Batch A は spec 追加のみ。新規循環ゼロ・フロント非依存。
+
+### ✅ Batch C 完了（Clock/state seam＝channel-cache 同型）
+
+- `character-dice-history`（🔴 refactor・下記詳細セクション）/ `character-edit-message-updater`（🟡 create-test・7緑）/ `message-manager`（🟡 create-test・24緑、batch分割境界 1/100/101/150 網羅）。結合: build成功・循環ゼロ・**57 passed**。
+
+### ✅ Batch D 完了（orchestrator/registry/guild・全 create-test・本番無変更）
+
+- `select-game-system.orchestrator`(10) / `event-registry`(37・core infra を本番無変更で網羅) / `discord-guild-manager`(39・Date.now spy で TTL 決定化)。計 **86 passed**。
+
+### ✅ Batch E 完了（中核プラミング・全 create-test・本番無変更）
+
+- `discord-client`(9) / `discord-facade`(24・metrics ラッパ mock) / `interactions.controller`(13) / `interactions.service`(25・optional controller を constructor 注入で mock) / `discord-interaction-handler`(20・fake timers)。計 **91 passed**。
+
+### ✅ Batch F 完了（残2本）
+
+- `discord/utils/discord-api-rate-limiter.ts`（🔴 refactor）: `getBucketKey`(正規表現正規化)/`shouldWait`/`computeStats`/`evaluateCleanup` を `rate-limiter.pure.ts` へ。`now()`/`wait()` seam。cleanup の順序依存（reset 書換前後で2回判定）を忠実再現。pure27＋characterization15=42緑、pure カバレッジ100%。
+- `discord/features/characterThread/character-channel.service.ts`（🟡 create-test・Phase3 で execute 無効化）: getAndSetChannelOption の選別＋主要分岐。19緑（embed/button 深掘りは低価値で割愛）。
+- 結合検証: build成功・循環ゼロ・F関連 **61 passed**。
+
+---
+
+## 🎉 据え置き赤バックログ 全消化完了（2026-06-02）
+
+旧「既知の赤（据え置き）」リストおよび第2次マップの 🔴/未テスト分は、Batch A〜F で**すべて消化**（spec 既存だったものを除き、refactor 7本＋create-test 多数）。
+
+- 本番コード変更は **テスタビリティ改善7本（channel-cache/channel-manager/character-section-editor/channel-creator/thread-manager/character-dice-history/discord-api-rate-limiter ＝純抽出＋seam・全て characterization で挙動保存）＋型注釈2行（message-manager/discord-interaction-handler の `never[]`）＋jest-setup 1行（TextInputBuilder.setValue 補完）** に限定。残りは spec 追加のみ。
+- 全バッチで `pnpm run build` 成功・`pnpm run check:circular`「No circular dependency found!」・新規循環ゼロ・フロント非依存を司令塔が裏取り。
+- 横断知見: ①EventHandler 継承・util・facade・controller は旧🔴でも mock で create-test 可能（refactor 不要が多数）、②`ErrorHandler.handleServiceError/handleError` は常に throw＝「例外→null」は実挙動では例外伝播、③jest-setup の discord.js モック欠落（ChannelType/Events/PermissionsBitField/各 Builder メソッド）は spec ローカルの `jest.requireActual`/`jest.mock` 上書きで回避（恒久対応はグローバル補完が望ましい・別タスク）。
+- 既知の無関係負債（未着手・別タスク候補）: `select-game-system.service.spec.ts`（存在しない provider 参照の負の遺産）、character-thread-select の本番 `console.log('test root')`（チップ起票済）、各サービスのモーダル/embed 構築の深い検証は将来 refactor 候補。
+
+---
+
+## ✅ 🔴赤: character-dice-history.service テスタビリティ改善（2026-06-02・Batch C・refactor-for-testability→create-test）
+
+`discord/interactions/button/character-dice-history.service.ts`（CharacterDiceHistoryService・511行）。`Date.now()` による Embed 更新スロットル（`MIN_UPDATE_INTERVAL=2000`・`lastEmbedUpdateTime` Map）、`setTimeout`/`clearTimeout`（10s タイムアウト・5s ロック強制解除）、fire-and-forget、discord.js I/O（`channels.fetch`/`messages.fetch`/`.send`/`.edit`）、`uuidv4`、大量の perf ログが密結合でテスト不能だった。**挙動保存（characterization 先行）＋ Pure 抽出＋ Clock/Timer seam** で改善。
+
+### 手順0：characterization 先行（安全網・**12 passed**）
+
+`character-dice-history.service.characterization.spec.ts` で現挙動を固定してから抽出。固定した重要挙動：
+
+- **throttle（2箇所）**: `handleParentChannelMessage` は経過<2000ms ならページネーション起動せずスキップ；`updateDiceRollHistoryAsync` は経過>=2000ms で更新・未満でスキップ（メッセージ取得しない）。
+- **`createPaginatedDiceRoll`**: ロック中なら即 return、embedId 既存→既存メッセージ編集で return（新規 send しない）、無ければ新規 send→pages 空なら空Embed、コントロール空→fallbackControls で編集、finally でロック解除。
+- **`saveRollResult`**: character 未取得→保存せず return、取得→createText に DTO 委譲・成功 then でキャッシュ無効化、失敗→`BackgroundTaskErrorHandler.handleBackgroundError('save-dice-roll-result')` に委譲し外側は解決。
+- fire-and-forget は `await Promise.resolve()` を複数回まわすヘルパ（`flush`）＋ fake timers で観測。`handleBackgroundError` は **void（throw しない）** ことを利用しスロットルスキップのログ経路も安定して固定できた。
+
+### 抽出した Pure 関数（新規 `character-dice-history.pure.ts`・DI 無し）
+
+- `shouldUpdateEmbed(lastUpdate, now, minInterval): boolean` — **最重要**。throttle 判定（本体2箇所で使用）。境界 `===` は更新側＝true。
+- `buildSaveTextDto(...)` — 保存 DTO 組立（uuid は副作用なので引数 `textId` で注入＝純粋化）。userId='system'・後方互換キー不変。
+- `buildPaginationState<T>(pages, messageId)` — pagination state 組立（`PaginatedDiceRoll` 型を保つためジェネリック化。currentPage=0/characterId=undefined 不変）。
+- `createFallbackControls(messageId, channelId)` — fallback 3ボタン（semi-pure・discord.js Builder）。customId 形 `dice-prev*${messageId}*${channelId}`/`dice-page-info*…`/`dice-next*…` 不変。discord.js 型に触れる純ヘルパは対象と同じ `interactions/button/` 配下へ配置（制約遵守）。
+
+### seam（副作用境界）
+
+- `now()`（既定 `Date.now`）/ `setTimer`（既定 `setTimeout`）/ `clearTimer`（既定 `clearTimeout`）を **protected メソッド**化（fake timers / 差し替え可能）。perf 計測の `Date.now()` も全て `this.now()` に統一。
+- client/channel I/O は従来どおり本体（imperative shell）に残置。本番タイミング（throttle 2000ms・10s/5s timeout・fire-and-forget・lock）は不変。
+
+### create-test：Pure 関数の単体テスト（`character-dice-history.pure.spec.ts`・**14 passed**）
+
+`shouldUpdateEmbed`（境界 1999/2000/同値0/初回 lastUpdate=0 を網羅）・`buildSaveTextDto`（全キー・uuid 注入）・`buildPaginationState`（0/1/N 件）・`createFallbackControls`（3ボタン・customId 形・label/style/disabled）を網羅。
+
+- **モック注意**: グローバル jest-setup の `ButtonBuilder` は `setDisabled` を、`EmbedBuilder` は `setTimestamp` を欠くため、characterization/pure 両 spec は**ファイルローカル `jest.mock('discord.js', ...)`** で補完（pure 本体も同一モック参照を使うので一致）。pure.spec は customId/label/style を捕捉する `__state` 付きモックで検証。
+
+### 検証結果
+
+- `pnpm run build` 成功。
+- button ディレクトリ全 **8 suites = 150 passed**（ベースライン 6 suites/124 → characterization12＋pure14 増、既存 124 は全緑のまま＝**新規破損ゼロ**）。
+- `pnpm run check:circular` → **No circular dependency found!（475 files）**。
+- `git diff --stat`: `character-dice-history.service.ts` `+82/-111`（511→約482行）。新規3ファイル（pure.ts / pure.spec.ts / characterization.spec.ts）。
+
+### 守った制約（確認済み）
+
+純粋層に DI 無し（純関数は引数のみ）/ 新規循環ゼロ / **公開4メソッド（saveRollResult/handleParentChannelMessage/createPaginatedDiceRoll/updateDiceRollHistoryAsync）のシグネチャ・外部挙動不変**（characterization 12 が抽出前後とも緑で証明）/ 保存 DTO キー・customId 形・送信内容不変・フロント非依存 / perf ログは削除せず seam 化のみ。consumer `CharacterDiceButtonsService` は薄い委譲で変更不要。
+
+### fire-and-forget で characterization が困難だった範囲
+
+特になし。`handleBackgroundError` が void（throw しない）かつ全 fire-and-forget が `.then/.catch/.finally` で内部完結するため、`flush`（`await Promise.resolve()` ×5）＋ fake timers で安定観測できた。ただし perf ログの所要時間値（`this.now()` 差分）は計測値であり値そのものは検証対象外（ログ文字列のみ・挙動非依存）。
+
+---
+
+## ✅ 🔴赤(F): discord-api-rate-limiter.ts テスタビリティ改善（2026-06-02・refactor-for-testability→create-test）
+
+`src/discord/utils/discord-api-rate-limiter.ts`（DiscordApiRateLimiter・255行→約230行）。`Date.now()`（global/bucket リセット判定・stats・cleanup）と `setTimeout`（待機・executeBatch バースト遅延）と状態 Map が密結合で赤判定だった件を消化。
+
+### 抽出した Pure 関数（discord.js 非依存・DI なし・同 `discord/utils/` 配下）
+
+新規 `src/discord/utils/rate-limiter.pure.ts`:
+
+- `getBucketKey(route, method)` — 数値ID→`:id`・`/api/vN` 削除・クエリ削除して `METHOD:/normalized/path`（最重要・正規表現）
+- `shouldWait(reset, now)` / `computeWaitTime(reset, now)` — グローバル・バケット共通の待機判定/待機時間
+- `shouldWaitForBucket(bucket, now)` — `remaining<=0 && reset>now`
+- `computeResetTimestamp(resetTimestamp, now, resetAfter)` — reset 秒優先・無ければ `now+resetAfter`
+- `computeStats(buckets, globalRemaining, globalReset, now)` — `resetIn=max(0,reset-now)`、stats 戻り形不変
+- `evaluateCleanup(reset, now)` — `shouldReset=reset<now` / `shouldDelete=reset<now-3600000`（1時間）
+- 型 `BucketLimit` / `BucketStatusEntry` / `RateLimiterStats` / `CleanupDecision`
+
+### seam（副作用境界のみ）
+
+- `Date.now` → `protected now()`（既定 `Date.now`）。テストは `jest.spyOn(Date,'now')` で固定。
+- `wait(ms)` を `private`→`protected`（既定 `setTimeout`）。テストは fake timers で遅延ゼロ消化。
+- 状態 Map（bucketLimits/requestQueue）は本体に保持（純粋層に DI 持ち込まず）。
+
+### cleanup の順序依存に注意（挙動保存の肝）
+
+元コードは `reset<now` で `reset=0` に書き換えた**後**に `reset<now-3600000` を評価する順序依存があり、本番（now が実時刻＝大）では reset<now のバケットは reset=0 後の `0 < now-3600000` で**即削除**される。これを忠実に再現するため、本体 cleanup は `evaluateCleanup` を「書き換え前 reset」と「書き換え後 reset」で2回呼ぶ実装にした（純関数は単一値判定で副作用なし）。
+
+### 検証
+
+- `pnpm run build`: ✅ 成功
+- characterization spec（`discord-api-rate-limiter.characterization.spec.ts`・15）: 抽出前 ✅ → 抽出後も ✅（挙動不変を証明。fake timers で setTimeout 遅延ゼロ）
+- pure spec（新規 `rate-limiter.pure.spec.ts`・27）: ✅（`rate-limiter.pure.ts` カバレッジ Stmts/Branch/Funcs/Lines **100%**）
+- utils 配下全 14 スイート 124 テスト ✅（新規破損ゼロ）
+- `pnpm run check:circular`: ✅ No circular dependency found!
+- `git diff --stat`: 本体 1 file 47+/71-（純関数委譲で簡素化）
+
+### 守った制約
+
+純粋層に DI 無し（純関数は引数のみ）/ 新規循環ゼロ / **公開6メソッド（waitForRateLimit/updateRateLimit/executeBatch/getStats/cleanup/reset）のシグネチャ・外部挙動不変**（characterization 15 が抽出前後とも緑で証明）/ bucketKey 正規化結果（`METHOD:/normalized/path`）・stats 戻り形不変・フロント非依存 / 待機時間・bucket 減算・cleanup 1時間閾値・executeBatch の maxConcurrent/delay すべて不変。consumer は本番コード上に存在せず（spec/本体/純関数のみが参照）。
+
+> これにより「据え置き赤」の `discord-api-rate-limiter`（行 973/1244-1245 で「該当ソース無し・要確認」とされていた件）はソース実在を確認し消化完了。
 
 ---
 

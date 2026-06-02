@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-06-02 テスタビリティ評価マップ作成（テスト負債レジスタ＝赤リスト）
+
+単体テスト拡充の前段として、spec の無い本体実装 **195 ファイルを緑/黄/赤/対象外で評価**（評価のみ・テスト未作成）。
+詳細マップは [AI.test.md](./AI.test.md) の「全体テスタビリティ評価マップ」を正本とする。
+
+**リファクタ観点の要点**：mock 困難＝設計負債の **🔴 赤 約20 件**は、根本原因が **Discord API I/O（fetch/instanceof/create/send/edit/Collection）とロジックの密結合**。H3 巨大サービス分割と同型で、**副作用境界（`ChannelPort`/`MessagePort`/`ThreadPort` 等の Adapter）を切り出してから characterization → テスト**の順で挙動保存して進める。赤の全リストと seam は AI.test.md に記載。
+
+進め方：赤は1件ずつ独立 PR・`refactor-for-testability`（ARCHITECTURE 制約注入：純粋層に DI を持ち込まない／循環を増やさない）で。**挙動を変える着手は別途ユーザー承認後**。`character-channel.service.ts` は Phase3 メンテ中（無効化）のためデッドコード整理 or Phase3 完了の別タスク。
+
+**進捗（2026-06-02 続き）**: 🟢 緑（≈25）に続き 🟡 黄を消化中。interaction handlers（25）・diceRoll adapters（9）・domain repositories（4）・jwt-auth.guard・dice-roll.service・event handler（3）まで spec 追加完了（本体不変・循環ゼロ・build 成功）。**赤（mock 困難＝設計負債）は今回も着手せず deferred 維持**。テスト進捗の正本は [AI.test.md](./AI.test.md)。マップの訂正：diceRoll adapters は「薄い委譲」ではなく pagination 複数メソッドを呼ぶオーケストレーション型だった（テスト可能なので 🟡 のまま）。
+
+**進捗（2026-06-02 さらに続き＝黄 第2バッチ）**: event handlers（update/findByName/`event-handler.base`）・feature orchestrators 7（thread/character-thread/character-channel/performance/dice-result/roll-dice/character-dice）・misc 8（http.service/configuration/winston.config/base-command.service/performance-dashboard.controller/custom-dice-modal.service/dice-character-select.service/dice-history.service）に spec 追加（計 18 spec/236 test・本体不変・循環ゼロ・build 成功・全体スイートの既存 41 失敗は不変）。これで**評価マップで名指しの 🟡 黄はほぼ消化**。
+
+- **新規 🔴 設計負債候補（赤レジスタへ追加）**: `discord/interactions/button/dice-history.service.ts` — fire-and-forget 背景処理＋`Date.now` rate-limit `Map`＋lock `Map`＋`parentChannel.send` が密結合でテストが脆い。seam: Clock 注入／背景更新を public 分離／rate-limit を純関数化。**着手はユーザー承認後**（`character-dice-history.service.ts` とは別物）。
+- **テスト基盤の負債**: グローバル `test/utils/jest-setup.ts` の discord.js モックが `EmbedBuilder.setTimestamp`/`setURL`/`setFooter`/`Colors` を欠き、各 spec が個別回避。グローバル補完が望ましい（別タスク）。
+
+**棚卸し更新（2026-06-02・黄残の再評価）**: spec 無しロジック 64 件を 5 並列で再分類（正本は AI.test.md 第2次評価マップ）。
+
+- **新規 🔴 赤3 → 全て改善完了（2026-06-02・承認後 refactor-for-testability 実施）**: 詳細は AI.test.md 赤1/赤2/赤3。各々 characterization 先行→純関数抽出→seam 化→create-test、**公開 API シグネチャ・外部挙動不変**を緑テストで証明。司令塔が build/check:circular/対象テストを裏取り。
+  - `discord/services/channel/channel-cache.service.ts` … Clock/Timer(setInterval→onModuleInit)/fetch を seam 化、snowflake/TTL/LRU/stats を `channel-cache.pure.ts` へ抽出。37 件緑。
+  - `discord/features/characterThread/services/channel-manager.service.ts` … 選別ロジック(sort/slice25/map)とカテゴリ判定 predicate を `channel-manager.util.ts` へ抽出。34 件緑。
+  - `discord/features/characterEdit/services/character-section-editor.service.ts` … customId 解析・getSectionData・modalId 判定・サニタイズ・最重要のフィールド値抽出(AttributeValue/レガシー/プリミティブ3分岐)を `character-section-editor.util.ts` へ抽出（469→約300行）。63 件緑＋消費者 17 件緑。
+  - 全工程で `pnpm run build` 成功・`check:circular` 「No circular dependency found!」・新規循環ゼロを確認。グローバル `jest-setup.ts` に discord.js モック欠落の `TextInputBuilder.setValue` を1行補完（既存テスト非影響）。
+  - 既知の別負債（本改善と無関係・据え置き）: `message-manager.service.ts:198` の `const batches = []` が `never[]` 推論で `discord-channel-manager.service.spec.ts` がコンパイル不可。`const batches: string[][] = []` の型注釈で解消見込み。チップ起票済み。
+- **dead code 検出 → 削除済み（2026-06-02）**: `discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts` 5本は adapter 版（`features/diceRoll/adapters/dice-page-*-button.adapter.ts`・テスト済み・DI 登録済み）と重複の**未使用実装**だった。削除前検証で、全 import が adapter 版を指し（interactions.module.ts / dice-roll.module.ts / 各 handler）、`button/...-button.service` への実コード参照がゼロであることを Grep で確認のうえ削除。検証結果：`pnpm run build` 成功／`features/diceRoll/adapters` テスト 9 suites・53 件緑／`check:circular` は「No circular dependency found!」。残る `*.service` 言及は dependency-analysis.json / DESIGN.md / MIGRATION_GUIDE.md のドキュメント側のみ（必要に応じ別途整理）。
+- 残 actionable バックログ: 🟢 緑3（`dice-roll-logic.service` 等）／🟡 黄 約25。次は緑→黄で `create-test` 継続。
+
+---
+
 ## 2026-06-01 H6 AuthModule⇄UserModule 循環の解消（forwardRef 撤去・挙動保存）
 
 ブランチ `refactor/auth-user-cycle-h6`。最後まで残っていた `domains/auth/auth.module.ts ⇄ domains/user/user.module.ts`（forwardRef）を解消。ARCHITECTURE §10（AuthService→UserService 許容 / UserModule→AuthModule 原則禁止 / 共通 port 切り出し）に準拠。**認証・トークン検証の挙動は不変**。
