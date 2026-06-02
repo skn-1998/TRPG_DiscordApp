@@ -61,6 +61,7 @@ export class TypedEventService {
 
     // off() で解除できるよう、元 handler → ラッパーの対応を記録してから登録する
     this.trackWrapper(event, handler, wrapper)
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- emit() は emitAsync で async リスナーを await する設計。async wrapper の登録は意図的（同期化すると emit のエラー伝播が壊れる）
     this.eventEmitter.on(event, wrapper)
   }
 
@@ -72,6 +73,7 @@ export class TypedEventService {
   once<T extends EventName>(event: T, handler: TypedEventHandler<T>): void {
     this.logger.log(`[TYPED-EVENT] Registering one-time handler for event: ${event}`)
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- emitAsync が async リスナーを await する設計のため意図的
     this.eventEmitter.once(event, async (payload: EventPayload<T>) => {
       this.logger.debug(`[TYPED-EVENT] Handling one-time event: ${event}`)
 

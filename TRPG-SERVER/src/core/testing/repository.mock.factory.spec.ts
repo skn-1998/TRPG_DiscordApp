@@ -31,7 +31,7 @@ describe('RepositoryMockFactory', () => {
     it('呼び出すと呼び出し履歴が記録される', () => {
       const mock = RepositoryMockFactory.createMock<{ id: string }, string>()
 
-      mock.findById('abc')
+      void mock.findById('abc')
 
       expect(mock.findById).toHaveBeenCalledTimes(1)
       expect(mock.findById).toHaveBeenCalledWith('abc')
@@ -49,7 +49,7 @@ describe('RepositoryMockFactory', () => {
       const mockA = RepositoryMockFactory.createMock()
       const mockB = RepositoryMockFactory.createMock()
 
-      mockA.create({})
+      void mockA.create({})
 
       expect(mockA.create).toHaveBeenCalledTimes(1)
       expect(mockB.create).not.toHaveBeenCalled()

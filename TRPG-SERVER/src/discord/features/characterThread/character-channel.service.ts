@@ -388,7 +388,8 @@ export class CharacterChannelService implements discordSelectMenuType {
       await this.createDiceButtons(thread, character)
     } catch (error) {
       console.error('キャラクター情報表示エラー:', error)
-      thread.send({ content: 'キャラクター情報の表示中にエラーが発生しました' })
+      // エラー通知は待たない fire-and-forget
+      void thread.send({ content: 'キャラクター情報の表示中にエラーが発生しました' })
     }
   }
 
@@ -506,7 +507,8 @@ export class CharacterChannelService implements discordSelectMenuType {
       })
     } catch (error) {
       console.error('ダイスボタン作成エラー:', error)
-      thread.send({ content: 'ダイスボタンの作成中にエラーが発生しました' })
+      // エラー通知は待たない fire-and-forget
+      void thread.send({ content: 'ダイスボタンの作成中にエラーが発生しました' })
     }
   }
 
@@ -531,7 +533,8 @@ export class CharacterChannelService implements discordSelectMenuType {
     } catch (error) {
       console.error('スレッド情報投稿エラー:', error)
       try {
-        thread.send({ content: 'キャラクター情報の取得に失敗しました' })
+        // エラー通知は待たない fire-and-forget
+        void thread.send({ content: 'キャラクター情報の取得に失敗しました' })
 
         if (!interaction.replied && interaction.isRepliable()) {
           await interaction.reply({ content: 'キャラクター情報の取得に失敗しました', ephemeral: true })

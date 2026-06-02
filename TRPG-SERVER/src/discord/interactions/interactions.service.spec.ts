@@ -132,8 +132,8 @@ describe('InteractionsService', () => {
       moduleRef.get.mockReturnValue(controller)
       await service.onModuleInit()
 
-      // Act: 取得した controller に委譲されることで間接的に確認
-      await service.loadClient({} as Client)
+      // Act: 取得した controller に委譲されることで間接的に確認（loadClient は同期）
+      service.loadClient({} as Client)
 
       // Assert
       expect(controller.handleCommand).toHaveBeenCalled()

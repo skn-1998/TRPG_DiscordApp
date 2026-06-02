@@ -338,7 +338,9 @@ export class DiscordController {
         topic: `${character.characterName}のキャラクター情報`
       })
 
-      this.characterService.update(postCharacterDto.characterId, {
+      // NOTE: 現状の挙動を維持するため fire-and-forget のまま void で明示。
+      // discordChannelId の永続化を await せず後続処理へ進む点は実バグ疑い（報告参照）。
+      void this.characterService.update(postCharacterDto.characterId, {
         discordChannelId: createChannelResult.channelId
       })
 

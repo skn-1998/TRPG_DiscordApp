@@ -248,7 +248,8 @@ export class CharacterDisplayService implements OnModuleInit {
     try {
       // character-thread専用の基本的なEmbed表示のみ
       const embed = this.buildCharacterEmbed(character, 'basic')
-      this.typedEventService.emit('discord.message.embed.update', {
+      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
+      void this.typedEventService.emit('discord.message.embed.update', {
         channelId,
         embed: embed.toJSON(),
         character,
@@ -273,7 +274,8 @@ export class CharacterDisplayService implements OnModuleInit {
 
       const embed = this.buildCharacterEmbed(character, tabType)
 
-      this.typedEventService.emit('discord.message.embed.update', {
+      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
+      void this.typedEventService.emit('discord.message.embed.update', {
         channelId,
         embed: embed.toJSON(),
         character,

@@ -66,4 +66,5 @@ async function bootstrap() {
     process.exit(1)
   }
 }
-bootstrap()
+// アプリ起動はトップレベルの fire-and-forget（内部で try/catch・process.exit 済み）
+void bootstrap()

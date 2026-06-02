@@ -62,6 +62,7 @@ export class DiscordInteractionHandlerService {
    */
   setupInteractionListeners(client: Client): void {
     // インタラクション処理の登録
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- discord.js の Client.on は async リスナーを await しない設計（handler 内で try/catch 済み）。fire-and-forget は意図的
     client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await this.handleInteraction(interaction)
     })
