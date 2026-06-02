@@ -20,7 +20,19 @@ import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../utils/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
-import { getDisplayNumber } from '../../../../core/types/attribute.types'
+import {
+  extractFieldEditValues,
+  extractCharacterIdFromCustomId,
+  extractSectionFromCustomId,
+  isFieldOperationCustomId,
+  isSectionSelectionCustomId,
+  buildDirectModalId,
+  buildSessionModalId,
+  shouldUseDirectModalId,
+  buildModalTitle,
+  sanitizeDescriptionValue,
+  getSectionData
+} from './character-section-editor.util'
 // import { discordSelectMenuType } from '../../../discord.type'
 
 /**
@@ -49,7 +61,7 @@ export class CharacterSectionEditorService {
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {
     try {
       const customId = interaction.customId
-      const isFieldOperation = customId.includes('character-field-edit') || customId.includes('character-field-add')
+      const isFieldOperation = isFieldOperationCustomId(customId)
 
       // フィールド編集/追加（モーダル表示）の場合は defer しない
       if (!isFieldOperation) {
@@ -58,7 +70,7 @@ export class CharacterSectionEditorService {
       const selectedValues = interaction.values
 
       // カスタムIDからcharacterIdを抽出
-      const characterId = this.extractCharacterIdFromCustomId(customId)
+      const characterId = extractCharacterIdFromCustomId(customId)
       if (!characterId) {
         await this.sendErrorMessage(interaction, 'キャラクター情報の取得に失敗しました。')
         return
@@ -72,12 +84,12 @@ export class CharacterSectionEditorService {
       }
 
       // セクション選択の処理（メッセージ更新）
-      if (customId.includes('character-edit-section') || customId.includes('character-section-select')) {
+      if (isSectionSelectionCustomId(customId)) {
         await this.handleSectionSelection(interaction, character, selectedValues[0] as EmbedSectionType)
       }
       // フィールド編集の処理
       else if (isFieldOperation) {
-        const sectionType = this.extractSectionFromCustomId(customId)
+        const sectionType = extractSectionFromCustomId(customId)
         if (sectionType) {
           await this.handleFieldSelection(interaction, character, sectionType, selectedValues[0])
         }
@@ -131,15 +143,6 @@ export class CharacterSectionEditorService {
     const fieldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(fieldSelectMenu)
     const backRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backSelectMenu)
 
-    // セクション名を取得
-    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
-      status: 'ステータス',
-      parameter: 'パラメータ',
-      skill: 'スキル',
-      item: 'アイテム',
-      basic: '基本情報'
-    }
-
     // 元のEmbedを保持
     const originalEmbeds = interaction.message.embeds
 
@@ -172,74 +175,20 @@ export class CharacterSectionEditorService {
     fieldKey: string
   ): Promise<void> {
     const isNewField = fieldKey === 'add_new'
-    let fieldName = ''
-    let currentValues = ''
-    let currentDice = ''
-    let currentDescription = ''
+
+    // 既存値の抽出は純粋関数に委譲（AttributeValue / レガシー / プリミティブの 3 分岐）
+    const { fieldName, currentValues, currentDice, currentDescription } = isNewField
+      ? { fieldName: '', currentValues: '', currentDice: '', currentDescription: '' }
+      : extractFieldEditValues(getSectionData(character, sectionType), fieldKey)
 
     if (!isNewField) {
-      // 既存フィールドの値を取得
-      const sectionData = this.getSectionData(character, sectionType)
-      if (sectionData && fieldKey in sectionData) {
-        const fieldValue = sectionData[fieldKey]
-
-        if (typeof fieldValue === 'object' && fieldValue !== null) {
-          const attr = fieldValue as any
-
-          if (attr.values && typeof attr.values === 'object') {
-            // AttributeValue形式の場合
-            fieldName = attr.name || fieldKey
-
-            // valuesを文字列として取得
-            if (Object.keys(attr.values).length > 0) {
-              const total = getDisplayNumber(attr)
-              currentValues = String(total)
-            }
-
-            // dice値を取得
-            if (attr.dice) {
-              currentDice = String(attr.dice)
-            }
-
-            // description値を取得
-            if (attr.description) {
-              currentDescription = String(attr.description)
-            }
-          } else {
-            // レガシー形式の場合は適切にマッピング
-            type NamedValued = { name?: unknown; value?: unknown }
-            if ('name' in attr && 'value' in attr) {
-              const fv = attr as NamedValued
-              fieldName = (typeof fv.name === 'string' && fv.name) || fieldKey
-
-              // 数値かどうかチェック
-              const numericValue = parseFloat(String(fv.value ?? ''))
-              if (!isNaN(numericValue)) {
-                currentValues = String(numericValue)
-              } else {
-                currentDescription = String(fv.value ?? '')
-              }
-            }
-          }
-        } else {
-          // プリミティブ値の場合
-          const numericValue = parseFloat(String(fieldValue))
-          if (!isNaN(numericValue)) {
-            currentValues = String(numericValue)
-          } else {
-            currentDescription = String(fieldValue)
-          }
-        }
-
-        this.logger.debug(
-          `Field selection debug - fieldKey: ${fieldKey}, values: "${currentValues}", dice: "${currentDice}", description: "${currentDescription}"`
-        )
-      }
-      fieldName = fieldName || fieldKey
+      this.logger.debug(
+        `Field selection debug - fieldKey: ${fieldKey}, values: "${currentValues}", dice: "${currentDice}", description: "${currentDescription}"`
+      )
     }
 
     // モーダルを作成
-    const modal = await this.createEditModal(
+    const modal = this.createEditModal(
       character.characterId,
       sectionType,
       fieldKey,
@@ -254,9 +203,12 @@ export class CharacterSectionEditorService {
   }
 
   /**
-   * 編集モーダルを作成（3フィールド統一版）
+   * 編集モーダルを作成（4フィールド統一版）
+   *
+   * modal customId の決定は純粋ロジック（短いIDは直接生成）と
+   * session 採番（modalSessionManager 副作用）を分離している。
    */
-  private async createEditModal(
+  private createEditModal(
     characterId: string,
     sectionType: EmbedSectionType,
     fieldKey: string,
@@ -265,30 +217,9 @@ export class CharacterSectionEditorService {
     currentDice: string,
     currentDescription: string,
     isNew: boolean
-  ): Promise<ModalBuilder> {
-    const sectionNames: Record<Exclude<EmbedSectionType, 'back'>, string> = {
-      status: 'ステータス',
-      parameter: 'パラメータ',
-      skill: 'スキル',
-      item: 'アイテム',
-      basic: '基本情報'
-    }
-
-    // 新しいキャラクター（短いID）は直接CustomIDを使用、長いIDのみセッション管理
-    let modalId: string
-    if (characterId.length <= 8) {
-      // 短いIDの場合は直接CustomIDを使用
-      modalId = `char-edit-${sectionType}-${fieldKey}-${characterId}`
-      this.logger.debug(`Using direct CustomID for short character ID: ${modalId}`)
-    } else {
-      // 長いIDの場合はセッション管理を使用
-      const sessionId = this.modalSessionManager.createSession(characterId, sectionType, fieldKey)
-      modalId = `char-edit-modal-${sessionId}`
-      this.logger.debug(`Using session-based CustomID for long character ID: ${modalId}`)
-    }
-    const modal = new ModalBuilder()
-      .setCustomId(modalId)
-      .setTitle(`${sectionNames[sectionType as Exclude<EmbedSectionType, 'back'>]}${isNew ? '追加' : '編集'}`)
+  ): ModalBuilder {
+    const modalId = this.resolveModalId(characterId, sectionType, fieldKey)
+    const modal = new ModalBuilder().setCustomId(modalId).setTitle(buildModalTitle(sectionType, isNew))
 
     // すべてのケースで統一された4フィールド構造
 
@@ -344,15 +275,8 @@ export class CharacterSectionEditorService {
       .setMaxLength(1000)
 
     if (currentDescription && currentDescription.trim() !== '') {
-      // Discord TextInputの制限に合わせて値をサニタイズ
-      let sanitizedDescription = currentDescription.trim()
-
-      // 最大長制限
-      if (sanitizedDescription.length > 1000) {
-        sanitizedDescription = sanitizedDescription.substring(0, 997) + '...'
-      }
-
-      descriptionInput.setValue(sanitizedDescription)
+      // Discord TextInput の制限に合わせて値をサニタイズ（純粋関数）
+      descriptionInput.setValue(sanitizeDescriptionValue(currentDescription))
     }
     const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput)
 
@@ -399,53 +323,21 @@ export class CharacterSectionEditorService {
   }
 
   /**
-   * セクションデータを取得
+   * modal customId を決定する（純粋部分 + session 採番の副作用境界）。
+   *
+   * 短いID（<=8）は純粋関数で直接生成、長いIDのみ modalSessionManager で session 採番。
+   * 副作用（createSession）をこのメソッドに隔離している。
    */
-  private getSectionData(character: Character, sectionType: EmbedSectionType): Record<string, unknown> | undefined {
-    switch (sectionType) {
-      case 'status':
-        return character.status
-      case 'parameter':
-        return character.parameter
-      case 'skill':
-        return character.skill
-      case 'item':
-        return character.item
-      default:
-        return undefined
+  private resolveModalId(characterId: string, sectionType: EmbedSectionType, fieldKey: string): string {
+    if (shouldUseDirectModalId(characterId)) {
+      const modalId = buildDirectModalId(sectionType, fieldKey, characterId)
+      this.logger.debug(`Using direct CustomID for short character ID: ${modalId}`)
+      return modalId
     }
-  }
-
-  /**
-   * カスタムIDからキャラクターIDを抽出
-   */
-  private extractCharacterIdFromCustomId(customId: string): string | null {
-    const patterns = [
-      /character-edit-section-(.+)/,
-      /character-field-edit-\w+-(.+)/,
-      /character-field-add-\w+-(.+)/,
-      /character-section-select-(.+)/ // character-ui.service.tsからのパターンも対応
-    ]
-
-    for (const pattern of patterns) {
-      const match = customId.match(pattern)
-      if (match && match[1]) {
-        return match[1]
-      }
-    }
-
-    return null
-  }
-
-  /**
-   * カスタムIDからセクションタイプを抽出
-   */
-  private extractSectionFromCustomId(customId: string): EmbedSectionType | null {
-    if (customId.includes('-status-')) return 'status'
-    if (customId.includes('-parameter-')) return 'parameter'
-    if (customId.includes('-skill-')) return 'skill'
-    if (customId.includes('-item-')) return 'item'
-    return null
+    const sessionId = this.modalSessionManager.createSession(characterId, sectionType, fieldKey)
+    const modalId = buildSessionModalId(sessionId)
+    this.logger.debug(`Using session-based CustomID for long character ID: ${modalId}`)
+    return modalId
   }
 
   /**
