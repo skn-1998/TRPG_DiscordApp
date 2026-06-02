@@ -36,7 +36,6 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
   async execute(interaction: AnySelectMenuInteraction<CacheType>): Promise<void> {
     try {
       if (!interaction.isStringSelectMenu()) return
-      console.log('test root')
       // カスタムIDをチェック（新しい形式にも対応）
       const customId = interaction.customId
       const isLegacySelect = customId === 'character-thread-select'

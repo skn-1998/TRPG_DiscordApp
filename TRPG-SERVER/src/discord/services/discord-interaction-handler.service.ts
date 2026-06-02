@@ -84,7 +84,7 @@ export class DiscordInteractionHandlerService {
       this.processedInteractions.add(interaction.id)
 
       // インタラクションタイプ別の並列処理
-      const handlers = []
+      const handlers: Promise<void>[] = []
 
       if (interaction.isCommand()) {
         handlers.push(this.handleCommandInteraction(interaction))
