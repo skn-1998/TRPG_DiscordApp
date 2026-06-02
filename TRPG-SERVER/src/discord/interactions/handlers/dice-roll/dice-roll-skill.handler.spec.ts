@@ -1,0 +1,46 @@
+import { createMockButtonInteraction } from '@discord-test-utils'
+import { DiceRollSkillHandler } from './dice-roll-skill.handler'
+import { CharacterDiceOrchestratorService } from '../../button/character-dice-orchestrator.service'
+
+describe('DiceRollSkillHandler', () => {
+  const mockService = { execute: jest.fn().mockResolvedValue(undefined) }
+  let handler: DiceRollSkillHandler
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    handler = new DiceRollSkillHandler(mockService as unknown as CharacterDiceOrchestratorService)
+  })
+
+  it('button タイプを返す', () => {
+    expect(handler.getInteractionType()).toBe('button')
+  })
+
+  it('customId パターンはスキルロール表記にマッチする正規表現', () => {
+    // Arrange
+    const pattern = handler.getCustomIdPattern()
+    // Assert
+    expect(pattern).toBeInstanceOf(RegExp)
+    expect((pattern as RegExp).test('roll*戦闘_1234567890')).toBe(true)
+    // _ を含まないダイス表記にはマッチしない
+    expect((pattern as RegExp).test('roll*1d100')).toBe(false)
+  })
+
+  it('execute は委譲先 execute へ interaction を渡す', async () => {
+    // Arrange
+    const interaction = createMockButtonInteraction({ customId: 'roll*戦闘_1234567890' })
+    // Act
+    await handler.execute(interaction)
+    // Assert
+    expect(mockService.execute).toHaveBeenCalledWith(interaction)
+    expect(mockService.execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('委譲先がrejectした場合はそのエラーを伝播する', async () => {
+    // Arrange
+    const error = new Error('delegate failed')
+    mockService.execute.mockRejectedValueOnce(error)
+    const interaction = createMockButtonInteraction({ customId: 'roll*戦闘_1234567890' })
+    // Act & Assert
+    await expect(handler.execute(interaction)).rejects.toBe(error)
+  })
+})
