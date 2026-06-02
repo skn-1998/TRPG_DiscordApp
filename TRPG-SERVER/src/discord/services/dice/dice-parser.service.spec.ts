@@ -247,9 +247,45 @@ describe('DiceParserService', () => {
     })
 
     it('結果が非有限(0除算)の場合は 1 を返す', () => {
-      // Act / Assert: 1/0 = Infinity
+      // Act / Assert: 1/0 = Infinity → !isFinite → throw → 1
       expect(service.evaluateFormula('1/0')).toBe(1)
     })
+
+    // --- characterization: 旧 Function 評価＋ラッパ(throw/範囲/round) との一致を固定 ---
+    it.each<[string, number]>([
+      ['(50) * 3', 150],
+      ['1+2*3', 7],
+      ['(5+5)/2', 5],
+      ['10/3', 3], // 3.333... → Math.round → 3
+      ['(100) + -5', 95], // 単項マイナス
+      ['2.5*4', 10],
+      [' ( 3 ) ', 3], // 空白
+      ['2*3+4*5', 26],
+      ['7/2', 4], // 3.5 → Math.round → 4（JS の round は 0.5 切り上げ）
+      ['1-2-3', 1] // -4 は範囲外(<0) → throw → 1
+    ])('式 %p は旧実装と同じく %p を返す', (formula, expected) => {
+      expect(service.evaluateFormula(formula)).toBe(expected)
+    })
+
+    it('空文字は評価不能として 1 を返す', () => {
+      expect(service.evaluateFormula('')).toBe(1)
+    })
+
+    it('範囲上限(10000)は許容し、丸めて返す', () => {
+      // 10000 は範囲内（>10000 ではない）
+      expect(service.evaluateFormula('10000')).toBe(10000)
+    })
+
+    // --- 病的入力（妥当な算術式ではない・ダイス式生成経路では到達しない）---
+    // 旧 Function 評価では正規表現リテラルや外側ラップの早期クローズが「式以外」として
+    // 評価されえたが、安全評価器は SyntaxError として扱い、ラッパで 1 にフォールバックする。
+    // 多くは旧実装でも非数値→throw→1 だったため挙動は不変。
+    it.each<string>(['/3/', '/5+5/', '1)-(3', '2)(3', '238)/0//'])(
+      '病的入力 %p は安全に 1 を返す（旧実装でも 1）',
+      (formula) => {
+        expect(service.evaluateFormula(formula)).toBe(1)
+      }
+    )
   })
 
   describe('convertToDiceNotation', () => {

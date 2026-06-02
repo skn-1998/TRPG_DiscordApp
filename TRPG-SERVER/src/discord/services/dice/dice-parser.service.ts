@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
+import { evaluateArithmetic } from '../../../shared/utils/arithmetic-evaluator.util'
 
 /**
  * ダイス数式解析サービス
@@ -261,13 +262,13 @@ export class DiceParserService {
    */
   evaluateFormula(formula: string): number {
     try {
-      // 安全な数式評価（基本的な演算のみ）
+      // 安全な数式評価（基本的な演算のみ・Function/eval 不使用）
       const sanitized = formula.replace(/[^0-9+\-*/().\s]/g, '')
       if (sanitized !== formula) {
         throw new Error('数式に不正な文字が含まれています')
       }
 
-      const result = Function('"use strict"; return (' + sanitized + ')')()
+      const result = evaluateArithmetic(sanitized)
 
       // 結果の妥当性チェック
       if (typeof result !== 'number' || !isFinite(result)) {
