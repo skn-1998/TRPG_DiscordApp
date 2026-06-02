@@ -173,7 +173,7 @@ export class CharacterEditCreationHandler implements OnModuleInit {
   /**
    * チャンネル作成経由の特別なセットアップ
    */
-  private async setupChannelBasedEdit(character: any, editContext: any): Promise<void> {
+  private async setupChannelBasedEdit(character: any, _editContext: any): Promise<void> {
     // チャンネル作成経由の場合の追加設定
     // 例: デフォルトセクション表示、初期メッセージ送信等
     this.logger.debug(`Channel-based edit setup for ${character.characterId}`)

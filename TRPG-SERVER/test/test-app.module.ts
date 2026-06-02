@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
 import { AppConfigModule } from '../src/config/config.module'
 import { CharacterModule } from '../src/domains/character/character.module'
 import { AuthModule } from '../src/domains/auth/auth.module'

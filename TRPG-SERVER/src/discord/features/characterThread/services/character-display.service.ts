@@ -9,7 +9,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import {
   EmbedBuilder,
-  Client,
   TextChannel,
   NewsChannel,
   ThreadChannel,
@@ -249,7 +248,8 @@ export class CharacterDisplayService implements OnModuleInit {
     try {
       // character-thread専用の基本的なEmbed表示のみ
       const embed = this.buildCharacterEmbed(character, 'basic')
-      this.typedEventService.emit('discord.message.embed.update', {
+      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
+      void this.typedEventService.emit('discord.message.embed.update', {
         channelId,
         embed: embed.toJSON(),
         character,
@@ -274,7 +274,8 @@ export class CharacterDisplayService implements OnModuleInit {
 
       const embed = this.buildCharacterEmbed(character, tabType)
 
-      this.typedEventService.emit('discord.message.embed.update', {
+      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
+      void this.typedEventService.emit('discord.message.embed.update', {
         channelId,
         embed: embed.toJSON(),
         character,
@@ -295,7 +296,7 @@ export class CharacterDisplayService implements OnModuleInit {
   async findExistingCharacterEmbed(
     channel: TextChannel | NewsChannel | ThreadChannel,
     characterId: string
-  ): Promise<any | null> {
+  ): Promise<any> {
     try {
       // 最新100件のメッセージを検索
       const messages = await channel.messages.fetch({ limit: 100 })

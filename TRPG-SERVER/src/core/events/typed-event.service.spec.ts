@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { TypedEventService, TypedEventEmitter } from './typed-event.service'
-import { EventPayload } from '../domain/events/event-contracts'
+import { EventPayload } from '../../events/contracts'
 
 // テスト用イベント契約の拡張
 interface TestEventContracts {
@@ -282,6 +282,69 @@ describe('TypedEventService', () => {
       // Assert - ハンドラーが削除されているため、カウントが増えない
       expect(handlerCallCount).toBe(1)
     })
+
+    it('should only remove the specified handler and leave others active', async () => {
+      // Arrange
+      let handlerACount = 0
+      let handlerBCount = 0
+      const handlerA = () => {
+        handlerACount++
+      }
+      const handlerB = () => {
+        handlerBCount++
+      }
+
+      const testPayload: TestEventPayload<'test.event.simple'> = {
+        message: 'Off selective test',
+        timestamp: new Date(),
+        source: 'test-source'
+      }
+
+      // Act
+      typedEventService.on('test.event.simple' as any, handlerA)
+      typedEventService.on('test.event.simple' as any, handlerB)
+      typedEventService.off('test.event.simple' as any, handlerA)
+      await typedEventService.emit('test.event.simple' as any, testPayload)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Assert - A は解除済み（呼ばれない）、B は残存（呼ばれる）
+      expect(handlerACount).toBe(0)
+      expect(handlerBCount).toBe(1)
+    })
+
+    it('should remove only one registration when the same handler is registered twice', async () => {
+      // Arrange
+      let handlerCount = 0
+      const handler = () => {
+        handlerCount++
+      }
+
+      const testPayload: TestEventPayload<'test.event.simple'> = {
+        message: 'Off duplicate test',
+        timestamp: new Date(),
+        source: 'test-source'
+      }
+
+      // Act - 同一 handler を2回登録 → off 1回
+      typedEventService.on('test.event.simple' as any, handler)
+      typedEventService.on('test.event.simple' as any, handler)
+      typedEventService.off('test.event.simple' as any, handler)
+      await typedEventService.emit('test.event.simple' as any, testPayload)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Assert - 1つだけ残るため1回呼ばれる（Node の removeListener 同様、1回の off で1登録のみ解除）
+      expect(handlerCount).toBe(1)
+    })
+
+    it('should not throw when removing a handler that was never registered', () => {
+      // Arrange
+      const handler = () => {
+        // no-op
+      }
+
+      // Act & Assert - on していない handler の off は no-op（例外を投げない）
+      expect(() => typedEventService.off('test.event.simple' as any, handler)).not.toThrow()
+    })
   })
 
   describe('registerMultiple', () => {
@@ -369,9 +432,9 @@ describe('TypedEventService', () => {
         source: 'test-source'
       }
 
-      // Act - emit event after a short delay
-      setTimeout(async () => {
-        await typedEventService.emit('test.event.simple' as any, testPayload)
+      // Act - emit event after a short delay（setTimeout は戻り値を待たないため emit は void で発火）
+      setTimeout(() => {
+        void typedEventService.emit('test.event.simple' as any, testPayload)
       }, 10)
 
       const receivedPayload = await typedEventService.waitForEvent('test.event.simple' as any, 100)

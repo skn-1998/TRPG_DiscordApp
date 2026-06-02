@@ -76,7 +76,7 @@ export class CharacterCreationCompletedHandler
   /**
    * Discord UI更新処理
    */
-  private async updateDiscordUI(event: CharacterCreationCompletedEvent, context?: EventContext): Promise<void> {
+  private async updateDiscordUI(event: CharacterCreationCompletedEvent, _context?: EventContext): Promise<void> {
     const { character } = event
 
     // 0. チャンネル名の同期（Channel Orchestrator機能統合）

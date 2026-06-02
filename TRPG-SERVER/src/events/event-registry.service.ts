@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
 import { TypedEventService } from '../core/events/typed-event.service'
 import { EventHandler, EventContext } from './handlers/_shared/event-handler.base'
-import { CharacterEventContracts } from './contracts'
 
 // ハンドラーのインポート
 // 注: Discord UI を更新する「完了系」ハンドラー（creation/update/deletion.completed,
@@ -221,7 +220,7 @@ export class EventRegistryService implements OnModuleInit {
   /**
    * エラー統計の更新
    */
-  private updateErrorStats(stats: EventStatistics, error: Error, duration: number): void {
+  private updateErrorStats(stats: EventStatistics, error: Error, _duration: number): void {
     stats.totalExecutions++
     stats.errorCount++
     stats.lastExecuted = new Date()

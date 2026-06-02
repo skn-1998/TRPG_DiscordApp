@@ -14,9 +14,10 @@ export class DiceButtonService implements discordButtonType {
     if (interaction.channel?.type != ChannelType.PublicThread) return
     if (isNull(interaction.channel.parentId)) return
     await interaction.deferUpdate()
-    const channel = await interaction.client.channels.cache.get(interaction.channel.parentId)
+    const channel = interaction.client.channels.cache.get(interaction.channel.parentId)
     if (channel && channel.type == ChannelType.GuildText) {
-      channel.send(diceRoll.text)
+      // 結果送信は待たない fire-and-forget
+      void channel.send(diceRoll.text)
     }
   }
 }

@@ -41,7 +41,6 @@ describe('HttpExceptionFilter', () => {
 
   /** requestId / timestamp を除いた比較用オブジェクトを取り出す */
   const stripVolatile = (payload: any): Record<string, unknown> => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { requestId, timestamp, ...rest } = payload
     return rest
   }

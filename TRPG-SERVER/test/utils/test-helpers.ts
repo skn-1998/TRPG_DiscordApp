@@ -200,12 +200,8 @@ export class ConcurrencyHelper {
         const semaphoreIndex = index % maxConcurrency
         await semaphore[semaphoreIndex]
 
-        try {
-          const result = await operation()
-          results[index] = result
-        } catch (error) {
-          throw error
-        }
+        const result = await operation()
+        results[index] = result
       })
     )
 

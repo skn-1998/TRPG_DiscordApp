@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
+import { getDisplayNumber } from '../../../../core/types/attribute.types'
 import { isNull } from 'lodash'
 
 /**

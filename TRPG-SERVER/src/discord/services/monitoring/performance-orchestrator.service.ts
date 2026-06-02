@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 import { Interval } from '@nestjs/schedule'
 import { MetricsCollectorService } from './metrics-collector.service'
 import { AlertManagerService } from './alert-manager.service'
@@ -167,7 +167,6 @@ export class PerformanceOrchestratorService implements OnModuleInit {
   getPerformanceSummary() {
     const systemHealth = this.getSystemHealth()
     const discordStats = this.discordMonitor.getStats()
-    const alertStats = this.alertManager.getAlertStatistics()
     const systemMetrics = this.metricsCollector.getSystemMetrics()
     const trends = this.metricsCollector.getTrends()
 

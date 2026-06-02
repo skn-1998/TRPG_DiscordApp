@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common'
-import { ButtonInteraction, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, TextChannel } from 'discord.js'
+import { ButtonInteraction, EmbedBuilder, TextChannel } from 'discord.js'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
-import { DiceRollTextInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
 import { v4 as uuidv4 } from 'uuid'
 import { BackgroundTaskErrorHandler } from 'src/utils/error-handler'
 import { CharacterService } from 'src/domains/character/character.service'
+import {
+  shouldUpdateEmbed,
+  buildSaveTextDto,
+  buildPaginationState,
+  createFallbackControls
+} from './character-dice-history.pure'
 
 /**
  * キャラクターダイスロールの履歴・保存・ページネーション表示を担う focused service。
@@ -35,6 +40,27 @@ export class CharacterDiceHistoryService {
   ) {}
 
   /**
+   * 現在時刻の取得 seam（既定は Date.now）。テストで固定するために protected メソッド化。
+   */
+  protected now(): number {
+    return Date.now()
+  }
+
+  /**
+   * タイマー登録 seam（既定は setTimeout）。テストで fake timers / 差し替えするために protected 化。
+   */
+  protected setTimer(handler: () => void, ms: number): ReturnType<typeof setTimeout> {
+    return setTimeout(handler, ms)
+  }
+
+  /**
+   * タイマー解除 seam（既定は clearTimeout）。
+   */
+  protected clearTimer(timer: ReturnType<typeof setTimeout>): void {
+    clearTimeout(timer)
+  }
+
+  /**
    * ダイスロール結果を保存（復活版）
    */
   async saveRollResult(
@@ -55,21 +81,16 @@ export class CharacterDiceHistoryService {
 
       console.log(`[INFO] Saving dice roll for character: ${character.characterId}`)
 
-      // ダイスロール結果をDBに保存
-      const text: DiceRollTextInputDto = {
+      // ダイスロール結果をDBに保存（DTO 組立は純関数へ委譲。uuid は seam で生成して注入）
+      const text = buildSaveTextDto({
         textId: uuidv4(),
         channelId: discordChannelId,
-        userId: 'system', // 古いサービスから移行中
-        diceExpression: diceCommand,
-        result: result,
-        resultDetails: resultText,
+        diceCommand,
+        result,
+        resultText,
         characterId: character.characterId,
-        characterName: character.characterName,
-        // 後方互換性
-        text: resultText,
-        diceRoll: diceCommand,
-        discordChannelId: discordChannelId
-      }
+        characterName: character.characterName
+      })
 
       // バックグラウンドで保存処理（非同期）
       this.diceRollService
@@ -106,7 +127,7 @@ export class CharacterDiceHistoryService {
     diceCommand: string
   ): Promise<void> {
     // 処理のタイムアウト設定（10秒）
-    const timeout = setTimeout(() => {
+    const timeout = this.setTimer(() => {
       BackgroundTaskErrorHandler.handleBackgroundError(
         new Error(`インタラクション処理がタイムアウトしました: ${interaction.id}`),
         'interaction-timeout',
@@ -123,31 +144,31 @@ export class CharacterDiceHistoryService {
           'fetch-parent-channel',
           { channelId: parentChannelId, discordUserId: interaction.user.id }
         )
-        clearTimeout(timeout)
+        this.clearTimer(timeout)
         return
       }
 
       // 並列処理で効率化
-      const [channelData] = await Promise.all([
+      await Promise.all([
         // チャンネルデータを取得
         this.diceRollService.findChannelByChannelId(parentChannelId),
         // ダイスロール結果を保存（バックグラウンドで非同期実行）
         this.saveRollResult(characterName, resultText, result, diceCommand, parentChannelId)
       ])
 
-      // 前回の更新からの経過時間をチェック
-      const now = Date.now()
+      // 前回の更新からの経過時間をチェック（throttle 判定は純関数へ委譲）
+      const now = this.now()
       const lastUpdate = this.lastEmbedUpdateTime.get(parentChannelId) || 0
       const timeSinceLastUpdate = now - lastUpdate
 
       // 前回の更新から一定時間経っていない場合はスキップ
-      if (timeSinceLastUpdate < this.MIN_UPDATE_INTERVAL) {
+      if (!shouldUpdateEmbed(lastUpdate, now, this.MIN_UPDATE_INTERVAL)) {
         BackgroundTaskErrorHandler.handleBackgroundError(
           new Error(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`),
           'embed-update-throttle',
           { channelId: parentChannelId, discordUserId: interaction.user.id }
         )
-        clearTimeout(timeout)
+        this.clearTimer(timeout)
         return
       }
 
@@ -161,11 +182,11 @@ export class CharacterDiceHistoryService {
           console.error('ページネーション表示の作成に失敗しました:', error)
         })
         .finally(() => {
-          clearTimeout(timeout)
+          this.clearTimer(timeout)
         })
     } catch (error) {
       console.error('親チャンネルへのメッセージ送信中にエラーが発生しました:', error)
-      clearTimeout(timeout)
+      this.clearTimer(timeout)
     }
   }
 
@@ -188,54 +209,48 @@ export class CharacterDiceHistoryService {
     this.locks.set(lockKey, true)
 
     // 最大5秒後に強制的にロックを解除
-    const lockTimeout = setTimeout(() => {
+    const lockTimeout = this.setTimer(() => {
       this.locks.set(lockKey, false)
       console.log(`ページネーションロックを強制解除: ${channelId}`)
     }, 5000)
 
     // 処理開始時間
-    const startTime = Date.now()
+    const startTime = this.now()
     console.log(`[Performance] ページネーション表示処理開始: channelId=${channelId}`)
 
     try {
       // チャンネルデータを取得
-      const dbQueryStartTime = Date.now()
+      const dbQueryStartTime = this.now()
       const channelData = await this.diceRollService.findChannelByChannelId(channelId)
-      const dbQueryTime = Date.now() - dbQueryStartTime
+      const dbQueryTime = this.now() - dbQueryStartTime
       console.log(`[Performance] チャンネルデータ取得完了: channelId=${channelId}, 所要時間=${dbQueryTime}ms`)
 
       // ページネーション生成開始時間
-      const pageGenStartTime = Date.now()
+      const pageGenStartTime = this.now()
 
       // ページネーションサービスを使用して履歴からEmbedを作成
       // 常に全キャラクターのデータを表示するため、characterIdはundefinedを渡す
       const pages = await this.paginationService.createPaginatedEmbeds(channelId, undefined)
 
-      const pageGenTime = Date.now() - pageGenStartTime
+      const pageGenTime = this.now() - pageGenStartTime
       console.log(`[Performance] ページネーション生成完了: ページ数=${pages.length}, 所要時間=${pageGenTime}ms`)
 
       // channelData.embedIdが存在する場合は既存のメッセージを編集
       if (channelData?.embedId) {
         try {
-          const fetchStartTime = Date.now()
+          const fetchStartTime = this.now()
           const existingMessage = await parentChannel.messages.fetch(channelData.embedId)
-          const fetchTime = Date.now() - fetchStartTime
+          const fetchTime = this.now() - fetchStartTime
           console.log(`[Performance] 既存メッセージ取得: 所要時間=${fetchTime}ms`)
 
           if (existingMessage) {
-            // ページネーション状態を保存
-            const paginationState = {
-              pages,
-              totalPages: pages.length,
-              currentPage: 0,
-              characterId: undefined,
-              messageId: existingMessage.id
-            }
+            // ページネーション状態を保存（組立は純関数へ委譲）
+            const paginationState = buildPaginationState(pages, existingMessage.id)
 
             this.paginationService.savePaginationState(channelId, existingMessage.id, paginationState)
 
             // ページネーションコントロール生成開始時間
-            const controlsStartTime = Date.now()
+            const controlsStartTime = this.now()
 
             // ページネーションコントロールを作成
             const controls = await this.paginationService.createPaginationControls(
@@ -244,11 +259,11 @@ export class CharacterDiceHistoryService {
               pages.length
             )
 
-            const controlsTime = Date.now() - controlsStartTime
+            const controlsTime = this.now() - controlsStartTime
             console.log(`[Performance] コントロール生成完了: 所要時間=${controlsTime}ms`)
 
             // メッセージ編集開始時間
-            const editStartTime = Date.now()
+            const editStartTime = this.now()
 
             // メッセージを更新して即座に完了
             await existingMessage.edit({
@@ -257,14 +272,14 @@ export class CharacterDiceHistoryService {
               components: controls
             })
 
-            const editTime = Date.now() - editStartTime
+            const editTime = this.now() - editStartTime
             console.log(`[Performance] メッセージ編集完了: 所要時間=${editTime}ms`)
 
-            const totalTime = Date.now() - startTime
+            const totalTime = this.now() - startTime
             console.log(`[Performance] ページネーション表示処理完了(既存メッセージ編集): 総所要時間=${totalTime}ms`)
 
             // ロックを解除
-            clearTimeout(lockTimeout)
+            this.clearTimer(lockTimeout)
             this.locks.set(lockKey, false)
             return
           }
@@ -274,11 +289,11 @@ export class CharacterDiceHistoryService {
       }
 
       // 既存のメッセージがない場合や編集に失敗した場合は新しいメッセージを作成
-      const sendStartTime = Date.now()
+      const sendStartTime = this.now()
       const newMessage = await parentChannel.send({
         content: '🎲 ダイスロール履歴を読み込み中...'
       })
-      const sendTime = Date.now() - sendStartTime
+      const sendTime = this.now() - sendStartTime
       console.log(`[Performance] 新規メッセージ送信: 所要時間=${sendTime}ms`)
 
       if (pages.length === 0) {
@@ -289,14 +304,8 @@ export class CharacterDiceHistoryService {
           .setColor('#0099ff')
           .setTimestamp()
 
-        // ページネーション状態を保存
-        const paginationState = {
-          pages: [emptyEmbed],
-          totalPages: 1,
-          currentPage: 0,
-          characterId: undefined,
-          messageId: newMessage.id
-        }
+        // ページネーション状態を保存（組立は純関数へ委譲。pages=[emptyEmbed] のため totalPages=1）
+        const paginationState = buildPaginationState([emptyEmbed], newMessage.id)
 
         this.paginationService.savePaginationState(channelId, newMessage.id, paginationState)
 
@@ -320,60 +329,54 @@ export class CharacterDiceHistoryService {
             console.error('Embed IDの更新に失敗:', error)
           })
 
-        const totalTime = Date.now() - startTime
+        const totalTime = this.now() - startTime
         console.log(`[Performance] ページネーション表示処理完了(空ページ): 総所要時間=${totalTime}ms`)
 
         // ロックを解除
-        clearTimeout(lockTimeout)
+        this.clearTimer(lockTimeout)
         this.locks.set(lockKey, false)
         return
       }
 
-      // ページネーション状態を保存
-      const paginationState = {
-        pages,
-        totalPages: pages.length,
-        currentPage: 0,
-        characterId: undefined,
-        messageId: newMessage.id
-      }
+      // ページネーション状態を保存（組立は純関数へ委譲）
+      const paginationState = buildPaginationState(pages, newMessage.id)
 
       this.paginationService.savePaginationState(channelId, newMessage.id, paginationState)
 
       // ページネーションコントロール生成開始時間
-      const controlsStartTime = Date.now()
+      const controlsStartTime = this.now()
 
       // ページネーションコントロールを作成
       const controls = await this.paginationService.createPaginationControls(newMessage.id, channelId, pages.length)
 
-      const controlsTime = Date.now() - controlsStartTime
+      const controlsTime = this.now() - controlsStartTime
       console.log(`[Performance] コントロール生成完了: 所要時間=${controlsTime}ms`)
 
       // コントロールが存在することを確認
       if (!controls || controls.length === 0) {
         console.error('ページネーションコントロールの作成に失敗しました')
 
-        // コントロールを再作成（強制的にボタンだけでも表示）
-        const fallbackControls = this.createFallbackControls(newMessage.id, channelId)
+        // コントロールを再作成（強制的にボタンだけでも表示。純関数へ委譲）
+        const fallbackControls = createFallbackControls(newMessage.id, channelId)
 
         // エラーの場合でもEmbedとナビゲーションボタンだけは表示
-        const editStartTime = Date.now()
+        const editStartTime = this.now()
         await newMessage.edit({
           content: null,
           embeds: [pages[0]],
           components: fallbackControls
         })
-        const editTime = Date.now() - editStartTime
+        const editTime = this.now() - editStartTime
         console.log(`[Performance] フォールバックコントロール編集完了: 所要時間=${editTime}ms`)
       } else {
         // メッセージを更新して履歴とコントロールを表示
-        const editStartTime = Date.now()
+        const editStartTime = this.now()
         await newMessage.edit({
           content: null,
           embeds: [pages[0]],
           components: controls
         })
-        const editTime = Date.now() - editStartTime
+        const editTime = this.now() - editStartTime
         console.log(`[Performance] メッセージ編集完了: 所要時間=${editTime}ms`)
       }
 
@@ -387,7 +390,7 @@ export class CharacterDiceHistoryService {
           console.error('Embed IDの更新に失敗:', error)
         })
 
-      const totalTime = Date.now() - startTime
+      const totalTime = this.now() - startTime
       console.log(
         `[Performance] ページネーション表示処理完了(新規メッセージ): 総所要時間=${totalTime}ms, ページ数=${pages.length}`
       )
@@ -406,35 +409,9 @@ export class CharacterDiceHistoryService {
       }
     } finally {
       // 最後に必ずロックを解除
-      clearTimeout(lockTimeout)
+      this.clearTimer(lockTimeout)
       this.locks.set(lockKey, false)
     }
-  }
-
-  /**
-   * フォールバック用の最小限のコントロールを作成
-   */
-  private createFallbackControls(messageId: string, channelId: string): ActionRowBuilder<ButtonBuilder>[] {
-    // 基本的なナビゲーションボタン
-    const prevButton = new ButtonBuilder()
-      .setCustomId(`dice-prev*${messageId}*${channelId}`)
-      .setLabel('◀ 前へ')
-      .setStyle(ButtonStyle.Primary)
-
-    const pageInfoButton = new ButtonBuilder()
-      .setCustomId(`dice-page-info*${messageId}*${channelId}`)
-      .setLabel('ページ 1')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-
-    const nextButton = new ButtonBuilder()
-      .setCustomId(`dice-next*${messageId}*${channelId}`)
-      .setLabel('次へ ▶')
-      .setStyle(ButtonStyle.Primary)
-
-    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, pageInfoButton, nextButton)
-
-    return [buttonRow]
   }
 
   /**
@@ -450,12 +427,12 @@ export class CharacterDiceHistoryService {
       const channelData = await this.diceRollService.findChannelByChannelId(channelId)
 
       if (channelData?.embedId) {
-        // 直近の更新から一定時間経過していたら更新
+        // 直近の更新から一定時間経過していたら更新（throttle 判定は純関数へ委譲）
         const lastUpdate = this.lastEmbedUpdateTime.get(channelId) || 0
-        const now = Date.now()
+        const now = this.now()
         const timeSinceLastUpdate = now - lastUpdate
 
-        if (timeSinceLastUpdate >= this.MIN_UPDATE_INTERVAL) {
+        if (shouldUpdateEmbed(lastUpdate, now, this.MIN_UPDATE_INTERVAL)) {
           this.lastEmbedUpdateTime.set(channelId, now)
 
           // 既存のページネーションメッセージを更新
@@ -465,14 +442,8 @@ export class CharacterDiceHistoryService {
               // 新しいページを生成
               const pages = await this.paginationService.createPaginatedEmbeds(channelId, undefined)
 
-              // ページネーション状態を更新
-              const paginationState = {
-                pages,
-                totalPages: pages.length,
-                currentPage: 0,
-                characterId: undefined,
-                messageId: existingMessage.id
-              }
+              // ページネーション状態を更新（組立は純関数へ委譲）
+              const paginationState = buildPaginationState(pages, existingMessage.id)
 
               this.paginationService.savePaginationState(channelId, existingMessage.id, paginationState)
 
@@ -494,15 +465,15 @@ export class CharacterDiceHistoryService {
             }
           } catch (error) {
             console.error('既存メッセージの更新に失敗:', error)
-            // 失敗した場合は新しいページネーションを作成
-            this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
+            // 失敗した場合は新しいページネーションを作成（完了を待たない fire-and-forget）
+            void this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
           }
         } else {
           console.log(`直近のEmbed更新からまだ${timeSinceLastUpdate}ms経過 - 更新をスキップします`)
         }
       } else {
-        // embedIdがない場合は新しくページネーションを作成
-        this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
+        // embedIdがない場合は新しくページネーションを作成（完了を待たない fire-and-forget）
+        void this.createPaginatedDiceRoll(interaction, parentChannel, channelId)
       }
     } catch (error) {
       console.error('履歴更新処理エラー:', error)

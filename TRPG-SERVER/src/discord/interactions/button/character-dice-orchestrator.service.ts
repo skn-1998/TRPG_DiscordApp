@@ -129,7 +129,7 @@ export class CharacterDiceOrchestratorService implements discordButtonType {
   /**
    * ダイスロール結果を表示
    */
-  private async displayDiceResult(interaction: ButtonInteraction, result: any, channelId: string): Promise<void> {
+  private async displayDiceResult(interaction: ButtonInteraction, result: any, _channelId: string): Promise<void> {
     try {
       // 結果の色を決定
       let color = 0x0099ff // デフォルト青
@@ -225,7 +225,7 @@ export class CharacterDiceOrchestratorService implements discordButtonType {
   /**
    * ダイスロール情報を解析
    */
-  private parseDiceRollInfo(rollInfo: string, channelId: string): { diceType: string; reason?: string } {
+  private parseDiceRollInfo(rollInfo: string, _channelId: string): { diceType: string; reason?: string } {
     const parts = rollInfo.split('*')
 
     // parts[0] = diceType, parts[1] = channelId, parts[2] = reason (optional)

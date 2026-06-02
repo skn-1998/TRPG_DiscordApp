@@ -32,7 +32,7 @@ export class DicePageCancelButtonService implements discordButtonType {
       } else {
         await interaction.followUp({ content: '⚠️ ページネーションの状態が見つかりませんでした。', ephemeral: true })
       }
-    } catch (error) {
+    } catch {
       try {
         await interaction.followUp({ content: '⚠️ キャンセル処理中にエラーが発生しました。', ephemeral: true })
       } catch {}

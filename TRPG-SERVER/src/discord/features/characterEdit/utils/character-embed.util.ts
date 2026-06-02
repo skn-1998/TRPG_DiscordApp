@@ -157,7 +157,7 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
       }
 
       displayValue = displayParts.length > 0 ? displayParts.join(' | ') : '設定値なし'
-    } else if (attr.name && 'value' in (value as object)) {
+    } else if (attr.name && 'value' in value) {
       // レガシー形式の場合
       displayName = attr.name || key
       displayValue = String((value as { value?: unknown }).value || '値なし')

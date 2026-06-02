@@ -3,8 +3,6 @@ import { TypedEventService } from '../../../core/events/typed-event.service'
 import { EventPayload } from '../../../events/contracts'
 import { CharacterRepository } from '../repositories/character.repository'
 import { UserService } from '../../user/user.service'
-import { CreateCharacterDto } from '../dto/create-character.dto'
-import { Character } from '../models/character.model'
 import { randomBytes } from 'crypto'
 
 /**

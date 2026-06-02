@@ -161,7 +161,7 @@ export class ThreadInteractionService {
       const skillEntries = Object.entries(character.skill).slice(0, 20) // 最大20個
       const skillButtons: ButtonBuilder[] = []
 
-      skillEntries.forEach(([skillKey, skillValue], index) => {
+      skillEntries.forEach(([skillKey, skillValue], _index) => {
         const skillName = skillValue?.name || skillKey
         const skillLevel = this.extractSkillLevel(skillValue)
 

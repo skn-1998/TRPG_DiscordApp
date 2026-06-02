@@ -1,4 +1,4 @@
-import { isNil, sortBy, update } from 'lodash'
+import { isNil, sortBy } from 'lodash'
 import { Character, UpdatePrimary } from 'src/domains/character/models/character.model'
 
 type characterInfo = {

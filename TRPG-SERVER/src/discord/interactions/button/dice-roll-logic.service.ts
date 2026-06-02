@@ -1,13 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ButtonInteraction, CacheType } from 'discord.js'
+import { ButtonInteraction } from 'discord.js'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
-import { ErrorHandler } from '../../../utils/error-handler'
 import dice from '../../utils/dice'
 import { DiceRollRequest, DiceRollResult } from '../../utils/dice-roll.interface'
 import { DiceRollTextInputDto } from '../../../domains/dice-roll/dto/create-dice-roll-text.dto'
-import { v4 as uuidv4 } from 'uuid'
 
 /**
  * ダイスロールロジックサービス
@@ -108,7 +106,7 @@ export class DiceRollLogicService {
   /**
    * ダイスロールを実行（内部実装）
    */
-  private async executeDiceRoll(diceExpression: string, reason?: string): Promise<{ total: number; details: string }> {
+  private async executeDiceRoll(diceExpression: string, _reason?: string): Promise<{ total: number; details: string }> {
     try {
       // ダイス式をクリーンアップ
       const cleanExpression = this.cleanDiceExpression(diceExpression)
@@ -334,7 +332,7 @@ export class DiceRollLogicService {
       }
 
       return { isValid: true }
-    } catch (error) {
+    } catch {
       return {
         isValid: false,
         error: 'ダイス式の解析に失敗しました'

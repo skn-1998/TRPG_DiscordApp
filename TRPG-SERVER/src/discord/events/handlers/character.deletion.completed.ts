@@ -51,7 +51,7 @@ export class CharacterDeletionCompletedHandler extends EventHandler<CharacterDel
   /**
    * Discord UI更新処理
    */
-  private async updateDiscordUI(event: CharacterDeletionCompletedEvent, context?: EventContext): Promise<void> {
+  private async updateDiscordUI(event: CharacterDeletionCompletedEvent, _context?: EventContext): Promise<void> {
     const { deletedCharacterData } = event
 
     // 1. 削除完了通知の送信（チャンネルが存在する場合）

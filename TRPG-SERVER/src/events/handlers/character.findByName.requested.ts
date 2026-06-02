@@ -26,7 +26,7 @@ export class CharacterFindByNameRequestedHandler extends EventHandler<CharacterF
   /**
    * メイン処理
    */
-  async handle(event: CharacterFindByNameRequestedEvent, context?: EventContext): Promise<void> {
+  async handle(event: CharacterFindByNameRequestedEvent, _context?: EventContext): Promise<void> {
     this.logger.log(`🔍 Processing character findByName request: ${event.characterName}`)
 
     try {

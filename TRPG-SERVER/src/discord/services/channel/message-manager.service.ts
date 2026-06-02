@@ -192,7 +192,7 @@ export class MessageManagerService {
 
       // Discord APIの制限：一度に削除できるのは100件まで
       const batchSize = 100
-      const batches = []
+      const batches: string[][] = []
 
       for (let i = 0; i < messageIds.length; i += batchSize) {
         batches.push(messageIds.slice(i, i + batchSize))

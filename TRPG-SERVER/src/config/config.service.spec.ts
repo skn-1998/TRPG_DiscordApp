@@ -251,7 +251,11 @@ describe('generateAppConfig', () => {
       secret: 'test-discord-secret',
       guildId: 'test-guild-id',
       characterCategory: 'Test Character Category',
-      diceRollCategory: 'Test Dice Roll Category'
+      diceRollCategory: 'Test Dice Roll Category',
+      cacheTtl: 300000,
+      messageCacheLimit: 30,
+      channelCacheLimit: 50,
+      testMockDiscord: true
     })
   })
 

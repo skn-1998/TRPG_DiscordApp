@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { CommandInteraction, AutocompleteInteraction, ChatInputCommandInteraction } from 'discord.js'
+import { CommandInteraction, AutocompleteInteraction } from 'discord.js'
 import { ErrorHandler } from '../../utils/error-handler'
 import { TypedEventService } from '../../core/events/typed-event.service'
 

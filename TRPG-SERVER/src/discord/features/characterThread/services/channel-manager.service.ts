@@ -1,15 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common'
-import {
-  ChannelType,
-  CommandInteraction,
-  Guild,
-  StringSelectMenuOptionBuilder,
-  TextChannel,
-  ThreadChannel
-} from 'discord.js'
+import { ChannelType, Guild, StringSelectMenuOptionBuilder, TextChannel, ThreadChannel } from 'discord.js'
 import { AppConfigService } from '../../../../config/config.service'
 import { Character } from '../../../../domains/character/models/character.model'
 import _ from 'lodash'
+import {
+  buildFallbackOption,
+  buildSelectOptions,
+  ChannelSnapshot,
+  isTextChannelInCategory,
+  matchesCharacterCategory,
+  selectChannelOptions
+} from './channel-manager.util'
 
 /**
  * チャンネル・スレッド管理サービス
@@ -58,47 +59,41 @@ export class ChannelManagerService {
    */
   getCharacterChannelOptions(guild: Guild): StringSelectMenuOptionBuilder[] {
     try {
-      const characterCategory = this.appConfigService.get('discord.characterCategory')
-      const categoryNameStr = [characterCategory]
+      const categoryNames = [this.appConfigService.get('discord.characterCategory')]
 
-      // カテゴリーチャンネルを取得
-      const categoryChannel = guild.channels.cache.find(
-        (channel) => channel.type === ChannelType.GuildCategory && categoryNameStr.includes(channel.name)
-      )
+      // [副作用境界] カテゴリーチャンネルを cache から取得（判定ロジックは純関数へ委譲）
+      const categoryChannel = guild.channels.cache.find((channel) => matchesCharacterCategory(channel, categoryNames))
 
       if (_.isNil(categoryChannel)) {
         this.logger.warn('Character category not found')
-        return [new StringSelectMenuOptionBuilder().setLabel('カテゴリが見つかりません').setValue('no-category')]
+        return [buildFallbackOption('カテゴリが見つかりません', 'no-category')]
       }
 
-      // カテゴリーチャンネル内のテキストチャンネルを取得
-      const textChannels = guild.channels.cache.filter(
-        (channel) => channel.type === ChannelType.GuildText && channel.parentId === categoryChannel.id
+      // [副作用境界] カテゴリ内テキストチャンネルを cache から抽出
+      const textChannels = guild.channels.cache.filter((channel) =>
+        isTextChannelInCategory(channel, categoryChannel.id)
       )
 
       if (textChannels.size === 0) {
         this.logger.warn('No text channels found in character category')
-        return [new StringSelectMenuOptionBuilder().setLabel('チャンネルが見つかりません').setValue('no-channels')]
+        return [buildFallbackOption('チャンネルが見つかりません', 'no-channels')]
       }
 
-      // Discord制限：SelectMenuは最大25個のオプションまで
-      let channelsArray = Array.from(textChannels.values())
-
-      // 作成日時順に並べ替え（新しいものが先頭）
-      channelsArray = channelsArray.sort((a, b) => (b.createdTimestamp ?? 0) - (a.createdTimestamp ?? 0))
-
-      // 最大25個に制限
-      channelsArray = channelsArray.slice(0, 25)
-
-      const options = channelsArray.map((channel) =>
-        new StringSelectMenuOptionBuilder().setLabel(channel.name).setValue(String(channel.id))
-      )
+      // [純粋ロジック] スナップショットへ写し取り → 降順ソート＋25件制限＋整形
+      const snapshots: ChannelSnapshot[] = Array.from(textChannels.values()).map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        type: channel.type,
+        parentId: channel.parentId,
+        createdTimestamp: channel.createdTimestamp
+      }))
+      const options = buildSelectOptions(selectChannelOptions(snapshots))
 
       this.logger.debug(`Found ${options.length} character channels`)
       return options
     } catch (error) {
       this.logger.error(`Failed to get channel options: ${error}`)
-      return [new StringSelectMenuOptionBuilder().setLabel('エラーが発生しました').setValue('error')]
+      return [buildFallbackOption('エラーが発生しました', 'error')]
     }
   }
 
@@ -106,12 +101,10 @@ export class ChannelManagerService {
    * カテゴリチャンネルの存在確認
    */
   validateCharacterCategory(guild: Guild): { isValid: boolean; categoryChannel: any } {
-    const characterCategory = this.appConfigService.get('discord.characterCategory')
-    const categoryNameStr = [characterCategory]
+    const categoryNames = [this.appConfigService.get('discord.characterCategory')]
 
-    const categoryChannel = guild.channels.cache.find(
-      (channel) => channel.type === ChannelType.GuildCategory && categoryNameStr.includes(channel.name)
-    )
+    // [副作用境界] cache 取得。カテゴリ判定は純関数 matchesCharacterCategory へ委譲。
+    const categoryChannel = guild.channels.cache.find((channel) => matchesCharacterCategory(channel, categoryNames))
 
     return {
       isValid: !_.isNil(categoryChannel),
