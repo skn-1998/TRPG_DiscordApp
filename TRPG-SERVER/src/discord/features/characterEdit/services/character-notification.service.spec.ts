@@ -5,12 +5,6 @@ import { CharacterNotificationService } from './character-notification.service'
 
 // Mock dependencies
 jest.mock('src/config/configuration')
-jest.mock('../../interactions/interactions.list', () => ({
-  changeCharacterInfoConfig: {
-    customId: 'change-character-info',
-    placeholder: 'キャラクター情報を選択してください'
-  }
-}))
 
 describe('CharacterNotificationService', () => {
   let service: CharacterNotificationService
@@ -49,8 +43,7 @@ describe('CharacterNotificationService', () => {
       await service.notifyCharacterCreation(mockTextChannel, 'test-character-id', 'test-character')
 
       expect(mockTextChannel.send).toHaveBeenCalledWith({
-        content: 'http://localhost:3000/characters/test-character-id',
-        components: expect.any(Array)
+        content: 'http://localhost:3000/characters/test-character-id'
       })
     })
 
@@ -63,6 +56,8 @@ describe('CharacterNotificationService', () => {
     })
 
     it('should log success message', async () => {
+      // 直前テストで send が reject mock に差し替えられているため健全な mock に戻す
+      mockTextChannel.send = jest.fn().mockResolvedValue(undefined)
       const loggerSpy = jest.spyOn(Logger.prototype, 'log')
 
       await service.notifyCharacterCreation(mockTextChannel, 'test-character-id', 'test-character')
