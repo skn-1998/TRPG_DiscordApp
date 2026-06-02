@@ -7,7 +7,7 @@ import pluginJest from 'eslint-plugin-jest'
 
 export default defineConfig(
   {
-    ignores: ['eslint.config.js', 'jest.config.js', 'prettier.config.js', 'webpack-hmr.config.js', 'dist/**/*', 'node_modules/**/*']
+    ignores: ['eslint.config.mjs', 'jest.config.js', 'prettier.config.js', 'webpack-hmr.config.js', 'dist/**/*', 'node_modules/**/*']
   },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
