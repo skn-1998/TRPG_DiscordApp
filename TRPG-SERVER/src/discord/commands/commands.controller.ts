@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common'
-import { Client, Interaction, CommandInteraction, AutocompleteInteraction, CacheType } from 'discord.js'
+import { Client, CommandInteraction, AutocompleteInteraction } from 'discord.js'
 import {
   commandType,
   createCharacterThreadConfig,

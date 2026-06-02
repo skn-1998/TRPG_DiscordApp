@@ -33,7 +33,7 @@ export class DicePageLastButtonService implements discordButtonType {
       }
       const controls = await this.paginationService.createPaginationControls(messageId, channelId, state.totalPages)
       await interaction.editReply({ embeds: [newPage], components: controls })
-    } catch (error) {
+    } catch {
       try {
         await interaction.followUp({ content: '⚠️ ページめくりの処理中にエラーが発生しました。', ephemeral: true })
       } catch {}

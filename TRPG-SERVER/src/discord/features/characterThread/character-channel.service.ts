@@ -16,7 +16,7 @@ import { discordSelectMenuType } from 'src/discord/discord.type'
 import _, { isNull, isUndefined } from 'lodash'
 import { AppConfigService } from 'src/config/config.service'
 import { Character } from 'src/domains/character/models/character.model'
-import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
+import { getDisplayNumber } from 'src/core/types/attribute.types'
 import { TypedEventEmitter } from '../../../core/events/typed-event.service'
 
 @Injectable()
@@ -62,7 +62,6 @@ export class CharacterChannelService implements discordSelectMenuType {
     }
 
     try {
-      const targetChannel = interaction.channel
       const discordChannelId = interaction.values[0]
 
       // 【PHASE3】 キャラクター情報取得をイベント駆動パターンに変更（型安全）

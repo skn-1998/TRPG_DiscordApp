@@ -124,7 +124,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
     characterId: string | null,
     section: string,
     key: string,
-    value: string
+    _value: string
   ): Promise<void> {
     const modalCustomId = characterId ? `param-dice-modal*${characterId}` : 'param-dice-modal'
 

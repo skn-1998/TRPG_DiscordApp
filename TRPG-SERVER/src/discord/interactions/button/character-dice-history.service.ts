@@ -149,7 +149,7 @@ export class CharacterDiceHistoryService {
       }
 
       // 並列処理で効率化
-      const [channelData] = await Promise.all([
+      await Promise.all([
         // チャンネルデータを取得
         this.diceRollService.findChannelByChannelId(parentChannelId),
         // ダイスロール結果を保存（バックグラウンドで非同期実行）

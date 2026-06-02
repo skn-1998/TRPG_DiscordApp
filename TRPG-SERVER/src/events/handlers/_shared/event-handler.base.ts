@@ -82,7 +82,7 @@ export abstract class EventHandler<TEvent = any> {
   /**
    * カスタムバリデーション（継承先で実装）
    */
-  protected async customValidation(event: TEvent): Promise<void> {
+  protected async customValidation(_event: TEvent): Promise<void> {
     // Override in subclass if needed
   }
 

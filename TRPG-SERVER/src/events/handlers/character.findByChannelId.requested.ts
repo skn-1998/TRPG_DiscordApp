@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { EventHandler, EventContext, ValidationError } from './_shared/event-handler.base'
 import { validateRequired, validateDiscordId } from './_shared/validation.utils'
 import { CharacterService } from '../../domains/character/character.service'
@@ -67,7 +67,7 @@ export class CharacterFindByChannelIdRequestedHandler extends EventHandler<Chara
   private async emitSuccessEvent(
     character: any | null,
     originalEvent: CharacterFindByChannelIdRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const successEvent = {
       channelId: originalEvent.channelId,
@@ -89,7 +89,7 @@ export class CharacterFindByChannelIdRequestedHandler extends EventHandler<Chara
   private async emitFailureEvent(
     error: Error,
     originalEvent: CharacterFindByChannelIdRequestedEvent,
-    context?: EventContext
+    _context?: EventContext
   ): Promise<void> {
     const failureEvent = {
       channelId: originalEvent.channelId,

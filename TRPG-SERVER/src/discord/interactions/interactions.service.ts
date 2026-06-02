@@ -1,14 +1,7 @@
 import { Injectable, OnModuleInit, Logger, Inject, Optional, forwardRef } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import {
-  Client,
-  Interaction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  AnySelectMenuInteraction,
-  StringSelectMenuInteraction
-} from 'discord.js'
+import { Client, ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
 import { InteractionsController } from './interactions.controller'
 import { CharacterUIService } from '../features/characterEdit/services/character-ui.service'
 import { CharacterSectionEditorService } from '../features/characterEdit/services/character-section-editor.service'

@@ -27,7 +27,7 @@ export class DiceCharacterSelectService implements discordSelectMenuType {
       }
       const controls = await this.paginationService.createPaginationControls(messageId, channelId, newState.totalPages)
       await interaction.editReply({ embeds: [newState.pages[0]], components: controls })
-    } catch (error) {
+    } catch {
       try {
         await interaction.followUp({ content: '⚠️ キャラクター選択の処理中にエラーが発生しました。', ephemeral: true })
       } catch {}

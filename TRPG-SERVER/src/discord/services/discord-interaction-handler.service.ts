@@ -1,9 +1,8 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import {
   Client,
   Events,
   Interaction,
-  InteractionType,
   ButtonInteraction,
   ModalSubmitInteraction,
   AnySelectMenuInteraction,
@@ -227,8 +226,7 @@ export class DiscordInteractionHandlerService {
    * キャッシュクリア（メモリ管理）
    */
   clearExpiredInteractions(): void {
-    const cutoffTime = Date.now() - 300000 // 5分前
-    const toDelete = Array.from(this.processedInteractions).filter((id) => {
+    const toDelete = Array.from(this.processedInteractions).filter((_id) => {
       // IDから時間を抽出できない場合は削除
       return true
     })

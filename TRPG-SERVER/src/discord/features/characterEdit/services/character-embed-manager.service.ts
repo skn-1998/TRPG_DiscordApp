@@ -252,7 +252,6 @@ export class CharacterEmbedManagerService {
     const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
 
     let buttonCount = 0
-    const maxButtonsPerRow = 5
     const maxTotalButtons = 20 // Discord制限に配慮
 
     // skillセクションのボタンを生成
@@ -283,7 +282,7 @@ export class CharacterEmbedManagerService {
 
     // parameterセクションのボタンを生成
     if (character.parameter && Object.keys(character.parameter).length > 0) {
-      buttonCount = this.addDiceRollButtonsFromData(
+      this.addDiceRollButtonsFromData(
         character.parameter,
         'パラメータ',
         '⚙️',

@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
+import { Client, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import {
@@ -75,14 +74,7 @@ export class ThreadManagerService {
   /**
    * キャラクター用スレッドを作成
    */
-  async createCharacterThread(request: CreateThreadRequest, character: Character): Promise<CreateThreadResult> {
-    const context: ErrorContext = {
-      operation: 'createCharacterThread',
-      characterId: request.characterId,
-      channelId: request.channelId,
-      guildId: request.guildId
-    }
-
+  async createCharacterThread(request: CreateThreadRequest, _character: Character): Promise<CreateThreadResult> {
     try {
       this.logger.log(`Creating thread for character: ${request.characterName}`)
 
@@ -270,7 +262,7 @@ export class ThreadManagerService {
           )
           return thread
         }
-      } catch (error) {
+      } catch {
         this.logger.debug(`[THREAD-WAIT] Attempt ${attempts} failed, continuing...`)
       }
 

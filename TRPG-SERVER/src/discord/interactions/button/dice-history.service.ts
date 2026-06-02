@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, TextChannel, EmbedBuilder, Colors } from 'discord.js'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
-import { ErrorHandler, BackgroundTaskErrorHandler } from '../../../utils/error-handler'
+import { BackgroundTaskErrorHandler } from '../../../utils/error-handler'
 
 /**
  * ダイス履歴管理サービス
@@ -68,7 +68,7 @@ export class DiceHistoryService {
   private async performBackgroundHistoryUpdate(
     channelId: string,
     parentChannel: TextChannel,
-    diceResult: { total: number; details: string; reason?: string }
+    _diceResult: { total: number; details: string; reason?: string }
   ): Promise<void> {
     try {
       // ロック確認
@@ -116,7 +116,6 @@ export class DiceHistoryService {
    */
   async createPaginatedDiceRoll(channelId: string, parentChannel: TextChannel, page: number = 1): Promise<void> {
     try {
-      const pageSize = 10
       const diceRolls = await this.diceRollService.findTextsByChannelId(channelId)
 
       if (!diceRolls || diceRolls.length === 0) {

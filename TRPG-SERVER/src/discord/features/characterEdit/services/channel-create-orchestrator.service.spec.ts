@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { EventEmitter2 } from '@nestjs/event-emitter'
 import { ChannelCreateOrchestratorService } from './channel-create-orchestrator.service'
 import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterCreationService } from './character-creation.service'
