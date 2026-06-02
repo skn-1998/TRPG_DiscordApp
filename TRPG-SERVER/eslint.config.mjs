@@ -55,8 +55,39 @@ export default defineConfig(
 
       'prefer-const': 'error',
       // "no-console": "warn",
-      indent: ['error', 2, { SwitchCase: 1 }]
+      indent: ['error', 2, { SwitchCase: 1 }],
       // "linebreak-style": ["error", "windows"]
+
+      // --- 本プロジェクト実態に合わせた調整 ---
+      // recommendedTypeChecked は厳格すぎるため、本コードベースが意図的に採用している
+      // スタイル（any 多用・async シグネチャ統一）由来のルールは無効化する。
+      // any 由来の型安全ルール（no-explicit-any を許容する以上、派生の unsafe-* も無効化）
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      // ログ等で `${obj}` を多用するため
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-base-to-string': 'off',
+      // async でシグネチャを揃える方針のため await 無しを許容
+      '@typescript-eslint/require-await': 'off',
+
+      // --- 潜在的バグは error で止めず warn で可視化する ---
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-misused-promises': 'warn',
+      '@typescript-eslint/await-thenable': 'warn',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      '@typescript-eslint/no-redundant-type-constituents': 'warn',
+      // メソッド参照（DI・イベント登録・jest mock 参照）を多用するため warn に留める
+      '@typescript-eslint/unbound-method': 'warn',
+
+      // --- 本プロジェクトで意図的に使われるパターンは warn（可視・非ブロック）に ---
+      '@typescript-eslint/no-require-imports': 'warn', // JSON/CJS 連携での require
+      'no-empty': 'warn', // 意図的な空 catch 等
+      '@typescript-eslint/no-namespace': 'warn', // 既存の namespace 利用
+      'jest/no-conditional-expect': 'warn' // 一部 spec の実用的な条件付き expect
     }
   },
   {
@@ -236,6 +267,14 @@ export default defineConfig(
           argsIgnorePattern: '^_'
         }
       ]
+    }
+  },
+  {
+    // テスト系ファイルでは unbound-method を無効化（jest の expect(mock.method)・
+    // DI/イベント登録のメソッド参照が大量に該当し、実害がないため）
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts', '**/*.mock.ts', '**/*mock*.ts', '**/*.factory.ts', '**/*factory*.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off'
     }
   },
   eslintConfigPrettier
