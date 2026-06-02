@@ -1,7 +1,33 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional, Inject } from '@nestjs/common'
 import { Client, TextChannel, NewsChannel, ThreadChannel, Message } from 'discord.js'
 import { ErrorHandler } from '../../../utils/error-handler'
 import { AppConfigService } from '../../../config/config.service'
+import {
+  CacheEntryMeta,
+  CacheStats,
+  computeCacheStats,
+  extractTimestampFromSnowflake,
+  isCacheEntryFresh,
+  isSnowflakeParsable,
+  selectExpiredChannelIds,
+  selectOldestChannelId
+} from './channel-cache.pure'
+
+/** 時刻源 seam（テスト時に差し替え可能）。既定は Date.now。 */
+export type Clock = () => number
+
+/**
+ * 時刻源を注入するための DI トークン（Clock seam）。
+ * 本番では未提供 → 既定で Date.now を使う。テストでは provider で固定時刻を注入できる。
+ */
+export const CHANNEL_CACHE_CLOCK = Symbol('CHANNEL_CACHE_CLOCK')
+
+/**
+ * 定期クリーンアップの自動起動可否を注入する DI トークン（Timer seam）。
+ * 本番では未提供 → 既定 true で従来どおり setInterval が動く。
+ * テストでは false を注入すれば常駐タイマーを起動しない。
+ */
+export const CHANNEL_CACHE_AUTO_START_CLEANUP = Symbol('CHANNEL_CACHE_AUTO_START_CLEANUP')
 
 /**
  * チャンネルキャッシュ管理サービス
@@ -10,9 +36,16 @@ import { AppConfigService } from '../../../config/config.service'
  * - チャンネル情報のキャッシュ管理
  * - メッセージキャッシュの最適化
  * - パフォーマンス向上とメモリ効率化
+ *
+ * テスタビリティ:
+ * - キャッシュの判断ロジック（TTL/LRU/stats/snowflake 変換）は副作用のない純関数
+ *   （channel-cache.pure.ts）へ委譲。
+ * - 時刻取得は Clock seam（既定 Date.now）。
+ * - 定期クリーンアップの setInterval は onModuleInit へ移し、オプションで起動を制御。
+ *   本番挙動（定期クリーンアップ）は不変。
  */
 @Injectable()
-export class ChannelCacheService {
+export class ChannelCacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChannelCacheService.name)
 
   // チャンネルキャッシュ（パフォーマンス最適化）
@@ -30,22 +63,76 @@ export class ChannelCacheService {
   private readonly MESSAGE_CACHE_LIMIT: number
   private readonly MAX_CHANNEL_CACHE: number
 
-  constructor(private readonly appConfigService: AppConfigService) {
+  // seam: 時刻源とクリーンアップタイマー
+  private readonly now: Clock
+  private readonly autoStartCleanup: boolean
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null
+
+  constructor(
+    private readonly appConfigService: AppConfigService,
+    @Optional() @Inject(CHANNEL_CACHE_CLOCK) clock?: Clock,
+    @Optional() @Inject(CHANNEL_CACHE_AUTO_START_CLEANUP) autoStartCleanup?: boolean
+  ) {
     // 型安全な設定値を使用（既定値は config 層に集約済み）
     this.CACHE_TTL = this.appConfigService.get('discord.cacheTtl') // 5分
     this.MESSAGE_CACHE_LIMIT = this.appConfigService.get('discord.messageCacheLimit') // メモリ効率化
     this.MAX_CHANNEL_CACHE = this.appConfigService.get('discord.channelCacheLimit') // メモリ効率化
+
+    this.now = clock ?? Date.now
+    this.autoStartCleanup = autoStartCleanup ?? true
+
     this.logger.debug(
       `Channel cache service initialized with limits: ${this.MAX_CHANNEL_CACHE} channels, ${this.MESSAGE_CACHE_LIMIT} messages/channel`
     )
+  }
 
-    // 定期的なキャッシュクリーンアップ（頻度を最適化）
-    setInterval(
+  /**
+   * NestJS ライフサイクル: 定期クリーンアップを起動する。
+   * 本番では従来どおり setInterval によるクリーンアップが動く。
+   */
+  onModuleInit(): void {
+    if (this.autoStartCleanup) {
+      this.startCleanupTimer()
+    }
+  }
+
+  /**
+   * NestJS ライフサイクル: 常駐タイマーを停止しリークを防ぐ。
+   */
+  onModuleDestroy(): void {
+    this.stopCleanupTimer()
+  }
+
+  /**
+   * 定期的なキャッシュクリーンアップタイマーを起動（最大1分間隔）。
+   * テストからは呼ばずに済むよう public ではなく分離したメソッドにしている。
+   */
+  private startCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      return
+    }
+    this.cleanupTimer = setInterval(
       () => {
         this.cleanupExpiredCache()
       },
       Math.min(this.CACHE_TTL / 2, 60000)
-    ) // 最大1分間隔でクリーンアップ
+    )
+  }
+
+  private stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+  }
+
+  /** 純関数へ渡すためのメタ情報スナップショットを生成する（副作用なしの読み取り） */
+  private snapshotEntries(): CacheEntryMeta[] {
+    const entries: CacheEntryMeta[] = []
+    for (const [id, cached] of this.channelCache.entries()) {
+      entries.push({ id, lastAccess: cached.lastAccess, messageCacheSize: cached.messageCache.size })
+    }
+    return entries
   }
 
   /**
@@ -53,16 +140,16 @@ export class ChannelCacheService {
    */
   async getChannel(client: Client, channelId: string): Promise<TextChannel | NewsChannel | ThreadChannel | null> {
     try {
-      // キャッシュから取得を試行
+      // キャッシュから取得を試行（TTL 判定は純関数に委譲）
       const cached = this.channelCache.get(channelId)
-      if (cached && Date.now() - cached.lastAccess < this.CACHE_TTL) {
-        cached.lastAccess = Date.now()
+      if (cached && isCacheEntryFresh(cached.lastAccess, this.now(), this.CACHE_TTL)) {
+        cached.lastAccess = this.now()
         this.logger.debug(`Channel retrieved from cache: ${channelId}`)
         return cached.channel
       }
 
       // キャッシュにない場合はDiscord APIから取得
-      const channel = await client.channels.fetch(channelId)
+      const channel = await this.fetchChannel(client, channelId)
 
       if (!channel?.isTextBased()) {
         this.logger.warn(`Channel ${channelId} is not text-based`)
@@ -93,18 +180,26 @@ export class ChannelCacheService {
   }
 
   /**
+   * Discord API からチャンネルを取得する I/O seam。
+   * テストではこのメソッドのみ差し替えればキャッシュ判断ロジックを検証できる。
+   */
+  protected fetchChannel(client: Client, channelId: string) {
+    return client.channels.fetch(channelId)
+  }
+
+  /**
    * チャンネルキャッシュを更新
    */
   private updateChannelCache(channel: TextChannel | NewsChannel | ThreadChannel): void {
     try {
-      // キャッシュサイズ制限チェック
+      // キャッシュサイズ制限チェック（LRU eviction）
       if (this.channelCache.size >= this.MAX_CHANNEL_CACHE) {
         this.evictOldestCacheEntry()
       }
 
       this.channelCache.set(channel.id, {
         channel,
-        lastAccess: Date.now(),
+        lastAccess: this.now(),
         messageCache: new Map()
       })
 
@@ -180,17 +275,11 @@ export class ChannelCacheService {
 
   /**
    * 期限切れキャッシュのクリーンアップ
+   * 期限切れ判定（純関数）と Map 削除（副作用）を分離。
    */
   private cleanupExpiredCache(): void {
     try {
-      const now = Date.now()
-      const expiredChannels: string[] = []
-
-      for (const [channelId, cached] of this.channelCache.entries()) {
-        if (now - cached.lastAccess > this.CACHE_TTL) {
-          expiredChannels.push(channelId)
-        }
-      }
+      const expiredChannels = selectExpiredChannelIds(this.snapshotEntries(), this.now(), this.CACHE_TTL)
 
       for (const channelId of expiredChannels) {
         this.channelCache.delete(channelId)
@@ -206,18 +295,11 @@ export class ChannelCacheService {
 
   /**
    * 最も古いキャッシュエントリを削除
+   * eviction 対象選定（純関数）と Map 削除（副作用）を分離。
    */
   private evictOldestCacheEntry(): void {
     try {
-      let oldestChannelId: string | null = null
-      let oldestTime = Date.now()
-
-      for (const [channelId, cached] of this.channelCache.entries()) {
-        if (cached.lastAccess < oldestTime) {
-          oldestTime = cached.lastAccess
-          oldestChannelId = channelId
-        }
-      }
+      const oldestChannelId = selectOldestChannelId(this.snapshotEntries())
 
       if (oldestChannelId) {
         this.channelCache.delete(oldestChannelId)
@@ -230,54 +312,25 @@ export class ChannelCacheService {
 
   /**
    * Snowflakeからタイムスタンプを抽出
+   * 純関数に委譲し、失敗時のフォールバック now のみ注入する。
+   * 現挙動踏襲: 不正入力時はログを残しつつ now を返す。
    */
   extractTimestampFromSnowflake(snowflake: string): number {
-    try {
-      const timestamp = (BigInt(snowflake) >> 22n) + 1420070400000n
-      return Number(timestamp)
-    } catch (error) {
-      this.logger.error(`Failed to extract timestamp from snowflake: ${snowflake}`, error)
-      return Date.now()
+    const fallbackNow = this.now()
+    const result = extractTimestampFromSnowflake(snowflake, fallbackNow)
+    if (result === fallbackNow && !isSnowflakeParsable(snowflake)) {
+      this.logger.error(`Failed to extract timestamp from snowflake: ${snowflake}`)
     }
+    return result
   }
 
   /**
    * キャッシュ統計情報を取得
+   * 集計は純関数（computeCacheStats）に委譲。
    */
-  getCacheStats(): {
-    channelCacheSize: number
-    totalMessagesCached: number
-    oldestCacheEntry: number | null
-    newestCacheEntry: number | null
-    memoryUsageEstimate: number
-  } {
+  getCacheStats(): CacheStats {
     try {
-      let totalMessages = 0
-      let oldestEntry: number | null = null
-      let newestEntry: number | null = null
-
-      for (const cached of this.channelCache.values()) {
-        totalMessages += cached.messageCache.size
-
-        if (oldestEntry === null || cached.lastAccess < oldestEntry) {
-          oldestEntry = cached.lastAccess
-        }
-
-        if (newestEntry === null || cached.lastAccess > newestEntry) {
-          newestEntry = cached.lastAccess
-        }
-      }
-
-      // メモリ使用量の概算（KB単位）
-      const memoryEstimate = this.channelCache.size * 2 + totalMessages * 1 // 簡易計算
-
-      return {
-        channelCacheSize: this.channelCache.size,
-        totalMessagesCached: totalMessages,
-        oldestCacheEntry: oldestEntry,
-        newestCacheEntry: newestEntry,
-        memoryUsageEstimate: memoryEstimate
-      }
+      return computeCacheStats(this.snapshotEntries())
     } catch (error) {
       this.logger.error('Failed to get cache stats', error)
       return {

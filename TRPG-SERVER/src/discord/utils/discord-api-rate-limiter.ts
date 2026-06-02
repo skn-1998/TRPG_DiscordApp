@@ -1,8 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common'
+import {
+  BucketLimit,
+  computeResetTimestamp,
+  computeStats,
+  computeWaitTime,
+  evaluateCleanup,
+  getBucketKey,
+  RateLimiterStats,
+  shouldWait,
+  shouldWaitForBucket
+} from './rate-limiter.pure'
 
 /**
  * Discord API レート制限管理
  * グローバル・バケット別のレート制限に対応
+ *
+ * 計算ロジックは rate-limiter.pure.ts の純関数へ委譲し、
+ * 副作用境界（時刻取得 now / 待機 wait）だけを protected seam として持つ。
  */
 @Injectable()
 export class DiscordApiRateLimiter {
@@ -13,15 +27,7 @@ export class DiscordApiRateLimiter {
   private globalRemaining = 50
 
   // バケット別レート制限（ルート別）
-  private readonly bucketLimits = new Map<
-    string,
-    {
-      limit: number
-      remaining: number
-      reset: number
-      resetAfter?: number
-    }
-  >()
+  private readonly bucketLimits = new Map<string, BucketLimit>()
 
   // リクエスト待機キュー
   private readonly requestQueue = new Map<
@@ -34,23 +40,37 @@ export class DiscordApiRateLimiter {
   >()
 
   /**
+   * 現在時刻取得（seam）。テストで上書き可能。
+   */
+  protected now(): number {
+    return Date.now()
+  }
+
+  /**
+   * 指定時間待機（seam）。テストで fake timers / 上書き可能。
+   */
+  protected wait(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
    * API リクエスト前の制限チェックと待機
    */
   async waitForRateLimit(route: string, method: string = 'GET'): Promise<void> {
-    const bucketKey = this.getBucketKey(route, method)
+    const bucketKey = getBucketKey(route, method)
 
     // グローバル制限チェック
-    const now = Date.now()
-    if (this.globalReset > now) {
-      const waitTime = this.globalReset - now
+    const now = this.now()
+    if (shouldWait(this.globalReset, now)) {
+      const waitTime = computeWaitTime(this.globalReset, now)
       this.logger.warn(`Global rate limit hit, waiting ${waitTime}ms`)
       await this.wait(waitTime)
     }
 
     // バケット制限チェック
     const bucket = this.bucketLimits.get(bucketKey)
-    if (bucket && bucket.remaining <= 0 && bucket.reset > now) {
-      const waitTime = bucket.reset - now
+    if (shouldWaitForBucket(bucket, now)) {
+      const waitTime = computeWaitTime(bucket!.reset, now)
       this.logger.warn(`Bucket rate limit hit for ${bucketKey}, waiting ${waitTime}ms`)
       await this.wait(waitTime)
     }
@@ -63,12 +83,12 @@ export class DiscordApiRateLimiter {
    * API レスポンス後のレート制限情報更新
    */
   updateRateLimit(route: string, method: string, headers: Record<string, string>): void {
-    const bucketKey = this.getBucketKey(route, method)
+    const bucketKey = getBucketKey(route, method)
 
     // グローバル制限更新
     if (headers['x-ratelimit-global']) {
       const retryAfter = parseInt(headers['retry-after'] || '0') * 1000
-      this.globalReset = Date.now() + retryAfter
+      this.globalReset = this.now() + retryAfter
       this.logger.warn(`Global rate limit updated: ${retryAfter}ms`)
     }
 
@@ -82,7 +102,7 @@ export class DiscordApiRateLimiter {
       this.bucketLimits.set(bucketKey, {
         limit,
         remaining,
-        reset: resetTimestamp || Date.now() + resetAfter,
+        reset: computeResetTimestamp(resetTimestamp, this.now(), resetAfter),
         resetAfter
       })
 
@@ -98,23 +118,9 @@ export class DiscordApiRateLimiter {
       this.bucketLimits.set(bucketKey, {
         limit: limit || 5,
         remaining: 0,
-        reset: Date.now() + retryAfter
+        reset: this.now() + retryAfter
       })
     }
-  }
-
-  /**
-   * バケットキー生成（ルートとメソッドから）
-   */
-  private getBucketKey(route: string, method: string): string {
-    // Discord API のバケット生成ロジック
-    // 例: /channels/:id/messages -> channels/:id/messages
-    const normalizedRoute = route
-      .replace(/\/\d+/g, '/:id') // 数値IDをプレースホルダーに
-      .replace(/^\/api\/v\d+/, '') // APIバージョンプレフィックス削除
-      .replace(/\?.*$/, '') // クエリパラメータ削除
-
-    return `${method.toUpperCase()}:${normalizedRoute}`
   }
 
   /**
@@ -125,13 +131,6 @@ export class DiscordApiRateLimiter {
     if (bucket && bucket.remaining > 0) {
       bucket.remaining--
     }
-  }
-
-  /**
-   * 指定時間待機
-   */
-  private wait(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**
@@ -186,50 +185,27 @@ export class DiscordApiRateLimiter {
   /**
    * 統計情報取得
    */
-  getStats(): {
-    globalRemaining: number
-    globalReset: number
-    activeBuckets: number
-    bucketStatus: Array<{
-      bucket: string
-      remaining: number
-      limit: number
-      resetIn: number
-    }>
-  } {
-    const now = Date.now()
-    const bucketStatus = Array.from(this.bucketLimits.entries()).map(([bucket, info]) => ({
-      bucket,
-      remaining: info.remaining,
-      limit: info.limit,
-      resetIn: Math.max(0, info.reset - now)
-    }))
-
-    return {
-      globalRemaining: this.globalRemaining,
-      globalReset: Math.max(0, this.globalReset - now),
-      activeBuckets: this.bucketLimits.size,
-      bucketStatus
-    }
+  getStats(): RateLimiterStats {
+    return computeStats(this.bucketLimits, this.globalRemaining, this.globalReset, this.now())
   }
 
   /**
    * キャッシュクリーンアップ（期限切れバケット削除）
    */
   cleanup(): void {
-    const now = Date.now()
-    const expiredBuckets = []
+    const now = this.now()
+    const expiredBuckets: string[] = []
 
     for (const [bucket, info] of this.bucketLimits.entries()) {
-      if (info.reset < now) {
-        // リセット時刻を過ぎたバケットは制限をリセット
+      // reset<now のバケットは制限をリセット（reset=0 へ書き換え）
+      if (evaluateCleanup(info.reset, now).shouldReset) {
         info.remaining = info.limit
         info.reset = 0
       }
 
       // 長時間使用されていないバケットを削除
-      if (info.reset < now - 3600000) {
-        // 1時間
+      // 元挙動を保つため、reset 書き換え後の値で再判定する
+      if (evaluateCleanup(info.reset, now).shouldDelete) {
         expiredBuckets.push(bucket)
       }
     }
