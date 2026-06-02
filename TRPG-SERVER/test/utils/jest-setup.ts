@@ -167,6 +167,15 @@ jest.mock('discord.js', () => ({
     GuildForum: 15,
     GuildMedia: 16
   },
+  // 監査ログイベント種別（実 discord.js の数値に一致・主要分のみ）
+  // ChannelDetectionService.extractCreatorId が AuditLogEvent.ChannelCreate を参照するため必須
+  AuditLogEvent: {
+    ChannelCreate: 10,
+    ChannelUpdate: 11,
+    ChannelDelete: 12,
+    MemberKick: 20,
+    MemberBanAdd: 22
+  },
   // よく参照されるイベント名（実 discord.js の文字列値に一致）
   Events: {
     ClientReady: 'ready',
