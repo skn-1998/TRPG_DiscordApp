@@ -381,6 +381,23 @@ describe('DiscordController', () => {
       await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
         status: HttpStatus.INTERNAL_SERVER_ERROR
       })
+      // チャンネル作成失敗時は discordChannelId を永続化しない（undefined 書き込みによるデータ破損を防ぐ）
+      expect(characterService.update).not.toHaveBeenCalled()
+    })
+
+    it('キャラクター更新が失敗した場合は 500 を投げる（永続化を await し成功応答前にエラーを伝播）', async () => {
+      // Arrange: チャンネル作成は成功するが DB 更新が失敗する
+      characterService.findOne.mockResolvedValue({ characterName: 'Alice' })
+      discordService.verifyGuildAccess.mockResolvedValue(true)
+      discordService.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
+      discordService.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
+      characterService.update.mockRejectedValue(new Error('DB 更新失敗'))
+
+      // Act & Assert
+      await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
+        status: HttpStatus.INTERNAL_SERVER_ERROR
+      })
+      expect(characterService.update).toHaveBeenCalledWith('char-1', { discordChannelId: 'new-ch' })
     })
   })
 })
