@@ -38,7 +38,7 @@ export interface CharacterEventContracts {
 
   'character.findByChannelId.completed': {
     channelId: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }
@@ -58,7 +58,7 @@ export interface CharacterEventContracts {
 
   'character.findById.completed': {
     characterId: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }
@@ -78,7 +78,7 @@ export interface CharacterEventContracts {
 
   'character.findByName.completed': {
     characterName: string
-    character: any | null
+    character: any
     source: string
     timestamp: Date
   }

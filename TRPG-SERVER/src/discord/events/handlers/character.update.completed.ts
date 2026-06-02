@@ -68,7 +68,7 @@ export class CharacterUpdateCompletedHandler
   /**
    * Discord UI更新処理
    */
-  private async updateDiscordUI(event: CharacterUpdateCompletedEvent, context?: EventContext): Promise<void> {
+  private async updateDiscordUI(event: CharacterUpdateCompletedEvent, _context?: EventContext): Promise<void> {
     const { character } = event
     const updatedFields = (event as any).updatedFields as string[] | undefined
 

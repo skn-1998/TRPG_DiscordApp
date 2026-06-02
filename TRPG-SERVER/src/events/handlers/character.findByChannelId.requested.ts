@@ -65,7 +65,7 @@ export class CharacterFindByChannelIdRequestedHandler extends EventHandler<Chara
    * 成功イベントの発行
    */
   private async emitSuccessEvent(
-    character: any | null,
+    character: any,
     originalEvent: CharacterFindByChannelIdRequestedEvent,
     _context?: EventContext
   ): Promise<void> {

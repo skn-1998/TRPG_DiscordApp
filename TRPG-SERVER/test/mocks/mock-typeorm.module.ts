@@ -2,7 +2,7 @@ import { DynamicModule } from '@nestjs/common'
 import { TypeOrmModuleOptions } from '@nestjs/typeorm'
 
 export class TypeOrmModule {
-  static forRoot(options?: TypeOrmModuleOptions): DynamicModule {
+  static forRoot(_options?: TypeOrmModuleOptions): DynamicModule {
     return {
       module: TypeOrmModule,
       providers: [],
@@ -10,7 +10,7 @@ export class TypeOrmModule {
     }
   }
 
-  static forFeature(entities?: any[]): DynamicModule {
+  static forFeature(_entities?: any[]): DynamicModule {
     return {
       module: TypeOrmModule,
       providers: [],

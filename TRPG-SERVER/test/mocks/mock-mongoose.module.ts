@@ -1,7 +1,7 @@
 import { DynamicModule } from '@nestjs/common'
 
 export class MongooseModule {
-  static forRoot(uri: string): DynamicModule {
+  static forRoot(_uri: string): DynamicModule {
     return {
       module: MongooseModule,
       providers: [],
@@ -9,7 +9,7 @@ export class MongooseModule {
     }
   }
 
-  static forFeature(models?: any[]): DynamicModule {
+  static forFeature(_models?: any[]): DynamicModule {
     return {
       module: MongooseModule,
       providers: [],
