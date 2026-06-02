@@ -1,69 +1,22 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { Logger } from '@nestjs/common'
 import { CharacterChannelService } from '../characterThread/character-channel.service'
-import { CharacterService } from '../../../domains/character/character.service'
 import { AppConfigService } from '../../../config/config.service'
+import { TypedEventEmitter } from '../../../core/events/typed-event.service'
 import { Character } from '../../../domains/character/models/character.model'
-import { CharacterAttribute } from '../../../domains/character/dto/create-character.dto'
-import {
-  ChannelType,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
-} from 'discord.js'
+import { AttributeValue } from '../../../core/types/attribute.types'
+// 本サービスは StringSelectMenuOptionBuilder の data getter・ChannelType・instanceof TextChannel・
+// EmbedBuilder/ButtonBuilder の実構築に依存するため、グローバル jest-setup の discord.js モックを
+// 無効化し実挙動を使う（緑な characterThread/character-channel.service.spec.ts と同方針）。
+jest.unmock('discord.js')
+jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
-// Mock Discord.js modules
-jest.mock('discord.js', () => ({
-  ChannelType: {
-    GuildCategory: 4,
-    GuildText: 0,
-    PublicThread: 11
-  },
-  StringSelectMenuBuilder: jest.fn().mockImplementation(() => ({
-    setCustomId: jest.fn().mockReturnThis(),
-    setPlaceholder: jest.fn().mockReturnThis(),
-    addOptions: jest.fn().mockReturnThis()
-  })),
-  StringSelectMenuOptionBuilder: jest.fn().mockImplementation(() => ({
-    setLabel: jest.fn().mockReturnThis(),
-    setValue: jest.fn().mockReturnThis()
-  })),
-  EmbedBuilder: jest.fn().mockImplementation(() => ({
-    setTitle: jest.fn().mockReturnThis(),
-    setColor: jest.fn().mockReturnThis(),
-    addFields: jest.fn().mockReturnThis()
-  })),
-  ActionRowBuilder: jest.fn().mockImplementation(() => ({
-    addComponents: jest.fn().mockReturnThis()
-  })),
-  ButtonBuilder: jest.fn().mockImplementation(() => ({
-    setCustomId: jest.fn().mockReturnThis(),
-    setLabel: jest.fn().mockReturnThis(),
-    setStyle: jest.fn().mockReturnThis()
-  })),
-  ButtonStyle: {
-    Primary: 1,
-    Secondary: 2,
-    Success: 3,
-    Danger: 4
-  }
-}))
-
-// Mock lodash
-jest.mock('lodash', () => ({
-  isNil: jest.fn((value) => value === null || value === undefined),
-  isNull: jest.fn((value) => value === null),
-  isUndefined: jest.fn((value) => value === undefined)
-}))
+import { ChannelType, StringSelectMenuBuilder, TextChannel } from 'discord.js'
 
 describe('CharacterChannelService', () => {
   let service: CharacterChannelService
-  let characterService: jest.Mocked<CharacterService>
+  let eventEmitter: jest.Mocked<Pick<TypedEventEmitter, 'requestCharacterSearch'>>
   let appConfigService: jest.Mocked<AppConfigService>
 
   // Mock objects
@@ -74,77 +27,88 @@ describe('CharacterChannelService', () => {
     discordChannelId: 'channel-456',
     gameSystemId: 'CoC',
     description: {
-      職業: 'Detective',
-      年齢: '30',
-      背景: 'A skilled detective with years of experience'
+      職業: { description: 'Detective' } as AttributeValue,
+      年齢: { description: '30' } as AttributeValue,
+      背景: { description: 'A skilled detective with years of experience' } as AttributeValue
     },
     status: {
-      HP: { value: 50 } as CharacterAttribute,
-      MP: { value: 30 } as CharacterAttribute,
-      SAN: { value: 65 } as CharacterAttribute,
-      幸運: 60,
-      アイデア: 70,
-      知識: 80
+      HP: { values: { base: 50 } } as AttributeValue,
+      MP: { values: { base: 30 } } as AttributeValue,
+      SAN: { values: { base: 65 } } as AttributeValue,
+      幸運: { values: { base: 60 } } as AttributeValue,
+      アイデア: { values: { base: 70 } } as AttributeValue,
+      知識: { values: { base: 80 } } as AttributeValue
     },
     parameter: {
-      STR: { value: 60 } as CharacterAttribute,
-      DEX: { value: 70 } as CharacterAttribute,
-      INT: { value: 80 } as CharacterAttribute,
-      CON: { value: 65 } as CharacterAttribute,
-      APP: { value: 50 } as CharacterAttribute
+      STR: { values: { base: 60 } } as AttributeValue,
+      DEX: { values: { base: 70 } } as AttributeValue,
+      INT: { values: { base: 80 } } as AttributeValue,
+      CON: { values: { base: 65 } } as AttributeValue,
+      APP: { values: { base: 50 } } as AttributeValue
     },
     skill: {
-      目星: { value: 85 } as CharacterAttribute,
-      聞き耳: { value: 75 } as CharacterAttribute,
-      心理学: { value: 65 } as CharacterAttribute,
-      図書館: { value: 80 } as CharacterAttribute,
-      応急手当: { value: 40 } as CharacterAttribute
+      目星: { values: { base: 85 } } as AttributeValue,
+      聞き耳: { values: { base: 75 } } as AttributeValue,
+      心理学: { values: { base: 65 } } as AttributeValue,
+      図書館: { values: { base: 80 } } as AttributeValue,
+      応急手当: { values: { base: 40 } } as AttributeValue
     },
     item: {
-      ノート: '調査用のノート',
-      拳銃: '警察官用の拳銃',
-      懐中電灯: '小型の懐中電灯'
+      ノート: { description: '調査用のノート' } as AttributeValue,
+      拳銃: { description: '警察官用の拳銃' } as AttributeValue,
+      懐中電灯: { description: '小型の懐中電灯' } as AttributeValue
     }
   }
+
+  interface CacheEntry {
+    id: string
+    name: string
+    type: ChannelType
+    parentId?: string | null
+    createdTimestamp?: number
+  }
+
+  // discord.js Collection の find/filter（predicate 受け取り）を再現する軽量フェイク。
+  // 本体は guild.channels.cache.find(...) / .filter(...) を使うため Map ではなくこれを使う。
+  const makeCollection = (entries: CacheEntry[]) => ({
+    find: (predicate: (c: CacheEntry) => boolean) => entries.find(predicate),
+    filter: (predicate: (c: CacheEntry) => boolean) => {
+      const filtered = entries.filter(predicate)
+      return {
+        size: filtered.length,
+        values: () => filtered.values()
+      }
+    }
+  })
+
+  const defaultCacheEntries: CacheEntry[] = [
+    { id: 'category-id', name: 'キャラクター', type: ChannelType.GuildCategory },
+    {
+      id: 'text-channel-1',
+      name: 'test-channel-1',
+      type: ChannelType.GuildText,
+      parentId: 'category-id',
+      createdTimestamp: 1000000
+    },
+    {
+      id: 'text-channel-2',
+      name: 'test-channel-2',
+      type: ChannelType.GuildText,
+      parentId: 'category-id',
+      createdTimestamp: 2000000
+    }
+  ]
 
   const mockGuild = {
     id: 'guild-123',
     channels: {
-      cache: new Map([
-        [
-          'category-id',
-          {
-            id: 'category-id',
-            name: 'キャラクター',
-            type: ChannelType.GuildCategory
-          }
-        ],
-        [
-          'text-channel-1',
-          {
-            id: 'text-channel-1',
-            name: 'test-channel-1',
-            type: ChannelType.GuildText,
-            parentId: 'category-id',
-            createdTimestamp: 1000000
-          }
-        ],
-        [
-          'text-channel-2',
-          {
-            id: 'text-channel-2',
-            name: 'test-channel-2',
-            type: ChannelType.GuildText,
-            parentId: 'category-id',
-            createdTimestamp: 2000000
-          }
-        ]
-      ]),
+      cache: makeCollection(defaultCacheEntries),
       fetch: jest.fn()
     }
   }
 
-  const mockTextChannel = {
+  // instanceof TextChannel を成立させるため実 TextChannel.prototype を継承させる
+  const mockTextChannel = Object.assign(Object.create(TextChannel.prototype), {
     id: 'text-channel-1',
     name: 'test-channel',
     type: ChannelType.GuildText,
@@ -152,7 +116,7 @@ describe('CharacterChannelService', () => {
     threads: {
       create: jest.fn()
     }
-  }
+  }) as TextChannel & { threads: { create: jest.Mock }; isTextBased: jest.Mock }
 
   const mockThread = {
     id: 'thread-123',
@@ -189,31 +153,26 @@ describe('CharacterChannelService', () => {
       providers: [
         CharacterChannelService,
         {
-          provide: CharacterService,
-          useValue: {
-            findByChannelId: jest.fn(),
-            findOne: jest.fn(),
-            create: jest.fn(),
-            update: jest.fn(),
-            remove: jest.fn()
-          }
-        },
-        {
           provide: AppConfigService,
           useValue: {
             get: jest.fn()
+          }
+        },
+        {
+          provide: TypedEventEmitter,
+          useValue: {
+            requestCharacterSearch: jest.fn().mockResolvedValue(undefined)
           }
         }
       ]
     }).compile()
 
     service = module.get<CharacterChannelService>(CharacterChannelService)
-    characterService = module.get(CharacterService)
     appConfigService = module.get(AppConfigService)
+    eventEmitter = module.get(TypedEventEmitter)
 
     // Setup default mocks
     appConfigService.get.mockReturnValue('キャラクター')
-    characterService.findByChannelId.mockResolvedValue(mockCharacter)
     mockTextChannel.threads.create.mockResolvedValue(mockThread)
     mockGuild.channels.fetch.mockResolvedValue(mockTextChannel)
   })
@@ -229,7 +188,6 @@ describe('CharacterChannelService', () => {
     mockSelectMenuInteraction.deleteReply.mockResolvedValue(undefined)
     mockCommandInteraction.reply.mockResolvedValue(undefined)
     mockCommandInteraction.followUp.mockResolvedValue(undefined)
-    characterService.findByChannelId.mockResolvedValue(mockCharacter)
     appConfigService.get.mockReturnValue('キャラクター')
   })
 
@@ -262,9 +220,10 @@ describe('CharacterChannelService', () => {
       const data = service.data
 
       expect(data).toBeInstanceOf(StringSelectMenuBuilder)
-      expect(data.setCustomId).toHaveBeenCalledWith('thread-create-character')
-      expect(data.setPlaceholder).toHaveBeenCalledWith('キャラクターを選択')
-      expect(data.addOptions).toHaveBeenCalled()
+      // 実 discord.js の構築結果を data プロパティで検証
+      expect(data.data.custom_id).toBe('thread-create-character')
+      expect(data.data.placeholder).toBe('キャラクターを選択')
+      expect(data.options.length).toBeGreaterThan(0)
     })
   })
 
@@ -287,7 +246,7 @@ describe('CharacterChannelService', () => {
       const guildWithoutCategory = {
         ...mockGuild,
         channels: {
-          cache: new Map()
+          cache: makeCollection([])
         }
       }
 
@@ -304,85 +263,40 @@ describe('CharacterChannelService', () => {
       })
     })
 
-    it('should handle character not found', async () => {
-      characterService.findByChannelId.mockResolvedValue(null)
-
+    // 【PHASE3】 カテゴリ有の場合は requestCharacterSearch を発行し、
+    // スレッド作成は行わずメンテナンス中メッセージを reply して return する。
+    it('should emit requestCharacterSearch and reply maintenance message when category exists', async () => {
       await service.execute(mockSelectMenuInteraction as any)
 
+      // 選択値 channel-456 で型安全イベントを発行
+      expect(eventEmitter.requestCharacterSearch).toHaveBeenCalledWith('channel-456', 'character-channel-service')
+      // メンテナンス中メッセージを ephemeral reply
       expect(mockSelectMenuInteraction.reply).toHaveBeenCalledWith({
-        content: 'キャラクター情報が見つかりませんでした',
+        content:
+          '⚠️ キャラクタースレッド作成機能は現在メンテナンス中です。Phase 3移行作業が完了するまでお待ちください。',
         ephemeral: true
       })
+      // スレッド作成・セレクトメニュー削除は行わない（Phase3 で無効化済み）
+      expect(mockTextChannel.threads.create).not.toHaveBeenCalled()
+      expect(mockSelectMenuInteraction.deleteReply).not.toHaveBeenCalled()
     })
 
-    it('should handle channel not found', async () => {
-      const interactionWithoutChannel = {
-        ...mockSelectMenuInteraction,
-        channel: null
-      }
-
-      await service.execute(interactionWithoutChannel as any)
-
-      expect(interactionWithoutChannel.reply).toHaveBeenCalledWith({
-        content: 'チャンネルが見つかりませんでした',
-        ephemeral: true
-      })
-    })
-
-    it('should handle non-text channel', async () => {
-      const nonTextChannel = {
-        ...mockTextChannel,
-        isTextBased: jest.fn().mockReturnValue(false)
+    it('should not emit requestCharacterSearch when category not found', async () => {
+      const guildWithoutCategory = {
+        ...mockGuild,
+        channels: {
+          cache: makeCollection([])
+        }
       }
 
       const interaction = {
         ...mockSelectMenuInteraction,
-        channel: nonTextChannel
+        guild: guildWithoutCategory
       }
 
       await service.execute(interaction as any)
 
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: 'チャンネルが見つかりませんでした',
-        ephemeral: true
-      })
-    })
-
-    it('should create thread successfully', async () => {
-      await service.execute(mockSelectMenuInteraction as any)
-
-      expect(mockTextChannel.threads.create).toHaveBeenCalledWith({
-        name: 'Test Character',
-        type: ChannelType.PublicThread
-      })
-      expect(mockSelectMenuInteraction.deleteReply).toHaveBeenCalled()
-    })
-
-    it('should handle thread creation error', async () => {
-      mockTextChannel.threads.create.mockRejectedValue(new Error('Thread creation failed'))
-
-      await service.execute(mockSelectMenuInteraction as any)
-
-      expect(mockSelectMenuInteraction.reply).toHaveBeenCalledWith({
-        content: 'スレッド作成中にエラーが発生しました',
-        ephemeral: true
-      })
-    })
-
-    it('should handle already replied interaction', async () => {
-      const repliedInteraction = {
-        ...mockSelectMenuInteraction,
-        replied: true
-      }
-
-      mockTextChannel.threads.create.mockRejectedValue(new Error('Test error'))
-
-      await service.execute(repliedInteraction as any)
-
-      expect(repliedInteraction.followUp).toHaveBeenCalledWith({
-        content: 'スレッド作成中にエラーが発生しました',
-        ephemeral: true
-      })
+      expect(eventEmitter.requestCharacterSearch).not.toHaveBeenCalled()
     })
   })
 
@@ -463,14 +377,14 @@ describe('CharacterChannelService', () => {
 
       expect(result).toBeInstanceOf(StringSelectMenuBuilder)
       expect(service.channelOptions).toHaveLength(1)
-      expect(service.channelOptions[0].setLabel).toHaveBeenCalledWith('サーバー情報が取得できません')
+      expect(service.channelOptions[0].data.label).toBe('サーバー情報が取得できません')
     })
 
     it('should handle category not found', () => {
       const guildWithoutCategory = {
         ...mockGuild,
         channels: {
-          cache: new Map()
+          cache: makeCollection([])
         }
       }
 
@@ -483,23 +397,14 @@ describe('CharacterChannelService', () => {
 
       expect(result).toBeInstanceOf(StringSelectMenuBuilder)
       expect(service.channelOptions).toHaveLength(1)
-      expect(service.channelOptions[0].setLabel).toHaveBeenCalledWith('カテゴリが見つかりません')
+      expect(service.channelOptions[0].data.label).toBe('カテゴリが見つかりません')
     })
 
     it('should handle no channels found', () => {
       const guildWithCategoryButNoChannels = {
         ...mockGuild,
         channels: {
-          cache: new Map([
-            [
-              'category-id',
-              {
-                id: 'category-id',
-                name: 'キャラクター',
-                type: ChannelType.GuildCategory
-              }
-            ]
-          ])
+          cache: makeCollection([{ id: 'category-id', name: 'キャラクター', type: ChannelType.GuildCategory }])
         }
       }
 
@@ -512,7 +417,7 @@ describe('CharacterChannelService', () => {
 
       expect(result).toBeInstanceOf(StringSelectMenuBuilder)
       expect(service.channelOptions).toHaveLength(1)
-      expect(service.channelOptions[0].setLabel).toHaveBeenCalledWith('チャンネルが見つかりません')
+      expect(service.channelOptions[0].data.label).toBe('チャンネルが見つかりません')
     })
 
     it('should set channel options successfully', () => {
@@ -520,21 +425,17 @@ describe('CharacterChannelService', () => {
 
       expect(result).toBeInstanceOf(StringSelectMenuBuilder)
       expect(service.channelOptions).toHaveLength(2)
-      expect(service.channelOptions[1].setLabel).toHaveBeenCalledWith('test-channel-2')
-      expect(service.channelOptions[1].setValue).toHaveBeenCalledWith('text-channel-2')
+      // createdTimestamp 降順: text-channel-2(2000000) が先頭
+      expect(service.channelOptions[0].data.label).toBe('test-channel-2')
+      expect(service.channelOptions[0].data.value).toBe('text-channel-2')
     })
 
     it('should handle more than 25 channels', () => {
-      const manyChannels = new Map()
-      manyChannels.set('category-id', {
-        id: 'category-id',
-        name: 'キャラクター',
-        type: ChannelType.GuildCategory
-      })
+      const manyChannels: CacheEntry[] = [{ id: 'category-id', name: 'キャラクター', type: ChannelType.GuildCategory }]
 
       // Create 30 channels
       for (let i = 0; i < 30; i++) {
-        manyChannels.set(`channel-${i}`, {
+        manyChannels.push({
           id: `channel-${i}`,
           name: `test-channel-${i}`,
           type: ChannelType.GuildText,
@@ -546,7 +447,7 @@ describe('CharacterChannelService', () => {
       const guildWithManyChannels = {
         ...mockGuild,
         channels: {
-          cache: manyChannels
+          cache: makeCollection(manyChannels)
         }
       }
 
@@ -570,7 +471,7 @@ describe('CharacterChannelService', () => {
 
       expect(result).toBeInstanceOf(StringSelectMenuBuilder)
       expect(service.channelOptions).toHaveLength(1)
-      expect(service.channelOptions[0].setLabel).toHaveBeenCalledWith('エラーが発生しました')
+      expect(service.channelOptions[0].data.label).toBe('エラーが発生しました')
     })
   })
 
@@ -584,13 +485,18 @@ describe('CharacterChannelService', () => {
 
   describe('postCharacterEmbeds method', () => {
     it('should post character embeds successfully', async () => {
+      // createDiceButtons は別メソッドとして検証済みなので spy して送信回数の干渉を除く
+      jest.spyOn(service, 'createDiceButtons').mockResolvedValue(undefined)
+
       await service.postCharacterEmbeds(mockThread as any, mockCharacter, 'TestPlayer')
 
-      expect(mockThread.send).toHaveBeenCalledTimes(3) // Basic embeds + additional embeds + dice buttons
-      expect(EmbedBuilder).toHaveBeenCalledTimes(5) // baseInfo, parameter, skill, item, description
+      // item / description があるため embeds が 3 を超え、slice(0,3) と slice(3) で計2回 send
+      expect(mockThread.send).toHaveBeenCalledTimes(2)
     })
 
     it('should handle character without optional fields', async () => {
+      jest.spyOn(service, 'createDiceButtons').mockResolvedValue(undefined)
+
       const minimalCharacter = {
         ...mockCharacter,
         status: {},
@@ -602,8 +508,8 @@ describe('CharacterChannelService', () => {
 
       await service.postCharacterEmbeds(mockThread as any, minimalCharacter, 'TestPlayer')
 
-      expect(mockThread.send).toHaveBeenCalledTimes(2) // Basic embeds + dice buttons
-      expect(EmbedBuilder).toHaveBeenCalledTimes(3) // baseInfo, parameter, skill only
+      // baseInfo / parameter / skill のみ（3 Embed 以下）なので send は1回
+      expect(mockThread.send).toHaveBeenCalledTimes(1)
     })
 
     it('should handle embed creation errors gracefully', async () => {
@@ -621,14 +527,13 @@ describe('CharacterChannelService', () => {
       await service.createDiceButtons(mockThread as any, mockCharacter)
 
       expect(mockThread.send).toHaveBeenCalledTimes(3) // skill, ability, dice buttons
-      expect(ActionRowBuilder).toHaveBeenCalledTimes(3)
-      expect(ButtonBuilder).toHaveBeenCalled()
     })
 
-    it('should handle character without discordUserId', async () => {
+    it('should handle character with undefined discordUserId', async () => {
+      // 本体は discordUserId == null（null/undefined）で早期 return する
       const characterWithoutUserId = {
         ...mockCharacter,
-        discordUserId: ''
+        discordUserId: undefined as any
       }
 
       await service.createDiceButtons(mockThread as any, characterWithoutUserId)
@@ -696,25 +601,25 @@ describe('CharacterChannelService', () => {
   })
 
   describe('エラーハンドリング統合テスト', () => {
-    it('should handle multiple error scenarios in execute', async () => {
-      characterService.findByChannelId.mockRejectedValueOnce(new Error('Database error'))
+    // 【PHASE3】 execute の try ブロック内（イベント発行〜reply）で例外が起きた場合、
+    // 未応答なら catch で 'スレッドの作成中にエラーが発生しました' を reply する。
+    it('should reply error message when requestCharacterSearch rejects in execute', async () => {
+      eventEmitter.requestCharacterSearch.mockRejectedValueOnce(new Error('Event bus error'))
 
       await service.execute(mockSelectMenuInteraction as any)
 
       expect(mockSelectMenuInteraction.reply).toHaveBeenCalledWith({
-        content: 'スレッド作成中にエラーが発生しました',
+        content: 'スレッドの作成中にエラーが発生しました',
         ephemeral: true
       })
     })
 
     it('should handle reply errors gracefully', async () => {
+      // メンテナンス reply 自体が失敗しても execute は throw しない
       mockSelectMenuInteraction.reply.mockRejectedValueOnce(new Error('Reply failed'))
-      characterService.findByChannelId.mockResolvedValue(null)
 
-      await service.execute(mockSelectMenuInteraction as any)
-
-      // Should not throw error, but handle it gracefully
-      expect(characterService.findByChannelId).toHaveBeenCalled()
+      await expect(service.execute(mockSelectMenuInteraction as any)).resolves.not.toThrow()
+      expect(eventEmitter.requestCharacterSearch).toHaveBeenCalled()
     })
 
     it('should handle complex error chain', async () => {
@@ -746,7 +651,7 @@ describe('CharacterChannelService', () => {
 
       // Create 100 skills
       for (let i = 0; i < 100; i++) {
-        largeCharacter.skill[`skill-${i}`] = { value: i } as CharacterAttribute
+        largeCharacter.skill[`skill-${i}`] = { values: { base: i } } as AttributeValue
       }
 
       await service.postCharacterEmbeds(mockThread as any, largeCharacter, 'TestPlayer')
@@ -758,8 +663,8 @@ describe('CharacterChannelService', () => {
       const characterWithLongDescription = {
         ...mockCharacter,
         description: {
-          背景: 'A'.repeat(2000), // Exceeds Discord limit
-          メモ: 'B'.repeat(2000)
+          背景: { description: 'A'.repeat(2000) } as AttributeValue, // Exceeds Discord limit
+          メモ: { description: 'B'.repeat(2000) } as AttributeValue
         }
       }
 

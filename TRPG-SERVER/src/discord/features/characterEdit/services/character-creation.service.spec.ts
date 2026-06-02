@@ -1,16 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { CharacterCreationService } from './character-creation.service'
-import { CharacterService } from 'src/domains/character/character.service'
+import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ChannelCreationContext } from './channel-detection.service'
 
 describe('CharacterCreationService', () => {
   let service: CharacterCreationService
   let module: TestingModule
 
-  const mockCharacterService = {
-    create: jest.fn()
+  const mockTypedEventService = {
+    emit: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    off: jest.fn()
   }
 
   const mockTextChannel = {
@@ -29,8 +31,8 @@ describe('CharacterCreationService', () => {
       providers: [
         CharacterCreationService,
         {
-          provide: CharacterService,
-          useValue: mockCharacterService
+          provide: TypedEventService,
+          useValue: mockTypedEventService
         }
       ]
     }).compile()
@@ -40,10 +42,7 @@ describe('CharacterCreationService', () => {
 
     // Reset mocks
     jest.clearAllMocks()
-    mockCharacterService.create.mockResolvedValue({
-      characterId: 'test-character-id',
-      characterName: 'test-character'
-    })
+    mockTypedEventService.emit.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -55,18 +54,25 @@ describe('CharacterCreationService', () => {
       const result = await service.createCharacter(mockContext)
 
       expect(result.success).toBe(true)
-      expect(result.characterId).toBe('test-character-id')
+      expect(result.characterId).toBe('pending')
       expect(result.characterName).toBe('test-character')
-      expect(mockCharacterService.create).toHaveBeenCalledWith({
-        gameSystemId: '',
-        characterName: 'test-character',
-        discordChannelId: 'test-channel-id',
-        discordUserId: 'test-user-id'
-      })
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.requested',
+        expect.objectContaining({
+          createData: {
+            characterName: 'test-character',
+            gameSystemId: '',
+            discordUserId: 'test-user-id',
+            discordChannelId: 'test-channel-id'
+          },
+          userId: 'test-user-id',
+          source: 'character-creation-service'
+        })
+      )
     })
 
     it('should handle character creation errors', async () => {
-      mockCharacterService.create.mockRejectedValue(new Error('Creation failed'))
+      mockTypedEventService.emit.mockRejectedValue(new Error('Creation failed'))
 
       const result = await service.createCharacter(mockContext)
 
@@ -83,16 +89,23 @@ describe('CharacterCreationService', () => {
       const result = await service.createCharacter(contextWithNullCreator)
 
       expect(result.success).toBe(true)
-      expect(mockCharacterService.create).toHaveBeenCalledWith({
-        gameSystemId: '',
-        characterName: 'test-character',
-        discordChannelId: 'test-channel-id',
-        discordUserId: ''
-      })
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.requested',
+        expect.objectContaining({
+          createData: {
+            characterName: 'test-character',
+            gameSystemId: '',
+            discordUserId: '',
+            discordChannelId: 'test-channel-id'
+          },
+          userId: '',
+          source: 'character-creation-service'
+        })
+      )
     })
 
     it('should handle unknown errors', async () => {
-      mockCharacterService.create.mockRejectedValue('Unknown error')
+      mockTypedEventService.emit.mockRejectedValue('Unknown error')
 
       const result = await service.createCharacter(mockContext)
 
