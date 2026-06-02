@@ -23,7 +23,7 @@
 export const discordModuleMockFactory = () => ({
   // ━━━ Builders ━━━
   EmbedBuilder: jest.fn().mockImplementation(() => {
-    let embedData = {
+    const embedData = {
       title: null as string | null,
       description: null as string | null,
       color: null as number | null,

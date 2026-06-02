@@ -373,14 +373,16 @@ describe('validation.utils', () => {
           throw new ValidationError('error2')
         }
       ]
+      let caught: unknown
       try {
         collectValidationErrors({}, validators)
         fail('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(MultipleValidationError)
-        expect((e as MultipleValidationError).errors).toHaveLength(2)
-        expect((e as MultipleValidationError).errors.map((err) => err.message)).toEqual(['error1', 'error2'])
+        caught = e
       }
+      expect(caught).toBeInstanceOf(MultipleValidationError)
+      expect((caught as MultipleValidationError).errors).toHaveLength(2)
+      expect((caught as MultipleValidationError).errors.map((err) => err.message)).toEqual(['error1', 'error2'])
     })
 
     it('ValidationError 以外の例外も ValidationError に包んで集約する', () => {
@@ -389,14 +391,16 @@ describe('validation.utils', () => {
           throw new Error('plain error')
         }
       ]
+      let caught: unknown
       try {
         collectValidationErrors({}, validators)
         fail('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(MultipleValidationError)
-        expect((e as MultipleValidationError).errors[0]).toBeInstanceOf(ValidationError)
-        expect((e as MultipleValidationError).errors[0].message).toContain('plain error')
+        caught = e
       }
+      expect(caught).toBeInstanceOf(MultipleValidationError)
+      expect((caught as MultipleValidationError).errors[0]).toBeInstanceOf(ValidationError)
+      expect((caught as MultipleValidationError).errors[0].message).toContain('plain error')
     })
   })
 

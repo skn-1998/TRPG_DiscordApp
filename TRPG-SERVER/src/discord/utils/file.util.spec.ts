@@ -38,8 +38,9 @@ describe('file.util', () => {
 
     it('readFileSync が Error 以外を投げた場合はそのまま再スローする', () => {
       // Error 派生でない値を投げる異常系
+      const nonErrorValue: unknown = 'fsの生文字列エラー'
       mockedFs.readFileSync.mockImplementation(() => {
-        throw 'fsの生文字列エラー'
+        throw nonErrorValue
       })
 
       expect(() => loadJsonFile('data/x.json')).toThrow('fsの生文字列エラー')
