@@ -1835,6 +1835,19 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
 一度サブエージェントで promise 系を一括修正したところ、`typed-event.service.ts` の `on/once` を「async wrapper → 同期 `void(async()=>{})()` の fire-and-forget」へ変えてしまい、`emitAsync` がハンドラ完了/エラーを待たなくなって **エラー伝播が消失**（`typed-event`・`interactions.controller`・`performance-dashboard` で回帰）。全 revert 済み。
 → promise 系 warning は **1件ずつ呼び出し意図（待つべきか fire-and-forget か）を確認し、characterization で挙動不変を保証しながら個別対応**すること。一括変換は禁止。
 
+### ✅ promise 系 warning を根因別に個別解消（2026-06-02・25→0・全体スイート 2773 緑）
+
+設計レビューの結論と対応:
+
+- **設計起因＝正しい設計（挙動を変えず eslint-disable で意図明示）**:
+  - `typed-event.service.ts` の `on`/`once`: `emit()` は `emitAsync` で **async リスナーを await する設計**。async wrapper は必須で、同期化するとエラー伝播が壊れる（＝上記回帰の正体）。`no-misused-promises` は emitAsync を理解しないツール限界なので justified disable。
+  - discord.js `Client.on`（`discord-interaction-handler` / `interactions.controller`）: discord.js は async リスナーを await しない設計（handler 内 try/catch 済み）の意図的 fire-and-forget。
+  - `event-handler.base` の `setTimeout` リトライ: 意図的 FAF。
+  - `discord-facade`: 同期 void メソッドを `Promise.all` の初期化塊に内包（構造保存のため await-thenable 許容）。
+- **設計起因でない**: 背景送信・`bootstrap()`・test factory の mock 呼出は `void` 明示（挙動不変）。`cache.get` 等の同期オペランドへの不要 `await` は除去。
+- **⚠️ 実バグ疑い（masking せず flag・現挙動は void で保存・要レビュー）**: `discord/discord.controller.ts:341` `postCharacter` の `characterService.update(...)` が**応答前に await されず fire-and-forget**。`discordChannelId` 永続化前に成功応答する可能性。NOTE コメント済み。await すべきか（DB 反映を保証）要判断。
+- 結果: ESLint **errors=0 / warnings=20**（残は全て意図的受容パターン: no-require-imports 7・no-empty 7・`'literal'|string` 3・no-namespace 3）。
+
 ---
 
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
