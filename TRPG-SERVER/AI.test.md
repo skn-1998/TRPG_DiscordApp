@@ -1791,4 +1791,36 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
 
 ---
 
+## ✅ ダイス数式評価の `no-implied-eval` を安全な算術評価器へ置換（2026-06-02・タスク b 消化）
+
+`dice-calculation.service.ts`（private `evaluateFormula`）と `dice-parser.service.ts`（`evaluateFormula`）が
+`Function('"use strict"; return (' + sanitized + ')')()` でサニタイズ済み算術式を評価しており
+（`@typescript-eslint/no-implied-eval`）、これを **Function/eval を一切使わない安全な算術評価器**へ置換した。
+**挙動完全保存**（characterization 先行）。
+
+### 実装方式・置き場所
+
+- 新規純関数 `evaluateArithmetic(expr: string): number` を **`src/shared/utils/arithmetic-evaluator.util.ts`** に新設（DRY・no-implied-eval を一箇所に解消）。
+  - **再帰下降パーサ**。優先順位（低→高）: `+ -`(左結合) < `* /`(左結合) < `**`(右結合・最高) < 単項 +/-。
+  - 旧 `Function` 評価サブセットを厳密再現: 数値リテラル（先頭ゼロ複数桁 `00`/`007`/`01.5`/`08` は SyntaxError、`.5`/`5.`/`0.0` は可）、単項 +/- 連鎖、空白を挟まない `++`/`--`・`**` のトークン化、`-2**2`/`+7**93` の単項+べき乗 SyntaxError、空括弧 `()` SyntaxError、0除算は Infinity/NaN を throw せず返す。
+  - shared は DI/フレームワーク非依存の純粋層（ARCHITECTURE 制約遵守）。discord.js import なし。
+- 両サービスの **外側ラッパ挙動は不変**: dice-calc はサニタイズ→評価→生値返却・catch で 1（範囲チェック/丸め無し）。dice-parser はサニタイズ→sanitized!==formula で throw→評価→`typeof!=='number'||!isFinite` で throw→`<0||>10000` で throw→`Math.round`・catch で 1。置換したのは「`Function` による評価」部分のみ。import は `../../../shared/utils/arithmetic-evaluator.util`。
+
+### characterization（置換前後の同一結果証跡）
+
+- **新評価器 spec**（`arithmetic-evaluator.util.spec.ts`）: 固定80ケース＋**ファズ3万件**で旧 `Function` 評価と差分検証。契約「旧実装と新評価器が**ともに数値を返す妥当な算術式**では結果が完全一致」をファズで証明（比較有効数 >100・mismatch=0）。網羅例: `(50)*3`,`1+2*3`,`(5+5)/2`,`10/3`(小数),`(100)+-5`(単項/負),`2.5*4`,`( 3 )`(空白),`''`(空),`1/0`(Infinity),`**`(べき乗),先頭ゼロ/連続単項 等。
+- **サービス spec** に characterization 追記:
+  - `dice-calculation.service.spec.ts`: `parseAndCalculate` 経由で生値固定（範囲/丸め無し）。`1-2-3`=-4・`10001`=10001・`10/3`=3.333…・`1/0`=Infinity・空文字/`a-`→catch で 1。
+  - `dice-parser.service.spec.ts`: ラッパ込み固定（`7/2`→4・`10/3`→3・`1-2-3`→範囲外で 1・上限 10000 許容 等）。
+
+### 唯一の挙動差（病的入力・到達不能・安全側）
+
+- 旧 `Function` は文字種が許可されても `/.../`（正規表現リテラル）/ 外側ラップの早期クローズ `)expr(` / `//`コメント を「式以外」として評価しえた。これらは**妥当な算術式ではなく**ダイス式生成経路（数値置換・乗数/修正値付与）では**到達しない**。大半は旧でも非数値→throw→1 で挙動不変（`dice-parser.service.spec.ts` に `/3/`,`/5+5/`,`1)-(3`,`2)(3`,`238)/0//`→1 を固定）。例外的に `8+8)//(`（`//`コメントで 16 化）のみ旧=16・新=1 と差が出るが入力空間外・到達不能。安全評価器の責務としてコメント評価を行わず **SyntaxError→1 に倒す**方針。
+
+### 検証
+
+- `pnpm run build`: ✅ / `pnpm exec jest dice-calculation dice-parser dice-orchestrator arithmetic-evaluator`: **5 suites / 201 tests 全緑** / `pnpm run check:circular`: ✅ No circular dependency found!（483 files・新規循環なし） / `pnpm exec eslint`（両サービス＋評価器）: **0 errors**（no-implied-eval 消滅）。
+
+---
+
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
