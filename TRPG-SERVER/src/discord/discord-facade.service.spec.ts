@@ -139,7 +139,7 @@ describe('DiscordFacadeService', () => {
       // Discord Client 初期化
       expect(discordClientService.initializeClient).toHaveBeenCalledTimes(1)
       // typedEventEmitter のアタッチ
-      expect((clientStub as Record<string, unknown>)['typedEventEmitter']).toBe(typedEventEmitter)
+      expect(clientStub['typedEventEmitter']).toBe(typedEventEmitter)
       // 成功メトリクス
       expect(performanceOrchestrator.startDiscordApiMonitoring).toHaveBeenCalledWith('discord.initialize', 'INIT')
       expect(metricsEnd).toHaveBeenCalledWith(true)

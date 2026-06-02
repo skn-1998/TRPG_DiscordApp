@@ -18,8 +18,8 @@ describe('CharacterEditSectionHandler', () => {
   it('customId パターンが /^character-(edit-section|section-select)-/ で両系統にマッチする', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('character-edit-section-char123')).toBe(true)
-    expect((pattern as RegExp).test('character-section-select-char123')).toBe(true)
+    expect(pattern.test('character-edit-section-char123')).toBe(true)
+    expect(pattern.test('character-section-select-char123')).toBe(true)
   })
 
   it('execute は handleSelectMenuInteraction へ interaction を委譲する', async () => {

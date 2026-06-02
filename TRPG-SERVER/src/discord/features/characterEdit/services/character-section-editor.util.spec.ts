@@ -262,13 +262,13 @@ describe('character-section-editor.util (pure functions)', () => {
     it('1000 文字以下はそのまま', () => {
       const s = 'a'.repeat(1000)
       expect(sanitizeDescriptionValue(s)).toBe(s)
-      expect(sanitizeDescriptionValue(s).length).toBe(1000)
+      expect(sanitizeDescriptionValue(s)).toHaveLength(1000)
     })
 
     it('1000 文字超は 997 文字 + "..." に切り詰める', () => {
       const s = 'b'.repeat(1500)
       const result = sanitizeDescriptionValue(s)
-      expect(result.length).toBe(1000)
+      expect(result).toHaveLength(1000)
       expect(result.endsWith('...')).toBe(true)
       expect(result.substring(0, 997)).toBe('b'.repeat(997))
     })

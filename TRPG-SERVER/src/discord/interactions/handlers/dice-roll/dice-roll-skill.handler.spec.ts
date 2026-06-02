@@ -20,9 +20,9 @@ describe('DiceRollSkillHandler', () => {
     const pattern = handler.getCustomIdPattern()
     // Assert
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('roll*戦闘_1234567890')).toBe(true)
+    expect(pattern.test('roll*戦闘_1234567890')).toBe(true)
     // _ を含まないダイス表記にはマッチしない
-    expect((pattern as RegExp).test('roll*1d100')).toBe(false)
+    expect(pattern.test('roll*1d100')).toBe(false)
   })
 
   it('execute は委譲先 execute へ interaction を渡す', async () => {

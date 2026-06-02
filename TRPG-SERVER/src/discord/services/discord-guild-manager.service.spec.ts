@@ -155,14 +155,14 @@ describe('DiscordGuildManagerService', () => {
       const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
 
       await service.getGuildChannels(client, 'g1') // 1 回目: fetch される
-      ;(client as never as { guilds: { fetch: jest.Mock } }).guilds.fetch.mockClear()
+      ;(client as { guilds: { fetch: jest.Mock } }).guilds.fetch.mockClear()
       guild.channels.fetch.mockClear()
 
       // Act: 2 回目（同一時刻 = TTL 内）
       const result = await service.getGuildChannels(client, 'g1')
 
       // Assert: fetch されずキャッシュ内容が返る
-      expect((client as never as { guilds: { fetch: jest.Mock } }).guilds.fetch).not.toHaveBeenCalled()
+      expect((client as { guilds: { fetch: jest.Mock } }).guilds.fetch).not.toHaveBeenCalled()
       expect(guild.channels.fetch).not.toHaveBeenCalled()
       expect(result).toEqual([channel])
     })
@@ -182,7 +182,7 @@ describe('DiscordGuildManagerService', () => {
       await service.getGuildChannels(client, 'g1')
 
       // Assert: guild.fetch が 2 回呼ばれる（再 fetch）
-      expect((client as never as { guilds: { fetch: jest.Mock } }).guilds.fetch).toHaveBeenCalledTimes(2)
+      expect((client as { guilds: { fetch: jest.Mock } }).guilds.fetch).toHaveBeenCalledTimes(2)
     })
 
     it('未キャッシュなら fetch し、null チャンネルを除外して Map 化する', async () => {
@@ -205,7 +205,7 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert: null は除外され c1 のみ
       expect(result).toEqual([channel])
-      expect((client as never as { guilds: { fetch: jest.Mock } }).guilds.fetch).toHaveBeenCalledWith('g1')
+      expect((client as { guilds: { fetch: jest.Mock } }).guilds.fetch).toHaveBeenCalledWith('g1')
     })
 
     it('guild が無い場合は ErrorHandler を経由して throw する', async () => {
@@ -414,7 +414,7 @@ describe('DiscordGuildManagerService', () => {
       await service.sendMessage(client, { channelId: 'c9', content: 'hi' } as never)
 
       // Assert
-      expect((client as never as { channels: { fetch: jest.Mock } }).channels.fetch).toHaveBeenCalledWith('c9')
+      expect((client as { channels: { fetch: jest.Mock } }).channels.fetch).toHaveBeenCalledWith('c9')
       expect(fetched.send).toHaveBeenCalled()
     })
   })

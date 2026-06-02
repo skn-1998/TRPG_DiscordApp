@@ -16,7 +16,7 @@ export class TypedEventService {
    * 構造: event 名 → (元 handler → ラッパー配列)。
    * 同一 handler の複数登録に対応するため値は配列とし、`off()` は1回につき1ラッパーのみ解除する。
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private readonly handlerWrappers = new Map<string, Map<(...args: any[]) => any, Array<(...args: any[]) => any>>>()
 
   constructor(@Inject('TYPED_EVENT_EMITTER') private readonly eventEmitter: EventEmitter2) {}
@@ -107,7 +107,7 @@ export class TypedEventService {
    * 複数のイベントリスナーを一括登録
    * @param listeners イベントリスナーの配列
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   registerMultiple(listeners: TypedEventListener<any>[]): void {
     this.logger.log(`[TYPED-EVENT] Registering ${listeners.length} event listeners`)
 
@@ -130,7 +130,7 @@ export class TypedEventService {
   /**
    * on() 登録時に元 handler → ラッパーの対応を記録する
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private trackWrapper(event: string, handler: (...args: any[]) => any, wrapper: (...args: any[]) => any): void {
     let byHandler = this.handlerWrappers.get(event)
     if (!byHandler) {
@@ -147,7 +147,7 @@ export class TypedEventService {
    * 同一 handler が複数登録されている場合は最後に登録したものから解除する。
    * 対応するラッパーが無ければ undefined を返す。
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private takeWrapper(event: string, handler: (...args: any[]) => any): ((...args: any[]) => any) | undefined {
     const byHandler = this.handlerWrappers.get(event)
     const wrappers = byHandler?.get(handler)

@@ -8,7 +8,7 @@ import { DiceButtonUIService } from './dice-button-ui.service'
 
 // discord.js の toJSON() は判別ユニオン（ボタン種別ごとのバリアント）を返すため、
 // プロパティ参照のたびに型を絞るのを避ける目的で any キャストを集約するヘルパー。
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 const toJson = (builder: { toJSON: () => unknown }): any => builder.toJSON()
 
 describe('DiceButtonUIService', () => {

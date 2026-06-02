@@ -193,7 +193,7 @@ describe('DiscordApiRateLimiter (characterization)', () => {
       const results = await promise
 
       expect(results.sort()).toEqual([0, 1, 2, 3, 4])
-      expect(calls.length).toBe(5)
+      expect(calls).toHaveLength(5)
     })
   })
 

@@ -18,8 +18,8 @@ describe('CharacterEditModalHandler', () => {
   it('customId パターンが /^char-edit(-modal)?-/ で char-edit-/char-edit-modal- 双方にマッチする', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBeInstanceOf(RegExp)
-    expect((pattern as RegExp).test('char-edit-status-hp-char123')).toBe(true)
-    expect((pattern as RegExp).test('char-edit-modal-char123')).toBe(true)
+    expect(pattern.test('char-edit-status-hp-char123')).toBe(true)
+    expect(pattern.test('char-edit-modal-char123')).toBe(true)
   })
 
   it('execute は handleModalSubmitInteraction へ interaction を委譲する', async () => {

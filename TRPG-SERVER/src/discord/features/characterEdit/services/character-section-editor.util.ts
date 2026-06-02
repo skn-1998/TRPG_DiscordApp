@@ -85,7 +85,7 @@ export function extractFieldEditValues(
         // 1. AttributeValue 形式
         fieldName = (typeof attr.name === 'string' && attr.name) || fieldKey
 
-        if (Object.keys(attr.values as object).length > 0) {
+        if (Object.keys(attr.values).length > 0) {
           const total = getDisplayNumber(attr as AttributeValue)
           currentValues = String(total)
         }
