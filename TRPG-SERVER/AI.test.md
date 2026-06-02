@@ -1821,6 +1821,20 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
 
 - `pnpm run build`: ✅ / `pnpm exec jest dice-calculation dice-parser dice-orchestrator arithmetic-evaluator`: **5 suites / 201 tests 全緑** / `pnpm run check:circular`: ✅ No circular dependency found!（483 files・新規循環なし） / `pnpm exec eslint`（両サービス＋評価器）: **0 errors**（no-implied-eval 消滅）。
 
+## ESLint 設定の実態適合と warning 削減（2026-06-02）
+
+`eslint.config.js`→`.mjs` 化で lint を起動可能にし、`recommendedTypeChecked` をプロジェクト実態へ調整（any 多用・async 統一スタイル由来を off、潜在バグ系を warn）。その後 warning を **268→45** へ削減（errors は別途 0 に）。
+
+- 削減した安全分: auto-fix（no-unnecessary-type-assertion / prefer-to-have-length / 不要 eslint-disable）、`no-unused-vars`（未使用 import/変数 除去・未使用引数 `_` 化）、`no-redundant-type-constituents`（`any|null`→`any` 等の意味等価整理）。いずれも build / 全体スイート 2773 緑で挙動不変を確認。
+- **残 45 warning は意図的に保持**:
+  - 受容パターン（20）: `no-require-imports` 7（JSON/CJS 連携）・`no-empty` 7（意図的空 catch）・`no-namespace` 3・`no-redundant-type-constituents` 3（`'literal' | string` の IDE 補完ヒント）。
+  - **behavior-sensitive な promise 系（25）: `no-floating-promises` 14 / `no-misused-promises` 6 / `await-thenable` 5**。
+
+### ⚠️ 重要な教訓: promise 系 warning を一括 void/await 化してはいけない
+
+一度サブエージェントで promise 系を一括修正したところ、`typed-event.service.ts` の `on/once` を「async wrapper → 同期 `void(async()=>{})()` の fire-and-forget」へ変えてしまい、`emitAsync` がハンドラ完了/エラーを待たなくなって **エラー伝播が消失**（`typed-event`・`interactions.controller`・`performance-dashboard` で回帰）。全 revert 済み。
+→ promise 系 warning は **1件ずつ呼び出し意図（待つべきか fire-and-forget か）を確認し、characterization で挙動不変を保証しながら個別対応**すること。一括変換は禁止。
+
 ---
 
 _このドキュメントはテスト戦略と実装状況の概要を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_
