@@ -82,7 +82,9 @@ jest.mock('discord.js', () => ({
     setPlaceholder: jest.fn().mockReturnThis(),
     setRequired: jest.fn().mockReturnThis(),
     setMinLength: jest.fn().mockReturnThis(),
-    setMaxLength: jest.fn().mockReturnThis()
+    setMaxLength: jest.fn().mockReturnThis(),
+    // 実 discord.js には存在するが旧モックに欠けていたため補完（既存値の復元に使用）
+    setValue: jest.fn().mockReturnThis()
   })),
   ButtonStyle: {
     Primary: 1,
