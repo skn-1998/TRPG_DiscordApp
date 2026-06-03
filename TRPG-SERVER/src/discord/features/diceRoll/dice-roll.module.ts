@@ -1,9 +1,13 @@
 import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
+import { DiceRollModule } from '../../../domains/dice-roll/dice-roll.module'
+import { DiceServicesModule } from '../../services/dice/dice-services.module'
 import { RollDiceOrchestrator } from './services/roll-dice.orchestrator'
 import { DiceResultOrchestrator } from './services/dice-result.orchestrator'
 import { CustomDiceModalService } from './services/custom-dice-modal.service'
-import { InteractionsModule } from '../../interactions/interactions.module'
+import { CharacterDiceOrchestratorService } from './services/character-dice-orchestrator.service'
+import { DiceButtonUIService } from './services/dice-button-ui.service'
+import { DiceHistoryService } from './services/dice-history.service'
 import { InteractionRegistryModule } from '../../interactions/registry/interaction-registry.module'
 import { InteractionRegistryService } from '../../interactions/registry/interaction-registry.service'
 import { DiceRollPaginationModule } from './services/pagination/dice-roll-pagination.module'
@@ -36,31 +40,31 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
  * 🎯 責務: ダイスロール機能の Discord インタラクション処理を feature として所有する。
  *
  * 🏗️ 構造課題③（ARCHITECTURE §8 / §5.3）:
- * - diceRoll の handler 12 個・adapter・pagination を feature 配下で所有する。
- * - InteractionsModule は diceRoll の handler/adapter/pagination を import/provide しない
- *   （= feature module を import しない向きへ是正）。
+ * - diceRoll の handler 12 個・adapter・pagination・実行系サービス（orchestrator/button-ui/history/modal）を
+ *   feature 配下で所有する。
+ * - InteractionsModule への依存を撤去済み（feature → interactions core の結合を解消）。
  * - feature 側が InteractionRegistryService を import し、自身の handler を登録する。
  *
  * 📋 import 構成:
  * - InteractionRegistryModule: handler を registry へ登録するため。
- * - DiceRollPaginationModule: adapter が DiceRollPaginationService を解決するため。
- * - CharacterModule: feature 所有の CustomDiceModalService が CharacterService を解決するため。
- * - InteractionsModule: handler の委譲先 CharacterDiceOrchestratorService（interactions core 所有の
- *   ダイス実行サービス）と、CustomDiceModalService が使う DiceOrchestratorService
- *   （InteractionsModule が export）を解決するため。
- *   ※ この依存は DiceRollFeatureModule → InteractionsModule の一方向であり、
- *     InteractionsModule は DiceRollFeatureModule を import しないため循環は発生しない。
+ * - DiceServicesModule: 横断 dice 基盤（DiceRollLogicService/DiceOrchestratorService/DicePresetService 等）を解決するため。
+ * - DiceRollPaginationModule: adapter / DiceHistoryService が DiceRollPaginationService を解決するため。
+ * - DiceRollModule: DiceHistoryService が DiceRollService を解決するため。
+ * - CharacterModule: CustomDiceModalService / orchestrator が CharacterService を解決するため。
  *
- * 🔧 構造課題③ Step5a（2026-06-03）: CustomDiceModalService を interactions/modal → feature 所有へ移管。
- *    残: CharacterDiceOrchestratorService を feature へ移し InteractionsModule import を撤去
- *    （共有 dice primitive=DiceRollLogicService/DiceHistoryService のモジュール化が必要）。
+ * 🔧 構造課題③ 履歴: Step5a で CustomDiceModalService、Step5b で CharacterDiceOrchestratorService /
+ *    DiceButtonUIService / DiceHistoryService を feature 所有へ移管し、InteractionsModule import を撤去。
+ *    共有 dice ロジック（DiceRollLogicService 等）は中立 DiceServicesModule(services/dice) へ集約。
  */
 @Module({
-  imports: [InteractionsModule, InteractionRegistryModule, DiceRollPaginationModule, CharacterModule],
+  imports: [InteractionRegistryModule, DiceServicesModule, DiceRollPaginationModule, DiceRollModule, CharacterModule],
   providers: [
     RollDiceOrchestrator,
     DiceResultOrchestrator,
     CustomDiceModalService,
+    CharacterDiceOrchestratorService,
+    DiceButtonUIService,
+    DiceHistoryService,
     DicePagePrevButtonService,
     DicePageNextButtonService,
     DicePageSelectMenuService,

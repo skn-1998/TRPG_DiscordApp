@@ -1,11 +1,11 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { CharacterDiceOrchestratorService } from './character-dice-orchestrator.service'
 import { DiceButtonUIService } from './dice-button-ui.service'
-import { DiceRollLogicService } from '../../services/dice/dice-roll-logic.service'
+import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceHistoryService } from './dice-history.service'
-import { DicePresetService } from '../../services/dice/dice-preset.service'
-import { CharacterService } from '../../../domains/character/character.service'
-import { ErrorHandler } from '../../../core/http/error-handler'
+import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
+import { CharacterService } from 'src/domains/character/character.service'
+import { ErrorHandler } from 'src/core/http/error-handler'
 
 /**
  * CharacterDiceOrchestratorService はボタンインタラクションのルーティングを担う。
