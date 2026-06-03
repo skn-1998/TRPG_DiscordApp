@@ -1,6 +1,8 @@
 # TRPG-SERVER テスト戦略・実装ドキュメント
 
-## 📋 **ドキュメント概要** **[最終更新: 2026-06-02]**
+## 📋 **ドキュメント概要** **[最終更新: 2026-06-03]**
+
+> **2026-06-03 デッドコード削除（挙動保存）**: `src/discord/features/characterEdit/index.ts` の未使用 `CharacterEditServiceFactory`（実在しない `./character-channel-create.service` を require）を削除。製品コードの公開 API 不変。`pnpm test src/discord/features/characterEdit` = **21 suites / 292 tests 緑**、build 成功、check:circular「No circular dependency found!」。
 
 ---
 
@@ -341,6 +343,8 @@ expect(modal.fields.getTextInputValue('dice-input')).toBe('2d6+3')
 ## 📊 **現在のテスト状況**
 
 ### 🏆 **テストカバレッジ概要**
+
+> ℹ️ **注記**: 以下の数値（43.99% / 22/22 / 278/278）は初期スナップショット。最新は再測定要。全体スイートは pre-existing 41 failed を含む。
 
 - **全体カバレッジ**: **43.99%** (1326/3014 lines) 【+33.46% 大幅向上】
 - **テストスイート成功率**: **100%** (22/22)
@@ -794,6 +798,8 @@ pnpm test -- --testPathPattern="discord-test-utils.spec"
 ---
 
 ## 🎯 **カバレッジ目標**
+
+> ℹ️ **注記**: 「現状 43.99%」は初期スナップショット。最新は再測定要（全体スイートは pre-existing 41 failed を含む）。
 
 | 期間 | 目標    | 現状   |
 | ---- | ------- | ------ |
@@ -1300,25 +1306,31 @@ handlers（25）・adapters（9）・repositories（4）・jwt-auth.guard・dice
 
 ### 🔴 新規の赤（赤レジスタへ追加・要 refactor-for-testability・**着手は承認後**）
 
+> ✅ **赤レジスタ全消化完了（2026-06-02）**: 下記の新規赤3（channel-cache / channel-manager / character-section-editor）はいずれも `refactor-for-testability` + `create-test` で改善完了（characterization 先行で挙動保存・公開API不変）。詳細は本ファイル末尾の各「赤レジスタ消化」「据え置き赤 順次消化」「据え置き赤バックログ 全消化完了（2026-06-02）」セクション参照。以下は当時の評価記録として残置。
+
 - `discord/features/characterEdit/services/character-section-editor.service.ts` — interaction I/O（deferUpdate/editReply/showModal/reply＋message.embeds）とフィールド抽出ロジック密結合。seam: interaction 応答／getCharacter(emit+race)／embedManager を分離。
 - `discord/features/characterThread/services/channel-manager.service.ts` — `guild.channels.fetch`＋instanceof＋`threads.create`＋cache.filter が全メソッド密結合。seam: guild.channels(fetch/cache)・threads.create を Port 化。
 - `discord/services/channel/channel-cache.service.ts` — `setInterval` 常駐＋TTL/LRU Map＋`client.channels.fetch`。seam: constructor の setInterval・client.channels.fetch を分離（`extractTimestampFromSnowflake` のみ純関数）。
 - 既知の赤（据え置き）: message-manager / thread-manager / channel-creator / discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-interaction-handler / discord-facade / interactions.controller / interactions.service / character.update.completed / discord.thread.create.requested / select-game-system.orchestrator / event-registry / character-channel(Phase3) / createCategory / discord.util / discord-api-rate-limiter。
   - **消化状況（2026-06-02 更新・末尾「据え置き赤 順次消化」セクション参照）**: ✅完了 = `thread-manager` / `channel-creator`（refactor-for-testability）, `character.update.completed` / `discord.thread.create.requested` / `createCategory` / `discord.util`（実は🟡=create-test 直行）, `message-manager`/`discord-interaction-handler`（型注釈で spec 解凍済・**直接 spec は未**）。残: discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-facade / interactions.controller / interactions.service / select-game-system.orchestrator / event-registry。`discord-api-rate-limiter` は該当ソース無し（要確認）。
 
-### ☠️ dead code（テスト不要・削除候補・別タスク）
+### ☠️ dead code（削除完了）
 
-`discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts`（5本）は、テスト済み `features/diceRoll/adapters/dice-page-*-button.adapter.ts` と**同名クラスを重複定義した未使用実装**。DI 登録・import は adapter 版のみ（service 版は `dependency-analysis.json` 以外から参照なし）。テストではなく**削除で対応すべき**（削除前に実コードで参照ゼロを再確認）。
+`discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts`（5本）は、テスト済み `features/diceRoll/adapters/dice-page-*-button.adapter.ts` と**同名クラスを重複定義した未使用実装**だった。DI 登録・import は adapter 版のみ（service 版は `dependency-analysis.json` 以外から参照なし）。
+
+> ✅ **2026-06-02 削除完了**: 5本とも実コードで参照ゼロを確認のうえ削除済み。
 
 ### ⚠️ 元マップとの不一致（評価者間で揺れた境界・実装時に再確認）
 
-本パスで元マップ 🔴 → 黄 に**再評価**したもの: `character-embed.service`・`character-thread-select.service`・`user-defined-dice.orchestrator`・`discord.controller`・`channel-name-sync.service`（いずれも「依存 mock＋@discord-test-utils で固定可能」と判断）。実装時に mock 地獄なら赤へ差し戻し報告する。
+本パスで元マップ 🔴 → 黄 に**再評価**したもの: `character-embed.service`・`character-thread-select.service`・`user-defined-dice.orchestrator`・`discord.controller`・`channel-name-sync.service`（いずれも「依存 mock＋@discord-test-utils で固定可能」と判断）。
 
-### 次アクション
+> ✅ **2026-06-02 完了**: これら境界揺れ分も含め、最終的に `refactor-for-testability` + `create-test` で消化完了（mock 地獄での赤差し戻しは発生せず）。
+
+### 次アクション（※当時の計画・下記は完了済み）
 
 1. 🟢 緑3（特に `dice-roll-logic.service`）→ 🟡 黄（util/core の易しい順）で `create-test` 継続。
-2. dead code 5本は削除タスクへ（テスト対象外）。
-3. 新規赤3は赤レジスタで deferred、承認後に `refactor-for-testability`。
+2. ~~dead code 5本は削除タスクへ~~ → ✅ 2026-06-02 削除完了。
+3. ~~新規赤3は赤レジスタで deferred、承認後に `refactor-for-testability`~~ → ✅ 2026-06-02 全消化完了（末尾セクション参照）。
 
 ---
 
@@ -1847,6 +1859,36 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
 - **設計起因でない**: 背景送信・`bootstrap()`・test factory の mock 呼出は `void` 明示（挙動不変）。`cache.get` 等の同期オペランドへの不要 `await` は除去。
 - **✅ 実バグ修正済み（2026-06-02）**: `discord/discord.controller.ts` `postCharacter` の `characterService.update(...)` が**成否判定より前に fire-and-forget**されていた（①チャンネル作成失敗時に `discordChannelId=undefined` を永続化＝データ破損、②更新失敗を握り潰し success 応答）。**成功判定を update より前へ移動＋update を await**で修正（失敗時は永続化せず、更新失敗は 500 へ伝播）。成功時 body 不変・フロント `postCharacterToDiscord` は 500 を catch 済みで影響なし。spec に「失敗時 update 呼ばない」「update 失敗→500」を追加。全体スイート 2774 緑。
 - 結果: ESLint **errors=0 / warnings=20**（残は全て意図的受容パターン: no-require-imports 7・no-empty 7・`'literal'|string` 3・no-namespace 3）。
+
+---
+
+## 🛡️ イベント基盤 forRoot 統合リファクタの安全網（characterization）**[完了: 2026-06-03]**
+
+次フェーズで予定する「`EventEmitterModule.forRoot()` 二重呼び出しの統合」（`events/events.module.ts:52` の forRoot を削除し `core/events/core-events.module.ts:15` の1つへ統一。設定は現状有効値の events 側＝`maxListeners:20` / `verboseMemoryLeak:true` に寄せる。`@Global` 二重も解消）の**前に、現挙動を固定する安全網**を張った。本体コードは未変更（テスト追加のみ）。
+
+### テスタビリティ評価（全て🟢緑 / A 判定）
+
+- **A. TypedEventService emit/on 往復**: 🟢 既存 `typed-event.service.spec.ts` が DI で `'TYPED_EVENT_EMITTER'` を差し替え、emit→on 往復・off・once・waitForEvent を網羅済み。補強不要。
+- **B. MetricsCollectorService の @OnEvent 配線（最重要）**: 🟢 `OnModuleInit` のみで重い副作用なし、外部依存は EventEmitter2 1個、`getSystemMetrics()` で状態観測可能。forRoot を import した最小 TestingModule で emit 経由発火を実証できる。
+- **C. TypedEventService emitter とグローバル EventEmitter2 の分離**: 🟢 `core-events.module.ts:29` が `'TYPED_EVENT_EMITTER'` を独立 `new` し `@OnEvent` 用グローバル emitter と別インスタンス。観測可能。
+
+### 作成したテスト
+
+- **`src/discord/services/monitoring/metrics-collector.service.onevent.spec.ts`（新規・B）**: `EventEmitterModule.forRoot({maxListeners:20, verboseMemoryLeak:true, ...})` を import した最小 TestingModule で `await module.init()`（@OnEvent 購読は onApplicationBootstrap で登録されるため init 必須）。`eventEmitter.emit('discord.command.start'|'discord.command.complete', payload)` → `MetricsCollectorService` のハンドラが**メソッド直呼びではなく emit 経由で発火**し `getSystemMetrics()` の値（commandsExecuted / totalResponseTime / errors）が変化することを assert。これが forRoot 配線の回帰テスト。`AlertManagerService` の `@OnEvent('system.alert')` も1本追加（ConfigService はモック provider、`emitAsync` 後に `getActiveAlerts()` に1件追加される副作用を観測）。既存のメソッド直呼びユニット `metrics-collector.service.spec.ts`（26 tests）はそのまま残置。
+- **`src/core/events/typed-event-isolation.spec.ts`（新規・C）**: forRoot のグローバル EventEmitter2 と、core-events.module.ts と同形で独立生成した `'TYPED_EVENT_EMITTER'` を併存させ、(1) 両者が別インスタンス、(2) `typedEventService.emit` がグローバル側 `on` リスナーに**届かない**、(3) 独立 emitter 内では emit→on 往復が成立、を固定。統合時に誤って両 emitter を繋いだ場合に落ちて気づける。
+- **A** は既存 `typed-event.service.spec.ts`（21 tests）が網羅的なため新規追加なし（緑確認のみ）。
+
+### 検証結果（変更前コードで全緑＝安全網として成立）
+
+- `pnpm run build`: ✅ エラーなし。
+- 作成2ファイル＋既存A spec: **3 suites / 29 tests 全緑**（B の emit 経由配線テスト含む）。既存 `metrics-collector.service.spec.ts`: 26 tests 全緑。
+- `pnpm run check:circular`: ✅ No circular dependency found!（474 files・新規循環なし）。
+
+### forRoot 統合時の所見・残課題
+
+- B・C のテストは EventEmitter2 の**設定値（maxListeners / verboseMemoryLeak）に依存しない配線挙動**を検証しているため、events 側の値へ寄せても緑のまま＝**この安全網が統合後も緑なら @OnEvent 配線と emitter 分離は挙動不変**と言える。
+- 注意点: 本テストは `forRoot` を**1回だけ** import した TestingModule で配線を確認している。現在の本番構成は forRoot が二重だが、NestJS は forRoot の providers を `@Global` で全域提供するため、統合（1回化）しても `@OnEvent` の購読先グローバル EventEmitter2 は同一に解決される想定。統合 PR では本テスト群（特に B）を回帰スイートとして再実行し、全アプリ起動時の listener 登録（`pnpm run start:dev`）も併せて確認することを推奨。
+- 残課題: アプリ全体を起動した状態での @OnEvent 実配線（DiscoveryService 経由の購読先が統合後に1つの emitter へ集約されること）は本単体テストの範囲外。統合実施時に start:dev / E2E 観点で別途確認する。
 
 ---
 

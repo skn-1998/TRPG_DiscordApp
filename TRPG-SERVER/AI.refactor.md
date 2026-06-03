@@ -48,7 +48,47 @@
 
 - [x] 低リスク整理を**全て実施済み（2026-06-03、下記記録参照）**：`src/auth` 空ディレクトリ削除（git管理外）／`convertToJSON`（＋spec）削除／`domain.dto.ts` ファイル全体削除（AttributeObject 含め参照ゼロ）／`CharacterEventHandlerService` の未使用 UserService inject 削除（＋spec整合）。build成功・循環ゼロ。
 - [x] 中リスク（interactions/channel・select・modal の重複 adapter）を実コード再精査のうえデッド確定→削除（**2026-06-03 完了、下記記録**）。
-- [ ] 構造課題（core/events⇄src/events 一本化・domain の event 依存除去）は ARCHITECTURE 移行順 Step4→Step5 に沿って安全網テスト前提で。
+- [x] 構造課題① **イベント基盤の forRoot 二重・@Global 二重を解消（2026-06-03 完了、下記記録）**。安全網テスト先行＋start:dev 実機検証で挙動不変を証明。
+- [ ] 構造課題②〜⑤（domain の event 依存除去 §9 / interactions→features 向き是正 H4 / 横断コード §12 / 巨大サービス分割）は ARCHITECTURE 移行順に沿って安全網テスト前提で順次。
+
+---
+
+## 2026-06-03 構造課題① イベント基盤の forRoot/@Global 二重を解消（安全網先行・挙動不変）
+
+### 精査で判明した実態（重要）
+
+イベント基盤は「TypedEventService 1系統に統一済み」と記載されていたが、**実際は emitter が2系統併存**していた：
+
+- **TypedEventService**：`core-events.module.ts` が独自に `new` した `TYPED_EVENT_EMITTER`（character.\* / EventRegistry が使用）。
+- **グローバル EventEmitter2**：`EventEmitterModule.forRoot()` 由来（`@OnEvent` 8箇所＝diceRoll・monitoring系、直接 inject 5箇所が使用）。
+- 両者は**別インスタンス**で互いに独立（TypedEventService.emit はグローバル `@OnEvent` に届かない）。
+
+問題：`EventEmitterModule.forRoot()` が **2回**呼ばれ（`core-events.module:15`・`events.module:52`、設定相違）ARCHITECTURE §15 違反。`@Global` も二重（core-events・events）。app.module の import 順（CoreEvents 先→Events 後）で forRoot は**後勝ち**＝events 側設定（maxListeners:20 / verboseMemoryLeak:true）が現状有効値だった。
+
+### 安全網（characterization・変更前に緑を確認）
+
+test-expansion→create-test で3点を固定（全項目テスタビリティ🟢）：
+
+- A. `typed-event.service.spec.ts`（既存）— TypedEventService の emit/on 往復（独自 emitter 経路）。
+- **B（最重要）`metrics-collector.service.onevent.spec.ts`（新規）** — `EventEmitterModule.forRoot` を組んだ最小 TestingModule で `eventEmitter.emit('discord.command.start'/'complete')` → ハンドラが**メソッド直呼びでなく emit 経由で発火**し状態変化することを固定。AlertManager の `@OnEvent('system.alert')` も1本。
+- C. `typed-event-isolation.spec.ts`（新規）— 独自 emitter とグローバル EventEmitter2 が別インスタンスである現状を固定。
+
+### 変更（2ファイルのみ）
+
+- `core/events/core-events.module.ts`：forRoot 設定を events 側の現状有効値へ統一（`maxListeners 10→20`・`verboseMemoryLeak false→true`、他は同一）。
+- `events/events.module.ts`：`EventEmitterModule.forRoot()` を imports から削除、exports の `EventEmitterModule` を削除、`@Global()` を削除、未使用 import（`Global`/`EventEmitterModule`）を整理。グローバル EventEmitter2 は **CoreEventsModule（@Global）の forRoot 1つで全域供給**。EventsModule の exports（EventRegistryService/DiscordIntegrationHandler）は外部 DI ゼロのため @Global 解消で誰も壊れない（grep 確認済み）。
+
+### 検証結果（司令塔裏取り）
+
+- `pnpm run build` 成功。
+- 安全網3 spec：**29 tests 緑のまま**（＝挙動不変の証明）。B の emit 経由配線テストも緑。
+- `pnpm run check:circular`：**No circular dependency found!**（474 files・新規循環なし）。
+- `pnpm run start:dev`：**「Nest application successfully started」**／全 InstanceLoader 初期化成功／monitoring 系（@OnEvent 保持）初期化／TypedEventService ハンドラ登録／**DiscordBOT 起動（TRPG_BOT#8068）**／MaxListeners 警告・ERROR・Unhandled なし。
+
+### 残課題（派生）
+
+- `discord/interactions/interactions.module.ts:206` の `EventEmitterModule` import は CoreEventsModule の @Global forRoot が供給するため冗長だが、今回は未変更（別途整理可）。
+- **emitter 2系統併存そのもの**（TypedEventService 独自 emitter ↔ グローバル @OnEvent）は設計判断事項。将来 monitoring を TypedEventService 契約へ寄せるか、現状の分離を正とするかは別課題。`src/events/AI.event.md` の「1系統統一」表現は実態（2 emitter）に合わせた追補が必要。
 
 ---
 
