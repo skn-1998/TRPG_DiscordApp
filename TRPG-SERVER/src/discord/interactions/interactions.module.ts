@@ -7,8 +7,6 @@ import { DiceButtonUIService } from './button/dice-button-ui.service'
 import { DiceRollLogicService } from './button/dice-roll-logic.service'
 import { DiceHistoryService } from './button/dice-history.service'
 import { CharacterDiceOrchestratorService } from './button/character-dice-orchestrator.service'
-import { DiceRollChannelCreateService } from './channel/diceroll-channel-create.service'
-import { CharacterChannelCreateService } from './channel/character-channel-create.service'
 import { DiceRollModule } from '../../domains/dice-roll/dice-roll.module'
 import { DiceRollPaginationService } from '../components/pagination/dice-roll-pagination.service'
 import { DiceRollCharacterProviderService } from '../components/pagination/dice-roll-character-provider.service'
@@ -146,8 +144,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    DiceRollChannelCreateService,
-    CharacterChannelCreateService,
     DiceRollCharacterProviderService,
     DiceRollPaginationService,
     DicePagePrevButtonService,
@@ -183,8 +179,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    DiceRollChannelCreateService,
-    CharacterChannelCreateService,
     DiceRollCharacterProviderService,
     DiceRollPaginationService,
     DicePagePrevButtonService,
