@@ -1,6 +1,6 @@
 import { createMockModalInteraction } from '@discord-test-utils'
 import { DiceRollModalHandler } from './dice-roll-modal.handler'
-import { CustomDiceModalService } from '../../../../interactions/modal/custom-dice-modal.service'
+import { CustomDiceModalService } from '../../services/custom-dice-modal.service'
 
 describe('DiceRollModalHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }

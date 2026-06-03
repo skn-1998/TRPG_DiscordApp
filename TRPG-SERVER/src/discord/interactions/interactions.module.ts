@@ -13,7 +13,6 @@ import { CharacterThreadSelectService } from './select/character-thread-select.s
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { CharacterThreadFeatureModule } from '../features/characterThread/character-thread-feature.module'
 import { CharacterModule } from '../../domains/character/character.module'
-import { CustomDiceModalService } from './modal/custom-dice-modal.service'
 // 新しい統合されたダイスサービス
 import { DiceOrchestratorService } from '../services/dice/dice-orchestrator.service'
 import { DiceCalculationService } from '../services/dice/dice-calculation.service'
@@ -102,9 +101,7 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    CharacterThreadSelectService,
-    CustomDiceModalService,
-    // 統合されたダイスサービス
+    CharacterThreadSelectService, // 統合されたダイスサービス
     DiceOrchestratorService,
     DiceCalculationService,
     DiceParserService,
@@ -126,9 +123,7 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    CharacterThreadSelectService,
-    CustomDiceModalService,
-    // 統合されたダイスサービス
+    CharacterThreadSelectService, // 統合されたダイスサービス
     DiceOrchestratorService,
     DiceCalculationService,
     DiceParserService,
