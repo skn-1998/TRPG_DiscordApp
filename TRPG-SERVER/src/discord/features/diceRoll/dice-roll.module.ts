@@ -1,6 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common'
+import { CharacterModule } from '../../../domains/character/character.module'
 import { RollDiceOrchestrator } from './services/roll-dice.orchestrator'
 import { DiceResultOrchestrator } from './services/dice-result.orchestrator'
+import { CustomDiceModalService } from './services/custom-dice-modal.service'
 import { InteractionsModule } from '../../interactions/interactions.module'
 import { InteractionRegistryModule } from '../../interactions/registry/interaction-registry.module'
 import { InteractionRegistryService } from '../../interactions/registry/interaction-registry.service'
@@ -42,16 +44,23 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
  * 📋 import 構成:
  * - InteractionRegistryModule: handler を registry へ登録するため。
  * - DiceRollPaginationModule: adapter が DiceRollPaginationService を解決するため。
- * - InteractionsModule: handler の委譲先 CharacterDiceOrchestratorService / CustomDiceModalService
- *   （interactions core 所有のダイス実行・モーダルサービス）を解決するため。
+ * - CharacterModule: feature 所有の CustomDiceModalService が CharacterService を解決するため。
+ * - InteractionsModule: handler の委譲先 CharacterDiceOrchestratorService（interactions core 所有の
+ *   ダイス実行サービス）と、CustomDiceModalService が使う DiceOrchestratorService
+ *   （InteractionsModule が export）を解決するため。
  *   ※ この依存は DiceRollFeatureModule → InteractionsModule の一方向であり、
  *     InteractionsModule は DiceRollFeatureModule を import しないため循環は発生しない。
+ *
+ * 🔧 構造課題③ Step5a（2026-06-03）: CustomDiceModalService を interactions/modal → feature 所有へ移管。
+ *    残: CharacterDiceOrchestratorService を feature へ移し InteractionsModule import を撤去
+ *    （共有 dice primitive=DiceRollLogicService/DiceHistoryService のモジュール化が必要）。
  */
 @Module({
-  imports: [InteractionsModule, InteractionRegistryModule, DiceRollPaginationModule],
+  imports: [InteractionsModule, InteractionRegistryModule, DiceRollPaginationModule, CharacterModule],
   providers: [
     RollDiceOrchestrator,
     DiceResultOrchestrator,
+    CustomDiceModalService,
     DicePagePrevButtonService,
     DicePageNextButtonService,
     DicePageSelectMenuService,

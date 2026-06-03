@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ModalSubmitInteraction } from 'discord.js'
 import { ModalInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
-import { CustomDiceModalService } from '../../../../interactions/modal/custom-dice-modal.service'
+import { CustomDiceModalService } from '../../services/custom-dice-modal.service'
 
 /**
  * ダイスロールモーダルハンドラー
