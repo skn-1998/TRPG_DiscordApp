@@ -3,7 +3,7 @@ import { ButtonInteraction, CacheType, TextChannel, ChannelType } from 'discord.
 import { discordButtonType } from '../../discord.type'
 
 import { DiceButtonUIService } from './dice-button-ui.service'
-import { DiceRollLogicService } from './dice-roll-logic.service'
+import { DiceRollLogicService } from '../../services/dice/dice-roll-logic.service'
 import { DiceHistoryService } from './dice-history.service'
 import { DicePresetService } from '../../services/dice/dice-preset.service'
 
