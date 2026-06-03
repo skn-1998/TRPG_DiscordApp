@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { JwtTokenPayload } from '../models/auth.token.model'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 
 /**
  * JWT トークン検証サービス

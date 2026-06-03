@@ -11,7 +11,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EventPayload } from '../../../../events/contracts'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterDisplayService } from './character-display.service'
 
 /**

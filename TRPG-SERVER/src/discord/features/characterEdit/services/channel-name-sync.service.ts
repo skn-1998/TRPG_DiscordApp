@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 /**
  * チャンネル名同期サービス

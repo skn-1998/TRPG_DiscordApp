@@ -12,7 +12,7 @@ import { ChannelManagerService } from './channel-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
 import { DiceUIBuilderService } from './dice-ui-builder.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 /**
  * CharacterChannelOrchestratorService は SelectMenu/CommandInteraction を受けて

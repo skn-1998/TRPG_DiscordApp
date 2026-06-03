@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser'
 import { AppConfigService } from './config/config.service'
 import { Logger } from '@nestjs/common'
 import { DiscordService } from './discord/discord.service'
-import { getErrorMessage } from './utils/error-helpers'
+import { getErrorMessage } from './shared/utils/error-helpers'
 
 async function bootstrap() {
   try {

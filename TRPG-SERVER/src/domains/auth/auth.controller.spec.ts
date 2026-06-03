@@ -11,7 +11,7 @@ import { DiscordLoginDto, ValidateTokenHeaderDto, GetUserParamDto } from './dto/
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
 import { User } from '../user/models/user.model'
-import { CookieService } from '../../utils/cookie.service'
+import { CookieService } from '../../core/http/cookie.service'
 import {
   ResponseInterceptor,
   HttpExceptionFilter,

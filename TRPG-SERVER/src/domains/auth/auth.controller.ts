@@ -28,7 +28,7 @@ import {
   GetUserParamDto
 } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
-import { CookieService } from '../../utils/cookie.service'
+import { CookieService } from '../../core/http/cookie.service'
 import {
   ResponseInterceptor,
   HttpExceptionFilter,

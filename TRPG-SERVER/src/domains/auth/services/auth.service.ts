@@ -13,7 +13,7 @@ import { DiscordAuthResponse, DiscordUserProfile } from '../models/discord-user.
 import axios from 'axios'
 import { AppConfigService } from 'src/config/config.service'
 import { CryptoService } from '../../../core/shared/services/crypto.service'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 
 /**
  * 認証サービス

@@ -25,7 +25,7 @@ import {
   StringSelectMenuBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { ErrorHandler, ErrorContext } from '../../../../utils/error-handler'
+import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'

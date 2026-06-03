@@ -11,7 +11,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { ChannelManagerService } from './channel-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
 import { DiceUIBuilderService } from './dice-ui-builder.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 /**
  * キャラクターチャンネルオーケストレーターサービス

@@ -3,7 +3,7 @@ import { Client, Guild, GuildChannel, ChannelType, TextChannel, PermissionsBitFi
 import { SendMessageDto } from '../dto/send-message.dto'
 import { CreateChannelDto } from '../dto/create-channel.dto'
 import { AppConfigService } from '../../config/config.service'
-import { ErrorHandler } from '../../utils/error-handler'
+import { ErrorHandler } from '../../core/http/error-handler'
 
 /**
  * Discord Guild（サーバー）管理サービス

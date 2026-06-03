@@ -21,7 +21,7 @@ import type { TextChannel } from 'discord.js'
 import { DiceHistoryService } from './dice-history.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
-import { BackgroundTaskErrorHandler } from '../../../utils/error-handler'
+import { BackgroundTaskErrorHandler } from '../../../core/http/error-handler'
 
 // DiceHistoryService は履歴の取得(diceRollService) と整形/ページネーション(paginationService) を
 // 組み合わせ parentChannel.send で出力する。副作用境界（2つの依存サービス・送信先 channel）は

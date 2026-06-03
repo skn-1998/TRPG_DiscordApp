@@ -11,7 +11,7 @@ import { DiscordInteractionHandlerService } from './discord-interaction-handler.
 import { InteractionsService } from '../interactions/interactions.service'
 import { CommandsService } from '../commands/commands.service'
 import { AppConfigService } from '../../config/config.service'
-import { ErrorHandler } from '../../utils/error-handler'
+import { ErrorHandler } from '../../core/http/error-handler'
 import type { DiscordButton, DiscordModal, DiscordSelectMenu } from '../interfaces/discord-interaction-types.interface'
 
 /**
@@ -33,7 +33,7 @@ import type { DiscordButton, DiscordModal, DiscordSelectMenu } from '../interfac
  * （既存ファクトリは isCommand / isAnySelectMenu を持たず、本サービスの分岐網羅に不向き）。
  */
 
-jest.mock('../../utils/error-handler', () => ({
+jest.mock('../../core/http/error-handler', () => ({
   ErrorHandler: {
     handleError: jest.fn().mockResolvedValue(undefined)
   }

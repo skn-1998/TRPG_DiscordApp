@@ -7,7 +7,7 @@ import { DiscordStrategy } from './discord.strategy'
 import { UserModule } from '../user/user.module'
 import { AuthTokenModule } from './token/auth-token.module'
 import { SharedModule } from '../../core/shared/shared.module'
-import { CookieService } from '../../utils/cookie.service'
+import { CookieService } from '../../core/http/cookie.service'
 
 /**
  * 認証モジュール

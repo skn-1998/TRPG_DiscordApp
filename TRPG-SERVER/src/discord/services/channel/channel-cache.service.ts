@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional, Inject } from '@nestjs/common'
 import { Client, TextChannel, NewsChannel, ThreadChannel, Message } from 'discord.js'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 import { AppConfigService } from '../../../config/config.service'
 import {
   CacheEntryMeta,
