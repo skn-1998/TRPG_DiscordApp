@@ -292,6 +292,38 @@ export const EVENT_PRIORITY = {
 
 export type EventPriority = (typeof EVENT_PRIORITY)[keyof typeof EVENT_PRIORITY]
 
+// ============================================================================
+// Event Name Constants（イベント名の単一ソース）
+// ============================================================================
+
+/**
+ * イベント名定数。emit / on の第1引数に渡す文字列をここに集約し、直書き（magic string）を排除する。
+ * ARCHITECTURE §9（feature event 名の直書きを避ける）/ §15（event name の文字列直書き追加を禁止）に対応。
+ *
+ * `satisfies Record<string, keyof CharacterEventContracts>` により、契約に存在しないイベント名を
+ * 登録しようとするとコンパイルエラーになる（タイポ防止・契約との同期保証）。
+ */
+export const EVENT_NAMES = {
+  // Character lifecycle（汎用通知）
+  CHARACTER_UPDATED: 'character.updated',
+  CHARACTER_DELETED: 'character.deleted',
+
+  // Character find/update（レガシー event-handler 用）
+  CHARACTER_UPDATE_FAILED: 'character.update.failed',
+  CHARACTER_FIND_BY_CHANNEL_ID_COMPLETED: 'character.findByChannelId.completed',
+  CHARACTER_FIND_BY_CHANNEL_ID_FAILED: 'character.findByChannelId.failed',
+  CHARACTER_FIND_BY_ID_COMPLETED: 'character.findById.completed',
+  CHARACTER_FIND_BY_ID_FAILED: 'character.findById.failed',
+  CHARACTER_FIND_BY_NAME_COMPLETED: 'character.findByName.completed',
+  CHARACTER_FIND_BY_NAME_FAILED: 'character.findByName.failed',
+
+  // Discord integration
+  DISCORD_THREAD_CREATE_REQUESTED: 'discord.thread.create.requested',
+  DISCORD_CHARACTER_DISPLAY_REQUESTED: 'discord.character.display.requested'
+} as const satisfies Record<string, keyof CharacterEventContracts>
+
+export type EventNameConstant = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES]
+
 export const getEventPriority = (eventType: string): EventPriority => {
   // Critical events
   if (

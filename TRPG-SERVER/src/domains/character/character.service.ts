@@ -8,6 +8,7 @@ import { Character, UpdatePrimary } from './models/character.model'
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
 import { TypedEventService } from '../../core/events/typed-event.service'
+import { EVENT_NAMES } from '../../events/contracts'
 import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
 
 /**
@@ -155,7 +156,7 @@ export class CharacterService {
       await this.updateDiscordEmbed(updatedCharacter)
 
       // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_UPDATED, {
         character: updatedCharacter,
         updateType: 'update',
         source: 'character-service',
@@ -198,7 +199,7 @@ export class CharacterService {
       await this.updateDiscordEmbed(updatedCharacter)
 
       // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_UPDATED, {
         character: updatedCharacter,
         updateType: `updateField-${field}`,
         source: 'character-service',
@@ -228,7 +229,7 @@ export class CharacterService {
       await this.updateDiscordEmbed(updatedCharacter)
 
       // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_UPDATED, {
         character: updatedCharacter,
         updateType: `updateFieldByChannelId-${field}`,
         channelId: channelId,
@@ -255,7 +256,7 @@ export class CharacterService {
 
     if (deletedCharacter) {
       // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
-      await this.typedEventService.emit('character.deleted', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_DELETED, {
         character: deletedCharacter,
         source: 'character-service',
         timestamp: new Date()
@@ -282,7 +283,7 @@ export class CharacterService {
 
     if (character) {
       // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
-      await this.typedEventService.emit('character.deleted', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_DELETED, {
         character,
         source: 'character-service',
         timestamp: new Date()
