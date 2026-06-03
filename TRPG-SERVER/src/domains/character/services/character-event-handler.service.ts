@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../../core/events/typed-event.service'
-import { EventPayload } from '../../../events/contracts'
+import { EventPayload, EVENT_NAMES } from '../../../events/contracts'
 import { CharacterRepository } from '../repositories/character.repository'
 import { randomBytes } from 'crypto'
 
@@ -131,7 +131,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.error('Character update failed:', error)
 
       // 失敗イベントを発行
-      await this.typedEventService.emit('character.update.failed', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_UPDATE_FAILED, {
         channelId: payload.channelId,
         error: error instanceof Error ? error.message : 'Unknown error',
         source: payload.source,
@@ -153,7 +153,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       const character = await this.characterRepository.findByChannelId(payload.channelId)
 
       // 成功イベントを発行（キャラクターが見つからない場合もnullで成功とする）
-      await this.typedEventService.emit('character.findByChannelId.completed', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_CHANNEL_ID_COMPLETED, {
         channelId: payload.channelId,
         character: character as any,
         source: payload.source,
@@ -167,7 +167,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.error('Character search failed:', error)
 
       // 失敗イベントを発行
-      await this.typedEventService.emit('character.findByChannelId.failed', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_CHANNEL_ID_FAILED, {
         channelId: payload.channelId,
         error: error instanceof Error ? error.message : 'Unknown error',
         source: payload.source,
@@ -190,7 +190,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
 
       if (character) {
         // 成功イベントを発行
-        await this.typedEventService.emit('character.findById.completed', {
+        await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_ID_COMPLETED, {
           characterId: payload.characterId,
           character: character as any,
           source: payload.source,
@@ -199,7 +199,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
         this.logger.log(`Character found by ID: ${character.characterName}`)
       } else {
         // 見つからない場合は失敗イベント
-        await this.typedEventService.emit('character.findById.failed', {
+        await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_ID_FAILED, {
           characterId: payload.characterId,
           error: 'Character not found',
           source: payload.source,
@@ -211,7 +211,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.error('Character search by ID failed:', error)
 
       // 失敗イベントを発行
-      await this.typedEventService.emit('character.findById.failed', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_ID_FAILED, {
         characterId: payload.characterId,
         error: error instanceof Error ? error.message : 'Unknown error',
         source: payload.source,
@@ -234,7 +234,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
 
       if (character) {
         // 成功イベントを発行
-        await this.typedEventService.emit('character.findByName.completed', {
+        await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_NAME_COMPLETED, {
           characterName: payload.characterName,
           character: character as any,
           source: payload.source,
@@ -243,7 +243,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
         this.logger.log(`Character found by name: ${character.characterName}`)
       } else {
         // 見つからない場合は失敗イベント
-        await this.typedEventService.emit('character.findByName.failed', {
+        await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_NAME_FAILED, {
           characterName: payload.characterName,
           error: 'Character not found',
           source: payload.source,
@@ -255,7 +255,7 @@ export class CharacterEventHandlerService implements OnModuleInit {
       this.logger.error('Character search by name failed:', error)
 
       // 失敗イベントを発行
-      await this.typedEventService.emit('character.findByName.failed', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_FIND_BY_NAME_FAILED, {
         characterName: payload.characterName,
         error: error instanceof Error ? error.message : 'Unknown error',
         source: payload.source,
