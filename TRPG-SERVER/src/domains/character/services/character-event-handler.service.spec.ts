@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { CharacterEventHandlerService } from './character-event-handler.service'
 import { CharacterRepository } from '../repositories/character.repository'
-import { UserService } from '../../user/user.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 import { Character } from '../models/character.model'
 
@@ -44,10 +43,6 @@ describe('CharacterEventHandlerService', () => {
     updateByChannelId: jest.fn()
   }
 
-  const mockUserService = {
-    addCharacterId: jest.fn()
-  }
-
   beforeEach(async () => {
     module = await Test.createTestingModule({
       imports: [
@@ -74,10 +69,6 @@ describe('CharacterEventHandlerService', () => {
         {
           provide: CharacterRepository,
           useValue: mockCharacterRepository
-        },
-        {
-          provide: UserService,
-          useValue: mockUserService
         }
       ]
     }).compile()
@@ -149,7 +140,6 @@ describe('CharacterEventHandlerService', () => {
       await new Promise((resolve) => setTimeout(resolve, 50))
 
       expect(mockCharacterRepository.create).not.toHaveBeenCalled()
-      expect(mockUserService.addCharacterId).not.toHaveBeenCalled()
     })
   })
 })
