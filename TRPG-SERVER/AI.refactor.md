@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-06-03 構造課題③ Step5a CustomDiceModalService を feature へ移管（挙動不変）
+
+③ の続き（Step5 = orchestrator/modal を feature へ移し `dice-roll.module` の `InteractionsModule` import 撤去）の
+**第一弾**。Phase 1 で「Step5 は単純移動でなく共有 dice モジュールの設計が必要」と判明したため、**結合のない
+`CustomDiceModalService` だけ先行移管**する安全な独立コミット（`16c4c03`）。InteractionsModule import 撤去は
+orchestrator 移管（共有 primitive モジュール化＝Step5b）で達成予定。
+
+### Phase 1 の発見（dice クラスタの結合）
+
+- `CustomDiceModalService`：interactions/button 依存ゼロ（`CharacterService`＋`DiceOrchestratorService`(services/dice) のみ）→ **単独で feature へ移せる**。
+- `CharacterDiceOrchestratorService`：`DiceButtonUIService`(専用)＋`DiceRollLogicService`(character-thread handler 2本も使用)＋`DiceHistoryService`(character-dice-buttons も使用) に依存し、さらに `DiceHistoryService→DiceRollPaginationService` と結合が密。共有 primitive を「feature 所有」か「`discord/services/dice` 中立」かは設計判断・循環リスクありで Step5b に分離（ユーザー承認済みの段階分割）。
+
+### 実施（Step5a・コミット `16c4c03`）
+
+- `custom-dice-modal.service.ts`(+spec) を `interactions/modal/` → `features/diceRoll/services/`（rename。サービスは絶対 import のみ／spec は同ディレクトリ相対のため移動でパス不変）。`interactions/modal/` は空に。
+- `dice-roll-modal.handler`(+spec) の import を `../../services/custom-dice-modal.service` へ更新。
+- `interactions.module`：CustomDiceModalService の import/provider/export を撤去（消費者は feature の modal handler のみ＝interactions core 消費者なし）。
+- `dice-roll.module`(feature)：CustomDiceModalService を provider 追加。`CharacterService` 解決のため `CharacterModule` を import（**forwardRef なし**・feature→domains の許容方向）。`DiceOrchestratorService` は既存 `InteractionsModule` export 経由で解決。
+
+### 検証（司令塔裏取り）
+
+- `pnpm run build` 成功 / `pnpm run check:circular`：**No circular dependency found!（474 files）**（feature→CharacterModule で循環増えず）。
+- `pnpm jest`（custom-dice-modal + dice-roll-modal handler + handlers.integration + registry）：**5 suites / 85 tests 緑**。
+- `pnpm run start:dev`：**Nest application successfully started** / `DiceRollModalHandler [modal] → ^(custom|param)-dice-modal` を registry 登録 / `Cannot resolve`・DI 失敗・実エラーなし＝**実機で挙動不変**（feature 所有の CustomDiceModalService が CharacterService(CharacterModule)・DiceOrchestratorService(InteractionsModule export) を解決）。
+
+### 残（Step5b・未着手）
+
+- `CharacterDiceOrchestratorService`（＋専用 `DiceButtonUIService`）を feature へ移し、共有 primitive（`DiceRollLogicService`/`DiceHistoryService`）を共有モジュール化（`discord/services/dice` 中立配置 or feature 配下のどちらかを要設計判断）。完了後に `dice-roll.module` の `InteractionsModule` import を撤去。
+- その後 characterEdit/characterThread も feature 登録へ → `interactions.module` の feature module import を全撤去（§8 目標形）。
+
+---
+
 ## 2026-06-03 構造課題③ diceRoll 移管（handler/pagination を interactions core → feature・挙動不変）
 
 構造課題③（H4 / ARCHITECTURE §8「feature 側が registry に handler を登録」・§5.3「provider 所有」）の本体ステップ。
@@ -197,7 +229,7 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
 - [x] 構造課題⑤ **巨大サービス分割: CharacterEmbedManagerService を純関数抽出（612→180行・2026-06-03 完了、下記記録）**。characterization 緑で挙動不変。
 - [x] デッドハンドラ `CharacterEventHandlerService` 削除・過去形イベント `character.updated`/`character.deleted` の emit 全廃（購読者ゼロ実証・2026-06-03 完了、下記記録）。
-- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録）**。**第二歩 = diceRoll handler/pagination の feature 移管 完了（2026-06-03、コミット `fde91e8`・上記記録・start:dev で handler 12 登録確認・挙動不変）**。残: Step5（`CharacterDiceOrchestratorService`/`CustomDiceModalService` を feature へ移し `dice-roll.module` の InteractionsModule import 撤去＝差分2 解消）→ characterEdit/characterThread も feature 登録へ → `interactions.module` の feature module import を全撤去（§8 目標形）。
+- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録）**。**第二歩 = diceRoll handler/pagination の feature 移管 完了（2026-06-03、コミット `fde91e8`・上記記録・start:dev で handler 12 登録確認・挙動不変）**。残: **Step5a＝CustomDiceModalService の feature 移管 完了（2026-06-03、コミット `16c4c03`）**。Step5b＝CharacterDiceOrchestratorService を feature へ移し共有 primitive(DiceRollLogicService/DiceHistoryService) をモジュール化 → `dice-roll.module` の InteractionsModule import 撤去（差分2 解消）。その後 characterEdit/characterThread も feature 登録へ → `interactions.module` の feature module import を全撤去（§8 目標形）。
 - [ ] 残バックログ: `api-response.util` 廃止（**spec oracle で現役→spec 改修とセット**）／`error-handler` の AppConfig化／型 `src/types/*`→`core/types`（**tsconfig 調整要**）／contracts の DEPRECATED 過去形型最終削除。
 
 ---
