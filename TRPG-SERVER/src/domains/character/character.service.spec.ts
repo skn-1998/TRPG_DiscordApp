@@ -189,6 +189,75 @@ describe('CharacterService', () => {
     })
   })
 
+  describe('updateField', () => {
+    it('should emit character.updated with updateType=updateField-<field> when update succeeds', async () => {
+      // Given
+      characterRepository.updateField.mockResolvedValue(mockCharacter)
+
+      // When
+      await service.updateField('test-id', 'status', { HP: 100 })
+
+      // Then
+      expect(characterRepository.updateField).toHaveBeenCalledWith('test-id', 'status', { HP: 100 })
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.updated',
+        expect.objectContaining({
+          character: mockCharacter,
+          updateType: 'updateField-status',
+          source: 'character-service'
+        })
+      )
+    })
+
+    it('should not emit when character is not found', async () => {
+      // Given
+      characterRepository.updateField.mockResolvedValue(null)
+
+      // When
+      const result = await service.updateField('missing-id', 'status', { HP: 100 })
+
+      // Then
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('updateFieldByChannelId', () => {
+    it('should emit character.updated with updateType=updateFieldByChannelId-<field> and channelId when update succeeds', async () => {
+      // Given
+      characterRepository.updateFieldByChannelId.mockResolvedValue(mockCharacter)
+
+      // When
+      await service.updateFieldByChannelId('test-channel', 'parameter', { STR: 15 })
+
+      // Then
+      expect(characterRepository.updateFieldByChannelId).toHaveBeenCalledWith('test-channel', 'parameter', {
+        STR: 15
+      })
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.updated',
+        expect.objectContaining({
+          character: mockCharacter,
+          updateType: 'updateFieldByChannelId-parameter',
+          channelId: 'test-channel',
+          source: 'character-service'
+        })
+      )
+    })
+
+    it('should not emit when character is not found', async () => {
+      // Given
+      characterRepository.updateFieldByChannelId.mockResolvedValue(null)
+
+      // When
+      const result = await service.updateFieldByChannelId('missing-channel', 'parameter', { STR: 15 })
+
+      // Then
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(result).toBeNull()
+    })
+  })
+
   describe('update', () => {
     it('should emit character.updated when update succeeds', async () => {
       // Given
