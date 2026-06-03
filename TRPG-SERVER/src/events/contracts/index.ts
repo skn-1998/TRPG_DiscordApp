@@ -158,6 +158,8 @@ export interface CharacterEventContracts {
   }
 
   // Character更新イベント（汎用）
+  // ⚠️ DEPRECATED: 購読者ゼロの過去形デッドイベント。emit は全廃済み（character.service / controller）。
+  //    型キーは「廃止イベントを emit しないこと」を型安全に検証する spec のためだけに残置。新規 emit 禁止。
   'character.updated': {
     character: any
     updateType: string
@@ -174,6 +176,8 @@ export interface CharacterEventContracts {
   }
 
   // Character削除イベント（汎用）
+  // ⚠️ DEPRECATED: 購読者ゼロの過去形デッドイベント。emit は全廃済み（character.service / controller）。
+  //    型キーは「廃止イベントを emit しないこと」を型安全に検証する spec のためだけに残置。新規 emit 禁止。
   'character.deleted': {
     character: any
     source: string
@@ -304,10 +308,6 @@ export type EventPriority = (typeof EVENT_PRIORITY)[keyof typeof EVENT_PRIORITY]
  * 登録しようとするとコンパイルエラーになる（タイポ防止・契約との同期保証）。
  */
 export const EVENT_NAMES = {
-  // Character lifecycle（汎用通知）
-  CHARACTER_UPDATED: 'character.updated',
-  CHARACTER_DELETED: 'character.deleted',
-
   // Character find/update（レガシー event-handler 用）
   CHARACTER_UPDATE_FAILED: 'character.update.failed',
   CHARACTER_FIND_BY_CHANNEL_ID_COMPLETED: 'character.findByChannelId.completed',

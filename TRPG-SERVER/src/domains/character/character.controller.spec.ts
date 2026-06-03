@@ -424,7 +424,7 @@ describe('CharacterController', () => {
   })
 
   describe('PUT /character/:id', () => {
-    it('更新に成功すると200を返しcharacter.updatedイベントを発行する', async () => {
+    it('更新に成功すると200を返し、過去形 character.updated イベントは発行しない', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
       characterService.update.mockResolvedValue(updatedCharacter)
@@ -432,10 +432,8 @@ describe('CharacterController', () => {
       const data = await controller.update({ id: characterId }, mockUpdateCharacterDto)
 
       expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.updated',
-        expect.objectContaining({ character: updatedCharacter, source: 'character-controller' })
-      )
+      // 購読者ゼロの過去形デッドイベントは廃止済み（emit しない）
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.updated', expect.anything())
       expect(data).toEqual(updatedCharacter)
 
       const envelope = await wrapSuccess('update', data)
@@ -479,17 +477,15 @@ describe('CharacterController', () => {
   })
 
   describe('DELETE /character/:id', () => {
-    it('削除に成功すると200を返しcharacter.deletedイベントを発行する', async () => {
+    it('削除に成功すると200を返し、過去形 character.deleted イベントは発行しない', async () => {
       const characterId = 'test-character-001'
       characterService.remove.mockResolvedValue(mockCharacter)
 
       const data = await controller.remove({ id: characterId })
 
       expect(characterService.remove).toHaveBeenCalledWith(characterId)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.deleted',
-        expect.objectContaining({ character: mockCharacter, source: 'character-controller' })
-      )
+      // 購読者ゼロの過去形デッドイベントは廃止済み（emit しない）
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.deleted', expect.anything())
       expect(data).toEqual({ message: 'キャラクターを削除しました', characterId })
 
       const envelope = await wrapSuccess('remove', data)
