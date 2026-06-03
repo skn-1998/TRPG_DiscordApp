@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction, ChannelType, TextChannel } from 'discord.js'
 import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { DiceRollLogicService } from '../../button/dice-roll-logic.service'
+import { DiceRollLogicService } from '../../../services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from '../../../utils/dice-roll.interface'
 
 /**

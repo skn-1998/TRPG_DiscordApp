@@ -4,7 +4,6 @@ import { InteractionsService } from './interactions.service'
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
 // 新しい分割サービス
 import { DiceButtonUIService } from './button/dice-button-ui.service'
-import { DiceRollLogicService } from './button/dice-roll-logic.service'
 import { DiceHistoryService } from './button/dice-history.service'
 import { CharacterDiceOrchestratorService } from './button/character-dice-orchestrator.service'
 import { DiceRollModule } from '../../domains/dice-roll/dice-roll.module'
@@ -13,11 +12,8 @@ import { CharacterThreadSelectService } from './select/character-thread-select.s
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { CharacterThreadFeatureModule } from '../features/characterThread/character-thread-feature.module'
 import { CharacterModule } from '../../domains/character/character.module'
-// 新しい統合されたダイスサービス
-import { DiceOrchestratorService } from '../services/dice/dice-orchestrator.service'
-import { DiceCalculationService } from '../services/dice/dice-calculation.service'
-import { DiceParserService } from '../services/dice/dice-parser.service'
-import { DicePresetService } from '../services/dice/dice-preset.service'
+// dice 計算・ロジック系（DiceRollLogic/Orchestrator/Calculation/Parser/Preset）は DiceServicesModule が所有
+import { DiceServicesModule } from '../services/dice/dice-services.module'
 
 // 統合された監視サービス
 import { PerformanceOrchestratorService } from '../services/monitoring/performance-orchestrator.service'
@@ -98,14 +94,9 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     InteractionsController,
     CharacterDiceButtonsService,
     DiceButtonUIService,
-    DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    CharacterThreadSelectService, // 統合されたダイスサービス
-    DiceOrchestratorService,
-    DiceCalculationService,
-    DiceParserService,
-    DicePresetService,
+    CharacterThreadSelectService,
     // 統合された監視サービス
     PerformanceOrchestratorService,
     MetricsCollectorService,
@@ -120,14 +111,11 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     InteractionsService,
     CharacterDiceButtonsService,
     DiceButtonUIService,
-    DiceRollLogicService,
     DiceHistoryService,
     CharacterDiceOrchestratorService,
-    CharacterThreadSelectService, // 統合されたダイスサービス
-    DiceOrchestratorService,
-    DiceCalculationService,
-    DiceParserService,
-    DicePresetService,
+    CharacterThreadSelectService,
+    // dice 計算・ロジック系は DiceServicesModule を re-export して下流（feature 等）へ供給
+    DiceServicesModule,
     // 統合された監視サービス
     PerformanceOrchestratorService,
     MetricsCollectorService,
@@ -136,6 +124,7 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
   ],
   imports: [
     InteractionRegistryModule,
+    DiceServicesModule, // dice 計算・ロジック系（旧 interactions ad-hoc provide を集約・§5.3 是正）
     DiceRollPaginationModule, // button 系サービスが DiceRollPaginationService を解決するため
     DiceRollModule,
     EventEmitterModule,

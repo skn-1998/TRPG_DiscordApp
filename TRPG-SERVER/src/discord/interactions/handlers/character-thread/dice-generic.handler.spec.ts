@@ -1,6 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceGenericHandler } from './dice-generic.handler'
-import { DiceRollLogicService } from '../../button/dice-roll-logic.service'
+import { DiceRollLogicService } from '../../../services/dice/dice-roll-logic.service'
 
 describe('DiceGenericHandler', () => {
   const mockDiceRollLogicService = {
