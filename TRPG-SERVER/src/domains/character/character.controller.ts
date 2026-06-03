@@ -207,15 +207,6 @@ export class CharacterController {
       throw new CharacterNotFoundException('キャラクター')
     }
 
-    // キャラクター更新イベントを発行
-    await this.typedEventService.emit(EVENT_NAMES.CHARACTER_UPDATED, {
-      character: character,
-      updateType: 'manual_update',
-      channelId: character.discordChannelId,
-      source: 'character-controller',
-      timestamp: new Date()
-    })
-
     return character
   }
 
@@ -241,13 +232,6 @@ export class CharacterController {
     if (!deletedCharacter) {
       throw new CharacterNotFoundException('キャラクター')
     }
-
-    // キャラクター削除イベントを発行
-    await this.typedEventService.emit(EVENT_NAMES.CHARACTER_DELETED, {
-      character: deletedCharacter,
-      source: 'character-controller',
-      timestamp: new Date()
-    })
 
     return { message: 'キャラクターを削除しました', characterId: id }
   }
