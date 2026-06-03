@@ -1,15 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, CacheType, TextChannel, ChannelType } from 'discord.js'
-import { discordButtonType } from '../../discord.type'
+import { discordButtonType } from 'src/discord/discord.type'
 
 import { DiceButtonUIService } from './dice-button-ui.service'
-import { DiceRollLogicService } from '../../services/dice/dice-roll-logic.service'
+import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceHistoryService } from './dice-history.service'
-import { DicePresetService } from '../../services/dice/dice-preset.service'
+import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
 
-import { DiceRollRequest } from '../../utils/dice-roll.interface'
-import { ErrorHandler } from '../../../core/http/error-handler'
-import { CharacterService } from '../../../domains/character/character.service'
+import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
+import { ErrorHandler } from 'src/core/http/error-handler'
+import { CharacterService } from 'src/domains/character/character.service'
 
 /**
  * キャラクターダイスオーケストレーターサービス

@@ -12,7 +12,7 @@ import {
   ColorResolvable,
   Colors
 } from 'discord.js'
-import { discordButtonType } from '../../discord.type'
+import { discordButtonType } from 'src/discord/discord.type'
 
 /**
  * ダイスボタンUIサービス

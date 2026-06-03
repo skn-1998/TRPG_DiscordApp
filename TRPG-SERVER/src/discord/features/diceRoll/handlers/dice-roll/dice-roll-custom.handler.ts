@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
 import { ButtonInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
-import { CharacterDiceOrchestratorService } from '../../../../interactions/button/character-dice-orchestrator.service'
+import { CharacterDiceOrchestratorService } from '../../services/character-dice-orchestrator.service'
 
 /**
  * カスタムダイスロールボタンハンドラー

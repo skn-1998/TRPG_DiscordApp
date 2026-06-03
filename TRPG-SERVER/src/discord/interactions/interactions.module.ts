@@ -2,10 +2,6 @@ import { Module, OnModuleInit } from '@nestjs/common'
 import { InteractionsController } from './interactions.controller'
 import { InteractionsService } from './interactions.service'
 import { CharacterDiceButtonsService } from './button/character-dice-buttons.service'
-// 新しい分割サービス
-import { DiceButtonUIService } from './button/dice-button-ui.service'
-import { DiceHistoryService } from './button/dice-history.service'
-import { CharacterDiceOrchestratorService } from './button/character-dice-orchestrator.service'
 import { DiceRollModule } from '../../domains/dice-roll/dice-roll.module'
 import { DiceRollPaginationModule } from '../features/diceRoll/services/pagination/dice-roll-pagination.module'
 import { CharacterThreadSelectService } from './select/character-thread-select.service'
@@ -93,9 +89,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     InteractionsService,
     InteractionsController,
     CharacterDiceButtonsService,
-    DiceButtonUIService,
-    DiceHistoryService,
-    CharacterDiceOrchestratorService,
     CharacterThreadSelectService,
     // 統合された監視サービス
     PerformanceOrchestratorService,
@@ -110,9 +103,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     // 既存サービス
     InteractionsService,
     CharacterDiceButtonsService,
-    DiceButtonUIService,
-    DiceHistoryService,
-    CharacterDiceOrchestratorService,
     CharacterThreadSelectService,
     // dice 計算・ロジック系は DiceServicesModule を re-export して下流（feature 等）へ供給
     DiceServicesModule,

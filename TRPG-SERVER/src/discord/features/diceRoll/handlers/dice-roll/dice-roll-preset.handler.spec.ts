@@ -1,6 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceRollPresetHandler } from './dice-roll-preset.handler'
-import { CharacterDiceOrchestratorService } from '../../../../interactions/button/character-dice-orchestrator.service'
+import { CharacterDiceOrchestratorService } from '../../services/character-dice-orchestrator.service'
 
 describe('DiceRollPresetHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }
