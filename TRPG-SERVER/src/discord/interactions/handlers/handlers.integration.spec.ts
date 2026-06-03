@@ -25,14 +25,14 @@ import { DiceRollCustomHandler } from '../../features/diceRoll/handlers/dice-rol
 import { DiceRollPresetHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-preset.handler'
 import { DiceRollModalHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-modal.handler'
 
-// Character Thread Handlers
-import { CharacterThreadSelectHandler } from './character-thread/character-thread-select.handler'
-import { CharacterThreadCreateHandler } from './character-thread/character-thread-create.handler'
-import { CharacterTabHandler } from './character-thread/character-tab.handler'
-import { FlexibleDiceParamHandler } from './character-thread/flexible-dice-param.handler'
-import { CharacterDiceHandler } from './character-thread/character-dice.handler'
-import { DiceGenericHandler } from './character-thread/dice-generic.handler'
-import { FlexibleDiceSelectHandler } from './character-thread/flexible-dice-select.handler'
+// Character Thread Handlers（characterThread feature へ移管済み）
+import { CharacterThreadSelectHandler } from '../../features/characterThread/handlers/character-thread-select.handler'
+import { CharacterThreadCreateHandler } from '../../features/characterThread/handlers/character-thread-create.handler'
+import { CharacterTabHandler } from '../../features/characterThread/handlers/character-tab.handler'
+import { FlexibleDiceParamHandler } from '../../features/characterThread/handlers/flexible-dice-param.handler'
+import { CharacterDiceHandler } from '../../features/characterThread/handlers/character-dice.handler'
+import { DiceGenericHandler } from '../../features/characterThread/handlers/dice-generic.handler'
+import { FlexibleDiceSelectHandler } from '../../features/characterThread/handlers/flexible-dice-select.handler'
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
