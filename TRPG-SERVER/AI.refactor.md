@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-06-03 構造課題②（ARCHITECTURE §9 domain 純粋性）フェーズ1/2（ブランチ `refactor/ref-path-deadcode-cleanup`）
+
+ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名直書きを避ける）/ §15（event name の文字列直書き追加を禁止）違反のうち、**挙動不変で安全な範囲のみ**を実施。emit の層移譲（§9 本丸）は設計判断を要するため **提案に留め未実装**（下記フェーズ3提案）。
+
+### フェーズ1: 安全網（characterization）強化
+
+- 既存 `character.service.spec.ts` / `character.controller.spec.ts` は update/remove 等の主要 emit を既に固定済みだった。**未カバーだった emit 経路**にテスト追加：
+  - service: `updateField`（`character.updated` / updateType=`updateField-<field>`）、`updateFieldByChannelId`（同 + channelId）。各々「成功時 emit」「未検出時 emit しない」。
+  - controller: `createDiscordThread`（`discord.thread.create.requested`）、`displayCharacterOnDiscord`（`discord.character.display.requested`）。emit payload・未検出404・未認証401・displayType 既定値 enhanced を固定。
+- **変更前コードで緑**を確認（service+controller 50 tests green）＝characterization 成立。test-expansion 評価は全対象 **緑(A)**（短関数・依存2–3・副作用は emit/log のみ mock 可・分岐単純。唯一の黄要素「event 名直書き」はフェーズ2の是正対象そのもの）。
+
+### フェーズ2: feature event 名の直書き→定数化（挙動不変）
+
+- `src/events/contracts/index.ts` に **`EVENT_NAMES`** 定数を新設。`as const satisfies Record<string, keyof CharacterEventContracts>` で契約に存在する名前のみ許可（タイポ・契約乖離をコンパイル時に検出）。
+- 直書き文字列を置換（同じ event 名・payload で emit ＝ 挙動不変）：
+  - `character.service.ts`: `character.updated`×3 / `character.deleted`×2 → `EVENT_NAMES.*`
+  - `character.controller.ts`: `character.updated` / `character.deleted` / `discord.thread.create.requested` / `discord.character.display.requested`
+  - `character-event-handler.service.ts`（**全体がデッドコード**＝後述）: `character.update.failed` / `findByChannelId.completed|failed` / `findById.completed|failed` / `findByName.completed|failed`
+- 残る直書きはコメントアウト済みデッド行（service の行91）のみ。
+- 検証: `build` 成功・character domain **119 tests green**（integration の実 emit 経路含む＝定数化後も挙動不変を実証）・`check:circular` 循環ゼロ（`domains/character → events/contracts` は純粋型/定数 import で新規依存方向なし。元から event-handler が同 import 済み）。
+
+### フェーズ3提案（emit 層移譲・★未実装。承認後に別途）
+
+§9 本丸＝「domain から TypedEventService inject を撤去し feature/application 層が publish」の構造変更。判明した実態を踏まえた提案：
+
+1. **`character.updated` / `character.deleted`（過去形）には実購読者が存在しない**。grep 実証：`.on('character.updated'|'character.deleted')` はソース上ゼロ。discord の File-based handler が購読するのは `character.update.completed` / `character.deletion.completed`（完了形）。→ これら過去形 emit（service 5・controller 2）は **発火しても届かない可能性が高い**。移譲より先に「本当に不要なら削除」を検討すべき（要・発火経路の最終確認）。リスク低だが purచase不明なため要設計判断。
+2. **`character-event-handler.service.ts` は全体がデッドコード**。`registerEventListeners()` がコメント通り無効化（リスナー登録スキップ）され、`handleCharacterUpdateRequested`/`SearchRequested` 等の private メソッドはどこからも呼ばれない。`onModuleInit` も実質ログのみ。ファイル先頭コメントも「レガシー・将来削除予定」と明記。→ **ファイルごと削除候補**（spec も連動）。今回は直書き排除のため定数化のみ実施（削除は別タスクで上申）。
+3. **`discord.thread.create.requested` / `discord.character.display.requested`（controller の2エンドポイント）** は discord 側に実購読者あり（`DiscordThreadCreateRequestedHandler` 等）。これらは「domain controller が discord feature event を直接 publish」する §9 違反。移譲先候補：character feature 用の application/orchestrator 層を新設するか、これらエンドポイント自体を discord feature 側へ移すか。**購読側挙動が変わる危険があり、循環依存（domains→features 逆流）回避の設計が必要**。要・承認。
+
+> 結論: フェーズ1/2 は挙動不変で完了。フェーズ3は「過去形 emit の生死確認＋デッドハンドラ削除」を先行する方が安全で、emit 層移譲（新 orchestrator or discord 移設）はその後。いずれも独断実装せず提案に留めた。
+
+---
+
 ## 2026-06-03 参照・経路の全体監査（読み取り専用・コード未変更）
 
 「各関数がどう使われるか（参照・呼び出し経路）」「現構成の妥当性」「保守リスクのあるフォルダ」を洗い出すため、`src/` を8区画に分け**フォルダ単位でサブエージェント（読み取り専用）を並列起動**し、grep で参照を実証。**司令塔（メイン）が報告を裏取りし、矛盾・誤報告を是正**。コードは一切変更していない（build/check:circular 未影響）。
