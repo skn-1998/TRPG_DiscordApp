@@ -1,5 +1,4 @@
-import { Module, Global } from '@nestjs/common'
-import { EventEmitterModule } from '@nestjs/event-emitter'
+import { Module } from '@nestjs/common'
 import { CharacterModule } from 'domains/character/character.module'
 import { DiscordIntegrationModule } from 'discord/application/discord-integration.module'
 
@@ -46,19 +45,8 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
  * 2. 既存Event Bridgeから段階的移行
  * 3. レガシーコード削除
  */
-@Global()
 @Module({
   imports: [
-    EventEmitterModule.forRoot({
-      // EventEmitter2の設定
-      wildcard: false, // ワイルドカードイベントを無効
-      delimiter: '.', // イベント名の区切り文字
-      newListener: false, // newListenerイベントを無効
-      removeListener: false, // removeListenerイベントを無効
-      maxListeners: 20, // 最大リスナー数
-      verboseMemoryLeak: true, // メモリリーク検出を有効
-      ignoreErrors: false // エラーを無視しない
-    }),
     CharacterModule, // Character domain services
     DiscordIntegrationModule // Discord基盤サービス
     // 注: CharacterEditModule / CharacterThreadFeatureModule の forwardRef は撤去した。
@@ -80,10 +68,7 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
     // ✅ NEW: File-based Event System
     EventRegistryService,
 
-    DiscordIntegrationHandler,
-
-    // EventEmitterModule for direct usage
-    EventEmitterModule
+    DiscordIntegrationHandler
   ]
 })
 export class EventsModule {}
