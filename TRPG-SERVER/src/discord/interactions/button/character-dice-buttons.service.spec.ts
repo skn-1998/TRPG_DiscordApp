@@ -12,7 +12,7 @@ jest.mock('lodash', () => ({
   ...jest.requireActual('lodash'),
   isNull: jest.fn()
 }))
-jest.mock('../../../utils/error-handler', () => ({
+jest.mock('../../../core/http/error-handler', () => ({
   ErrorHandler: {
     handleDiscordError: jest.fn()
   },

@@ -38,7 +38,7 @@ import { CharacterDiceHistoryService } from './character-dice-history.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
 import { CharacterService } from '../../../domains/character/character.service'
-import { BackgroundTaskErrorHandler } from '../../../utils/error-handler'
+import { BackgroundTaskErrorHandler } from '../../../core/http/error-handler'
 
 // 副作用境界（3つの注入サービス・discord.js I/O）はモックし、現挙動を固定する。
 type DiceRollServiceMock = {

@@ -3,7 +3,7 @@ import { createMockModalInteraction } from '@discord-test-utils'
 import { CustomDiceModalService } from './custom-dice-modal.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
-import { ErrorHandler } from 'src/utils/error-handler'
+import { ErrorHandler } from 'src/core/http/error-handler'
 
 // このモーダルサービスは「customId 解析 → フィールド取得 → 種別分岐(custom/param)
 // → DiceOrchestrator へ委譲 → 結果整形 → channel 種別で送信先を分岐」する。

@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing'
 import { ChannelCacheService, CHANNEL_CACHE_AUTO_START_CLEANUP } from './channel-cache.service'
 import { AppConfigService } from '../../../config/config.service'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 
 /**
  * characterization（特性化）テスト

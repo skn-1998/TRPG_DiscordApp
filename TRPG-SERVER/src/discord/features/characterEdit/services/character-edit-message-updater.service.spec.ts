@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { Character } from '../../../../domains/character/models/character.model'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 /**
  * Characterization tests for CharacterEditMessageUpdaterService.
@@ -14,7 +14,7 @@ import { ErrorHandler } from '../../../../utils/error-handler'
 
 // ErrorHandler.handleServiceError は実装が常に throw する。
 // fallback 経路（catch 後の再送信）を検証するため、副作用の境界としてスタブ化する。
-jest.mock('../../../../utils/error-handler', () => ({
+jest.mock('../../../../core/http/error-handler', () => ({
   ErrorHandler: {
     handleServiceError: jest.fn()
   }

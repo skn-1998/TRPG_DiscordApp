@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, ChannelType } from 'discord.js'
 import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
-import { ErrorHandler } from 'src/utils/error-handler'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { DiceCalculationService } from './dice-calculation.service'
 
 /**

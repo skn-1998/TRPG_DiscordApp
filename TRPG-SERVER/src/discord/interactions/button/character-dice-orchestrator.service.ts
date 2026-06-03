@@ -8,7 +8,7 @@ import { DiceHistoryService } from './dice-history.service'
 import { DicePresetService } from '../../services/dice/dice-preset.service'
 
 import { DiceRollRequest } from '../../utils/dice-roll.interface'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 import { CharacterService } from '../../../domains/character/character.service'
 
 /**

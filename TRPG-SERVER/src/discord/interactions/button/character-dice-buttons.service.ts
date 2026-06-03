@@ -20,7 +20,7 @@ import { DiceRollPaginationService } from 'src/discord/components/pagination/dic
 import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.interface'
 import { OnEvent } from '@nestjs/event-emitter'
 import { v4 as uuidv4 } from 'uuid'
-import { ErrorHandler } from 'src/utils/error-handler'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
 import { CharacterDiceHistoryService } from './character-dice-history.service'

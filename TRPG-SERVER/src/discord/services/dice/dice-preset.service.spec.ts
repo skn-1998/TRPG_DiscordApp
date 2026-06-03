@@ -7,12 +7,12 @@
 // ChannelType を実値で使うためグローバル discord.js スタブを実物に差し替える。
 jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
-jest.mock('src/utils/error-handler')
+jest.mock('src/core/http/error-handler')
 
 import { Test } from '@nestjs/testing'
 import { ChannelType, type ButtonInteraction } from 'discord.js'
 import { CharacterService } from 'src/domains/character/character.service'
-import { ErrorHandler } from 'src/utils/error-handler'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceCalculationService } from './dice-calculation.service'
 import { DicePresetService } from './dice-preset.service'

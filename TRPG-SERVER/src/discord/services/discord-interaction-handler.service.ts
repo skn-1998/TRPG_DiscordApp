@@ -13,7 +13,7 @@ import { InteractionsService } from '../interactions/interactions.service'
 import { CommandsService } from '../commands/commands.service'
 import { DiscordButton, DiscordModal, DiscordSelectMenu } from '../interfaces/discord-interaction-types.interface'
 import { AppConfigService } from '../../config/config.service'
-import { ErrorHandler } from '../../utils/error-handler'
+import { ErrorHandler } from '../../core/http/error-handler'
 
 /**
  * Discord インタラクション処理サービス

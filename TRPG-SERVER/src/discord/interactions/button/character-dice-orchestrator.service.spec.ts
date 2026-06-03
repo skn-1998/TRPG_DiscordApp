@@ -5,7 +5,7 @@ import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceHistoryService } from './dice-history.service'
 import { DicePresetService } from '../../services/dice/dice-preset.service'
 import { CharacterService } from '../../../domains/character/character.service'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 
 /**
  * CharacterDiceOrchestratorService はボタンインタラクションのルーティングを担う。

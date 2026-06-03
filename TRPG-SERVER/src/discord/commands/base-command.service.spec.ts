@@ -1,7 +1,7 @@
 import { createMockChatInputInteraction } from '@discord-test-utils'
 import type { CommandInteraction, ChatInputCommandInteraction } from 'discord.js'
 import { BaseCommandService } from './base-command.service'
-import { ErrorHandler } from '../../utils/error-handler'
+import { ErrorHandler } from '../../core/http/error-handler'
 import type { TypedEventService } from '../../core/events/typed-event.service'
 
 /**
