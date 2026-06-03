@@ -1,6 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DicePageLastHandler } from './dice-page-last.handler'
-import { DicePageLastButtonService } from '../../../features/diceRoll/adapters/dice-page-last-button.adapter'
+import { DicePageLastButtonService } from '../../adapters/dice-page-last-button.adapter'
 
 describe('DicePageLastHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }

@@ -11,19 +11,19 @@ import { CharacterEditSectionHandler } from './character-edit/character-edit-sec
 import { CharacterEditFieldHandler } from './character-edit/character-edit-field.handler'
 import { CharacterEditModalHandler } from './character-edit/character-edit-modal.handler'
 
-// Dice Roll Handlers
-import { DicePagePrevHandler } from './dice-roll/dice-page-prev.handler'
-import { DicePageNextHandler } from './dice-roll/dice-page-next.handler'
-import { DicePageFirstHandler } from './dice-roll/dice-page-first.handler'
-import { DicePageLastHandler } from './dice-roll/dice-page-last.handler'
-import { DicePageCancelHandler } from './dice-roll/dice-page-cancel.handler'
-import { DicePageSelectHandler } from './dice-roll/dice-page-select.handler'
-import { DiceCharacterSelectHandler } from './dice-roll/dice-character-select.handler'
-import { DiceRollSkillHandler } from './dice-roll/dice-roll-skill.handler'
-import { DiceRollGeneralHandler } from './dice-roll/dice-roll-general.handler'
-import { DiceRollCustomHandler } from './dice-roll/dice-roll-custom.handler'
-import { DiceRollPresetHandler } from './dice-roll/dice-roll-preset.handler'
-import { DiceRollModalHandler } from './dice-roll/dice-roll-modal.handler'
+// Dice Roll Handlers（diceRoll feature へ移管済み）
+import { DicePagePrevHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-prev.handler'
+import { DicePageNextHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-next.handler'
+import { DicePageFirstHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-first.handler'
+import { DicePageLastHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-last.handler'
+import { DicePageCancelHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-cancel.handler'
+import { DicePageSelectHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-select.handler'
+import { DiceCharacterSelectHandler } from '../../features/diceRoll/handlers/dice-roll/dice-character-select.handler'
+import { DiceRollSkillHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-skill.handler'
+import { DiceRollGeneralHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-general.handler'
+import { DiceRollCustomHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-custom.handler'
+import { DiceRollPresetHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-preset.handler'
+import { DiceRollModalHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-modal.handler'
 
 // Character Thread Handlers
 import { CharacterThreadSelectHandler } from './character-thread/character-thread-select.handler'

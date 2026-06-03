@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
-import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { DicePageCancelButtonService } from '../../../features/diceRoll/adapters/dice-page-cancel-button.adapter'
+import { ButtonInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
+import { DicePageCancelButtonService } from '../../adapters/dice-page-cancel-button.adapter'
 
 /**
  * ダイスページキャンセルボタンハンドラー

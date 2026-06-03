@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { CommandInteraction } from 'discord.js'
-import {
-  DiceRollPaginationService,
-  PaginatedDiceRoll
-} from '../../../components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService, PaginatedDiceRoll } from './pagination/dice-roll-pagination.service'
 
 @Injectable()
 export class DiceResultOrchestrator {

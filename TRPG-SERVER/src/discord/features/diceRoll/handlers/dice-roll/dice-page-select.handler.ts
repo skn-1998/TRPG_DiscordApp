@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
-import { SelectMenuInteractionHandler } from '../base/interaction-handler.base'
-import { DicePageSelectMenuService } from '../../../features/diceRoll/adapters/dice-page-select-menu.adapter'
+import { SelectMenuInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
+import { DicePageSelectMenuService } from '../../adapters/dice-page-select-menu.adapter'
 
 /**
  * ダイスページ選択メニューハンドラー

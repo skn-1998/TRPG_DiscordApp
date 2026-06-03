@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { AnySelectMenuInteraction, CacheType, StringSelectMenuBuilder } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 
 @Injectable()
 export class DiceCharacterSelectService implements discordSelectMenuType {

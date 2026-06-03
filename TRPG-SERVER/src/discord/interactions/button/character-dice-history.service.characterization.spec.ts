@@ -36,7 +36,7 @@ jest.mock('discord.js', () => {
 import type { ButtonInteraction, TextChannel } from 'discord.js'
 import { CharacterDiceHistoryService } from './character-dice-history.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from '../../features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { BackgroundTaskErrorHandler } from '../../../core/http/error-handler'
 

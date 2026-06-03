@@ -1,5 +1,5 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageCancelButtonService } from './dice-page-cancel-button.adapter'
 
 // DiceRollPaginationService.cancelPagination へ委譲し、成否で deleteReply / followUp を出し分ける。

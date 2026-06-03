@@ -1,5 +1,5 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DiceCharacterSelectService } from './dice-character-select.adapter'
 
 // キャラクター選択メニューで選んだキャラに履歴を絞り込むオーケストレーター。

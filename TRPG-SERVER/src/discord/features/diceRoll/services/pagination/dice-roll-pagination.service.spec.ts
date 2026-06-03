@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { DiceRollPaginationService } from './dice-roll-pagination.service'
 import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
-import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { CharacterService } from '../../../domains/character/character.service'
+import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
+import { CharacterService } from 'src/domains/character/character.service'
 
 // Discord.js builders モック
 jest.mock('discord.js', () => ({
