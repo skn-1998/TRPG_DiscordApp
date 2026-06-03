@@ -31,6 +31,28 @@
 
 ---
 
+## 2026-06-03 構造課題⑤ 巨大サービス分割（CharacterEmbedManagerService・挙動保存）
+
+`discord/features/characterEdit/services/character-embed-manager.service.ts`（612行）を `refactor-for-testability` で分割。**公開 API シグネチャ・外部挙動不変**。
+
+### 手順・抽出
+
+- **手順0 characterization 先行**：既存 spec が公開メソッド出力（Embed の title/color/fields、メニュー options、footer 切り詰め、send 呼び出し）を固定。変更前緑を確認。
+- Embed/ボタン/メニュー生成の純関数10（`buildBasicEmbed`/`buildSectionEmbed`/`buildEditComponents`/`buildCharacterDiceRollButtons`/`buildFieldSelectMenu`/`buildNewCharacterEmbed`/`buildCharacterCreatedEmbed` 等）を `characterEdit/utils/character-embed.util.ts`（Character→Builder を返す純関数）へ抽出。service の各公開メソッドは util へ1行委譲。
+- 副作用（`sendSectionedEmbeds`=channel.send / `createCharacter`=typedEventService.emit）は service に残置。
+
+### 制約遵守（ARCHITECTURE）
+
+- util に DI 無し（TypedEventService を渡さない）。discord.js 依存のため §12 通り **feature 配下**（shared でない）に配置。`EmbedSectionType` は util を正本に service が re-export し既存10ファイルの import 互換維持。新規循環なし。
+
+### 改善指標・検証（司令塔裏取り）
+
+- **service 612 → 180 行**（整形ロジックを全て util へ。残るは副作用2メソッド＋orchestration）。util 純関数割合100%。
+- create-test で純関数に +22 ケース追加（data undefined/空/24件超 footer/add専用/未知null 等の分岐網羅）。
+- `pnpm run build` 成功 / `pnpm jest src/discord/features/characterEdit`：**21 suites・310 tests 緑**（characterization 33 含む＝挙動不変） / `pnpm run check:circular`：**No circular dependency found!**
+
+---
+
 ## 2026-06-03 構造課題④ 横断コードを §12 決定表へ再配置（挙動保存）
 
 ARCHITECTURE §12 決定表違反（`src/utils/` に横断コードが滞留）を是正。**ファイル移動＋import 更新のみ・ロジック不変**。
@@ -134,7 +156,9 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 構造課題① **イベント基盤の forRoot 二重・@Global 二重を解消（2026-06-03 完了、下記記録）**。安全網テスト先行＋start:dev 実機検証で挙動不変を証明。
 - [x] 構造課題② **domain の event 名直書きを EVENT_NAMES へ集約（§9/§15・2026-06-03 完了、下記記録）**。emit 層移譲（§9本丸）は購読者ゼロ等の発見とともに提案に留め未実装。
 - [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
-- [ ] 構造課題③（interactions→features 向き是正 H4・大）／⑤（巨大サービス分割）は安全網前提で順次。派生バックログ: `api-response.util` 廃止・`error-handler` の process.env→AppConfig化・型 `src/types/*`→`core/types`・`character.updated/deleted` デッドイベント削除。
+- [x] 構造課題⑤ **巨大サービス分割: CharacterEmbedManagerService を純関数抽出（612→180行・2026-06-03 完了、下記記録）**。characterization 緑で挙動不変。
+- [x] デッドハンドラ `CharacterEventHandlerService` 削除・過去形イベント `character.updated`/`character.deleted` の emit 全廃（購読者ゼロ実証・2026-06-03 完了、下記記録）。
+- [ ] 構造課題③（interactions→features 向き是正 H4・大規模）は安全網設計が重く**別計画**。残バックログ: `api-response.util` 廃止（**spec の reference oracle として4 spec で現役利用→廃止は spec 改修とセット・低リスクでない**）／`error-handler` の process.env→AppConfig化／型 `src/types/*`→`core/types`（**tsconfig typeRoots/include 調整要・リスク中**）／contracts の DEPRECATED 過去形型最終削除。
 
 ---
 
