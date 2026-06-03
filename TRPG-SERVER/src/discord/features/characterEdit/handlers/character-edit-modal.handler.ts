@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ModalSubmitInteraction } from 'discord.js'
-import { ModalInteractionHandler } from '../base/interaction-handler.base'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { ModalInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 /**
  * キャラクター編集モーダルハンドラー

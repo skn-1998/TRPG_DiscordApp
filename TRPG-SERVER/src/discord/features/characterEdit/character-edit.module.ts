@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common'
+import { Module, forwardRef, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 
@@ -24,6 +24,16 @@ import { CharacterEditEventEmitterService } from './services/character-edit-even
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { CharacterUIService } from './services/character-ui.service'
 
+// 🆕 Interaction Registry & Handlers（interactions core から feature 所有へ移管・§8）
+import { InteractionRegistryModule } from '../../interactions/registry/interaction-registry.module'
+import { InteractionRegistryService } from '../../interactions/registry/interaction-registry.service'
+import { CharacterEditRefreshHandler } from './handlers/character-edit-refresh.handler'
+import { CharacterEditCreateHandler } from './handlers/character-edit-create.handler'
+import { CharacterEditCompactHandler } from './handlers/character-edit-compact.handler'
+import { CharacterEditSectionHandler } from './handlers/character-edit-section.handler'
+import { CharacterEditFieldHandler } from './handlers/character-edit-field.handler'
+import { CharacterEditModalHandler } from './handlers/character-edit-modal.handler'
+
 // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
 // CharaInfoButtonService, AddCharaInfoService, ChangeCharaInfoServiceは
 // EnhancedCharacterEditServiceに統合され、完全に置き換えられました
@@ -41,7 +51,8 @@ import { CharacterUIService } from './services/character-ui.service'
 @Module({
   imports: [
     forwardRef(() => CharacterModule),
-    DiscordIntegrationModule // 循環依存解消により安全にインポート可能
+    DiscordIntegrationModule, // 循環依存解消により安全にインポート可能
+    InteractionRegistryModule // diceRoll と同様、feature が自 handler を registry 登録するため
     // Note: AppConfigServiceはグローバルモジュールのためインポート不要
   ],
   providers: [
@@ -71,12 +82,17 @@ import { CharacterUIService } from './services/character-ui.service'
     CharacterEditEventEmitterService,
     CharacterEditMessageUpdaterService,
     EnhancedCharacterEditService,
-    CharacterUIService
+    CharacterUIService,
 
     // ============================================================================
-    // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
+    // 🆕 Interaction Handlers（registry 登録対象・interactions core から移管）
     // ============================================================================
-    // Legacy services have been completely integrated into EnhancedCharacterEditService
+    CharacterEditRefreshHandler,
+    CharacterEditCreateHandler,
+    CharacterEditCompactHandler,
+    CharacterEditSectionHandler,
+    CharacterEditFieldHandler,
+    CharacterEditModalHandler
   ],
   exports: [
     // ============================================================================
@@ -111,4 +127,29 @@ import { CharacterUIService } from './services/character-ui.service'
     // Legacy services exports are no longer needed as they are integrated into EnhancedCharacterEditService
   ]
 })
-export class CharacterEditModule {}
+export class CharacterEditModule implements OnModuleInit {
+  constructor(
+    private readonly interactionRegistry: InteractionRegistryService,
+    private readonly characterEditRefreshHandler: CharacterEditRefreshHandler,
+    private readonly characterEditCreateHandler: CharacterEditCreateHandler,
+    private readonly characterEditCompactHandler: CharacterEditCompactHandler,
+    private readonly characterEditSectionHandler: CharacterEditSectionHandler,
+    private readonly characterEditFieldHandler: CharacterEditFieldHandler,
+    private readonly characterEditModalHandler: CharacterEditModalHandler
+  ) {}
+
+  /**
+   * モジュール初期化時に characterEdit handler を Registry へ登録する。
+   * （旧: InteractionsModule.onModuleInit で集中登録していたものを feature 側へ移管・§8）
+   */
+  onModuleInit(): void {
+    this.interactionRegistry.registerHandlers([
+      this.characterEditRefreshHandler,
+      this.characterEditCreateHandler,
+      this.characterEditCompactHandler,
+      this.characterEditSectionHandler,
+      this.characterEditFieldHandler,
+      this.characterEditModalHandler
+    ])
+  }
+}

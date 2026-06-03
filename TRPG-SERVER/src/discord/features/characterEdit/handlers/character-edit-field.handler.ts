@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
-import { SelectMenuInteractionHandler } from '../base/interaction-handler.base'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { SelectMenuInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 /**
  * キャラクターフィールド選択ハンドラー

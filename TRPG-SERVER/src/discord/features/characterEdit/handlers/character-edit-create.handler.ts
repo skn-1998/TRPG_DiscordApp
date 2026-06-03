@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
-import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { ButtonInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 /**
  * キャラクター作成ボタンハンドラー

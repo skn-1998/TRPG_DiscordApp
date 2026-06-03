@@ -4,12 +4,12 @@ import { InteractionRegistryService } from '../registry/interaction-registry.ser
 import { PatternMatcherService } from '../registry/pattern-matcher.service'
 
 // Character Edit Handlers
-import { CharacterEditRefreshHandler } from './character-edit/character-edit-refresh.handler'
-import { CharacterEditCreateHandler } from './character-edit/character-edit-create.handler'
-import { CharacterEditCompactHandler } from './character-edit/character-edit-compact.handler'
-import { CharacterEditSectionHandler } from './character-edit/character-edit-section.handler'
-import { CharacterEditFieldHandler } from './character-edit/character-edit-field.handler'
-import { CharacterEditModalHandler } from './character-edit/character-edit-modal.handler'
+import { CharacterEditRefreshHandler } from '../../features/characterEdit/handlers/character-edit-refresh.handler'
+import { CharacterEditCreateHandler } from '../../features/characterEdit/handlers/character-edit-create.handler'
+import { CharacterEditCompactHandler } from '../../features/characterEdit/handlers/character-edit-compact.handler'
+import { CharacterEditSectionHandler } from '../../features/characterEdit/handlers/character-edit-section.handler'
+import { CharacterEditFieldHandler } from '../../features/characterEdit/handlers/character-edit-field.handler'
+import { CharacterEditModalHandler } from '../../features/characterEdit/handlers/character-edit-modal.handler'
 
 // Dice Roll Handlers（diceRoll feature へ移管済み）
 import { DicePagePrevHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-prev.handler'
