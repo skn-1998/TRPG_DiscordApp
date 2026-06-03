@@ -40,7 +40,7 @@ import { CharacterEditModule } from '../features/characterEdit/character-edit.mo
 
 // 🆕 Interaction Registry (Events方式の自動ルーティング)
 import { InteractionRegistryService } from './registry/interaction-registry.service'
-import { PatternMatcherService } from './registry/pattern-matcher.service'
+import { InteractionRegistryModule } from './registry/interaction-registry.module'
 
 // 🆕 Interaction Handlers - Character Edit系
 import { CharacterEditRefreshHandler } from './handlers/character-edit/character-edit-refresh.handler'
@@ -100,10 +100,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
 @Module({
   controllers: [InteractionsController],
   providers: [
-    // 🆕 Registry Services
-    InteractionRegistryService,
-    PatternMatcherService,
-
     // 🆕 Interaction Handlers - Character Edit系
     CharacterEditRefreshHandler,
     CharacterEditCreateHandler,
@@ -167,9 +163,8 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiscordMonitorService
   ],
   exports: [
-    // 🆕 Registry Services
-    InteractionRegistryService,
-    PatternMatcherService,
+    // 🆕 Registry Services（InteractionRegistryModule からの re-export）
+    InteractionRegistryModule,
 
     // 既存サービス
     InteractionsService,
@@ -202,6 +197,7 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiscordMonitorService
   ],
   imports: [
+    InteractionRegistryModule,
     DiceRollModule,
     EventEmitterModule,
     CharacterEditModule, // Modern Services + Legacy Services (統合)
