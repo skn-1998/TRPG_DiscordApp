@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-06-04 P1-A InteractionsModule slim 化（monitoring/DiceServices 撤去・挙動不変）＋ execute() 特例の挙動差を特定
+
+Codex 司令塔の委譲（`CLAUDE_HANDOFF.md` P1-A）。InteractionsModule を Registry + thin service へ寄せる。
+**挙動不変で安全な module slim 化のみ実施**し、挙動影響のある execute() 特例撤去は Phase 1 分析の結果を記録して後続に残した。コミット `0ccf0d5`（interactions.module.ts のみ）。
+
+### 実施（挙動不変・`0ccf0d5`）
+
+- 監視サービス（PerformanceOrchestrator/MetricsCollector/Alert/DiscordMonitor）の providers/exports を InteractionsModule から撤去。**DiscordModule が既に同4サービスを providers/exports で所有**しており、InteractionsModule 側は重複登録（Metrics/Alert は `@OnEvent` を持つため重複インスタンスで二重 @OnEvent 登録になっていた）。撤去で単一所有・単一登録に。start:dev で各サービスが**1回のみ初期化**されることを確認。
+- `DiceServicesModule` の import / re-export を撤去（構造課題③ Part B 以降 interactions は dice を直接使わず、diceRoll/characterThread feature は DiceServicesModule を直接 import するため re-export 依存もなし。commands/discord も未使用を grep 確認）。
+- 未使用の `CharacterModule` import を撤去（InteractionsService/Controller は CharacterService を inject しない）。
+- 検証: build 成功 / check:circular No circular dependency found!(479) / start:dev で「successfully started」・BOT 起動・登録 handler 総数 30(不変)・monitoring 単一初期化・Cannot resolve/実エラーなし＝挙動不変。
+
+### ★ Phase 1 分析: execute() characterEdit 特例撤去は「挙動影響あり」（後続・要 characterization）
+
+interactions の interaction dispatch 実経路を実コードで確認:
+
+- `DiscordInteractionHandlerService` の buttons/modals/selects Map は**常に空**（register\* 呼び出し元ゼロ）→ 全 button/select/modal は `InteractionsService.execute()` へフォールバック＝**execute() が実経路**。
+- `InteractionsService.execute()` は StringSelectMenu の `character-section-select-*`/`character-edit-*`/`character-field-*` を `CharacterSectionEditorService.execute()` へ**直接**委譲（Registry をバイパス）。それ以外は `handleInteraction()`→`routeInteraction()`→`InteractionRegistryService.route()`。
+- Registry には `CharacterEditSectionHandler`(`^character-(edit-section|section-select)-`)・`CharacterEditFieldHandler`(`character-field-`) が登録済みだが、上記特例が**先に握るためバイパスされている**。両 handler は `EnhancedCharacterEditService.handleSelectMenuInteraction()` → `sectionEditor.execute()` を呼ぶ。
+
+**等価性の結論**: happy path は両経路とも `sectionEditor.execute(interaction)` で**同一**。ただし Registry 経路は ①`emitSectionSelected` を追加発火、②エラー処理が異なる（特例＝ephemeral reply「セクション選択の処理中にエラーが発生しました。」＋rethrow / Registry＝`emitError`＋`handleServiceError`・reply なし）。→ **特例撤去は error path・イベント発火が変わる挙動変化**。ハンドオフ目標「挙動は変えない」かつ skill の安全網方針に従い、blind 撤去はしない。
+
+### 残（P1-A 後続・要 characterization／一部 Codex 判断）
+
+1. **execute() 特例撤去 → CharacterEditModule import 撤去**: `interactions.service.spec.ts` で現挙動（特例の委譲先・error 時 reply）を characterization 固定 → Registry 経路へ寄せる（emitSectionSelected/error 差を許容する設計判断 or handler 側で reply 等価化）→ `CharacterSectionEditorService` inject 除去。
+2. **ChannelCreate 委譲**: `InteractionsService.loadClient()`→`handleChannelCreate()`→`ChannelCreateOrchestratorService.execute()`。これは interaction でなく Discord channel event。feature/discord-event 側へ移せれば `ChannelCreateOrchestratorService` inject も外れ、**CharacterEditModule import を完全撤去**できる。影響大なら残件（ハンドオフ明記）。
+3. 上記2つが解けて初めて InteractionsModule の最後の feature import（CharacterEditModule）が外れる。
+
+---
+
 ## 2026-06-03 構造課題③ Part B characterThread の feature 移管・CharacterThreadFeatureModule import 撤去（挙動不変）
 
 ③ 最終段の characterThread 分。handler 7個と委譲先サービスを feature 所有へ移し、interactions.module から
