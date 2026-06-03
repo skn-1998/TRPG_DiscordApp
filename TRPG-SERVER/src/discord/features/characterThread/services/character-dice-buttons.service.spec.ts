@@ -1,18 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterDiceButtonsService } from './character-dice-buttons.service'
-import { CharacterService } from '../../../domains/character/character.service'
-import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from '../../features/diceRoll/services/pagination/dice-roll-pagination.service'
-import { TypedEventEmitter } from '../../../core/events/typed-event.service'
-import { DicePresetService } from '../../services/dice/dice-preset.service'
+import { CharacterService } from 'src/domains/character/character.service'
+import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
+import { TypedEventEmitter } from 'src/core/events/typed-event.service'
+import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
 
 // モック設定
-jest.mock('../../../discord/utils/dice', () => jest.fn())
+jest.mock('src/discord/utils/dice', () => jest.fn())
 jest.mock('lodash', () => ({
   ...jest.requireActual('lodash'),
   isNull: jest.fn()
 }))
-jest.mock('../../../core/http/error-handler', () => ({
+jest.mock('src/core/http/error-handler', () => ({
   ErrorHandler: {
     handleDiscordError: jest.fn()
   },
@@ -315,7 +315,7 @@ describe('CharacterDiceButtonsService', () => {
     })
 
     it('should handle dice roll request with null result', async () => {
-      const dice = jest.requireMock('../../../discord/utils/dice')
+      const dice = jest.requireMock('src/discord/utils/dice')
       dice.mockResolvedValue(null)
 
       mockInteraction.deferReply = jest.fn().mockResolvedValue(undefined)
@@ -352,7 +352,7 @@ describe('CharacterDiceButtonsService', () => {
 
   describe('execute method', () => {
     it('should handle missing channel gracefully', async () => {
-      const dice = jest.requireMock('../../../discord/utils/dice')
+      const dice = jest.requireMock('src/discord/utils/dice')
       dice.mockResolvedValue({
         rands: [[5]], // rollValue = 5 > 0にするためのモック
         text: '1d100 → 5',

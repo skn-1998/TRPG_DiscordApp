@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
-import { SelectMenuInteractionHandler } from '../base/interaction-handler.base'
-import { CharacterThreadSelectService } from '../../select/character-thread-select.service'
+import { SelectMenuInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
+import { CharacterThreadSelectService } from '../services/character-thread-select.service'
 
 /**
  * 柔軟ダイスパラメータ選択ハンドラー

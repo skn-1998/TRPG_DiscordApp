@@ -1,6 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadSelectService } from './character-thread-select.service'
-import { CharacterThreadOrchestrator } from '../../features/characterThread/services'
+import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
 

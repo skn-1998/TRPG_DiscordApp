@@ -35,10 +35,10 @@ jest.mock('discord.js', () => {
 
 import type { ButtonInteraction, TextChannel } from 'discord.js'
 import { CharacterDiceHistoryService } from './character-dice-history.service'
-import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from '../../features/diceRoll/services/pagination/dice-roll-pagination.service'
-import { CharacterService } from '../../../domains/character/character.service'
-import { BackgroundTaskErrorHandler } from '../../../core/http/error-handler'
+import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
+import { CharacterService } from 'src/domains/character/character.service'
+import { BackgroundTaskErrorHandler } from 'src/core/http/error-handler'
 
 // 副作用境界（3つの注入サービス・discord.js I/O）はモックし、現挙動を固定する。
 type DiceRollServiceMock = {

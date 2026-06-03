@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
-import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { CharacterTabButtonsService } from '../../../features/characterThread/character-tab-buttons.service'
+import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
+import { CharacterTabButtonsService } from '../character-tab-buttons.service'
 
 /**
  * キャラクタータブボタンハンドラー

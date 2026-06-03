@@ -10,7 +10,7 @@ import {
   ActionRowBuilder
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
-import { CharacterThreadOrchestrator } from '../../features/characterThread/services'
+import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
 

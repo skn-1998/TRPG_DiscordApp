@@ -1,14 +1,14 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
-import { FlexibleDiceParamHandler } from './flexible-dice-param.handler'
-import { CharacterThreadSelectService } from '../../select/character-thread-select.service'
+import { CharacterThreadCreateHandler } from './character-thread-create.handler'
+import { CharacterThreadSelectService } from '../services/character-thread-select.service'
 
-describe('FlexibleDiceParamHandler', () => {
+describe('CharacterThreadCreateHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }
-  let handler: FlexibleDiceParamHandler
+  let handler: CharacterThreadCreateHandler
 
   beforeEach(() => {
     jest.clearAllMocks()
-    handler = new FlexibleDiceParamHandler(mockService as unknown as CharacterThreadSelectService)
+    handler = new CharacterThreadCreateHandler(mockService as unknown as CharacterThreadSelectService)
   })
 
   it('select タイプを返す', () => {
@@ -16,18 +16,18 @@ describe('FlexibleDiceParamHandler', () => {
     expect(handler.getInteractionType()).toBe('select')
   })
 
-  it('customId パターンとして前方一致文字列 "flexible-dice-param*" を返す', () => {
+  it('customId パターンとして文字列 "character-thread-create-select" を返す', () => {
     // Act
     const pattern = handler.getCustomIdPattern()
     // Assert
-    expect(pattern).toBe('flexible-dice-param*')
+    expect(pattern).toBe('character-thread-create-select')
   })
 
   it('execute は委譲先 execute へ interaction をそのまま渡す', async () => {
     // Arrange
     const interaction = createMockSelectMenuInteraction({
-      customId: 'flexible-dice-param*char-123',
-      values: ['STR']
+      customId: 'character-thread-create-select',
+      values: ['char-id-abc']
     })
     // Act
     await handler.execute(interaction)

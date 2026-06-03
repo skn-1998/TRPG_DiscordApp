@@ -1,6 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadSelectHandler } from './character-thread-select.handler'
-import { CharacterThreadSelectService } from '../../select/character-thread-select.service'
+import { CharacterThreadSelectService } from '../services/character-thread-select.service'
 
 describe('CharacterThreadSelectHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }

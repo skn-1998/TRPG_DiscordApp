@@ -1,6 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { FlexibleDiceSelectHandler } from './flexible-dice-select.handler'
-import { DiceRollLogicService } from '../../../services/dice/dice-roll-logic.service'
+import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 
 describe('FlexibleDiceSelectHandler', () => {
   const mockDiceRollLogicService = {
