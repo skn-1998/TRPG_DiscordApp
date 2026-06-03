@@ -158,7 +158,36 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
 - [x] 構造課題⑤ **巨大サービス分割: CharacterEmbedManagerService を純関数抽出（612→180行・2026-06-03 完了、下記記録）**。characterization 緑で挙動不変。
 - [x] デッドハンドラ `CharacterEventHandlerService` 削除・過去形イベント `character.updated`/`character.deleted` の emit 全廃（購読者ゼロ実証・2026-06-03 完了、下記記録）。
-- [ ] 構造課題③（interactions→features 向き是正 H4・大規模）は安全網設計が重く**別計画**。残バックログ: `api-response.util` 廃止（**spec の reference oracle として4 spec で現役利用→廃止は spec 改修とセット・低リスクでない**）／`error-handler` の process.env→AppConfig化／型 `src/types/*`→`core/types`（**tsconfig typeRoots/include 調整要・リスク中**）／contracts の DEPRECATED 過去形型最終削除。
+- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録・挙動不変・start:dev で全 handler 登録確認）**。後続（段階的）: feature が InteractionsModule でなく InteractionRegistryModule を import（唯一の依存元 `features/diceRoll/dice-roll.module.ts`）→ diceRoll handler を feature 側へ移し feature module の onModuleInit が registry 登録（§8 目標形）。
+- [ ] 残バックログ: `api-response.util` 廃止（**spec oracle で現役→spec 改修とセット**）／`error-handler` の AppConfig化／型 `src/types/*`→`core/types`（**tsconfig 調整要**）／contracts の DEPRECATED 過去形型最終削除。
+
+---
+
+## 2026-06-03 構造課題③ 第一歩: registry を独立 InteractionRegistryModule に分離（挙動不変）
+
+H4（interactions→features の向き是正・§8 目標「feature 側が registry に handler を登録」）の**安全な第一歩**。handler 移動は伴わず、DI 構造の整理のみ＝挙動不変。
+
+### 現状（司令塔の精査）
+
+- `InteractionRegistryService`/`PatternMatcherService` は `interactions.module` の providers に直接登録され、onModuleInit が全 handler を集中登録。
+- `interactions.module` は `CharacterEditModule`/`CharacterThreadFeatureModule`（feature module）を import（§8 違反）。
+- feature→InteractionsModule の import は `features/diceRoll/dice-roll.module.ts:4,15` の1箇所のみ。
+
+### 実施
+
+- 新規 `discord/interactions/registry/interaction-registry.module.ts`（`InteractionRegistryModule`、@Global 無し、registry/pattern-matcher を providers/exports）。
+- `interactions.module`：registry/pattern-matcher を providers から外し `InteractionRegistryModule` を import（exports は re-export で public API 同一）。onModuleInit の集中登録は不変。
+
+### 検証（司令塔裏取り）
+
+- `pnpm run build` 成功 / `pnpm jest src/discord/interactions/registry` **36 tests 緑** / `pnpm run check:circular` **No circular dependency found!**（新規循環なし）。
+- `pnpm run start:dev`：`InteractionRegistryModule dependencies initialized`、**全 handler が registry に登録**（CharacterEdit/DicePage/DiceRoll/CharacterThread 系の customId パターン）、ERROR/Cannot resolve なし＝**挙動不変を実機確認**。
+
+### 後続ステップ（段階的・未着手）
+
+1. `features/diceRoll/dice-roll.module.ts` の import を `InteractionsModule`→`InteractionRegistryModule` へ細くする（interactions→feature 全体依存を断つ足場）。
+2. diceRoll handler 群を `interactions/handlers/dice-roll/` → feature 側へ移し、`DiceRollFeatureModule` の onModuleInit が自分の handler を registry 登録（集中→分散）。挙動固定テスト＋start:dev で routing 不変を都度証明。
+3. 同様に characterEdit/characterThread も feature 登録へ。最終的に `interactions.module` の feature module import を撤去。
 
 ---
 
