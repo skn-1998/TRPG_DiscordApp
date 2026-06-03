@@ -6,6 +6,8 @@
 
 > **2026-06-03 構造課題②（§9 domain 純粋性）の安全網**: character の emit 経路 characterization を強化（ブランチ `refactor/ref-path-deadcode-cleanup`）。`character.service.spec.ts` に `updateField`/`updateFieldByChannelId` の `character.updated` emit（updateType・channelId・未検出時非 emit）を追加（+4 ケース）。`character.controller.spec.ts` に `createDiscordThread`（`discord.thread.create.requested`）/`displayCharacterOnDiscord`（`discord.character.display.requested`）の emit payload・404 非 emit・401・displayType 既定 enhanced を追加（+7 ケース）。**変更前コードで緑を確認**＝characterization 成立。その後の event 名定数化（`EVENT_NAMES`）後も `pnpm jest src/domains/character` = **8 suites / 119 tests 緑**（integration の実 emit 経路含む）。test-expansion 評価=全対象 **緑(A)**。詳細・フェーズ3提案は `AI.refactor.md` 2026-06-03 節。
 
+> **2026-06-03 過去形デッドイベント廃止に伴う安全網の反転**: 上記②の安全網が固定していた `character.updated`/`character.deleted` の emit を**全廃**（購読者ゼロのデッドイベント。実証は `AI.refactor.md` 2026-06-03「デッドコード除去」節）。これに伴い安全網テストを「emit する」検証から「**emit しないことを確認**」へ反転（service.spec / controller.spec の `not.toHaveBeenCalledWith('character.updated'|'character.deleted', ...)`、integration.spec の `once()` 待受は payload=null＋DB 反映/削除維持）。`CharacterEventHandlerService`（完全デッド）とその spec も削除。completed 系・discord.\* 系の検証は不変。`pnpm jest src/domains/character` = **7 suites / 115 tests 緑**（spec 1本減＝削除分、emit ケース反転で件数は微減）。build・check:circular「No circular dependency found!」。
+
 ---
 
 ## 🔧 **赤 triage（B3）: channel-detection / discord.service / event-debug-test** **[完了: 2026-06-02]**

@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-06-03 デッドコード除去（参照パス／過去形イベント）ブランチ `refactor/ref-path-deadcode-cleanup`
+
+司令塔が grep＋実ファイルで実証した2件のデッドを**挙動不変で除去**。独立コミット単位の2タスク。
+
+### タスク1: `CharacterEventHandlerService` をファイルごと削除（完全デッド）
+
+- 実体: `onModuleInit`→`registerEventListeners()` はログ1行のみで**何も登録しない**（File-based Handlers へ移行済み・登録無効化済み）。private ハンドラ群（update/search/searchById/searchByName/generateUniqueShortCharacterId）は呼び出し元ゼロ。外部 inject ゼロ。
+- 着手前 grep 再確認: 参照は `character.module.ts` の import/providers/exports 3箇所＋`character-event-integration.service.ts` の doc コメント言及のみ。実 DI ゼロ。
+- 実施: `character-event-handler.service.ts` と `.spec.ts` を削除。`character.module.ts` の providers/exports/import から除去。
+- 副作用は onModuleInit のログ1行のみ＝削除で挙動不変。
+
+### タスク2: 過去形デッドイベント `character.updated` / `character.deleted` の emit を全廃
+
+- **購読者ゼロ再実証**: 非テストコードに `.on`/`@OnEvent`/`waitForEvent`/`once`/registry 購読なし。`EventRegistryService` の登録対象は requested 系5ハンドラのみ（過去形なし）。`events/handlers/character-event.handler.ts` は**実在せず**（DESIGN.md の記載が陳腐化）。discord が購読するのは完了形 `character.update.completed`/`character.deletion.completed`（別経路）。→ 過去形 emit は誰にも届かないデッド。
+- 実施: emit 7箇所削除（`character.service.ts` 5＝update/updateField/updateFieldByChannelId/remove/removeByChannelId、`character.controller.ts` 2＝update/remove）。`removeByChannelId` の emit 専用だった事前 `findByChannelId` 取得も除去。service が `TypedEventService`/`EVENT_NAMES` を完全未使用化したため import・コンストラクタ注入を削除（controller は discord.\* emit で継続使用のため残置）。
+- 未参照定義の整理: `EVENT_NAMES.CHARACTER_UPDATED`/`CHARACTER_DELETED`（参照ゼロ）を**削除**。contracts 型キー `'character.updated'`/`'character.deleted'` は spec が「emit しないこと」を型安全に検証するため**残置し DEPRECATED コメント付与**（新規 emit 禁止を明記）。`character.created` は今回対象外で温存。
+- 安全網テスト更新: service.spec / controller.spec の「過去形を emit する」検証を「**emit しないことを確認**」へ反転。integration.spec の `once('character.updated'|'character.deleted')` 待受を「payload が null（=emit されない）＋DB 反映/削除は従来どおり」へ更新。completed 系・discord.\* 系の検証は維持。
+
+### 検証
+
+- `pnpm run build` 成功（タスク1後・タスク2後とも）。
+- `pnpm jest src/domains/character`：**7 suites / 115 tests 緑**（integration 含む。当環境は DB モック有効で integration も全9件緑＝新規破損ゼロ）。
+- `pnpm run check:circular`：**No circular dependency found!**（新規循環なし）。
+
+---
+
 ## 2026-06-03 構造課題④ 横断コードを §12 決定表へ再配置（挙動保存）
 
 ARCHITECTURE §12 決定表違反（`src/utils/` に横断コードが滞留）を是正。**ファイル移動＋import 更新のみ・ロジック不変**。
