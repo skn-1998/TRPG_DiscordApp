@@ -47,8 +47,44 @@
 ### 次にやること（着手はユーザー承認後・各々小PR・安全網テスト先行）
 
 - [x] 低リスク整理を**全て実施済み（2026-06-03、下記記録参照）**：`src/auth` 空ディレクトリ削除（git管理外）／`convertToJSON`（＋spec）削除／`domain.dto.ts` ファイル全体削除（AttributeObject 含め参照ゼロ）／`CharacterEventHandlerService` の未使用 UserService inject 削除（＋spec整合）。build成功・循環ゼロ。
-- [ ] 中リスク（interactions/channel・select・modal の重複 adapter）を実コード再精査のうえデッド確定→削除。
+- [x] 中リスク（interactions/channel・select・modal の重複 adapter）を実コード再精査のうえデッド確定→削除（**2026-06-03 完了、下記記録**）。
 - [ ] 構造課題（core/events⇄src/events 一本化・domain の event 依存除去）は ARCHITECTURE 移行順 Step4→Step5 に沿って安全網テスト前提で。
+
+---
+
+## 2026-06-03 中リスク整理 実施（interactions 重複 adapter のデッド削除・挙動不変）
+
+監査の中リスク候補を**司令塔が実行経路まで遡って再精査**し、デッド4件を確定して削除した。
+
+### 再精査で判明した実行経路の真実
+
+- Discord interaction の実行は `InteractionRegistryService.registerHandlers([...])`（`interactions.module.ts` onModuleInit）に登録された **handler 経由のみ**。channel/select/modal の各サービスは「handler の委譲先 provider」で、handler が DI しなければ実行されない。
+- `discord-interaction-handler.service.ts` の `registerButton/registerModal/registerSelectMenu` は**定義のみで呼び出し元ゼロ**（`this.buttons/modals/selects` Map は常時空→`interactionsService.execute` へフォールバック）＝**旧登録経路は死亡**。配列収集（getModals 等）経路も無い。
+- `DiceCharacterSelectService` と `CustomDiceModalService` は**同名クラスが2箇所に定義された DI 地雷**。handler の import 先が現役、もう一方がデッド（非対称）：
+  - `dice-character-select.handler.ts:4` → `features/diceRoll/adapters/dice-character-select.adapter`（**adapters版が現役**）。
+  - `dice-roll-modal.handler.ts:4` → `interactions/modal/custom-dice-modal.service`（**interactions/modal版が現役**）。
+
+### 削除した4件（spec 連動・module 登録除去）
+
+| 削除（デッド）                                                      | 現役の正                                                                                 | module 登録除去                                   |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `interactions/channel/character-channel-create.service.ts`（+spec） | controller が `ChannelCreateOrchestratorService` を直接実行(interactions.controller:106) | `interactions.module.ts` import/providers/exports |
+| `interactions/channel/diceroll-channel-create.service.ts`（+spec）  | 同上                                                                                     | 同上                                              |
+| `interactions/select/dice-character-select.service.ts`（+spec）     | `features/diceRoll/adapters/dice-character-select.adapter.ts`（温存）                    | 登録なし（import 元ゼロ）                         |
+| `features/diceRoll/adapters/custom-dice-modal.adapter.ts`（+spec）  | `interactions/modal/custom-dice-modal.service.ts`（温存）                                | `dice-roll.module.ts` import/providers/exports    |
+
+計 削除8ファイル・編集2ファイル（module 2本）。
+
+### 検証結果（司令塔裏取り）
+
+- `pnpm run build` 成功（**S4 の同名トークン DI 解決もエラーなし**。残る `CustomDiceModalService` 参照は全て現役 interactions/modal版へ解決）。
+- `pnpm run check:circular`：**No circular dependency found!**（472ファイル・新規循環なし）。
+- 現役側2ファイル（adapters dice-character-select / interactions modal）は未編集で残存・参照ゼロ確認。
+
+### 残課題（派生）
+
+- `interactions/select/character-thread-select.service.ts` は今回対象外（別途精査）。
+- 同名クラス2実装の DI 地雷は今回2組を解消したが、`features` ↔ `interactions` 間で責務が二重化する構造（H4 Registry 移行の途中状態）は残る。Step4 で向きを揃える際に解消。
 
 ---
 
