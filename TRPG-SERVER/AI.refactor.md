@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-06-03 構造課題③ characterEdit handler の feature 移管（Part A・挙動不変）＋ §8 完全撤去の真の障壁を特定
+
+③ 最終段（interactions.module の feature module import 全撤去）に着手。characterEdit から実施。**handler 所有は feature へ
+移したが、CharacterEditModule import の撤去は別の深い結合がブロック**することが判明（重要）。コミット `a5369cf`。
+
+### Part A 実施（handler 6個を feature 所有へ・コミット `a5369cf`）
+
+- characterEdit interaction handler 6個(+spec) を `interactions/handlers/character-edit/` → `features/characterEdit/handlers/` へ rename（base class は `interactions/handlers/base` 参照、service は `../enhanced-character-edit.service`）。
+- `CharacterEditModule`: 6 handler を providers 追加・`InteractionRegistryModule` を import・`OnModuleInit` で registry 登録（diceRoll と同方式）。CharacterEditModule は `discord-event-handlers.module` も import するため singleton 維持＝onModuleInit が走り登録される。
+- `interactions.module`: 6 handler の provider/constructor/onModuleInit 登録を撤去。
+- 検証: build / check:circular(475) / jest 30 suites 400 tests 緑 / start:dev で characterEdit handler 6個の registry 登録(CharacterEditModule 経由)・無エラー＝挙動不変。
+
+### ★ §8「feature module import 全撤去」の真の障壁（Phase 1 で特定）
+
+handler 移管だけでは import は外せない。interactions 常駐コードが feature サービスに結合しているため：
+
+- **characterEdit（撤去ブロック・挙動影響あり）**: `InteractionsService`（interactions core 中核）が `CharacterSectionEditorService` を inject し、**旧 if 分岐ルーティング**（`interactions.service.ts:164-199` の `execute()`）で `character-section-select-`/`character-edit-`/`character-field-` を手動ルーティングしている（「discord-interaction-handler 互換のため」）。これは Registry が置き換えるはずの旧経路（CharacterEditSection/FieldHandler が同 customId を担当）。CharacterEditModule import を外すにはこの旧 execute() 経路の撤去が前提＝**Registry が完全代替するか確認のうえ削除する挙動影響リファクタ**。なお `InteractionsService` の `CharacterUIService` 注入は**未使用（dead injection）**。
+- **characterThread（撤去 feasible・InteractionsService 結合なし）**: interactions 常駐で characterThread feature を使うのは `CharacterThreadSelectService`(interactions/select/) のみ（`CharacterThreadOrchestrator` を inject）。これは characterThread 3 handler 専用。handler 7本＋`CharacterThreadSelectService`＋`CharacterDiceButtonsService`(character-dice handler 専用) を feature へ移せば CharacterThreadFeatureModule import は撤去可能（diceRoll Step5b 規模。`CharacterDiceButtonsService` は `CharacterDiceHistoryService` 等 interactions/button 常駐への依存があり整理要）。
+
+### 残（③ 全体）
+
+- **characterThread 移管（Part B）**: 7 handler ＋ CharacterThreadSelectService ＋ CharacterDiceButtonsService（＋CharacterDiceHistory 整理）を feature へ → CharacterThreadFeatureModule import 撤去。挙動不変リファクタ。
+- **characterEdit の InteractionsService 旧 execute() 撤去**: Registry 代替を安全網で確認 → 旧 if 分岐削除 → CharacterUIService(dead) と CharacterSectionEditorService 注入を除去 → CharacterEditModule import 撤去。**挙動影響ありのためユーザー承認＋characterization 必須**。
+
+---
+
 ## 2026-06-03 構造課題③ Step5b orchestrator/dice ロジックの feature 移管・DiceServicesModule 新設（挙動不変）
 
 ③（H4 / §8）の **diceRoll 分の完了ステップ**。Step5a（CustomDiceModalService 移管）に続き、orchestrator と
@@ -266,7 +292,7 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
 - [x] 構造課題⑤ **巨大サービス分割: CharacterEmbedManagerService を純関数抽出（612→180行・2026-06-03 完了、下記記録）**。characterization 緑で挙動不変。
 - [x] デッドハンドラ `CharacterEventHandlerService` 削除・過去形イベント `character.updated`/`character.deleted` の emit 全廃（購読者ゼロ実証・2026-06-03 完了、下記記録）。
-- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録）**。**第二歩 = diceRoll handler/pagination の feature 移管 完了（2026-06-03、コミット `fde91e8`・上記記録・start:dev で handler 12 登録確認・挙動不変）**。残: **Step5a＝CustomDiceModalService 移管 完了（`16c4c03`）／Step5b＝orchestrator/button-ui/history を feature へ移管・DiceServicesModule 新設・`dice-roll.module` の InteractionsModule import 撤去 完了（`352683a`+`354a53f`）＝diceRoll feature ⇄ interactions 結合を解消（§8 diceRoll 分 完了）**。残: characterEdit/characterThread も feature 登録へ → `interactions.module` の feature module import（CharacterEditModule/CharacterThreadFeatureModule）を全撤去（§8 目標形）。
+- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録）**。**第二歩 = diceRoll handler/pagination の feature 移管 完了（2026-06-03、コミット `fde91e8`・上記記録・start:dev で handler 12 登録確認・挙動不変）**。残: **Step5a＝CustomDiceModalService 移管 完了（`16c4c03`）／Step5b＝orchestrator/button-ui/history を feature へ移管・DiceServicesModule 新設・`dice-roll.module` の InteractionsModule import 撤去 完了（`352683a`+`354a53f`）＝diceRoll feature ⇄ interactions 結合を解消（§8 diceRoll 分 完了）**。**characterEdit handler の feature 移管 完了（Part A・`a5369cf`）**。残: ①characterThread handler/サービスの feature 移管→CharacterThreadFeatureModule import 撤去（feasible・InteractionsService 結合なし）、②characterEdit は InteractionsService の旧 if 分岐 execute()（CharacterSectionEditorService 使用）撤去が CharacterEditModule import 撤去の前提＝**挙動影響ありで承認＋安全網必須**（詳細は上記「真の障壁」節）。
 - [ ] 残バックログ: `api-response.util` 廃止（**spec oracle で現役→spec 改修とセット**）／`error-handler` の AppConfig化／型 `src/types/*`→`core/types`（**tsconfig 調整要**）／contracts の DEPRECATED 過去形型最終削除。
 
 ---
