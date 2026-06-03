@@ -4,6 +4,8 @@
 
 > **2026-06-03 デッドコード削除（挙動保存）**: `src/discord/features/characterEdit/index.ts` の未使用 `CharacterEditServiceFactory`（実在しない `./character-channel-create.service` を require）を削除。製品コードの公開 API 不変。`pnpm test src/discord/features/characterEdit` = **21 suites / 292 tests 緑**、build 成功、check:circular「No circular dependency found!」。
 
+> **2026-06-03 構造課題②（§9 domain 純粋性）の安全網**: character の emit 経路 characterization を強化（ブランチ `refactor/ref-path-deadcode-cleanup`）。`character.service.spec.ts` に `updateField`/`updateFieldByChannelId` の `character.updated` emit（updateType・channelId・未検出時非 emit）を追加（+4 ケース）。`character.controller.spec.ts` に `createDiscordThread`（`discord.thread.create.requested`）/`displayCharacterOnDiscord`（`discord.character.display.requested`）の emit payload・404 非 emit・401・displayType 既定 enhanced を追加（+7 ケース）。**変更前コードで緑を確認**＝characterization 成立。その後の event 名定数化（`EVENT_NAMES`）後も `pnpm jest src/domains/character` = **8 suites / 119 tests 緑**（integration の実 emit 経路含む）。test-expansion 評価=全対象 **緑(A)**。詳細・フェーズ3提案は `AI.refactor.md` 2026-06-03 節。
+
 ---
 
 ## 🔧 **赤 triage（B3）: channel-detection / discord.service / event-debug-test** **[完了: 2026-06-02]**
