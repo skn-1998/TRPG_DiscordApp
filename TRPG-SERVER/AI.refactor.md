@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-06-03 構造課題③ diceRoll 移管（handler/pagination を interactions core → feature・挙動不変）
+
+構造課題③（H4 / ARCHITECTURE §8「feature 側が registry に handler を登録」・§5.3「provider 所有」）の本体ステップ。
+InteractionRegistryModule 分離（第一歩・下記）に続き、diceRoll の interaction handler と pagination の**所有権を
+InteractionsModule から DiceRollFeatureModule 配下へ移管**。実装コミット `fde91e8`（61ファイル・rename 35＋新規 module）。
+サブエージェント実装 → **司令塔が報告を再裏取りしてコミット・記録**（報告に誤りあり・下記）。
+
+### 実施
+
+- handler 12個(+spec): `interactions/handlers/dice-roll/` → `features/diceRoll/handlers/dice-roll/`（rename）。
+- pagination 11ファイル: `discord/components/pagination/` → `features/diceRoll/services/pagination/`（rename・`components/pagination` は空に）。
+- 新規 `DiceRollPaginationModule`（pagination 2 service を providers/exports、`DiceRollModule`(domains) を import）。
+- `DiceRollFeatureModule`: handler 12 を providers 化＋`OnModuleInit` で `InteractionRegistryService.registerHandlers` に自登録（集中→分散）。`InteractionRegistryModule`＋`DiceRollPaginationModule` を import。
+- `interactions.module`: diceRoll handler/adapter/pagination の配線を全撤去。button 系の pagination 解決用に `DiceRollPaginationModule` のみ import。
+
+### 設計判断（2点）
+
+- **差分1（pagination 独立モジュール化）**: interactions core の `CharacterDiceButtonsService`/`DiceHistoryService`(button/) が `DiceRollPaginationService` を直接 inject するため、pagination を独立 `DiceRollPaginationModule` に切り出し、interactions と feature の双方が import（相互 import＝循環を回避）。所有権は feature 配下＝§5.3 の精神に合致。
+- **差分2（Step5 未達）**: `dice-roll.module`(feature) の `InteractionsModule` import は維持。diceRoll handler が `CharacterDiceOrchestratorService`(interactions/button/)・`CustomDiceModalService`(interactions/modal/) を inject するため。`DiceRollFeatureModule → InteractionsModule` の一方向のみで、InteractionsModule は feature を import しないため循環なし。
+
+### 検証（司令塔が報告を再裏取り）
+
+- サブエージェント報告「interactions→diceRoll 依存 grep ゼロ」は**不正確**と判明。実際は interactions(button系) が `DiceRollPaginationService`/`DiceRollPaginationModule` を import 継続（＝差分1 の意図した依存）。**ただし循環は生んでいない**ことを check:circular で実証。「ハンドラ配線は撤去・pagination 依存は残置」が実態。
+- `pnpm run build` 成功 / `pnpm run check:circular`：**No circular dependency found!（474 files）**。
+- `pnpm jest`（registry + features/diceRoll + interactions/button + handlers.integration）：**40 suites / 445 tests 緑**（報告の 31+36+150 を内包）。
+- `pnpm run start:dev`：**Nest application successfully started** / DiscordBOT 起動(TRPG*BOT#8068) / **diceRoll handler 12個が InteractionRegistryService に各1回登録**（dice-page-prev/next/first/last/cancel/select・dice-char-select・`^roll\*[^*]+\_`・`^roll*\d+d\d+`・roll*custom・preset-dice\*・`^(custom|param)-dice-modal`）/ ERROR・Cannot resolve なし＝**実機で挙動不変を確認**。
+
+### コミット範囲（pathspec・前作業の未コミット物は温存）
+
+- `fde91e8` は diceRoll/interactions/pagination 配下のみ（`git commit --only` で pathspec 指定）。前作業由来の未コミット（doc 削除7本・構造課題⑤の characterEdit 追加分・`character.service.spec.ts` の net-zero ノイズ・大量の CRLF only `M`）は index/working tree に温存し巻き込まない。
+
+### 残（③ の続き・未着手）
+
+- **Step5**: `CharacterDiceOrchestratorService`(button/)・`CustomDiceModalService`(modal/) を feature へ移し、`dice-roll.module` の `InteractionsModule` import を撤去（差分2 の解消）。
+- characterEdit/characterThread の handler も feature 登録へ → 最終的に `interactions.module` の feature module import を全撤去（§8 目標形）。
+- **follow-up（docs）**: `interactions/README.md`（前作業で未コミット）が「Phase 1 未着手＝InteractionsModule 所有」と記載しており本移管で陳腐化。`interactions/MIGRATION_GUIDE.md` ともども現状（diceRoll は feature 所有）へ要更新。本コミットでは前作業の未コミット .md を巻き込まないため未着手。
+
+---
+
 ## 2026-06-03 デッドコード除去（参照パス／過去形イベント）ブランチ `refactor/ref-path-deadcode-cleanup`
 
 司令塔が grep＋実ファイルで実証した2件のデッドを**挙動不変で除去**。独立コミット単位の2タスク。
@@ -158,7 +197,7 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
 - [x] 構造課題⑤ **巨大サービス分割: CharacterEmbedManagerService を純関数抽出（612→180行・2026-06-03 完了、下記記録）**。characterization 緑で挙動不変。
 - [x] デッドハンドラ `CharacterEventHandlerService` 削除・過去形イベント `character.updated`/`character.deleted` の emit 全廃（購読者ゼロ実証・2026-06-03 完了、下記記録）。
-- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録・挙動不変・start:dev で全 handler 登録確認）**。後続（段階的）: feature が InteractionsModule でなく InteractionRegistryModule を import（唯一の依存元 `features/diceRoll/dice-roll.module.ts`）→ diceRoll handler を feature 側へ移し feature module の onModuleInit が registry 登録（§8 目標形）。
+- [~] 構造課題③（interactions→features 向き是正 H4・大規模）**第一歩 = registry の独立 `InteractionRegistryModule` 分離 完了（2026-06-03、下記記録）**。**第二歩 = diceRoll handler/pagination の feature 移管 完了（2026-06-03、コミット `fde91e8`・上記記録・start:dev で handler 12 登録確認・挙動不変）**。残: Step5（`CharacterDiceOrchestratorService`/`CustomDiceModalService` を feature へ移し `dice-roll.module` の InteractionsModule import 撤去＝差分2 解消）→ characterEdit/characterThread も feature 登録へ → `interactions.module` の feature module import を全撤去（§8 目標形）。
 - [ ] 残バックログ: `api-response.util` 廃止（**spec oracle で現役→spec 改修とセット**）／`error-handler` の AppConfig化／型 `src/types/*`→`core/types`（**tsconfig 調整要**）／contracts の DEPRECATED 過去形型最終削除。
 
 ---
