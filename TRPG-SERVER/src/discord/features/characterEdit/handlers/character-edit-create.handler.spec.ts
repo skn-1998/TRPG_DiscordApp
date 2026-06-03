@@ -1,6 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { CharacterEditCreateHandler } from './character-edit-create.handler'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditCreateHandler', () => {
   const mockService = { handleButtonInteraction: jest.fn().mockResolvedValue(undefined) }

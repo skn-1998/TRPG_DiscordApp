@@ -1,6 +1,6 @@
 import { createMockModalInteraction } from '@discord-test-utils'
 import { CharacterEditModalHandler } from './character-edit-modal.handler'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditModalHandler', () => {
   const mockService = { handleModalSubmitInteraction: jest.fn().mockResolvedValue(undefined) }

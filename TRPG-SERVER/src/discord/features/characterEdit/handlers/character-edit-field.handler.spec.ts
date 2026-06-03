@@ -1,6 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterEditFieldHandler } from './character-edit-field.handler'
-import { EnhancedCharacterEditService } from '../../../features/characterEdit/enhanced-character-edit.service'
+import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditFieldHandler', () => {
   const mockService = { handleSelectMenuInteraction: jest.fn().mockResolvedValue(undefined) }

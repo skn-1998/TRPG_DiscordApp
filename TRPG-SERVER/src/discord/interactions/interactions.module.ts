@@ -10,6 +10,9 @@ import { CharacterThreadFeatureModule } from '../features/characterThread/charac
 import { CharacterModule } from '../../domains/character/character.module'
 // dice 計算・ロジック系（DiceRollLogic/Orchestrator/Calculation/Parser/Preset）は DiceServicesModule が所有
 import { DiceServicesModule } from '../services/dice/dice-services.module'
+// characterEdit feature module: handler は feature 所有へ移管済みだが、InteractionsService が
+// CharacterUIService / CharacterSectionEditorService を inject するため import は維持（§8 完全是正は別課題）
+import { CharacterEditModule } from '../features/characterEdit/character-edit.module'
 
 // 統合された監視サービス
 import { PerformanceOrchestratorService } from '../services/monitoring/performance-orchestrator.service'
@@ -17,20 +20,9 @@ import { MetricsCollectorService } from '../services/monitoring/metrics-collecto
 import { AlertManagerService } from '../services/monitoring/alert-manager.service'
 import { DiscordMonitorService } from '../services/monitoring/discord-monitor.service'
 
-// Character Edit Modules
-import { CharacterEditModule } from '../features/characterEdit/character-edit.module'
-
 // 🆕 Interaction Registry (Events方式の自動ルーティング)
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 import { InteractionRegistryModule } from './registry/interaction-registry.module'
-
-// 🆕 Interaction Handlers - Character Edit系
-import { CharacterEditRefreshHandler } from './handlers/character-edit/character-edit-refresh.handler'
-import { CharacterEditCreateHandler } from './handlers/character-edit/character-edit-create.handler'
-import { CharacterEditCompactHandler } from './handlers/character-edit/character-edit-compact.handler'
-import { CharacterEditSectionHandler } from './handlers/character-edit/character-edit-section.handler'
-import { CharacterEditFieldHandler } from './handlers/character-edit/character-edit-field.handler'
-import { CharacterEditModalHandler } from './handlers/character-edit/character-edit-modal.handler'
 
 // 🆕 Interaction Handlers - Character Thread系
 import { CharacterThreadSelectHandler } from './handlers/character-thread/character-thread-select.handler'
@@ -68,14 +60,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
 @Module({
   controllers: [InteractionsController],
   providers: [
-    // 🆕 Interaction Handlers - Character Edit系
-    CharacterEditRefreshHandler,
-    CharacterEditCreateHandler,
-    CharacterEditCompactHandler,
-    CharacterEditSectionHandler,
-    CharacterEditFieldHandler,
-    CharacterEditModalHandler,
-
     // 🆕 Interaction Handlers - Character Thread系
     CharacterThreadSelectHandler,
     CharacterThreadCreateHandler,
@@ -118,7 +102,7 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
     DiceRollPaginationModule, // button 系サービスが DiceRollPaginationService を解決するため
     DiceRollModule,
     EventEmitterModule,
-    CharacterEditModule, // Modern Services + Legacy Services (統合)
+    CharacterEditModule, // InteractionsService が CharacterUIService/CharacterSectionEditorService を解決するため
     CharacterThreadFeatureModule,
     CharacterModule // CharacterService用
   ]
@@ -126,13 +110,6 @@ import { FlexibleDiceSelectHandler } from './handlers/character-thread/flexible-
 export class InteractionsModule implements OnModuleInit {
   constructor(
     private readonly interactionRegistry: InteractionRegistryService,
-    // Character Edit Handlers
-    private readonly characterEditRefreshHandler: CharacterEditRefreshHandler,
-    private readonly characterEditCreateHandler: CharacterEditCreateHandler,
-    private readonly characterEditCompactHandler: CharacterEditCompactHandler,
-    private readonly characterEditSectionHandler: CharacterEditSectionHandler,
-    private readonly characterEditFieldHandler: CharacterEditFieldHandler,
-    private readonly characterEditModalHandler: CharacterEditModalHandler,
     // Character Thread Handlers
     private readonly characterThreadSelectHandler: CharacterThreadSelectHandler,
     private readonly characterThreadCreateHandler: CharacterThreadCreateHandler,
@@ -149,13 +126,6 @@ export class InteractionsModule implements OnModuleInit {
   onModuleInit(): void {
     // 全ハンドラーをRegistryに登録
     this.interactionRegistry.registerHandlers([
-      // Character Edit Handlers
-      this.characterEditRefreshHandler,
-      this.characterEditCreateHandler,
-      this.characterEditCompactHandler,
-      this.characterEditSectionHandler,
-      this.characterEditFieldHandler,
-      this.characterEditModalHandler,
       // Character Thread Handlers
       this.characterThreadSelectHandler,
       this.characterThreadCreateHandler,
