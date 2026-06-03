@@ -5,6 +5,111 @@
 
 ---
 
+## 2026-06-03 参照・経路の全体監査（読み取り専用・コード未変更）
+
+「各関数がどう使われるか（参照・呼び出し経路）」「現構成の妥当性」「保守リスクのあるフォルダ」を洗い出すため、`src/` を8区画に分け**フォルダ単位でサブエージェント（読み取り専用）を並列起動**し、grep で参照を実証。**司令塔（メイン）が報告を裏取りし、矛盾・誤報告を是正**。コードは一切変更していない（build/check:circular 未影響）。
+
+### 司令塔の裏取りで確定した事実（grep 実証）
+
+- **`core/events/typed-event.service.ts:3` が `../../events/contracts` を import**（`core/events → src/events` の依存方向違反＝実害は「イベント契約型の置き場所」問題）。※events 担当の「参照なし」報告は**誤り**、core 担当が正しい。
+- **イベント基盤が二重 `@Global`**：`core/events/core-events.module.ts:12` と `events/events.module.ts:49` の両方を `app.module.ts:31,36` が import。`@Global` は他に config のみ（正当）。
+- **`src/auth/` は0ファイル（空の残骸ディレクトリ）**。`from '*/auth'` 参照ゼロ＝削除安全。
+- **`discord/utils/convertToJSON.ts`（3関数）は非spec参照ゼロ＝デッド確定**。
+- **`core/dto/domain.dto.ts`（DtoDomainFactory/PaginationDto/SearchDto）は非spec参照ゼロ＝デッド確定**。
+- `discord.embed.update.requested` / `discord.notification.requested` は **emit されている**（`discord/events/handlers/character.creation.completed.ts:129,159`・`characterEdit/.../character-edit-feature.handler.ts:121`）。※events 担当の「emit地点不明＝デッドイベント疑い高」は**誤り**。`src/events/handlers/discord-integration.handler.ts` はログ購読のみ（実処理は各 feature・仕様通り）。
+- `discord/utils/getCategory.ts`・`createCategory.ts` は各1関数。discord-utils 担当が主張した「`discord.util.ts` に同名関数あり＝重複」は**裏取りで確認できず（要再精査・重複と断定しない）**。
+
+### 確定デッドコード／低リスク整理候補（build/check:circular で裏取り前提）
+
+| 対象                                                                                                                                                                                                        | 根拠                                                                       | リスク |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------ |
+| `src/auth/`（空ディレクトリ）                                                                                                                                                                               | 0ファイル・参照ゼロ                                                        | 低     |
+| `discord/utils/convertToJSON.ts`                                                                                                                                                                            | 非spec参照ゼロ                                                             | 低     |
+| `core/dto/domain.dto.ts` の3 export                                                                                                                                                                         | 非spec参照ゼロ                                                             | 低     |
+| `CharacterEventHandlerService` の `UserService` inject（`character-event-handler.service.ts:5,19`）                                                                                                         | `userService.` 呼び出しゼロ（未使用注入）                                  | 低     |
+| `interactions/channel/*`（character-channel-create / diceroll-channel-create）, `interactions/select/dice-character-select.service.ts`, `interactions/modal/custom-dice-modal.service.ts` の adapter 重複側 | Module 登録のみで handler は features/adapters 版を import（**要再精査**） | 中     |
+
+### 構造的な保守リスク（要設計判断・既知 H 課題と対応）
+
+1. **core/events ⇄ src/events の責務分割が未確定**（H2 の積み残し）。`typed-event.service`(core) がイベント契約(src/events/contracts) に依存し、@Global も二重。→ contracts を `core/events` 配下へ寄せ、@Global を1本化する案。**挙動保存テスト必須**。
+2. **domain 純粋性違反（ARCHITECTURE §9）**：`character.service.ts`(10,70/emit 158,201,231,258,285)・`character.controller.ts`(28,58/emit 210,245,309,349)・`character-event-handler.service.ts` が `TypedEventService` を直接 inject＋feature event 名を直書き。→ event emit を feature/application 層へ移譲（H5/Step5）。**安全網テスト必須**。
+3. **interactions core → features の import 29行**（既知 H4・Registry 移行途中）。handler/controller/service/module/`interactions.list.ts` が features を import。ARCHITECTURE §8 目標は「feature 側が registry 登録」で向きが逆。→ Step4 diceRoll Feature 分離と同調して是正。
+4. **横断コード置き場所違反（§12 決定表・H1 積み残し）**：`utils/error-handler.ts`→`core/http`、`utils/error-helpers.ts`→`shared`、`utils/cookie.service.ts`→`core/http`、`utils/crypto.util.ts`→`shared`、`utils/api-response.util.ts`→廃止 or `core/http`（実装参照ゼロ・spec のみ）。型 `src/types/*`→`core/types`（express 拡張は例外）。
+5. **巨大サービス**：`characterEdit/services/character-embed-manager.service.ts`(612)・`character-modal-handler.service.ts`(597)・`characterThread/character-channel.service.ts`(549・Phase3 で一部無効化中)。Embed 生成ロジックが characterEdit/characterThread 3箇所に分散＝共通 util 抽出余地。
+
+### 健全と確認できた箇所（現構成維持で良い）
+
+- commands 層は features への薄い委譲アダプタとして**生存・重複なし**（CommandsController のみ参照希薄＝別途精査）。
+- domain の依存方向は良好（user→auth 再混入なし・H6 維持・循環ゼロ）。Repository/Entity/DTO 基盤は明確。
+- events の File-based Registry・request-response パターン・逆流ゼロ（src/events→features なし）は健全。
+- core/http の interceptor/filter/decorator は auth/user/character で実使用・宙吊りなし。
+
+### 次にやること（着手はユーザー承認後・各々小PR・安全網テスト先行）
+
+- [x] 低リスク整理を**全て実施済み（2026-06-03、下記記録参照）**：`src/auth` 空ディレクトリ削除（git管理外）／`convertToJSON`（＋spec）削除／`domain.dto.ts` ファイル全体削除（AttributeObject 含め参照ゼロ）／`CharacterEventHandlerService` の未使用 UserService inject 削除（＋spec整合）。build成功・循環ゼロ。
+- [ ] 中リスク（interactions/channel・select・modal の重複 adapter）を実コード再精査のうえデッド確定→削除。
+- [ ] 構造課題（core/events⇄src/events 一本化・domain の event 依存除去）は ARCHITECTURE 移行順 Step4→Step5 に沿って安全網テスト前提で。
+
+---
+
+## 2026-06-03 低リスク整理 実施（デッドコード／未使用注入の一掃・挙動不変）
+
+上記監査で確定した低リスク整理候補のうち3点を、**独立コミット可能な単位**で実施。挙動を変えない除去であり、各ステップ後に build・check:circular で裏取り（S3 は spec も実行）。コミットはメインが別途まとめて行う。
+
+### S1: `discord/utils/convertToJSON.ts` 削除（デッドコード）
+
+- 削除: `src/discord/utils/convertToJSON.ts`（`filterAndFormatInput` / `convertCharacterInfoToJson` / `convertCharacterJsonToString` の3関数）と専用テスト `convertToJSON.spec.ts`。
+- 裏取り: 非spec参照ゼロを grep 再確認。barrel(`core/dto` 等の index)経由 re-export なし。spec は3関数専用で生存関数を含まず。
+- 検証: build OK / `No circular dependency found!`。
+
+### S2: `core/dto/domain.dto.ts` 削除（ファイル全体・デッド）
+
+- サブエージェントは当初 `DtoDomainFactory` / `PaginationDto` / `SearchDto` の3 export のみ削除し、混在していた `AttributeObject` 型を「範囲外」として温存した。
+- **司令塔の裏取りで `AttributeObject` も非spec参照ゼロ**と判明（`grep -rn AttributeObject src` が空）。残す意味がないため**ファイルごと削除**へ切り替え。
+- `core/dto` に barrel(index.ts)は存在せず、`domain.dto` への import 参照もゼロ。
+- 検証: build OK / `check:circular`「No circular dependency found!」/ `grep domain.dto|AttributeObject src` 全消滅。
+
+### S3: `CharacterEventHandlerService` の未使用 `UserService` inject 削除
+
+- 変更: `character-event-handler.service.ts` から `UserService` の import(旧5行) と constructor の `private readonly userService: UserService`(旧19行) を削除。`userService.` 呼び出しはコード内ゼロ＝未使用注入。クラス本体・public/private メソッドは不変。
+- spec 整合: `character-event-handler.service.spec.ts` から `UserService` の import / `mockUserService` / provide / `expect(mockUserService.addCharacterId).not.toHaveBeenCalled()` を削除（呼ばれないものの assert は不要）。
+- `character.module.ts` の providers から本サービスは削除していない（現役・3件参照）。
+- 検証: build OK / `No circular dependency found!` / `pnpm test character-event-handler.service.spec.ts` = **4 passed**。
+
+---
+
+## 2026-06-03 ドキュメント整合性監査・整理（全 .md を現行仕様へ追従）
+
+リファクタ進展（H1〜H10 / Phase S / H6 循環解消 / テスタビリティ評価）に対し、`.md` 群（node_modules 除く全 42 本）が陳腐化していたため、**ドキュメント毎にサブエージェントを起動して現行コード・正本と照合**し、不整合を是正した。司令塔（メイン）が照合結果を裏取りし、機械的編集は編集サブエージェントへ委譲、判断を要する編集（AI.md 刷新・AI.features.md・削除・本記録）はメインが実施。コードは一切変更していない（build/check:circular に影響なし）。
+
+### 横断的に是正した陳腐化（事実）
+
+- 「型安全性100%完全達成」= 誇張（実態 any 多数・非テスト約230件）→ 現実的表現へ。対象: `AI.md` / `AI.architecture.md`(両) / `AI.domain.md` / `AI.types.md`。
+- 「循環は UserDomain⇄AuthDomain のみ許容」= H6（2026-06-01）で解消済み・**現在ゼロ**へ統一。対象: `AI.domain.md` / `src/ARCHITECTURE.md`（現状表）/ `src/discord/AI.discord.md` / `src/events/DESIGN.md`。
+- 「イベント駆動移行100%/3系統バス」→ `TypedEventService` 1系統（`core/events`）へ統一済みに修正。`src/events/DESIGN.md` の TypedEventService 配置を `shared/application`→`core/events`（T4 反映漏れ）へ訂正。`src/events/AI.event.md` は現状節と履歴の境界を明示。
+- デッドコード3点（`character-id.service.ts`/`character.schema.ts`/`CharacterEventHandlerService`）の「削除可」誤判定に訂正注記（現役）。対象: `document/refactoring-audit-2026-05-30.md` ほか。
+- `npm run`→`pnpm run`、カバレッジ等の古い数値スナップショットに「最新は AI.test.md」注記。
+
+### 削除（役目を終えた一過性メモ / 空ファイル）7 本
+
+`AI.discord.md`(root, src 版と重複) / `src/claude.md`(旧実行トレース) / `INTERACTION_REGISTRY_IMPLEMENTATION.md`(空) / `src/type-error-fixes.md`(解消済み) / `コメントアウト箇所管理.md` / `adapters復旧必要性分析.md`(復旧不要で決着) / `postFlexibleDiceMenu-flow-analysis.md`(解決済み)。
+※ `CLAUDE_HANDOFF.md` は委譲フローの運用ファイルのため**維持**（空テンプレ）。
+
+### 改稿・新規
+
+- `README.md`(root): NestJS 雛形 → プロジェクト固有（pnpm / Quick Start / `test:e2e:tc` / 正本リンク）。
+- `src/discord/features/characterEdit/README.md`: 実在しない旧ファイル記述を削除し実構成（`EnhancedCharacterEditService` 中心）へ全面改稿。
+- `AI.features.md`(空)→ 正本（DESIGN.md / features README）への索引文書として整備。
+- `AI.md`: 冒頭サマリ刷新（正本ポインタ追加）・専門ドキュメント索引を正本/履歴に再編・末尾の無意味断片を削除・Phase 3 を履歴明示。
+- `src/discord/{DESIGN.md, interactions/README.md, MIGRATION_GUIDE.md, features/README.md, services/channel/README.md}`: Phase 0/1 進捗・削除済み 5 サービス・型表記を実態へ追従。
+
+### 派生課題（ドキュメント整理の範囲外＝別タスク）
+
+- ~~`discord-facade.service.ts` は現役だが DESIGN の目標フローから除外＝**廃止計画が宙ぶらりん**（Phase 1 で要決着）。~~ → **決着（2026-06-03・ドキュメントのみ／コード不変）**: 実コード精査の結果、**facade は存続**で確定し DESIGN.md §4.5 に明記。旧メモ `DISCORD_SERVICES_ANALYSIS.md` の「Phase1 廃止／TypedEventService 代替」は事実誤認（facade に `emitEvent` は無く、`initializeDiscord` 起動オーケストレーション＋REST `DiscordController` 裏付け＋ヘルス集約が実責務でイベント発行はしない）のため撤回。`§4.2 目標フロー` 図に無いのは図が interaction ルーティング専用だから。**実ランタイム経路は `main.ts`/`discord.controller` → `DiscordService`(@deprecated ラッパー) → `DiscordFacadeService` → 各専門サービス**で、`DiscordFacadeService` を直接注入するのはラッパーのみ（Grep 確認）。よって真の廃止対象は `DiscordService` ラッパーであり、DESIGN.md Phase 4 に「main.ts/discord.controller を facade 直注入へ置換 → ラッパー削除」を具体化。**挙動を変える置換は安全網テスト＋ユーザー承認後**（本記録時点では未着手＝コード不変）。
+- ~~`src/discord/features/characterEdit/index.ts` の `CharacterEditServiceFactory` が実在しない `./character-channel-create.service` を `require`＝**デッドコード**（呼ぶと失敗）。~~ → **削除済み（2026-06-03）**: 呼び出し元ゼロ（Grep 確認）の未使用 Factory を class ごと削除。実サービス（ChannelDetectionService/CharacterCreationService/CharacterNotificationService）は `./services` から export 済みで DI 経由利用のため挙動不変。検証: build 成功 / check:circular「No circular dependency found!」/ characterEdit spec 21 suites・292 tests 緑。
+
+---
+
 ## 2026-06-02 テスタビリティ評価マップ作成（テスト負債レジスタ＝赤リスト）
 
 単体テスト拡充の前段として、spec の無い本体実装 **195 ファイルを緑/黄/赤/対象外で評価**（評価のみ・テスト未作成）。
@@ -193,7 +298,7 @@ user: 全 success 200/'成功'。create=err 500/'ユーザー作成に失敗し�
 
 - [x] 横断コード／型の置き場所の決定表を作成し本書と `AI.types.md` に追記 → **H1 完了（2026-06-01）**：`src/ARCHITECTURE.md` §12 を決定表化（core=DIサービス/インフラ、shared=純粋関数、utils 解消方針、型は core/types 一本化、express 拡張は例外）。`AI.types.md` に正本ポインタ追記。適用（utils/types のファイル移動）は挙動保存の小 PR で順次。
 - [x] `auth.controller.ts` 等の機密 console.log を削除（セキュリティ最優先）→ **Phase S で完了（下記）**
-- [ ] `src/events/DESIGN.md` を作成（バス一本化の具体設計）
+- [x] `src/events/DESIGN.md` を作成（バス一本化の具体設計）→ **完了（2026-05-31）**。T1〜T5 まで実施済み。
 - [ ] High 課題を Issue / Phase plan 化して着手順に並べる
 
 ---
