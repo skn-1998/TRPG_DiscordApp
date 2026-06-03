@@ -9,7 +9,6 @@ import { DicePageFirstButtonService } from './adapters/dice-page-first-button.ad
 import { DicePageLastButtonService } from './adapters/dice-page-last-button.adapter'
 import { DicePageCancelButtonService } from './adapters/dice-page-cancel-button.adapter'
 import { DiceCharacterSelectService } from './adapters/dice-character-select.adapter'
-import { CustomDiceModalService } from './adapters/custom-dice-modal.adapter'
 import { DiceButtonService } from './adapters/dice-button.adapter'
 
 @Module({
@@ -24,7 +23,6 @@ import { DiceButtonService } from './adapters/dice-button.adapter'
     DicePageLastButtonService,
     DicePageCancelButtonService,
     DiceCharacterSelectService,
-    CustomDiceModalService,
     DiceButtonService
   ],
   exports: [
@@ -37,7 +35,6 @@ import { DiceButtonService } from './adapters/dice-button.adapter'
     DicePageLastButtonService,
     DicePageCancelButtonService,
     DiceCharacterSelectService,
-    CustomDiceModalService,
     DiceButtonService
   ]
 })
