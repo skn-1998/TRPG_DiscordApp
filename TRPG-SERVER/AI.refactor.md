@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-06-03 構造課題④ 横断コードを §12 決定表へ再配置（挙動保存）
+
+ARCHITECTURE §12 決定表違反（`src/utils/` に横断コードが滞留）を是正。**ファイル移動＋import 更新のみ・ロジック不変**。
+
+### 実施（移動4＋import 更新48ファイル）
+
+- 純粋関数 → `src/shared/utils/`：`error-helpers.ts`（isErrorWithMessage/getErrorMessage）・`crypto.util.ts`（鍵引数注入・config非依存）。
+- DI サービス → `src/core/http/`：`cookie.service.ts`（@Injectable・Express Response 操作）・`error-handler.ts`（Logger/framework 依存・参照42）。
+- 全 import 元（48 .ts）のパスを新配置へ更新。`api-response.util.ts` は提案通り温存。
+
+### 検証（司令塔裏取り）
+
+- 旧パス（`src/utils/error-handler` 等）への参照ゼロを grep 確認。
+- `pnpm run build` 成功（import 解決の総合チェック）。
+- `pnpm run check:circular`：**No circular dependency found!**（core/http へ移した error-handler が逆流を作らないことを確認）。
+- 移動4ファイルの spec：**64 tests 緑**（ロジック不変）。
+
+### 運用メモ・提案（未実施＝別タスク）
+
+- 委譲サブエージェントは報告直前に malformed tool call で失敗したが、**移動＋import 更新の作業自体は完了**しており、司令塔が build/circular/spec/grep で挙動保存を裏取りした。
+- 提案（要判断・未実施）：①`api-response.util.ts`（実装参照ゼロ・spec のみ）の廃止 ②`error-handler.ts` の `process.env.NODE_ENV` 直読みを AppConfigService 経由へ（DI 化で挙動が変わりうるため今回は process.env のまま移動） ③型 `src/types/*`→`core/types`（`express/index.d.ts` は tsconfig 型解決のため除外）。
+
+---
+
 ## 2026-06-03 構造課題②（ARCHITECTURE §9 domain 純粋性）フェーズ1/2（ブランチ `refactor/ref-path-deadcode-cleanup`）
 
 ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名直書きを避ける）/ §15（event name の文字列直書き追加を禁止）違反のうち、**挙動不変で安全な範囲のみ**を実施。emit の層移譲（§9 本丸）は設計判断を要するため **提案に留め未実装**（下記フェーズ3提案）。
@@ -82,7 +106,9 @@ ARCHITECTURE §9（domain は TypedEventService 直接依存・feature event 名
 - [x] 低リスク整理を**全て実施済み（2026-06-03、下記記録参照）**：`src/auth` 空ディレクトリ削除（git管理外）／`convertToJSON`（＋spec）削除／`domain.dto.ts` ファイル全体削除（AttributeObject 含め参照ゼロ）／`CharacterEventHandlerService` の未使用 UserService inject 削除（＋spec整合）。build成功・循環ゼロ。
 - [x] 中リスク（interactions/channel・select・modal の重複 adapter）を実コード再精査のうえデッド確定→削除（**2026-06-03 完了、下記記録**）。
 - [x] 構造課題① **イベント基盤の forRoot 二重・@Global 二重を解消（2026-06-03 完了、下記記録）**。安全網テスト先行＋start:dev 実機検証で挙動不変を証明。
-- [ ] 構造課題②〜⑤（domain の event 依存除去 §9 / interactions→features 向き是正 H4 / 横断コード §12 / 巨大サービス分割）は ARCHITECTURE 移行順に沿って安全網テスト前提で順次。
+- [x] 構造課題② **domain の event 名直書きを EVENT_NAMES へ集約（§9/§15・2026-06-03 完了、下記記録）**。emit 層移譲（§9本丸）は購読者ゼロ等の発見とともに提案に留め未実装。
+- [x] 構造課題④ **横断コードを §12 決定表へ再配置（2026-06-03 完了、下記記録）**。error-helpers/crypto.util→shared、cookie.service/error-handler→core/http。挙動保存。
+- [ ] 構造課題③（interactions→features 向き是正 H4・大）／⑤（巨大サービス分割）は安全網前提で順次。派生バックログ: `api-response.util` 廃止・`error-handler` の process.env→AppConfig化・型 `src/types/*`→`core/types`・`character.updated/deleted` デッドイベント削除。
 
 ---
 
