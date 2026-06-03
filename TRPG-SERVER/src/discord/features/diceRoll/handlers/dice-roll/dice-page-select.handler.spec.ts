@@ -1,29 +1,29 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
-import { DiceCharacterSelectHandler } from './dice-character-select.handler'
-import { DiceCharacterSelectService } from '../../../features/diceRoll/adapters/dice-character-select.adapter'
+import { DicePageSelectHandler } from './dice-page-select.handler'
+import { DicePageSelectMenuService } from '../../adapters/dice-page-select-menu.adapter'
 
-describe('DiceCharacterSelectHandler', () => {
+describe('DicePageSelectHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }
-  let handler: DiceCharacterSelectHandler
+  let handler: DicePageSelectHandler
 
   beforeEach(() => {
     jest.clearAllMocks()
-    handler = new DiceCharacterSelectHandler(mockService as unknown as DiceCharacterSelectService)
+    handler = new DicePageSelectHandler(mockService as unknown as DicePageSelectMenuService)
   })
 
   it('select タイプを返す', () => {
     expect(handler.getInteractionType()).toBe('select')
   })
 
-  it('customId パターンが dice-char-select', () => {
-    expect(handler.getCustomIdPattern()).toBe('dice-char-select')
+  it('customId パターンが dice-page-select', () => {
+    expect(handler.getCustomIdPattern()).toBe('dice-page-select')
   })
 
   it('execute は委譲先 execute へ interaction を渡す', async () => {
     // Arrange
     const interaction = createMockSelectMenuInteraction({
-      customId: 'dice-char-select*message123*channel123',
-      values: ['char-id-123']
+      customId: 'dice-page-select',
+      values: ['2']
     })
     // Act
     await handler.execute(interaction)
@@ -36,9 +36,7 @@ describe('DiceCharacterSelectHandler', () => {
     // Arrange
     const error = new Error('delegate failed')
     mockService.execute.mockRejectedValueOnce(error)
-    const interaction = createMockSelectMenuInteraction({
-      customId: 'dice-char-select*message123*channel123'
-    })
+    const interaction = createMockSelectMenuInteraction({ customId: 'dice-page-select' })
     // Act & Assert
     await expect(handler.execute(interaction)).rejects.toBe(error)
   })

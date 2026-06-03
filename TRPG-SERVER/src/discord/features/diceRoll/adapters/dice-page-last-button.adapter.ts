@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 
 @Injectable()
 export class DicePageLastButtonService implements discordButtonType {

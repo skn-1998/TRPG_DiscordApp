@@ -1,27 +1,27 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
-import { DicePageNextHandler } from './dice-page-next.handler'
-import { DicePageNextButtonService } from '../../../features/diceRoll/adapters/dice-page-next-button.adapter'
+import { DicePageCancelHandler } from './dice-page-cancel.handler'
+import { DicePageCancelButtonService } from '../../adapters/dice-page-cancel-button.adapter'
 
-describe('DicePageNextHandler', () => {
+describe('DicePageCancelHandler', () => {
   const mockService = { execute: jest.fn().mockResolvedValue(undefined) }
-  let handler: DicePageNextHandler
+  let handler: DicePageCancelHandler
 
   beforeEach(() => {
     jest.clearAllMocks()
-    handler = new DicePageNextHandler(mockService as unknown as DicePageNextButtonService)
+    handler = new DicePageCancelHandler(mockService as unknown as DicePageCancelButtonService)
   })
 
   it('button タイプを返す', () => {
     expect(handler.getInteractionType()).toBe('button')
   })
 
-  it('customId パターンが dice-page-next', () => {
-    expect(handler.getCustomIdPattern()).toBe('dice-page-next')
+  it('customId パターンが dice-page-cancel', () => {
+    expect(handler.getCustomIdPattern()).toBe('dice-page-cancel')
   })
 
   it('execute は委譲先 execute へ interaction を渡す', async () => {
     // Arrange
-    const interaction = createMockButtonInteraction({ customId: 'dice-page-next' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel' })
     // Act
     await handler.execute(interaction)
     // Assert
@@ -33,7 +33,7 @@ describe('DicePageNextHandler', () => {
     // Arrange
     const error = new Error('delegate failed')
     mockService.execute.mockRejectedValueOnce(error)
-    const interaction = createMockButtonInteraction({ customId: 'dice-page-next' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel' })
     // Act & Assert
     await expect(handler.execute(interaction)).rejects.toBe(error)
   })

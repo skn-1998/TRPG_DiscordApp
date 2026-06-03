@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterDiceButtonsService } from './character-dice-buttons.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from '../../features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { TypedEventEmitter } from '../../../core/events/typed-event.service'
 import { DicePresetService } from '../../services/dice/dice-preset.service'
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
-import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { DicePagePrevButtonService } from '../../../features/diceRoll/adapters/dice-page-prev-button.adapter'
+import { ButtonInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
+import { DicePagePrevButtonService } from '../../adapters/dice-page-prev-button.adapter'
 
 /**
  * ダイスページ戻るボタンハンドラー

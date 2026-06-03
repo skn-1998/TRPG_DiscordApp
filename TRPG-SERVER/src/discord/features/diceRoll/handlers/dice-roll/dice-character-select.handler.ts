@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
-import { SelectMenuInteractionHandler } from '../base/interaction-handler.base'
-import { DiceCharacterSelectService } from '../../../features/diceRoll/adapters/dice-character-select.adapter'
+import { SelectMenuInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
+import { DiceCharacterSelectService } from '../../adapters/dice-character-select.adapter'
 
 /**
  * ダイスキャラクター選択メニューハンドラー

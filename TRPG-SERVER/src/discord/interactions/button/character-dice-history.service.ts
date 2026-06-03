@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction, EmbedBuilder, TextChannel } from 'discord.js'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { v4 as uuidv4 } from 'uuid'
 import { BackgroundTaskErrorHandler } from 'src/core/http/error-handler'
 import { CharacterService } from 'src/domains/character/character.service'

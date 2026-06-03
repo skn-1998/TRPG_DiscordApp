@@ -1,6 +1,6 @@
 import { createMockChatInputInteraction } from '@discord-test-utils'
 import { DiceResultOrchestrator } from './dice-result.orchestrator'
-import { DiceRollPaginationService } from '../../../components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from './pagination/dice-roll-pagination.service'
 
 /**
  * DiceResultOrchestrator は DiceRollPaginationService にのみ依存する委譲オーケストレーター。

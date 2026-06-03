@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
-import { ButtonInteractionHandler } from '../base/interaction-handler.base'
-import { DicePageLastButtonService } from '../../../features/diceRoll/adapters/dice-page-last-button.adapter'
+import { ButtonInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
+import { DicePageLastButtonService } from '../../adapters/dice-page-last-button.adapter'
 
 /**
  * ダイスページ最後へボタンハンドラー

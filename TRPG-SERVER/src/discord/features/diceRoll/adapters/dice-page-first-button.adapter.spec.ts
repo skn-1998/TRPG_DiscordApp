@@ -1,6 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import type { EmbedBuilder } from 'discord.js'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageFirstButtonService } from './dice-page-first-button.adapter'
 
 // DiceRollPaginationService へ「先頭ページ計算・状態取得・コントロール生成」を委譲するオーケストレーター。

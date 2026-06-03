@@ -20,7 +20,7 @@ jest.mock('discord.js', () => {
 import type { TextChannel } from 'discord.js'
 import { DiceHistoryService } from './dice-history.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
-import { DiceRollPaginationService } from '../../components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from '../../features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { BackgroundTaskErrorHandler } from '../../../core/http/error-handler'
 
 // DiceHistoryService は履歴の取得(diceRollService) と整形/ページネーション(paginationService) を
