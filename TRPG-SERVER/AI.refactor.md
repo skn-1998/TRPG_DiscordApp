@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-06-04 P1-D slice1 Slice A/B（Codex 設計に基づく生成・button 分岐の Factory/述語移行・挙動不変）
+
+foundation（下記 `e1dcf9e`）に続き、**Codex に残作業のスコープ設計を委譲**（生成/解析サイトを A〜F の6 slice へ分割。
+最大リスクは「strict parser へ直置換すると loose matcher の受理範囲が狭まる」点。message 探索系は parser 化しない方針）。
+その設計に沿い、最高価値・最低リスクの **Slice A（生成サイト）/ Slice B（button 分岐）を実装**。
+
+### Slice A — 生成サイトを Factory へ（コミット `a67df77`・3ファイル）
+
+- `utils/character-embed.util.ts`(7) / `utils/character-ui.util.ts`(section-select 2 + field-edit 1 + 定数 dedup) /
+  `services/character-section-editor.service.ts`(edit-section 1) の **customId 生成 literal を custom-id Factory 呼び出しへ**。
+  Factory は同一 template 文字列を返すため **byte-identical**。`SECTION_SELECT_CUSTOM_ID_PREFIX` は契約モジュールを真実源に。
+- byte-identical 検証: **既存 spec が全生成サイトの custom_id 文字列を固定済**（character-embed.util.spec の edit-section/refresh/
+  compact-view/field-edit/field-add/create-basic/create-cancel、character-ui.util.spec の section-select/field-edit）。移行後も緑＝出力完全同一。
+
+### Slice B — button 分岐を述語へ（コミット `4417346`・5ファイル）
+
+- `enhanced-character-edit.service.ts` の `handleButtonInteraction` が `customId.startsWith(...)` で行う4分岐を
+  **契約モジュールの述語**（`CharacterRefreshCustomId.is` / `CharacterCompactCustomId.is` / `CharacterCreateCustomId.isBasic` / `isCancel`）へ。
+  いずれも prefix の startsWith（**空 id でも true・substring は false** ＝旧分岐と byte-identical な受理範囲）。
+- `custom-id/custom-id-predicates.spec.ts` 新設で境界（空 id・前方一致でない substring・他 family 非該当）を固定。
+
+### 各 slice 検証（司令塔・独立検証）
+
+- A: build / check:circular No circular(488) / jest 6 suites 152 緑 / start:dev 6 handler pattern 不変・総数30・無エラー。
+- B: build / check:circular No circular(489) / jest 7 suites 99 緑（新述語 spec 含む）/ start:dev 総数30・無エラー。
+
+### 残（Codex 設計の Slice C〜F・未着手）
+
+- **C**: section/field の解析（`character-section-editor.util.ts:128-173` の regex4本＋`includes`、`character-ui.util.ts:252-259` の loose `replace`）。
+- **D**: modal の生成/解析（`char-edit-{sectionType}-{fieldKey}-{id}` legacy ／ `char-edit-modal-{sessionId}` session の2系統。`character-section-editor.util.ts:181-191` ほか）。
+- **E**: create modal parse（`character-modal-handler.util.ts:70-84` の `parseBasic` 相当）。
+- **F**: message 探索の `includes` 群（`enhanced-character-edit.util.ts:106-121`、`character-modal-handler.service.ts:488-504,582-590`）→ **parser 化せず literal を helper へ集約のみ**（Codex 指針）。
+- **要注意（移行しない / loose 維持）**: `extractCharacterIdFromCustomId`(非アンカー正規表現)、`extractCharacterIdFromSectionSelect`(prefix 不一致でも元文字列を返す `replace`)、modal legacy parser の dash 入り id 保持、`includes('character-create-basic')`(startsWith より広い)。C〜F は drift リスクが上がり literal 集約の価値は下がるため、慎重 or Codex スコープ前提。
+
+---
+
 ## 2026-06-04 P1-D slice1（characterEdit customId 契約モジュール新設・foundation のみ・コミット `e1dcf9e`・挙動不変）
 
 CLAUDE_HANDOFF.md の P1-D（customId contract 集約・diceRoll の `custom-id/` 先行例に倣う）。ユーザー方針「**characterEdit から
