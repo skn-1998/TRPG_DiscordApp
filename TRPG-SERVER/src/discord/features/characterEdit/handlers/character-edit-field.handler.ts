@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
 import { SelectMenuInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
+import { CharacterFieldCustomId } from '../custom-id'
 
 /**
  * キャラクターフィールド選択ハンドラー
@@ -15,7 +16,7 @@ export class CharacterEditFieldHandler extends SelectMenuInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'character-field-'
+    return CharacterFieldCustomId.pattern
   }
 
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {

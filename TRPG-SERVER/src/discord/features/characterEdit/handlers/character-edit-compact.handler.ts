@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
 import { ButtonInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
+import { CharacterCompactCustomId } from '../custom-id'
 
 /**
  * キャラクター簡易表示ボタンハンドラー
@@ -15,7 +16,7 @@ export class CharacterEditCompactHandler extends ButtonInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'character-compact-view-'
+    return CharacterCompactCustomId.pattern
   }
 
   async execute(interaction: ButtonInteraction): Promise<void> {

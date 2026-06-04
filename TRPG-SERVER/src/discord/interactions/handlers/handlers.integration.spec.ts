@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ModuleRef } from '@nestjs/core'
 import { InteractionRegistryService } from '../registry/interaction-registry.service'
 import { PatternMatcherService } from '../registry/pattern-matcher.service'
 
@@ -24,6 +23,7 @@ import { DiceRollGeneralHandler } from '../../features/diceRoll/handlers/dice-ro
 import { DiceRollCustomHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-custom.handler'
 import { DiceRollPresetHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-preset.handler'
 import { DiceRollModalHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-modal.handler'
+import { DiceCharacterSelectCustomId, DicePageCustomId } from '../../features/diceRoll/custom-id'
 
 // Character Thread Handlers（characterThread feature へ移管済み）
 import { CharacterThreadSelectHandler } from '../../features/characterThread/handlers/character-thread-select.handler'
@@ -92,7 +92,6 @@ describe('Interaction Handlers Integration', () => {
       providers: [
         InteractionRegistryService,
         PatternMatcherService,
-        { provide: ModuleRef, useValue: { get: jest.fn().mockReturnValue(undefined) } },
 
         // Character Edit Handlers with mocked dependencies
         {
@@ -372,6 +371,34 @@ describe('Interaction Handlers Integration', () => {
     })
 
     describe('Dice Roll系', () => {
+      it.each([
+        ['first', 'button'],
+        ['prev', 'button'],
+        ['next', 'button'],
+        ['last', 'button'],
+        ['cancel', 'button'],
+        ['select', 'select']
+      ] as const)('DicePageCustomId factory が生成した %s customId に handler pattern がマッチする', (action, type) => {
+        const customId = DicePageCustomId.create(action, 'message123', 'channel123')
+
+        expect(registry.hasHandler(customId, type)).toBe(true)
+        expect(DicePageCustomId.parse(customId)).toEqual({
+          action,
+          messageId: 'message123',
+          channelId: 'channel123'
+        })
+      })
+
+      it('DiceCharacterSelectCustomId factory が生成した customId に handler pattern がマッチする', () => {
+        const customId = DiceCharacterSelectCustomId.create('message123', 'channel123')
+
+        expect(registry.hasHandler(customId, 'select')).toBe(true)
+        expect(DiceCharacterSelectCustomId.parse(customId)).toEqual({
+          messageId: 'message123',
+          channelId: 'channel123'
+        })
+      })
+
       it('dice-page-prev にマッチ', () => {
         expect(registry.hasHandler('dice-page-prev', 'button')).toBe(true)
       })

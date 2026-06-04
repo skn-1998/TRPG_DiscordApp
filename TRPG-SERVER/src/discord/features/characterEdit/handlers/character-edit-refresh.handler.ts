@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
 import { ButtonInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
+import { CharacterRefreshCustomId } from '../custom-id'
 
 /**
  * キャラクター更新ボタンハンドラー
@@ -15,7 +16,7 @@ export class CharacterEditRefreshHandler extends ButtonInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'character-refresh-'
+    return CharacterRefreshCustomId.pattern
   }
 
   async execute(interaction: ButtonInteraction): Promise<void> {
