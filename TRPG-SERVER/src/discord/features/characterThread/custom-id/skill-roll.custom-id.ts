@@ -32,7 +32,7 @@ export const SkillRollCustomId = {
   /**
    * `skill_{channelId}_{skillKey}` を分解する（純粋）。
    * prefix 除去後、最初の `_` までを channelId、残りを skillKey とする（skillKey は `_` を含み得る）。
-   * prefix 不一致 / 分割不能（`_` が無い）の場合は null。
+   * 次の場合は null: prefix 不一致 / `_` が無い / channelId が空（先頭が `_`） / skillKey が空（末尾が `_`）。
    */
   parse(customId: string): ParsedSkillRollCustomId | null {
     if (!customId.startsWith(SKILL_ROLL_CUSTOM_ID_PATTERN)) {
@@ -40,12 +40,15 @@ export const SkillRollCustomId = {
     }
     const rest = customId.slice(SKILL_ROLL_CUSTOM_ID_PATTERN.length)
     const separatorIndex = rest.indexOf('_')
-    if (separatorIndex < 0) {
+    // separatorIndex <= 0 は「`_` 無し」または「channelId 空（先頭が `_`）」を弾く
+    if (separatorIndex <= 0) {
       return null
     }
-    return {
-      channelId: rest.slice(0, separatorIndex),
-      skillKey: rest.slice(separatorIndex + 1)
+    const channelId = rest.slice(0, separatorIndex)
+    const skillKey = rest.slice(separatorIndex + 1)
+    if (!skillKey) {
+      return null
     }
+    return { channelId, skillKey }
   }
 } as const

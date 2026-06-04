@@ -45,12 +45,18 @@ export interface ResolvedSkillRoll {
 /**
  * Character と skillKey から、スキルロールに必要な表示名と判定値を解決する（純粋）。
  *
+ * - 対象 skillKey が character.skill に**存在しない場合は null**（呼び出し側でエラー応答とし、
+ *   目標値 0 の誤ロール＋DB 保存を防ぐ）。
  * - skillName: 生成側（postSkillRollButtons）と同じく `skillValue?.name || skillKey`。
- * - skillValue: extractSkillLevel の数値化（解決不能 / NaN は 0）。
+ * - skillValue: extractSkillLevel の数値化（存在するがレベル解決不能 / NaN は 0）。
  */
-export function resolveSkillRoll(character: Character, skillKey: string): ResolvedSkillRoll {
+export function resolveSkillRoll(character: Character, skillKey: string): ResolvedSkillRoll | null {
   const raw = character.skill?.[skillKey] as { name?: string } | undefined
-  const skillName = (raw && typeof raw === 'object' && raw.name) || skillKey
+  if (raw === undefined || raw === null) {
+    return null
+  }
+
+  const skillName = (typeof raw === 'object' && raw.name) || skillKey
 
   const level = extractSkillLevel(raw)
   const parsed = level != null ? Number(level) : 0
