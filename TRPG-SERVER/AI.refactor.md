@@ -28,9 +28,12 @@ P1-A の残「execute() 特例 → Registry 経路」を実施。**characterizat
 ### コミット状況・残（Codex レビュー結果反映）
 
 - **コミット済 `2640395`**。Codex が「execute 特例撤去は安全（happy path 不変／error 時は汎用エラー応答経路へ・専用文言は follow-up polish で可）」「prep（ModuleRef/Controller 撤去）と同一ファイル・同一目的なので分離せずまとめてコミットしてよい」と承認。
-- 残（CharacterEditModule import 撤去まで・Codex 承認の次タスク）:
-  1. **ChannelCreate 移設（実施すべき・別タスク）**: `characterEdit` feature に `CharacterEditChannelCreateListenerService`（OnModuleInit で `DiscordClientService.on(Events.ChannelCreate, ...)` を登録・GuildText のみ・例外は log して外へ投げない＝現挙動同一）を新設。`InteractionsService` から `ChannelCreateOrchestratorService` inject と `handleChannelCreate()` を撤去（`loadClient()` は no-op 化 or 呼び出し側削除）。`InteractionsController` から `ChannelCreateOrchestratorService` inject 撤去。→ `InteractionsModule` から `CharacterEditModule` import を撤去。新規 forwardRef/@Global/循環禁止。build/check:circular/start:dev（handler 総数30不変・ChannelCreate listener 登録ログ）で挙動不変確認。
-  2. **別 commit cleanup**: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去で dead-equivalent）を削除。
+- **ChannelCreate 移設 完了（コミット `c27d155`・Codex 設計承認済）= P1-A 完了**:
+  - 新規 `CharacterEditChannelCreateListenerService`（characterEdit feature・OnModuleInit で `DiscordClientService.on(Events.ChannelCreate)` 登録・handler は旧 `InteractionsService.handleChannelCreate` と同一＝GuildText のみ→`ChannelCreateOrchestratorService.execute`・error は log して握りつぶす）。CharacterEditModule providers に追加。
+  - `InteractionsService`: `handleChannelCreate()`/`loadClient()` と `ChannelCreateOrchestratorService` inject を撤去（thin service 化）。`InteractionsController`: dead な `handleCommand()`/`handleChannelCreate()`/`client`/`ChannelCreateOrchestratorService` inject を撤去（handleCommand 呼出元ゼロ）。`discord-facade`: `loadClient` 呼び出し＋未使用化した InteractionsService inject を撤去。
+  - **`InteractionsModule` から `CharacterEditModule` import を撤去 → interactions core は feature module を一切 import しない（§8 達成）**。imports は `InteractionRegistryModule`＋`EventEmitterModule` のみ。
+  - 検証: build / check:circular **No circular(481)** / jest characterEdit+interactions+facade **35 suites 481 緑** / start:dev で `CharacterEditChannelCreateListenerService` の ChannelCreate 登録ログ・handler 総数30不変・Cannot resolve なし / `/code-review`(focused) handler ロジック旧と同一・正確性バグなし＝挙動不変。
+- 残（軽微 follow-up・別 commit）: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去で fallthrough と dead-equivalent）を削除。
 
 ---
 

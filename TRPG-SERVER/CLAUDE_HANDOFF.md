@@ -8,16 +8,16 @@
 
 `InteractionsModule` から feature / monitoring 所有を外し、interaction 基盤を Registry + thin service へ寄せる。挙動は変えない。
 
-### Claude 実施結果（2026-06-04・コミット `0ccf0d5`）
+### Claude 実施結果（2026-06-04・★P1-A 完了）
 
-**挙動不変で安全な slim 化のみ実施・コミット済み**（pathspec で interactions.module.ts のみ）。詳細は `AI.refactor.md` 2026-06-04「P1-A」節。
+**P1-A 完了。InteractionsModule は feature module を一切 import しない（§8 達成）。** 詳細は `AI.refactor.md` 2026-06-04「P1-A」「P1-A 後続」節。Codex が各段をレビュー/承認。
 
-- ✅ 監視サービス4種を InteractionsModule の providers/exports から撤去。**DiscordModule が既に所有**しており重複（Metrics/Alert は @OnEvent 持ち＝二重登録だった）。start:dev で単一初期化を確認。
-- ✅ `DiceServicesModule` の import / re-export を撤去（Part B 以降 interactions は dice 不使用。commands/discord/features の依存なしを grep 確認）。
-- ✅ 未使用 `CharacterModule` import を撤去。
-- 検証: build / check:circular(479・循環ゼロ) / start:dev（successfully started・handler 総数30 不変・monitoring 単一初期化・Cannot resolve なし）＝挙動不変。
+- ✅ `0ccf0d5`: 監視サービス4種を InteractionsModule から撤去（DiscordModule が既に所有・重複@OnEvent解消）／`DiceServicesModule` import+re-export 撤去／未使用 `CharacterModule` import 撤去。
+- ✅ `2640395`（Codex レビュー済）: `InteractionsService.execute()` の characterEdit 特例分岐（legacy bypass）を撤去し全 interaction を Registry へ委譲。`CharacterSectionEditorService` inject 撤去。happy path 不変（追加発火イベントは購読者ゼロ・error 時は汎用エラー応答経路へ）。
+- ✅ `c27d155`（Codex 設計承認済）: ChannelCreate listener を `CharacterEditChannelCreateListenerService`（characterEdit feature・OnModuleInit で DiscordClientService.on 登録・旧ロジック同一）へ移設。`InteractionsService`/`InteractionsController`（dead）から `ChannelCreateOrchestratorService` 依存を撤去、`discord-facade` の loadClient 呼出も撤去。→ **`InteractionsModule` から `CharacterEditModule` import を撤去（最後の feature import）**。
+- 検証（各段）: build / check:circular **No circular（最終 481）** / jest（最終 35 suites 481 緑）/ start:dev（successfully started・handler 総数 **30 不変**・monitoring 単一初期化・ChannelCreate listener 登録・Cannot resolve なし）/ `/code-review`＝挙動不変。
 
-**残（P1-A 後続・挙動影響ありのため Codex レビュー/判断要）**: `CharacterEditModule` import 撤去には、`InteractionsService` の (1) 旧 execute() 特例分岐（`character-section-select-*`/`character-edit-*`/`character-field-*`→`CharacterSectionEditorService.execute()`）と (2) ChannelCreate 委譲（→`ChannelCreateOrchestratorService`）の撤去が前提。**(1) は Registry 経路（CharacterEditSection/FieldHandler→EnhancedCharacterEditService→sectionEditor.execute）と happy path は等価だが `emitSectionSelected` 追加発火・error 時 reply の有無が異なる＝挙動変化**。characterization 固定のうえ「emitSectionSelected/error 差を許容」または「handler 側で reply 等価化」の設計判断が要る。(2) は interaction でなく channel event のため feature/discord-event 側への移設要否を判断。両者解消で CharacterEditModule import が外れる。
+**残（P1-A スコープの軽微 follow-up・別 commit／P1-B 以降は別パケット）**: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去後 fallthrough と dead-equivalent）を削除。これ以外の P1-A 目的（feature/monitoring 所有外し・Registry+thin service 化）は完了。次は Codex 判断で P1-B（forwardRef 解消）/ P1-C（process.env）/ P1-D（customId 契約）へ。
 
 ---
 
