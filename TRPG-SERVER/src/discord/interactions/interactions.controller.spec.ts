@@ -1,16 +1,11 @@
 // InteractionsController は Discord.js インタラクションの薄いルーティング層。
 // 検証対象は「委譲経路」と「分岐・異常系のハンドリング」のみ（ビジネスロジックは持たない）。
 //   - handleInteraction: replied/deferred 早期 return / route 委譲 / 未登録応答 / 例外応答
-//   - handleCommand → handleChannelCreate: ChannelCreate リスナー登録と channel.type 分岐
-// jest-setup の discord.js モックには ChannelType.GuildText / Events.ChannelCreate が無いため、
-// ここではローカルで実値を補完する（実値依存の分岐を正しく検証するため）。
-jest.unmock('discord.js')
-jest.mock('discord.js', () => jest.requireActual('discord.js'))
+// ※ ChannelCreate リスナー（旧 handleCommand/handleChannelCreate）は characterEdit feature の
+//   CharacterEditChannelCreateListenerService へ移管済み（§8）。controller からは撤去された。
 
 import { Test } from '@nestjs/testing'
-import { ChannelType, Events } from 'discord.js'
-import type { ButtonInteraction, Client, TextChannel, NonThreadGuildBasedChannel } from 'discord.js'
-import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
+import type { ButtonInteraction } from 'discord.js'
 import { InteractionsController } from './interactions.controller'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
@@ -36,18 +31,13 @@ function createInteractionStub(
 describe('InteractionsController', () => {
   let controller: InteractionsController
   let interactionRegistry: jest.Mocked<Pick<InteractionRegistryService, 'route'>>
-  let channelCreateOrchestratorService: jest.Mocked<Pick<ChannelCreateOrchestratorService, 'execute'>>
 
   beforeEach(async () => {
     interactionRegistry = { route: jest.fn() }
-    channelCreateOrchestratorService = { execute: jest.fn() }
 
     const moduleRef = await Test.createTestingModule({
       controllers: [InteractionsController],
-      providers: [
-        { provide: InteractionRegistryService, useValue: interactionRegistry },
-        { provide: ChannelCreateOrchestratorService, useValue: channelCreateOrchestratorService }
-      ]
+      providers: [{ provide: InteractionRegistryService, useValue: interactionRegistry }]
     }).compile()
 
     controller = moduleRef.get(InteractionsController)
@@ -169,83 +159,6 @@ describe('InteractionsController', () => {
       // Act & Assert: 例外が外に漏れないこと
       await expect(controller.handleInteraction(interaction)).resolves.toBeUndefined()
       expect(replyMock).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('handleCommand / handleChannelCreate', () => {
-    /** client.on に登録された ChannelCreate コールバックを取り出すヘルパー */
-    function setupClientAndGetCallback(): {
-      client: Client
-      callback: (channel: NonThreadGuildBasedChannel) => Promise<void>
-    } {
-      const on = jest.fn()
-      const client = { on } as unknown as Client
-
-      controller.handleCommand(client)
-
-      const call = on.mock.calls.find((c) => c[0] === Events.ChannelCreate)
-      expect(call).toBeDefined()
-      return { client, callback: call![1] as (channel: NonThreadGuildBasedChannel) => Promise<void> }
-    }
-
-    it('handleCommand は client に ChannelCreate リスナーを登録する', () => {
-      // Arrange
-      const on = jest.fn()
-      const client = { on } as unknown as Client
-
-      // Act
-      controller.handleCommand(client)
-
-      // Assert
-      expect(on).toHaveBeenCalledWith(Events.ChannelCreate, expect.any(Function))
-    })
-
-    it('GuildText 以外のチャンネルでは orchestrator を呼ばない', async () => {
-      // Arrange
-      const { callback } = setupClientAndGetCallback()
-      const nonTextChannel = {
-        type: ChannelType.GuildVoice,
-        id: 'ch-1',
-        name: 'voice'
-      } as unknown as NonThreadGuildBasedChannel
-
-      // Act
-      await callback(nonTextChannel)
-
-      // Assert
-      expect(channelCreateOrchestratorService.execute).not.toHaveBeenCalled()
-    })
-
-    it('GuildText チャンネルでは orchestrator.execute に委譲する', async () => {
-      // Arrange
-      const { callback } = setupClientAndGetCallback()
-      const textChannel = {
-        type: ChannelType.GuildText,
-        id: 'ch-2',
-        name: 'general'
-      } as unknown as NonThreadGuildBasedChannel
-      channelCreateOrchestratorService.execute.mockResolvedValue(undefined)
-
-      // Act
-      await callback(textChannel)
-
-      // Assert
-      expect(channelCreateOrchestratorService.execute).toHaveBeenCalledWith(textChannel as unknown as TextChannel)
-    })
-
-    it('orchestrator.execute が throw しても例外を握りつぶす', async () => {
-      // Arrange
-      const { callback } = setupClientAndGetCallback()
-      const textChannel = {
-        type: ChannelType.GuildText,
-        id: 'ch-3',
-        name: 'general'
-      } as unknown as NonThreadGuildBasedChannel
-      channelCreateOrchestratorService.execute.mockRejectedValue(new Error('orchestrator boom'))
-
-      // Act & Assert: 例外が外に漏れないこと
-      await expect(callback(textChannel)).resolves.toBeUndefined()
-      expect(channelCreateOrchestratorService.execute).toHaveBeenCalledTimes(1)
     })
   })
 })

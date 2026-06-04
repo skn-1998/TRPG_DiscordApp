@@ -11,6 +11,7 @@ import { ChannelDetectionService } from './services/channel-detection.service'
 import { CharacterCreationService } from './services/character-creation.service'
 import { CharacterNotificationService } from './services/character-notification.service'
 import { ChannelCreateOrchestratorService } from './services/channel-create-orchestrator.service'
+import { CharacterEditChannelCreateListenerService } from './services/character-edit-channel-create-listener.service'
 import { CharacterEventIntegrationService } from './services/character-event-integration.service'
 import { ChannelNameSyncService } from './services/channel-name-sync.service'
 
@@ -69,6 +70,9 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     CharacterCreationService,
     CharacterNotificationService,
     ChannelCreateOrchestratorService,
+    // ChannelCreate リスナー（旧 InteractionsService.handleChannelCreate を feature へ移管・§8）
+    // OnModuleInit で DiscordClientService.on(ChannelCreate) に自己登録するため exports は不要。
+    CharacterEditChannelCreateListenerService,
     CharacterEventIntegrationService,
     ChannelNameSyncService,
 

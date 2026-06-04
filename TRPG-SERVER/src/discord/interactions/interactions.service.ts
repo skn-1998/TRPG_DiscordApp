@@ -1,15 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import {
-  Client,
-  Events,
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  AnySelectMenuInteraction,
-  NonThreadGuildBasedChannel,
-  ChannelType
-} from 'discord.js'
-import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
+import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
 /**
@@ -28,18 +19,8 @@ export class InteractionsService {
 
   constructor(
     private readonly eventEmitter: EventEmitter2,
-    private readonly interactionRegistry: InteractionRegistryService,
-    private readonly channelCreateOrchestratorService: ChannelCreateOrchestratorService
+    private readonly interactionRegistry: InteractionRegistryService
   ) {}
-
-  /**
-   * Discord クライアントをロードし、インタラクションハンドラを設定
-   * @param client Discord クライアント
-   */
-  loadClient(client: Client): void {
-    this.handleChannelCreate(client)
-    this.logger.log('ChannelCreateリスナーを登録しました。')
-  }
 
   /**
    * インタラクションをInteractionRegistryServiceに委譲する
@@ -159,21 +140,5 @@ export class InteractionsService {
         }
       }
     }
-  }
-
-  private handleChannelCreate(client: Client): void {
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- discord.js の Client.on は async リスナーを await しない設計（handler 内で try/catch 済み）。fire-and-forget は意図的
-    client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel) => {
-      if (channel.type !== ChannelType.GuildText) return
-
-      const textChannel = channel
-      this.logger.log(`チャンネル作成検出: ${textChannel.name} (${textChannel.id})`)
-
-      try {
-        await this.channelCreateOrchestratorService.execute(textChannel)
-      } catch (error) {
-        this.logger.error(`チャンネル作成処理でエラーが発生: ${textChannel.name}`, error)
-      }
-    })
   }
 }

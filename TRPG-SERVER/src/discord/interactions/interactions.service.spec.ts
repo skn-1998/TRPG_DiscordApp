@@ -1,21 +1,18 @@
 // InteractionsService は Discord.js インタラクション処理を registry に委譲する仲介役。
-// 副作用境界は EventEmitter2(emit)・InteractionRegistryService・ChannelCreateOrchestratorService。
+// 副作用境界は EventEmitter2(emit)・InteractionRegistryService。
+// （ChannelCreate リスナーは characterEdit feature の
+//   CharacterEditChannelCreateListenerService へ移管済み・§8）
 
 import { Test } from '@nestjs/testing'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import {
-  Client,
-  Events,
-  ChannelType,
   ButtonInteraction,
   AnySelectMenuInteraction,
   ModalSubmitInteraction,
-  StringSelectMenuInteraction,
-  TextChannel
+  StringSelectMenuInteraction
 } from 'discord.js'
 import { InteractionsService } from './interactions.service'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
-import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
 
 type InteractionStub = {
   isButton: jest.Mock
@@ -53,15 +50,13 @@ function createInteractionStub(overrides: Partial<InteractionStub> = {}): Intera
 describe('InteractionsService', () => {
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>
   let registry: jest.Mocked<Pick<InteractionRegistryService, 'route'>>
-  let channelCreateOrchestrator: jest.Mocked<Pick<ChannelCreateOrchestratorService, 'execute'>>
 
   async function createService(): Promise<InteractionsService> {
     const m = await Test.createTestingModule({
       providers: [
         InteractionsService,
         { provide: EventEmitter2, useValue: eventEmitter },
-        { provide: InteractionRegistryService, useValue: registry },
-        { provide: ChannelCreateOrchestratorService, useValue: channelCreateOrchestrator }
+        { provide: InteractionRegistryService, useValue: registry }
       ]
     }).compile()
 
@@ -71,75 +66,10 @@ describe('InteractionsService', () => {
   beforeEach(() => {
     eventEmitter = { emit: jest.fn().mockReturnValue(true) }
     registry = { route: jest.fn().mockResolvedValue(true) }
-    channelCreateOrchestrator = { execute: jest.fn().mockResolvedValue(undefined) }
   })
 
   afterEach(() => {
     jest.restoreAllMocks()
-  })
-
-  describe('loadClient', () => {
-    /** client.on に登録された ChannelCreate コールバックを取り出すヘルパー */
-    function getChannelCreateHandler(on: jest.Mock) {
-      const call = on.mock.calls.find((c) => c[0] === Events.ChannelCreate)
-      expect(call).toBeDefined()
-      return call?.[1] as (channel: TextChannel) => Promise<void>
-    }
-
-    it('client に ChannelCreate リスナーを登録する', async () => {
-      // Arrange
-      const service = await createService()
-      const client = { on: jest.fn() } as unknown as Client
-
-      // Act
-      service.loadClient(client)
-
-      // Assert
-      expect(client.on).toHaveBeenCalledWith(Events.ChannelCreate, expect.any(Function))
-    })
-
-    it('GuildText 以外の ChannelCreate は orchestrator に委譲しない', async () => {
-      // Arrange
-      const service = await createService()
-      const on = jest.fn()
-      service.loadClient({ on } as unknown as Client)
-      const handler = getChannelCreateHandler(on)
-
-      // Act
-      await handler({ type: ChannelType.GuildVoice } as unknown as TextChannel)
-
-      // Assert
-      expect(channelCreateOrchestrator.execute).not.toHaveBeenCalled()
-    })
-
-    it('GuildText の ChannelCreate は orchestrator に委譲する', async () => {
-      // Arrange
-      const service = await createService()
-      const on = jest.fn()
-      service.loadClient({ on } as unknown as Client)
-      const handler = getChannelCreateHandler(on)
-      const textChannel = { type: ChannelType.GuildText, id: 'ch-1', name: 'table' } as unknown as TextChannel
-
-      // Act
-      await handler(textChannel)
-
-      // Assert
-      expect(channelCreateOrchestrator.execute).toHaveBeenCalledWith(textChannel)
-    })
-
-    it('orchestrator が throw しても ChannelCreate handler から例外を外へ伝播しない', async () => {
-      // Arrange
-      const service = await createService()
-      channelCreateOrchestrator.execute.mockRejectedValue(new Error('orchestrator failed'))
-      const on = jest.fn()
-      service.loadClient({ on } as unknown as Client)
-      const handler = getChannelCreateHandler(on)
-
-      // Act & Assert
-      await expect(
-        handler({ type: ChannelType.GuildText, id: 'ch-1', name: 'table' } as unknown as TextChannel)
-      ).resolves.toBeUndefined()
-    })
   })
 
   describe('handleInteraction', () => {
