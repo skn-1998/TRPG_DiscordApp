@@ -3,7 +3,6 @@
 jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
-import { ButtonBuilder } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeSection } from 'src/core/types/attribute.types'
 import {
@@ -11,13 +10,9 @@ import {
   formatAttributeFieldValue,
   buildAttributeFields,
   buildFieldOptionDisplay,
-  extractDiceRollValue,
   buildBasicEmbed,
   buildSectionEmbed,
   buildEditComponents,
-  appendDiceRollButtonsFromData,
-  buildCharacterDiceRollButtons,
-  buildBasicDiceButtons,
   buildSectionedEmbeds,
   buildFieldSelectMenu,
   buildNewCharacterEmbed,
@@ -148,21 +143,6 @@ describe('character-embed.util', () => {
     })
   })
 
-  describe('extractDiceRollValue', () => {
-    it('name と value を持つオブジェクトから抽出', () => {
-      expect(extractDiceRollValue('k', { name: 'STR', value: 12 })).toEqual({ name: 'STR', rollValue: 12 })
-    })
-
-    it('name/value を持たないオブジェクトはキーと数値化', () => {
-      expect(extractDiceRollValue('k', { foo: 1 })).toEqual({ name: 'k', rollValue: 0 })
-    })
-
-    it('プリミティブはキーと Number 化', () => {
-      expect(extractDiceRollValue('hp', '15')).toEqual({ name: 'hp', rollValue: 15 })
-      expect(extractDiceRollValue('hp', 'abc')).toEqual({ name: 'hp', rollValue: 0 })
-    })
-  })
-
   // ==========================================================================
   // discord.js Builder 構築の純粋関数群
   // ==========================================================================
@@ -279,49 +259,6 @@ describe('character-embed.util', () => {
         custom_id: 'character-compact-view-char-1234',
         label: '📋 簡易表示'
       })
-    })
-  })
-
-  describe('appendDiceRollButtonsFromData', () => {
-    it('ロール値が正の項目のみボタン化し buttonCount を返す', () => {
-      const buttons: ButtonBuilder[] = []
-      const data = {
-        筋力: { name: 'STR', value: 12 },
-        敏捷: { name: 'DEX', value: 0 }, // 0 はスキップ
-        体力: 8
-      }
-      const count = appendDiceRollButtonsFromData(data, 'ステータス', '📊', 'char-1234', buttons, 0, 20)
-
-      expect(count).toBe(2)
-      const json = buttons.map((b) => b.toJSON())
-      expect(json[0]).toMatchObject({ custom_id: 'roll*_STR-12*char-1234', label: 'STR(12)' })
-      expect(json[1]).toMatchObject({ custom_id: 'roll*_体力-8*char-1234', label: '体力(8)' })
-    })
-
-    it('maxTotalButtons に達したら追加を打ち切る', () => {
-      const buttons: ButtonBuilder[] = []
-      const data = { a: 1, b: 2, c: 3 }
-      const count = appendDiceRollButtonsFromData(data, 'x', '📊', 'cid', buttons, 1, 2)
-
-      // 開始 buttonCount=1, max=2 なので 1 個だけ追加して打ち切り
-      expect(count).toBe(2)
-      expect(buttons).toHaveLength(1)
-    })
-  })
-
-  describe('buildCharacterDiceRollButtons', () => {
-    it('現状は行分割が無効化されているため空配列を返す（挙動保存）', () => {
-      const rows = buildCharacterDiceRollButtons(buildCharacter())
-      expect(rows).toEqual([])
-    })
-  })
-
-  describe('buildBasicDiceButtons', () => {
-    it('1D100/1D6/2D6/カスタムの4ボタン行を返す', () => {
-      const row = buildBasicDiceButtons(buildCharacter()).toJSON() as any
-      const ids = row.components.map((c: any) => c.custom_id)
-      expect(ids).toEqual(['roll*1d100*char-1234', 'roll*1d6*char-1234', 'roll*2d6*char-1234', 'roll*custom*char-1234'])
-      expect(row.components.map((c: any) => c.label)).toEqual(['1D100', '1D6', '2D6', 'カスタム'])
     })
   })
 
