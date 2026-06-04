@@ -34,6 +34,7 @@ import { CharacterDiceHandler } from '../../features/characterThread/handlers/ch
 import { DiceGenericHandler } from '../../features/characterThread/handlers/dice-generic.handler'
 import { FlexibleDiceSelectHandler } from '../../features/characterThread/handlers/flexible-dice-select.handler'
 import { CharacterSkillRollHandler } from '../../features/characterThread/handlers/character-skill-roll.handler'
+import { PresetDiceQuickRollHandler } from '../../features/characterThread/handlers/preset-dice-quick-roll.handler'
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
@@ -90,6 +91,7 @@ describe('Interaction Handlers Integration', () => {
   let diceGenericHandler: DiceGenericHandler
   let flexibleDiceSelectHandler: FlexibleDiceSelectHandler
   let characterSkillRollHandler: CharacterSkillRollHandler
+  let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -208,6 +210,10 @@ describe('Interaction Handlers Integration', () => {
         {
           provide: CharacterSkillRollHandler,
           useFactory: () => new (CharacterSkillRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
+        },
+        {
+          provide: PresetDiceQuickRollHandler,
+          useFactory: () => new (PresetDiceQuickRollHandler as any)(mockDiceRollLogicService)
         }
       ]
     }).compile()
@@ -241,6 +247,7 @@ describe('Interaction Handlers Integration', () => {
     diceGenericHandler = module.get<DiceGenericHandler>(DiceGenericHandler)
     flexibleDiceSelectHandler = module.get<FlexibleDiceSelectHandler>(FlexibleDiceSelectHandler)
     characterSkillRollHandler = module.get<CharacterSkillRollHandler>(CharacterSkillRollHandler)
+    presetDiceQuickRollHandler = module.get<PresetDiceQuickRollHandler>(PresetDiceQuickRollHandler)
 
     // 全ハンドラーを登録
     registry.registerHandlers([
@@ -269,7 +276,8 @@ describe('Interaction Handlers Integration', () => {
       characterDiceHandler,
       diceGenericHandler,
       flexibleDiceSelectHandler,
-      characterSkillRollHandler
+      characterSkillRollHandler,
+      presetDiceQuickRollHandler
     ])
   })
 
@@ -278,9 +286,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('26個のハンドラーが登録されている', () => {
+    it('27個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(26)
+      expect(stats.totalHandlers).toBe(27)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -506,6 +514,20 @@ describe('Interaction Handlers Integration', () => {
       it('skill_* にマッチ（P1-D slice2 で配線・button）', () => {
         expect(registry.hasHandler('skill_1234567890_dodge', 'button')).toBe(true)
       })
+
+      it('dice_coc7_* / dice_dnd5e_* / dice_sw25_* にマッチ（P1-D 後続で配線・button）', () => {
+        expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_dnd5e_save_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_sw25_magic_1234567890', 'button')).toBe(true)
+      })
+
+      it('routed な dice_generic_ と未対応 system は区別される（dice_generic_ は別 handler・dice_xxx_ unknown は未routing）', () => {
+        // dice_generic_ は DiceGenericHandler（preset 用 /^dice_(coc7|dnd5e|sw25)_/ には match しない）
+        expect(registry.hasHandler('dice_generic_1d6_1234567890', 'button')).toBe(true)
+        // coc7/dnd5e/sw25 以外の system 名は preset handler に match しない
+        expect(registry.hasHandler('dice_pathfinder_attack_1234567890', 'button')).toBe(false)
+      })
     })
 
     describe('characterThread が生成するが registry 未登録の customId（既知の latent gap・現状を固定）', () => {
@@ -513,20 +535,7 @@ describe('Interaction Handlers Integration', () => {
       // 挙動保存方針（Codex レビュー済）: ここでは現状（handler 無し＝クリック時「現在処理できません」reply）を
       // 事実として固定し、routing 修正は仕様決定後の別タスクとする（AI.refactor.md / CLAUDE_HANDOFF.md の P1-D slice2 節参照）。
       // handler は全てハイフン系 prefix だが、これら生成はアンダースコア系 prefix のため startsWith 不一致。
-      // 注: skill_ は P1-D slice2 で配線済み（routed・上の Character Thread系を参照）。
-      it('dice_coc7_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
-        expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(false)
-        expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(false)
-      })
-
-      it('dice_dnd5e_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
-        expect(registry.hasHandler('dice_dnd5e_1d20_1234567890', 'button')).toBe(false)
-      })
-
-      it('dice_sw25_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
-        expect(registry.hasHandler('dice_sw25_2d6_1234567890', 'button')).toBe(false)
-      })
-
+      // 注: skill_ は P1-D slice2 で、dice_coc7_/dnd5e_/sw25_ は P1-D 後続で配線済み（routed・上の Character Thread系を参照）。
       it('character_edit_ / dice_roll_ / character_info_ は dead path（postActionButtons がコメントアウト）かつ未routing', () => {
         expect(registry.hasHandler('character_edit_1234567890', 'button')).toBe(false)
         expect(registry.hasHandler('dice_roll_1234567890', 'button')).toBe(false)
