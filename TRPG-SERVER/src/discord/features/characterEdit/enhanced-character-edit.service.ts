@@ -34,6 +34,8 @@ import { CharacterModalHandlerService } from './services/character-modal-handler
 import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { extractCharacterIdFromCustomId } from './utils/enhanced-character-edit.util'
+// P1-D slice1: ボタン分岐判定を feature-local 契約モジュールの述語へ集約（startsWith 等価・挙動不変）
+import { CharacterCreateCustomId, CharacterRefreshCustomId, CharacterCompactCustomId } from './custom-id'
 // DiscordClientService依存を完全削除 - イベント駆動アーキテクチャに移行
 
 /**
@@ -129,22 +131,22 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       const customId = interaction.customId
 
       // キャラクター作成基本情報ボタン
-      if (customId.startsWith('character-create-basic-')) {
+      if (CharacterCreateCustomId.isBasic(customId)) {
         await this.handleCreateBasicButton(interaction)
       }
       // キャラクター作成キャンセルボタン
-      else if (customId.startsWith('character-create-cancel-')) {
+      else if (CharacterCreateCustomId.isCancel(customId)) {
         await this.handleCreateCancelButton(interaction)
       }
       // 更新ボタンの処理
-      else if (customId.startsWith('character-refresh-')) {
+      else if (CharacterRefreshCustomId.is(customId)) {
         await this.handleRefreshButton(interaction)
 
         // Embed更新リクエストイベント発火
         await this.eventEmitter.emitEmbedRefresh(interaction)
       }
       // 簡易表示ボタンの処理
-      else if (customId.startsWith('character-compact-view-')) {
+      else if (CharacterCompactCustomId.is(customId)) {
         await this.handleCompactViewButton(interaction)
       }
     } catch (error) {
