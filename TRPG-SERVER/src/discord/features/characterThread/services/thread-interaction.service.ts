@@ -9,7 +9,9 @@ import {
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 // P1-D slice2: routed な customId 生成を feature-local 契約モジュールの Factory へ集約（byte-identical・挙動不変）
-import { FlexibleDiceSelectCustomId, DiceGenericCustomId } from '../custom-id'
+import { FlexibleDiceSelectCustomId, DiceGenericCustomId, SkillRollCustomId } from '../custom-id'
+// skill 解決ロジックは handler と共有する純粋 util へ集約
+import { extractSkillLevel } from './skill-roll.util'
 
 /**
  * スレッドインタラクションサービス
@@ -165,10 +167,10 @@ export class ThreadInteractionService {
 
       skillEntries.forEach(([skillKey, skillValue], _index) => {
         const skillName = skillValue?.name || skillKey
-        const skillLevel = this.extractSkillLevel(skillValue)
+        const skillLevel = extractSkillLevel(skillValue)
 
         const button = new ButtonBuilder()
-          .setCustomId(`skill_${character.discordChannelId}_${skillKey}`)
+          .setCustomId(SkillRollCustomId.create(character.discordChannelId, skillKey))
           .setLabel(`${skillName}${skillLevel ? ` (${skillLevel})` : ''}`)
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('🎯')
@@ -320,29 +322,5 @@ export class ThreadInteractionService {
         .setStyle(ButtonStyle.Success)
         .setEmoji('🎲')
     ]
-  }
-
-  /**
-   * スキルレベルを抽出
-   */
-  private extractSkillLevel(skillValue: any): string | null {
-    if (!skillValue) return null
-
-    if (typeof skillValue === 'object' && skillValue.values) {
-      // AttributeValue オブジェクトの場合
-      const values = skillValue.values
-      if (values.level) return String(values.level)
-      if (values.value) return String(values.value)
-      if (values.base) return String(values.base)
-    } else if (typeof skillValue === 'number') {
-      // 数値の場合
-      return String(skillValue)
-    } else if (typeof skillValue === 'string') {
-      // 文字列の場合
-      const match = skillValue.match(/\d+/)
-      return match ? match[0] : null
-    }
-
-    return null
   }
 }
