@@ -13,5 +13,14 @@
 export const DICE_GENERIC_CUSTOM_ID_PATTERN = 'dice_generic_'
 
 export const DiceGenericCustomId = {
-  pattern: DICE_GENERIC_CUSTOM_ID_PATTERN
+  pattern: DICE_GENERIC_CUSTOM_ID_PATTERN,
+
+  /**
+   * 汎用ダイスボタンの customId を生成する（純粋）。
+   * 形式: `dice_generic_{diceType}_{channelId}`（例: `dice_generic_1d6_123`）。
+   * handler 側は `_` split で parts[2]=diceType / parts.slice(3)=channelId として解析する。
+   */
+  create(diceType: string, channelId: string): string {
+    return `${DICE_GENERIC_CUSTOM_ID_PATTERN}${diceType}_${channelId}`
+  }
 } as const
