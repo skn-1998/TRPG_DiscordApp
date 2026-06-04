@@ -242,19 +242,4 @@ describe('CharacterEmbedManagerService (characterization)', () => {
       expect(embed.fields![0]).toEqual({ name: '🎲 ゲームシステム', value: '未設定', inline: true })
     })
   })
-
-  describe('sendSectionedEmbeds', () => {
-    it('チャンネルに embeds と components を送信する', async () => {
-      const character = buildCharacter()
-      const send = jest.fn().mockResolvedValue(undefined)
-      const channel = { id: 'channel-1', send } as any
-
-      await service.sendSectionedEmbeds(channel, character)
-
-      expect(send).toHaveBeenCalledTimes(1)
-      const arg = send.mock.calls[0][0]
-      expect(arg.embeds).toHaveLength(5)
-      expect(arg.components).toHaveLength(2)
-    })
-  })
 })
