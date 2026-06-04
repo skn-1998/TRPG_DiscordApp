@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-04 Codex 優先度④ CharacterDiceButtonsService DI 整理（コミット `f4d8534`・挙動不変）
+
+Codex 構造アセスメント優先度④。`CharacterDiceButtonsService` が constructor 内で `new CharacterDiceHistoryService(...)`
+（provider 外生成）していたのを通常 DI 注入へ。テスト容易性向上。
+
+- `CharacterDiceHistoryService`（@Injectable だが module 未登録だった）を `character-thread-feature.module.ts` の providers に登録。
+- `character-dice-buttons.service.ts`: historyService を constructor 注入へ・new 撤去。専ら new 用だった `characterService` 注入を除去（import も撤去）。`diceRollService`/`paginationService` は他用途で継続使用のため保持。
+- spec: TestingModule に実 `CharacterDiceHistoryService`（mock 依存で構築）を追加し、saveRollResult テストを維持。
+- **公開 API 影響なし**: `new CharacterDiceButtonsService` は本番・spec とも皆無（Nest DI のみ）と確認。旧コメント「公開 API を変えないため new」の前提は不要だった。
+- 検証: build / check:circular No circular(503) / jest 3 suites 36 緑 / start:dev 起動・総数31・DI エラーなし。
+
+---
+
 ## 2026-06-04 P1-C 完了（非 DI 2件の process.env を Codex 設計案A で解消・挙動不変）
 
 deferred だった非 DI 2件（`error-handler.ts` static / `api-response.dto.ts` DTO）を Codex 設計（案A: DI 境界で env 判定を
