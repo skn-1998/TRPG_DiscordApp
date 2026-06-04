@@ -3,6 +3,8 @@ import { ButtonInteraction, ChannelType, TextChannel } from 'discord.js'
 import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
+// P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
+import { DiceGenericCustomId } from '../custom-id'
 
 /**
  * 汎用ダイスボタンハンドラー
@@ -22,7 +24,7 @@ export class DiceGenericHandler extends ButtonInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'dice_generic_'
+    return DiceGenericCustomId.pattern
   }
 
   async execute(interaction: ButtonInteraction): Promise<void> {
