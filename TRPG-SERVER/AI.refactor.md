@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-06-04 P1-D slice1（characterEdit customId 契約モジュール新設・foundation のみ・コミット `e1dcf9e`・挙動不変）
+
+CLAUDE_HANDOFF.md の P1-D（customId contract 集約・diceRoll の `custom-id/` 先行例に倣う）。ユーザー方針「**characterEdit から
+1 feature ずつ着手（bounded）**」に従い characterEdit から着手。今回は **契約モジュール導入 + handler の pattern 参照まで（foundation）**で、
+生成/解析サイトの Factory/Parser 移行は **未実施＝literal のまま＝挙動同一**（下記 inventory 付き follow-up）。
+
+### 実施（コミット `e1dcf9e`・14 ファイル）
+
+- **新規 `features/characterEdit/custom-id/`**（refresh / create / compact / section / field / modal の6 family + index）:
+  各 family の pattern 定数 + `create*` / `parse*` の純粋関数（discord.js / NestJS DI 非依存）。diceRoll `custom-id/` と同型。
+- **6 handler の `getCustomIdPattern()`** を直書き文字列/正規表現 → pattern 定数参照へ置換（**pattern は完全同一**。例:
+  `CharacterSectionCustomId.pattern = /^character-(edit-section|section-select)-/`）。
+- `handlers.integration.spec.ts`: Factory 生成 customId が handler pattern に match するテストを追加。
+
+### 検証（司令塔がサブエージェント報告を再裏取り＝報告が garbled だったため実状態を全確認）
+
+- build(nest) OK / **check:circular No circular dependency found!(488)** / jest characterEdit + interactions/handlers 統合 + registry
+  = **31 suites 411 tests 緑**（customId フォーマットを固定する spec 群も緑＝生成/解析の文字列等価） / **start:dev で characterEdit 6 handler が
+  従来と完全一致の pattern で登録・handler 総数 30 不変・無エラー**＝挙動不変。
+- `/code-review`(focused): section custom-id は純粋モジュールで文字列/regex 完全同一。handler は pattern 定数を参照（直書き消滅）。
+  customId 無関係に `M` 表示の services（channel-name-sync 等）は **CRLF-only churn と確認しコミットから除外**（混入なし）。
+
+### 残（P1-D slice1 follow-up＝生成/解析サイトの Factory/Parser 移行・**未着手 inventory**）
+
+サブエージェントは契約モジュール + handler 参照までで停止（最終編集が途中で切れた）。生成/解析サイトは **literal 直書きのまま**で、
+変種が多く byte-identical 保存リスクが高い大ぶり作業のため、**scoped follow-up（慎重 or Codex スコープ推奨）**として保留。対象（`git grep` 実測）:
+
+- 生成: `utils/character-embed.util.ts`（edit-section / refresh / compact-view / field-add / field-edit / create-basic / create-cancel）、
+  `services/character-section-editor.service.ts`(edit-section)、`utils/character-ui.util.ts`(field-edit / SECTION_SELECT_PREFIX)、
+  `services/character-section-editor.util.ts`(buildDirectModalId=`char-edit-{sectionType}-{fieldKey}-{id}` / buildSessionModalId=`char-edit-modal-{sessionId}`)。
+- 解析: `enhanced-character-edit.service.ts`(create-basic/cancel/refresh/compact-view の startsWith)、`services/character-modal-handler.service.ts`(多数 includes)、
+  `services/character-modal-handler.util.ts`(`char-edit-modal-` / `char-edit-` prefix + create-basic 正規表現)、`services/character-section-editor.util.ts`(解析正規表現4本)、
+  `utils/enhanced-character-edit.util.ts`(refresh/compact-view 正規表現)。
+- **注意**: field family は生成側が `character-field-edit-{sectionType}-{id}` / `character-field-add-{sectionType}-{id}`（handler pattern `character-field-` が両者を prefix 包含）、
+  modal family は session 形式(`char-edit-modal-`)と legacy 形式(`char-edit-`)の2系統、create family は `{channelId}-{userId}` の2引数。移行時は各変種の Factory/Parser を byte-identical に揃え spec で固定すること。
+
+### slice2
+
+- characterThread の customId 契約モジュール化（同方式）。
+
+---
+
 ## 2026-06-04 P1-C process.env 整理（main.ts を AppConfigService 経由へ・非 DI 2件は設計要で deferred）
 
 CLAUDE_HANDOFF.md の P1-C。本番コードの実 process.env 直接参照は3箇所のみ（crypto.util はコメント文）。
