@@ -25,13 +25,14 @@
 
 **P1-D（customId 契約整理）slice1 foundation 完了（`e1dcf9e`）**: characterEdit に `custom-id/`（6 family の pattern 定数 + create/parse 純粋関数）を新設し、6 handler の `getCustomIdPattern()` を pattern 定数参照へ（pattern 完全同一）。build/check:circular(488)/jest(31 suites 411 緑)/start:dev（6 handler 完全一致登録・総数30 不変）で挙動不変を確認。詳細は AI.refactor.md 同日「P1-D slice1」節。
 
-**P1-D slice1 Slice A/B 完了（Codex 設計に基づく）**: Codex に残作業を A〜F の6 slice へ設計させ、最高価値・最低リスクの2 slice を実装。
+**P1-D slice1 Slice A/B/C 完了（Codex 設計に基づく）**: Codex に残作業を A〜F の6 slice へ設計させ、A/B/C を実装（ユーザー判断で C まで→再判断）。
 
 - Slice A（`a67df77`）: 生成サイトの customId literal を custom-id Factory へ（character-embed.util / character-ui.util / character-section-editor.service・byte-identical・既存 spec で固定）。
 - Slice B（`4417346`）: enhanced-character-edit.service の button 4分岐を契約モジュール述語（is/isBasic/isCancel・startsWith 等価）へ。新 predicates spec で境界固定。
-- 各 build / check:circular(488→489) / jest / start:dev(総数30 不変) で挙動不変を確認。詳細は AI.refactor.md 同日「Slice A/B」節。
+- Slice C（`99f7a88`）: characterId 抽出 regex（CHARACTER_ID_PATTERNS 4本）を契約定数参照へ集約（field 2本は既存未使用定数を結線・section 2本を追加・byte-identical）。includes 系の loose matcher は据え置き。
+- 各 build / check:circular(488→489) / jest / start:dev(総数30 不変) で挙動不変を確認。詳細は AI.refactor.md 同日「Slice A/B/C」節。
 
-**P1-D 残（Codex 設計 Slice C〜F・未着手）**: ① C=section/field 解析、D=modal 生成/解析（legacy/session 2系統）、E=create modal parse、F=message 探索 includes（**parser 化せず helper 集約のみ**）。**loose matcher（非アンカー正規表現・prefix 不一致でも返す replace・includes）は strict 化しない**方針（受理範囲が狭まるため）。C〜F は drift リスクが上がり literal 集約の価値は下がるため慎重 or Codex スコープ前提。② slice2 = characterThread の同方式契約モジュール化。
+**P1-D 残（Codex 設計 Slice D〜F・未着手）**: ① D=modal 生成/解析（legacy/session 2系統）、E=create modal parse、F=message 探索 includes（**parser 化せず helper 集約のみ**）。**loose matcher（非アンカー正規表現・prefix 不一致でも返す replace・includes）は strict 化しない**方針（受理範囲が狭まるため）。D〜F は drift リスクが上がり literal 集約の価値は下がるため慎重 or Codex スコープ前提。② slice2 = characterThread の同方式契約モジュール化。
 
 ---
 
