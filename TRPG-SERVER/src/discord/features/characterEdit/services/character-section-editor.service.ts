@@ -33,6 +33,8 @@ import {
   sanitizeDescriptionValue,
   getSectionData
 } from './character-section-editor.util'
+// P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
+import { CharacterSectionCustomId } from '../custom-id'
 // import { discordSelectMenuType } from '../../../discord.type'
 
 /**
@@ -132,7 +134,7 @@ export class CharacterSectionEditorService {
 
     // 戻るボタンを追加
     const backSelectMenu = new StringSelectMenuBuilder()
-      .setCustomId(`character-edit-section-${character.characterId}`)
+      .setCustomId(CharacterSectionCustomId.createEditSection(character.characterId))
       .setPlaceholder('別のセクションを選択するか戻る')
       .addOptions({
         label: '⬅️ セクション選択に戻る',

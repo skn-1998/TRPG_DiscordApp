@@ -21,6 +21,14 @@ import {
 } from 'discord.js'
 import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
 import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
+import {
+  CharacterSectionCustomId,
+  CharacterRefreshCustomId,
+  CharacterCompactCustomId,
+  CharacterFieldCustomId,
+  CharacterCreateCustomId
+} from '../custom-id'
 
 /**
  * Embed 分割タイプ
@@ -291,7 +299,7 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
 
   // セクション選択メニュー
   const sectionSelectMenu = new StringSelectMenuBuilder()
-    .setCustomId(`character-edit-section-${characterId}`)
+    .setCustomId(CharacterSectionCustomId.createEditSection(characterId))
     .setPlaceholder('編集するセクションを選択')
     .addOptions(
       new StringSelectMenuOptionBuilder()
@@ -314,11 +322,11 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
   // 操作ボタン
   const actionButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`character-refresh-${characterId}`)
+      .setCustomId(CharacterRefreshCustomId.create(characterId))
       .setLabel('🔄 更新')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(`character-compact-view-${characterId}`)
+      .setCustomId(CharacterCompactCustomId.create(characterId))
       .setLabel('📋 簡易表示')
       .setStyle(ButtonStyle.Secondary)
   )
@@ -527,7 +535,7 @@ export function buildFieldSelectMenu(
   if (!data || Object.keys(data).length === 0) {
     // データがない場合は追加専用メニュー
     return new StringSelectMenuBuilder()
-      .setCustomId(`character-field-add-${sectionType}-${characterId}`)
+      .setCustomId(CharacterFieldCustomId.createAdd(sectionType, characterId))
       .setPlaceholder(`${sectionName}を追加`)
       .addOptions(
         new StringSelectMenuOptionBuilder()
@@ -539,7 +547,7 @@ export function buildFieldSelectMenu(
 
   // 既存フィールドの編集メニュー
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(`character-field-edit-${sectionType}-${characterId}`)
+    .setCustomId(CharacterFieldCustomId.createEdit(sectionType, characterId))
     .setPlaceholder(`編集する${sectionName}を選択`)
 
   const options: StringSelectMenuOptionBuilder[] = []
@@ -591,12 +599,12 @@ export function buildNewCharacterEmbed(
 
   // 作成ボタン
   const createButton = new ButtonBuilder()
-    .setCustomId(`character-create-basic-${channelId}-${userId}`)
+    .setCustomId(CharacterCreateCustomId.createBasic(channelId, userId))
     .setLabel('📝 基本情報入力')
     .setStyle(ButtonStyle.Primary)
 
   const cancelButton = new ButtonBuilder()
-    .setCustomId(`character-create-cancel-${channelId}-${userId}`)
+    .setCustomId(CharacterCreateCustomId.createCancel(channelId, userId))
     .setLabel('❌ キャンセル')
     .setStyle(ButtonStyle.Secondary)
 
