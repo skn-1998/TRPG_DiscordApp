@@ -48,7 +48,13 @@ export class CharacterSkillRollHandler extends ButtonInteractionHandler {
         return
       }
 
-      const { skillName, skillValue } = resolveSkillRoll(character, parsed.skillKey)
+      const resolved = resolveSkillRoll(character, parsed.skillKey)
+      if (!resolved) {
+        // skill が存在しない → 目標値 0 の誤ロール＋DB 保存を避けてエラー応答
+        await interaction.followUp({ content: '❌ スキルが見つかりません。', ephemeral: true })
+        return
+      }
+      const { skillName, skillValue } = resolved
 
       const result = await this.diceRollLogicService.handleSkillRoll(
         interaction,
@@ -59,7 +65,14 @@ export class CharacterSkillRollHandler extends ButtonInteractionHandler {
 
       if (result.success) {
         // 親チャンネルに結果を送信
-        await this.sendToParentChannel(interaction, result.details || `${skillName}(${skillValue})`)
+        const posted = await this.sendToParentChannel(interaction, result.details || `${skillName}(${skillValue})`)
+        if (!posted) {
+          // スレッド外 / 親チャンネル取得不可で投稿できなかった場合の fallback 通知
+          await interaction.followUp({
+            content: '❌ 結果を親チャンネルへ送信できませんでした。',
+            ephemeral: true
+          })
+        }
       } else {
         // エラーの場合のみスレッドに通知（エフェメラル）
         await interaction.followUp({

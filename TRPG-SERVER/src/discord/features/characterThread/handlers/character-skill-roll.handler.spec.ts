@@ -86,4 +86,46 @@ describe('CharacterSkillRollHandler', () => {
     expect(interaction.followUp).toHaveBeenCalled()
     expect(diceRollLogicService.handleSkillRoll).not.toHaveBeenCalled()
   })
+
+  it('skill が character に存在しない場合は followUp でエラー・roll は行わない（目標値0誤ロール防止）', async () => {
+    characterService.findByChannelId.mockResolvedValue({ skill: { other: 50 } })
+    const interaction = buildInteraction('skill_chan123_dodge')
+
+    await handler.execute(interaction)
+
+    expect(interaction.followUp).toHaveBeenCalled()
+    expect(diceRollLogicService.handleSkillRoll).not.toHaveBeenCalled()
+  })
+
+  it('handleSkillRoll が success:false の場合は followUp でエラー・親チャンネル投稿はしない', async () => {
+    characterService.findByChannelId.mockResolvedValue({ skill: { dodge: 50 } })
+    diceRollLogicService.handleSkillRoll.mockResolvedValue({ success: false, error: 'roll error' })
+    const interaction = buildInteraction('skill_chan123_dodge')
+
+    await handler.execute(interaction)
+
+    expect(interaction.followUp).toHaveBeenCalled()
+    expect(parentSend).not.toHaveBeenCalled()
+  })
+
+  it('handleSkillRoll が throw しても catch して followUp で通知する', async () => {
+    characterService.findByChannelId.mockResolvedValue({ skill: { dodge: 50 } })
+    diceRollLogicService.handleSkillRoll.mockRejectedValue(new Error('boom'))
+    const interaction = buildInteraction('skill_chan123_dodge')
+
+    await expect(handler.execute(interaction)).resolves.toBeUndefined()
+    expect(interaction.followUp).toHaveBeenCalled()
+  })
+
+  it('スレッド外（親チャンネルへ投稿不可）の成功時は fallback の followUp 通知を行う', async () => {
+    characterService.findByChannelId.mockResolvedValue({ skill: { dodge: 50 } })
+    const interaction = buildInteraction('skill_chan123_dodge')
+    interaction.channel.type = ChannelType.GuildText // スレッドでない → sendToParentChannel は false
+
+    await handler.execute(interaction)
+
+    expect(diceRollLogicService.handleSkillRoll).toHaveBeenCalled()
+    expect(parentSend).not.toHaveBeenCalled()
+    expect(interaction.followUp).toHaveBeenCalled()
+  })
 })
