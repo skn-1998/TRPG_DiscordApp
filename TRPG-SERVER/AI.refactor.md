@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-04 P1-C process.env 整理（main.ts を AppConfigService 経由へ・非 DI 2件は設計要で deferred）
+
+CLAUDE_HANDOFF.md の P1-C。本番コードの実 process.env 直接参照は3箇所のみ（crypto.util はコメント文）。
+
+### 実施（コミット `8222f72`・挙動不変）
+
+- **main.ts の bind-address** を AppConfigService 経由へ。`process.env.NODE_ENV === 'production'` → `configService.get('app.environment') === 'production'`（configuration.ts:44 で environment=env.NODE_ENV・production 判定は等価。無効値は development フォールバックだが production 判定に影響なし）。`process.env.DOCKER_ENV` → `configService.getRaw('DOCKER_ENV')`（typed key でないため getRaw で AppConfigService 経由に一元化）。bind-address ロジック不変。
+- 検証: build / check:circular(481) / start:dev で dev bind-address「http://127.0.0.1:3000」「IPv4 (127.0.0.1)」＝旧挙動と一致・無エラー＝挙動不変。
+
+### 残（P1-C・非 DI のため設計判断要・deferred）
+
+- `core/http/error-handler.ts:98`（**static utility クラス**・`handleHttpError` 内 `process.env.NODE_ENV === 'production'`）と `core/dto/api-response.dto.ts:85`（**DTO**・`new` 生成・constructor 内 `process.env.NODE_ENV === 'development'` で stack 含有判定）。いずれも **DI 不可**のため AppConfigService を注入できない。
+- 撤去には「呼び出し側（@Injectable な `http-exception.filter` 等）から env/isDev を渡す」or「環境を保持する仕組み」の**設計が必要**（ハンドオフ明記）。`ApiResponseUtil`（非 DI util）も ErrorResponse を生成するため、両経路の整合も要る。標準的な NODE_ENV モード判定であり撤去は invasive なため、**focused 設計タスク（Codex スコープ推奨）として deferred**。config module / env validation / test 内の process.env は規約上の許容例外。
+
+---
+
 ## 2026-06-04 P1-B 残 forwardRef を全解消（全て vestigial・挙動不変）
 
 CLAUDE_HANDOFF.md の P1-B。discord/feature 配下の module `forwardRef` を 1 件ずつ通常 import へ戻す。**調査の結果4件すべて
