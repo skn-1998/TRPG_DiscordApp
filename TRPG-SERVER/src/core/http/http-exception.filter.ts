@@ -1,10 +1,11 @@
-import { ArgumentsHost, Catch, ExceptionFilter, ExecutionContext, HttpStatus } from '@nestjs/common'
+import { ArgumentsHost, Catch, ExceptionFilter, ExecutionContext, HttpStatus, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { ErrorResponse } from '../dto/api-response.dto'
 import { API_ERROR_RESPONSE_KEY, ApiErrorResponseMeta } from './api-error-response.decorator'
 import { ApiError } from './api-error'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * エラーレスポンス整形フィルタ。
@@ -25,9 +26,13 @@ import { ApiError } from './api-error'
  *
  * errorMessage / stack の扱いは ApiResponseUtil.error と同一。
  */
+@Injectable()
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly configService: AppConfigService
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
@@ -37,13 +42,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof (host as ExecutionContext).getHandler === 'function' ? (host as ExecutionContext).getHandler() : undefined
 
     const requestId = uuidv4()
+    // P1-C: 旧 ErrorResponse(DTO) 内 `process.env.NODE_ENV==='development'` を DI 境界（本 filter）へ移管。
+    // app.environment は env.NODE_ENV（configuration.ts）と等価＝挙動不変。
+    const includeStack = this.configService.get('app.environment') === 'development'
 
     if (exception instanceof ApiError) {
       const payload = exception.errorPayload
       const errorMessage = payload instanceof Error ? payload.message : String(payload)
       const stack = payload instanceof Error ? payload.stack : undefined
 
-      const response = new ErrorResponse(errorMessage, exception.label, undefined, undefined, stack, requestId)
+      const response = new ErrorResponse(
+        errorMessage,
+        exception.label,
+        undefined,
+        undefined,
+        stack,
+        requestId,
+        includeStack
+      )
       res.status(exception.getStatus()).json(response)
       return
     }
@@ -59,7 +75,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const errorMessage = exception instanceof Error ? exception.message : String(exception)
     const stack = exception instanceof Error ? exception.stack : undefined
 
-    const response = new ErrorResponse(errorMessage, label, undefined, undefined, stack, requestId)
+    const response = new ErrorResponse(errorMessage, label, undefined, undefined, stack, requestId, includeStack)
     res.status(status).json(response)
   }
 }

@@ -17,7 +17,11 @@ describe('CharacterHttpExceptionFilter', () => {
   let host: ArgumentsHost
 
   beforeEach(() => {
-    filter = new CharacterHttpExceptionFilter()
+    // P1-C: filter は AppConfigService から dev 判定を得る。test 環境想定で非 development。
+    const mockAppConfig = {
+      get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+    } as unknown as import('../../config/config.service').AppConfigService
+    filter = new CharacterHttpExceptionFilter(mockAppConfig)
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn()
