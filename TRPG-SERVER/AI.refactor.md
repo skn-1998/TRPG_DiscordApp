@@ -33,7 +33,7 @@ P1-A の残「execute() 特例 → Registry 経路」を実施。**characterizat
   - `InteractionsService`: `handleChannelCreate()`/`loadClient()` と `ChannelCreateOrchestratorService` inject を撤去（thin service 化）。`InteractionsController`: dead な `handleCommand()`/`handleChannelCreate()`/`client`/`ChannelCreateOrchestratorService` inject を撤去（handleCommand 呼出元ゼロ）。`discord-facade`: `loadClient` 呼び出し＋未使用化した InteractionsService inject を撤去。
   - **`InteractionsModule` から `CharacterEditModule` import を撤去 → interactions core は feature module を一切 import しない（§8 達成）**。imports は `InteractionRegistryModule`＋`EventEmitterModule` のみ。
   - 検証: build / check:circular **No circular(481)** / jest characterEdit+interactions+facade **35 suites 481 緑** / start:dev で `CharacterEditChannelCreateListenerService` の ChannelCreate 登録ログ・handler 総数30不変・Cannot resolve なし / `/code-review`(focused) handler ロジック旧と同一・正確性バグなし＝挙動不変。
-- 残（軽微 follow-up・別 commit）: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去で fallthrough と dead-equivalent）を削除。
+- **軽微 follow-up 完了（コミット `e880269`）**: `discord-interaction-handler.service.ts` の冗長 `character-section-select-` if（特例撤去で fallthrough と dead-equivalent）を削除し未登録セレクトを単一 fallback に統一。spec の「3分岐」→「2分岐」更新（character-section-select- の routing 不変 regression guard は維持）。build/check:circular(481)/jest 20 tests 緑・挙動不変。**→ P1-A は follow-up 含め完了。次は P1-B/C/D（別パケット・Codex 判断）**。
 
 ---
 
