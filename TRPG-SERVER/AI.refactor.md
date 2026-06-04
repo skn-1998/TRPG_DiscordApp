@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-06-04 P1-C 完了（非 DI 2件の process.env を Codex 設計案A で解消・挙動不変）
+
+deferred だった非 DI 2件（`error-handler.ts` static / `api-response.dto.ts` DTO）を Codex 設計（案A: DI 境界で env 判定を
+解決し下位へ引数で渡す）で解消。**本番コードの process.env 直接参照は P1-C で完全解消**（main.ts(`8222f72`) + 下記）。
+
+### slice1 — ErrorHandler.handleHttpError（コミット `3a69b2e`・挙動不変）
+
+- static utility は DI 不可のため `options?: { isProduction?: boolean }` を追加し `process.env.NODE_ENV==='production'` を撤去（既定 false）。
+- **本番呼び出し元なし（spec のみ）**＝影響限定。spec を `{ isProduction }` 引数へ（process.env テスト間リークも解消）。
+
+### slice2-3 — ErrorResponse.stack の dev 判定を filter 注入へ（コミット `98d5055`・挙動不変）
+
+- **発見**: `ApiResponseUtil.error/.internalServerError` は実呼び出し元なし（dead・コメント参照のみ）。実 stack の ErrorResponse 生成は
+  `HttpExceptionFilter` と `CharacterHttpExceptionFilter` の **2 filter のみ**＝当初懸念した controller 全体への波及は不要だった。
+- `ErrorResponse`/`InternalServerErrorResponse` に `includeStack`（既定 false）を追加し constructor 内 `process.env.NODE_ENV==='development'` を撤去。
+- 2 filter に `@Injectable()`＋AppConfigService 注入し `includeStack = get('app.environment')==='development'` を生成へ渡す（@UseFilters(Class)＋@Global で DI 解決）。
+- byte-identical 根拠: app.environment は env.NODE_ENV と等価＝production→stack 無し / development→stack 有り を維持。dead な ApiResponseUtil は既定 false（test 環境では旧挙動も stack 無し＝filter spec の oracle 一致維持）。
+- 検証: build / check:circular No circular(503) / jest 4 suites 37 緑（新 api-response.dto.spec の includeStack matrix・2 filter・error-handler）/ start:dev 起動・総数31・DI エラーなし。
+
+### 到達点
+
+- 本番コードの `process.env` 直接参照（main.ts / error-handler / api-response.dto）を**全て AppConfigService 経由または呼び出し側注入へ**。config module / env validation / test 内の process.env は規約上の許容例外。**P1-C 完了**。
+
+---
+
 ## 2026-06-04 P1-D slice2（characterThread customId 契約化＋未routing skill\_ 修正・Codex 推奨の最優先）
 
 > 注: foundation / Part1 / Part2 は挙動不変。Part3（skill\_ 配線）は **campaign 初の意図的な挙動変更（バグ修正）**。
