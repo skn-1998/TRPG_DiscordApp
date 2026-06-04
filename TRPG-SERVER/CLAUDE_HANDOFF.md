@@ -21,6 +21,8 @@
 
 **P1-B（forwardRef 解消）完了（`c4dabf1`+`427c843`）**: discord/feature の module forwardRef 4件は全て vestigial（逆方向 import が prior 修正で消えていた）と判明し通常 import へ戻した。実 forwardRef は全消失（残は character.module のコメント行のみ）。build/check:circular(481)/start:dev で挙動不変を確認。詳細は AI.refactor.md 同日「P1-B」節。
 
+**Codex 優先度④ CharacterDiceButtonsService DI 整理 完了（`f4d8534`）**: `new CharacterDiceHistoryService(...)`（provider 外生成）を DI 注入へ。CharacterDiceHistoryService を module provider 登録し、buttons service へ inject（専ら new 用だった characterService 注入は除去）。手動 new 皆無のため公開 API 影響なし。build/circular(503)/jest 36緑/start:dev(総数31・DI エラーなし)。詳細は AI.refactor.md 同日「優先度④」節。
+
 **P1-C（process.env 整理）完了**: main.ts(`8222f72`) + error-handler.ts(`3a69b2e`・handleHttpError に isProduction option・本番呼出元なし) + api-response.dto.ts/2 filters(`98d5055`・ErrorResponse の includeStack を HttpExceptionFilter / CharacterHttpExceptionFilter から AppConfigService 経由で注入)。Codex 設計案A。`ApiResponseUtil.error` 系は dead と判明し波及は 2 filter のみに収束。**本番コードの process.env 直接参照は全解消**（config/env-validation/test は許容例外）。詳細は AI.refactor.md 同日「P1-C 完了」節。
 
 **P1-D（customId 契約整理）slice1 foundation 完了（`e1dcf9e`）**: characterEdit に `custom-id/`（6 family の pattern 定数 + create/parse 純粋関数）を新設し、6 handler の `getCustomIdPattern()` を pattern 定数参照へ（pattern 完全同一）。build/check:circular(488)/jest(31 suites 411 緑)/start:dev（6 handler 完全一致登録・総数30 不変）で挙動不変を確認。詳細は AI.refactor.md 同日「P1-D slice1」節。
