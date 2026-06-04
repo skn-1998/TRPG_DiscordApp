@@ -34,6 +34,7 @@ import { CharacterDiceHandler } from '../../features/characterThread/handlers/ch
 import { DiceGenericHandler } from '../../features/characterThread/handlers/dice-generic.handler'
 import { FlexibleDiceSelectHandler } from '../../features/characterThread/handlers/flexible-dice-select.handler'
 import { CharacterSkillRollHandler } from '../../features/characterThread/handlers/character-skill-roll.handler'
+import { AbilityRollHandler } from '../../features/characterThread/handlers/ability-roll.handler'
 import { PresetDiceQuickRollHandler } from '../../features/characterThread/handlers/preset-dice-quick-roll.handler'
 
 // モックサービス
@@ -91,6 +92,7 @@ describe('Interaction Handlers Integration', () => {
   let diceGenericHandler: DiceGenericHandler
   let flexibleDiceSelectHandler: FlexibleDiceSelectHandler
   let characterSkillRollHandler: CharacterSkillRollHandler
+  let abilityRollHandler: AbilityRollHandler
   let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
 
   beforeEach(async () => {
@@ -212,6 +214,10 @@ describe('Interaction Handlers Integration', () => {
           useFactory: () => new (CharacterSkillRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
         },
         {
+          provide: AbilityRollHandler,
+          useFactory: () => new (AbilityRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
+        },
+        {
           provide: PresetDiceQuickRollHandler,
           useFactory: () => new (PresetDiceQuickRollHandler as any)(mockDiceRollLogicService)
         }
@@ -247,6 +253,7 @@ describe('Interaction Handlers Integration', () => {
     diceGenericHandler = module.get<DiceGenericHandler>(DiceGenericHandler)
     flexibleDiceSelectHandler = module.get<FlexibleDiceSelectHandler>(FlexibleDiceSelectHandler)
     characterSkillRollHandler = module.get<CharacterSkillRollHandler>(CharacterSkillRollHandler)
+    abilityRollHandler = module.get<AbilityRollHandler>(AbilityRollHandler)
     presetDiceQuickRollHandler = module.get<PresetDiceQuickRollHandler>(PresetDiceQuickRollHandler)
 
     // 全ハンドラーを登録
@@ -277,6 +284,7 @@ describe('Interaction Handlers Integration', () => {
       diceGenericHandler,
       flexibleDiceSelectHandler,
       characterSkillRollHandler,
+      abilityRollHandler,
       presetDiceQuickRollHandler
     ])
   })
@@ -286,9 +294,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('27個のハンドラーが登録されている', () => {
+    it('28個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(27)
+      expect(stats.totalHandlers).toBe(28)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -513,6 +521,10 @@ describe('Interaction Handlers Integration', () => {
 
       it('skill_* にマッチ（P1-D slice2 で配線・button）', () => {
         expect(registry.hasHandler('skill_1234567890_dodge', 'button')).toBe(true)
+      })
+
+      it('ability_* にマッチ（S-3 で配線・button）', () => {
+        expect(registry.hasHandler('ability_1234567890_str', 'button')).toBe(true)
       })
 
       it('dice_coc7_* / dice_dnd5e_* / dice_sw25_* にマッチ（P1-D 後続で配線・button）', () => {
