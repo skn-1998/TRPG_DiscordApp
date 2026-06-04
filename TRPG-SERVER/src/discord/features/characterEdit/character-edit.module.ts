@@ -1,4 +1,4 @@
-import { Module, forwardRef, OnModuleInit } from '@nestjs/common'
+import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 
@@ -51,7 +51,7 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
  */
 @Module({
   imports: [
-    forwardRef(() => CharacterModule),
+    CharacterModule, // CharacterModule は characterEdit を import しない＝循環なしのため forwardRef 不要（P1-B）
     DiscordIntegrationModule, // 循環依存解消により安全にインポート可能
     InteractionRegistryModule // diceRoll と同様、feature が自 handler を registry 登録するため
     // Note: AppConfigServiceはグローバルモジュールのためインポート不要

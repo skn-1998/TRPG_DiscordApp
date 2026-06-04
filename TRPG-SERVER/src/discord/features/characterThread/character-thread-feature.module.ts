@@ -1,4 +1,4 @@
-import { Module, forwardRef, OnModuleInit } from '@nestjs/common'
+import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 import { ThreadCreationService } from './services/thread-creation.service'
@@ -45,7 +45,7 @@ import { FlexibleDiceSelectHandler } from './handlers/flexible-dice-select.handl
  *
  * 📋 import 構成:
  * - CharacterModule: 各サービスが CharacterService を解決するため。
- * - DiscordIntegrationModule: 既存（forwardRef 維持）。
+ * - DiscordIntegrationModule: 既存（P1-B で forwardRef 解消・循環なし）。
  * - InteractionRegistryModule: handler を registry へ登録するため。
  * - DiceServicesModule: dice-generic / flexible-dice-select handler が DiceRollLogicService、
  *   CharacterDiceButtonsService が DicePresetService を解決するため。
@@ -56,7 +56,7 @@ import { FlexibleDiceSelectHandler } from './handlers/flexible-dice-select.handl
 @Module({
   imports: [
     CharacterModule,
-    forwardRef(() => DiscordIntegrationModule),
+    DiscordIntegrationModule, // DiscordIntegrationModule は characterThread を import しない＝循環なしのため forwardRef 不要（P1-B）
     InteractionRegistryModule,
     DiceServicesModule,
     DiceRollModule,
