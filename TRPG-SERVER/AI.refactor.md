@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-06-04 P1-A 後続 InteractionsService.execute() の characterEdit 特例分岐を撤去（コミット `2640395`・Codex レビュー済）
+
+P1-A の残「execute() 特例 → Registry 経路」を実施。**characterization は既存 `interactions.service.spec.ts` が現挙動を固定済み**だったため、それを土台に移管。
+
+### Phase 1 で確定した挙動差（撤去の安全性根拠）
+
+- `discord-interaction-handler.service` の buttons/modals/selects Map は常に空 → 全 interaction が `InteractionsService.execute()` 経由。execute() は StringSelect の `character-section-select-*`/`character-edit-*`/`character-field-*` を `CharacterSectionEditorService.execute()` へ**直接**委譲し、Registry の `CharacterEditSectionHandler`(`^character-(edit-section|section-select)-`)/`CharacterEditFieldHandler`(`character-field-`) を**影で潰す legacy bypass**だった。
+- 両 registry handler は `EnhancedCharacterEditService.handleSelectMenuInteraction()` → `sectionEditor.execute()` を呼ぶ。**happy path は両経路とも sectionEditor.execute で同一**。
+- 差分: registry 経路は ①`characterEdit.section.selected`/`.field.selected` を追加発火（**購読者ゼロ**＝contract 定義のみ・観測影響なし）、②エラー時の挙動（特例＝ephemeral reply「セクション選択の処理中にエラーが発生しました。」＋rethrow / registry＝log＋購読者ゼロの error event・reply なし）。→ **実質差は「section-select エラー時の ephemeral reply の有無」のみ**（happy path 不変）。
+
+### 実施
+
+- `interactions.service.ts`: execute() の characterEdit 特例分岐を撤去し、全 interaction を `handleInteraction()`（Registry）へ委譲。`CharacterSectionEditorService` の import / constructor inject を撤去。
+- `interactions.service.spec.ts`: execute() の characterEdit セレクト3テストを「Registry へ委譲（registry.route 呼び出し）」へ更新、特例 error テスト2件を削除、sectionEditor mock/provider を除去（Phase 5: バス変更に伴う呼び出し先 expectation 更新）。
+
+### 検証（司令塔裏取り・`/code-review` 含む）
+
+- build 成功 / check:circular No circular dependency found!(479) / jest interactions.service + handlers.integration + registry + characterEdit = **31 suites 425 tests 緑** / start:dev で `CharacterEditSectionHandler`/`CharacterEditFieldHandler` の registry 登録・handler 総数 30(不変)・Cannot resolve なし＝**characterEdit セレクトが registry 経路で正規 handler に届くことを実機確認**。
+- `/code-review`(high): 正確性バグなし。挙動差は上記の意図した error-path 差のみ。隣接 cleanup（`discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if＝特例撤去で fallthrough と dead-equivalent）を follow-up に記録。
+
+### コミット状況・残（Codex レビュー結果反映）
+
+- **コミット済 `2640395`**。Codex が「execute 特例撤去は安全（happy path 不変／error 時は汎用エラー応答経路へ・専用文言は follow-up polish で可）」「prep（ModuleRef/Controller 撤去）と同一ファイル・同一目的なので分離せずまとめてコミットしてよい」と承認。
+- 残（CharacterEditModule import 撤去まで・Codex 承認の次タスク）:
+  1. **ChannelCreate 移設（実施すべき・別タスク）**: `characterEdit` feature に `CharacterEditChannelCreateListenerService`（OnModuleInit で `DiscordClientService.on(Events.ChannelCreate, ...)` を登録・GuildText のみ・例外は log して外へ投げない＝現挙動同一）を新設。`InteractionsService` から `ChannelCreateOrchestratorService` inject と `handleChannelCreate()` を撤去（`loadClient()` は no-op 化 or 呼び出し側削除）。`InteractionsController` から `ChannelCreateOrchestratorService` inject 撤去。→ `InteractionsModule` から `CharacterEditModule` import を撤去。新規 forwardRef/@Global/循環禁止。build/check:circular/start:dev（handler 総数30不変・ChannelCreate listener 登録ログ）で挙動不変確認。
+  2. **別 commit cleanup**: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去で dead-equivalent）を削除。
+
+---
+
 ## 2026-06-04 P1-A InteractionsModule slim 化（monitoring/DiceServices 撤去・挙動不変）＋ execute() 特例の挙動差を特定
 
 Codex 司令塔の委譲（`CLAUDE_HANDOFF.md` P1-A）。InteractionsModule を Registry + thin service へ寄せる。
