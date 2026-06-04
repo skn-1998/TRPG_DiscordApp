@@ -17,7 +17,11 @@
 - ✅ `c27d155`（Codex 設計承認済）: ChannelCreate listener を `CharacterEditChannelCreateListenerService`（characterEdit feature・OnModuleInit で DiscordClientService.on 登録・旧ロジック同一）へ移設。`InteractionsService`/`InteractionsController`（dead）から `ChannelCreateOrchestratorService` 依存を撤去、`discord-facade` の loadClient 呼出も撤去。→ **`InteractionsModule` から `CharacterEditModule` import を撤去（最後の feature import）**。
 - 検証（各段）: build / check:circular **No circular（最終 481）** / jest（最終 35 suites 481 緑）/ start:dev（successfully started・handler 総数 **30 不変**・monitoring 単一初期化・ChannelCreate listener 登録・Cannot resolve なし）/ `/code-review`＝挙動不変。
 
-**残（P1-A スコープの軽微 follow-up・別 commit／P1-B 以降は別パケット）**: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去後 fallthrough と dead-equivalent）を削除。これ以外の P1-A 目的（feature/monitoring 所有外し・Registry+thin service 化）は完了。次は Codex 判断で P1-B（forwardRef 解消）/ P1-C（process.env）/ P1-D（customId 契約）へ。
+**残（P1-A スコープの軽微 follow-up・別 commit／P1-B 以降は別パケット）**: `discord-interaction-handler.service.ts:172-174` の冗長 `character-section-select-` if（特例撤去後 fallthrough と dead-equivalent）を削除。これ以外の P1-A 目的（feature/monitoring 所有外し・Registry+thin service 化）は完了。
+
+**P1-B（forwardRef 解消）完了（`c4dabf1`+`427c843`）**: discord/feature の module forwardRef 4件は全て vestigial（逆方向 import が prior 修正で消えていた）と判明し通常 import へ戻した。実 forwardRef は全消失（残は character.module のコメント行のみ）。build/check:circular(481)/start:dev で挙動不変を確認。詳細は AI.refactor.md 同日「P1-B」節。
+
+次は **P1-C（process.env 整理）/ P1-D（customId 契約整理）**。
 
 ---
 
