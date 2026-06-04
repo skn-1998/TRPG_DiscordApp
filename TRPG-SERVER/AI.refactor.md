@@ -56,6 +56,18 @@ characterEdit と同型に foundation → 安全な生成移行を実施。**未
 - 挙動変更（意図的）: `skill_` クリックが「現在処理できません」→ 1d100 スキル判定実行＋親チャンネル投稿。
 - 検証: build / check:circular No circular(501) / jest 5 suites 115 緑 / start:dev で `CharacterSkillRollHandler [button] → skill_` 登録・**handler 総数 30→31**・無エラー。
 
+#### Part 3b — Codex 実装レビュー反映の堅牢化（コミット `f482e89`）
+
+Codex に skill\_ 実装をレビューさせ、**委譲先は現状維持（`DiceRollLogicService` 直＝feature 境界を汚さない・ユーザー判断）**としつつ、
+仕様判断不要の correctness 修正を適用:
+
+- `SkillRollCustomId.parse`: 空 channelId（先頭 `_`）/ 空 skillKey（末尾 `_`）/ 区切りなしを null で弾く。
+- `resolveSkillRoll`: skillKey が character.skill に**存在しない場合は null**（従来は skillValue=0 で「目標値0の誤ロール＋DB保存」が発生し得た）。handler は null→ephemeral error で中断。
+- handler: 親チャンネル投稿失敗（スレッド外/親取得不可）時の成功経路に fallback の followUp 通知。
+- spec 追加: `skill-roll.custom-id.spec`（parse edge）＋ handler spec に skill 不在 / success:false / throw / スレッド外投稿失敗。
+- 検証: build / check:circular No circular(502) / jest 4 suites 92 緑 / start:dev で skill\_ 登録・総数31・無エラー。
+- **deferred（記録）**: embed 表示＋履歴UI更新（orchestrator 経由なら付くが feature 結合を生むため不採用）、`handleSkillRoll` の event emit 欠落（既存 skill roll 全体の課題・新 handler 固有でない）。
+
 ### 残（別タスク・別 slice）
 
 - **routing 修正の続き（要仕様決定）**: `dice_coc7_*` / `dice_dnd5e_*` / `dice_sw25_*` は依然未routing（characterization で固定済）。
