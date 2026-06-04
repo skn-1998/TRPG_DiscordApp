@@ -493,6 +493,35 @@ describe('Interaction Handlers Integration', () => {
         expect(registry.hasHandler('flexible_dice_1234567890', 'select')).toBe(true)
       })
     })
+
+    describe('characterThread が生成するが registry 未登録の customId（既知の latent gap・現状を固定）', () => {
+      // thread-interaction.service が生成する一部の customId は、対応する handler pattern が無く未routing。
+      // 挙動保存方針（Codex レビュー済）: ここでは現状（handler 無し＝クリック時「現在処理できません」reply）を
+      // 事実として固定し、routing 修正は仕様決定後の別タスクとする（AI.refactor.md / CLAUDE_HANDOFF.md の P1-D slice2 節参照）。
+      // handler は全てハイフン系 prefix だが、これら生成はアンダースコア系 prefix のため startsWith 不一致。
+      it('skill_ ボタンは未routing（postSkillRollButtons が実送出）', () => {
+        expect(registry.hasHandler('skill_1234567890_STR', 'button')).toBe(false)
+      })
+
+      it('dice_coc7_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
+        expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(false)
+        expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(false)
+      })
+
+      it('dice_dnd5e_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
+        expect(registry.hasHandler('dice_dnd5e_1d20_1234567890', 'button')).toBe(false)
+      })
+
+      it('dice_sw25_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
+        expect(registry.hasHandler('dice_sw25_2d6_1234567890', 'button')).toBe(false)
+      })
+
+      it('character_edit_ / dice_roll_ / character_info_ は dead path（postActionButtons がコメントアウト）かつ未routing', () => {
+        expect(registry.hasHandler('character_edit_1234567890', 'button')).toBe(false)
+        expect(registry.hasHandler('dice_roll_1234567890', 'button')).toBe(false)
+        expect(registry.hasHandler('character_info_1234567890', 'button')).toBe(false)
+      })
+    })
   })
 
   describe('未登録のcustomId', () => {
