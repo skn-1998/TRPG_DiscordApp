@@ -33,6 +33,7 @@ import { FlexibleDiceParamHandler } from '../../features/characterThread/handler
 import { CharacterDiceHandler } from '../../features/characterThread/handlers/character-dice.handler'
 import { DiceGenericHandler } from '../../features/characterThread/handlers/dice-generic.handler'
 import { FlexibleDiceSelectHandler } from '../../features/characterThread/handlers/flexible-dice-select.handler'
+import { CharacterSkillRollHandler } from '../../features/characterThread/handlers/character-skill-roll.handler'
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
@@ -54,8 +55,10 @@ const mockCharacterThreadSelectService = { execute: jest.fn().mockResolvedValue(
 const mockCharacterTabButtonsService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockCharacterDiceButtonsService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockDiceRollLogicService = {
-  handleDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
+  handleDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' }),
+  handleSkillRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
 }
+const mockCharacterService = { findByChannelId: jest.fn().mockResolvedValue(null) }
 
 describe('Interaction Handlers Integration', () => {
   let registry: InteractionRegistryService
@@ -86,6 +89,7 @@ describe('Interaction Handlers Integration', () => {
   let characterDiceHandler: CharacterDiceHandler
   let diceGenericHandler: DiceGenericHandler
   let flexibleDiceSelectHandler: FlexibleDiceSelectHandler
+  let characterSkillRollHandler: CharacterSkillRollHandler
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -200,6 +204,10 @@ describe('Interaction Handlers Integration', () => {
         {
           provide: FlexibleDiceSelectHandler,
           useFactory: () => new (FlexibleDiceSelectHandler as any)(mockDiceRollLogicService)
+        },
+        {
+          provide: CharacterSkillRollHandler,
+          useFactory: () => new (CharacterSkillRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
         }
       ]
     }).compile()
@@ -232,6 +240,7 @@ describe('Interaction Handlers Integration', () => {
     characterDiceHandler = module.get<CharacterDiceHandler>(CharacterDiceHandler)
     diceGenericHandler = module.get<DiceGenericHandler>(DiceGenericHandler)
     flexibleDiceSelectHandler = module.get<FlexibleDiceSelectHandler>(FlexibleDiceSelectHandler)
+    characterSkillRollHandler = module.get<CharacterSkillRollHandler>(CharacterSkillRollHandler)
 
     // 全ハンドラーを登録
     registry.registerHandlers([
@@ -259,7 +268,8 @@ describe('Interaction Handlers Integration', () => {
       flexibleDiceParamHandler,
       characterDiceHandler,
       diceGenericHandler,
-      flexibleDiceSelectHandler
+      flexibleDiceSelectHandler,
+      characterSkillRollHandler
     ])
   })
 
@@ -268,9 +278,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('25個のハンドラーが登録されている', () => {
+    it('26個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(25)
+      expect(stats.totalHandlers).toBe(26)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -492,6 +502,10 @@ describe('Interaction Handlers Integration', () => {
       it('flexible_dice_* にマッチ', () => {
         expect(registry.hasHandler('flexible_dice_1234567890', 'select')).toBe(true)
       })
+
+      it('skill_* にマッチ（P1-D slice2 で配線・button）', () => {
+        expect(registry.hasHandler('skill_1234567890_dodge', 'button')).toBe(true)
+      })
     })
 
     describe('characterThread が生成するが registry 未登録の customId（既知の latent gap・現状を固定）', () => {
@@ -499,10 +513,7 @@ describe('Interaction Handlers Integration', () => {
       // 挙動保存方針（Codex レビュー済）: ここでは現状（handler 無し＝クリック時「現在処理できません」reply）を
       // 事実として固定し、routing 修正は仕様決定後の別タスクとする（AI.refactor.md / CLAUDE_HANDOFF.md の P1-D slice2 節参照）。
       // handler は全てハイフン系 prefix だが、これら生成はアンダースコア系 prefix のため startsWith 不一致。
-      it('skill_ ボタンは未routing（postSkillRollButtons が実送出）', () => {
-        expect(registry.hasHandler('skill_1234567890_STR', 'button')).toBe(false)
-      })
-
+      // 注: skill_ は P1-D slice2 で配線済み（routed・上の Character Thread系を参照）。
       it('dice_coc7_* ボタンは未routing（postPresetDiceButtons が実送出）', () => {
         expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(false)
         expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(false)

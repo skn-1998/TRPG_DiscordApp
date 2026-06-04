@@ -33,6 +33,8 @@ import { FlexibleDiceParamHandler } from './handlers/flexible-dice-param.handler
 import { CharacterDiceHandler } from './handlers/character-dice.handler'
 import { DiceGenericHandler } from './handlers/dice-generic.handler'
 import { FlexibleDiceSelectHandler } from './handlers/flexible-dice-select.handler'
+// P1-D slice2: 未routing だった skill_ ボタンを配線（latent bug 修正）
+import { CharacterSkillRollHandler } from './handlers/character-skill-roll.handler'
 
 /**
  * Character Thread Feature Module
@@ -87,7 +89,8 @@ import { FlexibleDiceSelectHandler } from './handlers/flexible-dice-select.handl
     FlexibleDiceParamHandler,
     CharacterDiceHandler,
     DiceGenericHandler,
-    FlexibleDiceSelectHandler
+    FlexibleDiceSelectHandler,
+    CharacterSkillRollHandler
   ],
   exports: [
     ThreadCreationService,
@@ -118,7 +121,8 @@ export class CharacterThreadFeatureModule implements OnModuleInit {
     private readonly flexibleDiceParamHandler: FlexibleDiceParamHandler,
     private readonly characterDiceHandler: CharacterDiceHandler,
     private readonly diceGenericHandler: DiceGenericHandler,
-    private readonly flexibleDiceSelectHandler: FlexibleDiceSelectHandler
+    private readonly flexibleDiceSelectHandler: FlexibleDiceSelectHandler,
+    private readonly characterSkillRollHandler: CharacterSkillRollHandler
   ) {}
 
   /**
@@ -133,7 +137,8 @@ export class CharacterThreadFeatureModule implements OnModuleInit {
       this.flexibleDiceParamHandler,
       this.characterDiceHandler,
       this.diceGenericHandler,
-      this.flexibleDiceSelectHandler
+      this.flexibleDiceSelectHandler,
+      this.characterSkillRollHandler
     ])
   }
 }
