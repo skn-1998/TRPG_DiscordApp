@@ -41,7 +41,7 @@
 **P1-D slice2 latent bug と修正状況**: `thread-interaction.service` が**実送出**するが registry 未routing の customId 群を発見（handler はハイフン系 prefix・生成はアンダースコア系で startsWith 不一致が原因。クリックで「現在処理できません」）。性質はリファクタ regression ではなく元からの未配線バグ（git 履歴で裏取り済）。
 
 - ✅ `skill_`（postSkillRollButtons）: **配線して機能化済**（方針A・`dd18624` prep + `6883156` fix）。`CharacterSkillRollHandler` → `DiceRollLogicService.handleSkillRoll`（処理不可→1d100 スキル判定＋親チャンネル投稿）。total 30→31。
-- ⏳ `dice_coc7_` / `dice_dnd5e_` / `dice_sw25_`（postPresetDiceButtons）: **依然未routing**（characterization で固定済）。skill\_ と同方式で段階配線可能だが semantic preset（sanity/save/magic 等）は専用ルール未実装＝「単純ダイス＋ラベル」までに限定する等の仕様判断が要る。
+- ✅ `dice_(coc7|dnd5e|sw25)_*`（postPresetDiceButtons）: **方針A 最小機能化で配線済**（`fa1ff5b` 実装＋`3ca3470` spec 補強・Codex 仕様設計＋実装レビュー反映）。`PresetDiceQuickRollHandler` で system 既定 notation（coc7=1d100/dnd5e=1d20/sw25=2d6）を振り、action は reason ラベル化（semantic は「（簡易）」付き）。total 31→32。全 13 preset ボタンが機能化。本格ルール（SAN 値比較・武器ダメージ式等）は別タスク（`findByChannelId` の select 拡張が先行課題）。
 - `postActionButtons`（character*edit* / dice*roll* / character*info*）は thread-orchestrator:79 でコメントアウト＝dead path（撤去は別 issue）。
 
 **P1-D 残（Codex 設計 Slice D〜F・deferred）**: ① D=modal 生成/解析（legacy/session 2系統。生成 `buildDirectModalId`/`buildSessionModalId` は modal 契約の createDirect/createSession へ移せる＝低リスク／parse は fiddly）、E=create modal parse（`parseBasic` 相当・契約に既存）、F=message 探索 includes（**parser 化せず helper 集約のみ**）。**loose matcher（非アンカー正規表現・prefix 不一致でも返す replace・includes）は strict 化しない**方針（受理範囲が狭まるため）。D〜F は drift リスクが上がり literal 集約の価値は下がるため、必要時に慎重 or Codex スコープで再開。② slice2 = characterThread の同方式契約モジュール化（未着手）。

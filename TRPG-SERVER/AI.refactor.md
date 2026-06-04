@@ -5,6 +5,51 @@
 
 ---
 
+## 2026-06-04 P1-D 後続 ③ dice*(coc7|dnd5e|sw25)* preset ボタンを配線（方針A 最小機能化・挙動変更=バグ修正）
+
+Codex 仕様設計＋ユーザー判断「方針A: 全 action 最小機能化」に基づく。skill\_ に続く未routing latent bug の修正。
+**Codex 調査で確定した制約**: (a) 専用ゲームルール（SAN 値比較・武器ダメージ式等）は未実装、(b) `CharacterRepository.findByChannelId`
+の select に `status/skill/parameter/gameSystemId` が含まれず stats 取得経路が破綻している。よって正規 semantic 判定は
+不可能で、暫定 **system 既定 notation を振り action を reason ラベル化**して機能させる（完全ルールは次フェーズ）。
+
+### 実装（コミット `fa1ff5b` 本体＋`3ca3470` spec 補強）
+
+- 新規 `custom-id/preset-dice.custom-id.ts`: `PresetDiceCustomId`（pattern `/^dice_(coc7|dnd5e|sw25)_/`・create/parse）＋
+  `resolvePresetDiceRoll(system, action)` → system 既定 notation（coc7=1d100 / dnd5e=1d20 / sw25=2d6）と reason ラベル
+  （base はそのまま「技能判定」「d20攻撃」「2d6判定」、semantic は「SAN値判定（簡易）」「セーヴィング・スロー（簡易）」
+  「魔法行使（簡易）」等で生成側ボタンラベルと整合）。
+- 新規 `PresetDiceQuickRollHandler`（button・pattern 上記）: parse → resolve → deferUpdate →
+  `DiceRollLogicService.handleDiceRoll`（feature 境界維持・skill\_ と同方針）→ 親チャンネル投稿。
+  DiceGenericHandler / CharacterSkillRollHandler と同型の堅牢化（invalid customId→reply / success:false / throw→followUp /
+  親投稿失敗→fallback followUp）。
+- module 登録（DiceServicesModule 経由で DiceRollLogicService 解決）。
+- handlers.integration.spec: dice*coc7*/dnd5e*/sw25* を未routing→routed へ（dice*generic* との区別・未対応 system は未routing 維持を固定）、登録総数 26→27。
+
+### Codex 実装レビュー結果（指摘なし or P2 のみ・反映済）
+
+- 実装本体（正しさ・routing・堅牢化）に致命傷なし。
+- **委譲先**: skill\_ レビューで指摘された「event emit 欠落」は preset-dice では発生せず（`handleDiceRoll` 経路は completed/failed event を emit する）。embed/履歴UI なしは DiceGenericHandler 同型＝別 issue 扱い。
+- P2 spec 不足3件（空 action / 空 channelId / 親投稿失敗 fallback）は `3ca3470` で追加（jest 2 suites 19 緑）。
+
+### 挙動変更（意図的・バグ修正）
+
+dice*(coc7|dnd5e|sw25)*\* クリックが「現在処理できません」→ system 既定 notation を振り親チャンネルへ結果投稿。
+semantic 弱さ（SAN ボタンが SAN チェックせず単に 1d100）は (簡易) ラベルで明示。**全 13 個の preset ボタン**
+（coc7×5 + dnd5e×4 + sw25×4）が機能化。
+
+### 検証
+
+- build / check:circular **No circular(507)** / jest 11 suites 99 緑（後に spec 補強で 21 緑追加）/
+  start:dev で `PresetDiceQuickRollHandler [button] → ^dice_(coc7|dnd5e|sw25)_` 登録・**handler 総数 31→32**・無エラー。
+
+### 残（仕様判断後の別タスク）
+
+- **本格ルール実装**: SAN 値比較・武器ダメージ式・能力値ボーナス・命中-回避判定・魔法行使判定等。先に
+  `CharacterRepository.findByChannelId` の select 拡張（status/skill/parameter/gameSystemId 取得）が必要。
+- **dead path 整理**: `postActionButtons`（character*edit*/dice*roll*/character*info*）はコメントアウト中（撤去候補・別 issue）。
+
+---
+
 ## 2026-06-04 Codex 優先度④ CharacterDiceButtonsService DI 整理（コミット `f4d8534`・挙動不変）
 
 Codex 構造アセスメント優先度④。`CharacterDiceButtonsService` が constructor 内で `new CharacterDiceHistoryService(...)`
