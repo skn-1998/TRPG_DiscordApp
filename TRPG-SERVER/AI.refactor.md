@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-06-04 P1-B 残 forwardRef を全解消（全て vestigial・挙動不変）
+
+CLAUDE_HANDOFF.md の P1-B。discord/feature 配下の module `forwardRef` を 1 件ずつ通常 import へ戻す。**調査の結果4件すべて
+vestigial（実循環は prior リファクタで既に解消＝逆方向 import がコメントアウト済。madge も循環ゼロ）**で、port 切り出し等の
+構造変更は不要だった。コミット `c4dabf1`（DiscordModule→InteractionsModule）＋`427c843`（残3件）。
+
+### 解消した forwardRef（各々「逆方向 import が無い＝循環なし」を確認のうえ通常 import へ）
+
+- `DiscordModule → InteractionsModule`（`c4dabf1`）: P1-A で InteractionsModule を slim 化（feature import 撤去）した結果、
+  InteractionsModule は DiscordModule へ戻る経路を持たず（imports は InteractionRegistryModule[imports なし]+EventEmitterModule のみ・
+  DiscordModule は誰からも import されない）→ 循環消滅。
+- `DiscordIntegrationModule → CharacterModule`（`427c843`）: CharacterModule は DiscordIntegrationModule を import しない（コメントアウト済）。
+- `CharacterEditModule → CharacterModule`（`427c843`）: CharacterModule は characterEdit を import しない。
+- `CharacterThreadFeatureModule → DiscordIntegrationModule`（`427c843`）: DiscordIntegrationModule は characterThread を import しない（コメントアウト済）。
+
+### 検証（司令塔・各段／最終まとめ）
+
+- build 成功 / check:circular **No circular dependency found!（481）** / start:dev で「Nest application successfully started」・
+  handler 総数 **30 不変**・ChannelCreate listener 登録・**循環/Cannot resolve/cannot-create エラーなし**＝DI グラフが forwardRef なしで
+  解決＝挙動不変。
+
+### 到達点
+
+- discord/feature 配下の**実 `forwardRef()` は全消失**（残るは `domains/character/character.module.ts` のコメントアウト行のみ＝
+  かつての DiscordIntegrationModule 循環の名残・実コードではない）。**P1-B 完了**。次は P1-C（process.env）。
+
+---
+
 ## 2026-06-04 P1-A 後続 InteractionsService.execute() の characterEdit 特例分岐を撤去（コミット `2640395`・Codex レビュー済）
 
 P1-A の残「execute() 特例 → Registry 経路」を実施。**characterization は既存 `interactions.service.spec.ts` が現挙動を固定済み**だったため、それを土台に移管。
