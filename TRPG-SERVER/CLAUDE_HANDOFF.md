@@ -34,6 +34,10 @@
 
 **P1-D characterEdit は A/B/C で一区切り（ユーザー判断・2026-06-04）**: §8 達成済＋A/B/C で「生成の一元化／button 分岐述語化／characterId 抽出 regex 一元化」という実利を確保。Slice D〜F は **deferred（未完ではなく意図的な打ち切り）**。
 
+**P1-D slice2（characterThread customId 契約化）着手・Codex 推奨の最優先**: foundation（`ac0f479`・custom-id/ 7 family 新設＋7 handler が pattern 定数参照）→ Part1 未routing characterization（`09d61c4`）→ Part2 routed 生成の Factory 化（`785bc60`）。各 build/check:circular(497)/jest/start:dev(総数30 不変) で挙動不変を確認。詳細は AI.refactor.md 同日「P1-D slice2」節。
+
+**P1-D slice2 で発見した latent bug（別タスク・要仕様判断）**: `thread-interaction.service` が**実送出**するが registry 未routing の customId 群＝`skill_`（postSkillRollButtons）/ `dice_coc7_` `dice_dnd5e_` `dice_sw25_`（postPresetDiceButtons）。クリックで「現在処理できません」になる。handler は全てハイフン系 prefix・生成はアンダースコア系で startsWith 不一致が原因。**routing 化は挙動変更のため refactor では行わず、現状を characterization spec で固定済**。修正（handler 追加 or 生成停止）は仕様決定後の別タスク。加えて `postActionButtons`（character*edit*/dice*roll*/character*info*）は thread-orchestrator:79 でコメントアウト＝dead path。
+
 **P1-D 残（Codex 設計 Slice D〜F・deferred）**: ① D=modal 生成/解析（legacy/session 2系統。生成 `buildDirectModalId`/`buildSessionModalId` は modal 契約の createDirect/createSession へ移せる＝低リスク／parse は fiddly）、E=create modal parse（`parseBasic` 相当・契約に既存）、F=message 探索 includes（**parser 化せず helper 集約のみ**）。**loose matcher（非アンカー正規表現・prefix 不一致でも返す replace・includes）は strict 化しない**方針（受理範囲が狭まるため）。D〜F は drift リスクが上がり literal 集約の価値は下がるため、必要時に慎重 or Codex スコープで再開。② slice2 = characterThread の同方式契約モジュール化（未着手）。
 
 ---

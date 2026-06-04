@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-06-04 P1-D slice2（characterThread customId 契約化・Codex 推奨の最優先・挙動不変）
+
+Codex の構造アセスメント（§8 達成後の次の実害は「feature 内 customId 契約不一致」）に従い characterThread に着手。
+characterEdit と同型に foundation → 安全な生成移行を実施。**未routing の latent gap を発見し、Codex レビューで方針確定**。
+
+### foundation（コミット `ac0f479`・15ファイル）
+
+- 新規 `features/characterThread/custom-id/`（7 family）: 各 handler の pattern 定数（thread-select=regex /
+  thread-create / tab=`character-tab*` / flexible-dice-param=`flexible-dice-param*` / character-dice / dice-generic=`dice_generic_` /
+  flexible-dice-select=`flexible_dice_`）。照合意味論（registry base handler の exact/startsWith・`*`/`-` はリテラル・regex test）を docstring 化。
+- 7 handler の `getCustomIdPattern()` を pattern 定数参照へ（完全同一）。
+- 検証: build / check:circular No circular(497) / jest 10 suites 106 緑 / start:dev で 7 handler が従来一致 pattern 登録・総数30・無エラー。
+
+### 未routing gap の発見と Codex レビュー（重要）
+
+`thread-interaction.service.ts`（live・thread-orchestrator が注入）が生成するボタンのうち、**registry のどの handler pattern にも
+対応しない群**を発見（handler は全てハイフン系 prefix、生成はアンダースコア系のため startsWith 不一致）。Codex が実コードで裏取り:
+
+- `skill_*`（postSkillRollButtons・**実送出**）/ `dice_coc7_*` `dice_dnd5e_*` `dice_sw25_*`（postPresetDiceButtons・**実送出**）＝**未routing の latent bug**（クリック時「現在処理できません」reply）。
+- `character_edit_` / `dice_roll_` / `character_info_`（postActionButtons）＝呼び出し元が thread-orchestrator.service.ts:79 で**コメントアウト＝dead path**かつ未routing。
+- `flexible_dice_` / `dice_generic_` ＝routing 済み（handler + integration spec 緑）。
+- **方針（Codex レビュー）**: routing 化はクリック時挙動が変わる明確な挙動変更のため、本 refactor では行わない。**現状を characterization spec で事実固定し、routing 修正は仕様決定後の別タスク**。
+
+### Part 1 — 未routing の characterization 固定（コミット `09d61c4`）
+
+`handlers.integration.spec.ts` に「上記 latent group は現状 hasHandler===false」を固定（skill*/dice_coc7*/dnd5e*/sw25*/character*edit*/dice*roll*/character*info*）。jest 48 緑＝実際に未 routing であることを確認。
+
+### Part 2 — routed 生成の Factory 化（コミット `785bc60`・slice2 本体）
+
+- custom-id に `create()` 追加: `FlexibleDiceSelectCustomId.create(channelId)` / `DiceGenericCustomId.create(diceType, channelId)`（pattern と prefix 同一）。
+- `thread-interaction.service.ts` の routed 生成5サイト（flexible*dice*×1・dice*generic* 1d6/2d6/1d20/1d100）を Factory へ。
+- byte-identical 検証: 既存 `thread-interaction.service.spec` が生成文字列固定済（`flexible_dice_ch-flex` / `dice_generic_1d6_ch-g` 等）→ 緑＝完全同一。
+- 検証: build / check:circular No circular(497) / jest 11 suites 137 緑 / start:dev 総数30・無エラー。
+
+### 残（別タスク・別 slice）
+
+- **routing 修正（要仕様決定・別タスク）**: 実送出される未routing群（`skill_` / `dice_coc7_` / `dice_dnd5e_` / `dice_sw25_`）に handler を追加するか、生成を止めるか。挙動変更を伴うため product 判断が要る。
+- **dead path 整理**: `postActionButtons`（character*edit*/dice*roll*/character*info*）はコメントアウト中。生成メソッドごと撤去するかは別 issue。
+- **follow-up**: routed handler 側 parse（`flexible_dice_` の replace / `dice_generic_` の split）の契約化。未routing 群の生成 contract 化は routing 方針決定後。
+
+---
+
 ## 2026-06-04 P1-D slice1 Slice A/B/C（Codex 設計に基づく生成・button 分岐・解析 regex の移行・挙動不変）
 
 foundation（下記 `e1dcf9e`）に続き、**Codex に残作業のスコープ設計を委譲**（生成/解析サイトを A〜F の6 slice へ分割。
