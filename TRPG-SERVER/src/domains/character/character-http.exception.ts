@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common'
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Injectable } from '@nestjs/common'
 import { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -7,6 +7,7 @@ import {
   InternalServerErrorResponse,
   NotFoundErrorResponse
 } from '../../core/dto/api-response.dto'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * character コントローラ専用のエラー封筒化フィルタ。
@@ -29,12 +30,17 @@ import {
  *
  * グローバル登録はせず、character.controller の @UseFilters でのみ適用する。
  */
+@Injectable()
 @Catch()
 export class CharacterHttpExceptionFilter implements ExceptionFilter {
+  constructor(private readonly configService: AppConfigService) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
     const res = ctx.getResponse<Response>()
     const requestId = uuidv4()
+    // P1-C: 旧 ErrorResponse(DTO) 内の dev 判定を DI 境界（本 filter）へ移管（app.environment===NODE_ENV・挙動不変）。
+    const includeStack = this.configService.get('app.environment') === 'development'
 
     if (exception instanceof CharacterAuthenticationException) {
       // 変換前: ApiResponseUtil.authenticationError(res, message)
@@ -53,7 +59,7 @@ export class CharacterHttpExceptionFilter implements ExceptionFilter {
     // 変換前: catch ブロックの ApiResponseUtil.internalServerError(res, error)
     const errorMessage = exception instanceof Error ? exception.message : String(exception)
     const stack = exception instanceof Error ? exception.stack : undefined
-    const response: ErrorResponse = new InternalServerErrorResponse(errorMessage, stack, requestId)
+    const response: ErrorResponse = new InternalServerErrorResponse(errorMessage, stack, requestId, includeStack)
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json(response)
   }
 }
