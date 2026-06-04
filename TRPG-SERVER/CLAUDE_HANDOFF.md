@@ -23,7 +23,9 @@
 
 **P1-C（process.env 整理）一部完了（`8222f72`）**: main.ts の bind-address を AppConfigService 経由へ（脱 process.env・挙動不変）。残 `error-handler.ts`(static)・`api-response.dto.ts`(DTO) は **DI 不可**で env 注入の設計が要るため deferred（focused 設計タスク／Codex スコープ推奨）。詳細は AI.refactor.md 同日「P1-C」節。
 
-次は **P1-D（customId 契約整理）**（characterEdit/characterThread の customId 生成・解析・pattern を feature-local `custom-id/` へ集約。diceRoll と同型の大きめ restructuring）。
+**P1-D（customId 契約整理）slice1 foundation 完了（`e1dcf9e`）**: characterEdit に `custom-id/`（6 family の pattern 定数 + create/parse 純粋関数）を新設し、6 handler の `getCustomIdPattern()` を pattern 定数参照へ（pattern 完全同一）。build/check:circular(488)/jest(31 suites 411 緑)/start:dev（6 handler 完全一致登録・総数30 不変）で挙動不変を確認。詳細は AI.refactor.md 同日「P1-D slice1」節。
+
+**P1-D 残（scoped follow-up）**: ① characterEdit の**生成/解析サイト移行**（`character-embed.util` / `character-section-editor.*` / `character-ui.util` / `enhanced-character-edit.*` / `character-modal-handler.*` の literal 直書きを Factory/Parser へ。field=edit/add×sectionType・modal=session/legacy 2形式・create=channelId+userId の変種に注意し byte-identical 保存＋spec 固定。AI.refactor.md に未着手 inventory あり）、② slice2 = characterThread の同方式契約モジュール化。**変種が多く drift リスクが高いため慎重 or Codex スコープ推奨**。
 
 ---
 
