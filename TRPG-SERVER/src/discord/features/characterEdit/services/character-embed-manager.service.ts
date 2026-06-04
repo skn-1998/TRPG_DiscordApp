@@ -10,7 +10,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, TextChannel, ThreadChannel } from 'discord.js'
+import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -66,30 +66,6 @@ export class CharacterEmbedManagerService {
     characterId: string
   ): StringSelectMenuBuilder | null {
     return buildFieldSelectMenu(character, sectionType, characterId)
-  }
-
-  /**
-   * チャンネルに分割Embedを送信
-   */
-  async sendSectionedEmbeds(channel: TextChannel | ThreadChannel, character: Character): Promise<void> {
-    try {
-      const { embeds, components } = await this.createSectionedEmbeds(character)
-
-      // 複数のEmbedを一度に送信（Discordの10 embed制限内）
-      await channel.send({
-        embeds,
-        components
-      })
-
-      this.logger.log(`Sectioned embeds sent for character: ${character.characterId}`)
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        { channelId: channel.id, characterId: character.characterId },
-        'CharacterEmbedManagerService'
-      )
-      throw error
-    }
   }
 
   /**
