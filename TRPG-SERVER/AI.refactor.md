@@ -5,11 +5,11 @@
 
 ---
 
-## 2026-06-04 P1-D slice1 Slice A/B（Codex 設計に基づく生成・button 分岐の Factory/述語移行・挙動不変）
+## 2026-06-04 P1-D slice1 Slice A/B/C（Codex 設計に基づく生成・button 分岐・解析 regex の移行・挙動不変）
 
 foundation（下記 `e1dcf9e`）に続き、**Codex に残作業のスコープ設計を委譲**（生成/解析サイトを A〜F の6 slice へ分割。
 最大リスクは「strict parser へ直置換すると loose matcher の受理範囲が狭まる」点。message 探索系は parser 化しない方針）。
-その設計に沿い、最高価値・最低リスクの **Slice A（生成サイト）/ Slice B（button 分岐）を実装**。
+その設計に沿い、**Slice A（生成サイト）/ Slice B（button 分岐）/ Slice C（characterId 抽出 regex）を実装**（ユーザー判断で C まで実施し再判断）。
 
 ### Slice A — 生成サイトを Factory へ（コミット `a67df77`・3ファイル）
 
@@ -26,14 +26,20 @@ foundation（下記 `e1dcf9e`）に続き、**Codex に残作業のスコープ�
   いずれも prefix の startsWith（**空 id でも true・substring は false** ＝旧分岐と byte-identical な受理範囲）。
 - `custom-id/custom-id-predicates.spec.ts` 新設で境界（空 id・前方一致でない substring・他 family 非該当）を固定。
 
+### Slice C — characterId 抽出 regex を契約へ（コミット `99f7a88`・2ファイル）
+
+- `character-section.custom-id.ts`: 非アンカー解析パターン `CHARACTER_EDIT_SECTION_PARSE_PATTERN` / `CHARACTER_SECTION_SELECT_PARSE_PATTERN` を追加（greedy・prefix が途中でも match する現挙動を保存）。
+- `character-section-editor.util.ts`: `CHARACTER_ID_PATTERNS` の直書き4本を契約定数参照へ（field の2本は foundation で定義済だが未使用だった `CHARACTER_FIELD_EDIT/ADD_PARSE_PATTERN` を結線）。順序・正規表現とも従来と完全同一＝byte-identical。
+- **据え置き（Codex 指針＝loose を strict 化しない）**: `extractSectionFromCustomId`（`-status-` 等 includes）/ `isFieldOperationCustomId` / `isSectionSelectionCustomId`（includes）は受理範囲が変わるため移行せず。
+
 ### 各 slice 検証（司令塔・独立検証）
 
 - A: build / check:circular No circular(488) / jest 6 suites 152 緑 / start:dev 6 handler pattern 不変・総数30・無エラー。
 - B: build / check:circular No circular(489) / jest 7 suites 99 緑（新述語 spec 含む）/ start:dev 総数30・無エラー。
+- C: build / check:circular No circular(489) / jest 5 suites 142 緑（`extractCharacterIdFromCustomId` の greedy `a-b-c-123`・section-select `id-1`・null 境界）/ start:dev 総数30・無エラー。
 
-### 残（Codex 設計の Slice C〜F・未着手）
+### 残（Codex 設計の Slice D〜F・未着手）
 
-- **C**: section/field の解析（`character-section-editor.util.ts:128-173` の regex4本＋`includes`、`character-ui.util.ts:252-259` の loose `replace`）。
 - **D**: modal の生成/解析（`char-edit-{sectionType}-{fieldKey}-{id}` legacy ／ `char-edit-modal-{sessionId}` session の2系統。`character-section-editor.util.ts:181-191` ほか）。
 - **E**: create modal parse（`character-modal-handler.util.ts:70-84` の `parseBasic` 相当）。
 - **F**: message 探索の `includes` 群（`enhanced-character-edit.util.ts:106-121`、`character-modal-handler.service.ts:488-504,582-590`）→ **parser 化せず literal を helper へ集約のみ**（Codex 指針）。
