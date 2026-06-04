@@ -2,11 +2,6 @@ import { Module } from '@nestjs/common'
 import { InteractionsController } from './interactions.controller'
 import { InteractionsService } from './interactions.service'
 import { EventEmitterModule } from '@nestjs/event-emitter'
-// characterEdit feature module: handler は feature 所有へ移管済みだが、InteractionsService /
-// InteractionsController が CharacterSectionEditorService / ChannelCreateOrchestratorService を
-// inject するため import を維持（§8 完全是正＝InteractionsService の旧 execute() 特例分岐と
-// ChannelCreate 委譲の撤去は挙動影響ありの別課題 P1-A 後続）。
-import { CharacterEditModule } from '../features/characterEdit/character-edit.module'
 
 // 🆕 Interaction Registry (Events方式の自動ルーティング)
 import { InteractionRegistryModule } from './registry/interaction-registry.module'
@@ -18,7 +13,6 @@ import { InteractionRegistryModule } from './registry/interaction-registry.modul
  *
  * 📋 責務:
  * - Discord.js ボタン/モーダル/セレクトメニューのインタラクションを Registry へルーティング
- * - ChannelCreate イベントの委譲（暫定・InteractionsService 経由）
  *
  * 🆕 Registry方式（Events方式と統一）:
  * - InteractionRegistryService による自動ルーティング（ファイル名 = customIdパターン）
@@ -33,8 +27,11 @@ import { InteractionRegistryModule } from './registry/interaction-registry.modul
  *   providers/exports から撤去（重複 provider＝重複 @OnEvent を解消）。
  * - dice 計算・ロジック系は DiceServicesModule が所有。Part B 以降 interactions は dice を直接使わないため
  *   DiceServicesModule の import / re-export を撤去。
- * - 残課題（挙動影響あり・別途）: InteractionsService の characterEdit 特例 execute() と ChannelCreate 委譲を
- *   feature/handler 経路へ移し、CharacterEditModule import を撤去する。
+ *
+ * ✅ P1-A 最終（2026-06-04）: ChannelCreate リスナーを characterEdit feature
+ *   （CharacterEditChannelCreateListenerService）へ移管し、InteractionsService/Controller から
+ *   ChannelCreateOrchestratorService 依存を撤去。これにより CharacterEditModule import を撤去でき、
+ *   interactions core は feature module を一切 import しない（§8 達成）。挙動は不変。
  */
 @Module({
   controllers: [InteractionsController],
@@ -44,10 +41,6 @@ import { InteractionRegistryModule } from './registry/interaction-registry.modul
     InteractionRegistryModule,
     InteractionsService
   ],
-  imports: [
-    InteractionRegistryModule,
-    EventEmitterModule,
-    CharacterEditModule // InteractionsService/Controller が CharacterSectionEditorService/ChannelCreateOrchestratorService を解決するため（暫定）
-  ]
+  imports: [InteractionRegistryModule, EventEmitterModule]
 })
 export class InteractionsModule {}

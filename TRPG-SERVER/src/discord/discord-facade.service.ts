@@ -8,7 +8,6 @@ import { DiscordInteractionHandlerService } from './services/discord-interaction
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
 import { PerformanceOrchestratorService } from './services/monitoring/performance-orchestrator.service'
-import { InteractionsService } from './interactions/interactions.service'
 import { CommandsService } from './commands/commands.service'
 
 /**
@@ -25,7 +24,6 @@ export class DiscordFacadeService {
 
   constructor(
     private readonly discordClientService: DiscordClientService,
-    private readonly interactionsService: InteractionsService,
     private readonly commandsService: CommandsService,
     private readonly appConfigService: AppConfigService,
     private readonly commandManagerService: CommandManagerService,
@@ -60,9 +58,9 @@ export class DiscordFacadeService {
       // 各サービスにクライアントを設定（並列処理）
       // loadClient は同期 void だが、初期化処理の塊として Promise.all 内にまとめている。
       // 構造を変えると初期化順序・並列性が変わり得るため現状維持し、await-thenable は意図的に許容する。
+      // ※ ChannelCreate リスナー登録は characterEdit feature の
+      //   CharacterEditChannelCreateListenerService（OnModuleInit）へ移管済み（§8）。
       await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/await-thenable -- loadClient は同期 void。Promise.all の塊として意図的に内包
-        this.interactionsService.loadClient(this.client),
         // eslint-disable-next-line @typescript-eslint/await-thenable -- loadClient は同期 void。Promise.all の塊として意図的に内包
         this.commandsService.loadClient(this.client),
         this.interactionHandler.initialize(this.client),
