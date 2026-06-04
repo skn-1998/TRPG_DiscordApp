@@ -18,6 +18,14 @@ export const CHARACTER_SECTION_SELECT_CUSTOM_ID_PREFIX = 'character-section-sele
 /** handler の getCustomIdPattern() が返す正規表現（不変） */
 export const CHARACTER_SECTION_CUSTOM_ID_PATTERN = /^character-(edit-section|section-select)-/
 
+/**
+ * characterId 抽出用の解析パターン（**非アンカー・現挙動を保存**）。
+ * `(.+)` は greedy のため `character-edit-section-a-b-c` → `a-b-c`。
+ * strict（startsWith ベース）ではないため、prefix が途中にあっても match する現挙動を保つ。
+ */
+export const CHARACTER_EDIT_SECTION_PARSE_PATTERN = /character-edit-section-(.+)/
+export const CHARACTER_SECTION_SELECT_PARSE_PATTERN = /character-section-select-(.+)/
+
 export const CharacterSectionCustomId = {
   pattern: CHARACTER_SECTION_CUSTOM_ID_PATTERN,
   editSectionPrefix: CHARACTER_EDIT_SECTION_CUSTOM_ID_PREFIX,
