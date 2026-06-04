@@ -11,6 +11,8 @@ import {
 import { SelectMenuInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
+// P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
+import { FlexibleDiceSelectCustomId } from '../custom-id'
 
 /**
  * フレキシブルダイス選択ハンドラー
@@ -28,7 +30,7 @@ export class FlexibleDiceSelectHandler extends SelectMenuInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'flexible_dice_'
+    return FlexibleDiceSelectCustomId.pattern
   }
 
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {

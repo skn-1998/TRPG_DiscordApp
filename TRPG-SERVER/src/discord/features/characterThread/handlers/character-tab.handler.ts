@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
 import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { CharacterTabButtonsService } from '../character-tab-buttons.service'
+// P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
+import { CharacterTabCustomId } from '../custom-id'
 
 /**
  * キャラクタータブボタンハンドラー
@@ -17,7 +19,7 @@ export class CharacterTabHandler extends ButtonInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'character-tab*'
+    return CharacterTabCustomId.pattern
   }
 
   async execute(interaction: ButtonInteraction): Promise<void> {

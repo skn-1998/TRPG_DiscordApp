@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
 import { SelectMenuInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { CharacterThreadSelectService } from '../services/character-thread-select.service'
+// P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
+import { CharacterThreadCreateCustomId } from '../custom-id'
 
 /**
  * キャラクタースレッド作成選択ハンドラー
@@ -15,7 +17,7 @@ export class CharacterThreadCreateHandler extends SelectMenuInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'character-thread-create-select'
+    return CharacterThreadCreateCustomId.pattern
   }
 
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {
