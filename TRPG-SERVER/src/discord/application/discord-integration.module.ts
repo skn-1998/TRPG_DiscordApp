@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { CharacterModule } from '../../domains/character/character.module'
 // import { DiscordIntegrationService } from './discord-integration.service' // 廃止済み - イベント駆動アーキテクチャに移行
 // DiscordUIService は CharacterUIService に移行されました
@@ -18,7 +18,7 @@ import { DiscordClientService } from '../services/discord-client.service'
  */
 @Module({
   imports: [
-    forwardRef(() => CharacterModule) // Character関連のドメインサービス用
+    CharacterModule // Character関連のドメインサービス用（CharacterModule は DiscordIntegrationModule を import しない＝循環なしのため forwardRef 不要・P1-B）
     // Note: features/ への直接依存を排除してイベント駆動通信のみを使用
     // Note: AppConfigServiceはグローバルモジュールのためインポート不要
   ],
