@@ -103,7 +103,9 @@ export class FlexibleDiceSelectHandler extends SelectMenuInteractionHandler {
       .setMaxLength(50)
 
     const reasonInput = new TextInputBuilder()
-      .setCustomId('dice-reason')
+      // S-2: 受け手 CustomDiceModalService は `dice-comment` を読む。`dice-reason` だと
+      // getTextInputValue('dice-comment') が throw して送信が失敗するため canonical 名に統一。
+      .setCustomId('dice-comment')
       .setLabel('理由（任意）')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('例: 攻撃判定、ダメージロール')
