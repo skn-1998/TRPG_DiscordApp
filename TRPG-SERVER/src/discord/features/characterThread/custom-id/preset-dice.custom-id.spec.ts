@@ -41,6 +41,14 @@ describe('PresetDiceCustomId', () => {
       expect(PresetDiceCustomId.parse('dice_coc7_sanity')).toBeNull() // channelId なし
       expect(PresetDiceCustomId.parse('skill_chan_dodge')).toBeNull()
     })
+
+    it('空 action（dice_{system}__{channelId}）は null', () => {
+      expect(PresetDiceCustomId.parse('dice_coc7__chan1')).toBeNull()
+    })
+
+    it('空 channelId（dice_{system}_{action}_）は null', () => {
+      expect(PresetDiceCustomId.parse('dice_coc7_sanity_')).toBeNull()
+    })
   })
 })
 
