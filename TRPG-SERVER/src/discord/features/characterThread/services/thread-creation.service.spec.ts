@@ -9,6 +9,7 @@ import { ThreadCreationService, CreateThreadRequest } from './thread-creation.se
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
+import { ThreadInteractionService } from './thread-interaction.service'
 import { Character } from '../../../../domains/character/models/character.model'
 
 /**
@@ -62,6 +63,16 @@ describe('ThreadCreationService (characterization)', () => {
     update: jest.fn().mockResolvedValue(undefined)
   }
 
+  // S-4.3: ダイス系UI の生成は ThreadInteractionService に一元化。
+  // ThreadCreationService は各 post メソッドへ委譲するだけなので mock で呼び出しを観測する。
+  const mockThreadInteractionService = {
+    postBasicDiceButtons: jest.fn().mockResolvedValue(undefined),
+    postFlexibleDiceMenu: jest.fn().mockResolvedValue(undefined),
+    postPresetDiceButtons: jest.fn().mockResolvedValue(undefined),
+    postSkillRollButtons: jest.fn().mockResolvedValue(undefined),
+    postAbilityRollButtons: jest.fn().mockResolvedValue(undefined)
+  }
+
   const buildCharacter = (overrides: Partial<Character> = {}): Character =>
     ({
       characterId: 'char-123',
@@ -90,13 +101,19 @@ describe('ThreadCreationService (characterization)', () => {
         ThreadCreationService,
         { provide: DiscordClientService, useValue: mockDiscordClientService },
         { provide: TypedEventService, useValue: mockTypedEventService },
-        { provide: CharacterService, useValue: mockCharacterService }
+        { provide: CharacterService, useValue: mockCharacterService },
+        { provide: ThreadInteractionService, useValue: mockThreadInteractionService }
       ]
     }).compile()
 
     service = module.get(ThreadCreationService)
     jest.clearAllMocks()
     mockCharacterService.update.mockResolvedValue(undefined)
+    mockThreadInteractionService.postBasicDiceButtons.mockResolvedValue(undefined)
+    mockThreadInteractionService.postFlexibleDiceMenu.mockResolvedValue(undefined)
+    mockThreadInteractionService.postPresetDiceButtons.mockResolvedValue(undefined)
+    mockThreadInteractionService.postSkillRollButtons.mockResolvedValue(undefined)
+    mockThreadInteractionService.postAbilityRollButtons.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -142,7 +159,7 @@ describe('ThreadCreationService (characterization)', () => {
       expect(thread.send).toHaveBeenCalled()
     })
 
-    it('basic 表示: embed・ダイスボタン・柔軟ダイスメニュー・プリセット・スキルロールを送信する', async () => {
+    it('basic 表示: embed を送信し、ダイス系UI を ThreadInteractionService へ委譲する', async () => {
       const thread = buildMockThread()
       const channel = buildMockChannel(thread)
       const character = buildCharacter()
@@ -152,17 +169,16 @@ describe('ThreadCreationService (characterization)', () => {
 
       await service.createCharacterThread(baseRequest, character)
 
+      // 1) 基本Embed は ThreadCreationService 自身が送信する
       const sendCalls = (thread.send as jest.Mock).mock.calls
-      // 1) 基本Embed
       expect(sendCalls[0][0]).toHaveProperty('embeds')
-      // 2) ダイスロールボタン
-      expect(sendCalls.some((c) => c[0]?.content === '🎲 ダイスロール')).toBe(true)
-      // 3) スキルロール
-      expect(sendCalls.some((c) => c[0]?.content === '🎯 スキルロール')).toBe(true)
-      // 4) 柔軟ダイス計算メニュー
-      expect(sendCalls.some((c) => c[0]?.content?.includes('柔軟ダイス計算'))).toBe(true)
-      // 5) プリセット（クイックダイス）
-      expect(sendCalls.some((c) => c[0]?.content?.includes('クイックダイス'))).toBe(true)
+
+      // 2) ダイス系UI（基本/柔軟/プリセット/スキル/能力）は ThreadInteractionService へ委譲（S-4.3 converged）
+      expect(mockThreadInteractionService.postBasicDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postFlexibleDiceMenu).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
     })
   })
 
