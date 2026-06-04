@@ -42,6 +42,22 @@ export const CharacterCreateCustomId = {
   },
 
   /**
+   * customId が basic 作成ボタンのものか判定する（純粋）。
+   * 分岐ディスパッチの現挙動を保存するため startsWith 判定。
+   */
+  isBasic(customId: string): boolean {
+    return customId.startsWith(CHARACTER_CREATE_PREFIX.basic)
+  },
+
+  /**
+   * customId が cancel 作成ボタンのものか判定する（純粋）。
+   * 分岐ディスパッチの現挙動を保存するため startsWith 判定。
+   */
+  isCancel(customId: string): boolean {
+    return customId.startsWith(CHARACTER_CREATE_PREFIX.cancel)
+  },
+
+  /**
    * basic 作成 customId から channelId / userId を抽出する（純粋）。
    * 一致しない場合は { channelId: null, userId: null }。
    */

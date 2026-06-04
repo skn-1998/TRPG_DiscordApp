@@ -21,6 +21,14 @@ export const CharacterRefreshCustomId = {
     return `${CHARACTER_REFRESH_CUSTOM_ID_PATTERN}${characterId}`
   },
 
+  /**
+   * customId が refresh ボタンのものか判定する（純粋）。
+   * 分岐ディスパッチの現挙動を保存するため startsWith 判定（characterId 空でも true）。
+   */
+  is(customId: string): boolean {
+    return customId.startsWith(CHARACTER_REFRESH_CUSTOM_ID_PATTERN)
+  },
+
   parse(customId: string): CharacterRefreshParsedCustomId | null {
     if (!customId.startsWith(CHARACTER_REFRESH_CUSTOM_ID_PATTERN)) {
       return null

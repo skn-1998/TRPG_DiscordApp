@@ -21,6 +21,14 @@ export const CharacterCompactCustomId = {
     return `${CHARACTER_COMPACT_CUSTOM_ID_PATTERN}${characterId}`
   },
 
+  /**
+   * customId が compact-view ボタンのものか判定する（純粋）。
+   * 分岐ディスパッチの現挙動を保存するため startsWith 判定（characterId 空でも true）。
+   */
+  is(customId: string): boolean {
+    return customId.startsWith(CHARACTER_COMPACT_CUSTOM_ID_PATTERN)
+  },
+
   parse(customId: string): CharacterCompactParsedCustomId | null {
     if (!customId.startsWith(CHARACTER_COMPACT_CUSTOM_ID_PATTERN)) {
       return null
