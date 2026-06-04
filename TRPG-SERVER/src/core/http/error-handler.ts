@@ -92,10 +92,18 @@ export class ErrorHandler {
    * @param error エラーオブジェクト
    * @param context エラーコンテキスト
    * @param response Expressレスポンス
+   * @param options.isProduction 本番判定（true で error 詳細を隠す）。
+   *   本クラスは static utility で DI 不可のため、env 判定は呼び出し側（AppConfigService を注入できる境界）が
+   *   解決して渡す（P1-C: 脱 process.env 直接参照）。未指定時は false（＝詳細露出）。
    */
-  static handleHttpError(error: unknown, context: ErrorContext, response: Response): void {
+  static handleHttpError(
+    error: unknown,
+    context: ErrorContext,
+    response: Response,
+    options?: { isProduction?: boolean }
+  ): void {
     const errorMessage = this.extractErrorMessage(error)
-    const isProduction = process.env.NODE_ENV === 'production'
+    const isProduction = options?.isProduction ?? false
 
     // ログ記録
     this.logError(error, context, 'HTTP_API')
