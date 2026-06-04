@@ -7,15 +7,7 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import {
-  EmbedBuilder,
-  TextChannel,
-  NewsChannel,
-  ThreadChannel,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder
-} from 'discord.js'
+import { EmbedBuilder, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
@@ -316,105 +308,5 @@ export class CharacterDisplayService implements OnModuleInit {
       this.logger.error(`[CHARACTER-EMBED] Failed to find existing embed`, error)
       return null
     }
-  }
-
-  /**
-   * キャラクターのスキルに基づいてスキルロールボタンを生成
-   */
-  createSkillRollButtons(character: Character): ActionRowBuilder<ButtonBuilder>[] {
-    const buttons: ButtonBuilder[] = []
-    const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
-
-    if (!character.skill || Object.keys(character.skill).length === 0) {
-      return []
-    }
-
-    let buttonCount = 0
-    const maxButtonsPerRow = 5
-    const maxTotalButtons = 20 // Discord制限に配慮
-
-    for (const [skillKey, skillData] of Object.entries(character.skill)) {
-      if (buttonCount >= maxTotalButtons) break
-
-      let skillName: string
-      let skillValue: number
-
-      // スキルデータの形式を判定
-      if (skillData && typeof skillData === 'object') {
-        if ('name' in skillData && 'value' in skillData) {
-          skillName = skillData.name as string
-          skillValue = Number(skillData.value) || 0
-        } else {
-          skillName = skillKey
-          skillValue = Number(skillData) || 0
-        }
-      } else {
-        skillName = skillKey
-        skillValue = Number(skillData) || 0
-      }
-
-      // スキル値が0以下の場合はスキップ
-      if (skillValue <= 0) continue
-
-      // スキルロールボタンを作成
-      // customId形式: roll*_{skillName}-{skillValue}*{characterId}
-      const customId = `roll*_${skillName}-${skillValue}*${character.characterId}`
-
-      const button = new ButtonBuilder()
-        .setCustomId(customId)
-        .setLabel(`${skillName}(${skillValue})`)
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🎯')
-
-      buttons.push(button)
-      buttonCount++
-
-      // 5個ごとに新しい行を作成
-      if (buttons.length === maxButtonsPerRow) {
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.splice(0, maxButtonsPerRow))
-        actionRows.push(row)
-      }
-    }
-
-    // 残りのボタンがある場合は最後の行に追加
-    if (buttons.length > 0) {
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)
-      actionRows.push(row)
-    }
-
-    return actionRows
-  }
-
-  /**
-   * 基本ダイスロールボタンを生成
-   */
-  createBasicDiceButtons(character: Character): ActionRowBuilder<ButtonBuilder> {
-    const diceButtons = [
-      new ButtonBuilder()
-        .setCustomId(`roll*1d100*${character.characterId}`)
-        .setLabel('1D100')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('🎲'),
-
-      new ButtonBuilder()
-        .setCustomId(`roll*1d6*${character.characterId}`)
-        .setLabel('1D6')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🎲'),
-
-      new ButtonBuilder()
-        .setCustomId(`roll*2d6*${character.characterId}`)
-        .setLabel('2D6')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🎲'),
-
-      new ButtonBuilder()
-        .setCustomId(`roll*custom*${character.characterId}`)
-        .setLabel('カスタム')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('⚙️')
-    ]
-
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(diceButtons)
   }
 }

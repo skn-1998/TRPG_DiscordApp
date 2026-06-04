@@ -202,21 +202,6 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
   return { displayName, displayValue }
 }
 
-/**
- * ダイスロールボタン用に、データ項目から表示名とロール値を抽出する純粋関数。
- * 元の addDiceRollButtonsFromData の判定ロジックと同じ挙動を保持する。
- */
-export function extractDiceRollValue(key: string, value: unknown): { name: string; rollValue: number } {
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    if ('name' in obj && 'value' in obj) {
-      return { name: obj.name as string, rollValue: Number(obj.value) || 0 }
-    }
-    return { name: key, rollValue: Number(value as any) || 0 }
-  }
-  return { name: key, rollValue: Number(value as any) || 0 }
-}
-
 // ============================================================================
 // discord.js Builder 構築（純粋関数：入力 → Builder を返すだけ。副作用なし）
 // ============================================================================
@@ -336,145 +321,9 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
 }
 
 /**
- * 指定データから、ダイスロールボタンを buttons 配列へ追加する純粋関数。
- * extractDiceRollValue で表示名・ロール値を判定し、0 以下はスキップする。
- * 追加後の buttonCount を返す（元の addDiceRollButtonsFromData と同挙動）。
- */
-export function appendDiceRollButtonsFromData(
-  data: Record<string, any>,
-  sectionName: string,
-  emoji: string,
-  characterId: string,
-  buttons: ButtonBuilder[],
-  buttonCount: number,
-  maxTotalButtons: number
-): number {
-  for (const [key, value] of Object.entries(data)) {
-    if (buttonCount >= maxTotalButtons) break
-
-    // データの形式を判定（純粋関数へ委譲）
-    const { name, rollValue } = extractDiceRollValue(key, value)
-
-    // ロール値が0以下の場合はスキップ
-    if (rollValue <= 0) continue
-
-    // ダイスロールボタンを作成
-    // customId形式: roll*_{name}-{rollValue}*{characterId}
-    const customId = `roll*_${name}-${rollValue}*${characterId}`
-
-    const button = new ButtonBuilder()
-      .setCustomId(customId)
-      .setLabel(`${name}(${rollValue})`)
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji(emoji)
-
-    buttons.push(button)
-    buttonCount++
-  }
-
-  return buttonCount
-}
-
-/**
- * skill / status / parameter に基づくダイスロールボタン行を構築する純粋関数。
- * （現状ロジックでは行分割がコメントアウトされているため、戻り値は空配列のまま。
- *  挙動を変えずに移設している。）
- */
-export function buildCharacterDiceRollButtons(character: Character): ActionRowBuilder<ButtonBuilder>[] {
-  const buttons: ButtonBuilder[] = []
-  const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
-
-  let buttonCount = 0
-  const maxTotalButtons = 20 // Discord制限に配慮
-
-  // skillセクションのボタンを生成
-  if (character.skill && Object.keys(character.skill).length > 0) {
-    buttonCount = appendDiceRollButtonsFromData(
-      character.skill,
-      'スキル',
-      '🎯',
-      character.characterId,
-      buttons,
-      buttonCount,
-      maxTotalButtons
-    )
-  }
-
-  // statusセクションのボタンを生成
-  if (character.status && Object.keys(character.status).length > 0) {
-    buttonCount = appendDiceRollButtonsFromData(
-      character.status,
-      'ステータス',
-      '📊',
-      character.characterId,
-      buttons,
-      buttonCount,
-      maxTotalButtons
-    )
-  }
-
-  // parameterセクションのボタンを生成
-  if (character.parameter && Object.keys(character.parameter).length > 0) {
-    appendDiceRollButtonsFromData(
-      character.parameter,
-      'パラメータ',
-      '⚙️',
-      character.characterId,
-      buttons,
-      buttonCount,
-      maxTotalButtons
-    )
-  }
-
-  // // ボタンを行に分割
-  // for (let i = 0; i < buttons.length; i += maxButtonsPerRow) {
-  //   const rowButtons = buttons.slice(i, i + maxButtonsPerRow)
-  //   if (rowButtons.length > 0) {
-  //     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(rowButtons)
-  //     actionRows.push(row)
-  //   }
-  // }
-
-  return actionRows
-}
-
-/**
- * 基本ダイスロールボタン（1D100/1D6/2D6/カスタム）行を構築する純粋関数。
- */
-export function buildBasicDiceButtons(character: Character): ActionRowBuilder<ButtonBuilder> {
-  const diceButtons = [
-    new ButtonBuilder()
-      .setCustomId(`roll*1d100*${character.characterId}`)
-      .setLabel('1D100')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🎲'),
-
-    new ButtonBuilder()
-      .setCustomId(`roll*1d6*${character.characterId}`)
-      .setLabel('1D6')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🎲'),
-
-    new ButtonBuilder()
-      .setCustomId(`roll*2d6*${character.characterId}`)
-      .setLabel('2D6')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🎲'),
-
-    new ButtonBuilder()
-      .setCustomId(`roll*custom*${character.characterId}`)
-      .setLabel('カスタム')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('⚙️')
-  ]
-
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(diceButtons)
-}
-
-/**
  * createSectionedEmbeds の embeds / components 一式を構築する純粋関数。
  * 5 つの Embed（基本/ステータス/パラメータ/スキル/アイテム）と
- * 編集コンポーネント + ダイスロールボタンを組み立てて返す。
+ * 編集コンポーネントを組み立てて返す。
  */
 export function buildSectionedEmbeds(character: Character): {
   embeds: EmbedBuilder[]
@@ -490,10 +339,6 @@ export function buildSectionedEmbeds(character: Character): {
 
   // 編集用コンポーネントを作成
   const components = buildEditComponents(character.characterId)
-
-  // ダイスロールボタンを追加（skill、status、parameterの個別表示のみ）
-  const diceRollButtons = buildCharacterDiceRollButtons(character)
-  components.push(...diceRollButtons)
 
   return { embeds, components }
 }

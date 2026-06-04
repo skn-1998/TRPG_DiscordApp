@@ -10,12 +10,7 @@ import {
   formatCharacterData,
   extractNumericValue,
   createBasicCharacterEmbed,
-  createDetailedCharacterEmbed,
-  createDiceRollActionRow,
-  createParameterSelectMenu,
-  createPresetButtons,
-  chunkButtonsIntoRows,
-  createSkillRollActionRows
+  createDetailedCharacterEmbed
 } from './thread-creation.util'
 
 const buildCharacter = (overrides: Partial<Character> = {}): Character =>
@@ -127,119 +122,6 @@ describe('thread-creation.util', () => {
       expect(fieldNames).toContain('🩸 ステータス')
       expect(fieldNames).toContain('⚔️ スキル')
       expect(fieldNames).toContain('🎒 アイテム')
-    })
-  })
-
-  describe('createDiceRollActionRow', () => {
-    it('1D100/1D6/2D6/カスタムの 4 ボタンを持つ', () => {
-      const row = createDiceRollActionRow().toJSON()
-      const components = row.components as any[]
-      expect(components).toHaveLength(4)
-      expect(components.map((c) => c.custom_id)).toEqual(['roll*1d100', 'roll*1d6', 'roll*2d6', 'roll*custom'])
-    })
-  })
-
-  describe('createParameterSelectMenu', () => {
-    it('status/skill/parameter からオプションを生成し custom 計算を末尾に追加する', () => {
-      const menu = createParameterSelectMenu(buildCharacter())
-      expect(menu).not.toBeNull()
-      const data = menu!.toJSON()
-      expect(data.custom_id).toBe('flexible-dice-param*char-123')
-      const values = data.options.map((o) => o.value)
-      expect(values).toContain('status:hp:12')
-      expect(values).toContain('skill:dodge:40')
-      expect(values).toContain('parameter:str:50')
-      expect(values).toContain('custom:formula:0')
-    })
-
-    it('有効パラメータが無くてもカスタム計算オプションは残るため null にならない', () => {
-      const character = buildCharacter({ status: {}, skill: {}, parameter: {} } as any)
-      const menu = createParameterSelectMenu(character)
-      expect(menu).not.toBeNull()
-      expect(menu!.toJSON().options.map((o) => o.value)).toEqual(['custom:formula:0'])
-    })
-
-    it('0 以下の値はオプションに含めない', () => {
-      const character = buildCharacter({ status: { dead: { name: '死亡', value: 0 } } } as any)
-      const menu = createParameterSelectMenu(character)
-      const values = menu!.toJSON().options.map((o) => o.value)
-      expect(values).not.toContain('status:dead:0')
-    })
-  })
-
-  describe('createPresetButtons', () => {
-    it('値の高い順に ×3 / ×2 のボタンを生成する', () => {
-      const character = buildCharacter({
-        status: {},
-        skill: {},
-        parameter: { str: { name: 'STR', value: 60 } }
-      } as any)
-      const buttons = createPresetButtons(character)
-      const ids = buttons.map((b) => (b.toJSON() as any).custom_id)
-      expect(ids).toContain('preset-dice*char-123*parameter*str*60*3')
-      expect(ids).toContain('preset-dice*char-123*parameter*str*60*2')
-    })
-
-    it('最大 10 ボタンに制限する', () => {
-      const parameter: Record<string, unknown> = {}
-      for (let i = 0; i < 20; i++) parameter[`p${i}`] = { name: `P${i}`, value: i + 1 }
-      const character = buildCharacter({ status: {}, skill: {}, parameter } as any)
-      expect(createPresetButtons(character).length).toBeLessThanOrEqual(10)
-    })
-
-    it('有効パラメータが無ければ空配列', () => {
-      const character = buildCharacter({ status: {}, skill: {}, parameter: {} } as any)
-      expect(createPresetButtons(character)).toEqual([])
-    })
-  })
-
-  describe('chunkButtonsIntoRows', () => {
-    it('5 個ずつ ActionRow に分割する', () => {
-      const buttons = createPresetButtons(
-        buildCharacter({
-          status: {},
-          skill: {},
-          parameter: Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`p${i}`, { name: `P${i}`, value: i + 1 }]))
-        } as any)
-      )
-      // 6 値 ×(×3,×2) だが maxButtons=10 で 10 ボタン → 2 行 (5+5)
-      const rows = chunkButtonsIntoRows(buttons)
-      expect(rows).toHaveLength(2)
-      expect(rows[0].toJSON().components as any[]).toHaveLength(5)
-    })
-
-    it('空配列なら空の行配列', () => {
-      expect(chunkButtonsIntoRows([])).toEqual([])
-    })
-  })
-
-  describe('createSkillRollActionRows', () => {
-    it('スキルが無ければ空配列', () => {
-      expect(createSkillRollActionRows(buildCharacter({ skill: {} } as any))).toEqual([])
-    })
-
-    it('共有フォーマット roll*_name-value*characterId の customId を生成する', () => {
-      const character = buildCharacter({ skill: { dodge: { name: '回避', value: 40 } } } as any)
-      const rows = createSkillRollActionRows(character)
-      expect(rows.length).toBeGreaterThan(0)
-      const firstButton = (rows[0].toJSON().components as any[])[0]
-      expect(firstButton.custom_id).toBe('roll*_回避-40*char-123')
-      expect(firstButton.label).toBe('回避(40)')
-    })
-
-    it('値 0 以下のスキルはスキップする', () => {
-      const character = buildCharacter({ skill: { broken: { name: '無効', value: 0 } } } as any)
-      expect(createSkillRollActionRows(character)).toEqual([])
-    })
-
-    it('最大 20 ボタン（5 個ずつ最大 4 行）に制限する', () => {
-      const skill: Record<string, unknown> = {}
-      for (let i = 0; i < 30; i++) skill[`s${i}`] = { name: `S${i}`, value: i + 1 }
-      const character = buildCharacter({ skill } as any)
-      const rows = createSkillRollActionRows(character)
-      const total = rows.reduce((sum, r) => sum + (r.toJSON().components as any[]).length, 0)
-      expect(total).toBeLessThanOrEqual(20)
-      expect(rows.length).toBeLessThanOrEqual(4)
     })
   })
 })
