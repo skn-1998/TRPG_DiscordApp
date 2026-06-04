@@ -282,7 +282,7 @@ describe('DiscordInteractionHandlerService', () => {
     })
   })
 
-  describe('handleSelectMenuInteraction（3分岐）', () => {
+  describe('handleSelectMenuInteraction（2分岐: 登録済みハンドラ / 未登録は InteractionsService へ）', () => {
     it('登録済み customId のセレクトは専用ハンドラの execute を呼ぶ', async () => {
       const selectHandler = {
         data: {},
@@ -298,7 +298,9 @@ describe('DiscordInteractionHandlerService', () => {
       expect(interactionsService.execute).not.toHaveBeenCalled()
     })
 
-    it('character-section-select- で始まる未登録セレクトは InteractionsService に委譲する', async () => {
+    // 旧 character-section-select- 特例分岐は撤去済み。同 customId も統一 fallback で InteractionsService へ
+    // 委譲されること（routing 不変）を regression guard として固定する。
+    it('character-section-select- で始まる未登録セレクトも統一 fallback で InteractionsService に委譲する', async () => {
       const cb = captureInteractionCallback()
       const interaction = createInteractionStub('select', { customId: 'character-section-select-hp' })
 

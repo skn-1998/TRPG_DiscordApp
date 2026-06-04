@@ -169,13 +169,11 @@ export class DiscordInteractionHandlerService {
       return
     }
 
-    // character-section-selectパターンは直接InteractionsServiceで処理
-    if (interaction.customId.startsWith('character-section-select-')) {
-      await this.interactionsService.execute(interaction)
-      return
-    }
-
-    // その他のセレクトメニューもInteractionsServiceで処理
+    // 未登録のセレクトメニューは InteractionsService（Registry）へ委譲する。
+    // 旧: character-section-select- だけ先に同じ execute() を呼ぶ冗長分岐があったが、
+    //     InteractionsService.execute の characterEdit 特例撤去で fallthrough と完全に同一動作のため削除。
+    //     character-section-select-/character-edit-/character-field- は Registry の
+    //     CharacterEditSection/FieldHandler が処理する。
     await this.interactionsService.execute(interaction)
   }
 
