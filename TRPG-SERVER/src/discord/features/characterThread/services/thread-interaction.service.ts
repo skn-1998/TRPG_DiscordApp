@@ -8,6 +8,8 @@ import {
   StringSelectMenuOptionBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice2: routed な customId 生成を feature-local 契約モジュールの Factory へ集約（byte-identical・挙動不変）
+import { FlexibleDiceSelectCustomId, DiceGenericCustomId } from '../custom-id'
 
 /**
  * スレッドインタラクションサービス
@@ -75,7 +77,7 @@ export class ThreadInteractionService {
       ]
 
       const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`flexible_dice_${character.discordChannelId}`)
+        .setCustomId(FlexibleDiceSelectCustomId.create(character.discordChannelId))
         .setPlaceholder('ダイスタイプを選択してください')
         .addOptions(
           diceOptions.map((option) =>
@@ -298,22 +300,22 @@ export class ThreadInteractionService {
 
     return [
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d6_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d6', channelId))
         .setLabel('1d6')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_2d6_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('2d6', channelId))
         .setLabel('2d6')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d20_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d20', channelId))
         .setLabel('1d20')
         .setStyle(ButtonStyle.Primary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d100_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d100', channelId))
         .setLabel('1d100')
         .setStyle(ButtonStyle.Success)
         .setEmoji('🎲')
