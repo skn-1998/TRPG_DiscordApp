@@ -5,7 +5,9 @@
 
 ---
 
-## 2026-06-04 P1-D slice2（characterThread customId 契約化・Codex 推奨の最優先・挙動不変）
+## 2026-06-04 P1-D slice2（characterThread customId 契約化＋未routing skill\_ 修正・Codex 推奨の最優先）
+
+> 注: foundation / Part1 / Part2 は挙動不変。Part3（skill\_ 配線）は **campaign 初の意図的な挙動変更（バグ修正）**。
 
 Codex の構造アセスメント（§8 達成後の次の実害は「feature 内 customId 契約不一致」）に従い characterThread に着手。
 characterEdit と同型に foundation → 安全な生成移行を実施。**未routing の latent gap を発見し、Codex レビューで方針確定**。
@@ -39,11 +41,27 @@ characterEdit と同型に foundation → 安全な生成移行を実施。**未
 - byte-identical 検証: 既存 `thread-interaction.service.spec` が生成文字列固定済（`flexible_dice_ch-flex` / `dice_generic_1d6_ch-g` 等）→ 緑＝完全同一。
 - 検証: build / check:circular No circular(497) / jest 11 suites 137 緑 / start:dev 総数30・無エラー。
 
+### Part 3 — 未routing `skill_` を配線して機能化（コミット `dd18624` prep + `6883156` fix・挙動変更=バグ修正）
+
+ユーザー判断（方針A: 配線して機能化・skill\_ から段階的）＋Codex レビューに基づく。**性質: リファクタ regression ではなく
+元からの未配線バグ**（司令塔が git 履歴で裏取り＝これら prefix を扱う handler は過去にも存在しない・`DiceRollLogicService.handleSkillRoll` は実在）。
+
+- `dd18624`（prep・挙動不変）: `custom-id/skill-roll.custom-id.ts`（`SkillRollCustomId` pattern/create/parse。channelId は最初の `_`、残りを skillKey）と
+  `services/skill-roll.util.ts`（`extractSkillLevel` を thread-interaction の private から純粋関数へ移管＋`resolveSkillRoll`）を新設し、
+  postSkillRollButtons の生成を契約＋util へ（byte-identical・既存 spec `skill_ch-skill_dodge` で固定）。
+- `6883156`（fix・挙動変更）: `CharacterSkillRollHandler`（button・pattern `skill_`）を新設し registry 登録。
+  parse → `CharacterService.findByChannelId` → `resolveSkillRoll` → `DiceRollLogicService.handleSkillRoll` へ委譲し、
+  結果を親チャンネルへ投稿（DiceGenericHandler と同型）。handlers.integration.spec で skill\_ を未routing→routed へ移動・登録数 25→26。
+  新 handler spec で wiring（parse・skill 解決・引数・エラー経路）を固定。
+- 挙動変更（意図的）: `skill_` クリックが「現在処理できません」→ 1d100 スキル判定実行＋親チャンネル投稿。
+- 検証: build / check:circular No circular(501) / jest 5 suites 115 緑 / start:dev で `CharacterSkillRollHandler [button] → skill_` 登録・**handler 総数 30→31**・無エラー。
+
 ### 残（別タスク・別 slice）
 
-- **routing 修正（要仕様決定・別タスク）**: 実送出される未routing群（`skill_` / `dice_coc7_` / `dice_dnd5e_` / `dice_sw25_`）に handler を追加するか、生成を止めるか。挙動変更を伴うため product 判断が要る。
+- **routing 修正の続き（要仕様決定）**: `dice_coc7_*` / `dice_dnd5e_*` / `dice_sw25_*` は依然未routing（characterization で固定済）。
+  Codex 所見では semantic preset（sanity/save/magic 等）は専用ルール未実装＝「単純ダイス＋ラベル」までに限定するか完全ルールは次フェーズ、の判断が要る。skill\_ と同方式で段階的に配線可能。
 - **dead path 整理**: `postActionButtons`（character*edit*/dice*roll*/character*info*）はコメントアウト中。生成メソッドごと撤去するかは別 issue。
-- **follow-up**: routed handler 側 parse（`flexible_dice_` の replace / `dice_generic_` の split）の契約化。未routing 群の生成 contract 化は routing 方針決定後。
+- **follow-up**: routed handler 側 parse（`flexible_dice_` の replace / `dice_generic_` の split）の契約化。
 
 ---
 
