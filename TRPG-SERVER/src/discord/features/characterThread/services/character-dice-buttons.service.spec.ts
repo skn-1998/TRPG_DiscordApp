@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterDiceButtonsService } from './character-dice-buttons.service'
+import { CharacterDiceHistoryService } from './character-dice-history.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
@@ -121,6 +122,9 @@ describe('CharacterDiceButtonsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterDiceButtonsService,
+        // 実 CharacterDiceHistoryService を mock 依存で構築（buttons service が DI 注入で受け取る）。
+        // saveRollResult テストは history service 経由で mockCharacterService / mockDiceRollService を叩く。
+        CharacterDiceHistoryService,
         { provide: CharacterService, useValue: mockCharacterService },
         { provide: DiceRollService, useValue: mockDiceRollService },
         { provide: DiceRollPaginationService, useValue: mockPaginationService },
