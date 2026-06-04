@@ -1,22 +1,21 @@
-// InteractionsService は Discord.js インタラクション処理を InteractionsController に委譲する仲介役。
-// 副作用境界は EventEmitter2(emit)・InteractionsController・CharacterSectionEditorService・ModuleRef。
-// constructor に mock controller を渡すと this.interactionsController がセットされるため、
-// onModuleInit/ModuleRef を介さずに「controller あり」状態を作れる（手本の Service パターン）。
+// InteractionsService は Discord.js インタラクション処理を registry に委譲する仲介役。
+// 副作用境界は EventEmitter2(emit)・InteractionRegistryService・ChannelCreateOrchestratorService。
 
 import { Test } from '@nestjs/testing'
-import { ModuleRef } from '@nestjs/core'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import {
   Client,
+  Events,
+  ChannelType,
   ButtonInteraction,
   AnySelectMenuInteraction,
   ModalSubmitInteraction,
-  StringSelectMenuInteraction
+  StringSelectMenuInteraction,
+  TextChannel
 } from 'discord.js'
 import { InteractionsService } from './interactions.service'
-import { InteractionsController } from './interactions.controller'
-import { CharacterUIService } from '../features/characterEdit/services/character-ui.service'
-import { CharacterSectionEditorService } from '../features/characterEdit/services/character-section-editor.service'
+import { InteractionRegistryService } from './registry/interaction-registry.service'
+import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
 
 type InteractionStub = {
   isButton: jest.Mock
@@ -52,24 +51,17 @@ function createInteractionStub(overrides: Partial<InteractionStub> = {}): Intera
 }
 
 describe('InteractionsService', () => {
-  let moduleRef: jest.Mocked<Pick<ModuleRef, 'get'>>
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>
-  let controller: jest.Mocked<Pick<InteractionsController, 'handleCommand' | 'handleInteraction'>>
-  let sectionEditor: jest.Mocked<Pick<CharacterSectionEditorService, 'execute'>>
+  let registry: jest.Mocked<Pick<InteractionRegistryService, 'route'>>
+  let channelCreateOrchestrator: jest.Mocked<Pick<ChannelCreateOrchestratorService, 'execute'>>
 
-  /**
-   * controller を constructor 注入するか否かを切り替えて service を生成するヘルパー。
-   * withController=false の場合は injectedInteractionsController を渡さない（onModuleInit 経路のテスト用）。
-   */
-  async function createService(withController: boolean): Promise<InteractionsService> {
+  async function createService(): Promise<InteractionsService> {
     const m = await Test.createTestingModule({
       providers: [
         InteractionsService,
-        { provide: ModuleRef, useValue: moduleRef },
         { provide: EventEmitter2, useValue: eventEmitter },
-        { provide: CharacterUIService, useValue: {} },
-        { provide: CharacterSectionEditorService, useValue: sectionEditor },
-        { provide: InteractionsController, useValue: withController ? controller : undefined }
+        { provide: InteractionRegistryService, useValue: registry },
+        { provide: ChannelCreateOrchestratorService, useValue: channelCreateOrchestrator }
       ]
     }).compile()
 
@@ -77,129 +69,83 @@ describe('InteractionsService', () => {
   }
 
   beforeEach(() => {
-    moduleRef = { get: jest.fn() }
     eventEmitter = { emit: jest.fn().mockReturnValue(true) }
-    controller = {
-      handleCommand: jest.fn(),
-      handleInteraction: jest.fn().mockResolvedValue(undefined)
-    }
-    sectionEditor = { execute: jest.fn().mockResolvedValue(undefined) }
+    registry = { route: jest.fn().mockResolvedValue(true) }
+    channelCreateOrchestrator = { execute: jest.fn().mockResolvedValue(undefined) }
   })
 
   afterEach(() => {
     jest.restoreAllMocks()
   })
 
-  describe('constructor', () => {
-    it('injectedInteractionsController を渡すと controller 経由で動作する', async () => {
-      // Arrange & Act
-      const service = await createService(true)
-      const interaction = createInteractionStub()
-
-      // Assert: controller がセットされていれば委譲され、true が返る
-      await expect(service.handleInteraction(interaction as unknown as ButtonInteraction)).resolves.toBe(true)
-      expect(controller.handleInteraction).toHaveBeenCalledWith(interaction)
-    })
-  })
-
-  describe('onModuleInit', () => {
-    it('既に controller が注入済みなら ModuleRef.get を呼ばない', async () => {
-      // Arrange
-      const service = await createService(true)
-
-      // Act
-      await service.onModuleInit()
-
-      // Assert
-      expect(moduleRef.get).not.toHaveBeenCalled()
-    })
-
-    it('controller 未注入なら ModuleRef.get で strict:false 取得する', async () => {
-      // Arrange
-      const service = await createService(false)
-      moduleRef.get.mockReturnValue(controller)
-
-      // Act
-      await service.onModuleInit()
-
-      // Assert
-      expect(moduleRef.get).toHaveBeenCalledWith(InteractionsController, { strict: false })
-    })
-
-    it('ModuleRef.get で取得できれば controller として利用される', async () => {
-      // Arrange
-      const service = await createService(false)
-      moduleRef.get.mockReturnValue(controller)
-      await service.onModuleInit()
-
-      // Act: 取得した controller に委譲されることで間接的に確認（loadClient は同期）
-      service.loadClient({} as Client)
-
-      // Assert
-      expect(controller.handleCommand).toHaveBeenCalled()
-    })
-
-    it('ModuleRef.get が null を返しても例外を投げない', async () => {
-      // Arrange
-      const service = await createService(false)
-      moduleRef.get.mockReturnValue(null)
-
-      // Act & Assert
-      await expect(service.onModuleInit()).resolves.toBeUndefined()
-    })
-
-    it('ModuleRef.get が throw しても握りつぶして完了する', async () => {
-      // Arrange
-      const service = await createService(false)
-      moduleRef.get.mockImplementation(() => {
-        throw new Error('get failed')
-      })
-
-      // Act & Assert
-      await expect(service.onModuleInit()).resolves.toBeUndefined()
-    })
-  })
-
   describe('loadClient', () => {
-    it('controller があれば handleCommand に client を渡す', async () => {
+    /** client.on に登録された ChannelCreate コールバックを取り出すヘルパー */
+    function getChannelCreateHandler(on: jest.Mock) {
+      const call = on.mock.calls.find((c) => c[0] === Events.ChannelCreate)
+      expect(call).toBeDefined()
+      return call?.[1] as (channel: TextChannel) => Promise<void>
+    }
+
+    it('client に ChannelCreate リスナーを登録する', async () => {
       // Arrange
-      const service = await createService(true)
-      const client = {} as Client
+      const service = await createService()
+      const client = { on: jest.fn() } as unknown as Client
 
       // Act
       service.loadClient(client)
 
       // Assert
-      expect(controller.handleCommand).toHaveBeenCalledWith(client)
+      expect(client.on).toHaveBeenCalledWith(Events.ChannelCreate, expect.any(Function))
     })
 
-    it('handleCommand が throw しても例外を外へ伝播しない', async () => {
+    it('GuildText 以外の ChannelCreate は orchestrator に委譲しない', async () => {
       // Arrange
-      const service = await createService(true)
-      controller.handleCommand.mockImplementation(() => {
-        throw new Error('command failed')
-      })
-
-      // Act & Assert
-      expect(() => service.loadClient({} as Client)).not.toThrow()
-    })
-
-    it('controller が無ければ handleCommand を呼ばない', async () => {
-      // Arrange
-      const service = await createService(false)
+      const service = await createService()
+      const on = jest.fn()
+      service.loadClient({ on } as unknown as Client)
+      const handler = getChannelCreateHandler(on)
 
       // Act
-      service.loadClient({} as Client)
+      await handler({ type: ChannelType.GuildVoice } as unknown as TextChannel)
 
       // Assert
-      expect(controller.handleCommand).not.toHaveBeenCalled()
+      expect(channelCreateOrchestrator.execute).not.toHaveBeenCalled()
+    })
+
+    it('GuildText の ChannelCreate は orchestrator に委譲する', async () => {
+      // Arrange
+      const service = await createService()
+      const on = jest.fn()
+      service.loadClient({ on } as unknown as Client)
+      const handler = getChannelCreateHandler(on)
+      const textChannel = { type: ChannelType.GuildText, id: 'ch-1', name: 'table' } as unknown as TextChannel
+
+      // Act
+      await handler(textChannel)
+
+      // Assert
+      expect(channelCreateOrchestrator.execute).toHaveBeenCalledWith(textChannel)
+    })
+
+    it('orchestrator が throw しても ChannelCreate handler から例外を外へ伝播しない', async () => {
+      // Arrange
+      const service = await createService()
+      channelCreateOrchestrator.execute.mockRejectedValue(new Error('orchestrator failed'))
+      const on = jest.fn()
+      service.loadClient({ on } as unknown as Client)
+      const handler = getChannelCreateHandler(on)
+
+      // Act & Assert
+      await expect(
+        handler({ type: ChannelType.GuildText, id: 'ch-1', name: 'table' } as unknown as TextChannel)
+      ).resolves.toBeUndefined()
     })
   })
 
   describe('handleInteraction', () => {
     it('開始メトリクス discord.interaction.start を必ず emit する', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({ id: 'i-99', guildId: 'g-99', user: { id: 'u-99' } })
 
       // Act
@@ -216,7 +162,7 @@ describe('InteractionsService', () => {
 
     it('応答済み(replied)なら委譲せず already-replied で processed を emit し true を返す', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({ replied: true })
 
       // Act
@@ -224,7 +170,7 @@ describe('InteractionsService', () => {
 
       // Assert
       expect(result).toBe(true)
-      expect(controller.handleInteraction).not.toHaveBeenCalled()
+      expect(registry.route).not.toHaveBeenCalled()
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'discord.interaction.processed',
         expect.objectContaining({ success: true, reason: 'already-replied' })
@@ -233,7 +179,7 @@ describe('InteractionsService', () => {
 
     it('deferred でも already-replied 扱いで true を返す', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({ deferred: true })
 
       // Act
@@ -241,12 +187,12 @@ describe('InteractionsService', () => {
 
       // Assert
       expect(result).toBe(true)
-      expect(controller.handleInteraction).not.toHaveBeenCalled()
+      expect(registry.route).not.toHaveBeenCalled()
     })
 
-    it('controller があれば委譲し success の processed を emit して true を返す', async () => {
+    it('registry に委譲し success の processed を emit して true を返す', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({ id: 'i-1' })
 
       // Act
@@ -254,49 +200,52 @@ describe('InteractionsService', () => {
 
       // Assert
       expect(result).toBe(true)
-      expect(controller.handleInteraction).toHaveBeenCalledWith(interaction)
+      expect(registry.route).toHaveBeenCalledWith(interaction)
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'discord.interaction.processed',
         expect.objectContaining({ success: true, interactionId: 'i-1' })
       )
     })
 
-    it('controller が無ければ controller-unavailable で processed を emit し false を返す', async () => {
+    it('registry が false を返したら ephemeral fallback を返し true を返す', async () => {
       // Arrange
-      const service = await createService(false)
+      const service = await createService()
+      registry.route.mockResolvedValue(false)
       const interaction = createInteractionStub()
 
       // Act
       const result = await service.handleInteraction(interaction as unknown as ButtonInteraction)
 
       // Assert
-      expect(result).toBe(false)
+      expect(result).toBe(true)
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'discord.interaction.processed',
-        expect.objectContaining({ success: false, error: 'controller-unavailable' })
+        expect.objectContaining({ success: true })
       )
     })
 
-    it('委譲中に例外が起きたら error メッセージ付きで processed を emit し false を返す', async () => {
+    it('registry が throw したら ephemeral error を返し true を返す', async () => {
       // Arrange
-      const service = await createService(true)
-      controller.handleInteraction.mockRejectedValue(new Error('boom'))
+      const service = await createService()
+      registry.route.mockRejectedValue(new Error('boom'))
       const interaction = createInteractionStub()
 
       // Act
       const result = await service.handleInteraction(interaction as unknown as ButtonInteraction)
 
       // Assert
-      expect(result).toBe(false)
+      expect(result).toBe(true)
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'discord.interaction.processed',
-        expect.objectContaining({ success: false, error: 'boom' })
+        expect.objectContaining({ success: true })
       )
     })
 
     it('select メニューのときは eventType を select-interaction とする', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({
         isButton: jest.fn().mockReturnValue(false),
         isAnySelectMenu: jest.fn().mockReturnValue(true)
@@ -314,7 +263,7 @@ describe('InteractionsService', () => {
 
     it('button でも select でもないときは eventType を modal-interaction とする', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({
         isButton: jest.fn().mockReturnValue(false),
         isAnySelectMenu: jest.fn().mockReturnValue(false)
@@ -334,101 +283,63 @@ describe('InteractionsService', () => {
   describe('execute', () => {
     it('応答済み(replied)なら何も委譲せず return する', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({ replied: true })
 
       // Act
       await service.execute(interaction as unknown as ButtonInteraction)
 
       // Assert
-      expect(sectionEditor.execute).not.toHaveBeenCalled()
-      expect(controller.handleInteraction).not.toHaveBeenCalled()
+      expect(registry.route).not.toHaveBeenCalled()
     })
 
-    it('character-section-select- で始まる StringSelect は sectionEditor に委譲する', async () => {
-      // Arrange
-      const service = await createService(true)
+    // 旧 characterEdit 特例分岐は撤去済み。これらの customId は handleInteraction 経由で Registry
+    // （CharacterEditSection/FieldHandler）へ委譲される（registry 登録は handlers.integration.spec で担保）。
+    it('character-section-select- の StringSelect は Registry へ委譲する', async () => {
+      const service = await createService()
       const interaction = createInteractionStub({
         isStringSelectMenu: jest.fn().mockReturnValue(true),
+        isAnySelectMenu: jest.fn().mockReturnValue(true),
+        isButton: jest.fn().mockReturnValue(false),
         customId: 'character-section-select-abilities'
       })
 
-      // Act
       await service.execute(interaction as unknown as StringSelectMenuInteraction)
 
-      // Assert
-      expect(sectionEditor.execute).toHaveBeenCalledWith(interaction)
-      expect(controller.handleInteraction).not.toHaveBeenCalled()
+      expect(registry.route).toHaveBeenCalledWith(interaction)
     })
 
-    it('character-edit- を含む StringSelect も sectionEditor に委譲する', async () => {
-      // Arrange
-      const service = await createService(true)
+    it('character-edit- を含む StringSelect は Registry へ委譲する', async () => {
+      const service = await createService()
       const interaction = createInteractionStub({
         isStringSelectMenu: jest.fn().mockReturnValue(true),
+        isAnySelectMenu: jest.fn().mockReturnValue(true),
+        isButton: jest.fn().mockReturnValue(false),
         customId: 'foo-character-edit-bar'
       })
 
-      // Act
       await service.execute(interaction as unknown as StringSelectMenuInteraction)
 
-      // Assert
-      expect(sectionEditor.execute).toHaveBeenCalledWith(interaction)
+      expect(registry.route).toHaveBeenCalledWith(interaction)
     })
 
-    it('character-field- を含む StringSelect も sectionEditor に委譲する', async () => {
-      // Arrange
-      const service = await createService(true)
+    it('character-field- を含む StringSelect は Registry へ委譲する', async () => {
+      const service = await createService()
       const interaction = createInteractionStub({
         isStringSelectMenu: jest.fn().mockReturnValue(true),
+        isAnySelectMenu: jest.fn().mockReturnValue(true),
+        isButton: jest.fn().mockReturnValue(false),
         customId: 'foo-character-field-hp'
       })
 
-      // Act
       await service.execute(interaction as unknown as StringSelectMenuInteraction)
 
-      // Assert
-      expect(sectionEditor.execute).toHaveBeenCalledWith(interaction)
-    })
-
-    it('sectionEditor が throw し未応答なら ephemeral reply して rethrow する', async () => {
-      // Arrange
-      const service = await createService(true)
-      const error = new Error('editor failed')
-      sectionEditor.execute.mockRejectedValue(error)
-      const interaction = createInteractionStub({
-        isStringSelectMenu: jest.fn().mockReturnValue(true),
-        customId: 'character-section-select-abilities'
-      })
-
-      // Act & Assert
-      await expect(service.execute(interaction as unknown as StringSelectMenuInteraction)).rejects.toBe(error)
-      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
-    })
-
-    it('sectionEditor が throw し既に応答済みなら reply せず rethrow する', async () => {
-      // Arrange
-      const service = await createService(true)
-      const error = new Error('editor failed')
-      sectionEditor.execute.mockRejectedValue(error)
-      const interaction = createInteractionStub({
-        isStringSelectMenu: jest.fn().mockReturnValue(true),
-        customId: 'character-section-select-abilities'
-      })
-      // execute 冒頭ガードは未応答で通過し、editor 実行中に応答済みになるケースを再現する
-      sectionEditor.execute.mockImplementation(async () => {
-        interaction.replied = true
-        throw error
-      })
-
-      // Act & Assert
-      await expect(service.execute(interaction as unknown as StringSelectMenuInteraction)).rejects.toBe(error)
-      expect(interaction.reply).not.toHaveBeenCalled()
+      expect(registry.route).toHaveBeenCalledWith(interaction)
     })
 
     it('対象外の customId をもつ StringSelect は handleInteraction に委譲する', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub({
         isStringSelectMenu: jest.fn().mockReturnValue(true),
         isAnySelectMenu: jest.fn().mockReturnValue(true),
@@ -440,21 +351,19 @@ describe('InteractionsService', () => {
       await service.execute(interaction as unknown as StringSelectMenuInteraction)
 
       // Assert
-      expect(sectionEditor.execute).not.toHaveBeenCalled()
-      expect(controller.handleInteraction).toHaveBeenCalledWith(interaction)
+      expect(registry.route).toHaveBeenCalledWith(interaction)
     })
 
     it('StringSelect でない通常インタラクションは handleInteraction に委譲する', async () => {
       // Arrange
-      const service = await createService(true)
+      const service = await createService()
       const interaction = createInteractionStub()
 
       // Act
       await service.execute(interaction as unknown as ButtonInteraction)
 
       // Assert
-      expect(sectionEditor.execute).not.toHaveBeenCalled()
-      expect(controller.handleInteraction).toHaveBeenCalledWith(interaction)
+      expect(registry.route).toHaveBeenCalledWith(interaction)
     })
   })
 })

@@ -1,10 +1,16 @@
-import { Injectable, OnModuleInit, Logger, Inject, Optional, forwardRef } from '@nestjs/common'
-import { ModuleRef } from '@nestjs/core'
+import { Injectable, Logger } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import { Client, ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
-import { InteractionsController } from './interactions.controller'
-import { CharacterUIService } from '../features/characterEdit/services/character-ui.service'
-import { CharacterSectionEditorService } from '../features/characterEdit/services/character-section-editor.service'
+import {
+  Client,
+  Events,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+  AnySelectMenuInteraction,
+  NonThreadGuildBasedChannel,
+  ChannelType
+} from 'discord.js'
+import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
+import { InteractionRegistryService } from './registry/interaction-registry.service'
 
 /**
  * Discord インタラクションサービス
@@ -17,68 +23,26 @@ import { CharacterSectionEditorService } from '../features/characterEdit/service
  * - Discord Interactions: Discord.js固有のユーザーインタラクション処理
  */
 @Injectable()
-export class InteractionsService implements OnModuleInit {
-  private interactionsController: InteractionsController
+export class InteractionsService {
   private readonly logger = new Logger(InteractionsService.name)
 
   constructor(
-    private readonly moduleRef: ModuleRef,
     private readonly eventEmitter: EventEmitter2,
-    private readonly characterUIService: CharacterUIService,
-    private readonly characterSectionEditorService: CharacterSectionEditorService,
-    // コントローラーを直接注入（Optionalでundefinedでも問題ないように設定）
-    @Optional()
-    @Inject(forwardRef(() => InteractionsController))
-    private readonly injectedInteractionsController?: InteractionsController
-  ) {
-    // 直接注入されたコントローラーがあればそれを使用
-    if (injectedInteractionsController) {
-      this.interactionsController = injectedInteractionsController
-      this.logger.log('InteractionsControllerがコンストラクタで注入されました。')
-    }
-  }
-
-  /**
-   * モジュール初期化時にInteractionsControllerを取得
-   */
-  async onModuleInit() {
-    // すでにコンストラクタで注入されている場合はスキップ
-    if (this.interactionsController) {
-      return
-    }
-
-    try {
-      this.interactionsController = this.moduleRef.get(InteractionsController, { strict: false })
-      if (!this.interactionsController) {
-        this.logger.warn('InteractionsControllerを取得できませんでした。機能が制限される可能性があります。')
-      } else {
-        this.logger.log('InteractionsControllerを正常に取得しました。')
-      }
-    } catch (error) {
-      this.logger.error('InteractionsControllerの取得中にエラーが発生しました:', error)
-    }
-  }
+    private readonly interactionRegistry: InteractionRegistryService,
+    private readonly channelCreateOrchestratorService: ChannelCreateOrchestratorService
+  ) {}
 
   /**
    * Discord クライアントをロードし、インタラクションハンドラを設定
    * @param client Discord クライアント
    */
   loadClient(client: Client): void {
-    if (this.interactionsController) {
-      try {
-        this.interactionsController.handleCommand(client)
-        this.logger.log('InteractionsControllerのhandleCommandを呼び出しました。')
-      } catch (error) {
-        this.logger.error('InteractionsControllerのhandleCommand呼び出し中にエラーが発生しました:', error)
-      }
-    } else {
-      this.logger.warn('InteractionsControllerが利用できないため、handleCommandをスキップします。')
-    }
+    this.handleChannelCreate(client)
+    this.logger.log('ChannelCreateリスナーを登録しました。')
   }
 
   /**
-   * インタラクションをInteractionsControllerに委譲する
-   * EventManagerServiceとInteractionsControllerの間の仲介役として機能
+   * インタラクションをInteractionRegistryServiceに委譲する
    * @param interaction Discord インタラクション
    */
   async handleInteraction(
@@ -100,7 +64,7 @@ export class InteractionsService implements OnModuleInit {
       if (interaction.replied || interaction.deferred) {
         const duration = Date.now() - startTime
         this.logger.warn(
-          `インタラクション(ID: ${interaction.id})は既に応答済みです。InteractionsControllerへの委譲をスキップします。`
+          `インタラクション(ID: ${interaction.id})は既に応答済みです。InteractionRegistryServiceへの委譲をスキップします。`
         )
 
         // 処理済みメトリクス記録
@@ -113,35 +77,20 @@ export class InteractionsService implements OnModuleInit {
         return true // すでに処理済みとみなす
       }
 
-      if (this.interactionsController) {
-        this.logger.log(`インタラクション(ID: ${interaction.id})をInteractionsControllerに委譲します。`)
-        await this.interactionsController.handleInteraction(interaction)
-
-        const duration = Date.now() - startTime
-
-        // 成功メトリクス記録
-        this.eventEmitter.emit('discord.interaction.processed', {
-          eventType: `${interactionType}-interaction`,
-          success: true,
-          duration,
-          interactionId: interaction.id
-        })
-
-        return true // 処理成功
-      }
+      this.logger.log(`インタラクション(ID: ${interaction.id})をInteractionRegistryServiceに委譲します。`)
+      await this.routeInteraction(interaction)
 
       const duration = Date.now() - startTime
-      this.logger.warn('インタラクション処理のためのInteractionsControllerが利用できません。')
 
-      // エラーメトリクス記録
+      // 成功メトリクス記録
       this.eventEmitter.emit('discord.interaction.processed', {
         eventType: `${interactionType}-interaction`,
-        success: false,
+        success: true,
         duration,
-        error: 'controller-unavailable'
+        interactionId: interaction.id
       })
 
-      return false // コントローラーが利用できない
+      return true // 処理成功
     } catch (error) {
       const duration = Date.now() - startTime
       this.logger.error(`InteractionsServiceでのハンドリングエラー(ID: ${interaction.id}):`, error)
@@ -160,6 +109,11 @@ export class InteractionsService implements OnModuleInit {
 
   /**
    * インタラクション実行（discord-interaction-handler.service.tsとの互換性のため）
+   *
+   * 旧: characterEdit セレクト（character-section-select-/character-edit-/character-field-）の特例分岐で
+   *     CharacterSectionEditorService を直接呼んでいたが、これは registry の
+   *     CharacterEditSectionHandler / CharacterEditFieldHandler を影で潰す legacy bypass だった。
+   *     特例を撤去し、全インタラクションを Registry へ委譲する（§8・feature 所有の handler が処理）。
    */
   async execute(interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction): Promise<void> {
     // 応答済みインタラクションの重複処理を防止
@@ -168,39 +122,58 @@ export class InteractionsService implements OnModuleInit {
       return
     }
 
-    // キャラクター関連セレクトメニューの特別処理
-    if (interaction.isStringSelectMenu()) {
-      // character-section-select- または character-edit- で始まるカスタムIDを処理
-      if (
-        interaction.customId.startsWith('character-section-select-') ||
-        interaction.customId.includes('character-edit-') ||
-        interaction.customId.includes('character-field-')
-      ) {
-        this.logger.debug(`Handling character section/field select: ${interaction.customId}`)
+    await this.handleInteraction(interaction)
+  }
 
-        try {
-          await this.characterSectionEditorService.execute(interaction)
-          this.logger.debug(`Character section/field select processed successfully: ${interaction.customId}`)
-        } catch (error) {
-          this.logger.error(`Character section/field select processing failed: ${interaction.customId}`, error)
+  private async routeInteraction(
+    interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
+  ): Promise<void> {
+    this.logger.log(
+      `インタラクション処理開始: Type=${interaction.type}, ID=${interaction.id}, CustomID=${interaction.customId}`
+    )
 
-          // エラー時の応答処理（まだ応答していない場合のみ）
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction
-              .reply({
-                content: 'セクション選択の処理中にエラーが発生しました。',
-                ephemeral: true
-              })
-              .catch((err) => {
-                this.logger.error(`Error reply failed: ${err.message}`)
-              })
-          }
-          throw error
+    try {
+      const handled = await this.interactionRegistry.route(interaction)
+
+      if (!handled) {
+        this.logger.warn(`未登録のインタラクション: ${interaction.customId}`)
+
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: '⚠️ このインタラクションは現在処理できません。',
+            ephemeral: true
+          })
         }
-        return
+      }
+    } catch (error) {
+      this.logger.error(`インタラクション処理中にエラーが発生: ${interaction.customId}`, error)
+
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({
+            content: '❌ 処理中にエラーが発生しました。',
+            ephemeral: true
+          })
+        } catch (replyError) {
+          this.logger.error('エラー応答の送信に失敗', replyError)
+        }
       }
     }
+  }
 
-    await this.handleInteraction(interaction)
+  private handleChannelCreate(client: Client): void {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- discord.js の Client.on は async リスナーを await しない設計（handler 内で try/catch 済み）。fire-and-forget は意図的
+    client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel) => {
+      if (channel.type !== ChannelType.GuildText) return
+
+      const textChannel = channel
+      this.logger.log(`チャンネル作成検出: ${textChannel.name} (${textChannel.id})`)
+
+      try {
+        await this.channelCreateOrchestratorService.execute(textChannel)
+      } catch (error) {
+        this.logger.error(`チャンネル作成処理でエラーが発生: ${textChannel.name}`, error)
+      }
+    })
   }
 }
