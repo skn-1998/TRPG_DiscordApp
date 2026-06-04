@@ -14,31 +14,18 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import {
-  Client,
-  Guild,
-  TextChannel,
-  ThreadChannel,
-  ChannelType,
-  ThreadAutoArchiveDuration,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
-} from 'discord.js'
+import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
+import { ThreadInteractionService } from './thread-interaction.service'
 import {
   buildThreadName,
   buildThreadUrl,
   createBasicCharacterEmbed,
-  createDetailedCharacterEmbed,
-  createDiceRollActionRow,
-  createParameterSelectMenu,
-  createPresetButtons,
-  createSkillRollActionRows,
-  chunkButtonsIntoRows
+  createDetailedCharacterEmbed
 } from './thread-creation.util'
 
 /**
@@ -77,7 +64,8 @@ export class ThreadCreationService {
   constructor(
     private readonly discordClientService: DiscordClientService,
     private readonly typedEventService: TypedEventService,
-    private readonly characterService: CharacterService
+    private readonly characterService: CharacterService,
+    private readonly threadInteraction: ThreadInteractionService
   ) {
     this.discordClient = this.discordClientService.getClient()
     // イベントハンドラー登録は削除 - File-based handlers（EventRegistryService）で一元管理
@@ -177,19 +165,22 @@ export class ThreadCreationService {
         await this.postCharacterInfo(thread, character)
       }
 
-      // 全表示タイプ共通：ダイス系UI を投稿
-      await this.postActionButtons(thread)
-      await this.postSkillRollButtons(thread, character)
-      await this.postFlexibleDiceMenu(thread, character)
-      await this.postPresetDiceButtons(thread, character)
+      // 全表示タイプ共通：ダイス系UI を投稿（生成は ThreadInteractionService に一元化・S-4.3 converged）
+      await this.threadInteraction.postBasicDiceButtons(thread, character)
+      await this.threadInteraction.postFlexibleDiceMenu(thread, character)
+      await this.threadInteraction.postPresetDiceButtons(thread, character)
+      await this.threadInteraction.postSkillRollButtons(thread, character)
+      await this.threadInteraction.postAbilityRollButtons(thread, character)
     } catch (error) {
       this.logger.error(`Failed to post character display (${displayType}), falling back to basic`, error)
 
       // フォールバック: 基本表示
       await this.postCharacterInfo(thread, character)
-      await this.postActionButtons(thread)
-      await this.postSkillRollButtons(thread, character)
-      await this.postFlexibleDiceMenu(thread, character)
+      await this.threadInteraction.postBasicDiceButtons(thread, character)
+      await this.threadInteraction.postFlexibleDiceMenu(thread, character)
+      await this.threadInteraction.postPresetDiceButtons(thread, character)
+      await this.threadInteraction.postSkillRollButtons(thread, character)
+      await this.threadInteraction.postAbilityRollButtons(thread, character)
     }
   }
 
@@ -224,72 +215,6 @@ export class ThreadCreationService {
   private async postCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
     const embed = createBasicCharacterEmbed(character, thread.guild?.id || '')
     await thread.send({ embeds: [embed] })
-  }
-
-  /**
-   * 操作ボタンを投稿（ダイスロールボタンのみ - character-editと共有）
-   */
-  private async postActionButtons(thread: ThreadChannel): Promise<void> {
-    const diceRow = createDiceRollActionRow()
-
-    await thread.send({
-      content: '🎲 ダイスロール',
-      components: [diceRow]
-    })
-  }
-
-  /**
-   * 柔軟ダイス計算用のパラメータ選択メニューを投稿
-   */
-  private async postFlexibleDiceMenu(thread: ThreadChannel, character: Character): Promise<void> {
-    try {
-      const parameterSelectMenu = createParameterSelectMenu(character)
-
-      if (parameterSelectMenu) {
-        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(parameterSelectMenu)
-
-        await thread.send({
-          content: '🎯 柔軟ダイス計算：パラメータを選択してください',
-          components: [selectRow]
-        })
-      }
-    } catch (error) {
-      this.logger.error('Failed to post flexible dice menu', error)
-    }
-  }
-
-  /**
-   * よく使用されるパラメータのプリセットボタンを投稿
-   */
-  private async postPresetDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
-    try {
-      const presetButtons = createPresetButtons(character)
-
-      if (presetButtons.length > 0) {
-        const actionRows = chunkButtonsIntoRows(presetButtons)
-
-        await thread.send({
-          content: '⚡ クイックダイス：よく使用されるパラメータ',
-          components: actionRows
-        })
-      }
-    } catch (error) {
-      this.logger.error('Failed to post preset dice buttons', error)
-    }
-  }
-
-  /**
-   * キャラクターのスキルロールボタンを投稿（character-editと共有）
-   */
-  private async postSkillRollButtons(thread: ThreadChannel, character: Character): Promise<void> {
-    const actionRows = createSkillRollActionRows(character)
-
-    if (actionRows.length > 0) {
-      await thread.send({
-        content: '🎯 スキルロール',
-        components: actionRows
-      })
-    }
   }
 
   /**
