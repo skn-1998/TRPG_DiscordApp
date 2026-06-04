@@ -103,4 +103,15 @@ describe('PresetDiceQuickRollHandler', () => {
     await expect(handler.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalled()
   })
+
+  it('スレッド外（親チャンネル投稿不可）の成功時は fallback の followUp 通知を行う', async () => {
+    const interaction = buildInteraction('dice_coc7_1d100_chan123')
+    interaction.channel.type = ChannelType.GuildText // スレッドでない → sendToParentChannel は false
+
+    await handler.execute(interaction)
+
+    expect(diceRollLogicService.handleDiceRoll).toHaveBeenCalled()
+    expect(parentSend).not.toHaveBeenCalled()
+    expect(interaction.followUp).toHaveBeenCalled()
+  })
 })
