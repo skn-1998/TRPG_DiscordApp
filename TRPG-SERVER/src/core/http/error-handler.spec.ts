@@ -95,16 +95,29 @@ describe('ErrorHandler', () => {
       })
     })
 
-    it('should hide error details in production', () => {
-      process.env.NODE_ENV = 'production'
+    it('should hide error details in production (isProduction オプションで判定・脱 process.env)', () => {
       const genericError = new Error('Generic error')
 
-      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response)
+      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response, { isProduction: true })
 
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         message: 'リクエストの処理中にエラーが発生しました',
         error: undefined,
+        timestamp: expect.any(String),
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR
+      })
+    })
+
+    it('isProduction:false（既定）では error 詳細を露出する', () => {
+      const genericError = new Error('Generic error')
+
+      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response, { isProduction: false })
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'リクエストの処理中にエラーが発生しました',
+        error: 'Generic error',
         timestamp: expect.any(String),
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR
       })
