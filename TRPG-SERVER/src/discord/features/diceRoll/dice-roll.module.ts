@@ -1,13 +1,9 @@
 import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
-import { DiceRollModule } from '../../../domains/dice-roll/dice-roll.module'
 import { DiceServicesModule } from '../../services/dice/dice-services.module'
 import { RollDiceOrchestrator } from './services/roll-dice.orchestrator'
 import { DiceResultOrchestrator } from './services/dice-result.orchestrator'
 import { CustomDiceModalService } from './services/custom-dice-modal.service'
-import { CharacterDiceOrchestratorService } from './services/character-dice-orchestrator.service'
-import { DiceButtonUIService } from './services/dice-button-ui.service'
-import { DiceHistoryService } from './services/dice-history.service'
 import { InteractionRegistryModule } from '../../interactions/registry/interaction-registry.module'
 import { InteractionRegistryService } from '../../interactions/registry/interaction-registry.service'
 import { DiceRollPaginationModule } from './services/pagination/dice-roll-pagination.module'
@@ -28,10 +24,6 @@ import { DicePageLastHandler } from './handlers/dice-roll/dice-page-last.handler
 import { DicePageCancelHandler } from './handlers/dice-roll/dice-page-cancel.handler'
 import { DicePageSelectHandler } from './handlers/dice-roll/dice-page-select.handler'
 import { DiceCharacterSelectHandler } from './handlers/dice-roll/dice-character-select.handler'
-import { DiceRollSkillHandler } from './handlers/dice-roll/dice-roll-skill.handler'
-import { DiceRollGeneralHandler } from './handlers/dice-roll/dice-roll-general.handler'
-import { DiceRollCustomHandler } from './handlers/dice-roll/dice-roll-custom.handler'
-import { DiceRollPresetHandler } from './handlers/dice-roll/dice-roll-preset.handler'
 import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handler'
 
 /**
@@ -40,7 +32,7 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
  * 🎯 責務: ダイスロール機能の Discord インタラクション処理を feature として所有する。
  *
  * 🏗️ 構造課題③（ARCHITECTURE §8 / §5.3）:
- * - diceRoll の handler 12 個・adapter・pagination・実行系サービス（orchestrator/button-ui/history/modal）を
+ * - diceRoll の handler 8 個・adapter・pagination・実行系サービス（roll/result orchestrator・custom-modal）を
  *   feature 配下で所有する。
  * - InteractionsModule への依存を撤去済み（feature → interactions core の結合を解消）。
  * - feature 側が InteractionRegistryService を import し、自身の handler を登録する。
@@ -48,23 +40,22 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
  * 📋 import 構成:
  * - InteractionRegistryModule: handler を registry へ登録するため。
  * - DiceServicesModule: 横断 dice 基盤（DiceRollLogicService/DiceOrchestratorService/DicePresetService 等）を解決するため。
- * - DiceRollPaginationModule: adapter / DiceHistoryService が DiceRollPaginationService を解決するため。
- * - DiceRollModule: DiceHistoryService が DiceRollService を解決するため。
- * - CharacterModule: CustomDiceModalService / orchestrator が CharacterService を解決するため。
+ * - DiceRollPaginationModule: pagination adapter が DiceRollPaginationService を解決するため。
+ * - CharacterModule: CustomDiceModalService が CharacterService を解決するため。
  *
  * 🔧 構造課題③ 履歴: Step5a で CustomDiceModalService、Step5b で CharacterDiceOrchestratorService /
  *    DiceButtonUIService / DiceHistoryService を feature 所有へ移管し、InteractionsModule import を撤去。
+ *    S-5c で旧 roll* / preset-dice* 系 4 handler と CharacterDiceOrchestratorService / DiceButtonUIService /
+ *    DiceHistoryService（生成元消滅により dead 化）を撤去。これに伴い DiceHistoryService 専用だった
+ *    DiceRollModule(domains) import も除去（pagination は DiceRollPaginationModule が自身で解決）。
  *    共有 dice ロジック（DiceRollLogicService 等）は中立 DiceServicesModule(services/dice) へ集約。
  */
 @Module({
-  imports: [InteractionRegistryModule, DiceServicesModule, DiceRollPaginationModule, DiceRollModule, CharacterModule],
+  imports: [InteractionRegistryModule, DiceServicesModule, DiceRollPaginationModule, CharacterModule],
   providers: [
     RollDiceOrchestrator,
     DiceResultOrchestrator,
     CustomDiceModalService,
-    CharacterDiceOrchestratorService,
-    DiceButtonUIService,
-    DiceHistoryService,
     DicePagePrevButtonService,
     DicePageNextButtonService,
     DicePageSelectMenuService,
@@ -81,10 +72,6 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
     DicePageCancelHandler,
     DicePageSelectHandler,
     DiceCharacterSelectHandler,
-    DiceRollSkillHandler,
-    DiceRollGeneralHandler,
-    DiceRollCustomHandler,
-    DiceRollPresetHandler,
     DiceRollModalHandler
   ],
   exports: [
@@ -110,10 +97,6 @@ export class DiceRollFeatureModule implements OnModuleInit {
     private readonly dicePageCancelHandler: DicePageCancelHandler,
     private readonly dicePageSelectHandler: DicePageSelectHandler,
     private readonly diceCharacterSelectHandler: DiceCharacterSelectHandler,
-    private readonly diceRollSkillHandler: DiceRollSkillHandler,
-    private readonly diceRollGeneralHandler: DiceRollGeneralHandler,
-    private readonly diceRollCustomHandler: DiceRollCustomHandler,
-    private readonly diceRollPresetHandler: DiceRollPresetHandler,
     private readonly diceRollModalHandler: DiceRollModalHandler
   ) {}
 
@@ -130,10 +113,6 @@ export class DiceRollFeatureModule implements OnModuleInit {
       this.dicePageCancelHandler,
       this.dicePageSelectHandler,
       this.diceCharacterSelectHandler,
-      this.diceRollSkillHandler,
-      this.diceRollGeneralHandler,
-      this.diceRollCustomHandler,
-      this.diceRollPresetHandler,
       this.diceRollModalHandler
     ])
   }
