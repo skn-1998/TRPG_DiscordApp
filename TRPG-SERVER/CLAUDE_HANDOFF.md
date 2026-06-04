@@ -21,7 +21,9 @@
 
 **P1-B（forwardRef 解消）完了（`c4dabf1`+`427c843`）**: discord/feature の module forwardRef 4件は全て vestigial（逆方向 import が prior 修正で消えていた）と判明し通常 import へ戻した。実 forwardRef は全消失（残は character.module のコメント行のみ）。build/check:circular(481)/start:dev で挙動不変を確認。詳細は AI.refactor.md 同日「P1-B」節。
 
-次は **P1-C（process.env 整理）/ P1-D（customId 契約整理）**。
+**P1-C（process.env 整理）一部完了（`8222f72`）**: main.ts の bind-address を AppConfigService 経由へ（脱 process.env・挙動不変）。残 `error-handler.ts`(static)・`api-response.dto.ts`(DTO) は **DI 不可**で env 注入の設計が要るため deferred（focused 設計タスク／Codex スコープ推奨）。詳細は AI.refactor.md 同日「P1-C」節。
+
+次は **P1-D（customId 契約整理）**（characterEdit/characterThread の customId 生成・解析・pattern を feature-local `custom-id/` へ集約。diceRoll と同型の大きめ restructuring）。
 
 ---
 
