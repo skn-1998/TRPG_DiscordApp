@@ -37,6 +37,8 @@ import { DiceGenericHandler } from './handlers/dice-generic.handler'
 import { FlexibleDiceSelectHandler } from './handlers/flexible-dice-select.handler'
 // P1-D slice2: 未routing だった skill_ ボタンを配線（latent bug 修正）
 import { CharacterSkillRollHandler } from './handlers/character-skill-roll.handler'
+// S-3: 能力(ability)ロール handler 新設（skill_ と完全同型・ability_{channelId}_{abilityKey}）
+import { AbilityRollHandler } from './handlers/ability-roll.handler'
 // P1-D 後続: 未routing だった dice_{coc7,dnd5e,sw25}_ preset ボタンを配線（方針A・最小機能化）
 import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.handler'
 
@@ -96,6 +98,7 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     DiceGenericHandler,
     FlexibleDiceSelectHandler,
     CharacterSkillRollHandler,
+    AbilityRollHandler,
     PresetDiceQuickRollHandler
   ],
   exports: [
@@ -129,6 +132,7 @@ export class CharacterThreadFeatureModule implements OnModuleInit {
     private readonly diceGenericHandler: DiceGenericHandler,
     private readonly flexibleDiceSelectHandler: FlexibleDiceSelectHandler,
     private readonly characterSkillRollHandler: CharacterSkillRollHandler,
+    private readonly abilityRollHandler: AbilityRollHandler,
     private readonly presetDiceQuickRollHandler: PresetDiceQuickRollHandler
   ) {}
 
@@ -146,6 +150,7 @@ export class CharacterThreadFeatureModule implements OnModuleInit {
       this.diceGenericHandler,
       this.flexibleDiceSelectHandler,
       this.characterSkillRollHandler,
+      this.abilityRollHandler,
       this.presetDiceQuickRollHandler
     ])
   }
