@@ -24,6 +24,8 @@ import { InteractionRegistryModule } from '../../interactions/registry/interacti
 import { InteractionRegistryService } from '../../interactions/registry/interaction-registry.service'
 import { CharacterThreadSelectService } from './services/character-thread-select.service'
 import { CharacterDiceButtonsService } from './services/character-dice-buttons.service'
+// P1-D 後続: CharacterDiceButtonsService の provider 外 new を解消するため provider 登録
+import { CharacterDiceHistoryService } from './services/character-dice-history.service'
 
 // 🆕 Interaction Handlers - Character Thread 系（registry 登録対象・interactions core から移管）
 import { CharacterThreadSelectHandler } from './handlers/character-thread-select.handler'
@@ -82,6 +84,7 @@ import { CharacterSkillRollHandler } from './handlers/character-skill-roll.handl
     // 🆕 Interaction Services（handler の委譲先・interactions core から移管）
     CharacterThreadSelectService,
     CharacterDiceButtonsService,
+    CharacterDiceHistoryService,
     // 🆕 Interaction Handlers（registry 登録対象・interactions core から移管）
     CharacterThreadSelectHandler,
     CharacterThreadCreateHandler,

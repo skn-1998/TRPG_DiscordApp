@@ -21,7 +21,6 @@ import { DiceRollRequest, DiceRollResult } from 'src/discord/utils/dice-roll.int
 import { OnEvent } from '@nestjs/event-emitter'
 import { v4 as uuidv4 } from 'uuid'
 import { ErrorHandler } from 'src/core/http/error-handler'
-import { CharacterService } from 'src/domains/character/character.service'
 import { DicePresetService } from 'src/discord/services/dice/dice-preset.service'
 import { CharacterDiceHistoryService } from './character-dice-history.service'
 import {
@@ -40,23 +39,14 @@ import {
  */
 @Injectable()
 export class CharacterDiceButtonsService implements discordButtonType {
-  // 履歴・保存・ページネーション表示を担う focused service。
-  // コンストラクタ（公開 API）を変えないため、注入済み依存から内部生成して再利用する。
-  private readonly historyService: CharacterDiceHistoryService
-
+  // 履歴・保存・ページネーション表示を担う focused service（P1-D 後続: provider 外 new を撤去し DI 注入へ）。
   constructor(
     private readonly typedEventEmitter: TypedEventEmitter,
     private readonly diceRollService: DiceRollService,
     private readonly paginationService: DiceRollPaginationService,
-    private readonly characterService: CharacterService,
-    private readonly dicePresetService: DicePresetService
-  ) {
-    this.historyService = new CharacterDiceHistoryService(
-      this.diceRollService,
-      this.paginationService,
-      this.characterService
-    )
-  }
+    private readonly dicePresetService: DicePresetService,
+    private readonly historyService: CharacterDiceHistoryService
+  ) {}
 
   // ButtonBuilderのインスタンスはdiscordButtonTypeのdataフィールドとして必要ですが、
   // 実際には動的に生成されるためここでは最小限のものを提供
