@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
 import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter'
 import { MetricsCollectorService } from './metrics-collector.service'
 import { AlertManagerService } from './alert-manager.service'
@@ -114,7 +113,6 @@ describe('MetricsCollectorService @OnEvent 配線（emit 経由）', () => {
 
 /**
  * AlertManagerService の @OnEvent('system.alert') 配線テスト。
- * ConfigService を依存に持つため最小モックを provider 登録する。
  * emit 経由でハンドラが発火し triggerAlert の副作用（activeAlerts 追加）が起きることを固定する。
  */
 describe('AlertManagerService @OnEvent 配線（emit 経由）', () => {
@@ -135,13 +133,7 @@ describe('AlertManagerService @OnEvent 配線（emit 経由）', () => {
           ignoreErrors: false
         })
       ],
-      providers: [
-        AlertManagerService,
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn() }
-        }
-      ]
+      providers: [AlertManagerService]
     }).compile()
 
     await module.init()

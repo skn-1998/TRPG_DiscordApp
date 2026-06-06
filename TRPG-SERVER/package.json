@@ -74,7 +74,12 @@
     "overrides": {
       "brace-expansion": "2.0.2",
       "tmp": "0.2.4"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "protobufjs",
+      "ssh2"
+    ]
   },
   "overrides": {
     "brace-expansion": "2.0.2",

@@ -8,6 +8,7 @@ import {
 } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { DiceRollText } from 'src/domains/dice-roll/models/dice-roll-text.model'
+import { DiceCharacterSelectCustomId, DicePageCustomId } from '../../custom-id'
 import { ALL_CHARACTERS, formatDiceRoll, isSpecificCharacter, resolveHistoryTitle } from './dice-roll-pagination.util'
 
 /**
@@ -100,27 +101,27 @@ export function buildPageButtonRow(
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`dice-page-first*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.first(messageId, channelId))
       .setLabel('最初')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 1),
     new ButtonBuilder()
-      .setCustomId(`dice-page-prev*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.prev(messageId, channelId))
       .setLabel('前')
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage === 1),
     new ButtonBuilder()
-      .setCustomId(`dice-page-next*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.next(messageId, channelId))
       .setLabel('次')
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage === totalPages),
     new ButtonBuilder()
-      .setCustomId(`dice-page-last*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.last(messageId, channelId))
       .setLabel('最後')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === totalPages),
     new ButtonBuilder()
-      .setCustomId(`dice-page-cancel*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.cancel(messageId, channelId))
       .setLabel('閉じる')
       .setStyle(ButtonStyle.Danger)
   )
@@ -160,7 +161,7 @@ export function buildPageSelectRow(
     }
 
     const pageSelectMenu = new StringSelectMenuBuilder()
-      .setCustomId(`dice-page-select*${messageId}*${channelId}`)
+      .setCustomId(DicePageCustomId.select(messageId, channelId))
       .setPlaceholder('ページを選択')
       .addOptions(pageOptions)
 
@@ -209,7 +210,7 @@ export function buildCharacterSelectRow(
   }
 
   const characterSelectMenu = new StringSelectMenuBuilder()
-    .setCustomId(`dice-char-select*${messageId}*${channelId}`)
+    .setCustomId(DiceCharacterSelectCustomId.create(messageId, channelId))
     .setPlaceholder('キャラクターを選択')
     .addOptions(characterOptions)
 

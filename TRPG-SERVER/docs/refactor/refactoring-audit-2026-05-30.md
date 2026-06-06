@@ -42,6 +42,7 @@
 ### domains（auth/character/user/dice-roll）
 
 - **High:** ① `auth.controller.ts:103-133` 等が **トークン/Authorization ヘッダを console.log**（機密漏洩リスク）。② **デッドコード3点** ── `character-id.service.ts`（利用箇所ゼロ）、`schemas/character.schema.ts`（zod 248行、参照ゼロ）、`CharacterEventHandlerService`（自称レガシー・空回り）。③ 全 Controller が `@Res()`＋try/catch で手動レスポンス（例外フィルタ/インターセプタが効かない）。
+  - > ⚠️ **2026-05-31 訂正: この「デッドコード3点」判定は誤り。** `character-id.service.ts`（4参照）・`character.schema.ts`（1参照）・`CharacterEventHandlerService`（3参照）はいずれも**現役・削除不可**（`AI.refactor.md` 参照）。
   - > ⚠️ **2026-05-31 訂正**: ①は Phase S で対応済み。**②のデッドコード判定は誤り**。`character-id.service.ts`（`CharacterIdService`）は `CharacterCreationRequestedHandler` 経由でキャラ作成の ID 採番に**使用中（4ファイル参照）**＝削除不可。`schemas/character.schema.ts`（参照1）・`CharacterEventHandlerService`（参照3）も完全な死蔵とは限らない。**削除前に実コードで必ず再精査すること。**
 - **Med:** dice-roll の新旧フィールド二重持ち（`gameSystem(Id)`・`diceRoll/diceExpression`・`embedId(s)`）とフォールバック分岐。`create-user.dto.ts` の `name2`／「残りは省略」破損。Create系とInput系 DTO の重複。
 - ドキュメント「循環0・型安全100%」と実装が乖離。`req.headers['user']` を無検証 `JSON.parse` する独自認証導線が Guard と二重。

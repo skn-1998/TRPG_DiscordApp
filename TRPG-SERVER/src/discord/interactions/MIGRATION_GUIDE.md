@@ -9,14 +9,14 @@ Registry 方式への移行と、InteractionsModule から feature への所有�
 
 ## 移行ステータス
 
-| 項目                                      | 状態                         |
-| ----------------------------------------- | ---------------------------- |
-| `InteractionsController` → Registry 委譲  | ✅ 完了                      |
-| Handler 24 件 + Registry 基盤             | ✅ 完了                      |
-| customId 契約の一本化                     | 🟡 Phase 0 一部着手 / 未完了 |
-| diceRoll → FeatureModule 分離             | ❌ Phase 1 未着手            |
-| InteractionsModule slim 化                | ❌ Phase 2 未着手            |
-| ルーティング 1 本化（Map / 特例 if 削除） | ❌ Phase 2 未着手            |
+| 項目                                      | 状態                                                    |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `InteractionsController` → Registry 委譲  | ✅ 完了                                                 |
+| Handler 24 件 + Registry 基盤             | ✅ 完了                                                 |
+| customId 契約の一本化                     | 🟡 diceRoll pagination は着手済み / 他 feature は未完了 |
+| diceRoll → FeatureModule 分離             | ✅ 完了                                                 |
+| InteractionsModule slim 化                | 🟡 一部着手 / 未完了                                    |
+| ルーティング 1 本化（Map / 特例 if 削除） | ❌ Phase 2 未着手                                       |
 
 ---
 
@@ -27,13 +27,13 @@ Registry 方式への移行と、InteractionsModule から feature への所有�
 ### チェックリスト
 
 1. `features/diceRoll/custom-id/dice-page.custom-id.ts` を新設
-2. `dice-roll-pagination.service.ts` の `setCustomId(...)` を Factory 呼び出しに置換
+2. ✅ `dice-roll-pagination.builder.ts` の `setCustomId(...)` を Factory 呼び出しに置換
 3. `character-dice-buttons.service.ts` の `dice-prev*` → `dice-page-prev*`
-4. `features/diceRoll/adapters/dice-page-*-button.adapter.ts` の template customId を更新
-5. 各 Handler の `getCustomIdPattern()` を `DicePageCustomId.patterns.*` に統一
-6. `handlers.integration.spec.ts` に Factory ↔ pattern 一致テストを追加
+4. ✅ `features/diceRoll/adapters/dice-page-*-button.adapter.ts` の template customId を更新
+5. ✅ 各 Handler の `getCustomIdPattern()` を `DicePageCustomId.patterns.*` に統一
+6. ✅ `handlers.integration.spec.ts` に Factory ↔ pattern 一致テストを追加
 7. pagination state / spec を 1-indexed 前提に統一
-8. 未参照の `interactions/button/dice-page-*.service.ts` を削除
+8. ✅ 未参照の `interactions/button/dice-page-*.service.ts` を削除（2026-06-02 削除済み。正は `features/diceRoll/adapters/dice-page-*-button.adapter.ts`）
 
 ### 検証
 
@@ -46,6 +46,8 @@ pnpm test -- dice-roll-pagination
 ---
 
 ## Phase 1: diceRoll Feature 分離
+
+**状態**: 完了。diceRoll handlers / adapters / pagination / custom-id は `features/diceRoll/` 側で所有し、`DiceRollFeatureModule.onModuleInit()` から Registry へ明示登録する。
 
 ### 移動手順
 
@@ -71,7 +73,7 @@ pnpm test -- dice-roll-pagination
    - pagination services
    - diceRoll adapters（InteractionsModule 側の duplicate provide）
 
-5. `DiceRollFeatureModule` の `imports: [InteractionsModule]` は **Registry export の取得に必要なら維持**
+5. `DiceRollFeatureModule` は `InteractionRegistryModule` を import する
 
 `InteractionsModule` が `DiceRollFeatureModule` を import しないこと。feature 側が registry を import して handler を登録する一方向依存にする。
 
@@ -96,13 +98,13 @@ pnpm test -- dice-roll-pagination
 
 3. `InteractionsService.execute()`
    - `character-section-select-*` 等の特例 if を該当 Handler へ移管
-   - `ModuleRef.get(InteractionsController)` → コンストラクタ注入
+   - ✅ `ModuleRef.get(InteractionsController)` 経路は削除済み。現在は `InteractionRegistryService.route()` へ直接委譲
 
 4. `PerformanceOrchestratorService` 等を `DiscordModule` のみで provide
 
 5. `forwardRef(() => InteractionsModule)` の必要性を再評価・削除
 
-6. `InteractionRegistryService` の `ModuleRef` 依存を削除し、handler は module からの明示登録に統一
+6. ✅ `InteractionRegistryService` の `ModuleRef` 依存を削除し、handler は module からの明示登録に統一
 
 ---
 
@@ -126,8 +128,8 @@ characterEdit → characterThread の順。
 
 1. `handlers/{feature}/xxx.handler.ts` を作成（基底クラス継承）
 2. `getCustomIdPattern()` / `getInteractionType()` / `execute()` を実装
-3. `InteractionsModule.providers` に追加（Phase 1 後は FeatureModule.providers）
-4. `onModuleInit` の `registerHandlers([...])` に追加
+3. FeatureModule.providers に追加
+4. FeatureModule の `onModuleInit` の `registerHandlers([...])` に追加
 5. `handlers.integration.spec.ts` に pattern テストを追加
 6. customId 生成側が Factory 経由であることを確認
 

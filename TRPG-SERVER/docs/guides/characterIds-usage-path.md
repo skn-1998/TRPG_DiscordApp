@@ -1,5 +1,7 @@
 # characterIds の保存・使用経路
 
+（最終確認: 2026-06-03。characterIds 保存経路は現役）
+
 ## 📋 概要
 
 `DiceRollChannel`モデルの`characterIds`フィールドがどこで使用され、どのように保存されているかの経路をまとめます。

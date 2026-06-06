@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { JwtService } from '@nestjs/jwt'
-import { ConfigService } from '@nestjs/config'
 import { UnauthorizedException, HttpException } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { JwtTokenService } from '../token/jwt-token.service'
@@ -18,8 +17,6 @@ describe('AuthService', () => {
   let jwtService: jest.Mocked<JwtService>
   let httpService: jest.Mocked<HttpClientService>
   let userService: jest.Mocked<UserService>
-  let configService: jest.Mocked<ConfigService>
-  let appConfigService: jest.Mocked<AppConfigService>
   let cryptoService: jest.Mocked<CryptoService>
 
   // テストデータ
@@ -64,14 +61,14 @@ describe('AuthService', () => {
       update: jest.fn()
     }
 
-    // ConfigService モック
-    const configServiceMock = {
-      get: jest.fn()
-    }
-
     // AppConfigService モック
+    const configValues: Record<string, string> = {
+      'app.frontendUrl': 'http://127.0.0.1:5173',
+      'discord.applicationId': 'app-id',
+      'discord.secret': 'secret'
+    }
     const appConfigServiceMock = {
-      get: jest.fn()
+      get: jest.fn((key: string) => configValues[key])
     }
 
     // CryptoService モック
@@ -100,10 +97,6 @@ describe('AuthService', () => {
           useValue: userServiceMock
         },
         {
-          provide: ConfigService,
-          useValue: configServiceMock
-        },
-        {
           provide: AppConfigService,
           useValue: appConfigServiceMock
         },
@@ -118,8 +111,6 @@ describe('AuthService', () => {
     jwtService = module.get(JwtService)
     httpService = module.get(HttpClientService)
     userService = module.get(UserService)
-    configService = module.get(ConfigService)
-    appConfigService = module.get(AppConfigService)
     cryptoService = module.get(CryptoService)
   })
 

@@ -1,12 +1,12 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
 import { Logger } from '@nestjs/common'
 import { CommandManagerService } from './command-manager.service'
 import { DiscordClientService } from './discord-client.service'
 import { CommandsService } from '../commands/commands.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
+import { AppConfigService } from '../../config/config.service'
 
 // Discord.js のうち、本テストで触れる部分だけをモックする。
 // REST はコンストラクタで実体化されるため、put / setToken を jest.fn でスタブする。
@@ -42,11 +42,10 @@ const createMockCommand = (name: string): DiscordCommand => {
 
 describe('CommandManagerService', () => {
   let service: CommandManagerService
-  let configService: jest.Mocked<ConfigService>
   let commandsService: jest.Mocked<CommandsService>
   let mockLogger: jest.Mocked<Logger>
 
-  // ConfigService.get の既定の戻り値。テストごとに上書きできるようにマップで持つ。
+  // AppConfigService.get の既定の戻り値。テストごとに上書きできるようにマップで持つ。
   const configValues: Record<string, string | undefined> = {
     'discord.token': 'test-token',
     'discord.applicationId': 'app-123',
@@ -64,7 +63,7 @@ describe('CommandManagerService', () => {
           }
         },
         {
-          provide: ConfigService,
+          provide: AppConfigService,
           useValue: {
             get: jest.fn((key: string) => configValues[key])
           }
@@ -79,7 +78,6 @@ describe('CommandManagerService', () => {
     }).compile()
 
     const created = module.get<CommandManagerService>(CommandManagerService)
-    configService = module.get(ConfigService)
     commandsService = module.get(CommandsService)
 
     // Logger 出力はテスト対象の関心事ではないため差し替えて検証可能にする。

@@ -5,6 +5,242 @@
 
 ---
 
+## 2026-06-04 問題点の洗い出し（Codex 相談・司令塔裏取り）＋ roll\* customId 契約 案2 確定・実装計画
+
+ユーザー依頼「Codex と相談しながら今の問題点を洗い出す」。trpg-refactor スキルで Phase 1（コード理解）に集中し、Codex 相談＋司令塔裏取りで診断。**コード変更なし（診断＋計画のみ）**。
+
+### 健全性ゲート（裏取り済・良好）
+
+- `pnpm run build` OK / `pnpm run check:circular` **No circular(507)** / 実コードの `forwardRef`・`process.env` 直接参照・`ModuleRef.get` は**すべてゼロ**（残はコメントのみ）＝P1-A/B/C の構造目標は達成済みと確認。
+
+### 確定した正確性バグ（優先度1・司令塔が実コード裏取り済）
+
+1. **`findByChannelId` projection 不足**（`domains/character/repositories/character.repository.ts:54`）: `.select(...)` に `skill`/`parameter`/`status`/`gameSystemId` が無い。→ P1-D で配線した **`skill_` ボタンは本番で常に「スキルが見つからない」**。preset 本格ルールの前提も崩れる。**1行修正**。
+2. **`roll*1d100`（channelId 無し）が throw**: live 生成 `createDiceRollActionRow`（thread-creation.util.ts:220）が channelId 抜きで生成 → `CharacterDiceOrchestratorService.extractChannelId`(`split('*')[1]`) が null → `Channel ID could not be extracted` throw → fallback エラー。スレッドの基本ダイスボタンが壊れている。
+3. **`roll*1d100*{characterId}` が characterId を channelId 誤用**（character-display.service.ts:394 / characterEdit character-embed.util.ts:447）→ キャラ未検出。
+4. **modal field 名不一致**: `flexible-dice-select.handler.ts:106` が `dice-reason` で生成、`custom-dice-modal.service.ts:38` が `dice-comment` を読む（`getTextInputValue` は不在 field で throw）。Codex 追加発見で `dice-expression`/`roll-reason` 系統の不一致も存在＝想定より広い。
+5. **技能/能力ロール `roll*_{name}-{value}` が孤児**: `DiceRollSkillHandler` pattern `/^roll\*[^_]+_/` は `roll*` 直後が `_` の生成形式にマッチせず未routing（handler は在るのに契約食い違い）。`skill_select_{name}_{value}` も孤児。
+
+> 仮説修正の記録: 当初「`roll*` 全体が未routing」と見たが、Codex 相談＋裏取りで「`DiceRollGeneralHandler` pattern `/^roll\*\d+d\d+/` で routing はされるが channelId 抽出で落ちる」「`roll*custom` は startsWith で routing 済」と是正。
+
+### 構造/設計負債（優先度2）
+
+- **`roll*` ダイスUI 生成が5箇所以上に重複**（thread-creation.util / character-channel.service / character-display.service / dice-ui-builder.service / characterEdit character-embed.util）。suffix 有無で routing 挙動が変わる＝バグ2/3 の根本原因。
+- **legacy `roll*` 系（スレッド内表示＋履歴）と新 `dice_generic_` 系（親投稿）が二重化**し、両者とも `DiceRollLogicService.handleDiceRoll` に収束。
+- **`CharacterChannelService` は module 登録のみで live 呼び出し元が見当たらず＝dead 候補**（削除候補）。`DiceUIBuilderService`(character-channel-orchestrator 経由) は live 性要再確認。
+
+### ドキュメント不整合（優先度3）/ テスト負債（優先度4）
+
+- `AI.refactor.md`/`CLAUDE_HANDOFF.md` が `postActionButtons` を「dead」と記載するが、thread-creation.service 経由の `roll*` 生成は live＝記述ズレ。`interactions/README.md`/`MIGRATION_GUIDE.md` は「Phase 1 未着手」のまま陳腐化。
+- handler integration spec は `registry.hasHandler()`（routing 有無）しか見ず、**executor 契約（channelId 抽出・projection 依存）が未テスト**＝バグ1〜3 が緑のまま見逃された。
+
+### ★ユーザー確定の仕様決定（roll\* customId 契約）
+
+1. **表示挙動 = 案2: `dice_generic_` に統一（親チャンネル投稿）**。roll\* のスレッド内 editReply 表示は廃止。**UX 変更を承認**。
+2. **旧ボタン救済しない**（channelId 無しの既存貼り済みボタンは対象外・新規生成のみ修正）。
+3. **技能/能力ロールは key ベース**（customId に skillKey/abilityKey を持たせ character から再解決。`roll*_{name}-{value}` の表示名+値形式は廃止）。
+
+### 目標契約セット（案2）
+
+- 基本ダイス = `dice_generic_{diceType}_{channelId}`（既存流用・親投稿）
+- 技能 = `skill_{channelId}_{skillKey}`（既存流用・key ベース）
+- 能力 = **新規 `ability_{channelId}_{abilityKey}`**＋新 handler（skill\_ 同型・`character.parameter` から再解決）
+- custom = **channelId 付き契約に整理**＋modal field 名統一（CustomDiceModalService を characterId→channelId 解決へ）
+
+### 実装計画（bounded slice・Codex 起案）
+
+- **S-1**: `findByChannelId` projection 修正（前提・1行＋spec）
+- **S-2**: modal field 名統一（`dice-command`+`dice-comment` 系へ。`dice-reason`/`dice-expression`/`roll-reason` の多重不一致を先に grep 棚卸し）
+- **S-3**: 能力 handler 新設（`ability_` 契約＋handler＋registry 登録＋parameter 再解決）
+- **S-4**: live 生成サイト移行（thread-creation / character-display / characterEdit character-embed /（要確認）dice-ui-builder を新契約へ。characterization の旧 roll\* 期待値を更新）
+- **S-5**: legacy `roll*` handler/生成の撤去＋dead（CharacterChannelService 等）整理
+- 各 slice 共通検証: tsc --noEmit / build / check:circular（No circular）/ 関連 jest / start:dev（registry 登録・pattern conflict なし）。
+
+### 未確定（実装前にユーザー/司令塔が決める）
+
+- **能力(ability)の対象範囲**: `parameter` のみか `status` も含めるか（characterEdit は status/parameter/skill すべてに roll button を生成）。S-4 着手前に決定。
+- custom modal の channelId 統一に伴う `CustomDiceModalService.findOne`→`findByChannelId` 変更の影響範囲。
+- `DiceUIBuilderService`/`CharacterChannelOrchestratorService` の最終 live/dead 判定（S-5 前）。
+
+### S-1 完了（2026-06-04・projection 修正・挙動変更=バグ修正の前提整備）
+
+- `character.repository.ts` の `findByChannelId` の `.select(...)` に `status skill parameter gameSystemId` を追加（既存 `attributes/primaryAttributes/createdAt/updatedAt` 等は維持＝additive）。
+- characterization: 既存 `character.repository.spec.ts` の findByChannelId が select 文字列を exact 固定済みだったため、現挙動の緑（24）を確認 → 期待値を新 select に更新（24 緑）。
+- 検証（司令塔）: `pnpm run build` exit 0 / `check:circular` **No circular(507)** / repository spec 24 緑 / 消費側 `character.service`＋`character-skill-roll.handler` spec 26 緑 / 差分は当該2ファイルのみ（CRLF churn 巻き込みなし）。
+- 効果: これで `skill_` ボタン（および key 再解決系）が `character.skill`/`parameter` を取得できる前提が整った（projection 不足による「スキルが見つからない」を解消）。未コミット（ユーザー承認時にまとめてコミット）。
+
+### S-2 完了（2026-06-04・modal field 名統一・挙動変更=バグ修正）
+
+modal field 全棚卸しで canonical 契約を確定: **受け手 `custom-dice-modal.service`** は `param-dice-modal*`→`dice-formula`+`multiplier`+`modifier`+`dice-comment` / `custom-dice-modal*`→`dice-command`+`dice-comment` を読む。これに対する生成側の不一致は2つ:
+
+- **(修正) `flexible-dice-select.handler.ts:106`**: custom modal の理由 field が `dice-reason`＝受け手の `getTextInputValue('dice-comment')` が不在 field で throw → カスタムダイス送信が失敗していた。`dice-comment` に統一。**flexible*dice* 経路は案2で残る durable path** のため S-2 で実施。
+- **(S-2 では記録のみ) `dice-button-ui.service.ts:87,96`**: `dice-expression`/`roll-reason`（受け手は `dice-command`/`dice-comment`）。これは **`roll*custom` 経路＝案2で retire 予定**のため、S-4（生成移行）/S-5（dead 整理）で対応（今 fix すると churn）。`character-dice-buttons.service`/`character-thread-select.service` は既に canonical で fix 不要。
+
+検証: characterization-first（実 discord.js を unmock し modal.toJSON() の field を検証＝`dice-button-ui.service.spec` と同方針）で **RED（dice-reason で fieldIds 不一致）→ 修正 → GREEN（6）**。build exit 0 / check:circular **No circular(507)** / 受け手 `custom-dice-modal.service.spec` 9 緑 / 差分は handler＋spec の2ファイルのみ。未コミット。
+
+### S-3 完了（2026-06-04・能力 handler 新設・additive＝既存挙動不変／nestjs-best-practices へ委譲・司令塔裏取り済）
+
+`skill_` の完全ミラーで能力(ability)ロールを新設。**新規5＋編集3（全 additive・削除なし）**:
+
+- 新規 `custom-id/ability-roll.custom-id.ts`（`AbilityRollCustomId`: pattern `ability_`・`create(channelId, abilityKey)`=`ability_{channelId}_{abilityKey}`・`parse`。skill と同一分割意味論）＋ spec。
+- 新規 `services/ability-roll.util.ts`（`resolveAbilityRoll`: `character.parameter?.[abilityKey]` を読み `extractSkillLevel`(skill-roll.util から再利用)で数値化・不在 null）。
+- 新規 `handlers/ability-roll.handler.ts`（`AbilityRollHandler`: parse→findByChannelId→resolveAbilityRoll→**`DiceRollLogicService.handleSkillRoll` 再利用**（新メソッドなし）→親投稿。CharacterSkillRollHandler 同型）＋ spec。
+- 編集 `custom-id/index.ts`（export 1行）／`character-thread-feature.module.ts`（import/providers/constructor/onModuleInit に各1行）／`handlers.integration.spec.ts`（登録 **27→28**・`ability_*` match assertion 追加）。
+- 検証（司令塔再裏取り）: build exit 0 / check:circular **No circular(512)** / 3 spec **66 緑** / 新規は untracked・編集は additive のみ（CRLF churn・無関係 revert なし）。**handler 追加は additive で現 routing 不変**（生成側未配線のため実 routing 有効化は S-4 後）。未コミット。
+
+### ★ユーザー確定（2026-06-04・S-4 前提）: status は表示専用
+
+- **能力(ability)対象範囲 = `parameter` のみ**。**status セクションのロールボタンは S-4 で撤去**（status は表示専用＝機能削減を許容）。
+- 新契約は **基本=`dice_generic_` / 技能=`skill_` / 能力=`ability_`** の3種＋custom（S-4 で channelId 付き契約に整理）。
+- マッピング: skill 生成 → `skill_` / parameter 生成 → `ability_` / 基本ダイス → `dice_generic_` / status 生成 → **削除** / custom → 新 custom 契約。
+
+### 次アクション（S-4 sub-slice 分割）
+
+S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・status ボタン撤去）かつ多サイトのため**生成サイト単位の sub-slice**で進める（各独立コミット・characterization は既存 spec が旧 customId 文字列を固定→新契約へ更新）:
+
+- **S-4a**: `thread-creation.util` / `ThreadCreationService` の基本ダイス（`roll*1d100/1d6/2d6`→`dice_generic_`）＋技能（`roll*_…`→`skill_`）＋能力（→`ability_`）＋status ボタン撤去。channelId を生成に渡す signature 化が要る。
+
+> ★ S-4 着手前の重要発見（2026-06-04・司令塔トレース）: **thread 生成に live 経路が2系統併存**している。
+>
+> - **select 経路**: `character-thread-select.service` → `CharacterThreadOrchestrator` → `ThreadCreationService`（`thread-creation.util` の `createDiceRollActionRow`=`roll*1d100`壊 / `createSkillRollActionRows`=`roll*_`孤児 / preset）。
+> - **event 経路**: `discord.thread.create.requested`・`character.update.completed` → `ThreadOrchestratorService` → `ThreadInteractionService`（`SkillRollCustomId.create(discordChannelId, skillKey)`=`skill_`・`FlexibleDiceSelectCustomId`・dice*generic*・preset。基本 roll は `postActionButtons` コメントアウトで非生成・`character_edit_`等は未routing）。
+> - 含意: **P1-D で配線した `skill_`/`dice_generic_` は event 経路にしか効いておらず、select 経路（ThreadCreationService）は依然 broken な `roll*`/孤児 `roll*_` を生成**。canonical channelId 源は両経路とも `character.discordChannelId`。
+> - したがって S-4a は「ThreadCreationService の生成を ThreadInteractionService と同じ新契約へ揃える」作業。さらに ThreadCreationService(+util) と ThreadInteractionService は skill/flexible/preset 生成が**重複実装**（最終的には S-5 で1系統へ統合すべき）。S-4 は単純移行でなく**dual-path 解消を含む**ため、経路ごとに characterization を張って慎重に進める（Codex 相談も検討）。
+
+- **S-4b**: `character-display.service`（tab 表示の `roll*…*{characterId}`）を新契約へ。
+- **S-4c**: characterEdit `character-embed.util`（`roll*…*{characterId}`）を新契約へ。
+- **S-4d**: `roll*custom`→新 custom 契約（channelId 付き）移行に合わせ `dice-button-ui.service` の field 不一致（`dice-expression`/`roll-reason`）解消。`dice-ui-builder.service` の live/dead 最終判定。
+- **S-5**: legacy `roll*` handler（General/Skill/Custom）/ 残存生成と dead（CharacterChannelService 等）を撤去。
+
+### dual-path 統合戦略（Codex 相談・2026-06-04）＋ live/dead 裏取り
+
+ユーザー選択「dual-path 統合戦略を Codex に相談」に基づく。
+
+**Codex 推奨 = Option 1**: `ThreadCreationService`（select 経路）がボタン UI 生成を **`ThreadInteractionService`（or 単一 UI helper）へ委譲**し生成を単一化。`roll*` 生成を Path A から消す。
+
+- Option 2（util を新契約へ直書き）＝重複残存で却下。Option 3（domain 層 DiceUiPort）＝「domain service は Discord/UI 非依存」違反＋循環リスクで却下。
+
+**司令塔の live/dead 裏取り（S-4 スコープを縮小）**:
+
+- **live な broken `roll*` 生成は実質 Path A（`ThreadCreationService`→`thread-creation.util`）に集約**。
+- **dead（production call-site ゼロ・S-5 撤去対象）**: `CharacterDisplayService.createSkillRollButtons/createBasicDiceButtons`（外部呼び出し元なし）／`CharacterChannelOrchestratorService`→`DiceUIBuilderService`（module 登録のみ・entry なし）／`CharacterChannelService`／`ThreadInteractionService.postActionButtons`（call-site コメントアウト）。
+- **要確認（S-4c）**: characterEdit `character-embed.util` の `roll*` 生成（別 feature・live 表示に乗るか未確定）。
+
+**Codex 改訂 S-4 sub-slice**: S-4.1 両 path の現挙動を characterization 固定 → S-4.2 custom/flexible の channelId 付き契約策定（`custom_dice_{channelId}` 新設 or 既存 `custom-dice-modal*{channelId}` 流用を確定）→ S-4.3 Path A のボタン生成を ThreadInteractionService へ委譲（主スライス）→ S-4.4 status 撤去・ability rendering → S-4.5 dead generator 隔離 → S-5 撤去。
+
+**ユーザー判断が要る分岐点（次セッション着手前）**:
+
+1. Path A（select 直叩き）を event 経路へ**完全収束**させてよいか（characterization 後に Path A 廃止 / 併存）。
+2. Path A の投稿内容・投稿先を Path B に**完全合わせ**してよいか（UI 微差の許容）。
+3. ability ボタンは常時表示か、skill と同グルーピングか。
+4. custom の canonical customId = `custom_dice_{channelId}` 新設 / `custom-dice-modal*{channelId}` 流用（後者が「channelId-bearing」を満たすか確認）。
+5. dead（DiceUIBuilder/CharacterChannel 等）は live 不在を最終確認のうえ S-5 で撤去、の順序でよいか。
+
+### ★ユーザー確定（2026-06-04・推奨デフォルト採用）＋ S-4.1 完了
+
+確定デフォルト（上記分岐点の回答）: **Option 1 で Path A を event 経路の契約へ完全収束** / custom は既存 **`custom-dice-modal*{channelId}` 流用**（S-2 で field 修正済・channelId-bearing） / ability は skill と同様に**常時表示** / dead は **S-5 で撤去**。
+
+**S-4.1 完了（characterization・新規コード変更なし）**: Path A の全生成器の現挙動が `thread-creation.util.spec.ts` で **exact 固定済み**であることを確認（安全網が既存）:
+
+- `createDiceRollActionRow` → `['roll*1d100','roll*1d6','roll*2d6','roll*custom']`（spec:138）
+- `createSkillRollActionRows` → `roll*_回避-40*char-123`（spec:226・label `回避(40)`）
+- `createParameterSelectMenu` → `flexible-dice-param*char-123`（spec:147）/ `createPresetButtons` → `preset-dice*char-123*parameter*str*60*3`（spec:179）
+- baseline: thread-creation.util + thread-creation.service spec **36 緑**。S-4.3 でこれらの期待値を新契約（`dice_generic_`/`skill_`/`ability_`・status 除外）へ更新する（意図的な before→after）。
+
+**次**: S-4.2（custom 契約は流用確定のため軽微）→ **S-4.3（Path A のボタン生成を ThreadInteractionService へ委譲＝主スライス・behavior-changing）**。S-4.3 以降は nestjs-best-practices へ委譲予定。
+
+### S-1/S-2/S-3 コミット完了（2026-06-04・ユーザー承認・pathspec 限定）
+
+事前 staged の無関係差分・CRLF churn を巻き込まず、自分の差分のみを独立コミット:
+
+- **S-1** `92245cd`（character.repository.ts + spec・2 files）
+- **S-2** `0959a35`（flexible-dice-select.handler.ts + spec・2 files）
+- **S-3** `eadf8ee`（ability-roll 新規5＋編集3・8 files）
+
+### S-4.3 精査で判明（2026-06-04・要レイアウト確定）
+
+「委譲」は thin でなく converged レイアウト確定が前提:
+
+- ThreadInteractionService(event 経路) は **基本ダイスの独立行を持たない**。`createGenericButtons`(`dice_generic_` 1d6/2d6/1d20/1d100) は **generic ゲームシステム時の preset fallback** としてのみ生成（`postPresetDiceButtons` の default ケース）。
+- 2サービスの **preset 実装が別物**: Path A=`createPresetButtons`(`preset-dice*{id}*…`) / event=ゲームシステム別(`dice_coc7_`等)＋generic(`dice_generic_`)。
+- **ability 生成はどちらの経路にも無い**（S-3 で handler/契約は新設済だが UI 生成は未）。
+- channelId 源: event 側は `character.discordChannelId`（generic は `|| characterId` fallback）。
+- → S-4.3 = ThreadCreationService.displayCharacterInfo を ThreadInteractionService の post 系（flexible/preset/skill＋新規 ability）へ委譲し、Path A 独自の roll* 基本行・util 生成を撤去。**ThreadInteractionService に postAbilityRollButtons(parameter 反復・`AbilityRollCustomId`) を新設**。レイアウトは event 経路に揃える（基本 roll* 独立行は廃止し flexible/preset でカバー）。
+
+**要ユーザー確定**: 新規スレッドの converged レイアウト（推奨: フレキシブルダイス＋プリセット＋スキル＋能力。基本 `roll*1d100` 独立行は廃止）。
+
+### S-4.3 完了（2026-06-04・dual-path 収束・behavior-changing／nestjs-best-practices 委譲・司令塔裏取り＋start:dev 実機確認）
+
+ユーザー確定レイアウト=**基本ダイス(dice*generic*)＋フレキシブル＋プリセット＋スキル(skill*)＋能力(ability*)**（基本行は残し dice*generic* で修復・custom は flexible メニュー）。
+
+- **ThreadInteractionService**（単一生成元）に public `postBasicDiceButtons`（`dice_generic_{1d100/1d6/2d6}_{discordChannelId}` の3ボタン行）と `postAbilityRollButtons`（`postSkillRollButtons` ミラー・`character.parameter`→`ability_{discordChannelId}_{key}`）を新設。
+- **ThreadCreationService**（select 経路）: `ThreadInteractionService` を注入し `displayCharacterInfo` の try/fallback 両方で5 post メソッドへ委譲。roll* 生成依存の private 4メソッド（postActionButtons/postSkillRollButtons/postFlexibleDiceMenu/postPresetDiceButtons）と未使用化した util import を撤去。→ \*\*select 経路の broken `roll*`/孤児 `roll\*\_` 生成を解消\*\*。
+- **ThreadOrchestratorService**（event 経路）: 既存 flexible/preset/skill に basic/ability を additive 追加し両経路を収束。
+- 検証（司令塔再裏取り）: build exit 0 / check:circular **No circular**（ThreadCreationService→ThreadInteractionService は循環なし）/ 4 spec **105 緑**（thread-interaction/creation/orchestrator + handlers.integration）/ **start:dev で `AbilityRollHandler [button] → ability_` 含む全 handler 登録・bot 接続・Cannot resolve/DI/循環エラーなし**＝挙動（DI 解決）確認。diff は当該6ファイルのみ（CRLF churn 非混入）。**コミット済 `d6410a6`**（pathspec 限定）。
+- 軽微: `postAbilityRollButtons` の docstring に「値0以下スキップ」とあるが実装は skill ミラーで個別スキップなし（doc 微差・挙動は skill と一貫）。
+
+### S-4c 完了＝dead 確定（2026-06-04・司令塔トレース）＋ S-4 機能的完了
+
+**characterEdit の roll\* は dead**: `buildCharacterDiceRollButtons`(character-embed.util.ts:383) は行分割ループが**コメントアウト**され**常に `[]` を返す**（buttons[] を組むが actionRows に積まない）。`buildSectionedEmbeds:496` の `components.push(...diceRollButtons)` は空 push。`sendSectionedEmbeds`(components 送信あり) は**呼び出し元ゼロ**、live な `createSectionedEmbeds` 利用（enhanced-character-edit:76,495）は `{ embeds }` のみ・message-updater も実質 roll* を含まない。→ characterEdit は roll* を Discord に出さない。
+
+**結論: live な broken roll\* 生成は S-4.3 で解消済みの Path A のみ。S-4 は機能的に完了**（残りは純粋な dead-code 整理＝S-5）。
+
+### S-5 dead-code インベントリ（司令塔が grep 検証・撤去対象）
+
+全 src で **roll* / character-dice* を生成する live コードは皆無**（S-4.3 後）。よって以下は全て dead（登録されるが発火しない handler 含む）:
+
+**A. 純粋関数/メソッド（DI 非関与・低リスク）**
+
+- `thread-creation.util.ts`: `createDiceRollActionRow`/`createSkillRollActionRows`/`createParameterSelectMenu`/`createPresetButtons`/`chunkButtonsIntoRows`（非spec 呼び出し元ゼロ）＋ 対応 spec describe。
+- `characterEdit/utils/character-embed.util.ts`: `buildCharacterDiceRollButtons`/`appendDiceRollButtonsFromData`/`buildBasicDiceButtons`/`extractDiceRollValue`（dead チェーン）＋ `buildSectionedEmbeds` の dead push（494-496）＋ 対応 spec。
+- `character-display.service.ts`: `createSkillRollButtons`/`createBasicDiceButtons`（呼び出し元ゼロ・サービス自体は embed 用に live なのでメソッドのみ）。
+
+**B. dead サービス（DI provider 撤去・中リスク）**
+
+- `CharacterChannelService`（module 登録のみ・呼び出し元ゼロ）。
+- `CharacterChannelOrchestratorService` ＋ `DiceUIBuilderService`（production entry なし）。
+- characterEdit `CharacterEmbedManagerService.sendSectionedEmbeds`（呼び出し元ゼロ・メソッドのみ）。
+
+**C. dead 登録 handler クラスタ（registry 登録あり・発火なし・高リスク＝start:dev で handler 数確認必須）**
+
+- characterThread: `CharacterDiceHandler`（pattern `character-dice`・生成元なし）＋委譲先 `CharacterDiceButtonsService`＋`CharacterDiceHistoryService`。
+- diceRoll: legacy `DiceRollGeneralHandler`(`^roll\*\d+d\d+`)/`DiceRollSkillHandler`(`^roll\*[^_]+_`)/`DiceRollCustomHandler`(`roll*custom`) ＋委譲先 `CharacterDiceOrchestratorService`＋`DiceButtonUIService`＋`DiceHistoryService`。
+- **注意**: 撤去で registry 登録数が減る（現 runtime 総数から general/skill/custom/character-dice の4 handler 減）。module の providers/onModuleInit/registerHandlers 更新＋handlers.integration.spec の登録数・hasHandler 期待値更新が必要。`DiceRollModalHandler`/`DiceRollPresetHandler`/pagination 等は live のため残す。
+
+**進め方**: A→B→C の順（リスク昇順）で独立スライス。各 build/check:circular/jest、C は start:dev で handler 登録数・無エラーを必ず確認。`DiceRollLogicService`・preset・flexible・skill*・ability*・dice*generic* は live のため絶対残す。
+
+#### S-5a 完了（2026-06-04・group A 純粋関数 dead 撤去・コミット `9dfede7`・nestjs 委譲＋司令塔裏取り）
+
+- 撤去: thread-creation.util の5関数／character-embed.util の buildCharacterDiceRollButtons・appendDiceRollButtonsFromData・buildBasicDiceButtons・extractDiceRollValue（+buildSectionedEmbeds の空 push）／character-display.service の createSkillRollButtons・createBasicDiceButtons。対応 spec describe＋未使用 import も削除。
+- 検証（司令塔再裏取り）: 撤去シンボルの**残存参照ゼロ**（grep）／build exit 0／check:circular **No circular(512)**／3 spec **60 緑**／diff は6ファイル -744行（DI/handler/module 不変）。挙動不変（全 dead）。
+
+#### S-5b 完了（2026-06-04・dead サービス3つ＋sendSectionedEmbeds 撤去・コミット `fafcbe2`・nestjs 委譲＋司令塔裏取り）
+
+- 撤去: `CharacterChannelService`／`CharacterChannelOrchestratorService`／`DiceUIBuilderService`（各+spec）＋ `CharacterEmbedManagerService.sendSectionedEmbeds`。`character-thread-feature.module` の import/providers/exports から除去。
+- 検証（司令塔再裏取り）: 残存参照ゼロ／build 0／check:circular **No circular(506)**／jest（characterThread+characterEdit）**674 緑**／**start:dev 正常起動・DI 解決エラーゼロ・handler 登録 0 failed**。-2408行。挙動不変（全 dead）。
+
+#### S-5c 完了（2026-06-04・dead 登録 handler クラスタ撤去・コミット `ecc6d63`・nestjs 委譲＋司令塔裏取り）
+
+撤去（27 files・-4296行）: diceRoll の `DiceRollGeneral/Custom/Preset/Skill` handler ＋ `CharacterDiceOrchestratorService`＋`DiceButtonUIService`＋`DiceHistoryService`、characterThread の `CharacterDiceHandler`＋`CharacterDiceButtonsService`＋`CharacterDiceHistoryService`(+character-dice-format.util/character-dice-history.pure)。両 module の providers/onModuleInit/registry 登録、dead 専用だった `DiceRollModule`/`DiceRollPaginationModule` import も除去（`DiceServicesModule` は DiceRollLogicService が live のため維持）。handlers.integration.spec 登録数 28→23・dead routing を未登録へ更新。
+
+- 検証（司令塔再裏取り）: 残存参照ゼロ／build exit 0／check:circular **No circular**／jest **54 suites 538 緑**／**start:dev で registry 23 handler（batch 8+6+9・S-4.3 の 28 から −5）・dead handler 未登録・live handler（dice*generic*/skill*/ability*/preset-quick/flexible/modal/pagination）健在・DI エラー 0**。想定外 M（character-thread.orchestrator/thread-orchestrator/dice-roll-modal）は実変更0＝CRLF のみ＝スコープ外不接触。
+- コミット手順: 事前 staged の無関係 junk と混在していたため `git reset`（作業ツリー保全）→ S-5c パスのみ stage → commit。**事前 staged 群は unstage されたが作業ツリーに完全保持**（AI.discord.md 削除等は未コミットのまま残存）。
+- live 維持: `DiceOrchestratorService`(services/dice・custom-modal)／`DicePresetService`(dead メソッド createPresetButton/handlePresetDiceRoll は残置・別 issue)／`DiceRollModalHandler`／`PresetDiceQuickRollHandler`。
+
+> **S-5 完了 ＝ ダイスボタン customId 統合キャンペーン（案2）完了**。S-1〜S-5c の7コミットで「主要バグ修正＋dead-code 約7000行撤去」を達成。残る軽微 follow-up: `DiceOrchestratorService` の dead な preset メソッド除去（任意・別 issue）。
+
+#### （参考・S-5c 着手前の確定分析）司令塔が liveness 完全 disambiguate 済
+
+**確定**: `DiceOrchestratorService.createPresetButton`（`preset-dice*` 生成）は**呼び出し元ゼロ**＝S-4.3 で Path A の preset 生成が `dice_coc7_`/`dice_generic_`(ThreadInteractionService) に切替わった結果 **preset-dice\* は dead**。よって:
+
+- **diceRoll: legacy `DiceRollGeneralHandler`(`^roll\*\d+d\d+`)/`DiceRollSkillHandler`(`^roll\*[^_]+_`)/`DiceRollCustomHandler`(`roll*custom`)/`DiceRollPresetHandler`(`preset-dice*`) の4つすべて dead**（生成元が全て撤去/不在）。委譲先 `CharacterDiceOrchestratorService`＋`DiceButtonUIService`＋`DiceHistoryService` も dead（消費元が dead handler のみ）。
+- **characterThread: `CharacterDiceHandler`(`character-dice` 生成元なし)＋`CharacterDiceButtonsService`＋`CharacterDiceHistoryService` も dead**。
+- **残す（live）**: `DiceOrchestratorService`(services/dice・custom-dice-modal が使用)／`DicePresetService`(DiceOrchestratorService 経由・ただし createPresetButton/handlePresetDiceRoll は dead メソッド)／`DiceRollModalHandler`(custom/param-dice-modal)／pagination／`DiceGenericHandler`/`PresetDiceQuickRollHandler`/`CharacterSkillRollHandler`/`AbilityRollHandler`/`FlexibleDiceSelectHandler` 等。
+- **手順**: dice-roll.module / character-thread-feature.module の providers/onModuleInit/registerHandlers から該当 handler を除去 → handler/orchestrator/service ファイル＋spec 削除 → `handlers.integration.spec.ts` の登録数（現 28→24想定）と roll\*/character-dice の hasHandler 期待値を更新 → **start:dev で registry 登録数の減少・無エラー・live handler 健在を必ず確認**。`DiceOrchestratorService` の dead な preset メソッド除去は任意（別途）。
+- 注意: registry 登録数が runtime で減る（roll\* General/Skill/Custom/Preset の4 + character-dice の1 = 5減）。`character-dice-buttons.service` は `DicePresetService`/`DiceRollPaginationService` 等を inject しているため、module の不要 import 整理も伴う。
+
+---
+
 ## 2026-06-04 P1-D 後続 ③ dice*(coc7|dnd5e|sw25)* preset ボタンを配線（方針A 最小機能化・挙動変更=バグ修正）
 
 Codex 仕様設計＋ユーザー判断「方針A: 全 action 最小機能化」に基づく。skill\_ に続く未routing latent bug の修正。
@@ -810,7 +1046,7 @@ test-expansion→create-test で3点を固定（全項目テスタビリティ�
 - 「型安全性100%完全達成」= 誇張（実態 any 多数・非テスト約230件）→ 現実的表現へ。対象: `AI.md` / `AI.architecture.md`(両) / `AI.domain.md` / `AI.types.md`。
 - 「循環は UserDomain⇄AuthDomain のみ許容」= H6（2026-06-01）で解消済み・**現在ゼロ**へ統一。対象: `AI.domain.md` / `src/ARCHITECTURE.md`（現状表）/ `src/discord/AI.discord.md` / `src/events/DESIGN.md`。
 - 「イベント駆動移行100%/3系統バス」→ `TypedEventService` 1系統（`core/events`）へ統一済みに修正。`src/events/DESIGN.md` の TypedEventService 配置を `shared/application`→`core/events`（T4 反映漏れ）へ訂正。`src/events/AI.event.md` は現状節と履歴の境界を明示。
-- デッドコード3点（`character-id.service.ts`/`character.schema.ts`/`CharacterEventHandlerService`）の「削除可」誤判定に訂正注記（現役）。対象: `document/refactoring-audit-2026-05-30.md` ほか。
+- デッドコード3点（`character-id.service.ts`/`character.schema.ts`/`CharacterEventHandlerService`）の「削除可」誤判定に訂正注記（現役）。対象: `docs/refactor/refactoring-audit-2026-05-30.md` ほか。
 - `npm run`→`pnpm run`、カバレッジ等の古い数値スナップショットに「最新は AI.test.md」注記。
 
 ### 削除（役目を終えた一過性メモ / 空ファイル）7 本
@@ -828,7 +1064,7 @@ test-expansion→create-test で3点を固定（全項目テスタビリティ�
 
 ### 派生課題（ドキュメント整理の範囲外＝別タスク）
 
-- ~~`discord-facade.service.ts` は現役だが DESIGN の目標フローから除外＝**廃止計画が宙ぶらりん**（Phase 1 で要決着）。~~ → **決着（2026-06-03・ドキュメントのみ／コード不変）**: 実コード精査の結果、**facade は存続**で確定し DESIGN.md §4.5 に明記。旧メモ `DISCORD_SERVICES_ANALYSIS.md` の「Phase1 廃止／TypedEventService 代替」は事実誤認（facade に `emitEvent` は無く、`initializeDiscord` 起動オーケストレーション＋REST `DiscordController` 裏付け＋ヘルス集約が実責務でイベント発行はしない）のため撤回。`§4.2 目標フロー` 図に無いのは図が interaction ルーティング専用だから。**実ランタイム経路は `main.ts`/`discord.controller` → `DiscordService`(@deprecated ラッパー) → `DiscordFacadeService` → 各専門サービス**で、`DiscordFacadeService` を直接注入するのはラッパーのみ（Grep 確認）。よって真の廃止対象は `DiscordService` ラッパーであり、DESIGN.md Phase 4 に「main.ts/discord.controller を facade 直注入へ置換 → ラッパー削除」を具体化。**挙動を変える置換は安全網テスト＋ユーザー承認後**（本記録時点では未着手＝コード不変）。
+- ~~`discord-facade.service.ts` は現役だが DESIGN の目標フローから除外＝**廃止計画が宙ぶらりん**（Phase 1 で要決着）。~~ → **決着（2026-06-03・ドキュメントのみ／コード不変）**: 実コード精査の結果、**facade は存続**で確定し DESIGN.md §4.5 に明記。旧メモ `docs/history/DISCORD_SERVICES_ANALYSIS.md` の「Phase1 廃止／TypedEventService 代替」は事実誤認（facade に `emitEvent` は無く、`initializeDiscord` 起動オーケストレーション＋REST `DiscordController` 裏付け＋ヘルス集約が実責務でイベント発行はしない）のため撤回。`§4.2 目標フロー` 図に無いのは図が interaction ルーティング専用だから。**実ランタイム経路は `main.ts`/`discord.controller` → `DiscordService`(@deprecated ラッパー) → `DiscordFacadeService` → 各専門サービス**で、`DiscordFacadeService` を直接注入するのはラッパーのみ（Grep 確認）。よって真の廃止対象は `DiscordService` ラッパーであり、DESIGN.md Phase 4 に「main.ts/discord.controller を facade 直注入へ置換 → ラッパー削除」を具体化。**挙動を変える置換は安全網テスト＋ユーザー承認後**（本記録時点では未着手＝コード不変）。
 - ~~`src/discord/features/characterEdit/index.ts` の `CharacterEditServiceFactory` が実在しない `./character-channel-create.service` を `require`＝**デッドコード**（呼ぶと失敗）。~~ → **削除済み（2026-06-03）**: 呼び出し元ゼロ（Grep 確認）の未使用 Factory を class ごと削除。実サービス（ChannelDetectionService/CharacterCreationService/CharacterNotificationService）は `./services` から export 済みで DI 経由利用のため挙動不変。検証: build 成功 / check:circular「No circular dependency found!」/ characterEdit spec 21 suites・292 tests 緑。
 
 ---
@@ -965,7 +1201,7 @@ user: 全 success 200/'成功'。create=err 500/'ユーザー作成に失敗し�
 専任サブエージェントを割り当て、4視点（設計・依存／コード品質／テスト・保守性／未完成・負債）＋
 `nestjs-best-practices` スキル（40ルール）で「劣っている点」を洗い出した。
 
-- 詳細レポート: `document/refactoring-audit-2026-05-30.md`
+- 詳細レポート: `docs/refactor/refactoring-audit-2026-05-30.md`
 - フォルダ別の生所見: `outputs/refactor-audit/findings/<folder>.md`（セッション作業領域）
 
 ### 監査で判明した構造的問題（3点）
@@ -1028,7 +1264,7 @@ user: 全 success 200/'成功'。create=err 500/'ユーザー作成に失敗し�
 
 ## 2026-05-31 Phase S（セキュリティ最優先）完了
 
-ブランチ `refactor/security-phase-s`。計画書 `document/refactor-phase-S-plan.md` の S1〜S4 を実施。
+ブランチ `refactor/security-phase-s`。計画書 `docs/refactor/refactor-phase-S-plan.md` の S1〜S4 を実施。
 各ステップは nestjs-best-practices スキルのサブエージェントに委譲し、`pnpm run build` /
 `pnpm run check:circular` で検証（循環は許容の UserDomain⇄AuthDomain 1件のみ、新規循環なし）。
 

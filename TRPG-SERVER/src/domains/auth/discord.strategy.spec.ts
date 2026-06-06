@@ -1,11 +1,11 @@
-import { ConfigService } from '@nestjs/config'
 import { DiscordStrategy } from './discord.strategy'
 import { AuthService } from './services/auth.service'
 import { DiscordUserProfile } from './models/discord-user.model'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * DiscordStrategy は PassportStrategy 継承クラス。
- * constructor は super 初期化のため ConfigService.get を必要とするのでモックし、
+ * constructor は super 初期化のため AppConfigService.get を必要とするのでモックし、
  * validate は副作用の境界（AuthService）をモックして done コールバックの呼ばれ方を検証する。
  */
 describe('DiscordStrategy', () => {
@@ -16,15 +16,15 @@ describe('DiscordStrategy', () => {
   beforeEach(() => {
     authService = { validateDiscordUser: jest.fn() }
     // super() が OAuth 設定を読むため get に固定値を返させる。
-    // ConfigService.get はオーバーロードが複雑なので、最小の get を持つオブジェクトを渡す。
+    // AppConfigService.get はオーバーロードが複雑なので、最小の get を持つオブジェクトを渡す。
     const map: Record<string, string> = {
-      DISCORD_APPLICATIONID: 'app-id',
-      DISCORD_SECRET: 'secret',
-      DISCORD_CALLBACK_URL: 'http://localhost:3000/auth/discord/callback'
+      'discord.applicationId': 'app-id',
+      'discord.secret': 'secret',
+      'auth.redirectUrl': 'http://localhost:3000/auth/discord/callback'
     }
     getMock = jest.fn((key: string) => map[key])
-    const configService = { get: getMock } as unknown as ConfigService
-    strategy = new DiscordStrategy(authService as unknown as AuthService, configService)
+    const appConfigService = { get: getMock } as unknown as AppConfigService
+    strategy = new DiscordStrategy(authService as unknown as AuthService, appConfigService)
   })
 
   afterEach(() => {
