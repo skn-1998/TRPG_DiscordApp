@@ -9,25 +9,30 @@ TRPGサーバーのDiscordチャンネル管理を行うサービス群のドキ
 ## 🗂️ ファイル構成と役割
 
 ### index.ts
+
 **役割**: チャンネルサービス群のエクスポート管理
+
 - 各チャンネルサービスのエクスポート統合
 - 外部モジュールからのアクセスポイント
 - DiscordChannelManagerServiceオーケストレーター経由での統合利用を推奨
 
 **提供内容**:
+
 ```typescript
 export { ChannelCreatorService } from './channel-creator.service'
-export { ChannelCacheService } from './channel-cache.service'  
+export { ChannelCacheService } from './channel-cache.service'
 export { MessageManagerService } from './message-manager.service'
 
 // 注意: チャンネル管理はDiscordChannelManagerServiceオーケストレーターを通じて統合利用
 ```
 
 ### channel-creator.service.ts
+
 **役割**: チャンネル作成・権限管理エンジン
 **責務**: チャンネル作成・設定、権限管理・アクセス制御、カテゴリ管理
 
 **主要機能**:
+
 - **チャンネル作成**: テキスト・ボイス・カテゴリチャンネルの作成
 - **スレッド管理**: パブリック・プライベートスレッドの作成と管理
 - **権限管理**: ユーザー・ロール別の詳細権限設定
@@ -36,33 +41,97 @@ export { MessageManagerService } from './message-manager.service'
 - **情報取得**: チャンネル詳細情報の包括的取得
 
 **アーキテクチャパターン**: Factory Pattern + Builder Pattern
+
 - チャンネルタイプ別の作成戦略
 - 複雑な設定の段階的構築
 
+> **注意**: 各メソッドの引数 `options` や戻り値は名前付き型エイリアスではなく、実装上は**インライン型注釈**で定義されている（一部の組立・集計ロジックは `channel-creator.pure.ts` の純関数へ切り出し済み）。以下は実装（`channel-creator.service.ts`）の型に準拠した展開形。
+
 **主要メソッド**:
+
 ```typescript
 // チャンネル情報取得
-getChannelInfo(client: Client, channelId: string): Promise<ChannelInfo | null>
+// 戻り値の形は channel-creator.pure.ts の ChannelInfo インターフェースと同形（実装はインライン型注釈）
+getChannelInfo(
+  client: Client,
+  channelId: string
+): Promise<{
+  id: string
+  name: string
+  type: string
+  guildId?: string
+  parentId?: string
+  topic?: string
+  memberCount?: number
+} | null>
 
-// チャンネル作成
-createChannel(client: Client, guildId: string, name: string, options?: ChannelOptions): Promise<TextChannel | NewsChannel | null>
+// チャンネル作成（options はインライン型。専用の型エイリアスは無い）
+createChannel(
+  client: Client,
+  guildId: string,
+  name: string,
+  options?: {
+    type?: ChannelType
+    parent?: string
+    topic?: string
+    permissions?: OverwriteResolvable[]
+    position?: number
+    nsfw?: boolean
+    bitrate?: number
+    userLimit?: number
+    rateLimitPerUser?: number
+  }
+): Promise<TextChannel | NewsChannel | null>
 
 // スレッド作成
-createThread(client: Client, channelId: string, name: string, options?: ThreadOptions): Promise<ThreadChannel | null>
+createThread(
+  client: Client,
+  channelId: string,
+  name: string,
+  options?: {
+    type?: ChannelType.PublicThread | ChannelType.PrivateThread
+    autoArchiveDuration?: 60 | 1440 | 4320 | 10080
+    reason?: string
+  }
+): Promise<ThreadChannel | null>
 
-// 権限確認・設定
-checkChannelPermissions(client: Client, channelId: string, userId: string, permissions: string[]): Promise<PermissionCheck>
-setChannelPermissions(client: Client, channelId: string, targetId: string, permissions: PermissionSettings, isRole?: boolean): Promise<boolean>
+// 権限確認（戻り値はインライン型。PermissionCheck 等の型エイリアスは無い）
+checkChannelPermissions(
+  client: Client,
+  channelId: string,
+  userId: string,
+  permissions: string[]
+): Promise<{
+  hasAccess: boolean
+  permissions: Record<string, boolean>
+  member?: GuildMember
+}>
 
-// カテゴリ管理
-createCategory(client: Client, guildId: string, name: string, options?: CategoryOptions): Promise<CategoryChannel | null>
+// 権限設定
+setChannelPermissions(
+  client: Client,
+  channelId: string,
+  targetId: string,
+  permissions: { allow?: string[]; deny?: string[] },
+  isRole?: boolean
+): Promise<boolean>
+
+// カテゴリ管理（options はインライン型）
+createCategory(
+  client: Client,
+  guildId: string,
+  name: string,
+  options?: { position?: number; permissions?: OverwriteResolvable[] }
+): Promise<CategoryChannel | null>
 ```
 
 ### channel-cache.service.ts
+
 **役割**: チャンネルキャッシュ管理エンジン
 **責務**: チャンネル情報のキャッシュ管理、メッセージキャッシュの最適化、パフォーマンス向上とメモリ効率化
 
 **主要機能**:
+
 - **インテリジェントキャッシュ**: TTLベースの自動キャッシュ管理
 - **メッセージキャッシュ**: チャンネル別メッセージの効率的キャッシュ
 - **メモリ最適化**: 動的サイズ制限とLRU回収戦略
@@ -71,10 +140,12 @@ createCategory(client: Client, guildId: string, name: string, options?: Category
 - **Snowflake処理**: Discordの雪片IDからタイムスタンプ抽出
 
 **設計パターン**: Cache-Aside Pattern + LRU Eviction Strategy
+
 - オンデマンドキャッシュ更新
 - 最近使用頻度に基づく回収
 
 **キャッシュ設定**:
+
 ```typescript
 // 環境変数による動的設定
 CACHE_TTL: 300000 // 5分
@@ -83,6 +154,7 @@ MAX_CHANNEL_CACHE: 50 // チャンネル数制限
 ```
 
 **主要メソッド**:
+
 ```typescript
 // キャッシュからチャンネル取得
 getChannel(client: Client, channelId: string): Promise<TextChannel | NewsChannel | ThreadChannel | null>
@@ -99,10 +171,12 @@ performMaintenance(): Promise<void>
 ```
 
 ### message-manager.service.ts
+
 **役割**: メッセージ管理エンジン
 **責務**: メッセージ送信・編集・削除、Embed・コンポーネント管理、メッセージ履歴操作
 
 **主要機能**:
+
 - **リッチメッセージ送信**: テキスト・Embed・コンポーネント付きメッセージ
 - **メッセージ編集**: 動的コンテンツ更新とコンポーネント変更
 - **一括削除**: 効率的なメッセージクリーンアップ
@@ -111,10 +185,12 @@ performMaintenance(): Promise<void>
 - **自動クリーンアップ**: 期間指定での古いメッセージ削除
 
 **設計パターン**: Command Pattern + Batch Processing
+
 - メッセージ操作のコマンド化
 - 大量操作の効率的バッチ処理
 
 **主要メソッド**:
+
 ```typescript
 // メッセージ操作
 sendMessage(client: Client, channelId: string, content: string, options?: MessageOptions): Promise<Message>
@@ -135,6 +211,7 @@ addReaction(client: Client, channelId: string, messageId: string, emoji: string)
 ## 🏗️ アーキテクチャ設計
 
 ### サービス間依存関係
+
 ```
 DiscordChannelManagerService (オーケストレーター層)
 ├── ChannelCreatorService (作成・権限層)
@@ -143,6 +220,7 @@ DiscordChannelManagerService (オーケストレーター層)
 ```
 
 ### 外部依存関係
+
 ```
 External Dependencies
 ├── Discord.js Client - Discord API操作
@@ -152,6 +230,7 @@ External Dependencies
 ```
 
 ### データフロー
+
 ```
 1. ChannelCreatorService → チャンネル作成・権限設定
 2. ChannelCacheService → パフォーマンス最適化
@@ -164,6 +243,7 @@ External Dependencies
 ## 🚀 使用方法
 
 ### 基本的な使用パターン（推奨）
+
 ```typescript
 // 統合オーケストレーター経由（推奨）
 constructor(
@@ -183,6 +263,7 @@ await this.discordChannelManager.sendMessage(channel.id, 'Welcome!', {
 ```
 
 ### 個別サービス使用（特殊用途）
+
 ```typescript
 // 個別サービス直接使用
 constructor(
@@ -206,6 +287,7 @@ const deletedCount = await this.messageManager.deleteOldMessages(
 ```
 
 ### 高度な使用パターン
+
 ```typescript
 // 複合操作例: カテゴリ付きチャンネル作成
 const category = await this.channelCreator.createCategory(client, guildId, 'TRPG Sessions')
@@ -233,6 +315,7 @@ if (stats.memoryUsageEstimate > 1000) {
 ## 📊 パフォーマンス特性
 
 ### レスポンス時間目安
+
 - **チャンネル取得（キャッシュヒット）**: ~1ms
 - **チャンネル取得（APIフェッチ）**: ~50-150ms
 - **チャンネル作成**: ~100-300ms
@@ -240,11 +323,13 @@ if (stats.memoryUsageEstimate > 1000) {
 - **一括メッセージ削除**: ~200-500ms（100件）
 
 ### キャッシュ効率
+
 - **ヒット率**: 85-95%（典型的な使用パターン）
 - **メモリ使用量**: ~2KB/チャンネル + ~1KB/メッセージ
 - **TTL**: 5分（環境変数で調整可能）
 
 ### 制限事項
+
 - **Discord API制限**: レート制限遵守
 - **一括削除**: 最大100件/リクエスト
 - **キャッシュサイズ**: デフォルト50チャンネル + 30メッセージ/チャンネル
@@ -255,18 +340,20 @@ if (stats.memoryUsageEstimate > 1000) {
 ## 🔧 設定とカスタマイズ
 
 ### 環境変数設定
+
 ```typescript
 // キャッシュ設定
-DISCORD_CACHE_TTL=300000          // キャッシュ有効期限（ms）
-DISCORD_MESSAGE_CACHE_LIMIT=30    // メッセージキャッシュ数
-DISCORD_CHANNEL_CACHE_LIMIT=50    // チャンネルキャッシュ数
+DISCORD_CACHE_TTL = 300000 // キャッシュ有効期限（ms）
+DISCORD_MESSAGE_CACHE_LIMIT = 30 // メッセージキャッシュ数
+DISCORD_CHANNEL_CACHE_LIMIT = 50 // チャンネルキャッシュ数
 
 // メンテナンス設定
-DISCORD_CLEANUP_INTERVAL=60000    // クリーンアップ間隔（ms）
-DISCORD_MEMORY_THRESHOLD=1000     // メモリ閾値（KB）
+DISCORD_CLEANUP_INTERVAL = 60000 // クリーンアップ間隔（ms）
+DISCORD_MEMORY_THRESHOLD = 1000 // メモリ閾値（KB）
 ```
 
 ### カスタムチャンネル設定
+
 ```typescript
 // チャンネル作成オプション
 const channelOptions = {
@@ -289,23 +376,15 @@ const channelOptions = {
 ```
 
 ### メッセージオプション設定
+
 ```typescript
 // リッチメッセージ設定
 const messageOptions = {
-  embeds: [
-    new EmbedBuilder()
-      .setTitle('TRPG Session')
-      .setDescription('Session started!')
-      .setColor(0x00FF00)
-  ],
+  embeds: [new EmbedBuilder().setTitle('TRPG Session').setDescription('Session started!').setColor(0x00ff00)],
   components: [
-    new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId('join-session')
-          .setLabel('Join Session')
-          .setStyle(ButtonStyle.Primary)
-      )
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId('join-session').setLabel('Join Session').setStyle(ButtonStyle.Primary)
+    )
   ]
 }
 ```
@@ -315,6 +394,7 @@ const messageOptions = {
 ## 🚨 トラブルシューティング
 
 ### よくある問題
+
 1. **チャンネル作成失敗**
    - 原因: 権限不足、名前重複、制限到達
    - 対処: 権限確認、名前一意性チェック、制限確認
@@ -328,15 +408,17 @@ const messageOptions = {
    - 対処: 再試行ロジック、権限確認、コンテンツ検証
 
 ### 診断コマンド
+
 ```typescript
 // キャッシュ状態確認
 const cacheStats = channelCacheService.getCacheStats()
 console.log('Cache Statistics:', JSON.stringify(cacheStats, null, 2))
 
 // チャンネル権限確認
-const permissions = await channelCreatorService.checkChannelPermissions(
-  client, channelId, userId, ['VIEW_CHANNEL', 'SEND_MESSAGES']
-)
+const permissions = await channelCreatorService.checkChannelPermissions(client, channelId, userId, [
+  'VIEW_CHANNEL',
+  'SEND_MESSAGES'
+])
 console.log('Permission Check:', permissions)
 
 // メモリ使用量確認
@@ -347,14 +429,13 @@ if (stats.memoryUsageEstimate > 1000) {
 ```
 
 ### メンテナンスタスク
+
 ```typescript
 // 定期メンテナンス
 await channelCacheService.performMaintenance()
 
 // 古いメッセージクリーンアップ
-const deletedCount = await messageManagerService.deleteOldMessages(
-  client, channelId, 30, 1000
-)
+const deletedCount = await messageManagerService.deleteOldMessages(client, channelId, 30, 1000)
 
 // キャッシュリセット
 channelCacheService.clearCache()
@@ -362,4 +443,4 @@ channelCacheService.clearCache()
 
 ---
 
-*最終更新: 2025-08-21*
+_最終更新: 2025-08-21_

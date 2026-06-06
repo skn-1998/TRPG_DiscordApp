@@ -20,7 +20,7 @@ describe('DicePageCancelButtonService', () => {
   it('customId から channelId/messageId を取り出して cancelPagination に渡し、成功時は deleteReply する', async () => {
     // Arrange
     pagination.cancelPagination.mockReturnValue(true)
-    const interaction = createMockButtonInteraction({ customId: 'dice-cancel*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -35,7 +35,7 @@ describe('DicePageCancelButtonService', () => {
   it('deleteReply が失敗したら editReply でキャンセル済み表示にフォールバックする', async () => {
     // Arrange
     pagination.cancelPagination.mockReturnValue(true)
-    const interaction = createMockButtonInteraction({ customId: 'dice-cancel*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel*msg1*ch1' })
     ;(interaction.deleteReply as jest.Mock).mockRejectedValueOnce(new Error('cannot delete'))
 
     // Act
@@ -49,7 +49,7 @@ describe('DicePageCancelButtonService', () => {
 
   it('customId に messageId/channelId が欠けるとき followUp で警告し cancelPagination を呼ばない', async () => {
     // Arrange
-    const interaction = createMockButtonInteraction({ customId: 'dice-cancel' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel' })
 
     // Act
     await service.execute(interaction)
@@ -65,7 +65,7 @@ describe('DicePageCancelButtonService', () => {
   it('状態が見つからず cancelPagination が false のとき followUp で通知し deleteReply しない', async () => {
     // Arrange
     pagination.cancelPagination.mockReturnValue(false)
-    const interaction = createMockButtonInteraction({ customId: 'dice-cancel*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -79,7 +79,7 @@ describe('DicePageCancelButtonService', () => {
 
   it('deferUpdate で例外が発生しても catch で握り followUp のエラー通知に留める', async () => {
     // Arrange
-    const interaction = createMockButtonInteraction({ customId: 'dice-cancel*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-cancel*msg1*ch1' })
     ;(interaction.deferUpdate as jest.Mock).mockRejectedValueOnce(new Error('boom'))
 
     // Act & Assert

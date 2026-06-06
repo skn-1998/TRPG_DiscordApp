@@ -1,5 +1,10 @@
 # Discord Services ディレクトリ分析・統合提案
 
+## ⚠️ 状態注記（2026-06-03 更新）
+提案の Phase2(dice)/3(monitoring)/4(channel) は実装済み。
+
+**Phase1「`discord-facade.service` 廃止／`TypedEventService` で完全代替」は撤回（事実誤認）。** 下記 §「即座に廃止可能なファイル > 1. discord-facade.service.ts」の `emitEvent(...)` 代替例は実コードに存在しない（facade にイベント発行メソッドは無い）。facade の実責務は `initializeDiscord()` 起動オーケストレーション＋REST `DiscordController` の裏付け（verify/send/create/info）＋ヘルス集約で、`TypedEventService` では置換不能。**`DiscordFacadeService` は存続で確定**（正本は `src/discord/DESIGN.md` §4.5）。実際の廃止対象は `DiscordService`（@deprecated ラッパー）で、移行手順は DESIGN.md Phase 4 を参照。本ファイルの当該記述は歴史的経緯として残置するが**鵜呑みにしないこと**。
+
 ## 📊 概要
 
 `discord/services`ディレクトリ内の18ファイルを分析し、重複処理の特定、features統合可能性の調査、廃止対象の洗い出しを実施しました。

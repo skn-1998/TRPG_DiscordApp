@@ -2,6 +2,395 @@
 
 このファイルは作業を別ウィンドウ/セッションへ委譲するときに更新する。
 
+## 現在の委譲 — プロジェクト問題点レビュー報告書（2026-06-05）
+
+### 目的
+
+`C:\workspace\dokcer-trpg-remix-app` モノレポ全体を対象に、現在の問題点・リスク・未完了作業・壊れやすい箇所を実ファイル根拠付きで洗い出し、ユーザーへ提出できる報告書を作成する。修正はしない。
+
+### Claude 起動後に最初に読む
+
+- `CLAUDE.md`
+- `AGENTS.md`
+- `TRPG-SERVER/AI.md`
+- `TRPG-SERVER/src/ARCHITECTURE.md`
+- `TRPG-SERVER/docs/README.md`
+- `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md`
+- `TRPG-SERVER/docs/reviews/document-inventory-review-2026-06-05.md`
+- `TRPG-SERVER/AI.refactor.md`
+- `TRPG-SERVER/src/discord/DESIGN.md`
+- `TRPG-SERVER/src/discord/interactions/README.md`
+- `TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md`
+- `TRPG-SERVER/src/events/DESIGN.md`
+- `trpg-remix-app/AI.md`（存在する場合）
+
+### 使うスキル
+
+- `trpg-architecture`: モノレポ全体と TRPG-SERVER の正本ドキュメント、依存方向、未完了領域を理解するため。
+- `claude-delegation-reviewer`: 問題点を断定しすぎず、根拠・影響・次の確認・優先度をレビュー可能な形にするため。
+- 必要に応じて `nestjs-best-practices`: NestJS module/provider/DI 境界、禁止パターン、service ownership の問題を読むため。
+- 必要に応じて `vercel-react-best-practices`: frontend 側を軽く見る場合に React/Remix の構造リスクを読むため。
+
+### 変更してよい範囲
+
+- 新規作成のみ: `TRPG-SERVER/docs/reviews/project-issues-report-2026-06-05.md`
+
+### 触らない範囲
+
+- 既存ドキュメントの本文変更、移動、削除。
+- 実装コード全般（`.ts`, `.tsx`, `.spec.ts`, package scripts など）。
+- package lock / generated files / dist / coverage。
+- unrelated dirty files の revert / 整形 / stage / commit。
+
+### 既知の作業ツリー状態
+
+作業開始時点で大量の既存 dirty / deleted / untracked がある。特に TRPG-SERVER の docs 整理、Discord / events / characterThread / diceRoll / domains 周辺に未コミット変更が多い。Claude は必ず `git status --short` を確認し、自分の担当である新規レポート以外を変更しない。
+
+### レビュー観点
+
+1. **高リスクな実装問題**
+   - 既知の未配線 customId / dead path / legacy handler / projection 依存 / modal field mismatch / routing mismatch。
+   - `TODO` / `FIXME` / `throw new Error` / `NotImplemented` / `deprecated` / `legacy`。
+2. **アーキテクチャ問題**
+   - `forwardRef`, `@Global`, `EventEmitterModule.forRoot`, `process.env`, `ConfigService`, `ModuleRef.get`, feature provider の core/events/interactions 登録。
+   - `features -> domains -> core -> shared` 逆流。
+3. **テスト/型/ビルド問題**
+   - 直近の正本で未解決とされる type/test/build/check:circular のリスク。
+   - 今回は原則 build/test は実行しないが、必要な focused validation command を提案する。
+4. **ドキュメント/運用問題**
+   - 正本と実装のずれ、導線切れ、古い As-Is 記述、未追跡 docs、削除済み docs の扱い。
+5. **frontend / monorepo 問題**
+   - `trpg-remix-app` の AI/docs/package/route 構造を軽く確認し、TRPG-SERVER ほど深掘りしないが、明確な未完了・型チェック不能・mock 依存などがあれば記録する。
+
+### 必須調査コマンド例
+
+```powershell
+git status --short
+rg --files -g "*.md"
+rg -n "TODO|FIXME|未実装|未完|deferred|legacy|deprecated|NotImplemented|throw new Error" TRPG-SERVER trpg-remix-app
+rg -n "forwardRef|@Global\\(|EventEmitterModule\\.forRoot|process\\.env|ConfigService|ModuleRef\\.get" TRPG-SERVER/src
+rg -n "customId|custom-id|registerHandlers|InteractionRegistryService|onModuleInit|postActionButtons|roll\\*|dice_generic_|skill_|ability_" TRPG-SERVER/src/discord
+rg -n "mock|TODO|FIXME|typecheck|action|loader" trpg-remix-app/app trpg-remix-app/AI.md trpg-remix-app/package.json
+```
+
+### 作成する報告書
+
+`TRPG-SERVER/docs/reviews/project-issues-report-2026-06-05.md`
+
+必須構成:
+
+- `# プロジェクト問題点レビュー報告 2026-06-05`
+- `## 結論`
+  - 重要度順に 5〜10 件の主な問題を短く列挙。
+- `## Findings`
+  - 各 finding は `ID / 優先度 / 種別 / 問題 / 根拠 / 影響 / 推奨対応 / 次の検証` を含める。
+  - 優先度は P0/P1/P2/P3。
+  - 種別は bug / architecture / test / docs / operations / frontend / unknown。
+- `## すぐ直す候補`
+- `## 設計判断が必要な候補`
+- `## 後回しでよい候補`
+- `## 未確認・推測`
+- `## 実行した調査コマンド`
+- `## Claude から Codex へのレビュー依頼事項`
+
+### 注意
+
+- 根拠のない「問題」は禁止。ファイルパスと、可能なら行番号・grep 結果を添える。
+- 実ファイルで確認できないものは `推測:` または `未確認` とする。
+- 問題を見つけても修正しない。
+- dirty tree 上の既存変更を今回の問題として扱う場合、今回変更起因か既存起因かを明記する。
+
+### 検証
+
+```powershell
+cd TRPG-SERVER
+Test-Path .\docs\reviews\project-issues-report-2026-06-05.md
+rg -n "## Findings|P0|P1|未確認|推測|Claude から Codex" .\docs\reviews\project-issues-report-2026-06-05.md
+git status --short -- docs/reviews/project-issues-report-2026-06-05.md
+git diff -- docs/reviews/project-issues-report-2026-06-05.md
+```
+
+### 返却する証拠
+
+- 変更ファイル一覧（新規レポートのみであること）
+- finding 件数と P0/P1/P2/P3 内訳
+- 上位 5 件の要約
+- 実行したコマンド
+- 未確認・推測
+- Codex がレビューすべきポイント
+
+### 完了条件
+
+- 新規報告書が作成され、問題点が根拠付きで優先度分類されている。
+- 既存 docs / 実装コードを変更していない。
+- unrelated dirty changes を revert / 整形 / stage / commit していない。
+- Codex がそのままユーザー向けに要約・判断できる形で返している。
+
+---
+
+## 現在の委譲 — TRPG-SERVER ドキュメント整理レビュー（2026-06-05）
+
+### 目的
+
+TRPG-SERVER に存在する Markdown ドキュメントを棚卸しし、現在も作業の正本・索引・設計書として機能しているもの、履歴として残すべきもの、陳腐化して作業導線として機能していないもの、削除/統合/移動候補を、実ファイル参照とリンク/参照状況を根拠にレビューする。
+
+### Claude 起動後に最初に読む
+
+- `CLAUDE.md`
+- `AGENTS.md`
+- `TRPG-SERVER/AI.md`
+- `TRPG-SERVER/src/ARCHITECTURE.md`
+- `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md`
+- `TRPG-SERVER/AI.refactor.md`
+- `TRPG-SERVER/src/discord/DESIGN.md`
+- `TRPG-SERVER/src/discord/interactions/README.md`
+- `TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md`
+- `TRPG-SERVER/src/events/DESIGN.md`
+
+### 使うスキル
+
+- `trpg-architecture`: 正本ドキュメント・設計書・履歴ドキュメントの役割分担を読むため。
+- `claude-delegation-reviewer`: 削除候補を断定せず、根拠・リスク・次の確認をレビュー可能な形にするため。
+
+### 変更してよい範囲
+
+- 新規作成のみ: `TRPG-SERVER/docs/reviews/document-inventory-review-2026-06-05.md`
+
+### 触らない範囲
+
+- 既存ドキュメントの削除・移動・リネーム・本文変更。
+- 実装コード全般（`.ts`, `.spec.ts`, package scripts など）。
+- `TRPG-SERVER/AI.md`, `AI.*.md`, `src/ARCHITECTURE.md`, `src/discord/DESIGN.md`, `src/events/DESIGN.md` など既存正本の直接編集。
+- frontend `trpg-remix-app/**`。
+- unrelated dirty files の revert / 整形 / stage / commit。
+
+### 既知の作業ツリー状態
+
+作業開始時点で大量の既存 dirty / deleted / untracked がある。特に `AI.*.md`, `src/discord/**`, `src/events/**`, `docs/**`, 旧削除候補 docs に既存変更が多い。Claude は必ず `git status --short` を確認し、今回の新規レビュー文書以外を変更しない。
+
+### レビュー観点
+
+1. `TRPG-SERVER` 配下の Markdown を全列挙する。
+   ```powershell
+   cd TRPG-SERVER
+   rg --files -g "*.md"
+   ```
+2. 各ドキュメントを次に分類する。
+   - `Active canonical`: 現在の正本・設計ルール・索引として使うべきもの
+   - `Active scoped`: 特定領域の現役 README / DESIGN / migration guide
+   - `Historical keep`: 古いが履歴・意思決定記録として残す価値があるもの
+   - `Superseded`: 新しい正本に置き換わっており、作業導線としては使うべきでないもの
+   - `Broken / missing`: git status 上 delete されている、参照先がない、リンク切れの疑いがあるもの
+   - `Cleanup candidate`: 削除・統合・移動候補。ただし本タスクでは実行しない
+3. 参照状況を確認する。
+   - `rg -n "<file name>" .`
+   - `rg -n "AI\\.discord|INTERACTION_REGISTRY_IMPLEMENTATION|DISCORD_SERVICES_ANALYSIS|adapters|feature-inventory|DESIGN.md|MIGRATION_GUIDE" .`
+   - Markdown links のリンク先が存在するかを代表的に確認する。
+4. docs drift を確認する。
+   - `AI.md` / `AI.features.md` / `src/discord/DESIGN.md` / `src/discord/interactions/README.md` / `src/events/DESIGN.md` / `docs/reviews/feature-inventory-2026-06-05.md` の矛盾を拾う。
+   - 古い履歴ドキュメントに新しい正本への注記があるか確認する。
+5. `git status --short` で削除済み/未追跡の Markdown を別枠にする。
+
+### 作成するレビュー文書
+
+`TRPG-SERVER/docs/reviews/document-inventory-review-2026-06-05.md`
+
+必須構成:
+
+- `# TRPG-SERVER ドキュメント整理レビュー 2026-06-05`
+- `## 結論`
+  - すぐ削除してよいとは断定しない。削除/統合/索引化候補を優先度付きで示す。
+- `## 分類表`
+  - path / 分類 / 現在の役割 / 根拠 / 推奨アクション
+- `## Active canonical`
+- `## Active scoped`
+- `## Historical keep`
+- `## Superseded / cleanup candidates`
+- `## Broken / missing / link-risk`
+- `## 削除・統合の推奨順`
+  - P0: 参照切れや削除済み参照の修正
+  - P1: 作業導線から外すべき陳腐化 docs
+  - P2: 履歴として残すが索引から外す docs
+- `## 実行した調査コマンド`
+- `## 未確認・要判断`
+
+### 注意
+
+- 根拠のない「不要」は禁止。必ず参照状況、正本との重複、最新情報との矛盾、削除済み状態などを添える。
+- 実ファイルを読まずに分類しない。読めていないものは `未確認` とする。
+- `推測:` を使い、断定と推測を分ける。
+- 既存 docs は編集しない。レビュー文書だけを作る。
+
+### 検証
+
+```powershell
+cd TRPG-SERVER
+Test-Path .\docs\reviews\document-inventory-review-2026-06-05.md
+rg -n "Active canonical|Superseded|Cleanup candidate|未確認|推測" .\docs\reviews\document-inventory-review-2026-06-05.md
+git status --short -- docs/reviews/document-inventory-review-2026-06-05.md
+git diff -- docs/reviews/document-inventory-review-2026-06-05.md
+```
+
+### 返却する証拠
+
+- 変更ファイル一覧（新規レビュー文書のみであること）
+- 分類した Markdown 件数
+- Active canonical / Active scoped の代表
+- cleanup candidate 上位 10 件
+- broken / missing / link-risk の代表
+- 参照状況確認に使ったコマンド
+- 未確認・要判断
+
+### 完了条件
+
+- 新規レビュー文書が作成され、削除/統合候補が根拠付きで分類されている。
+- 既存 docs / 実装コードを変更していない。
+- unrelated dirty changes を revert / 整形 / stage / commit していない。
+- 削除判断は実行せず、レビュー結果として Codex に返している。
+
+---
+
+## 現在の委譲 — TRPG-SERVER 機能棚卸しドキュメント更新（2026-06-05）
+
+### 目的
+
+TRPG-SERVER が現在持っている機能と、実装待ち・保留・未配線の作業を、実コードと正本ドキュメントを根拠に棚卸しし、レビュー可能なドキュメントへ更新する。
+
+### Claude 起動後に最初に読む
+
+- `CLAUDE.md`
+- `AGENTS.md`
+- `TRPG-SERVER/AI.md`
+- `TRPG-SERVER/src/ARCHITECTURE.md`
+- `TRPG-SERVER/src/discord/DESIGN.md`
+- `TRPG-SERVER/src/discord/interactions/README.md`
+- `TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md`
+- `TRPG-SERVER/src/events/DESIGN.md`
+- `TRPG-SERVER/AI.refactor.md`
+- `TRPG-SERVER/AI.development.md`
+- `TRPG-SERVER/AI.domain.md`
+- `TRPG-SERVER/AI.features.md`
+- `TRPG-SERVER/AI.test.md`
+- `TRPG-SERVER/AI.types.md`
+
+### 使うスキル
+
+- `trpg-architecture`: TRPG-SERVER の全体構成、domains / discord / events / config / core の境界を現状に合わせて読む。
+- `claude-delegation-reviewer`: 返却時に、更新内容・根拠・未確認点・検証結果を Codex がレビューできる形で出す。
+
+### 変更してよい範囲
+
+- 新規作成: `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md`
+- 必要最小限の索引更新: `TRPG-SERVER/AI.md`
+- 必要最小限の参照追記: `TRPG-SERVER/AI.features.md`
+- 必要なら、棚卸し結果と明らかに矛盾する古い「最新メモ」だけを小さく注記する。ただし大規模な履歴整理はしない。
+
+### 触らない範囲
+
+- 実装コード全般（`.ts` / `.spec.ts` / package scripts など）は変更しない。
+- `TRPG-SERVER/src/ARCHITECTURE.md`, `src/discord/DESIGN.md`, `src/events/DESIGN.md` は、設計方針変更が必要な矛盾を見つけた場合も勝手に大改稿しない。矛盾として棚卸し文書に記録し、Codex へ返す。
+- frontend `trpg-remix-app/**`
+- unrelated dirty files の revert / 整形 / stage / commit
+- 既存の大量 docs 履歴の削除や一括整形
+
+### 既知の作業ツリー状態
+
+作業開始時点で `TRPG-SERVER` には大量の既存変更・削除・未追跡ファイルがある。Claude は必ず `git status --short` を確認し、自分の担当範囲以外を戻さない。特に `AGENTS.md`, `AI.*.md`, Discord / characterThread / diceRoll / events 周辺に既存 dirty が多い。
+
+### 棚卸し方法
+
+1. `git status --short` を確認する。
+2. まず正本ドキュメントを読み、古い記述と最新正本の優先順位を確認する。
+3. 実コードから現在の機能を確認する。最低限、次を実ファイルで確認する:
+   - `TRPG-SERVER/src/domains/**`
+   - `TRPG-SERVER/src/discord/commands/**`
+   - `TRPG-SERVER/src/discord/features/**`
+   - `TRPG-SERVER/src/discord/interactions/**`
+   - `TRPG-SERVER/src/events/**`
+   - `TRPG-SERVER/src/config/**`
+   - `TRPG-SERVER/src/core/**`
+4. `rg` で未実装・保留・legacy・deprecated・TODO を拾う。ただしコメントだけで断定しない。必要な代表コマンド:
+   ```powershell
+   cd TRPG-SERVER
+   rg -n "TODO|FIXME|未実装|未完|deferred|legacy|deprecated|Phase|残|次|pending|not implemented" .
+   rg -n "throw new Error\\(|NotImplemented|TODO" src
+   rg -n "customId|custom-id|registerHandlers|InteractionRegistryService|onModuleInit" src/discord
+   rg -n "forwardRef|process\\.env|ConfigService|ModuleRef\\.get|@Global\\(" src
+   ```
+5. 棚卸し結果は「確認済み」と「推測」を明確に分ける。実ファイルで確認できないものは `推測:` と書く。
+
+### 作成するドキュメント
+
+`TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md` を作成する。
+
+必須構成:
+
+- `# TRPG-SERVER 機能棚卸し 2026-06-05`
+- `## 読み方`
+  - 何を根拠にしたか
+  - 古い履歴ドキュメントより優先する正本
+  - `推測:` 表記の意味
+- `## 現在ある機能`
+  - Web API / auth / user / character / dice-roll domain
+  - Discord bot / slash command / interaction registry / characterEdit / characterThread / diceRoll / gameSystem / userDefinedDice
+  - events / config / monitoring / core infrastructure
+  - 各項目に根拠ファイルを最低 1 つ以上付ける
+- `## 実装待ち・保留・未配線`
+  - 優先度（高/中/低）
+  - 状態（未実装 / deferred / legacy cleanup / docs drift / bug suspected / design decision needed）
+  - 根拠ファイル
+  - 次に確認すべき focused test または grep
+- `## ドキュメントずれ`
+  - 古い記述、正しい現状、根拠、直すならどこか
+- `## 次の実装候補`
+  - 1 slice ずつ独立検証できる単位で書く
+  - `/discord`, `/events`, `/domains` を同時に大きく動かす候補は分割案を書く
+- `## 未確認・要判断`
+  - 実コードだけでは判断できなかった点
+- `## 実行した調査コマンド`
+  - コマンドと重要な結果の要約
+
+### AI.md / AI.features.md 更新
+
+- `TRPG-SERVER/AI.md` の正本ドキュメント索引か冒頭最新メモに、作成した棚卸し文書へのリンクを追加する。
+- `TRPG-SERVER/AI.features.md` が空または古い場合、詳細は新規棚卸し文書を参照する旨を短く追記する。
+- 古い履歴本文を大きく消さない。
+
+### 検証
+
+ドキュメント更新のみなので build/test は原則不要。ただし、Markdown の参照リンクと対象ファイルの存在は確認する。
+
+必ず実行:
+
+```powershell
+cd TRPG-SERVER
+Test-Path .\docs\reviews\feature-inventory-2026-06-05.md
+Test-Path .\AI.md
+Test-Path .\AI.features.md
+rg -n "feature-inventory-2026-06-05" AI.md AI.features.md docs
+git diff -- AI.md AI.features.md docs/reviews/feature-inventory-2026-06-05.md
+```
+
+### 返却する証拠
+
+- 変更ファイル一覧
+- 棚卸しで確認した主要機能カテゴリ
+- 実装待ち・保留の上位 5 件
+- `推測:` として残した判断
+- 実行した調査コマンドと結果要約
+- `git diff -- AI.md AI.features.md docs/reviews/feature-inventory-2026-06-05.md` の要約
+- scope 外として触らなかったもの
+
+### 完了条件
+
+- `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md` が作成され、各機能・残タスクに根拠ファイルが付いている。
+- `TRPG-SERVER/AI.md` と `TRPG-SERVER/AI.features.md` から棚卸し文書を辿れる。
+- 実装コードを変更していない。
+- unrelated dirty changes を revert / 整形 / stage / commit していない。
+- 未確認点は断定せず `推測:` または `未確認` として残している。
+
+---
+
 ## 現在の委譲 — P1-A InteractionsModule slim 化（2026-06-04）
 
 ### 目的

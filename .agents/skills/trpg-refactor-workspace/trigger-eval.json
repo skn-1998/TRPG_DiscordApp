@@ -1,0 +1,23 @@
+[
+  { "query": "document/refactor-phase-S-plan.md の S2 と S3 を進めたい。env のバリデーション強化と CORS の一本化を、nestjs-best-practices に実装させながら順にやって。", "should_trigger": true },
+  { "query": "AI.refactor.md に書いた『イベントバス3系統を TypedEventService に統一』のリファクタ、依存もいじるから慎重に進めてほしい。検証は check:circular まで。", "should_trigger": true },
+  { "query": "TRPG-SERVER のリファクタ計画を進めて。outputs の監査で出た High 課題を上から着手したい。", "should_trigger": true },
+  { "query": "auth まわりを段階的にリファクタしたい。まず src/auth と domains/auth の二重構造を整理して、循環参照を増やさないように。", "should_trigger": true },
+  { "query": "discord の巨大サービス dice-roll-pagination.service.ts が531行あるので単一責任に分割したい。計画立てて実装まで委譲してやって。", "should_trigger": true },
+  { "query": "process.env 直読みが25ファイルくらい残ってるらしいので、AppConfigService に集約するリファクタを進めて。ビルドと循環チェックもして。", "should_trigger": true },
+  { "query": "リファクタの続きやろう。前回の Phase の残りを AI.refactor.md 見ながら進めて、終わったらドキュメントも更新しといて。", "should_trigger": true },
+  { "query": "domains の Controller が @Res() で手動レスポンスしてるのを例外フィルタ方式に直すリファクタ、影響範囲広いけど計画立てて進めて。", "should_trigger": true },
+  { "query": "CLAUDE_HANDOFF.md に委譲メモがある。その範囲で TRPG-SERVER のリファクタを進めて。", "should_trigger": true },
+  { "query": "test-expansion と nestjs-best-practices を使い分けながら、character ドメインのリファクタとテスト追加を一気に進めたい。", "should_trigger": true },
+
+  { "query": "TRPG-SERVER のアーキテクチャ全体像を教えて。domains と discord と events の関係が知りたい。", "should_trigger": false },
+  { "query": "character.service.ts の calculateModifier 関数にユニットテストを追加して。", "should_trigger": false },
+  { "query": "dice-roll の集計バグを調べて。特定の眼で結果がずれるので原因を特定して直して。", "should_trigger": false },
+  { "query": "character-ui.service.ts の formatEmbed が副作用とロジック混在でテストしにくい。テストできるようにリファクタしたい。", "should_trigger": false },
+  { "query": "trpg-remix-app の login 画面のレイアウトを Mantine で直したい。", "should_trigger": false },
+  { "query": "pnpm run build が AppConfig の get の型エラーで落ちる。直して。", "should_trigger": false },
+  { "query": "AI.refactor.md に何が書いてあるか要約して。", "should_trigger": false },
+  { "query": "新しいダイスコマンド /secret を追加したい。実装して。", "should_trigger": false },
+  { "query": "circular dependency が1個出てるけど、これ許容されてるやつ？確認して。", "should_trigger": false },
+  { "query": "package.json の依存を最新に上げて、脆弱性を潰したい。", "should_trigger": false }
+]

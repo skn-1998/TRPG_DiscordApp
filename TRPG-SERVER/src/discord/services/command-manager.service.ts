@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { REST, Routes, AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { CommandsService } from '../commands/commands.service'
+import { AppConfigService } from '../../config/config.service'
 /**
  * コマンドマネージャーサービス
  * Discord Bot のコマンド管理、登録、実行を担当
@@ -16,10 +16,10 @@ export class CommandManagerService implements OnModuleInit {
 
   constructor(
     private readonly discordClientService: DiscordClientService,
-    private readonly configService: ConfigService,
+    private readonly appConfigService: AppConfigService,
     private readonly commandsService: CommandsService
   ) {
-    const discordToken = this.configService.get<string>('discord.token')
+    const discordToken = this.appConfigService.get('discord.token')
     if (!discordToken) {
       throw new Error('Discord token is not configured')
     }
@@ -122,8 +122,8 @@ export class CommandManagerService implements OnModuleInit {
     }
 
     try {
-      const applicationId = this.configService.get<string>('discord.applicationId')
-      const guildId = this.configService.get<string>('discord.guildId')
+      const applicationId = this.appConfigService.get('discord.applicationId')
+      const guildId = this.appConfigService.get('discord.guildId')
       console.log(applicationId, guildId)
 
       if (!applicationId) {

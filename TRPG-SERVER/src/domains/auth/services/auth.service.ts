@@ -1,6 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import { ConfigService } from '@nestjs/config'
 import { firstValueFrom, lastValueFrom } from 'rxjs'
 import { URLSearchParams } from 'url'
 import { AxiosResponse } from 'axios'
@@ -27,7 +26,6 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly httpService: HttpClientService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService,
     private readonly appConfigService: AppConfigService,
     private readonly cryptoService: CryptoService,
     private readonly jwtTokenService: JwtTokenService

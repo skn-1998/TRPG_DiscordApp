@@ -17,7 +17,6 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { Request as ExpressRequest, Response } from 'express'
-import { ConfigService } from '@nestjs/config'
 import { AuthService } from './services/auth.service'
 import { UserService } from '../user/user.service'
 import { User } from '../user/models/user.model'
@@ -36,6 +35,7 @@ import {
   ApiError,
   SkipResponseWrapper
 } from '../../core/http'
+import { AppConfigService } from '../../config/config.service'
 
 // Express型の拡張を使用（src/types/express/index.d.tsで定義）
 
@@ -57,7 +57,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService,
+    private readonly appConfigService: AppConfigService,
     private readonly cookieService: CookieService // DI追加
   ) {}
 
@@ -98,11 +98,11 @@ export class AuthController {
     }
     await this.authService.signInAndRegisterUserInfo(user)
     const jwt = await this.authService.generateJwt(user)
-    const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+    const isProduction = this.appConfigService.get('app.environment') === 'production'
     // クッキー設定をCookieServiceに委譲
     this.cookieService.setJwtCookie(res, jwt, isProduction)
     // フロントエンドページへリダイレクト
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || '/'
+    const frontendUrl = this.appConfigService.get('app.frontendUrl') || '/'
     res.redirect(frontendUrl)
   }
 
@@ -164,7 +164,7 @@ export class AuthController {
     }
     await this.authService.signInAndRegisterUserInfoWithTokens(user, authData)
     const jwt = await this.authService.generateJwt(user)
-    const isProduction = this.configService.get<string>('NODE_ENV') === 'production'
+    const isProduction = this.appConfigService.get('app.environment') === 'production'
     // クッキー設定をCookieServiceに委譲（passthrough のためレスポンス本体は interceptor が封筒化）
     this.cookieService.setJwtCookie(res, jwt, isProduction)
     // 成功データを return → ResponseInterceptor が SuccessResponse でラップ

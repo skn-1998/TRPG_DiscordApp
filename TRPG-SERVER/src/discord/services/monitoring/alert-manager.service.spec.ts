@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { AlertManagerService, AlertRule } from './alert-manager.service'
 
@@ -6,13 +5,12 @@ import { AlertManagerService, AlertRule } from './alert-manager.service'
  * AlertManagerService は「ルール容器(Map) + EventEmitter2 発行 + クールダウン状態管理 + 統計」を持つ
  * 監視サービス。discord.js 非依存。
  *
- * 依存(ConfigService / EventEmitter2)は副作用の境界としてモックする。
+ * 依存(EventEmitter2)は副作用の境界としてモックする。
  * 時刻は Date.now() を直呼びするため jest.useFakeTimers() で決定化する。
  * private(isInCooldown 等)は覗かず、公開 API の振る舞い(emit 呼び出し・戻り値・統計)で検証する。
  */
 describe('AlertManagerService', () => {
   let service: AlertManagerService
-  let configService: jest.Mocked<Pick<ConfigService, 'get'>>
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit' | 'on'>>
 
   const FIXED_NOW = 1_700_000_000_000
@@ -21,14 +19,10 @@ describe('AlertManagerService', () => {
     jest.useFakeTimers()
     jest.setSystemTime(FIXED_NOW)
 
-    configService = { get: jest.fn() }
     // 指示どおり EventEmitter2 は emit/on を持つモックにする
     eventEmitter = { emit: jest.fn(), on: jest.fn() }
 
-    service = new AlertManagerService(
-      configService as unknown as ConfigService,
-      eventEmitter as unknown as EventEmitter2
-    )
+    service = new AlertManagerService(eventEmitter as unknown as EventEmitter2)
   })
 
   afterEach(() => {

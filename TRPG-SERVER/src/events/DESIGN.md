@@ -6,14 +6,20 @@
 
 ## 現状（2026-05-31 実コード調査）
 
-イベント基盤は **新旧が並存**している。
+> ⚠️ **2026-06-03 追記**: 下表は 2026-05-31 時点の調査スナップショット。その後 **T1〜T5 を全て完了**し、現状は次の通り（本表は履歴）:
+>
+> - `TypedEventService` は **`core/events/typed-event.service.ts`**（@Global `CoreEventsModule`）へ移設済み（T4）。
+> - `EventRouterService` は撤去済み（T1）。レガシーバスも撤去済み（T2c）。
+> - 循環依存は **ゼロ**（H6 / 2026-06-01 で旧 UserDomain⇄AuthDomain も解消、`check:circular` = "No circular dependency found!"）。
 
-| 機構                              | 場所                                         | 状態                            | 利用                                                           |
-| --------------------------------- | -------------------------------------------- | ------------------------------- | -------------------------------------------------------------- |
-| **TypedEventService**             | `shared/application/typed-event.service.ts`  | **主流（統一先）**              | 145利用 / 41ファイル。EventEmitter2 を型安全ラップ             |
-| **EventRegistryService**          | `events/event-registry.service.ts`           | 新・File-based 登録             | TypedEventService 経由でハンドラ自動登録                       |
-| ~~レガシーバス（旧 global bus）~~ | ~~`events/bus/global-event-bus.service.ts`~~ | **削除済み（T2c, 2026-05-31）** | 全消費者が TypedEventService へ移行・dead 利用を撤去し本体削除 |
-| **EventRouterService**            | `events/bus/event-router.service.ts`         | **デッド（即撤去可）**          | routing メソッドの呼び出し元ゼロ。登録/再exportのみ            |
+イベント基盤は（2026-05-31 当時）**新旧が並存**していた。
+
+| 機構                              | 場所                                            | 状態                            | 利用                                                           |
+| --------------------------------- | ----------------------------------------------- | ------------------------------- | -------------------------------------------------------------- |
+| **TypedEventService**             | `core/events/typed-event.service.ts`（T4 移設） | **主流（統一先）**              | EventEmitter2 を型安全ラップ                                   |
+| **EventRegistryService**          | `events/event-registry.service.ts`              | 新・File-based 登録             | TypedEventService 経由でハンドラ自動登録                       |
+| ~~レガシーバス（旧 global bus）~~ | ~~`events/bus/global-event-bus.service.ts`~~    | **削除済み（T2c, 2026-05-31）** | 全消費者が TypedEventService へ移行・dead 利用を撤去し本体削除 |
+| ~~**EventRouterService**~~        | ~~`events/bus/event-router.service.ts`~~        | **撤去済み（T1, 2026-05-31）**  | routing メソッドの呼び出し元ゼロだったため削除                 |
 
 **逆流依存の実態（audit の「contracts 逆流」は誤り。contracts 自体はクリーン）:**
 

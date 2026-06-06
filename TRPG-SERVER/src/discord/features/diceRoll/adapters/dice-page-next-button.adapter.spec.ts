@@ -33,7 +33,7 @@ describe('DicePageNextButtonService', () => {
     // Arrange
     pagination.updatePage.mockReturnValue(dummyPage)
     pagination.getPaginationState.mockReturnValue({ totalPages: 3 })
-    const interaction = createMockButtonInteraction({ customId: 'dice-next*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -48,7 +48,7 @@ describe('DicePageNextButtonService', () => {
     pagination.updatePage.mockReturnValue(dummyPage)
     pagination.getPaginationState.mockReturnValue({ totalPages: 5 })
     pagination.createPaginationControls.mockResolvedValue(['row'])
-    const interaction = createMockButtonInteraction({ customId: 'dice-next*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -61,7 +61,7 @@ describe('DicePageNextButtonService', () => {
 
   it('customId に messageId/channelId が欠けるとき followUp で警告し委譲しない', async () => {
     // Arrange: '*' で分割しても messageId が空になる customId
-    const interaction = createMockButtonInteraction({ customId: 'dice-next' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next' })
 
     // Act
     await service.execute(interaction)
@@ -77,7 +77,7 @@ describe('DicePageNextButtonService', () => {
   it('既に最後のページ(updatePage が null)のとき followUp で通知し editReply しない', async () => {
     // Arrange
     pagination.updatePage.mockReturnValue(null)
-    const interaction = createMockButtonInteraction({ customId: 'dice-next*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -93,7 +93,7 @@ describe('DicePageNextButtonService', () => {
     // Arrange
     pagination.updatePage.mockReturnValue(dummyPage)
     pagination.getPaginationState.mockReturnValue(null)
-    const interaction = createMockButtonInteraction({ customId: 'dice-next*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next*msg1*ch1' })
 
     // Act
     await service.execute(interaction)
@@ -109,7 +109,7 @@ describe('DicePageNextButtonService', () => {
     // Arrange: editReply 直前まで進めてから editReply で投げさせる
     pagination.updatePage.mockReturnValue(dummyPage)
     pagination.getPaginationState.mockReturnValue({ totalPages: 2 })
-    const interaction = createMockButtonInteraction({ customId: 'dice-next*msg1*ch1' })
+    const interaction = createMockButtonInteraction({ customId: 'dice-page-next*msg1*ch1' })
     ;(interaction.editReply as jest.Mock).mockRejectedValueOnce(new Error('boom'))
 
     // Act & Assert: 例外を外へ漏らさない

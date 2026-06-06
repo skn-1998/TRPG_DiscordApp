@@ -1,5 +1,8 @@
 # flexible-dice-param\* メニュー・ボタンの存在確認
 
+## ⚠️ 履歴注記（2026-06-03）
+本書は2025年の調査メモ。処理は現在 FlexibleDiceParamHandler 経由(handlers ベース)。正本は src/discord/DESIGN.md。
+
 ## 📋 調査結果
 
 ### ✅ **存在します**

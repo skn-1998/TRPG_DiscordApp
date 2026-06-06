@@ -33,7 +33,8 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
 ## 役割分担
 
 - **メイン（あなた）= 司令塔**：計画書/コードを読んで理解し、計画を実コードで精緻化（行番号・深刻度・
-  影響範囲・危険な変更の洗い出し）、ステップ分割、委譲プロンプト作成、サブエージェントの成果の裏取り、
+  影響範囲・危険な変更の洗い出し）、ステップ分割、委譲プロンプト作成、サブエージェントの成果の裏取り
+  （build/check:circular/test の再実行と `/code-review` による diff レビュー）、
   ユーザー判断の上申、AI.*.md への記録。**自分では大きな実装をしない**（小さな確認・grep・diff 確認は可）。
 - **nestjs-best-practices スキル = 実装担当**：確定した変更内容をサブエージェントとして実装する。
 - **test 系スキル = テスト担当（司令塔は test-expansion）**：`test-expansion` で対象選定とテスタビリティ評価（緑/黄/赤）
@@ -106,6 +107,12 @@ TRPG-SERVER のリファクタリングを「計画→委譲→検証→記録�
   かつて許容していた UserDomain⇄AuthDomain は H6 で解消済みなので、**いかなる循環も新規混入させない**こと
   （SharedModule 等を経由して循環を増やしていないか必ず確認）。
 - Phase 3/5 の動作保証テストを自分で実行して緑を確認。必要なら `pnpm run start:dev` で起動確認。
+- **`/code-review` で diff をレビューする**（build/check:circular/test が拾わない正確性バグ・意図しない挙動変化・
+  重複/単純化余地を検出する裏取り）。リファクタでは特に「挙動を変えていないか」を重視する（条件分岐・early return・
+  emit/reply・呼ぶ依存の差し替え漏れ）。effort は通常 medium、モジュール境界変更や危険な変更を含むステップは high。
+  指摘の扱い：**正確性バグ・挙動変化は commit 前に直す**（自分の小修正 or nestjs-best-practices へ再委譲し、修正後に
+  build/check:circular/test を再実行）。リファクタのスコープ外の改善提案は記録して別タスク化する（`--fix` で安易に
+  一括適用しない。inline PR コメントが要るときだけ `--comment`）。
 - `git diff` で変更範囲が想定どおりか、機密ログ等が消えたかを grep で確認。
 （CLAUDE.md 規約：build 後は start:dev と check:circular を実施して依存関係を確認すること）
 
@@ -209,4 +216,6 @@ nestjs 用の型との違いは、①起動スキルが `refactor-for-testabilit
 - **`refactor-for-testability` へ地図(architecture)の制約を注入せずに丸投げしない。** 汎用スキルなので、純粋層へ DI を
   持ち込まない・循環を増やさない等のプロジェクト規約を委譲プロンプトに明記する（Phase 6 で build/check:circular を裏取り）。
 - 自動コミットしない。挙動を変える変更を「テスト追加のため」に紛れ込ませない。
+- **`/code-review` の指摘を裏取りせず `--fix` で一括適用しない。** リファクタのスコープ外改変・未検証変更の混入を防ぐ。
+  正確性バグ・挙動変化だけ直し（修正後に build/check:circular/test を再実行）、スコープ外提案は記録して別タスク化する。
 - フロント（trpg-remix-app）の改修が必要な変更を、影響確認なしに進めない。

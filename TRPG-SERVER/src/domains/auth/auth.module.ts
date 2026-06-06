@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule, ConfigService } from '@nestjs/config'
 import { PassportModule } from '@nestjs/passport'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
@@ -8,6 +7,7 @@ import { UserModule } from '../user/user.module'
 import { AuthTokenModule } from './token/auth-token.module'
 import { SharedModule } from '../../core/shared/shared.module'
 import { CookieService } from '../../core/http/cookie.service'
+import { AppConfigModule } from '../../config/config.module'
 
 /**
  * 認証モジュール
@@ -22,9 +22,9 @@ import { CookieService } from '../../core/http/cookie.service'
  * 互換性のために re-export する。
  */
 @Module({
-  imports: [PassportModule, UserModule, ConfigModule, SharedModule, AuthTokenModule],
+  imports: [PassportModule, UserModule, AppConfigModule, SharedModule, AuthTokenModule],
   controllers: [AuthController],
-  providers: [AuthService, DiscordStrategy, ConfigService, CookieService],
+  providers: [AuthService, DiscordStrategy, CookieService],
   exports: [AuthService, AuthTokenModule]
 })
 export class AuthModule {}

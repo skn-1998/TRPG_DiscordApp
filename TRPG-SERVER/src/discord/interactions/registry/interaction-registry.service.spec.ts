@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ModuleRef } from '@nestjs/core'
 import { InteractionRegistryService } from './interaction-registry.service'
 import { PatternMatcherService } from './pattern-matcher.service'
 import {
@@ -95,16 +94,7 @@ describe('InteractionRegistryService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        InteractionRegistryService,
-        PatternMatcherService,
-        {
-          provide: ModuleRef,
-          useValue: {
-            get: jest.fn().mockReturnValue(undefined)
-          }
-        }
-      ]
+      providers: [InteractionRegistryService, PatternMatcherService]
     }).compile()
 
     service = module.get<InteractionRegistryService>(InteractionRegistryService)
@@ -227,14 +217,7 @@ describe('InteractionRegistryService', () => {
     it('ハンドラー実行エラーの場合、例外をスローする', async () => {
       // 新しいRegistryServiceを使用（既存のハンドラーがない状態）
       const freshModule = await Test.createTestingModule({
-        providers: [
-          InteractionRegistryService,
-          PatternMatcherService,
-          {
-            provide: ModuleRef,
-            useValue: { get: jest.fn().mockReturnValue(undefined) }
-          }
-        ]
+        providers: [InteractionRegistryService, PatternMatcherService]
       }).compile()
 
       const freshService = freshModule.get<InteractionRegistryService>(InteractionRegistryService)

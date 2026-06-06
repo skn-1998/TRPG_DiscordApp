@@ -1,5 +1,8 @@
 # キャラクタースレッド内ダイスロール処理関数一覧
 
+## ⚠️ 履歴注記（2026-06-03）
+本書は2025年のフロー追跡メモ。現在は handlers ベース(FlexibleDiceSelectHandler 等)へ移行済みで、Discord フローの正本は src/discord/DESIGN.md。
+
 ## 📋 概要
 
 `characterThread`フォルダ内で、キャラクタースレッド内部でダイスロールするアクション処理をする関数の一覧です。

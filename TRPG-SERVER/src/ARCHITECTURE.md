@@ -1,8 +1,8 @@
 # TRPG-SERVER 全体アーキテクチャ方針
 
 **最終更新**: 2026-05-30  
-**ステータス**: Step 0 設計ルール固定  
-**関連**: [AI.architecture.md](./AI.architecture.md) / [discord/DESIGN.md](./discord/DESIGN.md) / events/DESIGN.md（作成予定）
+**ステータス**: Step 0 完了・Step 1/2 完了（events/DESIGN.md 作成・バス一本化 2026-05-31）・Step 3 以降 未着手  
+**関連**: [AI.architecture.md](./AI.architecture.md) / [discord/DESIGN.md](./discord/DESIGN.md) / [events/DESIGN.md](./events/DESIGN.md)
 
 ---
 
@@ -11,7 +11,7 @@
 `src/` 配下の再設計を安全に進めるため、module 境界・依存方向・責務の置き場所を固定する。
 
 この文書は実装詳細ではなく、今後のリファクタで守る **全体ルール** を定義する。  
-`discord/DESIGN.md` や events/DESIGN.md は、この文書の下位設計として扱う。
+`discord/DESIGN.md` や [events/DESIGN.md](./events/DESIGN.md) は、この文書の下位設計として扱う。
 
 ---
 
@@ -25,7 +25,7 @@
 | `shared` / `events` | EventEmitter 初期化と event bus が複数系統で並存             | 高     |
 | `discord`           | InteractionsModule が feature 実装を所有している             | 高     |
 | `domains`           | domain service が event bus / application concern に直接依存 | 高     |
-| `auth` / `user`     | `forwardRef` による循環依存                                  | 中     |
+| `auth` / `user`     | ✅ H6（2026-06-01）解消済み・循環は現在ゼロ                  | -      |
 | `types` / `utils`   | 横断置き場として肥大化しやすい                               | 中     |
 | `config`            | 概ね良いが、直接 `process.env` / `ConfigService` 使用が残る  | 中     |
 

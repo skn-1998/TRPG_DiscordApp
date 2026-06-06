@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { Request, Response } from 'express'
 import { HttpStatus, BadRequestException, ExecutionContext, CallHandler, ArgumentsHost } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { ConfigService } from '@nestjs/config'
 import { lastValueFrom, of } from 'rxjs'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
@@ -21,6 +20,7 @@ import {
   ApiErrorResponseMeta
 } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
+import { AppConfigService } from '../../config/config.service'
 
 // Express の Request.user は src/types/express/index.d.ts で
 // `user?: JwtTokenPayload` として拡張されている。テストではこれに準拠する。
@@ -30,7 +30,10 @@ describe('AuthController', () => {
   let controller: AuthController
   let authService: jest.Mocked<AuthService>
   let userService: jest.Mocked<UserService>
-  let configService: jest.Mocked<ConfigService>
+  const configValues: Record<string, string> = {
+    'app.environment': 'development',
+    'app.frontendUrl': 'http://localhost:3000'
+  }
 
   // テストデータ
   const mockUser: User = {
@@ -154,8 +157,11 @@ describe('AuthController', () => {
       removeCharacterId: jest.fn()
     }
 
-    const configServiceMock = {
-      get: jest.fn()
+    configValues['app.environment'] = 'development'
+    configValues['app.frontendUrl'] = 'http://localhost:3000'
+
+    const appConfigServiceMock = {
+      get: jest.fn((key: string) => configValues[key])
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -163,7 +169,7 @@ describe('AuthController', () => {
       providers: [
         { provide: AuthService, useValue: authServiceMock },
         { provide: UserService, useValue: userServiceMock },
-        { provide: ConfigService, useValue: configServiceMock },
+        { provide: AppConfigService, useValue: appConfigServiceMock },
         // CookieService は res を操作するだけの副作用境界。外部依存が無いため
         // モックせず実体を登録し、res.cookie / res.clearCookie の呼び出しを検証する。
         CookieService
@@ -173,7 +179,6 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController)
     authService = module.get(AuthService)
     userService = module.get(UserService)
-    configService = module.get(ConfigService)
   })
 
   describe('基本機能', () => {
@@ -202,7 +207,7 @@ describe('AuthController', () => {
       const req = mockRequest()
       const res = mockResponse()
 
-      configService.get.mockReturnValue('development')
+      configValues['app.environment'] = 'development'
       authService.signInAndRegisterUserInfo.mockResolvedValue(undefined)
       authService.generateJwt.mockResolvedValue('test-jwt-token')
 
@@ -241,7 +246,7 @@ describe('AuthController', () => {
       const req = mockRequest()
       const res = mockResponse()
 
-      configService.get.mockReturnValue('production')
+      configValues['app.environment'] = 'production'
       authService.signInAndRegisterUserInfo.mockResolvedValue(undefined)
       authService.generateJwt.mockResolvedValue('test-jwt-token')
 
@@ -318,7 +323,7 @@ describe('AuthController', () => {
       const req = mockRequest()
       const res = mockResponse()
 
-      configService.get.mockReturnValue('development')
+      configValues['app.environment'] = 'development'
       authService.authenticate.mockResolvedValue(mockAuthData)
       authService.getUserInfo.mockResolvedValue(mockDiscordProfile)
       authService.signInAndRegisterUserInfoWithTokens.mockResolvedValue(undefined)
@@ -372,7 +377,7 @@ describe('AuthController', () => {
     it('logs out successfully; envelope equals ApiResponseUtil.success (200/成功)', async () => {
       const req = mockRequest()
       const res = mockResponse()
-      configService.get.mockReturnValue('development')
+      configValues['app.environment'] = 'development'
 
       const data = await controller.logout(req, res)
 

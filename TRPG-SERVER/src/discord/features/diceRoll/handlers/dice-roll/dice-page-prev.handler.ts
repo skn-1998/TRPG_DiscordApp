@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common'
 import { ButtonInteraction } from 'discord.js'
 import { ButtonInteractionHandler } from '../../../../interactions/handlers/base/interaction-handler.base'
 import { DicePagePrevButtonService } from '../../adapters/dice-page-prev-button.adapter'
+import { DicePageCustomId } from '../../custom-id'
 
 /**
  * ダイスページ戻るボタンハンドラー
  *
- * customId: dice-page-prev または dice-prev*{messageId}*{channelId}
+ * customId: dice-page-prev*{messageId}*{channelId}
  */
 @Injectable()
 export class DicePagePrevHandler extends ButtonInteractionHandler {
@@ -15,7 +16,7 @@ export class DicePagePrevHandler extends ButtonInteractionHandler {
   }
 
   getCustomIdPattern(): string {
-    return 'dice-page-prev'
+    return DicePageCustomId.patterns.prev
   }
 
   async execute(interaction: ButtonInteraction): Promise<void> {

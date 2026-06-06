@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter'
-import { ConfigService } from '@nestjs/config'
 
 /**
  * アラート管理サービス
@@ -63,10 +62,7 @@ export class AlertManagerService implements OnModuleInit {
   // コマンド失敗履歴
   private commandFailureHistory: number[] = []
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly eventEmitter: EventEmitter2
-  ) {
+  constructor(private readonly eventEmitter: EventEmitter2) {
     this.logger.debug('Alert Manager Service initialized')
   }
 
