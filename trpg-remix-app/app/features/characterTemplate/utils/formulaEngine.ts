@@ -2,6 +2,26 @@
 
 import type { EvaluationContext } from '../types'
 
+type FormulaToken =
+  | { type: 'number'; value: string }
+  | { type: 'field'; value: string }
+  | { type: 'identifier'; value: string }
+  | { type: 'operator'; value: '+' | '-' | '*' | '/' }
+  | { type: 'paren'; value: '(' | ')' }
+  | { type: 'comma'; value: ',' }
+
+type FormulaFunction = (...args: number[]) => number
+type OperatorTokenValue = Extract<FormulaToken, { type: 'operator' }>['value']
+type ParenTokenValue = Extract<FormulaToken, { type: 'paren' }>['value']
+
+const ALLOWED_FUNCTIONS: Record<string, { minArgs: number; maxArgs?: number; fn: FormulaFunction }> = {
+  max: { minArgs: 1, fn: (...args) => Math.max(...args) },
+  min: { minArgs: 1, fn: (...args) => Math.min(...args) },
+  floor: { minArgs: 1, maxArgs: 1, fn: (value) => Math.floor(value) },
+  ceil: { minArgs: 1, maxArgs: 1, fn: (value) => Math.ceil(value) },
+  round: { minArgs: 1, maxArgs: 1, fn: (value) => Math.round(value) }
+}
+
 // ========================================
 // 式パーサー
 // ========================================
@@ -23,29 +43,306 @@ export function extractDependencies(formula: string): string[] {
  * 式の構文チェック（簡易）
  */
 export function validateFormulaSyntax(formula: string): { valid: boolean; error?: string } {
-  // 基本的なチェック
   if (!formula.trim()) return { valid: false, error: '式が空です' }
 
-  // 未閉じの括弧チェック
-  const openCount = (formula.match(/\(/g) || []).length
-  const closeCount = (formula.match(/\)/g) || []).length
-  if (openCount !== closeCount) {
-    return { valid: false, error: '括弧が閉じられていません' }
+  try {
+    evaluateNumericFormula(formula, {}, true)
+    return { valid: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '式の構文が不正です'
+    return { valid: false, error: message }
   }
-
-  // 未閉じの{}チェック
-  const openBraceCount = (formula.match(/\{/g) || []).length
-  const closeBraceCount = (formula.match(/\}/g) || []).length
-  if (openBraceCount !== closeBraceCount) {
-    return { valid: false, error: 'プレースホルダが閉じられていません' }
-  }
-
-  return { valid: true }
 }
 
 // ========================================
 // 式評価器
 // ========================================
+
+function tokenizeFormula(formula: string): FormulaToken[] {
+  const tokens: FormulaToken[] = []
+  let index = 0
+
+  while (index < formula.length) {
+    const char = formula[index]
+
+    if (/\s/.test(char)) {
+      index++
+      continue
+    }
+
+    if (/[0-9.]/.test(char)) {
+      const start = index
+      let dotCount = 0
+
+      while (index < formula.length && /[0-9.]/.test(formula[index])) {
+        if (formula[index] === '.') dotCount++
+        index++
+      }
+
+      const value = formula.slice(start, index)
+      if (dotCount > 1 || value === '.') {
+        throw new Error(`数値リテラルが不正です: ${value}`)
+      }
+
+      tokens.push({ type: 'number', value })
+      continue
+    }
+
+    if (char === '{') {
+      const end = formula.indexOf('}', index + 1)
+      if (end === -1) {
+        throw new Error('プレースホルダが閉じられていません')
+      }
+
+      const fieldId = formula.slice(index + 1, end)
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(fieldId)) {
+        throw new Error(`フィールドIDが不正です: {${fieldId}}`)
+      }
+
+      tokens.push({ type: 'field', value: fieldId })
+      index = end + 1
+      continue
+    }
+
+    if (/[a-zA-Z_]/.test(char)) {
+      const start = index
+      while (index < formula.length && /[a-zA-Z0-9_]/.test(formula[index])) {
+        index++
+      }
+      tokens.push({ type: 'identifier', value: formula.slice(start, index) })
+      continue
+    }
+
+    if (char === '+' || char === '-' || char === '*' || char === '/') {
+      tokens.push({ type: 'operator', value: char })
+      index++
+      continue
+    }
+
+    if (char === '(' || char === ')') {
+      tokens.push({ type: 'paren', value: char })
+      index++
+      continue
+    }
+
+    if (char === ',') {
+      tokens.push({ type: 'comma', value: char })
+      index++
+      continue
+    }
+
+    throw new Error(`使用できない文字です: ${char}`)
+  }
+
+  return tokens
+}
+
+function toNumericValue(value: EvaluationContext[string], fieldId: string): number {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new Error(`フィールド {${fieldId}} の値が有限数ではありません`)
+    }
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  throw new Error(`フィールド {${fieldId}} は数値として評価できません`)
+}
+
+class FormulaParser {
+  private position = 0
+
+  constructor(
+    private readonly tokens: FormulaToken[],
+    private readonly context: EvaluationContext,
+    private readonly syntaxOnly: boolean
+  ) {}
+
+  parse(): number {
+    const value = this.parseExpression()
+    if (!this.isAtEnd()) {
+      throw new Error('式の末尾に不正なトークンがあります')
+    }
+    return value
+  }
+
+  private parseExpression(): number {
+    let value = this.parseTerm()
+
+    while (this.matchOperator('+') || this.matchOperator('-')) {
+      const operator = this.previous().value
+      const right = this.parseTerm()
+      value = operator === '+' ? value + right : value - right
+    }
+
+    return value
+  }
+
+  private parseTerm(): number {
+    let value = this.parseUnary()
+
+    while (this.matchOperator('*') || this.matchOperator('/')) {
+      const operator = this.previous().value
+      const right = this.parseUnary()
+
+      if (operator === '/' && right === 0) {
+        throw new Error('0で除算できません')
+      }
+
+      value = operator === '*' ? value * right : value / right
+    }
+
+    return value
+  }
+
+  private parseUnary(): number {
+    if (this.matchOperator('+')) {
+      return this.parseUnary()
+    }
+
+    if (this.matchOperator('-')) {
+      return -this.parseUnary()
+    }
+
+    return this.parsePrimary()
+  }
+
+  private parsePrimary(): number {
+    if (this.match('number')) {
+      const value = Number(this.previous().value)
+      if (!Number.isFinite(value)) {
+        throw new Error(`数値リテラルが不正です: ${this.previous().value}`)
+      }
+      return value
+    }
+
+    if (this.match('field')) {
+      const fieldId = this.previous().value
+      if (this.syntaxOnly) {
+        return 0
+      }
+
+      const value = this.context[fieldId]
+      if (value === undefined) {
+        throw new Error(`未定義のフィールド参照: {${fieldId}}`)
+      }
+      return toNumericValue(value, fieldId)
+    }
+
+    if (this.match('identifier')) {
+      return this.parseFunctionCall(this.previous().value)
+    }
+
+    if (this.matchParen('(')) {
+      const value = this.parseExpression()
+      this.consumeParen(')', '括弧が閉じられていません')
+      return value
+    }
+
+    throw new Error('式の構文が不正です')
+  }
+
+  private parseFunctionCall(name: string): number {
+    const definition = ALLOWED_FUNCTIONS[name]
+    if (!definition) {
+      throw new Error(`使用できない関数です: ${name}`)
+    }
+
+    this.consumeParen('(', `関数 ${name} の呼び出しには括弧が必要です`)
+
+    const args: number[] = []
+    if (!this.checkParen(')')) {
+      do {
+        args.push(this.parseExpression())
+      } while (this.match('comma'))
+    }
+
+    this.consumeParen(')', `関数 ${name} の括弧が閉じられていません`)
+
+    if (args.length < definition.minArgs || (definition.maxArgs !== undefined && args.length > definition.maxArgs)) {
+      throw new Error(`関数 ${name} の引数の数が不正です`)
+    }
+
+    return definition.fn(...args)
+  }
+
+  private match(type: FormulaToken['type']): boolean {
+    if (!this.check(type)) {
+      return false
+    }
+    this.position++
+    return true
+  }
+
+  private matchOperator(value: OperatorTokenValue): boolean {
+    if (!this.checkOperator(value)) {
+      return false
+    }
+    this.position++
+    return true
+  }
+
+  private matchParen(value: ParenTokenValue): boolean {
+    if (!this.checkParen(value)) {
+      return false
+    }
+    this.position++
+    return true
+  }
+
+  private consumeParen(value: ParenTokenValue, message: string): void {
+    if (!this.matchParen(value)) {
+      throw new Error(message)
+    }
+  }
+
+  private check(type: FormulaToken['type']): boolean {
+    if (this.isAtEnd()) {
+      return false
+    }
+    return this.peek().type === type
+  }
+
+  private checkOperator(value: OperatorTokenValue): boolean {
+    if (this.isAtEnd()) {
+      return false
+    }
+    const token = this.peek()
+    return token.type === 'operator' && token.value === value
+  }
+
+  private checkParen(value: ParenTokenValue): boolean {
+    if (this.isAtEnd()) {
+      return false
+    }
+    const token = this.peek()
+    return token.type === 'paren' && token.value === value
+  }
+
+  private isAtEnd(): boolean {
+    return this.position >= this.tokens.length
+  }
+
+  private peek(): FormulaToken {
+    return this.tokens[this.position]
+  }
+
+  private previous(): FormulaToken {
+    return this.tokens[this.position - 1]
+  }
+}
+
+function evaluateNumericFormula(formula: string, context: EvaluationContext, syntaxOnly = false): number {
+  const tokens = tokenizeFormula(formula)
+  const parser = new FormulaParser(tokens, context, syntaxOnly)
+  return parser.parse()
+}
 
 /**
  * 式を評価（ホワイトリスト方式、eval禁止）
@@ -54,45 +351,15 @@ export function evaluateFormula(formula: string, context: EvaluationContext): nu
   console.log(`🔍 evaluateFormula開始: "${formula}"`)
 
   try {
-    // プレースホルダを値で置換
-    let expr = formula
     const deps = extractDependencies(formula)
     console.log(`  📋 依存関係: [${deps.join(', ')}]`)
 
     for (const dep of deps) {
       const value = context[dep]
       console.log(`  🔗 {${dep}} = ${value} (${typeof value})`)
-
-      if (value === undefined) {
-        console.error(`  ❌ 未定義のフィールド参照: {${dep}}`)
-        throw new Error(`未定義のフィールド参照: {${dep}}`)
-      }
-      // 数値または文字列リテラルに置換
-      const replacement = typeof value === 'number' ? value.toString() : `"${value}"`
-      expr = expr.replace(new RegExp(`\\{${dep}\\}`, 'g'), replacement)
-      console.log(`  🔄 置換後: "${expr}"`)
     }
 
-    console.log(`  📝 プレースホルダ置換完了: "${expr}"`)
-
-    // 関数を安全に置換
-    const originalExpr = expr
-    expr = expr.replace(/max\(/g, 'Math.max(')
-    expr = expr.replace(/min\(/g, 'Math.min(')
-    expr = expr.replace(/floor\(/g, 'Math.floor(')
-    expr = expr.replace(/ceil\(/g, 'Math.ceil(')
-    expr = expr.replace(/round\(/g, 'Math.round(')
-
-    if (originalExpr !== expr) {
-      console.log(`  🔧 関数置換: "${originalExpr}" → "${expr}"`)
-    }
-
-    console.log(`  🎯 評価対象式: "${expr}"`)
-
-    // evalを使わない安全な評価（Functionコンストラクタ + ホワイトリスト）
-    // MVP: 数値演算のみサポート
-    const safeEval = new Function('Math', `"use strict"; return (${expr})`)
-    const result = safeEval(Math)
+    const result = evaluateNumericFormula(formula, context)
 
     console.log(`  ✅ 評価結果: ${result} (${typeof result})`)
     return result
@@ -157,7 +424,7 @@ export function evaluateComputedFields(
         console.log(`    🎯 計算実行: ${field.formula}`)
 
         // 依存関係の値をログ出力
-        const depValues: Record<string, any> = {}
+        const depValues: Record<string, EvaluationContext[string]> = {}
         for (const dep of deps) {
           depValues[dep] = newContext[dep]
         }

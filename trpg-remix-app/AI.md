@@ -25,6 +25,22 @@ TRPG-Remix-Appは、テーブルトークRPG（TRPG）の管理・支援を行�
 - **ビルドツール**: Vite
 - **スタイリング**: CSS Modules + PostCSS
 
+### pnpm セキュリティ運用
+
+- `pnpm-workspace.yaml` で `minimumReleaseAge: 1440`、`minimumReleaseAgeStrict: true`、`blockExoticSubdeps: true`、`trustPolicy: no-downgrade` を明示し、公開直後の依存・外部ソース由来の推移依存・信頼レベル低下を防ぐ。
+- dependency build script は `allowBuilds` で明示管理する。現在は `esbuild` と `unrs-resolver` のみ許可し、`dangerouslyAllowAllBuilds` は禁止。
+- `vite@8` の peer dependency を満たすため、`esbuild@0.28.0` を devDependency と override で固定する。
+- `verifyDepsBeforeRun: error` により、`pnpm run` 時の暗黙 install を禁止する。依存がずれている場合は `pnpm install --frozen-lockfile` で明示確認する。
+- 監査は `pnpm run audit`、署名検証は `pnpm run audit:signatures` を使う。
+- Vite では `vite-plugin-env-compatible` を使わず、`vite.config.mjs` の `__APP_PUBLIC_ENV__` に公開してよい値だけを渡す。`DISCORD_SECRET` は client bundle に注入しない。
+- 開発環境の TLS 証明書回避は axios の HTTPS agent に閉じ込め、`NODE_TLS_REJECT_UNAUTHORIZED=0` のようなプロセス全体の無効化は使わない。
+
+### TypeScript / ESLint セキュリティ運用
+
+- `tsconfig.json` は `app/**/*.ts(x)` を対象にし、生成物・依存物は除外する。`allowJs: false`、`skipLibCheck: false`、`noImplicitReturns`、`noFallthroughCasesInSwitch`、`noImplicitOverride` を有効にする。
+- ESLint は `build` / `dist` / `coverage` / `public` などの生成物を lint 対象にしない。browser 全体には Node/CommonJS globals を公開せず、必要な config / API client / 設定ファイルだけに限定する。
+- `no-eval`、`no-implied-eval`、`no-new-func`、`react/no-danger` は error とし、ユーザー入力の式評価や HTML 展開で任意コード実行・XSSにつながる API を使わない。
+
 ### 主要依存関係
 
 - `@remix-run/react`, `@remix-run/node` - Remixコアフレームワーク
@@ -1142,13 +1158,11 @@ const authData = authHandler.handleSuccess(response) // 型推論が効く
 **実装内容**:
 
 1. **中央集権的な型定義** (`app/types/api.ts`)
-
    - `KnownDomains`: 型安全なドメイン定義
    - `DomainDataMap`: ドメインとデータ型のマッピング
    - `ApiResponse<T, Domain>`: 統合レスポンス型
 
 2. **型安全なAPIクライアント** (`app/lib/api-client.ts`)
-
    - `getDomain/postDomain/putDomain/deleteDomain`: 新しい型安全メソッド
    - 既存メソッドとの後方互換性を維持
 
