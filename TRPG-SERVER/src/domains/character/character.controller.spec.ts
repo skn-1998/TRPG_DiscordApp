@@ -23,6 +23,7 @@ import {
   CharacterNotFoundException
 } from './character-http.exception'
 import { ApiResponseUtil } from '../../utils/api-response.util'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
@@ -40,6 +41,12 @@ describe('CharacterController', () => {
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
 
   const reflector = new Reflector()
+
+  // P1-C: CharacterHttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
+  // AppConfigModule が供給）。TestingModule と filterError の両方で AppConfigService(mock) が要る。
+  const mockAppConfig = {
+    get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+  } as unknown as AppConfigService
 
   // モックデータ定義
   const mockUser = {
@@ -109,7 +116,7 @@ describe('CharacterController', () => {
 
   /** throw された例外を CharacterHttpExceptionFilter に通して { status, body } を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
-    const filter = new CharacterHttpExceptionFilter()
+    const filter = new CharacterHttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -178,7 +185,8 @@ describe('CharacterController', () => {
       providers: [
         { provide: CharacterService, useValue: characterServiceMock },
         { provide: AuthService, useValue: authServiceMock },
-        { provide: TypedEventService, useValue: typedEventServiceMock }
+        { provide: TypedEventService, useValue: typedEventServiceMock },
+        { provide: AppConfigService, useValue: mockAppConfig }
       ]
     })
       .overrideGuard(JwtAuthGuard)
