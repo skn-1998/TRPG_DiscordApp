@@ -30,8 +30,8 @@ interactions/
 │   ├── dice-roll/                        # feature 側へ移管済み（履歴上の参照）
 │   └── character-thread/                 # feature 側へ移管済み（履歴上の参照）
 ├── interactions.controller.ts            # Legacy entrypoint（service locator 経路は撤去済み）
-├── interactions.service.ts               # メトリクス + Registry 委譲 + characterEdit 特例分岐（移管予定）
-├── interactions.module.ts                # 現状 God Module（slim 化予定）
+├── interactions.service.ts               # メトリクス + Registry 委譲（characterEdit 特例分岐は P1-A で撤去済み）
+├── interactions.module.ts                # slim 化進行中（feature module import は撤去済み・詳細は AI.refactor.md）
 ├── button/                               # Legacy（Phase 0/1 で整理）
 ├── select/
 ├── modal/
@@ -94,7 +94,7 @@ export class DicePagePrevHandler extends ButtonInteractionHandler {
 
 **現状**: diceRoll / characterEdit / characterThread の handlers は feature module 側で provide し、feature 側から Registry に登録する。InteractionsModule 側の handler 自動探索（ModuleRef 経由）は撤去済み。
 
-残件として、`InteractionsService.execute()` の characterEdit 特例分岐と、InteractionsModule の monitoring / dice service re-export は Phase 2 slim 化で整理する。
+`InteractionsService.execute()` の characterEdit 特例分岐、InteractionsModule の monitoring / dice service re-export、feature module import はいずれも P1-A で撤去済み（進捗の正本は `AI.refactor.md`）。残る slim 化（Map キャッシュ廃止等）は Phase 2 で継続する。
 
 ---
 

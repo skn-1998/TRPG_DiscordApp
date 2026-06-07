@@ -78,10 +78,14 @@
 - **[AI.domain.md](./AI.domain.md)** - ドメイン駆動設計・ドメイン責務
 - **[AI.character.md](./AI.character.md)** - キャラクター型定義（AttributeValue 等）
 
-**機能棚卸し（現状スナップショット）**
+**機能棚卸し・レビュー（現状スナップショット）**
 
 - **[docs/reviews/feature-inventory-2026-06-05.md](./docs/reviews/feature-inventory-2026-06-05.md)** - 実コード根拠の機能棚卸し（Web API / Discord command / interaction registry / feature / events・config・core）と、実装待ち・保留・未配線・ドキュメントずれの一覧（2026-06-05 時点）
+- **[docs/reviews/document-inventory-review-2026-06-05.md](./docs/reviews/document-inventory-review-2026-06-05.md)** - Markdown ドキュメント整理レビュー（Active / Historical / cleanup 候補の分類）
+- **[docs/reviews/project-issues-report-2026-06-05.md](./docs/reviews/project-issues-report-2026-06-05.md)** - モノレポ全体の問題点・リスク・未完了作業を実ファイル根拠付きで優先度分類したレビュー報告
 - **[docs/README.md](./docs/README.md)** - 補助ドキュメント置き場（guides / history / refactor / reviews）の索引
+
+> 📌 **鮮度メモ**: 本ファイル冒頭サマリの「最終更新」日付や下部履歴は古いスナップショットを含む。2026-06-05/06 の docs 整理・レビュー成果物は `docs/reviews/` 配下にあり、リファクタ進捗の現状の真実は引き続き **`AI.refactor.md`** を最優先とする。
 
 **履歴・参考（陳腐化を含む）**
 

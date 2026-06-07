@@ -1,8 +1,10 @@
 # Discord 層 統合設計書
 
-**最終更新**: 2026-05-30  
-**ステータス**: 設計確定・Phase 0 一部着手 / 未完了  
+**最終更新**: 2026-05-30（本文は当時のスナップショット）
+**ステータス**: 設計確定。Phase 0 一部着手 / **Phase 1（diceRoll Feature 自立）完了** / Phase 2 以降進行中
 **関連**: [AI.discord.md](./AI.discord.md) / [interactions/README.md](./interactions/README.md) / [interactions/MIGRATION_GUIDE.md](./interactions/MIGRATION_GUIDE.md)
+
+> ℹ️ 本書の現状評価・As-Is 記述・§11 の handler 一覧は 2026-05-30 時点の表現を含む。Phase 1 完了後の進捗（diceRoll feature 移管、`InteractionsService` の characterEdit 特例分岐撤去など）の正本は **`AI.refactor.md`**、登録 handler の最新は **`interactions/handlers/handlers.integration.spec.ts`**（現在 23 件）を参照。
 
 ---
 
@@ -374,6 +376,8 @@ export const DicePageCustomId = {
 
 ## 11. 参考: 登録済み Interaction Handler 一覧（2026-05-30 時点）
 
+> ⚠️ 以下は 2026-05-30 時点の表現。その後 S-5c で legacy な `roll*` / `character-dice*` / `preset-dice*` 系 handler が撤去され、characterThread 側の handler が追加された。**現在の登録総数は 23 件**で、内訳・最新は `interactions/handlers/handlers.integration.spec.ts` を正とする。
+
 ### Character Edit（6）
 
 `character-refresh-`, `character-create-*`, `character-compact-view-`, `character-edit-section-`, `character-field-*`, character-edit modal 系
@@ -392,12 +396,12 @@ export const DicePageCustomId = {
 
 ## 12. 関連ファイル
 
-| ファイル                                                | 役割                                   |
-| ------------------------------------------------------- | -------------------------------------- |
-| `interactions/interactions.module.ts`                   | 現状の God Module（リファクタ対象）    |
-| `interactions/registry/interaction-registry.service.ts` | ルーティング中核                       |
-| `interactions/interactions.controller.ts`               | Registry 委譲済み                      |
-| `interactions/interactions.service.ts`                  | 特例分岐・ModuleRef 残存               |
-| `services/discord-interaction-handler.service.ts`       | Map キャッシュ・3 層ルーティングの起点 |
-| `components/pagination/dice-roll-pagination.service.ts` | canonical customId 生成元              |
-| `features/diceRoll/dice-roll.module.ts`                 | Phase 1 で拡張する Module              |
+| ファイル                                                | 役割                                                                          |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `interactions/interactions.module.ts`                   | slim 化進行中（feature import / monitoring は P1-A 撤去済・残整理は Phase 2） |
+| `interactions/registry/interaction-registry.service.ts` | ルーティング中核                                                              |
+| `interactions/interactions.controller.ts`               | Registry 委譲済み                                                             |
+| `interactions/interactions.service.ts`                  | 特例分岐・ModuleRef 残存                                                      |
+| `services/discord-interaction-handler.service.ts`       | Map キャッシュ・3 層ルーティングの起点                                        |
+| `components/pagination/dice-roll-pagination.service.ts` | canonical customId 生成元                                                     |
+| `features/diceRoll/dice-roll.module.ts`                 | Phase 1 で拡張する Module                                                     |

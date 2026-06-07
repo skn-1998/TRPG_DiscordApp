@@ -22,5 +22,6 @@ TRPG-SERVER の補助ドキュメント置き場。
 
 - `reviews/feature-inventory-2026-06-05.md` - TRPG-SERVER の機能棚卸し
 - `reviews/document-inventory-review-2026-06-05.md` - ドキュメント整理レビュー
+- `reviews/project-issues-report-2026-06-05.md` - モノレポ全体の問題点・リスク・未完了作業のレビュー報告
 - `guides/IMPORT_PATHS.md` - import path 方針
 - `guides/characterIds-usage-path.md` - characterIds 保存経路

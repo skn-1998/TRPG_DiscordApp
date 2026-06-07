@@ -9,14 +9,14 @@ Registry 方式への移行と、InteractionsModule から feature への所有�
 
 ## 移行ステータス
 
-| 項目                                      | 状態                                                    |
-| ----------------------------------------- | ------------------------------------------------------- |
-| `InteractionsController` → Registry 委譲  | ✅ 完了                                                 |
-| Handler 24 件 + Registry 基盤             | ✅ 完了                                                 |
-| customId 契約の一本化                     | 🟡 diceRoll pagination は着手済み / 他 feature は未完了 |
-| diceRoll → FeatureModule 分離             | ✅ 完了                                                 |
-| InteractionsModule slim 化                | 🟡 一部着手 / 未完了                                    |
-| ルーティング 1 本化（Map / 特例 if 削除） | ❌ Phase 2 未着手                                       |
+| 項目                                      | 状態                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `InteractionsController` → Registry 委譲  | ✅ 完了                                                          |
+| Handler 登録 + Registry 基盤              | ✅ 完了（登録総数は handlers.integration.spec を正・現在 23 件） |
+| customId 契約の一本化                     | 🟡 diceRoll pagination は着手済み / 他 feature は未完了          |
+| diceRoll → FeatureModule 分離             | ✅ 完了                                                          |
+| InteractionsModule slim 化                | 🟡 一部着手 / 未完了                                             |
+| ルーティング 1 本化（Map / 特例 if 削除） | ❌ Phase 2 未着手                                                |
 
 ---
 
