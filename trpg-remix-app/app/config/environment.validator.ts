@@ -4,6 +4,28 @@
 
 import { EnvironmentSchema, DEFAULT_VALUES, REQUIRED_VARIABLES, TYPE_CONVERTERS } from './schemas/environment.schema'
 
+declare const __APP_PUBLIC_ENV__: Record<string, string | undefined> | undefined
+
+function getRuntimeEnvironment(): Record<string, string | undefined> {
+  if (typeof window !== 'undefined' && typeof __APP_PUBLIC_ENV__ !== 'undefined') {
+    return __APP_PUBLIC_ENV__
+  }
+
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env
+  }
+
+  if (typeof __APP_PUBLIC_ENV__ !== 'undefined') {
+    return __APP_PUBLIC_ENV__
+  }
+
+  return {}
+}
+
+function isBrowserRuntime(): boolean {
+  return typeof window !== 'undefined'
+}
+
 /**
  * バリデーションエラーの詳細情報
  */
@@ -29,13 +51,18 @@ export class EnvironmentValidator {
   /**
    * 環境変数をバリデーションして型安全なオブジェクトを返す
    */
-  static validate(env: Record<string, string | undefined> = process.env): ValidationResult {
+  static validate(env: Record<string, string | undefined> = getRuntimeEnvironment()): ValidationResult {
     const errors: ValidationError[] = []
     const result: Partial<EnvironmentSchema> = {}
+    const isBrowser = isBrowserRuntime()
 
     try {
       // 必須変数のチェック
       for (const variable of REQUIRED_VARIABLES) {
+        if (isBrowser && variable === 'DISCORD_SECRET') {
+          continue
+        }
+
         if (!env[variable]) {
           errors.push({
             variable,
@@ -125,7 +152,14 @@ export class EnvironmentValidator {
    */
   static formatErrors(errors: ValidationError[]): string {
     return errors
-      .map((error) => `❌ ${error.variable}: ${error.message}${error.value ? ` (現在の値: ${error.value})` : ''}`)
+      .map((error) => {
+        const value = this.isSensitiveVariable(error.variable) ? '[REDACTED]' : error.value
+        return `❌ ${error.variable}: ${error.message}${value ? ` (現在の値: ${value})` : ''}`
+      })
       .join('\n')
+  }
+
+  private static isSensitiveVariable(variable: string): boolean {
+    return /SECRET|TOKEN|PASSWORD|KEY/i.test(variable)
   }
 }
