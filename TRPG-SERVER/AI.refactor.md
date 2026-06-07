@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-06-07 ブランチ `refactor/ref-path-deadcode-cleanup` を develop へマージ（trpg-refactor スキル・司令塔）＋マージ前ブロッカー修正
+
+ユーザー依頼「色々 develop にマージしたい」。調査の結果、**develop 未マージは本ブランチ1本のみ**（他の H1/H3/H6/H9/T2-T5/B-2/events/config/security 系は全てマージ済み）と判明。本ブランチは develop の HEAD を直接の祖先とする**クリーンな FF**（81コミット・304ファイル・+9092/−12858＝ダイスボタン customId 統合キャンペーン S-1〜S-5c ＋ P1-A/B/C/D・構造課題・events 統合・参照パス整理・docs 再編）。
+
+### マージ前 Phase 6 検証で発見したブロッカー（重要）
+
+全スイート実行で **controller spec 3本（auth/user/character）がコンパイルエラーで全件未実行のまま「緑」と誤記録**されていたことが判明。根因と修正の詳細は `AI.test.md` 2026-06-07 節。要点: P1-C(`98d5055`) の filter コンストラクタ `AppConfigService` 注入化に 3 spec が未追従（`auth` の TestingModule だけ正しく `appConfigServiceMock` 登録済・他2本は未提供＋手動 `new` の引数不足）。**コミット `4d41d94`** で修正し、build 0 / check:circular No circular / 全 188 suites 2625 tests 緑を司令塔裏取り。
+
+### マージ実施
+
+- **`--no-ff`**（develop の慣例＝"Merge X into develop" に整合）で `refactor/ref-path-deadcode-cleanup` を develop へマージ。マージコミット **`5b15db8`**（親＝旧 develop `639756d` ＋ branch tip `4d41d94`）。FF 可能だが慣例に合わせ merge commit を作成。コンフリクトなし。
+- マージ後の develop で build 0 / check:circular **No circular(482)** を再確認。
+- **origin への push は実施せず**（ユーザー選択＝ローカルのみ。develop は origin/develop より 108 コミット先行）。
+
+### ブランチ整理（ユーザー選択＝マージ済み削除）
+
+develop へマージ済みのローカルブランチ **24本を `git branch -d`（安全削除）**: `docs/circular-zero`, `test/events-flow-coverage`, `refactor/`{`auth-user-cycle-h6`, `character-spec-repair`, `config-aggregation`, `cross-cutting-conventions-h1`, `discord-character-ui`, `discord-enhanced-edit`, `discord-modal-handler`, `discord-service-split-dicebuttons`, `discord-service-split-embedmgr`, `discord-service-split-h3`, `discord-testability-backlog`, `discord-thread-creation`, `error-handling-h9`, `error-handling-h9-character`, `events-bus-unification`, `events-docs-t5`, `events-globalbus-removal`, `events-globalbus-removal-t2c`, `events-globalbus-t2b`, `events-layer-inversion-t3`, `events-typed-relocation-t4`, `security-phase-s`}。残ローカルブランチ＝`develop` / `main` / `refactor/ref-path-deadcode-cleanup`（現ブランチは残置）。
+
+### 次にやること
+
+- `develop` の origin push（必要時）。ローカルは 108 コミット先行。
+- `refactor/ref-path-deadcode-cleanup` は develop に取り込み済みのため、不要になったら削除可。
+- 残 follow-up（任意・別 issue）: `DiceOrchestratorService` の dead な preset メソッド（`createPresetButton`/`handlePresetDiceRoll`）除去。
+
+---
+
 ## 2026-06-04 問題点の洗い出し（Codex 相談・司令塔裏取り）＋ roll\* customId 契約 案2 確定・実装計画
 
 ユーザー依頼「Codex と相談しながら今の問題点を洗い出す」。trpg-refactor スキルで Phase 1（コード理解）に集中し、Codex 相談＋司令塔裏取りで診断。**コード変更なし（診断＋計画のみ）**。
