@@ -4,7 +4,6 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { DiscordFacadeService } from './discord-facade.service'
 import { DiscordClientService } from './services/discord-client.service'
-import { InteractionsService } from './interactions/interactions.service'
 import { CommandsService } from './commands/commands.service'
 import { AppConfigService } from '../config/config.service'
 import { CommandManagerService } from './services/command-manager.service'
@@ -22,7 +21,6 @@ describe('DiscordFacadeService', () => {
 
   // 注入する依存（すべて副作用の境界＝モック）
   let discordClientService: jest.Mocked<Pick<DiscordClientService, 'getClient' | 'initializeClient'>>
-  let interactionsService: jest.Mocked<Pick<InteractionsService, 'loadClient'>>
   let commandsService: jest.Mocked<Pick<CommandsService, 'loadClient'>>
   let interactionHandler: jest.Mocked<Pick<DiscordInteractionHandlerService, 'initialize' | 'isInitialized'>>
   let guildManager: jest.Mocked<
@@ -51,7 +49,6 @@ describe('DiscordFacadeService', () => {
       getClient: jest.fn().mockReturnValue(clientStub),
       initializeClient: jest.fn().mockResolvedValue(undefined)
     }
-    interactionsService = { loadClient: jest.fn().mockResolvedValue(undefined) }
     commandsService = { loadClient: jest.fn().mockResolvedValue(undefined) }
     interactionHandler = {
       initialize: jest.fn().mockResolvedValue(undefined),
@@ -92,7 +89,6 @@ describe('DiscordFacadeService', () => {
       providers: [
         DiscordFacadeService,
         { provide: DiscordClientService, useValue: discordClientService },
-        { provide: InteractionsService, useValue: interactionsService },
         { provide: CommandsService, useValue: commandsService },
         { provide: AppConfigService, useValue: {} },
         { provide: CommandManagerService, useValue: {} },
@@ -131,7 +127,7 @@ describe('DiscordFacadeService', () => {
       await service.initializeDiscord()
 
       // Assert: 各 loadClient/initialize へ client が渡る
-      expect(interactionsService.loadClient).toHaveBeenCalledWith(clientStub)
+      // （ChannelCreate リスナー登録は characterEdit feature へ移管済み・§8 のため interactions は対象外）
       expect(commandsService.loadClient).toHaveBeenCalledWith(clientStub)
       expect(interactionHandler.initialize).toHaveBeenCalledWith(clientStub)
       expect(guildManager.initialize).toHaveBeenCalledWith(clientStub)
@@ -156,7 +152,7 @@ describe('DiscordFacadeService', () => {
 
       // Assert: 何も呼ばれない
       expect(discordClientService.initializeClient).not.toHaveBeenCalled()
-      expect(interactionsService.loadClient).not.toHaveBeenCalled()
+      expect(commandsService.loadClient).not.toHaveBeenCalled()
       expect(performanceOrchestrator.startDiscordApiMonitoring).not.toHaveBeenCalled()
     })
 

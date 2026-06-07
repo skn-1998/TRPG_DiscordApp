@@ -1,6 +1,26 @@
 # TRPG-SERVER テスト戦略・実装ドキュメント
 
-## 📋 **ドキュメント概要** **[最終更新: 2026-06-02]**
+## 📋 **ドキュメント概要** **[最終更新: 2026-06-03]**
+
+> **2026-06-04 P1-A 後続 interactions.service.spec 更新（execute() 特例撤去・★未コミット）**: `InteractionsService.execute()` の characterEdit 特例分岐撤去（→Registry 経路）に伴い、既存 characterization `interactions.service.spec.ts` の execute() ブロックを更新。characterEdit セレクト3テストを「sectionEditor 直接委譲」から「**registry.route へ委譲**」へ（Phase 5: バス変更の呼び出し先 expectation 更新）、特例 error テスト2件（ephemeral reply）を削除、`CharacterSectionEditorService` mock/provider を除去。handleInteraction/loadClient/ChannelCreate のテストは不変。**検証**: jest interactions.service + handlers.integration + registry + characterEdit = 31 suites 425 tests 緑、build / check:circular(479) / start:dev で CharacterEditSection/FieldHandler 登録確認。挙動差は section-select エラー時の応答経路（専用文言→汎用エラー応答）のみ（happy path 不変・追加イベントは購読者ゼロ）。詳細は `AI.refactor.md` 2026-06-04「P1-A 後続」節。**Codex レビュー済・コミット `2640395`**。
+
+> **2026-06-03 構造課題③ Part B characterThread 移管（spec 移動・テスト不変）**: characterThread handler 7個(+spec)＋CharacterThreadSelectService(+spec)＋character-dice クラスタ4ファイル(+spec) を `interactions/{handlers/character-thread,select,button}` → `features/characterThread/{handlers,services}` へ rename（コミット `1975af6`）。**テストロジック不変**で spec 変更は import パスのみ（sibling は維持、depth が変わる相対は絶対 `src/` へ）。`handlers.integration.spec.ts` の characterThread handler import を feature パスへ更新（モック注入のため挙動不変）。サブエージェント実装時 `character-dice-buttons.service.spec` の `jest.mock`/`jest.requireMock` パス3箇所を本体 import と一致させて全緑化。**検証（司令塔がサブエージェント報告を再裏取り）**: build 成功 / check:circular「No circular dependency found!（475）」/ jest features/characterThread + interactions = **34 suites 499 tests 緑** / start:dev で characterThread handler 7個の registry 登録(CharacterThreadFeatureModule.onModuleInit 経由)・**登録総数30(不変)**・無エラー＝挙動不変。詳細は `AI.refactor.md` 同日「Part B」節。
+
+> **2026-06-03 構造課題③ characterEdit handler 移管 Part A（spec 移動・テスト不変）**: characterEdit interaction handler 6個(+spec) を `interactions/handlers/character-edit/` → `features/characterEdit/handlers/` へ rename（コミット `a5369cf`）。**テストロジック不変**で spec 変更は import パスのみ（service は `../enhanced-character-edit.service`、handler は sibling 維持）＋`handlers.integration.spec.ts` の characterEdit handler import を `../../features/characterEdit/handlers/` へ更新。**検証**: jest characterEdit + handlers統合 + registry **30 suites 400 tests 緑**、build 成功、check:circular「No circular dependency found!（475）」、start:dev で characterEdit handler 6個の registry 登録(CharacterEditModule.onModuleInit 経由)・無エラー＝挙動不変。**注記**: CharacterEditModule import は interactions に維持（InteractionsService が旧 execute() で CharacterSectionEditorService を使用＝§8 完全撤去の障壁。詳細は `AI.refactor.md` 同日節）。次フェーズで旧 execute() 経路の Registry 代替を characterization で確認のうえ撤去する際は、対象 customId（character-section-select-/character-edit-/character-field-）の routing 不変を固定すること。
+
+> **2026-06-03 構造課題③ Step5b orchestrator/dice ロジック移管（spec 移動・テスト不変）**: DiceServicesModule 新設＋orchestrator/button-ui/history を feature へ移管（コミット `352683a`+`354a53f`）。**テストロジック不変**で spec の変更は import パスのみ。①`dice-roll-logic.service.spec`(services/dice へ移動)・`dice-button-ui.service.spec` は同 depth/同ディレクトリ相対のため**パス不変**、②`character-dice-orchestrator.service.spec`・`dice-history.service.spec`(feature へ移動) は depth 差のため相対 import を絶対 `src/`（pagination は `./pagination/`）へ書換、③character-thread の `dice-generic`/`flexible-dice-select` handler spec の `DiceRollLogicService` import を `services/dice` へ、④diceRoll handler 4本 spec の `CharacterDiceOrchestratorService` import を feature 内パスへ更新。`handlers.integration.spec.ts` は委譲先を mock object で注入＝影響なし。**検証（司令塔裏取り・各段）**: 5b-1 jest 9 suites 202／5b-2 jest **47 suites 461 tests 緑**、build 成功、`check:circular`「No circular dependency found!（475 files）」、`start:dev` で dice 実行系（Skill/General/Custom/Preset/Modal）＋character-thread（DiceGeneric/FlexibleDiceSelect）の registry 登録・無エラー起動を実機確認＝**feature が InteractionsModule なしで全 dice handler を解決＝挙動不変**。詳細は `AI.refactor.md` 2026-06-03「構造課題③ Step5b」節。**次フェーズ申し送り**: characterEdit/characterThread の feature 登録移管時も、handler spec の「委譲先の解決元 module」が変わるのみで emit/reply・customId・registry 登録内容は不変を固定し続ける。
+
+> **2026-06-03 構造課題③ Step5a CustomDiceModalService 移管（spec 移動・テスト不変）**: `CustomDiceModalService`(+spec) を `interactions/modal/` → `features/diceRoll/services/` へ rename 移動（コミット `16c4c03`）。**テストロジック不変**。spec 変更は ①`custom-dice-modal.service.spec.ts` は同ディレクトリ相対 import（`./custom-dice-modal.service`）と絶対 import のみのため**パス不変**、②`dice-roll-modal.handler.spec.ts` の `CustomDiceModalService` import を `../../services/custom-dice-modal.service` へ更新（モックは plain object のため挙動不変）。`handlers.integration.spec.ts` は modal を mock object で注入＝影響なし。**検証（司令塔裏取り）**: `pnpm jest`（custom-dice-modal + dice-roll-modal handler + handlers.integration + registry）= **5 suites / 85 tests 緑**、build 成功、`check:circular`「No circular dependency found!（474 files）」、`start:dev` で `DiceRollModalHandler [modal] → ^(custom|param)-dice-modal` の registry 登録・無エラー起動を実機確認＝挙動不変。詳細・Phase1 の dice クラスタ結合分析・残（Step5b）は `AI.refactor.md` 2026-06-03「構造課題③ Step5a」節。**次フェーズ申し送り（Step5b）**: `CharacterDiceOrchestratorService` を feature へ移す際、共有 primitive(`DiceRollLogicService`/`DiceHistoryService`) は character-thread handler/character-dice-buttons も使うため、それらの spec も移動先 module から解決する形に追従が要る。**emit/reply・customId・registry 登録内容は不変であること**を固定し続ける。
+
+> **2026-06-03 構造課題③ diceRoll 移管（spec 再配置・テスト不変）**: diceRoll の handler 12個(+spec) を `interactions/handlers/dice-roll/` → `features/diceRoll/handlers/dice-roll/`、pagination 11ファイルを `discord/components/pagination/` → `features/diceRoll/services/pagination/` へ **rename（移動）**。**テストロジックは不変**で、変更は ①移動した spec 自身の相対 import パス、②`interactions/handlers/handlers.integration.spec.ts` の handler import パス（feature 配下を指すよう更新・登録25件/routing は不変を固定）、③`interactions/button/*`（`character-dice-buttons`/`character-dice-history`/`dice-history`）spec の `DiceRollPaginationService` import パスのみ。**検証（司令塔裏取り）**: `pnpm jest`（registry + features/diceRoll + interactions/button + handlers.integration）= **40 suites / 445 tests 緑**、build 成功、`check:circular`「No circular dependency found!（474 files）」、`start:dev` で diceRoll handler 12個の registry 登録を実機確認＝挙動不変。詳細・差分1/2・残（Step5）は `AI.refactor.md` 2026-06-03「構造課題③ diceRoll 移管」節。**次フェーズ申し送り（Step5）**: `CharacterDiceOrchestratorService`/`CustomDiceModalService` を feature へ移す際、`handlers.integration.spec.ts` と diceRoll handler spec の「委譲先サービスの解決元 module」が変わるが、**emit/reply・customId・registry 登録内容は不変であること**を固定し続ける（呼び出し先のみ追従）。
+
+> **2026-06-03 構造課題⑤（巨大サービス分割）`CharacterEmbedManagerService`**: 612行のサービスから Embed/ボタン/メニューの **Builder 構築ロジック（discord.js 依存）を純粋関数として `characterEdit/utils/character-embed.util.ts` へ抽出**。§12 通り discord.js 依存のため shared でなく feature 配下に配置。**手順0**＝既存 characterization（`character-embed-manager.service.spec.ts`、createSectionedEmbeds/createFieldSelectMenu/createNewCharacterEmbed/createCharacterCreatedEmbed/sendSectionedEmbeds の出力を toJSON で固定）が**変更前に緑（33件）**を確認してから抽出。抽出した純関数: `buildBasicEmbed`/`buildSectionEmbed`/`buildEditComponents`/`appendDiceRollButtonsFromData`/`buildCharacterDiceRollButtons`/`buildBasicDiceButtons`/`buildSectionedEmbeds`/`buildFieldSelectMenu`/`buildNewCharacterEmbed`/`buildCharacterCreatedEmbed`（Character→Builder を返すのみ、副作用なし）。**service は 612→180 行**、公開 API（createSectionedEmbeds/sendSectionedEmbeds/createCharacter/createFieldSelectMenu/createNewCharacterEmbed/createCharacterCreatedEmbed）は全て util へ1行委譲でシグネチャ不変。副作用（`sendSectionedEmbeds`=channel.send / `createCharacter`=typedEventService.emit）は service に残置、util に DI/I-O なし。`EmbedSectionType` は util を正本にし service が re-export（10ファイルの既存 import 互換維持）。`create-test` で util 純関数のテストを **+22ケース**追加（`buildSectionEmbed` の data=undefined/空/24件超 footer、`appendDiceRollButtonsFromData` の max 打ち切り、`buildFieldSelectMenu` の add専用/未知null 等の分岐網羅）。**検証**: build 成功、`pnpm jest src/discord/features/characterEdit` = **21 suites / 310 tests 緑**（characterization 33 含む・挙動不変を証明）、util spec 単体 **38 tests 緑**、check:circular「No circular dependency found!」（新規循環なし）。改善指標: service Pure 化＝整形ロジック0行（全て util 委譲）、util の純関数割合 100%（モック不要でテスト可能）。
+
+> **2026-06-03 デッドコード削除（挙動保存）**: `src/discord/features/characterEdit/index.ts` の未使用 `CharacterEditServiceFactory`（実在しない `./character-channel-create.service` を require）を削除。製品コードの公開 API 不変。`pnpm test src/discord/features/characterEdit` = **21 suites / 292 tests 緑**、build 成功、check:circular「No circular dependency found!」。
+
+> **2026-06-03 構造課題②（§9 domain 純粋性）の安全網**: character の emit 経路 characterization を強化（ブランチ `refactor/ref-path-deadcode-cleanup`）。`character.service.spec.ts` に `updateField`/`updateFieldByChannelId` の `character.updated` emit（updateType・channelId・未検出時非 emit）を追加（+4 ケース）。`character.controller.spec.ts` に `createDiscordThread`（`discord.thread.create.requested`）/`displayCharacterOnDiscord`（`discord.character.display.requested`）の emit payload・404 非 emit・401・displayType 既定 enhanced を追加（+7 ケース）。**変更前コードで緑を確認**＝characterization 成立。その後の event 名定数化（`EVENT_NAMES`）後も `pnpm jest src/domains/character` = **8 suites / 119 tests 緑**（integration の実 emit 経路含む）。test-expansion 評価=全対象 **緑(A)**。詳細・フェーズ3提案は `AI.refactor.md` 2026-06-03 節。
+
+> **2026-06-03 過去形デッドイベント廃止に伴う安全網の反転**: 上記②の安全網が固定していた `character.updated`/`character.deleted` の emit を**全廃**（購読者ゼロのデッドイベント。実証は `AI.refactor.md` 2026-06-03「デッドコード除去」節）。これに伴い安全網テストを「emit する」検証から「**emit しないことを確認**」へ反転（service.spec / controller.spec の `not.toHaveBeenCalledWith('character.updated'|'character.deleted', ...)`、integration.spec の `once()` 待受は payload=null＋DB 反映/削除維持）。`CharacterEventHandlerService`（完全デッド）とその spec も削除。completed 系・discord.\* 系の検証は不変。`pnpm jest src/domains/character` = **7 suites / 115 tests 緑**（spec 1本減＝削除分、emit ケース反転で件数は微減）。build・check:circular「No circular dependency found!」。
 
 ---
 
@@ -341,6 +361,8 @@ expect(modal.fields.getTextInputValue('dice-input')).toBe('2d6+3')
 ## 📊 **現在のテスト状況**
 
 ### 🏆 **テストカバレッジ概要**
+
+> ℹ️ **注記**: 以下の数値（43.99% / 22/22 / 278/278）は初期スナップショット。最新は再測定要。全体スイートは pre-existing 41 failed を含む。
 
 - **全体カバレッジ**: **43.99%** (1326/3014 lines) 【+33.46% 大幅向上】
 - **テストスイート成功率**: **100%** (22/22)
@@ -794,6 +816,8 @@ pnpm test -- --testPathPattern="discord-test-utils.spec"
 ---
 
 ## 🎯 **カバレッジ目標**
+
+> ℹ️ **注記**: 「現状 43.99%」は初期スナップショット。最新は再測定要（全体スイートは pre-existing 41 failed を含む）。
 
 | 期間 | 目標    | 現状   |
 | ---- | ------- | ------ |
@@ -1300,25 +1324,31 @@ handlers（25）・adapters（9）・repositories（4）・jwt-auth.guard・dice
 
 ### 🔴 新規の赤（赤レジスタへ追加・要 refactor-for-testability・**着手は承認後**）
 
+> ✅ **赤レジスタ全消化完了（2026-06-02）**: 下記の新規赤3（channel-cache / channel-manager / character-section-editor）はいずれも `refactor-for-testability` + `create-test` で改善完了（characterization 先行で挙動保存・公開API不変）。詳細は本ファイル末尾の各「赤レジスタ消化」「据え置き赤 順次消化」「据え置き赤バックログ 全消化完了（2026-06-02）」セクション参照。以下は当時の評価記録として残置。
+
 - `discord/features/characterEdit/services/character-section-editor.service.ts` — interaction I/O（deferUpdate/editReply/showModal/reply＋message.embeds）とフィールド抽出ロジック密結合。seam: interaction 応答／getCharacter(emit+race)／embedManager を分離。
 - `discord/features/characterThread/services/channel-manager.service.ts` — `guild.channels.fetch`＋instanceof＋`threads.create`＋cache.filter が全メソッド密結合。seam: guild.channels(fetch/cache)・threads.create を Port 化。
 - `discord/services/channel/channel-cache.service.ts` — `setInterval` 常駐＋TTL/LRU Map＋`client.channels.fetch`。seam: constructor の setInterval・client.channels.fetch を分離（`extractTimestampFromSnowflake` のみ純関数）。
 - 既知の赤（据え置き）: message-manager / thread-manager / channel-creator / discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-interaction-handler / discord-facade / interactions.controller / interactions.service / character.update.completed / discord.thread.create.requested / select-game-system.orchestrator / event-registry / character-channel(Phase3) / createCategory / discord.util / discord-api-rate-limiter。
   - **消化状況（2026-06-02 更新・末尾「据え置き赤 順次消化」セクション参照）**: ✅完了 = `thread-manager` / `channel-creator`（refactor-for-testability）, `character.update.completed` / `discord.thread.create.requested` / `createCategory` / `discord.util`（実は🟡=create-test 直行）, `message-manager`/`discord-interaction-handler`（型注釈で spec 解凍済・**直接 spec は未**）。残: discord-guild-manager / character-dice-history / character-edit-message-updater / discord-client / discord-facade / interactions.controller / interactions.service / select-game-system.orchestrator / event-registry。`discord-api-rate-limiter` は該当ソース無し（要確認）。
 
-### ☠️ dead code（テスト不要・削除候補・別タスク）
+### ☠️ dead code（削除完了）
 
-`discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts`（5本）は、テスト済み `features/diceRoll/adapters/dice-page-*-button.adapter.ts` と**同名クラスを重複定義した未使用実装**。DI 登録・import は adapter 版のみ（service 版は `dependency-analysis.json` 以外から参照なし）。テストではなく**削除で対応すべき**（削除前に実コードで参照ゼロを再確認）。
+`discord/interactions/button/dice-page-{cancel,first,last,next,prev}-button.service.ts`（5本）は、テスト済み `features/diceRoll/adapters/dice-page-*-button.adapter.ts` と**同名クラスを重複定義した未使用実装**だった。DI 登録・import は adapter 版のみ（service 版は `dependency-analysis.json` 以外から参照なし）。
+
+> ✅ **2026-06-02 削除完了**: 5本とも実コードで参照ゼロを確認のうえ削除済み。
 
 ### ⚠️ 元マップとの不一致（評価者間で揺れた境界・実装時に再確認）
 
-本パスで元マップ 🔴 → 黄 に**再評価**したもの: `character-embed.service`・`character-thread-select.service`・`user-defined-dice.orchestrator`・`discord.controller`・`channel-name-sync.service`（いずれも「依存 mock＋@discord-test-utils で固定可能」と判断）。実装時に mock 地獄なら赤へ差し戻し報告する。
+本パスで元マップ 🔴 → 黄 に**再評価**したもの: `character-embed.service`・`character-thread-select.service`・`user-defined-dice.orchestrator`・`discord.controller`・`channel-name-sync.service`（いずれも「依存 mock＋@discord-test-utils で固定可能」と判断）。
 
-### 次アクション
+> ✅ **2026-06-02 完了**: これら境界揺れ分も含め、最終的に `refactor-for-testability` + `create-test` で消化完了（mock 地獄での赤差し戻しは発生せず）。
+
+### 次アクション（※当時の計画・下記は完了済み）
 
 1. 🟢 緑3（特に `dice-roll-logic.service`）→ 🟡 黄（util/core の易しい順）で `create-test` 継続。
-2. dead code 5本は削除タスクへ（テスト対象外）。
-3. 新規赤3は赤レジスタで deferred、承認後に `refactor-for-testability`。
+2. ~~dead code 5本は削除タスクへ~~ → ✅ 2026-06-02 削除完了。
+3. ~~新規赤3は赤レジスタで deferred、承認後に `refactor-for-testability`~~ → ✅ 2026-06-02 全消化完了（末尾セクション参照）。
 
 ---
 
@@ -1847,6 +1877,36 @@ test-expansion 過去セッションで作成され未追跡だった spec を�
 - **設計起因でない**: 背景送信・`bootstrap()`・test factory の mock 呼出は `void` 明示（挙動不変）。`cache.get` 等の同期オペランドへの不要 `await` は除去。
 - **✅ 実バグ修正済み（2026-06-02）**: `discord/discord.controller.ts` `postCharacter` の `characterService.update(...)` が**成否判定より前に fire-and-forget**されていた（①チャンネル作成失敗時に `discordChannelId=undefined` を永続化＝データ破損、②更新失敗を握り潰し success 応答）。**成功判定を update より前へ移動＋update を await**で修正（失敗時は永続化せず、更新失敗は 500 へ伝播）。成功時 body 不変・フロント `postCharacterToDiscord` は 500 を catch 済みで影響なし。spec に「失敗時 update 呼ばない」「update 失敗→500」を追加。全体スイート 2774 緑。
 - 結果: ESLint **errors=0 / warnings=20**（残は全て意図的受容パターン: no-require-imports 7・no-empty 7・`'literal'|string` 3・no-namespace 3）。
+
+---
+
+## 🛡️ イベント基盤 forRoot 統合リファクタの安全網（characterization）**[完了: 2026-06-03]**
+
+次フェーズで予定する「`EventEmitterModule.forRoot()` 二重呼び出しの統合」（`events/events.module.ts:52` の forRoot を削除し `core/events/core-events.module.ts:15` の1つへ統一。設定は現状有効値の events 側＝`maxListeners:20` / `verboseMemoryLeak:true` に寄せる。`@Global` 二重も解消）の**前に、現挙動を固定する安全網**を張った。本体コードは未変更（テスト追加のみ）。
+
+### テスタビリティ評価（全て🟢緑 / A 判定）
+
+- **A. TypedEventService emit/on 往復**: 🟢 既存 `typed-event.service.spec.ts` が DI で `'TYPED_EVENT_EMITTER'` を差し替え、emit→on 往復・off・once・waitForEvent を網羅済み。補強不要。
+- **B. MetricsCollectorService の @OnEvent 配線（最重要）**: 🟢 `OnModuleInit` のみで重い副作用なし、外部依存は EventEmitter2 1個、`getSystemMetrics()` で状態観測可能。forRoot を import した最小 TestingModule で emit 経由発火を実証できる。
+- **C. TypedEventService emitter とグローバル EventEmitter2 の分離**: 🟢 `core-events.module.ts:29` が `'TYPED_EVENT_EMITTER'` を独立 `new` し `@OnEvent` 用グローバル emitter と別インスタンス。観測可能。
+
+### 作成したテスト
+
+- **`src/discord/services/monitoring/metrics-collector.service.onevent.spec.ts`（新規・B）**: `EventEmitterModule.forRoot({maxListeners:20, verboseMemoryLeak:true, ...})` を import した最小 TestingModule で `await module.init()`（@OnEvent 購読は onApplicationBootstrap で登録されるため init 必須）。`eventEmitter.emit('discord.command.start'|'discord.command.complete', payload)` → `MetricsCollectorService` のハンドラが**メソッド直呼びではなく emit 経由で発火**し `getSystemMetrics()` の値（commandsExecuted / totalResponseTime / errors）が変化することを assert。これが forRoot 配線の回帰テスト。`AlertManagerService` の `@OnEvent('system.alert')` も1本追加（ConfigService はモック provider、`emitAsync` 後に `getActiveAlerts()` に1件追加される副作用を観測）。既存のメソッド直呼びユニット `metrics-collector.service.spec.ts`（26 tests）はそのまま残置。
+- **`src/core/events/typed-event-isolation.spec.ts`（新規・C）**: forRoot のグローバル EventEmitter2 と、core-events.module.ts と同形で独立生成した `'TYPED_EVENT_EMITTER'` を併存させ、(1) 両者が別インスタンス、(2) `typedEventService.emit` がグローバル側 `on` リスナーに**届かない**、(3) 独立 emitter 内では emit→on 往復が成立、を固定。統合時に誤って両 emitter を繋いだ場合に落ちて気づける。
+- **A** は既存 `typed-event.service.spec.ts`（21 tests）が網羅的なため新規追加なし（緑確認のみ）。
+
+### 検証結果（変更前コードで全緑＝安全網として成立）
+
+- `pnpm run build`: ✅ エラーなし。
+- 作成2ファイル＋既存A spec: **3 suites / 29 tests 全緑**（B の emit 経由配線テスト含む）。既存 `metrics-collector.service.spec.ts`: 26 tests 全緑。
+- `pnpm run check:circular`: ✅ No circular dependency found!（474 files・新規循環なし）。
+
+### forRoot 統合時の所見・残課題
+
+- B・C のテストは EventEmitter2 の**設定値（maxListeners / verboseMemoryLeak）に依存しない配線挙動**を検証しているため、events 側の値へ寄せても緑のまま＝**この安全網が統合後も緑なら @OnEvent 配線と emitter 分離は挙動不変**と言える。
+- 注意点: 本テストは `forRoot` を**1回だけ** import した TestingModule で配線を確認している。現在の本番構成は forRoot が二重だが、NestJS は forRoot の providers を `@Global` で全域提供するため、統合（1回化）しても `@OnEvent` の購読先グローバル EventEmitter2 は同一に解決される想定。統合 PR では本テスト群（特に B）を回帰スイートとして再実行し、全アプリ起動時の listener 登録（`pnpm run start:dev`）も併せて確認することを推奨。
+- 残課題: アプリ全体を起動した状態での @OnEvent 実配線（DiscoveryService 経由の購読先が統合後に1つの emitter へ集約されること）は本単体テストの範囲外。統合実施時に start:dev / E2E 観点で別途確認する。
 
 ---
 

@@ -1,12 +1,39 @@
 /**
  * Character Embed Utilities
  *
- * CharacterEmbedManagerService から抽出した discord.js 非依存の純粋関数群。
- * AttributeValue の合算・整形などの表示ロジックを、副作用なしで決定的に提供する。
+ * CharacterEmbedManagerService から抽出した純粋関数群。
+ *
+ * - 前半: discord.js 非依存の表示ロジック（AttributeValue の合算・整形）。
+ * - 後半: discord.js の各種 Builder（Embed / ActionRow / SelectMenu / Button）を
+ *   入力（Character 等）から決定的に構築する純粋関数。副作用（channel.send / emit）は
+ *   含まず、Builder を返すだけ。§12 の通り discord.js 依存のため feature 配下に置く。
  */
 
 import { randomBytes } from 'crypto'
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedField
+} from 'discord.js'
 import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
+import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
+import {
+  CharacterSectionCustomId,
+  CharacterRefreshCustomId,
+  CharacterCompactCustomId,
+  CharacterFieldCustomId,
+  CharacterCreateCustomId
+} from '../custom-id'
+
+/**
+ * Embed 分割タイプ
+ */
+export type EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item' | 'back'
 
 /**
  * Embed フィールドのプレーンデータ（discord.js EmbedField 互換）
@@ -175,17 +202,291 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
   return { displayName, displayValue }
 }
 
+// ============================================================================
+// discord.js Builder 構築（純粋関数：入力 → Builder を返すだけ。副作用なし）
+// ============================================================================
+
 /**
- * ダイスロールボタン用に、データ項目から表示名とロール値を抽出する純粋関数。
- * 元の addDiceRollButtonsFromData の判定ロジックと同じ挙動を保持する。
+ * 基本情報 Embed を構築する純粋関数。
  */
-export function extractDiceRollValue(key: string, value: unknown): { name: string; rollValue: number } {
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    if ('name' in obj && 'value' in obj) {
-      return { name: obj.name as string, rollValue: Number(obj.value) || 0 }
-    }
-    return { name: key, rollValue: Number(value as any) || 0 }
+export function buildBasicEmbed(character: Character): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle(`🏷️ ${character.characterName} - 基本情報`)
+    .setColor('#3498db')
+    .setTimestamp()
+
+  const fields: EmbedField[] = []
+
+  if (character.gameSystemId) {
+    fields.push({
+      name: '🎲 ゲームシステム',
+      value: character.gameSystemId,
+      inline: true
+    })
   }
-  return { name: key, rollValue: Number(value as any) || 0 }
+
+  fields.push(
+    {
+      name: '🆔 キャラクターID',
+      value: character.characterId,
+      inline: true
+    },
+    {
+      name: '👤 プレイヤー',
+      value: `<@${character.discordUserId}>`,
+      inline: true
+    }
+  )
+
+  embed.addFields(...fields)
+  return embed
+}
+
+/**
+ * セクション別 Embed（status/parameter/skill/item 共通）を構築する純粋関数。
+ * フィールド整形は buildAttributeFields に委譲し、25 件制限を考慮する。
+ */
+export function buildSectionEmbed(
+  emoji: string,
+  sectionName: string,
+  color: `#${string}`,
+  characterName: string,
+  data: Record<string, any> | undefined
+): EmbedBuilder {
+  const embed = new EmbedBuilder().setTitle(`${emoji} ${characterName} - ${sectionName}`).setColor(color).setTimestamp()
+
+  if (!data || Object.keys(data).length === 0) {
+    embed.setDescription(`${sectionName}情報がありません。\n編集ボタンから追加してください。`)
+    return embed
+  }
+
+  const fields = buildAttributeFields(data)
+
+  if (fields.length > 0) {
+    // Discord Embed の 25 フィールド制限を考慮
+    embed.addFields(...fields.slice(0, 24))
+
+    if (fields.length > 24) {
+      embed.setFooter({ text: `${fields.length - 24}個の${sectionName}が省略されています` })
+    }
+  } else {
+    embed.setDescription(`表示可能な${sectionName}情報がありません。`)
+  }
+
+  return embed
+}
+
+/**
+ * 編集用コンポーネント（セクション選択メニュー + 操作ボタン）を構築する純粋関数。
+ */
+export function buildEditComponents(characterId: string): ActionRowBuilder<any>[] {
+  const components: ActionRowBuilder<any>[] = []
+
+  // セクション選択メニュー
+  const sectionSelectMenu = new StringSelectMenuBuilder()
+    .setCustomId(CharacterSectionCustomId.createEditSection(characterId))
+    .setPlaceholder('編集するセクションを選択')
+    .addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('📊 ステータス')
+        .setValue('status')
+        .setDescription('基本ステータスを編集'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('⚙️ パラメータ')
+        .setValue('parameter')
+        .setDescription('能力値やパラメータを編集'),
+      new StringSelectMenuOptionBuilder().setLabel('⚔️ スキル').setValue('skill').setDescription('技能や特技を編集'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🎒 アイテム')
+        .setValue('item')
+        .setDescription('装備品やアイテムを編集')
+    )
+
+  const sectionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sectionSelectMenu)
+
+  // 操作ボタン
+  const actionButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(CharacterRefreshCustomId.create(characterId))
+      .setLabel('🔄 更新')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(CharacterCompactCustomId.create(characterId))
+      .setLabel('📋 簡易表示')
+      .setStyle(ButtonStyle.Secondary)
+  )
+
+  components.push(sectionRow, actionButtons)
+  return components
+}
+
+/**
+ * createSectionedEmbeds の embeds / components 一式を構築する純粋関数。
+ * 5 つの Embed（基本/ステータス/パラメータ/スキル/アイテム）と
+ * 編集コンポーネントを組み立てて返す。
+ */
+export function buildSectionedEmbeds(character: Character): {
+  embeds: EmbedBuilder[]
+  components: ActionRowBuilder<any>[]
+} {
+  const embeds: EmbedBuilder[] = [
+    buildBasicEmbed(character),
+    buildSectionEmbed('📊', 'ステータス', '#e74c3c', character.characterName, character.status),
+    buildSectionEmbed('⚙️', 'パラメータ', '#34495e', character.characterName, character.parameter),
+    buildSectionEmbed('⚔️', 'スキル', '#9b59b6', character.characterName, character.skill),
+    buildSectionEmbed('🎒', 'アイテム', '#f39c12', character.characterName, character.item)
+  ]
+
+  // 編集用コンポーネントを作成
+  const components = buildEditComponents(character.characterId)
+
+  return { embeds, components }
+}
+
+/**
+ * 特定セクションのフィールド選択メニューを構築する純粋関数。
+ * データが無ければ追加専用メニュー、あれば追加 + 既存編集メニューを返す。
+ * 未知のセクションタイプは null。表示整形は buildFieldOptionDisplay に委譲。
+ */
+export function buildFieldSelectMenu(
+  character: Character,
+  sectionType: EmbedSectionType,
+  characterId: string
+): StringSelectMenuBuilder | null {
+  let data: Record<string, any> | undefined
+  let sectionName: string
+
+  switch (sectionType) {
+    case 'status':
+      data = character.status
+      sectionName = 'ステータス'
+      break
+    case 'parameter':
+      data = character.parameter
+      sectionName = 'パラメータ'
+      break
+    case 'skill':
+      data = character.skill
+      sectionName = 'スキル'
+      break
+    case 'item':
+      data = character.item
+      sectionName = 'アイテム'
+      break
+    default:
+      return null
+  }
+
+  if (!data || Object.keys(data).length === 0) {
+    // データがない場合は追加専用メニュー
+    return new StringSelectMenuBuilder()
+      .setCustomId(CharacterFieldCustomId.createAdd(sectionType, characterId))
+      .setPlaceholder(`${sectionName}を追加`)
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(`➕ 新しい${sectionName}を追加`)
+          .setValue('add_new')
+          .setDescription(`新しい${sectionName}項目を追加します`)
+      )
+  }
+
+  // 既存フィールドの編集メニュー
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId(CharacterFieldCustomId.createEdit(sectionType, characterId))
+    .setPlaceholder(`編集する${sectionName}を選択`)
+
+  const options: StringSelectMenuOptionBuilder[] = []
+
+  // 新規追加オプション
+  options.push(
+    new StringSelectMenuOptionBuilder()
+      .setLabel(`➕ 新しい${sectionName}を追加`)
+      .setValue('add_new')
+      .setDescription(`新しい${sectionName}項目を追加します`)
+  )
+
+  // 既存フィールドのオプション
+  const fieldEntries = Object.entries(data).slice(0, 23) // Discord制限考慮
+
+  for (const [key, value] of fieldEntries) {
+    // AttributeValue / レガシー形式の表示整形を純粋関数へ委譲（短縮処理含む）
+    const { displayName, displayValue } = buildFieldOptionDisplay(key, value)
+
+    options.push(
+      new StringSelectMenuOptionBuilder().setLabel(`✏️ ${displayName}`).setValue(key).setDescription(`${displayValue}`)
+    )
+  }
+
+  selectMenu.addOptions(...options)
+  return selectMenu
+}
+
+/**
+ * 新規キャラクター作成用の Embed + ボタンを構築する純粋関数。
+ */
+export function buildNewCharacterEmbed(
+  channelId: string,
+  userId: string
+): {
+  embeds: EmbedBuilder[]
+  components: ActionRowBuilder<any>[]
+} {
+  const embed = new EmbedBuilder()
+    .setTitle('🆕 新しいキャラクターを作成')
+    .setDescription('新しいキャラクターを作成します。\n下のボタンから基本情報を入力してください。')
+    .setColor('#2ecc71')
+    .setTimestamp()
+    .addFields({
+      name: '📝 作成手順',
+      value: '1️⃣ 「基本情報入力」ボタンをクリック\n2️⃣ キャラクター名とゲームシステムを入力\n3️⃣ 作成後に詳細情報を編集',
+      inline: false
+    })
+
+  // 作成ボタン
+  const createButton = new ButtonBuilder()
+    .setCustomId(CharacterCreateCustomId.createBasic(channelId, userId))
+    .setLabel('📝 基本情報入力')
+    .setStyle(ButtonStyle.Primary)
+
+  const cancelButton = new ButtonBuilder()
+    .setCustomId(CharacterCreateCustomId.createCancel(channelId, userId))
+    .setLabel('❌ キャンセル')
+    .setStyle(ButtonStyle.Secondary)
+
+  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(createButton, cancelButton)
+
+  return {
+    embeds: [embed],
+    components: [buttonRow]
+  }
+}
+
+/**
+ * キャラクター作成完了メッセージ Embed を構築する純粋関数。
+ */
+export function buildCharacterCreatedEmbed(character: Character): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle('✅ キャラクター作成完了')
+    .setDescription(
+      `**${character.characterName}** が正常に作成されました！\n下記のキャラクター情報から詳細を編集できます。`
+    )
+    .setColor('#27ae60')
+    .setTimestamp()
+    .addFields(
+      {
+        name: '🎲 ゲームシステム',
+        value: character.gameSystemId || '未設定',
+        inline: true
+      },
+      {
+        name: '🆔 キャラクターID',
+        value: character.characterId,
+        inline: true
+      },
+      {
+        name: '👤 作成者',
+        value: `<@${character.discordUserId}>`,
+        inline: true
+      }
+    )
 }

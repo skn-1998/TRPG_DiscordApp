@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
 import { Strategy } from 'passport-discord'
 import { AuthService } from './services/auth.service'
 import { DiscordUserProfile } from './models/discord-user.model'
+import { AppConfigService } from '../../config/config.service'
 
 // passport-discordのVerifyCallback型定義
 type VerifyCallback = (error: any, user?: any) => void
@@ -17,12 +17,12 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
 
   constructor(
     private readonly authService: AuthService,
-    private readonly _configService: ConfigService
+    private readonly appConfigService: AppConfigService
   ) {
     super({
-      clientID: _configService.get<string>('DISCORD_APPLICATIONID'),
-      clientSecret: _configService.get<string>('DISCORD_SECRET'),
-      callbackURL: _configService.get<string>('DISCORD_CALLBACK_URL') || 'http://localhost:3000/auth/discord/callback',
+      clientID: appConfigService.get('discord.applicationId'),
+      clientSecret: appConfigService.get('discord.secret'),
+      callbackURL: appConfigService.get('auth.redirectUrl') || 'http://localhost:3000/auth/discord/callback',
       scope: ['identify', 'email', 'guilds']
     })
 
@@ -35,7 +35,7 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
    * TypeScriptコンパイラが未使用変数警告を出さないようにするためのメソッド
    */
   private logConfig(): void {
-    const applicationId = this._configService.get<string>('DISCORD_APPLICATIONID')
+    const applicationId = this.appConfigService.get('discord.applicationId')
     this.logger.debug(`Discord Strategy設定 - Application ID: ${applicationId}`)
     this.logger.debug(`Discord Strategy設定 - Scope: identify, email, guilds`)
     if (!applicationId) {

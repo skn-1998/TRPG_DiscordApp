@@ -18,8 +18,8 @@ import { TypedEventService, TypedEventEmitter } from './typed-event.service'
       delimiter: '.',
       newListener: false,
       removeListener: false,
-      maxListeners: 10,
-      verboseMemoryLeak: false,
+      maxListeners: 20,
+      verboseMemoryLeak: true,
       ignoreErrors: false
     })
   ],

@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common'
 import { AppConfigService } from '../../../config/config.service'
-import { CryptoUtil } from '../../../utils/crypto.util'
+import { CryptoUtil } from '../../../shared/utils/crypto.util'
 
 /**
  * トークン暗号化サービス

@@ -1,14 +1,5 @@
 import { Controller, Logger } from '@nestjs/common'
-import {
-  Client,
-  Events,
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  NonThreadGuildBasedChannel,
-  ChannelType,
-  AnySelectMenuInteraction
-} from 'discord.js'
-import { ChannelCreateOrchestratorService } from '../features/characterEdit/services/channel-create-orchestrator.service'
+import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
 /**
@@ -25,20 +16,8 @@ import { InteractionRegistryService } from './registry/interaction-registry.serv
 @Controller('interactions')
 export class InteractionsController {
   private readonly logger = new Logger(InteractionsController.name)
-  private client: Client
 
-  constructor(
-    private readonly interactionRegistry: InteractionRegistryService,
-    private readonly channelCreateOrchestratorService: ChannelCreateOrchestratorService
-  ) {}
-
-  /**
-   * Discordクライアントのコマンドハンドリング設定
-   */
-  handleCommand(client: Client): void {
-    this.client = client
-    this.handleChannelCreate(client)
-  }
+  constructor(private readonly interactionRegistry: InteractionRegistryService) {}
 
   /**
    * インタラクションハンドラー - 外部から呼び出される
@@ -88,25 +67,5 @@ export class InteractionsController {
         }
       }
     }
-  }
-
-  /**
-   * チャンネル作成ハンドラー
-   */
-  private handleChannelCreate(client: Client): void {
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- discord.js の Client.on は async リスナーを await しない設計（handler 内で try/catch 済み）。fire-and-forget は意図的
-    client.on(Events.ChannelCreate, async (channel: NonThreadGuildBasedChannel) => {
-      if (channel.type !== ChannelType.GuildText) return
-
-      const textChannel = channel
-      this.logger.log(`チャンネル作成検出: ${textChannel.name} (${textChannel.id})`)
-
-      try {
-        // Channel Create Orchestrator による統合処理
-        await this.channelCreateOrchestratorService.execute(textChannel)
-      } catch (error) {
-        this.logger.error(`チャンネル作成処理でエラーが発生: ${textChannel.name}`, error)
-      }
-    })
   }
 }

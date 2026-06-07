@@ -14,7 +14,8 @@ import { Character } from './models/character.model'
  * - feature flag (`prototype.eventDriven`) 分岐は削除（AppConfigService 依存なし）
  * - UserService / DiscordService 依存は削除（単一責任原則の強化）
  * - create は characterId 必須（外部生成想定）。作成完了イベントは別ハンドラが発行するため emit しない
- * - update / updateByChannelId / remove / removeByChannelId が character.updated / character.deleted を emit
+ * - 過去形 character.updated / character.deleted は購読者ゼロのデッドイベントとして廃止済み。
+ *   update / updateField / remove 等は DB 操作のみを行い、いかなるイベントも emit しない
  */
 describe('CharacterService', () => {
   let service: CharacterService
@@ -189,23 +190,74 @@ describe('CharacterService', () => {
     })
   })
 
+  describe('updateField', () => {
+    it('should update field via repository and not emit any event', async () => {
+      // Given
+      characterRepository.updateField.mockResolvedValue(mockCharacter)
+
+      // When
+      await service.updateField('test-id', 'status', { HP: 100 })
+
+      // Then - DB 操作のみ。過去形デッドイベントは廃止済みで emit しない
+      expect(characterRepository.updateField).toHaveBeenCalledWith('test-id', 'status', { HP: 100 })
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('should not emit when character is not found', async () => {
+      // Given
+      characterRepository.updateField.mockResolvedValue(null)
+
+      // When
+      const result = await service.updateField('missing-id', 'status', { HP: 100 })
+
+      // Then
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('updateFieldByChannelId', () => {
+    it('should update field by channelId via repository and not emit any event', async () => {
+      // Given
+      characterRepository.updateFieldByChannelId.mockResolvedValue(mockCharacter)
+
+      // When
+      await service.updateFieldByChannelId('test-channel', 'parameter', { STR: 15 })
+
+      // Then - DB 操作のみ。過去形デッドイベントは廃止済みで emit しない
+      expect(characterRepository.updateFieldByChannelId).toHaveBeenCalledWith('test-channel', 'parameter', {
+        STR: 15
+      })
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('should not emit when character is not found', async () => {
+      // Given
+      characterRepository.updateFieldByChannelId.mockResolvedValue(null)
+
+      // When
+      const result = await service.updateFieldByChannelId('missing-channel', 'parameter', { STR: 15 })
+
+      // Then
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(result).toBeNull()
+    })
+  })
+
   describe('update', () => {
-    it('should emit character.updated when update succeeds', async () => {
+    it('should update via repository and not emit any event', async () => {
       // Given
       characterRepository.update.mockResolvedValue(mockCharacter)
 
       // When
       await service.update('test-id', { characterName: 'Updated' })
 
-      // Then
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.updated',
-        expect.objectContaining({
-          character: mockCharacter,
-          updateType: 'update',
-          source: 'character-service'
-        })
+      // Then - DB 操作のみ。過去形デッドイベントは廃止済みで emit しない
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'test-id',
+        expect.objectContaining({ characterName: 'Updated' })
       )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('should not emit when character is not found', async () => {
@@ -222,7 +274,7 @@ describe('CharacterService', () => {
   })
 
   describe('remove', () => {
-    it('should delete character directly and emit character.deleted', async () => {
+    it('should delete character directly and not emit any event', async () => {
       // Given
       characterRepository.remove.mockResolvedValue(mockCharacter)
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation()
@@ -230,15 +282,9 @@ describe('CharacterService', () => {
       // When
       await service.remove('test-id', 'test-user')
 
-      // Then
+      // Then - DB 削除のみ。過去形デッドイベントは廃止済みで emit しない
       expect(characterRepository.remove).toHaveBeenCalledWith('test-id')
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.deleted',
-        expect.objectContaining({
-          character: mockCharacter,
-          source: 'character-service'
-        })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(logSpy).toHaveBeenCalledWith('Deleting character: test-id')
 
       logSpy.mockRestore()
@@ -257,33 +303,24 @@ describe('CharacterService', () => {
   })
 
   describe('removeByChannelId', () => {
-    it('should delete character by channel directly and emit character.deleted', async () => {
+    it('should delete character by channel directly and not emit any event', async () => {
       // Given
-      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
       characterRepository.removeByChannelId.mockResolvedValue(undefined)
       const logSpy = jest.spyOn(service['logger'], 'log').mockImplementation()
 
       // When
       await service.removeByChannelId('test-channel', 'test-user')
 
-      // Then
-      expect(characterRepository.findByChannelId).toHaveBeenCalledWith('test-channel')
+      // Then - DB 削除のみ。過去形デッドイベントは廃止済みで emit しない
       expect(characterRepository.removeByChannelId).toHaveBeenCalledWith('test-channel')
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.deleted',
-        expect.objectContaining({
-          character: mockCharacter,
-          source: 'character-service'
-        })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(logSpy).toHaveBeenCalledWith('Deleting character by channelId: test-channel')
 
       logSpy.mockRestore()
     })
 
-    it('should not emit when character is not found for channel', async () => {
+    it('should delete via repository even when no character matched, and not emit any event', async () => {
       // Given
-      characterRepository.findByChannelId.mockResolvedValue(null)
       characterRepository.removeByChannelId.mockResolvedValue(undefined)
 
       // When

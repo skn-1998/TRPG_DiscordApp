@@ -7,7 +7,6 @@ import { Character, UpdatePrimary } from './models/character.model'
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
-import { TypedEventService } from '../../core/events/typed-event.service'
 import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
 
 /**
@@ -64,10 +63,9 @@ export class CharacterService {
   }
 
   constructor(
-    private readonly characterRepository: CharacterRepository,
     // UserService依存削除 - Character Service単一責任原則の強化
     // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
-    private readonly typedEventService: TypedEventService
+    private readonly characterRepository: CharacterRepository
   ) {}
 
   /**
@@ -153,16 +151,6 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
-
-      // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
-        character: updatedCharacter,
-        updateType: 'update',
-        source: 'character-service',
-        timestamp: new Date()
-      })
-
-      this.logger.log(`Character updated event emitted for: ${updatedCharacter.characterId}`)
     }
 
     return updatedCharacter
@@ -196,16 +184,6 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
-
-      // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
-        character: updatedCharacter,
-        updateType: `updateField-${field}`,
-        source: 'character-service',
-        timestamp: new Date()
-      })
-
-      this.logger.log(`Character updated event emitted for field update: ${updatedCharacter.characterId} (${field})`)
     }
 
     return updatedCharacter
@@ -226,19 +204,6 @@ export class CharacterService {
 
     if (updatedCharacter) {
       await this.updateDiscordEmbed(updatedCharacter)
-
-      // character.updatedイベントを発行
-      await this.typedEventService.emit('character.updated', {
-        character: updatedCharacter,
-        updateType: `updateFieldByChannelId-${field}`,
-        channelId: channelId,
-        source: 'character-service',
-        timestamp: new Date()
-      })
-
-      this.logger.log(
-        `Character updated event emitted for field update by channelId: ${updatedCharacter.characterId} (${field})`
-      )
     }
 
     return updatedCharacter
@@ -253,17 +218,6 @@ export class CharacterService {
     this.logger.log(`Deleting character: ${id}`)
     const deletedCharacter = await this.characterRepository.remove(id)
 
-    if (deletedCharacter) {
-      // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
-      await this.typedEventService.emit('character.deleted', {
-        character: deletedCharacter,
-        source: 'character-service',
-        timestamp: new Date()
-      })
-
-      this.logger.log(`Character deleted event emitted for: ${deletedCharacter.characterId}`)
-    }
-
     return deletedCharacter
   }
 
@@ -275,23 +229,7 @@ export class CharacterService {
   async removeByChannelId(channelId: string, _userId?: string): Promise<void> {
     this.logger.log(`Deleting character by channelId: ${channelId}`)
 
-    // 削除前にキャラクター情報を取得
-    const character = await this.characterRepository.findByChannelId(channelId)
-
     await this.characterRepository.removeByChannelId(channelId)
-
-    if (character) {
-      // キャラクター削除完了イベントを発行（イベント駆動アーキテクチャ）
-      await this.typedEventService.emit('character.deleted', {
-        character,
-        source: 'character-service',
-        timestamp: new Date()
-      })
-
-      this.logger.log(
-        `Character deleted event emitted for channelId: ${channelId}, characterId: ${character.characterId}`
-      )
-    }
   }
 
   /**

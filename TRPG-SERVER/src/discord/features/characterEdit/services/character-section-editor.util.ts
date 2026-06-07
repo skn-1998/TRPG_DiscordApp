@@ -13,6 +13,15 @@
 import { getDisplayNumber, AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
 import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice1 Slice C: characterId 抽出の正規表現を feature-local 契約モジュールへ集約（byte-identical・非アンカーのまま）
+import {
+  CHARACTER_EDIT_SECTION_PARSE_PATTERN,
+  CHARACTER_SECTION_SELECT_PARSE_PATTERN
+} from '../custom-id/character-section.custom-id'
+import {
+  CHARACTER_FIELD_EDIT_PARSE_PATTERN,
+  CHARACTER_FIELD_ADD_PARSE_PATTERN
+} from '../custom-id/character-field.custom-id'
 
 /**
  * フィールド編集モーダルに流し込む既存値。
@@ -125,11 +134,13 @@ export function extractFieldEditValues(
   return { fieldName, currentValues, currentDice, currentDescription }
 }
 
+// 契約モジュールの解析パターンを参照（順序・正規表現とも従来と完全同一＝byte-identical）。
+// field の2本は契約モジュール既存定数、section の2本は同モジュールへ追加した定数。
 const CHARACTER_ID_PATTERNS = [
-  /character-edit-section-(.+)/,
-  /character-field-edit-\w+-(.+)/,
-  /character-field-add-\w+-(.+)/,
-  /character-section-select-(.+)/ // character-ui.service.ts からのパターンも対応
+  CHARACTER_EDIT_SECTION_PARSE_PATTERN,
+  CHARACTER_FIELD_EDIT_PARSE_PATTERN,
+  CHARACTER_FIELD_ADD_PARSE_PATTERN,
+  CHARACTER_SECTION_SELECT_PARSE_PATTERN // character-ui.service.ts からのパターンも対応
 ]
 
 /**

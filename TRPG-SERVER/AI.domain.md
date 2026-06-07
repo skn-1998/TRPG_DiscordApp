@@ -5,8 +5,12 @@
 このドキュメントでは、TRPG-SERVERにおけるドメイン駆動設計（DDD）とイベント駆動アーキテクチャの導入状況と設計指針を説明します。
 
 **関連ドキュメント**:
+
 - **[AI.md](./AI.md)** - プロジェクト概要
-- **[AI.architecture.md](./AI.architecture.md)** - システムアーキテクチャ・技術スタック
+- **[src/ARCHITECTURE.md](./src/ARCHITECTURE.md)** - システムアーキテクチャ・module 境界・型の置き場所（§12）
+- **[src/events/AI.event.md](./src/events/AI.event.md)** - イベント基盤の現状正本（冒頭節）
+- **[src/events/DESIGN.md](./src/events/DESIGN.md)** - イベント基盤の設計正本
+- **[AI.refactor.md](./AI.refactor.md)** - 最新のリファクタ状況・ドメイン評価
 - **[AI.test.md](./AI.test.md)** - テスト戦略・カバレッジ分析
 
 ---
@@ -14,42 +18,51 @@
 ## 🎯 **実装完了状況**
 
 ### **✅ Phase 1 完了: 基盤構築**
+
 - **TypedEventService**: 型安全なイベント通信基盤 ✅
 - **AppEventContracts**: イベント契約システム ✅
 - **BaseEvent Infrastructure**: イベント基底クラス ✅
 
 ### **✅ Phase 2 完了: ドメイン実装**
+
 - **Character Domain**: キャラクター管理のイベント駆動化 ✅
 - **Dice Roll Domain**: ダイスロール機能のイベント駆動化 ✅
 - **Discord Integration**: Discord統合レイヤー ✅
 
 ### **✅ Phase 3 完了: アーキテクチャ移行** `[完了: 2025-01-05]`
+
 - **Commands層統一化**: BaseCommandService による統一パターン ✅
 - **循環依存除去**: 全Events層で循環依存0個達成 ✅
 - **エラーハンドリング統一**: 100%統一化達成 ✅
 - **ログシステム統一**: 構造化ログ完全実装 ✅
 
 ### **✅ Phase 4 完了: イベントタイミング修正** `[完了: 2025-08-11]`
+
 - **CharacterEventHandlerService**: `character.findById`イベントタイムアウト問題解決 ✅
 - **EnhancedCharacterEditService**: `waitForEvent`と`emit`の実行順序修正 ✅
 - **Event Flow Debugging**: 完全なイベントフロー検証テスト完備 ✅
 - **Test Module Initialization**: `onModuleInit`の適切な呼び出し確保 ✅
 
 ### **✅ Phase 5 完了: チャンネル作成イベント駆動化** `[完了: 2025-01-10]`
+
 - **ChannelCreateOrchestratorService**: character.creation.requestedイベント発火実装 ✅
-- **CharacterEventHandlerService**: 新しいイベントハンドラーサービス作成 ✅  
+- **CharacterEventHandlerService**: 新しいイベントハンドラーサービス作成 ✅
 - **CharacterCreationService**: 循環依存解消、イベント駆動実装 ✅
 - **イベント統合**: TypedEventServiceによる完全なイベント統合 ✅
+
+> ※以下（Phase 4 / Phase 5 実装詳細）は2025年の完了報告（履歴）。現在のイベント基盤の正本は **src/events/AI.event.md 冒頭節** と **src/events/DESIGN.md**。
 
 #### **Phase 4実装詳細：イベントタイミング修正**
 
 **問題**: `character-refresh-*` および `character-compact-view-*` ボタンイベントがタイムアウトエラーで失敗
 
 **原因分析**:
+
 1. **`EnhancedCharacterEditService`**: `emit`を実行してから`waitForEvent`を呼んでいた
 2. **`CharacterEventHandlerService`**: テスト環境で`onModuleInit`が呼ばれていなかった
 
 **技術修正**:
+
 ```typescript
 // ❌ Before: 間違った順序
 await this.typedEventService.emit('character.findById.requested', payload)
@@ -67,12 +80,14 @@ await this.typedEventService.emit('character.findById.requested', payload)
 const result = await resultPromise
 ```
 
-**検証テスト**: 完全なイベントフロー検証デバッグテスト追加 
+**検証テスト**: 完全なイベントフロー検証デバッグテスト追加
+
 - 直接メソッド呼び出しテスト ✅
-- イベント発行・受信テスト ✅  
+- イベント発行・受信テスト ✅
 - 統合エンドツーエンドテスト ✅
 
 #### **Phase 5実装詳細**
+
 ```typescript
 // 🎯 改善されたアーキテクチャフロー
 // 1. ChannelCreateOrchestratorService
@@ -94,8 +109,9 @@ const result = await resultPromise
 ```
 
 #### **改善効果**
+
 - **循環依存**: 完全解消 (forwardRef削除)
-- **型安全性**: 100% (TypedEventServiceによる型安全なイベント)
+- **型安全性**: イベント契約は TypedEventService により型付け。ただしコードベース全体では any が約230件残存（非テスト）し段階的削減中（「100%」は誇張だった）
 - **保守性**: 大幅向上 (責務分離、イベント駆動)
 - **拡張性**: 優秀 (イベントベースでの機能追加が容易)
 
@@ -104,6 +120,7 @@ const result = await resultPromise
 ## 🏗️ **アーキテクチャ設計**
 
 ### **1. イベント駆動アーキテクチャ**
+
 ```typescript
 // 型安全なイベント契約システム
 export interface AppEventContracts {
@@ -115,11 +132,8 @@ export interface AppEventContracts {
 
 // TypedEventService - 型安全なイベント通信
 export class TypedEventService {
-  emit<K extends keyof AppEventContracts>(
-    eventName: K, 
-    payload: AppEventContracts[K]
-  ): boolean
-  
+  emit<K extends keyof AppEventContracts>(eventName: K, payload: AppEventContracts[K]): boolean
+
   on<K extends keyof AppEventContracts>(
     eventName: K,
     listener: (payload: AppEventContracts[K]) => void | Promise<void>
@@ -130,6 +144,9 @@ export class TypedEventService {
 ### **2. ドメイン駆動設計（DDD）**
 
 #### **ドメイン境界**
+
+> ※以下の評価スコアは2025年時点の評価（古いスナップショット）。最新は AI.refactor.md を参照。
+
 - **Auth Domain**: 認証・認可処理 (評価: 95/100)
 - **User Domain**: ユーザー情報管理 (評価: 90/100)
 - **Character Domain**: キャラクター管理 (評価: 85/100)
@@ -137,13 +154,16 @@ export class TypedEventService {
 - **Discord Domain**: Bot機能統合 (評価: 88/100)
 
 #### **ドメイン責務分離の最適化**
+
 **重要な変更点**:
+
 - `GET /auth/discord/guilds` → `GET /users/discord/guilds` (ドメイン責務の適正化)
 - `UserService.validateToken()` 削除 (認証処理はauthドメインの責務)
 
 ### **3. Commands層統一パターン**
 
 #### **BaseCommandService 抽象クラス**
+
 ```typescript
 export abstract class BaseCommandService {
   constructor(
@@ -163,8 +183,9 @@ export abstract class BaseCommandService {
 ```
 
 #### **統一化完了サービス**
+
 - `CharacterThreadService` ✅
-- `DiceFromContextMenuService` ✅  
+- `DiceFromContextMenuService` ✅
 - `RollDiceService` ✅
 - `DiceResultService` ✅
 - `UserDefinedDiceService` ✅
@@ -175,6 +196,7 @@ export abstract class BaseCommandService {
 ## 🔄 **変更パターン例**
 
 ### **Before: 直接依存 + 循環依存**
+
 ```typescript
 @Injectable()
 export class CharacterChannelService {
@@ -186,11 +208,12 @@ export class CharacterChannelService {
 ```
 
 ### **After: イベント駆動パターン**
+
 ```typescript
 @Injectable()
 export class CharacterChannelService {
   constructor(private typedEventService: TypedEventService) {}
-  
+
   async handleCharacterSelection(interaction: StringSelectMenuInteraction) {
     const character = await this.typedEventService.requestCharacterSearch({
       criteria: { id: selectedCharacterId }
@@ -205,9 +228,10 @@ export class CharacterChannelService {
 ## 🎭 **DTO標準化システム**
 
 ### **基底クラス体系**
+
 ```typescript
 BaseDto                    // 共通フィールド (createdAt, updatedAt)
-├── IdentifiableDto       // ID を持つ DTO  
+├── IdentifiableDto       // ID を持つ DTO
 └── DiscordDto            // Discord 関連フィールド
 
 // 統一バリデーションシステム
@@ -218,6 +242,7 @@ ValidationUtils.date('フィールド名')
 ```
 
 ### **命名規則統一**
+
 ```typescript
 // 旧命名 → 新命名
 'PartialInputCharacterDto' → 'CharacterInputDto'
@@ -230,13 +255,15 @@ ValidationUtils.date('フィールド名')
 ## 📊 **実装品質指標**
 
 ### **現在の評価**
-- **型安全性**: 100% (TypeScript完全対応) ✅
-- **循環依存**: 0個 (完全解決) ✅
+
+- **型安全性**: any 約230件残存（非テスト）・段階的削減中（旧記載の「100%」は誇張）
+- **循環依存**: 0個（H6=2026-06-01 で auth⇄user 循環も解消。`check:circular` = No circular dependency found!）✅
 - **エラーハンドリング**: 100%統一化 ✅
 - **ログシステム**: 構造化ログ完全導入 ✅
-- **ドメイン設計**: 88/100 (優秀) ✅
+- **ドメイン設計**: 88/100 ※2025年時点の評価。最新は AI.refactor.md
 
 ### **技術的改善効果**
+
 - **IntelliSense**: 完全対応 - イベント名・引数の自動補完
 - **保守性**: 大幅向上 - 明確なイベント契約
 - **テスタビリティ**: 向上 - イベント駆動モック対応
@@ -247,11 +274,13 @@ ValidationUtils.date('フィールド名')
 ## 🚀 **今後の拡張戦略**
 
 ### **次期推奨改善 (優先度順)**
+
 1. **Controller層完全化** - 高優先度
-2. **パフォーマンス最適化** - 中優先度  
+2. **パフォーマンス最適化** - 中優先度
 3. **セキュリティ強化** - 長期的改善
 
 ### **長期的アーキテクチャ方向性**
+
 - **マイクロサービス化対応**: サービス境界の明確化
 - **CQRS導入**: Command Query Responsibility Segregation
 - **イベントソーシング**: イベントストア実装
@@ -262,17 +291,19 @@ ValidationUtils.date('フィールド名')
 ## 🎯 **設計原則**
 
 ### **基本原則**
+
 1. **Single Responsibility**: 各ドメインが独立した責任を持つ
 2. **Dependency Inversion**: 抽象に依存し、具象に依存しない
 3. **Event-Driven**: 疎結合なイベント通信
-4. **Type Safety**: 100%型安全性の維持
+4. **Type Safety**: 型安全性の継続的向上（現状 any 約230件残存・段階的削減中。「100%」は未達）
 
 ### **品質基準**
-- **循環依存**: 0個維持
-- **型安全性**: 100%維持
+
+- **循環依存**: 0個維持（`check:circular` = No circular dependency found! が正常。H6=2026-06-01 で auth⇄user も解消済み）
+- **型安全性**: any の段階的削減（現状約230件残存・非テスト。「100%維持」は誇張だった）
 - **テストカバレッジ**: 継続的向上
 - **エラーハンドリング**: 統一パターン遵守
 
 ---
 
-*このドキュメントはドメイン駆動設計の概要と実装状況を提供します。技術詳細については [AI.architecture.md](./AI.architecture.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。*
+_このドキュメントはドメイン駆動設計の概要と実装状況を提供します。技術詳細・module 境界・型の置き場所については [src/ARCHITECTURE.md](./src/ARCHITECTURE.md)（§12）を、イベント基盤の現状正本については [src/events/AI.event.md](./src/events/AI.event.md) 冒頭節と [src/events/DESIGN.md](./src/events/DESIGN.md) を、プロジェクト概要については [AI.md](./AI.md) をご参照ください。_

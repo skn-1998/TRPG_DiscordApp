@@ -51,12 +51,25 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 **主要コンポーネント**:
 
 - `character-thread-feature.module.ts` - フィーチャーモジュール定義
-- `services/` - スレッド管理専門サービス群
-  - `character-thread.orchestrator.ts` - スレッド統合管理
-  - `thread-creation.service.ts` - スレッド作成ロジック
-  - `character-display.service.ts` - キャラクター表示管理
-  - `character-embed.service.ts` - Embed生成・フォーマット
-  - `dice-ui-builder.service.ts` - ダイスUI構築
+- `character-channel.service.ts` - キャラクターチャンネル選択メニュー処理（`CharacterChannelService`）
+- `character-tab-buttons.service.ts` - キャラクタータブボタン処理（`CharacterTabButtonsService`）
+- `services/` - スレッド・チャンネル管理専門サービス群
+  - `character-thread.orchestrator.ts` - スレッド統合管理（`CharacterThreadOrchestrator`）
+  - `thread-orchestrator.service.ts` - スレッド処理オーケストレーション（`ThreadOrchestratorService`）
+  - `character-channel-orchestrator.service.ts` - キャラクターチャンネル統合管理（`CharacterChannelOrchestratorService`）
+  - `thread-creation.service.ts` - スレッド作成ロジック（`ThreadCreationService`）
+  - `thread-manager.service.ts` - スレッド管理（`ThreadManagerService`）
+  - `channel-manager.service.ts` - チャンネル管理（`ChannelManagerService`）
+  - `thread-interaction.service.ts` - スレッドインタラクション処理（`ThreadInteractionService`）
+  - `character-display.service.ts` - キャラクター表示管理（`CharacterDisplayService`）
+  - `character-display-handler.service.ts` - キャラクター表示ハンドラー（`CharacterDisplayHandlerService`）
+  - `character-embed.service.ts` - Embed生成・フォーマット（`CharacterEmbedService`）
+  - `dice-ui-builder.service.ts` - ダイスUI構築（`DiceUIBuilderService`）
+  - `index.ts` - サービス群のエクスポート集約
+- `services/`（utils 相当の純粋ロジック）
+  - `thread-creation.util.ts` - スレッド作成ロジックの純関数
+  - `thread-manager.util.ts` - スレッド管理ロジックの純関数
+  - `channel-manager.util.ts` - チャンネル管理ロジックの純関数
 - `dto/thread-creation.dto.ts` - データ転送オブジェクト
 - `events/character-thread.ids.ts` - イベント識別子
 
@@ -82,15 +95,19 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
 **主要コンポーネント**:
 
 - `dice-roll.module.ts` - ダイスロール機能モジュール
+- `index.ts` - 公開エクスポート
 - `adapters/` - Discord インタラクション アダプター群
   - `dice-button.adapter.ts` - ダイスボタンインタラクション
   - `custom-dice-modal.adapter.ts` - カスタムダイスモーダル
   - `dice-character-select.adapter.ts` - キャラクター選択
-  - `dice-page-*.adapter.ts` - ページネーション制御
+  - `dice-page-prev-button.adapter.ts` / `dice-page-next-button.adapter.ts` / `dice-page-first-button.adapter.ts` / `dice-page-last-button.adapter.ts` / `dice-page-cancel-button.adapter.ts` - ページネーション制御ボタン
+  - `dice-page-select-menu.adapter.ts` - ページ選択メニュー
 - `services/` - ダイス処理オーケストレーション
-  - `roll-dice.orchestrator.ts` - ダイスロール統合管理
-  - `dice-result.orchestrator.ts` - 結果処理・表示
+  - `roll-dice.orchestrator.ts` - ダイスロール統合管理（`RollDiceOrchestrator`）
+  - `dice-result.orchestrator.ts` - 結果処理・表示（`DiceResultOrchestrator`）
 - `utils/channel-topic.util.ts` - チャンネルトピック管理
+
+> **補足（Phase 1 完了）**: 上記 `adapters/`、pagination 関連サービス、handlers、custom-id は `DiceRollFeatureModule` が所有する。handler 登録も feature 側の `onModuleInit()` から `InteractionRegistryService` へ明示登録する。詳細は [../DESIGN.md](../DESIGN.md) §7 Phase 1。
 
 **設計パターン**: Adapter Pattern + Command Pattern
 

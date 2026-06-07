@@ -3,7 +3,7 @@ import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { ThreadCreationService } from './thread-creation.service'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 /**
  * CharacterThreadOrchestrator は SelectMenu からのキャラ選択を受け、

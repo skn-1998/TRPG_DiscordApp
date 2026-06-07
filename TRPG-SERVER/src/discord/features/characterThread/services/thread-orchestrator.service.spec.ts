@@ -20,7 +20,14 @@ describe('ThreadOrchestratorService', () => {
   >
   let characterEmbed: jest.Mocked<Pick<CharacterEmbedService, 'postCharacterDisplay' | 'updateCharacterDisplay'>>
   let threadInteraction: jest.Mocked<
-    Pick<ThreadInteractionService, 'postFlexibleDiceMenu' | 'postPresetDiceButtons' | 'postSkillRollButtons'>
+    Pick<
+      ThreadInteractionService,
+      | 'postBasicDiceButtons'
+      | 'postFlexibleDiceMenu'
+      | 'postPresetDiceButtons'
+      | 'postSkillRollButtons'
+      | 'postAbilityRollButtons'
+    >
   >
   let characterService: jest.Mocked<Pick<CharacterService, 'update' | 'findOne'>>
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
@@ -56,9 +63,11 @@ describe('ThreadOrchestratorService', () => {
       updateCharacterDisplay: jest.fn().mockResolvedValue(undefined)
     }
     threadInteraction = {
+      postBasicDiceButtons: jest.fn().mockResolvedValue(undefined),
       postFlexibleDiceMenu: jest.fn().mockResolvedValue(undefined),
       postPresetDiceButtons: jest.fn().mockResolvedValue(undefined),
-      postSkillRollButtons: jest.fn().mockResolvedValue(undefined)
+      postSkillRollButtons: jest.fn().mockResolvedValue(undefined),
+      postAbilityRollButtons: jest.fn().mockResolvedValue(undefined)
     }
     characterService = {
       update: jest.fn().mockResolvedValue(undefined),
@@ -114,9 +123,11 @@ describe('ThreadOrchestratorService', () => {
       })
       expect(threadManager.getThreadChannel).toHaveBeenCalledWith('thread-new')
       expect(characterEmbed.postCharacterDisplay).toHaveBeenCalledWith(thread, character, 'full')
+      expect(threadInteraction.postBasicDiceButtons).toHaveBeenCalledWith(thread, character)
       expect(threadInteraction.postFlexibleDiceMenu).toHaveBeenCalledWith(thread, character)
       expect(threadInteraction.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
       expect(threadInteraction.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(threadInteraction.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
       // 失敗イベントは出さない
       expect(typedEventService.emit).not.toHaveBeenCalled()
     })

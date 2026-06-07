@@ -1,0 +1,35 @@
+{
+  "skill_name": "trpg-refactor",
+  "evals": [
+    {
+      "id": 0,
+      "name": "deadcode-removal",
+      "prompt": "監査で未使用とされている TRPG-SERVER/src/domains/character/character-id.service.ts を、リファクタ計画に沿って安全に削除して。",
+      "expected_output": "未使用を実コードで確認 → nestjs-best-practices へ実装委譲 → pnpm run build と check:circular で検証 → AI.refactor.md/AI.*.md に記録。コミットはしない。",
+      "files": [],
+      "assertions": [
+        "削除前に character-id.service.ts が本当に未使用か実コード（参照箇所の検索）で確認している",
+        "自分で直接コードを書かず nestjs-best-practices スキルへ実装を委譲している",
+        "pnpm run build を実行して検証している",
+        "pnpm run check:circular を実行し UserDomain⇄AuthDomain のみ許容を確認している",
+        "AI.refactor.md などの AI.*.md に作業内容を記録している",
+        "明示要求がないため自動コミットしていない"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "secret-log-removal",
+      "prompt": "TRPG-SERVER の auth.controller.ts が JWT や Authorization ヘッダを console.log で出力しているので、機密ログを除去して。",
+      "expected_output": "対象行を実コードで確認 → 機密に依存する箇所（フロントが body の token に依存していないか等）を確認 → nestjs-best-practices へ委譲 → build/check:circular 検証 → AI.*.md 記録。",
+      "files": [],
+      "assertions": [
+        "auth.controller.ts の該当行を実コードで確認している",
+        "機密ログ除去がフロントや他箇所に影響しないか（危険な変更か）を確認している",
+        "自分で直接コードを書かず nestjs-best-practices スキルへ実装を委譲している",
+        "pnpm run build を実行して検証している",
+        "pnpm run check:circular を実行している",
+        "AI.refactor.md などの AI.*.md に作業内容を記録している"
+      ]
+    }
+  ]
+}

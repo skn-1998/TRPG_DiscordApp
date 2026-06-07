@@ -26,22 +26,22 @@
 
 ```bash
 # 開発サーバー起動
-npm run start:dev
+pnpm run start:dev
 
 # ビルド
-npm run build
+pnpm run build
 
 # テスト実行
-npm run test
-npm run test:watch
-npm run test:cov
+pnpm run test
+pnpm run test:watch
+pnpm run test:cov
 
 # E2Eテスト
-npm run test:e2e
+pnpm run test:e2e
 
 # Lint & Format
-npm run lint
-npm run format
+pnpm run lint
+pnpm run format
 ```
 
 ### **IDE設定**
@@ -234,7 +234,7 @@ export class ConnectionManager {
 
 ### 0. **Phase S セキュリティ対応** `[完了: 2026-05-31]`（ブランチ refactor/security-phase-s）
 
-詳細は `AI.refactor.md` / `document/refactor-phase-S-plan.md`。要点：
+詳細は `AI.refactor.md` / `docs/refactor/refactor-phase-S-plan.md`。要点：
 
 - **機密ログ除去（S1）**: `auth.controller.ts` / `auth.service.ts` から JWT・Authorization ヘッダ・
   全ヘッダ・Discord access/refresh token・**client_secret**・プロフィール全体を出力していた
@@ -647,6 +647,8 @@ const learnings = {
 
 #### 1. **テストカバレッジ向上**
 
+> ℹ️ **注記**: 以下の数値（43.99%）は初期スナップショット。最新の評価は [AI.test.md](./AI.test.md)（全体テスタビリティ評価マップ）を正本とする。
+
 - **目標**: 43.99% → 60%以上
 - **対象**: 認証フローE2E、Discord Bot統合テスト
 - **戦略**: 大ファイル攻略、Controller層テスト拡充
@@ -749,6 +751,8 @@ const observabilityPlan = {
 ## 🔧 **リファクタリング要素分析** **[分析日: 2025-01-09]**
 
 ### 📊 **コードベース概要**
+
+> ℹ️ **注記**: 以下の数値（43.99% 等）は初期スナップショット。最新の評価は [AI.test.md](./AI.test.md)（全体テスタビリティ評価マップ）を正本とする。
 
 - **総ファイル数**: 150個のTypeScriptファイル
 - **テストファイル数**: 31個

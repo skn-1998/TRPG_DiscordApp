@@ -91,17 +91,7 @@ export class CharacterEditValidator {
   }
 }
 
-// Service Factory (Bulletproof React概念に基づく)
-export class CharacterEditServiceFactory {
-  static createChannelDetectionService(appConfigService: any) {
-    return new (require('./character-channel-create.service').ChannelDetectionService)(appConfigService)
-  }
-
-  static createCharacterCreationService(characterService: any) {
-    return new (require('./character-channel-create.service').CharacterCreationService)(characterService)
-  }
-
-  static createCharacterNotificationService(changeCharaInfoService: any) {
-    return new (require('./character-channel-create.service').CharacterNotificationService)(changeCharaInfoService)
-  }
-}
+// 注: かつて存在した CharacterEditServiceFactory は、実在しない
+// './character-channel-create.service' を require する未使用デッドコードだったため削除（2026-06-03）。
+// ChannelDetectionService / CharacterCreationService / CharacterNotificationService は
+// './services' から export 済みで、利用は NestJS の DI（CharacterEditModule）を介して行う。

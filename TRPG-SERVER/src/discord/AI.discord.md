@@ -12,6 +12,12 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 | **[interactions/README.md](./interactions/README.md)**                   | Interactions レイヤーの役割・構成・Handler 作法                       |
 | **[interactions/MIGRATION_GUIDE.md](./interactions/MIGRATION_GUIDE.md)** | Registry 移行・Feature 分離の手順書                                   |
 
+> ⚠️ **現状ステータス（2026-06-03 時点）**
+> 本書は日付付きメモの集積（履歴を含む）。Discord 層の設計正本は [DESIGN.md](./DESIGN.md)、進捗の正本は `AI.refactor.md`。以下の点に注意:
+>
+> - **循環依存はゼロ**（`check:circular` = "No circular dependency found!"）。H6（2026-06-01）で旧 Auth⇄User 循環も解消済み。本書内の日付付き検証ログにある「Auth⇄User の 1 件のみ許容」は当時の記録。
+> - 下部の「残存課題: TypeScriptエラー22個（2025-08-17）」「今後の改善項目」等は当時のスナップショットで陳腐化している箇所がある。最新は `AI.refactor.md` を参照。
+
 ---
 
 ## 📝 最新メモ（2026-06-01）

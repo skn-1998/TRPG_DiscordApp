@@ -16,11 +16,11 @@ import { EventPayload } from '../../events/contracts'
  * - create は characterId 必須・直接 DB へ永続化し、作成完了イベントは発行しない
  *   （character.creation.completed は File-based Event Handlers が character.creation.requested を
  *    受けて発行する責務であり、create() 自体は発行しない）
- * - update / updateByChannelId は DB を更新し、update は character.updated を emit
- * - remove / removeByChannelId は DB から削除し character.deleted を emit
+ * - update / updateByChannelId は DB を更新する（過去形 character.updated は廃止済みで emit しない）
+ * - remove / removeByChannelId は DB から削除する（過去形 character.deleted は廃止済みで emit しない）
  *
  * よって本テストは「サービス経由の直接 CRUD が DB に正しく反映されること」と
- * 「update/remove で対応する統合イベントが発行されること」を検証する。
+ * 「廃止済みの過去形デッドイベント（character.updated / character.deleted）を emit しないこと」を検証する。
  * findByChannelId.completed / update.completed といった完了イベントの検証は
  * File-based Event Handlers 側の spec が担うため、ここでは扱わない。
  */
@@ -240,19 +240,22 @@ describe('Character CRUD Integration Test', () => {
       expect((savedCharacter!.status as any).MP.values.other).toBe(5)
     })
 
-    it('should emit character.updated when updating by id', async () => {
+    it('should update by id in DB and NOT emit the retired character.updated event', async () => {
       let emittedPayload: EventPayload<'character.updated'> | null = null
       typedEventService.once('character.updated', (payload) => {
         emittedPayload = payload
       })
 
-      await characterService.update(testCharacter.characterId, { characterName: 'Renamed Character' })
+      const updated = await characterService.update(testCharacter.characterId, { characterName: 'Renamed Character' })
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      expect(emittedPayload).not.toBeNull()
-      expect(emittedPayload!.character.characterId).toBe(testCharacter.characterId)
-      expect(emittedPayload!.updateType).toBe('update')
-      expect(emittedPayload!.source).toBe('character-service')
+      // 過去形 character.updated は購読者ゼロのデッドイベントとして廃止済み（emit しない）
+      expect(emittedPayload).toBeNull()
+
+      // DB 更新自体は従来どおり行われる
+      expect(updated).not.toBeNull()
+      const savedCharacter = await characterRepository.findById(testCharacter.characterId)
+      expect(savedCharacter!.characterName).toBe('Renamed Character')
     })
 
     it('should return null when updating a non-existent channel', async () => {
@@ -277,7 +280,7 @@ describe('Character CRUD Integration Test', () => {
       testCharacter = await characterService.create(createData)
     })
 
-    it('should remove character by channelId, emit character.deleted, and clear DB', async () => {
+    it('should remove character by channelId and clear DB without emitting the retired character.deleted event', async () => {
       let emittedPayload: EventPayload<'character.deleted'> | null = null
       typedEventService.once('character.deleted', (payload) => {
         emittedPayload = payload
@@ -287,12 +290,10 @@ describe('Character CRUD Integration Test', () => {
       await characterService.removeByChannelId(testCharacter.discordChannelId, 'test-user-123')
       await new Promise((resolve) => setTimeout(resolve, 50))
 
-      // Assert - イベント
-      expect(emittedPayload).not.toBeNull()
-      expect(emittedPayload!.character.characterId).toBe(testCharacter.characterId)
-      expect(emittedPayload!.source).toBe('character-service')
+      // Assert - 過去形 character.deleted は購読者ゼロのデッドイベントとして廃止済み（emit しない）
+      expect(emittedPayload).toBeNull()
 
-      // Assert - DB から削除済み
+      // Assert - DB から削除済み（削除挙動は従来どおり）
       const savedCharacter = await characterRepository.findById(testCharacter.characterId)
       expect(savedCharacter).toBeNull()
     })

@@ -1,73 +1,86 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# TRPG-SERVER
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Discord 連携の TRPG（テーブルトーク RPG）支援サーバー。
+キャラクターシート管理・ダイスロール・チャンネル連携などを Discord 上から操作できるバックエンドアプリケーションです。
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- **フレームワーク**: NestJS 10 (TypeScript)
+- **データベース**: MongoDB (Mongoose ODM)
+- **Discord 連携**: discord.js 14
+- **ダイス**: BCDice
+- **設計**: イベント駆動アーキテクチャ（`@nestjs/event-emitter`）+ ドメイン分割
 
-## Description
+> package.json の `name`: `trpg-server` / `description`: `TRPG Server Application`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Installation
+## Quick Start
 
 ```bash
-$ pnpm install
+# 1. 依存関係のインストール
+pnpm install
+
+# 2. 環境変数の設定
+#    .env を用意します。必要な変数と設定の詳細は src/config/README.md を参照してください。
+
+# 3. 開発サーバー起動（watch モード）
+pnpm start:dev
 ```
 
-## Running the app
+環境変数（Discord トークン、MongoDB 接続、フロントエンド URL など）のセットアップ詳細は
+[`src/config/README.md`](./src/config/README.md) を参照してください。
 
-```bash
-# development
-$ pnpm run start
+## スクリプト一覧
 
-# watch mode
-$ pnpm run start:dev
+package.json に定義されている主要スクリプトです。パッケージマネージャは **pnpm** を使用します。
 
-# production mode
-$ pnpm run start:prod
-```
+### 起動・ビルド
 
-## Test
+| コマンド           | 説明                                                          |
+| ------------------ | ------------------------------------------------------------- |
+| `pnpm build`       | `nest build` で本番ビルド（事前に `prebuild` で dist を削除） |
+| `pnpm start`       | アプリ起動                                                    |
+| `pnpm start:dev`   | watch モードで起動（開発用）                                  |
+| `pnpm start:debug` | debug + watch モードで起動                                    |
+| `pnpm start:prod`  | `node dist/main` でビルド済みアプリを起動                     |
+| `pnpm clean`       | dist / eslint キャッシュ / tsbuildinfo を削除                 |
+| `pnpm clean:build` | clean してから build                                          |
 
-```bash
-# unit tests
-$ pnpm run test
+### テスト
 
-# e2e tests
-$ pnpm run test:e2e
+| コマンド           | 説明                                                        |
+| ------------------ | ----------------------------------------------------------- |
+| `pnpm test`        | Jest でユニットテストを実行                                 |
+| `pnpm test:watch`  | watch モードでユニットテスト                                |
+| `pnpm test:cov`    | カバレッジ付きでユニットテスト                              |
+| `pnpm test:e2e`    | E2E テスト（`NODE_ENV=test`、要 MongoDB 接続）              |
+| `pnpm test:e2e:tc` | Testcontainers で MongoDB コンテナを自動起動して E2E テスト |
 
-# test coverage
-$ pnpm run test:cov
-```
+`pnpm test:e2e:tc` は使い捨ての MongoDB コンテナを起動して E2E を実行します。
+詳細は [`test/testcontainers/README.md`](./test/testcontainers/README.md) を参照してください。
 
-## Support
+### 品質・依存関係
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+| コマンド              | 説明                                                                            |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `pnpm lint`           | ESLint（`--fix`、一部ディレクトリは除外）                                       |
+| `pnpm format`         | Prettier による整形                                                             |
+| `pnpm check:circular` | 循環依存チェック（`madge --circular`）。「No circular dependency found!」が正常 |
+| `pnpm check:deps`     | 依存グラフを SVG 出力                                                           |
+| `pnpm analyze:deps`   | 依存関係を警告付きで解析                                                        |
 
-## Stay in touch
+## ドキュメント案内
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+設計・進捗の正本はリポジトリ内の Markdown に集約されています。
 
-## License
+- [`AI.md`](./AI.md) — プロジェクト概要と各設計ドキュメントへの索引（**まずここを参照**）
+- [`src/ARCHITECTURE.md`](./src/ARCHITECTURE.md) — アーキテクチャ設計の正本（module 境界・依存ルール）
+- [`AI.refactor.md`](./AI.refactor.md) — リファクタリングの Phase 進捗
+- [`src/discord/DESIGN.md`](./src/discord/DESIGN.md) — Discord 連携機能の設計
+- [`src/config/README.md`](./src/config/README.md) — 環境変数とコンフィグのセットアップ
+- [`test/testcontainers/README.md`](./test/testcontainers/README.md) — Testcontainers ベースの E2E テスト
 
-Nest is [MIT licensed](LICENSE).
+`AI.*.md` は機能別の詳細設計（例: `AI.domain.md` / `AI.test.md` / `AI.discord.md` など）を扱います。
+作業前に `AI.md` の索引から該当ドキュメントを辿ってください。
+
+## 開発上の注意
+
+- `pnpm build` の後は `pnpm start:dev` や `pnpm check:circular` で依存関係を検証すること。
+- 循環依存はゼロを維持（`check:circular` が「No circular dependency found!」であること）。

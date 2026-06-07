@@ -10,7 +10,7 @@ import { TypedEventService } from '../../../../core/events/typed-event.service'
 /**
  * CharacterDisplayService はチャンネルIDからキャラクターを検索し Embed を構築する統合サービス。
  * TypedEventService（イベント発行・待機）のみを注入する。
- * 純ロジック（isValidTabType / createSkillRollButtons / createBasicDiceButtons / buildCharacterEmbed）を
+ * 純ロジック（isValidTabType / buildCharacterEmbed）を
  * 最優先で実 discord.js により検証し、createCharacterEmbed は waitForEvent を mock で固定して分岐を見る。
  */
 describe('CharacterDisplayService', () => {
@@ -47,88 +47,6 @@ describe('CharacterDisplayService', () => {
 
     it('未定義のタブ文字列は false を返す', () => {
       expect(service.isValidTabType('unknown')).toBe(false)
-    })
-  })
-
-  describe('createBasicDiceButtons', () => {
-    it('1D100 / 1D6 / 2D6 / カスタム の 4 ボタンを 1 行で生成する', () => {
-      // Arrange
-      const character = buildCharacter()
-
-      // Act
-      const row = service.createBasicDiceButtons(character)
-      const json = row.toJSON()
-
-      // Assert
-      expect(json.components).toHaveLength(4)
-      const labels = json.components.map((c: any) => c.label)
-      expect(labels).toEqual(['1D100', '1D6', '2D6', 'カスタム'])
-    })
-
-    it('customId にキャラクターIDが埋め込まれる', () => {
-      // Arrange
-      const character = buildCharacter({ characterId: 'abc' })
-
-      // Act
-      const row = service.createBasicDiceButtons(character)
-      const json = row.toJSON()
-
-      // Assert
-      expect((json.components[0] as any).custom_id).toBe('roll*1d100*abc')
-    })
-  })
-
-  describe('createSkillRollButtons', () => {
-    it('スキルが空の場合は空配列を返す', () => {
-      // Arrange
-      const character = buildCharacter({ skill: {} })
-
-      // Act & Assert
-      expect(service.createSkillRollButtons(character)).toEqual([])
-    })
-
-    it('skill が undefined の場合も空配列を返す', () => {
-      // Arrange
-      const character = buildCharacter({ skill: undefined })
-
-      // Act & Assert
-      expect(service.createSkillRollButtons(character)).toEqual([])
-    })
-
-    it('スキル値が0以下のスキルはボタン化されない', () => {
-      // Arrange
-      const character = buildCharacter({ skill: { 目星: 0, 聞き耳: -5 } })
-
-      // Act & Assert
-      expect(service.createSkillRollButtons(character)).toEqual([])
-    })
-
-    it('name/value 形式のスキルから skillName(value) ラベルのボタンを生成する', () => {
-      // Arrange
-      const character = buildCharacter({ skill: { spot: { name: '目星', value: 70 } } })
-
-      // Act
-      const rows = service.createSkillRollButtons(character)
-      const button = rows[0].toJSON().components[0] as any
-
-      // Assert
-      expect(button.label).toBe('目星(70)')
-      expect(button.custom_id).toBe('roll*_目星-70*char-1')
-    })
-
-    it('6個のスキルは5個ごとに行分割され2行になる', () => {
-      // Arrange: 6 個の有効スキル
-      const skill: Record<string, number> = {}
-      for (let i = 1; i <= 6; i++) skill[`skill${i}`] = 50
-      const character = buildCharacter({ skill })
-
-      // Act
-      const rows = service.createSkillRollButtons(character)
-
-      // Assert: 5 + 1 で 2 行
-      expect(rows).toHaveLength(2)
-      expect(rows[0].toJSON().components).toHaveLength(5)
-      expect(rows[1].toJSON().components).toHaveLength(1)
     })
   })
 

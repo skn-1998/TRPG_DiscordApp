@@ -9,7 +9,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder
 } from 'discord.js'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 
 /**
  * メッセージ管理サービス

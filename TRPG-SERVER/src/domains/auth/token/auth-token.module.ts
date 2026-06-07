@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 import { JwtTokenService } from './jwt-token.service'
 import { JwtAuthGuard } from '../guards/jwt-auth.guard'
+import { AppConfigModule } from '../../../config/config.module'
+import { AppConfigService } from '../../../config/config.service'
 
 /**
  * 認証トークンモジュール（下位の共通モジュール）
@@ -18,12 +19,11 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard'
  */
 @Module({
   imports: [
-    ConfigModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET')
+      imports: [AppConfigModule],
+      inject: [AppConfigService],
+      useFactory: (appConfigService: AppConfigService) => {
+        const secret = appConfigService.get('auth.jwtSecret')
         if (!secret) {
           throw new Error('JWT_SECRET is required but not configured')
         }
@@ -31,7 +31,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard'
         return {
           secret,
           signOptions: {
-            expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '1h',
+            expiresIn: appConfigService.get('auth.jwtExpiresIn') || '1h',
             algorithm: 'HS256' as const
           },
           verifyOptions: {

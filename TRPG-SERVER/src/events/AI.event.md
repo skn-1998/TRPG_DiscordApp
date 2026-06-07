@@ -13,13 +13,20 @@
 > - **撤去済み（B-2 T1/T2）**: レガシーの `GlobalEventBusService`・`EventRouterService`（`src/events/bus/`）は削除。
 >   かつて並存した3系統（GlobalEventBus / EventRouter / TypedEvent）は TypedEventService 1系統に統一済み。
 >
-> ### ハンドラ登録は2経路（層ごとに適切に分離）
+> ### ハンドラ登録は2経路（層ごとに所有・登録方式が異なる）
 >
-> - **events 層（ドメイン処理）**: `*.requested` 系（`character.creation/update/findBy*.requested`）は `EventRegistryService`
->   （`src/events/event-registry.service.ts`）が File-based で集中登録。これらは domain の `CharacterService` 等を呼ぶ（events→domains＝許可方向）。
-> - **discord 層（Discord UI 更新）**: `*.completed` 系と `discord.thread.create.requested` は `src/discord/events/handlers/` に置き、
->   **`DiscordEventHandlersModule`** が提供。各ハンドラが `onModuleInit` で `TypedEventService.on(...)` 自己購読する。
->   これらは `discord/features` のサービスを呼ぶ（discord→features＝許可方向）。
+> 登録経路は「どの層が所有するか」「どう購読するか」で明確に2系統に分かれる。混在させない。
+>
+> - **経路A: events 層（ドメイン処理）** — _File-based 集中登録_
+>   - 対象: `*.requested` 系（`character.creation/update/findBy*.requested`）。
+>   - 所有: events 層。`EventRegistryService`（`src/events/event-registry.service.ts`）が File-based で `TypedEventService` に**集中登録**する（各ハンドラが個別に自己購読するのではなく registry が一括で配線）。
+>   - 呼び先: domain の `CharacterService` 等（**events→domains＝許可方向**）。
+> - **経路B: discord 層（Discord UI 更新）** — _ハンドラ自己購読_
+>   - 対象: `*.completed` 系（`character.creation/update.completed` 等）と `discord.thread.create.requested`。
+>   - 所有: discord 層。`src/discord/events/handlers/` に置き **`DiscordEventHandlersModule`** が提供。各ハンドラが `onModuleInit` で `TypedEventService.on(...)` を呼んで**自己購読**する（registry は経由しない）。
+>   - 呼び先: `discord/features` のサービス（**discord→features＝許可方向**）。
+>
+> ＞ ポイント: 経路A は events 層が registry で集中登録、経路B は discord 層がハンドラ単位で自己購読。所有層・登録方式・依存方向のいずれも異なるため、層を跨いで import・登録しない。
 >
 > ### 依存方向（B-2 T3 で逆流解消）
 >
@@ -31,6 +38,12 @@
 > - 新イベントは `src/events/contracts` に型を追加してから `TypedEventService.emit(name, payload)` で発行。
 > - ドメイン処理ハンドラは events 層＋EventRegistry、Discord UI ハンドラは discord 層＋自己購読、に置く（層を跨いで import しない）。
 > - リファクタ時は挙動を変えず、動作保証テスト（`src/discord/events/handlers/*.spec.ts` 等）を緑に保つこと。
+
+---
+
+## 📚 以下は 2025-01〜2026 の履歴アーカイブ（参考のみ・現状は上記「現状アーキテクチャ」節を正とする）
+
+---
 
 ## 🎯 イベント経路最適化作業完了報告
 

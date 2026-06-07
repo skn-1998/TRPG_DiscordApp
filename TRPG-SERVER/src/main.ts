@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser'
 import { AppConfigService } from './config/config.service'
 import { Logger } from '@nestjs/common'
 import { DiscordService } from './discord/discord.service'
-import { getErrorMessage } from './utils/error-helpers'
+import { getErrorMessage } from './shared/utils/error-helpers'
 
 async function bootstrap() {
   try {
@@ -38,7 +38,11 @@ async function bootstrap() {
     // 重要: サーバーを起動し、Discordの初期化などの非同期処理の前に完了させる
 
     // IPv6競合回避のため、環境に応じてバインドアドレスを選択
-    const bindAddress = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV ? '0.0.0.0' : '127.0.0.1'
+    // P1-C: process.env 直接参照を AppConfigService 経由へ。app.environment は env.NODE_ENV（configuration.ts）。
+    // DOCKER_ENV は typed key ではないため getRaw 経由（AppConfigService が env アクセスを一元化）。
+    const isProduction = configService.get('app.environment') === 'production'
+    const isDockerEnv = Boolean(configService.getRaw('DOCKER_ENV'))
+    const bindAddress = isProduction || isDockerEnv ? '0.0.0.0' : '127.0.0.1'
 
     await app.listen(port, bindAddress)
     Logger.log(`アプリケーションが起動しました: http://${bindAddress}:${port}`)

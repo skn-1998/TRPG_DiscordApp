@@ -3,7 +3,7 @@ import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel
 import { discordButtonType } from '../../discord.type'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 import { CharacterDisplayService } from './services'
-import { ErrorHandler, ErrorContext } from '../../../utils/error-handler'
+import { ErrorHandler, ErrorContext } from '../../../core/http/error-handler'
 
 @Injectable()
 export class CharacterTabButtonsService implements discordButtonType {

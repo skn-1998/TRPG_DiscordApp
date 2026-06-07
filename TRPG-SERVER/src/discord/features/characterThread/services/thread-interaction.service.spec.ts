@@ -329,6 +329,131 @@ describe('ThreadInteractionService', () => {
   })
 
   // ==========================================================================
+  // postBasicDiceButtons - 基本ダイス（dice_generic_ 契約・3ボタン1行）
+  // ==========================================================================
+  describe('postBasicDiceButtons', () => {
+    it('1d100/1d6/2d6 を dice_generic_{type}_{discordChannelId} 契約で1行送信する', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({ discordChannelId: 'ch-basic' })
+
+      await service.postBasicDiceButtons(thread, character)
+
+      const sendArg = (thread.send as jest.Mock).mock.calls[0][0]
+      expect(sendArg.content).toBe('🎲 ダイスロール')
+      // 3ボタン1行
+      expect(sendArg.components).toHaveLength(1)
+
+      const buttons = collectButtons(sendArg)
+      expect(buttons.map((b) => b.custom_id)).toEqual([
+        'dice_generic_1d100_ch-basic',
+        'dice_generic_1d6_ch-basic',
+        'dice_generic_2d6_ch-basic'
+      ])
+      expect(buttons.map((b) => b.label)).toEqual(['1d100', '1d6', '2d6'])
+    })
+
+    it('thread.send が失敗した場合はエラーを再throwする', async () => {
+      const thread = buildMockThread()
+      ;(thread.send as jest.Mock).mockRejectedValue(new Error('boom'))
+
+      await expect(service.postBasicDiceButtons(thread, buildCharacter())).rejects.toThrow('boom')
+    })
+  })
+
+  // ==========================================================================
+  // postAbilityRollButtons - 能力ロール（ability_ 契約・postSkillRollButtons ミラー）
+  // ==========================================================================
+  describe('postAbilityRollButtons', () => {
+    it('parameter が無い場合は何も送信しない', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({ parameter: {} as any })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      expect(thread.send).not.toHaveBeenCalled()
+    })
+
+    it('parameter が undefined の場合も何も送信しない', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({ parameter: undefined })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      expect(thread.send).not.toHaveBeenCalled()
+    })
+
+    it('各能力を ability_{discordChannelId}_{key} 契約のボタンで送信する', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({
+        discordChannelId: 'ch-abil',
+        parameter: {
+          str: { name: '筋力', values: { level: 50 } } as any
+        }
+      })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      const sendArg = (thread.send as jest.Mock).mock.calls[0][0]
+      expect(sendArg.content).toContain('能力ロール')
+
+      const buttons = collectButtons(sendArg)
+      expect(buttons[0].custom_id).toBe('ability_ch-abil_str')
+      // name + extractSkillLevel(values.level) がラベルに反映される
+      expect(buttons[0].label).toBe('筋力 (50)')
+    })
+
+    it('name が無い能力は abilityKey をラベルに使う', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({
+        parameter: { dex: 60 as any }
+      })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      const buttons = collectButtons((thread.send as jest.Mock).mock.calls[0][0])
+      // 数値能力 → name 無し、extractSkillLevel(number)=60
+      expect(buttons[0].label).toBe('dex (60)')
+    })
+
+    it('レベルが抽出できない能力はラベルに括弧を付けない', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({
+        parameter: { app: { name: '外見' } as any }
+      })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      const buttons = collectButtons((thread.send as jest.Mock).mock.calls[0][0])
+      expect(buttons[0].label).toBe('外見')
+    })
+
+    it('能力は最大20個まで、5個ずつの行に分割される', async () => {
+      const thread = buildMockThread()
+      const parameter: Record<string, any> = {}
+      for (let i = 0; i < 25; i++) {
+        parameter[`ability${i}`] = { name: `能力${i}` }
+      }
+      const character = buildCharacter({ parameter })
+
+      await service.postAbilityRollButtons(thread, character)
+
+      const sendArg = (thread.send as jest.Mock).mock.calls[0][0]
+      // 20個 → 5個ずつ4行
+      expect(sendArg.components).toHaveLength(4)
+      const buttons = collectButtons(sendArg)
+      expect(buttons).toHaveLength(20)
+    })
+
+    it('thread.send が失敗した場合はエラーを再throwする', async () => {
+      const thread = buildMockThread()
+      ;(thread.send as jest.Mock).mockRejectedValue(new Error('boom'))
+      const character = buildCharacter({ parameter: { str: { name: '筋力' } as any } })
+
+      await expect(service.postAbilityRollButtons(thread, character)).rejects.toThrow('boom')
+    })
+  })
+
+  // ==========================================================================
   // extractSkillLevel の分岐（postSkillRollButtons 経由で観測）
   // ==========================================================================
   describe('スキルレベル抽出（ラベル経由で検証）', () => {
