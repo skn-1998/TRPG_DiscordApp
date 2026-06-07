@@ -3,11 +3,21 @@ import { installGlobals } from '@remix-run/node'
 import { defineConfig } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { flatRoutes } from 'remix-flat-routes'
-import env from 'vite-plugin-env-compatible'
 
 installGlobals()
 
+const publicEnv = {
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  PORT: process.env.PORT || '5173',
+  DISCORD_APPLICATIONID: process.env.DISCORD_APPLICATIONID || '',
+  SERVER_DOMAIN: process.env.SERVER_DOMAIN || 'http://127.0.0.1:3000',
+  HOST_DOMAIN: process.env.HOST_DOMAIN || 'http://127.0.0.1:5173'
+}
+
 export default defineConfig({
+  define: {
+    __APP_PUBLIC_ENV__: JSON.stringify(publicEnv)
+  },
   plugins: [
     remix({
       future: {
@@ -20,8 +30,7 @@ export default defineConfig({
       ignoredRouteFiles: ['**/*'],
       routes: async (defineRoutes) => flatRoutes('routes', defineRoutes)
     }),
-    tsconfigPaths(),
-    env({ prefix: '', mountedPath: 'process.env' })
+    tsconfigPaths()
   ],
   // Docker環境とWindows向けの最適化
   server: {

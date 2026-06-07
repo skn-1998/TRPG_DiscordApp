@@ -8,14 +8,10 @@
  * const configService = new ConfigService()
  *
  * // Discord設定の取得
- * const clientId = configService.get('discord.clientId')
- * const clientSecret = configService.get('discord.clientSecret')
+ * const applicationId = configService.get('discord.applicationId')
  *
- * // 認証設定
- * const jwtSecret = configService.get('auth.jwtSecret')
- * const sessionSecret = configService.get('auth.sessionSecret')
- *
-
+ * // API設定
+ * const serverDomain = configService.get('server.domain')
  * ```
  */
 
@@ -55,9 +51,13 @@ export class ConfigService {
   }
 
   /**
-   * 環境変数の生の値を取得（デバッグ用）
+   * 環境変数の生の値を取得（サーバーサイドのデバッグ用）
    */
   getRaw(key: string): string | undefined {
+    if (typeof process === 'undefined' || !process.env) {
+      return undefined
+    }
+
     return process.env[key]
   }
 

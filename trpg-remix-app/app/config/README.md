@@ -45,9 +45,8 @@ DB_LOGGING=false
 ```typescript
 import { configService } from '~/config'
 
-// Discord設定の取得
+// 公開してよいDiscord設定の取得
 const discordApplicationId = configService.get('discord.applicationId')
-const discordSecret = configService.get('discord.secret')
 
 // サーバー設定
 const serverDomain = configService.get('server.domain')
@@ -68,8 +67,8 @@ import { configService } from '~/config'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const applicationId = configService.get('discord.applicationId')
-  const serverDomain = configService.get('server.domain')
-  const redirectUri = `${serverDomain}/login`
+  const hostDomain = configService.get('server.hostDomain')
+  const redirectUri = `${hostDomain}/login`
 
   const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${applicationId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify`
 
@@ -132,3 +131,5 @@ beforeEach(() => {
 - 環境変数ファイル（.env）はGitにコミットしない
 - Discord Client Secret（DISCORD_SECRET）は絶対に公開しない
 - 本番環境では適切なSERVER_DOMAINを設定する
+- クライアントバンドルには `vite.config.mjs` の `__APP_PUBLIC_ENV__` で許可した値だけを渡す
+- `DISCORD_SECRET` はサーバーサイド専用として扱い、ブラウザ側のコードやログに出さない

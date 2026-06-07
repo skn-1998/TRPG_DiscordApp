@@ -10,7 +10,17 @@ import eslintConfigPrettier from 'eslint-config-prettier/flat'
 
 export default defineConfig(
   {
-    ignores: ['!**/.server', '!**/.client', 'jest.config.js']
+    ignores: [
+      'node_modules/**',
+      'build/**',
+      'dist/**',
+      'coverage/**',
+      '.cache/**',
+      'public/**',
+      'pnpm-lock.yaml',
+      '!**/.server/**',
+      '!**/.client/**'
+    ]
   },
   eslint.configs.recommended,
   tseslint.configs.recommended,
@@ -27,8 +37,32 @@ export default defineConfig(
       sourceType: 'module',
       globals: {
         ...globals.browser,
-        ...globals.commonjs,
-        ...globals.es2015
+        ...globals.es2022
+      }
+    }
+  },
+  {
+    files: ['app/config/**/*.{ts,tsx}', 'app/lib/api-client.ts'],
+    languageOptions: {
+      globals: {
+        process: 'readonly'
+      }
+    }
+  },
+  {
+    files: ['vite.config.mjs', 'eslint.config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    }
+  },
+  {
+    files: ['jest.config.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node
       }
     }
   },
@@ -44,7 +78,9 @@ export default defineConfig(
       ...pluginReact.configs.recommended.rules,
       ...pluginReact.configs['jsx-runtime'].rules,
       ...pluginJsxA11y.configs.recommended.rules,
-      ...pluginReactHooks.configs.recommended.rules
+      ...pluginReactHooks.configs.recommended.rules,
+      'react/prop-types': 'off',
+      'react/no-danger': 'error'
     },
     settings: {
       react: {
@@ -75,24 +111,21 @@ export default defineConfig(
       }
     }
   },
-  {
-    files: ['eslint.config.js'],
-    languageOptions: {
-      globals: {
-        ...globals.node
-      }
-    }
-  },
   // 追加ルール
   {
     rules: {
       'no-console': 'warn',
-      'no-unused-vars': 'warn',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'no-script-url': 'error',
+      'no-unused-vars': 'off',
       'prefer-const': 'error',
       indent: ['error', 2, { SwitchCase: 1 }],
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
+      'import/no-named-as-default-member': 'off',
       'import/no-unresolved': 'off',
       'import/no-relative-parent-imports': 'off'
     }
