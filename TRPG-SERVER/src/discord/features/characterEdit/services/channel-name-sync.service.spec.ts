@@ -2,11 +2,11 @@
 // 公開 API は syncChannelNameToCharacter。private な sanitize/update はこの公開経路で検証する。
 // 副作用境界は channel.setName / TypedEventService（emit・waitForEvent）/ ErrorHandler。
 // waitForEvent は Promise.race で待つため、解決値で update 成否分岐を制御する。
-jest.mock('src/utils/error-handler')
+jest.mock('src/core/http/error-handler')
 
 import { Test } from '@nestjs/testing'
 import { TypedEventService } from 'src/core/events/typed-event.service'
-import { ErrorHandler } from 'src/utils/error-handler'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { ChannelNameSyncService } from './channel-name-sync.service'
 
 const mockedErrorHandler = ErrorHandler as jest.Mocked<typeof ErrorHandler>

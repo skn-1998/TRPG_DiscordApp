@@ -23,6 +23,7 @@ import {
   CharacterNotFoundException
 } from './character-http.exception'
 import { ApiResponseUtil } from '../../utils/api-response.util'
+import { AppConfigService } from '../../config/config.service'
 
 /**
  * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
@@ -40,6 +41,12 @@ describe('CharacterController', () => {
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
 
   const reflector = new Reflector()
+
+  // P1-C: CharacterHttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
+  // AppConfigModule が供給）。TestingModule と filterError の両方で AppConfigService(mock) が要る。
+  const mockAppConfig = {
+    get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+  } as unknown as AppConfigService
 
   // モックデータ定義
   const mockUser = {
@@ -109,7 +116,7 @@ describe('CharacterController', () => {
 
   /** throw された例外を CharacterHttpExceptionFilter に通して { status, body } を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
-    const filter = new CharacterHttpExceptionFilter()
+    const filter = new CharacterHttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -178,7 +185,8 @@ describe('CharacterController', () => {
       providers: [
         { provide: CharacterService, useValue: characterServiceMock },
         { provide: AuthService, useValue: authServiceMock },
-        { provide: TypedEventService, useValue: typedEventServiceMock }
+        { provide: TypedEventService, useValue: typedEventServiceMock },
+        { provide: AppConfigService, useValue: mockAppConfig }
       ]
     })
       .overrideGuard(JwtAuthGuard)
@@ -424,7 +432,7 @@ describe('CharacterController', () => {
   })
 
   describe('PUT /character/:id', () => {
-    it('更新に成功すると200を返しcharacter.updatedイベントを発行する', async () => {
+    it('更新に成功すると200を返し、過去形 character.updated イベントは発行しない', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
       characterService.update.mockResolvedValue(updatedCharacter)
@@ -432,10 +440,8 @@ describe('CharacterController', () => {
       const data = await controller.update({ id: characterId }, mockUpdateCharacterDto)
 
       expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.updated',
-        expect.objectContaining({ character: updatedCharacter, source: 'character-controller' })
-      )
+      // 購読者ゼロの過去形デッドイベントは廃止済み（emit しない）
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.updated', expect.anything())
       expect(data).toEqual(updatedCharacter)
 
       const envelope = await wrapSuccess('update', data)
@@ -479,17 +485,15 @@ describe('CharacterController', () => {
   })
 
   describe('DELETE /character/:id', () => {
-    it('削除に成功すると200を返しcharacter.deletedイベントを発行する', async () => {
+    it('削除に成功すると200を返し、過去形 character.deleted イベントは発行しない', async () => {
       const characterId = 'test-character-001'
       characterService.remove.mockResolvedValue(mockCharacter)
 
       const data = await controller.remove({ id: characterId })
 
       expect(characterService.remove).toHaveBeenCalledWith(characterId)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.deleted',
-        expect.objectContaining({ character: mockCharacter, source: 'character-controller' })
-      )
+      // 購読者ゼロの過去形デッドイベントは廃止済み（emit しない）
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.deleted', expect.anything())
       expect(data).toEqual({ message: 'キャラクターを削除しました', characterId })
 
       const envelope = await wrapSuccess('remove', data)
@@ -535,6 +539,122 @@ describe('CharacterController', () => {
 
       await expect(controller.remove({ id: characterId })).rejects.toBe(error)
       expect(filterError(error).status).toBe(500)
+    })
+  })
+
+  describe('POST /character/:id/discord/thread', () => {
+    const threadDto = { channelId: 'thread-channel-123', guildId: 'guild-456' }
+
+    it('スレッド作成要求でdiscord.thread.create.requestedイベントを発行する', async () => {
+      const req: any = mockRequest()
+      characterService.findOne.mockResolvedValue(mockCharacter)
+
+      const data = await controller.createDiscordThread({ id: 'test-character-001' }, threadDto as any, req)
+
+      expect(characterService.findOne).toHaveBeenCalledWith('test-character-001')
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.thread.create.requested',
+        expect.objectContaining({
+          character: mockCharacter,
+          channelId: threadDto.channelId,
+          guildId: threadDto.guildId,
+          creatorId: mockUser.discordUserId,
+          displayType: 'enhanced',
+          source: 'character-controller'
+        })
+      )
+      expect(data).toEqual({ message: 'Discordスレッド作成を要求しました' })
+    })
+
+    it('キャラクターが見つからない場合は404を返しイベントを発行しない', async () => {
+      const req: any = mockRequest()
+      characterService.findOne.mockResolvedValue(null)
+
+      let thrown: unknown
+      try {
+        await controller.createDiscordThread({ id: 'missing' }, threadDto as any, req)
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterNotFoundException)
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(filterError(thrown).status).toBe(404)
+    })
+
+    it('userが無い場合は401を返しServiceを呼ばない', async () => {
+      const req: any = { user: null }
+
+      await expect(controller.createDiscordThread({ id: 'test-id' }, threadDto as any, req)).rejects.toBeInstanceOf(
+        CharacterAuthenticationException
+      )
+      expect(characterService.findOne).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST /character/:id/discord/display', () => {
+    const displayDto = { channelId: 'display-channel-123', guildId: 'guild-456', displayType: 'compact' as const }
+
+    it('表示要求でdiscord.character.display.requestedイベントを発行する', async () => {
+      const req: any = mockRequest()
+      characterService.findOne.mockResolvedValue(mockCharacter)
+
+      const data = await controller.displayCharacterOnDiscord({ id: 'test-character-001' }, displayDto as any, req)
+
+      expect(characterService.findOne).toHaveBeenCalledWith('test-character-001')
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.character.display.requested',
+        expect.objectContaining({
+          character: mockCharacter,
+          channelId: displayDto.channelId,
+          guildId: displayDto.guildId,
+          requesterId: mockUser.discordUserId,
+          displayType: 'compact',
+          source: 'character-controller'
+        })
+      )
+      expect(data).toEqual({ message: 'Discordキャラクター表示を要求しました' })
+    })
+
+    it('displayType未指定時はenhancedで発行する', async () => {
+      const req: any = mockRequest()
+      characterService.findOne.mockResolvedValue(mockCharacter)
+
+      await controller.displayCharacterOnDiscord(
+        { id: 'test-character-001' },
+        { channelId: 'c', guildId: 'g' } as any,
+        req
+      )
+
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.character.display.requested',
+        expect.objectContaining({ displayType: 'enhanced' })
+      )
+    })
+
+    it('キャラクターが見つからない場合は404を返しイベントを発行しない', async () => {
+      const req: any = mockRequest()
+      characterService.findOne.mockResolvedValue(null)
+
+      let thrown: unknown
+      try {
+        await controller.displayCharacterOnDiscord({ id: 'missing' }, displayDto as any, req)
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(CharacterNotFoundException)
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(filterError(thrown).status).toBe(404)
+    })
+
+    it('userが無い場合は401を返しServiceを呼ばない', async () => {
+      const req: any = { user: null }
+
+      await expect(
+        controller.displayCharacterOnDiscord({ id: 'test-id' }, displayDto as any, req)
+      ).rejects.toBeInstanceOf(CharacterAuthenticationException)
+      expect(characterService.findOne).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 

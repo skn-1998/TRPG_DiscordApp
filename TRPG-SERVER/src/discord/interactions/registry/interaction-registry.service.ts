@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { ModuleRef } from '@nestjs/core'
 import { Interaction } from 'discord.js'
 import { InteractionHandler } from '../handlers/base/interaction-handler.base'
 import { PatternMatcherService } from './pattern-matcher.service'
@@ -23,7 +22,7 @@ export interface HandlerStatistics {
  * 全てのインタラクションハンドラーを管理し、
  * customIdに基づいて適切なハンドラーにルーティングします。
  *
- * Events方式と同様の自動ルーティングを実現します。
+ * 明示登録されたハンドラーによるルーティングを実現します。
  */
 @Injectable()
 export class InteractionRegistryService implements OnModuleInit {
@@ -44,21 +43,15 @@ export class InteractionRegistryService implements OnModuleInit {
   /** 初期化完了フラグ */
   private initialized = false
 
-  constructor(
-    private readonly moduleRef: ModuleRef,
-    private readonly patternMatcher: PatternMatcherService
-  ) {}
+  constructor(private readonly patternMatcher: PatternMatcherService) {}
 
   /**
-   * モジュール初期化時にハンドラーを登録
+   * モジュール初期化時に登録済みハンドラーの状態を確認
    */
   async onModuleInit(): Promise<void> {
     this.logger.log('🚀 Initializing Interaction Registry...')
 
     try {
-      await this.registerAllHandlers()
-      this.initialized = true
-
       // 競合チェック
       const conflicts = this.patternMatcher.detectConflicts(this.handlers)
       if (conflicts.length > 0) {
@@ -71,41 +64,11 @@ export class InteractionRegistryService implements OnModuleInit {
       this.logger.log(`   Button handlers: ${this.getHandlersByType('button').length}`)
       this.logger.log(`   Select handlers: ${this.getHandlersByType('select').length}`)
       this.logger.log(`   Modal handlers: ${this.getHandlersByType('modal').length}`)
+      this.initialized = true
     } catch (error) {
       this.logger.error('❌ Failed to initialize Interaction Registry', error)
       throw error
     }
-  }
-
-  /**
-   * 全ハンドラーを登録
-   * ModuleのprovidersからInteractionHandlerを継承したクラスを取得
-   */
-  private async registerAllHandlers(): Promise<void> {
-    // 手動で登録するハンドラークラスのリスト
-    // Phase 2で実装されるハンドラーをここに追加
-    const handlerTokens = this.getHandlerTokens()
-
-    for (const token of handlerTokens) {
-      try {
-        const handler = this.moduleRef.get(token, { strict: false })
-        if (handler && handler instanceof InteractionHandler) {
-          this.registerHandler(handler)
-        }
-      } catch {
-        // ハンドラーが見つからない場合はスキップ（Phase 2で実装予定）
-        this.logger.debug(`Handler not found: ${token.name || token}`)
-      }
-    }
-  }
-
-  /**
-   * 登録対象のハンドラートークンを返す
-   */
-  private getHandlerTokens(): any[] {
-    // 動的インポートを避け、ModuleのprovidersからDIで取得するため空配列を返す
-    // ハンドラーの登録はregisterHandlerメソッドで手動またはModule経由で行う
-    return []
   }
 
   /**

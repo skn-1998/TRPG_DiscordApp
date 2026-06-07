@@ -1,38 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ModuleRef } from '@nestjs/core'
 import { InteractionRegistryService } from '../registry/interaction-registry.service'
 import { PatternMatcherService } from '../registry/pattern-matcher.service'
 
 // Character Edit Handlers
-import { CharacterEditRefreshHandler } from './character-edit/character-edit-refresh.handler'
-import { CharacterEditCreateHandler } from './character-edit/character-edit-create.handler'
-import { CharacterEditCompactHandler } from './character-edit/character-edit-compact.handler'
-import { CharacterEditSectionHandler } from './character-edit/character-edit-section.handler'
-import { CharacterEditFieldHandler } from './character-edit/character-edit-field.handler'
-import { CharacterEditModalHandler } from './character-edit/character-edit-modal.handler'
+import { CharacterEditRefreshHandler } from '../../features/characterEdit/handlers/character-edit-refresh.handler'
+import { CharacterEditCreateHandler } from '../../features/characterEdit/handlers/character-edit-create.handler'
+import { CharacterEditCompactHandler } from '../../features/characterEdit/handlers/character-edit-compact.handler'
+import { CharacterEditSectionHandler } from '../../features/characterEdit/handlers/character-edit-section.handler'
+import { CharacterEditFieldHandler } from '../../features/characterEdit/handlers/character-edit-field.handler'
+import { CharacterEditModalHandler } from '../../features/characterEdit/handlers/character-edit-modal.handler'
 
-// Dice Roll Handlers
-import { DicePagePrevHandler } from './dice-roll/dice-page-prev.handler'
-import { DicePageNextHandler } from './dice-roll/dice-page-next.handler'
-import { DicePageFirstHandler } from './dice-roll/dice-page-first.handler'
-import { DicePageLastHandler } from './dice-roll/dice-page-last.handler'
-import { DicePageCancelHandler } from './dice-roll/dice-page-cancel.handler'
-import { DicePageSelectHandler } from './dice-roll/dice-page-select.handler'
-import { DiceCharacterSelectHandler } from './dice-roll/dice-character-select.handler'
-import { DiceRollSkillHandler } from './dice-roll/dice-roll-skill.handler'
-import { DiceRollGeneralHandler } from './dice-roll/dice-roll-general.handler'
-import { DiceRollCustomHandler } from './dice-roll/dice-roll-custom.handler'
-import { DiceRollPresetHandler } from './dice-roll/dice-roll-preset.handler'
-import { DiceRollModalHandler } from './dice-roll/dice-roll-modal.handler'
+// Dice Roll Handlers（diceRoll feature へ移管済み）
+import { DicePagePrevHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-prev.handler'
+import { DicePageNextHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-next.handler'
+import { DicePageFirstHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-first.handler'
+import { DicePageLastHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-last.handler'
+import { DicePageCancelHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-cancel.handler'
+import { DicePageSelectHandler } from '../../features/diceRoll/handlers/dice-roll/dice-page-select.handler'
+import { DiceCharacterSelectHandler } from '../../features/diceRoll/handlers/dice-roll/dice-character-select.handler'
+import { DiceRollModalHandler } from '../../features/diceRoll/handlers/dice-roll/dice-roll-modal.handler'
+import { DiceCharacterSelectCustomId, DicePageCustomId } from '../../features/diceRoll/custom-id'
 
-// Character Thread Handlers
-import { CharacterThreadSelectHandler } from './character-thread/character-thread-select.handler'
-import { CharacterThreadCreateHandler } from './character-thread/character-thread-create.handler'
-import { CharacterTabHandler } from './character-thread/character-tab.handler'
-import { FlexibleDiceParamHandler } from './character-thread/flexible-dice-param.handler'
-import { CharacterDiceHandler } from './character-thread/character-dice.handler'
-import { DiceGenericHandler } from './character-thread/dice-generic.handler'
-import { FlexibleDiceSelectHandler } from './character-thread/flexible-dice-select.handler'
+// Character Thread Handlers（characterThread feature へ移管済み）
+import { CharacterThreadSelectHandler } from '../../features/characterThread/handlers/character-thread-select.handler'
+import { CharacterThreadCreateHandler } from '../../features/characterThread/handlers/character-thread-create.handler'
+import { CharacterTabHandler } from '../../features/characterThread/handlers/character-tab.handler'
+import { FlexibleDiceParamHandler } from '../../features/characterThread/handlers/flexible-dice-param.handler'
+import { DiceGenericHandler } from '../../features/characterThread/handlers/dice-generic.handler'
+import { FlexibleDiceSelectHandler } from '../../features/characterThread/handlers/flexible-dice-select.handler'
+import { CharacterSkillRollHandler } from '../../features/characterThread/handlers/character-skill-roll.handler'
+import { AbilityRollHandler } from '../../features/characterThread/handlers/ability-roll.handler'
+import { PresetDiceQuickRollHandler } from '../../features/characterThread/handlers/preset-dice-quick-roll.handler'
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
@@ -48,14 +46,14 @@ const mockDicePageLastButtonService = { execute: jest.fn().mockResolvedValue(und
 const mockDicePageCancelButtonService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockDicePageSelectMenuService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockDiceCharacterSelectService = { execute: jest.fn().mockResolvedValue(undefined) }
-const mockCharacterDiceOrchestratorService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockCustomDiceModalService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockCharacterThreadSelectService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockCharacterTabButtonsService = { execute: jest.fn().mockResolvedValue(undefined) }
-const mockCharacterDiceButtonsService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockDiceRollLogicService = {
-  handleDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
+  handleDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' }),
+  handleSkillRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
 }
+const mockCharacterService = { findByChannelId: jest.fn().mockResolvedValue(null) }
 
 describe('Interaction Handlers Integration', () => {
   let registry: InteractionRegistryService
@@ -74,25 +72,22 @@ describe('Interaction Handlers Integration', () => {
   let dicePageCancelHandler: DicePageCancelHandler
   let dicePageSelectHandler: DicePageSelectHandler
   let diceCharacterSelectHandler: DiceCharacterSelectHandler
-  let diceRollSkillHandler: DiceRollSkillHandler
-  let diceRollGeneralHandler: DiceRollGeneralHandler
-  let diceRollCustomHandler: DiceRollCustomHandler
-  let diceRollPresetHandler: DiceRollPresetHandler
   let diceRollModalHandler: DiceRollModalHandler
   let characterThreadSelectHandler: CharacterThreadSelectHandler
   let characterThreadCreateHandler: CharacterThreadCreateHandler
   let characterTabHandler: CharacterTabHandler
   let flexibleDiceParamHandler: FlexibleDiceParamHandler
-  let characterDiceHandler: CharacterDiceHandler
   let diceGenericHandler: DiceGenericHandler
   let flexibleDiceSelectHandler: FlexibleDiceSelectHandler
+  let characterSkillRollHandler: CharacterSkillRollHandler
+  let abilityRollHandler: AbilityRollHandler
+  let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InteractionRegistryService,
         PatternMatcherService,
-        { provide: ModuleRef, useValue: { get: jest.fn().mockReturnValue(undefined) } },
 
         // Character Edit Handlers with mocked dependencies
         {
@@ -153,22 +148,6 @@ describe('Interaction Handlers Integration', () => {
           useFactory: () => new (DiceCharacterSelectHandler as any)(mockDiceCharacterSelectService)
         },
         {
-          provide: DiceRollSkillHandler,
-          useFactory: () => new (DiceRollSkillHandler as any)(mockCharacterDiceOrchestratorService)
-        },
-        {
-          provide: DiceRollGeneralHandler,
-          useFactory: () => new (DiceRollGeneralHandler as any)(mockCharacterDiceOrchestratorService)
-        },
-        {
-          provide: DiceRollCustomHandler,
-          useFactory: () => new (DiceRollCustomHandler as any)(mockCharacterDiceOrchestratorService)
-        },
-        {
-          provide: DiceRollPresetHandler,
-          useFactory: () => new (DiceRollPresetHandler as any)(mockCharacterDiceOrchestratorService)
-        },
-        {
           provide: DiceRollModalHandler,
           useFactory: () => new (DiceRollModalHandler as any)(mockCustomDiceModalService)
         },
@@ -191,16 +170,24 @@ describe('Interaction Handlers Integration', () => {
           useFactory: () => new (FlexibleDiceParamHandler as any)(mockCharacterThreadSelectService)
         },
         {
-          provide: CharacterDiceHandler,
-          useFactory: () => new (CharacterDiceHandler as any)(mockCharacterDiceButtonsService)
-        },
-        {
           provide: DiceGenericHandler,
           useFactory: () => new (DiceGenericHandler as any)(mockDiceRollLogicService)
         },
         {
           provide: FlexibleDiceSelectHandler,
           useFactory: () => new (FlexibleDiceSelectHandler as any)(mockDiceRollLogicService)
+        },
+        {
+          provide: CharacterSkillRollHandler,
+          useFactory: () => new (CharacterSkillRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
+        },
+        {
+          provide: AbilityRollHandler,
+          useFactory: () => new (AbilityRollHandler as any)(mockDiceRollLogicService, mockCharacterService)
+        },
+        {
+          provide: PresetDiceQuickRollHandler,
+          useFactory: () => new (PresetDiceQuickRollHandler as any)(mockDiceRollLogicService)
         }
       ]
     }).compile()
@@ -221,18 +208,16 @@ describe('Interaction Handlers Integration', () => {
     dicePageCancelHandler = module.get<DicePageCancelHandler>(DicePageCancelHandler)
     dicePageSelectHandler = module.get<DicePageSelectHandler>(DicePageSelectHandler)
     diceCharacterSelectHandler = module.get<DiceCharacterSelectHandler>(DiceCharacterSelectHandler)
-    diceRollSkillHandler = module.get<DiceRollSkillHandler>(DiceRollSkillHandler)
-    diceRollGeneralHandler = module.get<DiceRollGeneralHandler>(DiceRollGeneralHandler)
-    diceRollCustomHandler = module.get<DiceRollCustomHandler>(DiceRollCustomHandler)
-    diceRollPresetHandler = module.get<DiceRollPresetHandler>(DiceRollPresetHandler)
     diceRollModalHandler = module.get<DiceRollModalHandler>(DiceRollModalHandler)
     characterThreadSelectHandler = module.get<CharacterThreadSelectHandler>(CharacterThreadSelectHandler)
     characterThreadCreateHandler = module.get<CharacterThreadCreateHandler>(CharacterThreadCreateHandler)
     characterTabHandler = module.get<CharacterTabHandler>(CharacterTabHandler)
     flexibleDiceParamHandler = module.get<FlexibleDiceParamHandler>(FlexibleDiceParamHandler)
-    characterDiceHandler = module.get<CharacterDiceHandler>(CharacterDiceHandler)
     diceGenericHandler = module.get<DiceGenericHandler>(DiceGenericHandler)
     flexibleDiceSelectHandler = module.get<FlexibleDiceSelectHandler>(FlexibleDiceSelectHandler)
+    characterSkillRollHandler = module.get<CharacterSkillRollHandler>(CharacterSkillRollHandler)
+    abilityRollHandler = module.get<AbilityRollHandler>(AbilityRollHandler)
+    presetDiceQuickRollHandler = module.get<PresetDiceQuickRollHandler>(PresetDiceQuickRollHandler)
 
     // 全ハンドラーを登録
     registry.registerHandlers([
@@ -249,18 +234,16 @@ describe('Interaction Handlers Integration', () => {
       dicePageCancelHandler,
       dicePageSelectHandler,
       diceCharacterSelectHandler,
-      diceRollSkillHandler,
-      diceRollGeneralHandler,
-      diceRollCustomHandler,
-      diceRollPresetHandler,
       diceRollModalHandler,
       characterThreadSelectHandler,
       characterThreadCreateHandler,
       characterTabHandler,
       flexibleDiceParamHandler,
-      characterDiceHandler,
       diceGenericHandler,
-      flexibleDiceSelectHandler
+      flexibleDiceSelectHandler,
+      characterSkillRollHandler,
+      abilityRollHandler,
+      presetDiceQuickRollHandler
     ])
   })
 
@@ -269,9 +252,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('25個のハンドラーが登録されている', () => {
+    it('23個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(25)
+      expect(stats.totalHandlers).toBe(23)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -294,7 +277,7 @@ describe('Interaction Handlers Integration', () => {
       })
     })
 
-    it('Dice Roll系ハンドラーが12個登録されている', () => {
+    it('Dice Roll系ハンドラーが8個登録されている', () => {
       const diceHandlers = [
         dicePagePrevHandler,
         dicePageNextHandler,
@@ -303,10 +286,6 @@ describe('Interaction Handlers Integration', () => {
         dicePageCancelHandler,
         dicePageSelectHandler,
         diceCharacterSelectHandler,
-        diceRollSkillHandler,
-        diceRollGeneralHandler,
-        diceRollCustomHandler,
-        diceRollPresetHandler,
         diceRollModalHandler
       ]
 
@@ -315,13 +294,12 @@ describe('Interaction Handlers Integration', () => {
       })
     })
 
-    it('Character Thread系ハンドラーが7個登録されている', () => {
+    it('Character Thread系ハンドラーが6個登録されている', () => {
       const threadHandlers = [
         characterThreadSelectHandler,
         characterThreadCreateHandler,
         characterTabHandler,
         flexibleDiceParamHandler,
-        characterDiceHandler,
         diceGenericHandler,
         flexibleDiceSelectHandler
       ]
@@ -372,6 +350,34 @@ describe('Interaction Handlers Integration', () => {
     })
 
     describe('Dice Roll系', () => {
+      it.each([
+        ['first', 'button'],
+        ['prev', 'button'],
+        ['next', 'button'],
+        ['last', 'button'],
+        ['cancel', 'button'],
+        ['select', 'select']
+      ] as const)('DicePageCustomId factory が生成した %s customId に handler pattern がマッチする', (action, type) => {
+        const customId = DicePageCustomId.create(action, 'message123', 'channel123')
+
+        expect(registry.hasHandler(customId, type)).toBe(true)
+        expect(DicePageCustomId.parse(customId)).toEqual({
+          action,
+          messageId: 'message123',
+          channelId: 'channel123'
+        })
+      })
+
+      it('DiceCharacterSelectCustomId factory が生成した customId に handler pattern がマッチする', () => {
+        const customId = DiceCharacterSelectCustomId.create('message123', 'channel123')
+
+        expect(registry.hasHandler(customId, 'select')).toBe(true)
+        expect(DiceCharacterSelectCustomId.parse(customId)).toEqual({
+          messageId: 'message123',
+          channelId: 'channel123'
+        })
+      })
+
       it('dice-page-prev にマッチ', () => {
         expect(registry.hasHandler('dice-page-prev', 'button')).toBe(true)
       })
@@ -400,21 +406,21 @@ describe('Interaction Handlers Integration', () => {
         expect(registry.hasHandler('dice-char-select*message123*channel123', 'select')).toBe(true)
       })
 
-      it('roll*{skill}_{channelId} にマッチ', () => {
-        expect(registry.hasHandler('roll*戦闘_1234567890', 'button')).toBe(true)
+      it('roll*{skill}_{channelId} は未登録（S-5c で DiceRollSkillHandler 撤去）', () => {
+        expect(registry.hasHandler('roll*戦闘_1234567890', 'button')).toBe(false)
       })
 
-      it('roll*{dice} にマッチ', () => {
-        expect(registry.hasHandler('roll*1d100', 'button')).toBe(true)
-        expect(registry.hasHandler('roll*2d6', 'button')).toBe(true)
+      it('roll*{dice} は未登録（S-5c で DiceRollGeneralHandler 撤去）', () => {
+        expect(registry.hasHandler('roll*1d100', 'button')).toBe(false)
+        expect(registry.hasHandler('roll*2d6', 'button')).toBe(false)
       })
 
-      it('roll*custom にマッチ', () => {
-        expect(registry.hasHandler('roll*custom', 'button')).toBe(true)
+      it('roll*custom は未登録（S-5c で DiceRollCustomHandler 撤去）', () => {
+        expect(registry.hasHandler('roll*custom', 'button')).toBe(false)
       })
 
-      it('preset-dice* にマッチ', () => {
-        expect(registry.hasHandler('preset-dice*preset1_char123', 'button')).toBe(true)
+      it('preset-dice* は未登録（S-5c で DiceRollPresetHandler 撤去）', () => {
+        expect(registry.hasHandler('preset-dice*preset1_char123', 'button')).toBe(false)
       })
 
       it('custom-dice-modal にマッチ', () => {
@@ -451,8 +457,8 @@ describe('Interaction Handlers Integration', () => {
         expect(registry.hasHandler('flexible-dice-param*char123', 'select')).toBe(true)
       })
 
-      it('character-dice にマッチ', () => {
-        expect(registry.hasHandler('character-dice*action*char123', 'button')).toBe(true)
+      it('character-dice* は未登録（S-5c で CharacterDiceHandler 撤去）', () => {
+        expect(registry.hasHandler('character-dice*action*char123', 'button')).toBe(false)
       })
 
       it('dice_generic_* にマッチ', () => {
@@ -464,6 +470,41 @@ describe('Interaction Handlers Integration', () => {
 
       it('flexible_dice_* にマッチ', () => {
         expect(registry.hasHandler('flexible_dice_1234567890', 'select')).toBe(true)
+      })
+
+      it('skill_* にマッチ（P1-D slice2 で配線・button）', () => {
+        expect(registry.hasHandler('skill_1234567890_dodge', 'button')).toBe(true)
+      })
+
+      it('ability_* にマッチ（S-3 で配線・button）', () => {
+        expect(registry.hasHandler('ability_1234567890_str', 'button')).toBe(true)
+      })
+
+      it('dice_coc7_* / dice_dnd5e_* / dice_sw25_* にマッチ（P1-D 後続で配線・button）', () => {
+        expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_dnd5e_save_1234567890', 'button')).toBe(true)
+        expect(registry.hasHandler('dice_sw25_magic_1234567890', 'button')).toBe(true)
+      })
+
+      it('routed な dice_generic_ と未対応 system は区別される（dice_generic_ は別 handler・dice_xxx_ unknown は未routing）', () => {
+        // dice_generic_ は DiceGenericHandler（preset 用 /^dice_(coc7|dnd5e|sw25)_/ には match しない）
+        expect(registry.hasHandler('dice_generic_1d6_1234567890', 'button')).toBe(true)
+        // coc7/dnd5e/sw25 以外の system 名は preset handler に match しない
+        expect(registry.hasHandler('dice_pathfinder_attack_1234567890', 'button')).toBe(false)
+      })
+    })
+
+    describe('characterThread が生成するが registry 未登録の customId（既知の latent gap・現状を固定）', () => {
+      // thread-interaction.service が生成する一部の customId は、対応する handler pattern が無く未routing。
+      // 挙動保存方針（Codex レビュー済）: ここでは現状（handler 無し＝クリック時「現在処理できません」reply）を
+      // 事実として固定し、routing 修正は仕様決定後の別タスクとする（AI.refactor.md / CLAUDE_HANDOFF.md の P1-D slice2 節参照）。
+      // handler は全てハイフン系 prefix だが、これら生成はアンダースコア系 prefix のため startsWith 不一致。
+      // 注: skill_ は P1-D slice2 で、dice_coc7_/dnd5e_/sw25_ は P1-D 後続で配線済み（routed・上の Character Thread系を参照）。
+      it('character_edit_ / dice_roll_ / character_info_ は dead path（postActionButtons がコメントアウト）かつ未routing', () => {
+        expect(registry.hasHandler('character_edit_1234567890', 'button')).toBe(false)
+        expect(registry.hasHandler('dice_roll_1234567890', 'button')).toBe(false)
+        expect(registry.hasHandler('character_info_1234567890', 'button')).toBe(false)
       })
     })
   })

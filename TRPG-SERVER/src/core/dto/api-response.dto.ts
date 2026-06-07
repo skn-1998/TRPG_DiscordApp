@@ -76,13 +76,16 @@ export class ErrorResponse extends BaseApiResponse {
     errorCode?: string,
     details?: ErrorResponse['details'],
     stack?: string,
-    requestId?: string
+    requestId?: string,
+    // P1-C: DTO は DI 不可のため、stack を含めるか（＝開発環境か）の判定は生成側（filter 等）が解決して渡す。
+    // 既定 false（＝stack を含めない＝本番相当の安全側）。脱 process.env 直接参照。
+    includeStack = false
   ) {
     super(false, message, requestId)
     this.error = error
     this.errorCode = errorCode
     this.details = details
-    this.stack = process.env.NODE_ENV === 'development' ? stack : undefined
+    this.stack = includeStack ? stack : undefined
   }
 }
 
@@ -135,7 +138,7 @@ export class ConflictErrorResponse extends ErrorResponse {
  * サーバーエラーレスポンス
  */
 export class InternalServerErrorResponse extends ErrorResponse {
-  constructor(message = '内部サーバーエラーが発生しました', stack?: string, requestId?: string) {
-    super(message, 'サーバーエラー', 'INTERNAL_SERVER_ERROR', undefined, stack, requestId)
+  constructor(message = '内部サーバーエラーが発生しました', stack?: string, requestId?: string, includeStack = false) {
+    super(message, 'サーバーエラー', 'INTERNAL_SERVER_ERROR', undefined, stack, requestId, includeStack)
   }
 }

@@ -13,6 +13,8 @@
 
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
+import { CharacterSectionCustomId, CharacterFieldCustomId } from '../custom-id'
 
 /**
  * Embed 構築に必要なギルド情報
@@ -44,8 +46,8 @@ export interface EmbedData {
  */
 export const CHARACTER_EMBED_TITLE_KEYWORD = 'キャラクター情報'
 
-/** セクション選択メニューの customId プレフィックス */
-export const SECTION_SELECT_CUSTOM_ID_PREFIX = 'character-section-select-'
+/** セクション選択メニューの customId プレフィックス（単一の真実源は custom-id 契約モジュール・値は不変） */
+export const SECTION_SELECT_CUSTOM_ID_PREFIX = CharacterSectionCustomId.sectionSelectPrefix
 
 /** updateFields → 表示名の対応表（通知メッセージ用） */
 const UPDATED_FIELD_LABELS: Record<string, string> = {
@@ -202,7 +204,7 @@ export function buildChannelStatusText(character: Character): string {
  */
 export function buildSectionSelectMenu(characterId: string): StringSelectMenuBuilder {
   return new StringSelectMenuBuilder()
-    .setCustomId(`${SECTION_SELECT_CUSTOM_ID_PREFIX}${characterId}`)
+    .setCustomId(CharacterSectionCustomId.createSectionSelect(characterId))
     .setPlaceholder('編集するセクションを選択')
     .addOptions(SECTION_OPTIONS)
 }
@@ -212,7 +214,7 @@ export function buildSectionSelectMenu(characterId: string): StringSelectMenuBui
  */
 export function buildSectionSelectMenuWithBack(characterId: string): StringSelectMenuBuilder {
   return new StringSelectMenuBuilder()
-    .setCustomId(`${SECTION_SELECT_CUSTOM_ID_PREFIX}${characterId}`)
+    .setCustomId(CharacterSectionCustomId.createSectionSelect(characterId))
     .setPlaceholder('別のセクションを選択するか戻る')
     .addOptions(SECTION_OPTIONS_WITH_BACK)
 }
@@ -226,7 +228,7 @@ export function buildFieldSelectMenu(sectionType: string, characterId: string): 
   if (!sectionName) return null
 
   return new StringSelectMenuBuilder()
-    .setCustomId(`character-field-edit-${sectionType}-${characterId}`)
+    .setCustomId(CharacterFieldCustomId.createEdit(sectionType, characterId))
     .setPlaceholder(`編集する${sectionName}を選択`)
     .addOptions([
       {

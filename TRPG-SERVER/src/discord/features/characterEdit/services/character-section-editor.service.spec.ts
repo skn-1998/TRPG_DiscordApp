@@ -18,7 +18,7 @@ import { CharacterSectionEditorService } from './character-section-editor.servic
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 
 type AnyInteraction = Record<string, unknown>
 

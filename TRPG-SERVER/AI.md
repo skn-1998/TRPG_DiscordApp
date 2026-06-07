@@ -1,16 +1,23 @@
 # TRPG-SERVER プロジェクト概要
 
-## 📊 プロジェクト現在の状況 **[最終更新: 2025-01-05 12:30]**
+## 📊 プロジェクト現在の状況 **[最終更新: 2026-06-03（ドキュメント整合性監査）]**
 
-### 🏆 **主要完了成果**
+> ⚠️ **正本ポインタ / この冒頭サマリの読み方**
+> 本ファイルは長期間の履歴が積層しており、**以下「主要成果」より下のセクションには 2025 年当時の古いスナップショットが多数含まれる**。最新の正は次の専門ドキュメントを参照すること:
+>
+> - リファクタ進捗・現状の真実: **`AI.refactor.md`**（最新履歴の正本）
+> - 全体アーキテクチャ規約: **`src/ARCHITECTURE.md`**
+> - イベント基盤: **`src/events/AI.event.md` 冒頭節 + `src/events/DESIGN.md`**
+> - テスト/カバレッジ: **`AI.test.md`**
 
-- **TypeScript型安全性**: 100%完全達成 ✅
-- **エラーハンドリング統一**: 100%完全達成 ✅
-- **テスト基盤・カバレッジ向上**: 43.99% (+33.46% 改善) ✅ **→ [詳細: AI.test.md]**
-- **ドメイン設計最適化**: 総合評価 88/100 ✅ **→ [詳細: AI.domain.md]**
-- **イベント駆動アーキテクチャ移行**: 100%完全達成 ✅ **→ [詳細: AI.domain.md]**
-- **DTO標準化**: 全ドメイン統一化完了 ✅ **→ [詳細: AI.architecture.md]**
-- **プロジェクト状態**: 安定・高品質・高効率・テスト完備 ✅
+### 🏆 **主要成果（2026-06-03 時点の実態）**
+
+- **TypeScript型安全性**: 厳密設定は適用済みだが「100%」は誇張。実態は `any` が多数残存（非テスト約230件）で**段階的削減中** **→ [詳細: AI.types.md]**
+- **エラーハンドリング統一**: `core/http` の Interceptor＋例外フィルタへ移行済み（auth/user/character controller）。**グローバル化は残課題** **→ [詳細: AI.refactor.md H9]**
+- **イベント駆動アーキテクチャ**: `TypedEventService` 1系統（`core/events`）に統一済み。旧3系統バスは撤去済み **→ [詳細: src/events/AI.event.md / DESIGN.md]**
+- **循環依存**: **ゼロ**（`check:circular` = "No circular dependency found!"）。H6（2026-06-01）で旧 Auth⇄User 循環も解消済み
+- **テスト基盤**: テスタビリティ評価＋spec 拡充を継続中。カバレッジの最新値は **AI.test.md** を正本とする（冒頭の 43.99% 等は 2025 年の古い値）
+- **DTO標準化**: 全ドメイン統一化済み
 
 ### 🎯 **次期優先事項**
 
@@ -48,9 +55,8 @@
 - **全体アーキテクチャ方針を追加 (2026-05-30)**
   - `src/ARCHITECTURE.md` — module 依存方向、`@Global` / `forwardRef` 制限、events / discord / domains / shared の責務境界
   - Step 0 完了。次の着手: `src/events/DESIGN.md` 作成
-- **adaptersモジュールの扱いに意思決定が必要**
-  - `adapters復旧必要性分析.md` は「復旧不要」結論
-  - コメントアウト残存箇所の整理方針を確定させる
+- **adaptersモジュール: 「復旧不要」で決着済み**（旧 `adapters復旧必要性分析.md` は 2026-06-03 に削除）。
+  `app.module.ts` のコメントアウト残存の最終整理のみ別タスク。
 
 ---
 
@@ -60,13 +66,31 @@
 
 ### 📖 **専門ドキュメント一覧**
 
-- **[AI.test.md](./AI.test.md)** - テスト戦略・カバレッジ分析・モック戦略
-- **[AI.domain.md](./AI.domain.md)** - ドメイン駆動設計・イベント駆動アーキテクチャ
-- **[src/ARCHITECTURE.md](./src/ARCHITECTURE.md)** - 全体アーキテクチャ方針・依存方向ルール・再設計の基準
-- **[AI.architecture.md](./AI.architecture.md)** - システムアーキテクチャ分析履歴・循環参照分析
+**正本（現状の真実 = ここを最優先）**
+
+- **[AI.refactor.md](./AI.refactor.md)** - リファクタ進捗・現状・残課題の正本（最も新しい）
+- **[src/ARCHITECTURE.md](./src/ARCHITECTURE.md)** - 全体アーキテクチャ方針・依存方向ルール・横断コード/型の置き場所決定表
+- **[src/events/AI.event.md](./src/events/AI.event.md)** / **[src/events/DESIGN.md](./src/events/DESIGN.md)** - イベント基盤（TypedEventService 1系統）の正本
+- **[src/discord/DESIGN.md](./src/discord/DESIGN.md)** / **[src/discord/AI.discord.md](./src/discord/AI.discord.md)** - Discord 層の設計・現状
+- **[AI.test.md](./AI.test.md)** - テスト戦略・テスタビリティ評価マップ・カバレッジ
+- **[AI.types.md](./AI.types.md)** - 型管理・型の置き場所（正本は ARCHITECTURE §12）
 - **[AI.development.md](./AI.development.md)** - 開発環境・運用・パフォーマンス・セキュリティ
-- **[AI.discord.md](./src/discord/AI.discord.md)** - Discord Bot機能・コマンド・イベント処理
-- **[AI.types.md](./AI.types.md)** - 型管理・型安全性・型の不一致問題と解決策
+- **[AI.domain.md](./AI.domain.md)** - ドメイン駆動設計・ドメイン責務
+- **[AI.character.md](./AI.character.md)** - キャラクター型定義（AttributeValue 等）
+
+**機能棚卸し・レビュー（現状スナップショット）**
+
+- **[docs/reviews/feature-inventory-2026-06-05.md](./docs/reviews/feature-inventory-2026-06-05.md)** - 実コード根拠の機能棚卸し（Web API / Discord command / interaction registry / feature / events・config・core）と、実装待ち・保留・未配線・ドキュメントずれの一覧（2026-06-05 時点）
+- **[docs/reviews/document-inventory-review-2026-06-05.md](./docs/reviews/document-inventory-review-2026-06-05.md)** - Markdown ドキュメント整理レビュー（Active / Historical / cleanup 候補の分類）
+- **[docs/reviews/project-issues-report-2026-06-05.md](./docs/reviews/project-issues-report-2026-06-05.md)** - モノレポ全体の問題点・リスク・未完了作業を実ファイル根拠付きで優先度分類したレビュー報告
+- **[docs/README.md](./docs/README.md)** - 補助ドキュメント置き場（guides / history / refactor / reviews）の索引
+
+> 📌 **鮮度メモ**: 本ファイル冒頭サマリの「最終更新」日付や下部履歴は古いスナップショットを含む。2026-06-05/06 の docs 整理・レビュー成果物は `docs/reviews/` 配下にあり、リファクタ進捗の現状の真実は引き続き **`AI.refactor.md`** を最優先とする。
+
+**履歴・参考（陳腐化を含む）**
+
+- **[AI.architecture.md](./AI.architecture.md)** / **[src/AI.architecture.md](./src/AI.architecture.md)** - 2025年のアーキテクチャ分析履歴・循環参照分析（多くは解消済み・冒頭注記参照）
+- **AI.features.md** - feature 正本への索引。現状スナップショットは `docs/reviews/feature-inventory-2026-06-05.md` を参照
 
 ---
 
@@ -219,7 +243,9 @@ TRPG-SERVERは、テーブルトークRPG（TRPG）をサポートするため�
 
 この基盤により、今後の機能拡張や大規模リファクタリングに対して高い安定性を提供します。
 
-## Phase 3: イベント駆動アーキテクチャ移行 **[2025-01-05 進行中]**
+## Phase 3: イベント駆動アーキテクチャ移行 **[2025-01-05 当時の記録／履歴]**
+
+> ⚠️ **履歴注記**: 以下の Phase 3.x は 2025 年当時の進行記録。その後イベント基盤は再編され、現状は `TypedEventService` 1系統（`core/events`）に統一済み。**現状の正は [src/events/AI.event.md](./src/events/AI.event.md) 冒頭節と [src/events/DESIGN.md](./src/events/DESIGN.md)**。以下は読み物としての履歴。
 
 ### 🎯 **Phase 3.4: Commands層変換 - 現在進行中**
 
@@ -1189,10 +1215,3 @@ await characterService.update(characterId, updateData)
 - **更新差分表示**: 変更されたフィールドのハイライト表示
 - **通知設定**: 更新通知のON/OFF設定機能
 - **履歴機能**: 更新履歴の表示機能
-
-メイン
-A
-
-サブ
-a1
-a2

@@ -131,8 +131,9 @@ describe('CharacterRepository', () => {
       const result = await repository.findByChannelId('ch1')
 
       expect(model.findOne).toHaveBeenCalledWith({ discordChannelId: 'ch1' })
+      // S-1: status/skill/parameter/gameSystemId を含む（スレッド内ロールの key 再解決の前提）。
       expect(query.select).toHaveBeenCalledWith(
-        'characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt'
+        'characterId characterName discordChannelId attributes primaryAttributes status skill parameter gameSystemId createdAt updatedAt'
       )
       expect(result).toBe(doc)
     })

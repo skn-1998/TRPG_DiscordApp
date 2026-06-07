@@ -9,7 +9,7 @@ import {
   OverwriteResolvable,
   GuildMember
 } from 'discord.js'
-import { ErrorHandler } from '../../../utils/error-handler'
+import { ErrorHandler } from '../../../core/http/error-handler'
 import { AppConfigService } from '../../../config/config.service'
 import {
   buildChannelInfo,

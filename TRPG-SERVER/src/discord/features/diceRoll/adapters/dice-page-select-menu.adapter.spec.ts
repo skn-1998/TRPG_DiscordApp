@@ -1,6 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import type { EmbedBuilder } from 'discord.js'
-import { DiceRollPaginationService } from 'src/discord/components/pagination/dice-roll-pagination.service'
+import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageSelectMenuService } from './dice-page-select-menu.adapter'
 
 // セレクトメニューで選んだページ番号へジャンプするオーケストレーター。

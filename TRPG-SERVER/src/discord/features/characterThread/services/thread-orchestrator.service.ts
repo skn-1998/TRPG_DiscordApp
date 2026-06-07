@@ -77,9 +77,11 @@ export class ThreadOrchestratorService {
 
       // 5. インタラクティブ要素を投稿
       // await this.threadInteraction.postActionButtons(thread, character.discordChannelId || character.characterId)
+      await this.threadInteraction.postBasicDiceButtons(thread, character)
       await this.threadInteraction.postFlexibleDiceMenu(thread, character)
       await this.threadInteraction.postPresetDiceButtons(thread, character)
       await this.threadInteraction.postSkillRollButtons(thread, character)
+      await this.threadInteraction.postAbilityRollButtons(thread, character)
 
       this.logger.log(`Thread creation completed: ${result.threadId}`)
     } catch (error) {

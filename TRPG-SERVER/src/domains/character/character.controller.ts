@@ -26,6 +26,7 @@ import { Character } from './models/character.model'
 import { AuthService } from '../auth/services/auth.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { TypedEventService } from '../../core/events/typed-event.service'
+import { EVENT_NAMES } from '../../events/contracts'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
 import { SuccessResponse } from '../../core/dto/api-response.dto'
 import { v4 as uuidv4 } from 'uuid'
@@ -206,15 +207,6 @@ export class CharacterController {
       throw new CharacterNotFoundException('キャラクター')
     }
 
-    // キャラクター更新イベントを発行
-    await this.typedEventService.emit('character.updated', {
-      character: character,
-      updateType: 'manual_update',
-      channelId: character.discordChannelId,
-      source: 'character-controller',
-      timestamp: new Date()
-    })
-
     return character
   }
 
@@ -240,13 +232,6 @@ export class CharacterController {
     if (!deletedCharacter) {
       throw new CharacterNotFoundException('キャラクター')
     }
-
-    // キャラクター削除イベントを発行
-    await this.typedEventService.emit('character.deleted', {
-      character: deletedCharacter,
-      source: 'character-controller',
-      timestamp: new Date()
-    })
 
     return { message: 'キャラクターを削除しました', characterId: id }
   }
@@ -306,7 +291,7 @@ export class CharacterController {
     }
 
     // Discord スレッド作成イベントを発行
-    await this.typedEventService.emit('discord.thread.create.requested', {
+    await this.typedEventService.emit(EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED, {
       character: character,
       channelId: threadData.channelId,
       guildId: threadData.guildId,
@@ -346,7 +331,7 @@ export class CharacterController {
     }
 
     // Discord キャラクター表示イベントを発行
-    await this.typedEventService.emit('discord.character.display.requested', {
+    await this.typedEventService.emit(EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED, {
       character: character,
       channelId: displayData.channelId,
       guildId: displayData.guildId,

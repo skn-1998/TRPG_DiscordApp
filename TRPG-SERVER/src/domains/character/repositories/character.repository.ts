@@ -49,9 +49,13 @@ export class CharacterRepository implements Repository<Character, string> {
    * @param channelId DiscordチャンネルID
    */
   async findByChannelId(channelId: string): Promise<Character | null> {
+    // S-1: スレッド内のダイス/技能/能力ロールは channelId からキャラを引いて
+    // status/skill/parameter/gameSystemId を再解決するため、projection に含める。
     return this.characterModel
       .findOne({ discordChannelId: channelId })
-      .select('characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt')
+      .select(
+        'characterId characterName discordChannelId attributes primaryAttributes status skill parameter gameSystemId createdAt updatedAt'
+      )
       .lean()
       .exec()
   }

@@ -9,7 +9,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, TextChannel, Message, Collection, CacheType } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { messageHasCharacterEditButtons, MessageLike } from '../utils/enhanced-character-edit.util'
 

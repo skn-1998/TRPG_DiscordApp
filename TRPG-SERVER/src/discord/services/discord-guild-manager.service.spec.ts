@@ -27,7 +27,7 @@ jest.mock('discord.js', () => ({
 // ErrorHandler.handleError をスタブ化（静的・async）。
 // 本体は handleError 呼び出し後に元の error を throw する現挙動を保つため、
 // handleError 自体は副作用なし（resolve）にしておき、各メソッドの throw は .rejects で確認する。
-jest.mock('../../utils/error-handler', () => ({
+jest.mock('../../core/http/error-handler', () => ({
   ErrorHandler: {
     handleError: jest.fn().mockResolvedValue(undefined)
   }
@@ -36,7 +36,7 @@ jest.mock('../../utils/error-handler', () => ({
 import { ChannelType, PermissionsBitField } from 'discord.js'
 import { DiscordGuildManagerService } from './discord-guild-manager.service'
 import { AppConfigService } from '../../config/config.service'
-import { ErrorHandler } from '../../utils/error-handler'
+import { ErrorHandler } from '../../core/http/error-handler'
 
 const handleErrorMock = ErrorHandler.handleError as jest.Mock
 

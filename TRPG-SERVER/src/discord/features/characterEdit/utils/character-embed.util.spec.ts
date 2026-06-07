@@ -1,9 +1,22 @@
+// グローバル jest-setup の discord.js モックを無効化し、
+// 実際の EmbedBuilder / StringSelectMenuBuilder 挙動（.toJSON() 等）を検証する。
+jest.unmock('discord.js')
+jest.mock('discord.js', () => jest.requireActual('discord.js'))
+
+import { Character } from 'src/domains/character/models/character.model'
+import { AttributeSection } from 'src/core/types/attribute.types'
 import {
   generateShortCharacterId,
   formatAttributeFieldValue,
   buildAttributeFields,
   buildFieldOptionDisplay,
-  extractDiceRollValue
+  buildBasicEmbed,
+  buildSectionEmbed,
+  buildEditComponents,
+  buildSectionedEmbeds,
+  buildFieldSelectMenu,
+  buildNewCharacterEmbed,
+  buildCharacterCreatedEmbed
 } from './character-embed.util'
 
 describe('character-embed.util', () => {
@@ -130,18 +143,215 @@ describe('character-embed.util', () => {
     })
   })
 
-  describe('extractDiceRollValue', () => {
-    it('name と value を持つオブジェクトから抽出', () => {
-      expect(extractDiceRollValue('k', { name: 'STR', value: 12 })).toEqual({ name: 'STR', rollValue: 12 })
+  // ==========================================================================
+  // discord.js Builder 構築の純粋関数群
+  // ==========================================================================
+
+  /** 各セクションに代表的な AttributeValue を持つ character を生成 */
+  const buildCharacter = (overrides: Partial<Character> = {}): Character => {
+    const section = (): AttributeSection => ({
+      力: {
+        name: 'STR',
+        values: { base: 10, buff: 5, other: 0 },
+        dice: '1d100',
+        description: '筋力'
+      },
+      器用: {
+        values: { base: 8 }
+      }
     })
 
-    it('name/value を持たないオブジェクトはキーと数値化', () => {
-      expect(extractDiceRollValue('k', { foo: 1 })).toEqual({ name: 'k', rollValue: 0 })
+    return {
+      characterId: 'char-1234',
+      characterName: 'テスト太郎',
+      gameSystemId: 'cthulhu',
+      discordUserId: 'user-999',
+      discordChannelId: 'channel-1',
+      status: section(),
+      parameter: section(),
+      skill: section(),
+      item: section(),
+      ...overrides
+    } as Character
+  }
+
+  describe('buildBasicEmbed', () => {
+    it('タイトル・色・ゲームシステム・ID・プレイヤーを含む', () => {
+      const embed = buildBasicEmbed(buildCharacter()).toJSON()
+
+      expect(embed.title).toBe('🏷️ テスト太郎 - 基本情報')
+      expect(embed.color).toBe(0x3498db)
+      expect(embed.fields).toEqual([
+        { name: '🎲 ゲームシステム', value: 'cthulhu', inline: true },
+        { name: '🆔 キャラクターID', value: 'char-1234', inline: true },
+        { name: '👤 プレイヤー', value: '<@user-999>', inline: true }
+      ])
     })
 
-    it('プリミティブはキーと Number 化', () => {
-      expect(extractDiceRollValue('hp', '15')).toEqual({ name: 'hp', rollValue: 15 })
-      expect(extractDiceRollValue('hp', 'abc')).toEqual({ name: 'hp', rollValue: 0 })
+    it('gameSystemId が空ならゲームシステムフィールドを省く', () => {
+      const embed = buildBasicEmbed(buildCharacter({ gameSystemId: '' })).toJSON()
+
+      expect(embed.fields).toEqual([
+        { name: '🆔 キャラクターID', value: 'char-1234', inline: true },
+        { name: '👤 プレイヤー', value: '<@user-999>', inline: true }
+      ])
+    })
+  })
+
+  describe('buildSectionEmbed', () => {
+    it('AttributeValue を合計・内訳・ダイス・説明付きで整形する', () => {
+      const embed = buildSectionEmbed('📊', 'ステータス', '#e74c3c', 'テスト太郎', buildCharacter().status).toJSON()
+
+      expect(embed.title).toBe('📊 テスト太郎 - ステータス')
+      expect(embed.color).toBe(0xe74c3c)
+      expect(embed.fields).toEqual([
+        {
+          name: 'STR',
+          value: '**合計:** 15\n(base: +10, buff: +5)\n🎲 **ダイス:** 1d100\n💬 筋力',
+          inline: true
+        },
+        {
+          name: '器用',
+          value: '**合計:** 8\n(base: +8)',
+          inline: true
+        }
+      ])
+    })
+
+    it('データが空なら説明文を出してフィールドを持たない', () => {
+      const embed = buildSectionEmbed('📊', 'ステータス', '#e74c3c', 'テスト太郎', {}).toJSON()
+
+      expect(embed.description).toBe('ステータス情報がありません。\n編集ボタンから追加してください。')
+      expect(embed.fields ?? []).toHaveLength(0)
+    })
+
+    it('data が undefined でも説明文を出す', () => {
+      const embed = buildSectionEmbed('📊', 'ステータス', '#e74c3c', 'テスト太郎', undefined).toJSON()
+      expect(embed.description).toBe('ステータス情報がありません。\n編集ボタンから追加してください。')
+    })
+
+    it('フィールドが24件を超える場合、24件に切り詰めて footer で省略数を示す', () => {
+      const bigSection: AttributeSection = {}
+      for (let i = 0; i < 30; i++) {
+        bigSection[`attr${i}`] = { values: { base: i + 1 } }
+      }
+      const embed = buildSectionEmbed('📊', 'ステータス', '#e74c3c', 'テスト太郎', bigSection).toJSON()
+
+      expect(embed.fields).toHaveLength(24)
+      expect(embed.footer?.text).toBe('6個のステータスが省略されています')
+    })
+  })
+
+  describe('buildEditComponents', () => {
+    it('セクション選択メニュー行と操作ボタン行を返す', () => {
+      const [menuRow, buttonRow] = buildEditComponents('char-1234').map((r) => r.toJSON()) as any[]
+
+      const menu = menuRow.components[0]
+      expect(menu.custom_id).toBe('character-edit-section-char-1234')
+      expect(menu.placeholder).toBe('編集するセクションを選択')
+      expect(menu.options.map((o: any) => o.value)).toEqual(['status', 'parameter', 'skill', 'item'])
+
+      expect(buttonRow.components[0]).toMatchObject({
+        custom_id: 'character-refresh-char-1234',
+        label: '🔄 更新'
+      })
+      expect(buttonRow.components[1]).toMatchObject({
+        custom_id: 'character-compact-view-char-1234',
+        label: '📋 簡易表示'
+      })
+    })
+  })
+
+  describe('buildSectionedEmbeds', () => {
+    it('5つのembedを順番通りに生成し、components はメニュー行+ボタン行', () => {
+      const { embeds, components } = buildSectionedEmbeds(buildCharacter())
+
+      expect(embeds.map((e) => e.toJSON().title)).toEqual([
+        '🏷️ テスト太郎 - 基本情報',
+        '📊 テスト太郎 - ステータス',
+        '⚙️ テスト太郎 - パラメータ',
+        '⚔️ テスト太郎 - スキル',
+        '🎒 テスト太郎 - アイテム'
+      ])
+      // ダイスロールボタン行は現状空のため components は2行
+      expect(components).toHaveLength(2)
+    })
+  })
+
+  describe('buildFieldSelectMenu', () => {
+    it('データがある場合、追加 + 既存フィールドの編集オプションを返す', () => {
+      const menu = buildFieldSelectMenu(buildCharacter(), 'status', 'char-1234')
+
+      expect(menu).not.toBeNull()
+      const data = menu!.toJSON()
+      expect(data.custom_id).toBe('character-field-edit-status-char-1234')
+      expect(data.placeholder).toBe('編集するステータスを選択')
+      expect(data.options).toHaveLength(3)
+      expect(data.options[0]).toMatchObject({ label: '➕ 新しいステータスを追加', value: 'add_new' })
+      expect(data.options[1]).toMatchObject({
+        label: '✏️ STR',
+        value: '力',
+        description: '合計: 15 | ダイス: 1d100 | 筋力'
+      })
+      expect(data.options[2]).toMatchObject({ label: '✏️ 器用', value: '器用', description: '合計: 8' })
+    })
+
+    it('データが空の場合、追加専用メニューを返す', () => {
+      const menu = buildFieldSelectMenu(buildCharacter({ status: {} }), 'status', 'char-1234')
+
+      const data = menu!.toJSON()
+      expect(data.custom_id).toBe('character-field-add-status-char-1234')
+      expect(data.placeholder).toBe('ステータスを追加')
+      expect(data.options).toHaveLength(1)
+      expect(data.options[0]).toMatchObject({ label: '➕ 新しいステータスを追加', value: 'add_new' })
+    })
+
+    it('未知のセクションタイプは null を返す', () => {
+      const menu = buildFieldSelectMenu(buildCharacter(), 'basic', 'char-1234')
+      expect(menu).toBeNull()
+    })
+  })
+
+  describe('buildNewCharacterEmbed', () => {
+    it('作成案内embedと作成/キャンセルボタンを生成する', () => {
+      const { embeds, components } = buildNewCharacterEmbed('channel-1', 'user-999')
+
+      expect(embeds).toHaveLength(1)
+      const embed = embeds[0].toJSON()
+      expect(embed.title).toBe('🆕 新しいキャラクターを作成')
+      expect(embed.color).toBe(0x2ecc71)
+      expect(embed.fields).toHaveLength(1)
+      expect(embed.fields![0].name).toBe('📝 作成手順')
+
+      expect(components).toHaveLength(1)
+      const row = components[0].toJSON() as { components: { custom_id: string; label: string }[] }
+      expect(row.components[0]).toMatchObject({
+        custom_id: 'character-create-basic-channel-1-user-999',
+        label: '📝 基本情報入力'
+      })
+      expect(row.components[1]).toMatchObject({
+        custom_id: 'character-create-cancel-channel-1-user-999',
+        label: '❌ キャンセル'
+      })
+    })
+  })
+
+  describe('buildCharacterCreatedEmbed', () => {
+    it('作成完了embedを生成する', () => {
+      const embed = buildCharacterCreatedEmbed(buildCharacter()).toJSON()
+
+      expect(embed.title).toBe('✅ キャラクター作成完了')
+      expect(embed.color).toBe(0x27ae60)
+      expect(embed.fields).toEqual([
+        { name: '🎲 ゲームシステム', value: 'cthulhu', inline: true },
+        { name: '🆔 キャラクターID', value: 'char-1234', inline: true },
+        { name: '👤 作成者', value: '<@user-999>', inline: true }
+      ])
+    })
+
+    it('gameSystemId が空でも「未設定」で生成する', () => {
+      const embed = buildCharacterCreatedEmbed(buildCharacter({ gameSystemId: '' })).toJSON()
+      expect(embed.fields![0]).toEqual({ name: '🎲 ゲームシステム', value: '未設定', inline: true })
     })
   })
 })

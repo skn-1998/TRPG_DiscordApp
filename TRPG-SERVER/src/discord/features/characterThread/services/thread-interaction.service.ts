@@ -8,6 +8,10 @@ import {
   StringSelectMenuOptionBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
+// P1-D slice2: routed な customId 生成を feature-local 契約モジュールの Factory へ集約（byte-identical・挙動不変）
+import { FlexibleDiceSelectCustomId, DiceGenericCustomId, SkillRollCustomId, AbilityRollCustomId } from '../custom-id'
+// skill 解決ロジックは handler と共有する純粋 util へ集約
+import { extractSkillLevel } from './skill-roll.util'
 
 /**
  * スレッドインタラクションサービス
@@ -61,6 +65,46 @@ export class ThreadInteractionService {
   }
 
   /**
+   * 基本ダイスボタンを投稿（1d100 / 1d6 / 2d6 の3ボタン1行）
+   *
+   * routed な `dice_generic_` 契約のみを用いる（custom ボタンは flexible メニューがカバーするため付けない）。
+   * channelId は `character.discordChannelId` を採用する。
+   */
+  async postBasicDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
+    try {
+      const channelId = character.discordChannelId
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(DiceGenericCustomId.create('1d100', channelId))
+          .setLabel('1d100')
+          .setStyle(ButtonStyle.Success)
+          .setEmoji('🎲'),
+        new ButtonBuilder()
+          .setCustomId(DiceGenericCustomId.create('1d6', channelId))
+          .setLabel('1d6')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🎲'),
+        new ButtonBuilder()
+          .setCustomId(DiceGenericCustomId.create('2d6', channelId))
+          .setLabel('2d6')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🎲')
+      )
+
+      await thread.send({
+        content: '🎲 ダイスロール',
+        components: [row]
+      })
+
+      this.logger.debug(`Basic dice buttons posted to thread: ${thread.id}`)
+    } catch (error) {
+      this.logger.error(`Failed to post basic dice buttons: ${thread.id}`, error)
+      throw error
+    }
+  }
+
+  /**
    * フレキシブルダイスメニューを投稿
    */
   async postFlexibleDiceMenu(thread: ThreadChannel, character: Character): Promise<void> {
@@ -75,7 +119,7 @@ export class ThreadInteractionService {
       ]
 
       const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`flexible_dice_${character.discordChannelId}`)
+        .setCustomId(FlexibleDiceSelectCustomId.create(character.discordChannelId))
         .setPlaceholder('ダイスタイプを選択してください')
         .addOptions(
           diceOptions.map((option) =>
@@ -163,10 +207,10 @@ export class ThreadInteractionService {
 
       skillEntries.forEach(([skillKey, skillValue], _index) => {
         const skillName = skillValue?.name || skillKey
-        const skillLevel = this.extractSkillLevel(skillValue)
+        const skillLevel = extractSkillLevel(skillValue)
 
         const button = new ButtonBuilder()
-          .setCustomId(`skill_${character.discordChannelId}_${skillKey}`)
+          .setCustomId(SkillRollCustomId.create(character.discordChannelId, skillKey))
           .setLabel(`${skillName}${skillLevel ? ` (${skillLevel})` : ''}`)
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('🎯')
@@ -191,6 +235,57 @@ export class ThreadInteractionService {
       }
     } catch (error) {
       this.logger.error(`Failed to post skill roll buttons: ${thread.id}`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 能力(ability)ロールボタンを投稿（postSkillRollButtons の完全ミラー）
+   *
+   * `character.parameter`（skill と同型 `AttributeSection`）を反復し、
+   * `ability_{discordChannelId}_{abilityKey}` 契約のボタンを生成する。
+   * 値0以下・parameter 空はスキップし、最大20個・5個ずつの行に分割して送信する。
+   */
+  async postAbilityRollButtons(thread: ThreadChannel, character: Character): Promise<void> {
+    try {
+      if (!character.parameter || Object.keys(character.parameter).length === 0) {
+        this.logger.debug(`No parameters found for character: ${character.characterId}`)
+        return
+      }
+
+      const abilityEntries = Object.entries(character.parameter).slice(0, 20) // 最大20個
+      const abilityButtons: ButtonBuilder[] = []
+
+      abilityEntries.forEach(([abilityKey, abilityValue], _index) => {
+        const abilityName = abilityValue?.name || abilityKey
+        const abilityLevel = extractSkillLevel(abilityValue)
+
+        const button = new ButtonBuilder()
+          .setCustomId(AbilityRollCustomId.create(character.discordChannelId, abilityKey))
+          .setLabel(`${abilityName}${abilityLevel ? ` (${abilityLevel})` : ''}`)
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🎯')
+
+        abilityButtons.push(button)
+      })
+
+      // ボタンを5個ずつ行に分割
+      const rows: ActionRowBuilder<ButtonBuilder>[] = []
+      for (let i = 0; i < abilityButtons.length; i += 5) {
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(abilityButtons.slice(i, i + 5))
+        rows.push(row)
+      }
+
+      if (rows.length > 0) {
+        await thread.send({
+          content: '**🎯 能力ロール**\n使用する能力を選択してください：',
+          components: rows
+        })
+
+        this.logger.debug(`Ability roll buttons posted to thread: ${thread.id}`)
+      }
+    } catch (error) {
+      this.logger.error(`Failed to post ability roll buttons: ${thread.id}`, error)
       throw error
     }
   }
@@ -298,49 +393,25 @@ export class ThreadInteractionService {
 
     return [
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d6_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d6', channelId))
         .setLabel('1d6')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_2d6_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('2d6', channelId))
         .setLabel('2d6')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d20_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d20', channelId))
         .setLabel('1d20')
         .setStyle(ButtonStyle.Primary)
         .setEmoji('🎲'),
       new ButtonBuilder()
-        .setCustomId(`dice_generic_1d100_${channelId}`)
+        .setCustomId(DiceGenericCustomId.create('1d100', channelId))
         .setLabel('1d100')
         .setStyle(ButtonStyle.Success)
         .setEmoji('🎲')
     ]
-  }
-
-  /**
-   * スキルレベルを抽出
-   */
-  private extractSkillLevel(skillValue: any): string | null {
-    if (!skillValue) return null
-
-    if (typeof skillValue === 'object' && skillValue.values) {
-      // AttributeValue オブジェクトの場合
-      const values = skillValue.values
-      if (values.level) return String(values.level)
-      if (values.value) return String(values.value)
-      if (values.base) return String(values.base)
-    } else if (typeof skillValue === 'number') {
-      // 数値の場合
-      return String(skillValue)
-    } else if (typeof skillValue === 'string') {
-      // 文字列の場合
-      const match = skillValue.match(/\d+/)
-      return match ? match[0] : null
-    }
-
-    return null
   }
 }

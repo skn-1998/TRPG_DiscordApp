@@ -10,6 +10,7 @@ import { UpdateUserDto } from './dto/update-user.dto'
 import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { ResponseInterceptor, HttpExceptionFilter, ApiError } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
+import { AppConfigService } from '../../config/config.service'
 
 describe('UserController', () => {
   let controller: UserController
@@ -40,6 +41,13 @@ describe('UserController', () => {
 
   const reflector = new Reflector()
 
+  // P1-C: HttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
+  // AppConfigModule が供給）。TestingModule と filterError の両方で AppConfigService(mock) が要る。
+  // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
+  const mockAppConfig = {
+    get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+  } as unknown as AppConfigService
+
   // 変換後: ハンドラはデータを return / 例外を throw し、
   // ResponseInterceptor / HttpExceptionFilter が封筒化する。
   // 以下のヘルパで実機同様に最終 envelope を再現し、変換前の
@@ -53,7 +61,7 @@ describe('UserController', () => {
   }
 
   const filterError = (method: keyof UserController, error: unknown): { status: number; body: any } => {
-    const filter = new HttpExceptionFilter(reflector)
+    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -95,7 +103,8 @@ describe('UserController', () => {
       controllers: [UserController],
       providers: [
         { provide: UserService, useValue: mockUserService },
-        { provide: JwtTokenService, useValue: mockJwtTokenService }
+        { provide: JwtTokenService, useValue: mockJwtTokenService },
+        { provide: AppConfigService, useValue: mockAppConfig }
       ]
     }).compile()
 

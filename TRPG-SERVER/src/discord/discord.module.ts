@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { ScheduleModule } from '@nestjs/schedule'
 import { DiscordService } from './discord.service'
@@ -26,7 +26,7 @@ import { DiscordEventHandlersModule } from './events/discord-event-handlers.modu
   imports: [
     ConfigModule,
     ScheduleModule.forRoot(), // パフォーマンス監視の定期実行用
-    forwardRef(() => InteractionsModule),
+    InteractionsModule, // P1-B: InteractionsModule slim 化（feature import 撤去）で循環が消えたため forwardRef を解消
     CommandsModule,
     AuthModule,
     CharacterModule, // DiscordControllerでCharacterServiceが必要

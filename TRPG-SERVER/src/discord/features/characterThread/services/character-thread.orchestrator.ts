@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { StringSelectMenuInteraction } from 'discord.js'
 import { ThreadCreationService, CreateThreadRequest } from './thread-creation.service'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { ErrorContext, ErrorHandler } from '../../../../utils/error-handler'
+import { ErrorContext, ErrorHandler } from '../../../../core/http/error-handler'
 
 @Injectable()
 export class CharacterThreadOrchestrator {
