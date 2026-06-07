@@ -10,6 +10,7 @@
 - **`推測:` 表記の意味**: 「コメントや命名から妥当と思われるが、実 routing / 実呼び出しまでは追えていない」もの。断定はしない。
 - **対象**: TRPG-SERVER（NestJS バックエンド）のみ。frontend `trpg-remix-app` は対象外。
 - **本棚卸し時点のコミット基準**: `ecc6d63`（S-5c・dead な legacy roll\*/character-dice handler クラスタ撤去）まで反映。作業ツリーには大量の未コミット dirty（主に `.md` / CRLF churn）があるが、本棚卸しは実コードを根拠にする。
+- **【コミット後ステータス注記（2026-06-06 追記）】**: 上記の作業ツリー状態（大量 dirty、`features/diceRoll/custom-id/` 未追跡 等）は `ecc6d63` 直後のスナップショット。その後 **コミット `57bd2b5`「docs moved」で docs 一式が追跡化され、`diceRoll/custom-id/` も追跡済み**となった ＝ **git status / 未追跡に関する記述は解消済み**。一方、**本棚卸しの中核である実コード根拠の機能・残タスク finding（`postActionButtons` dead path 等）は git コミットと無関係に現役**であり、本注記で弱めない。
 
 ---
 
@@ -220,15 +221,15 @@ TRPG-SERVER 全体の HTTP controller としては、上記 3 ドメインに加
 
 ## 実行した調査コマンド
 
-| コマンド / 操作                                                      | 重要な結果                                                                                                                                                                        |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `git status --short`                                                 | TRPG-SERVER に大量の dirty（主に `.md` / CRLF churn、`features/diceRoll/custom-id/` は未追跡）。自分の担当外は不接触。                                                            |
-| domains の `@Get/@Post/...` grep（`src/domains/**/*.controller.ts`） | controller は auth / user / character の 3 つのみ。dice-roll に controller なし。全エンドポイントを行番号付きで確認（本書「現在ある機能 A」）。                                   |
-| `interactions.module.ts` 通読                                        | providers=`InteractionsService` のみ、imports=`InteractionRegistryModule`/`EventEmitterModule`、feature module import ゼロ＝§8 達成を確認。                                       |
-| 3 feature module の `registerHandlers` 通読                          | characterEdit=6 / diceRoll=8 / characterThread=9＝計 23 を確認。                                                                                                                  |
-| `handlers.integration.spec.ts` の登録数 assertion                    | `totalHandlers` を `23`（:257）で固定＝registry 登録数と一致を確認。                                                                                                              |
-| `postActionButtons` 関連 grep（characterThread）                     | 生成は `thread-interaction.service.ts:35-49` に live コードとして存在するが、呼び出し元 `thread-orchestrator.service.ts:79` はコメントアウト＝dead path を確認。                  |
-| `src/{config,core/events,events/contracts}` glob                     | `AppConfigService`=`config/config.service.ts`、`TypedEventService`=`core/events/typed-event.service.ts`、`EVENT_NAMES`=`events/contracts/index.ts` を確認。                       |
-| Explore サブエージェント（src 全体棚卸し）                           | commands 6 / feature 5 / monitoring・channel・dice サービス群 / grep 系（TODO・forwardRef・process.env・ModuleRef・@Global）の概況を取得（細部は本書で「推測 / 未確認」に区分）。 |
+| コマンド / 操作                                                      | 重要な結果                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git status --short`                                                 | （`ecc6d63` 直後の状態）TRPG-SERVER に大量の dirty（主に `.md` / CRLF churn、`features/diceRoll/custom-id/` は未追跡）。自分の担当外は不接触。**※その後 `57bd2b5` で docs / custom-id は追跡化済み＝この未追跡記述は解消。** |
+| domains の `@Get/@Post/...` grep（`src/domains/**/*.controller.ts`） | controller は auth / user / character の 3 つのみ。dice-roll に controller なし。全エンドポイントを行番号付きで確認（本書「現在ある機能 A」）。                                                                              |
+| `interactions.module.ts` 通読                                        | providers=`InteractionsService` のみ、imports=`InteractionRegistryModule`/`EventEmitterModule`、feature module import ゼロ＝§8 達成を確認。                                                                                  |
+| 3 feature module の `registerHandlers` 通読                          | characterEdit=6 / diceRoll=8 / characterThread=9＝計 23 を確認。                                                                                                                                                             |
+| `handlers.integration.spec.ts` の登録数 assertion                    | `totalHandlers` を `23`（:257）で固定＝registry 登録数と一致を確認。                                                                                                                                                         |
+| `postActionButtons` 関連 grep（characterThread）                     | 生成は `thread-interaction.service.ts:35-49` に live コードとして存在するが、呼び出し元 `thread-orchestrator.service.ts:79` はコメントアウト＝dead path を確認。                                                             |
+| `src/{config,core/events,events/contracts}` glob                     | `AppConfigService`=`config/config.service.ts`、`TypedEventService`=`core/events/typed-event.service.ts`、`EVENT_NAMES`=`events/contracts/index.ts` を確認。                                                                  |
+| Explore サブエージェント（src 全体棚卸し）                           | commands 6 / feature 5 / monitoring・channel・dice サービス群 / grep 系（TODO・forwardRef・process.env・ModuleRef・@Global）の概況を取得（細部は本書で「推測 / 未確認」に区分）。                                            |
 
 > 参考（`AI.refactor.md` 健全性ゲート・2026-06-04 裏取り）: `pnpm run build` OK / `check:circular` **No circular(507)** / 実コードの `forwardRef`・`process.env` 直接参照・`ModuleRef.get` は**すべてゼロ**（残はコメントのみ）。本棚卸しは docs-only のため build/test は未再実行。

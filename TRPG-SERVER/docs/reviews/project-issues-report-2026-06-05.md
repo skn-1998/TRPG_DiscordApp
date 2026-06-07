@@ -6,6 +6,8 @@
 > 対象: `C:\workspace\dokcer-trpg-remix-app` モノレポ全体（TRPG-SERVER ＝ NestJS バックエンド / trpg-remix-app ＝ Remix フロントエンド）。
 > 棚卸し基準コミット: `ecc6d63`（S-5c）。作業ツリーには大量の未コミット dirty があり、本書は dirty 由来か実装由来かを各 finding で切り分ける。
 
+> **【コミット後ステータス注記（2026-06-06 追記）】** 本書のレビュー基準は `ecc6d63`（2026-06-05 時点の作業ツリー）。その後 **コミット `57bd2b5`「docs moved」で `TRPG-SERVER/docs/` 一式が git 追跡下に入り、削除済み docs もコミット、`diceRoll/custom-id/` も追跡済みとなった**。現在の作業ツリーは本タスクのレビュー文書編集を除き clean。これにより **git status 由来の finding（F4＝大規模 dirty / docs 未追跡）は解消済み**。一方、**実装・設計由来の finding（F1 frontend テスト未収集 / F2 characterCreate 空送信 / F5 postActionButtons dead path / F7 プリセット簡易実装 / F8 Discord docs 陳腐化 等）は引き続き現役**であり、本注記で弱めない。
+
 ---
 
 ## 結論
@@ -15,7 +17,7 @@
 1. **(P1) frontend のテストが 1 件も実行されていない** — `jest.config.cjs` の `roots` が存在しない `src/` を指し、実体は `app/` 配下。テストファイルも 0 件。回帰防止が frontend では機能していない（F1）。
 2. **(P1) キャラクター作成 UI が Discord 連携フィールドを空で送信** — `characterCreate.tsx` が `discordUserId` / `discordChannelId` / `characterId` を空文字列で送る。データ整合性リスク（F2）。
 3. **(P2) CI / 自動テストゲートが存在しない** — `.github/workflows` 不在。build / test / check:circular は手動実行のみ（F3）。
-4. **(P2) 作業ツリーが大規模に未コミット/未追跡** — `TRPG-SERVER/docs/` ディレクトリ全体が未追跡（正本級の棚卸し 2 本を含む）、削除済み docs 7 本が未コミット、計 136 ファイル変更。正本が git 履歴に残らない導線リスク（F4）。
+4. **(P2・✅ RESOLVED `57bd2b5`) 作業ツリーが大規模に未コミット/未追跡だった** — レビュー時点では `TRPG-SERVER/docs/` ディレクトリ全体が未追跡（正本級の棚卸し 2 本を含む）、削除済み docs 7 本が未コミット、計 136 ファイル変更だった。**`57bd2b5`「docs moved」で docs 追跡化・削除コミット済み＝解消（F4・履歴として保持）**。
 5. **(P2) `postActionButtons` の dead path** — `character_edit_` / `dice_roll_` / `character_info_` を生成するコードは live に残るが、呼び出し元はコメントアウト・registry 未登録（F5）。
 6. **(P2) frontend の認可チェック未実装** — 管理者権限・リソース所有者チェックが `auth-guards.ts` で TODO のまま（F6）。
 7. **(P2) プリセットダイスの「本格ルール」未実装** — SAN 値判定・武器ダメージ等は system 既定 notation ＋「（簡易）」ラベルの暫定実装（F7）。
@@ -80,8 +82,9 @@
 ### F4 — 作業ツリーが大規模に未コミット/未追跡（正本 docs を含む）
 
 - **優先度**: P2
+- **状態**: ✅ **RESOLVED（`57bd2b5`「docs moved」・2026-06-06 注記）** — 以下はレビュー時点（`ecc6d63`）のスナップショット。**コミット `57bd2b5` で `TRPG-SERVER/docs/` 一式が git 追跡下に入り（reviews/guides/history/refactor）、削除済み docs もコミット、`diceRoll/custom-id/` も追跡済みとなった**。現在の作業ツリーは本タスクのレビュー文書編集を除き clean。**git status 由来の問題は解消**。以下は履歴・経緯として残す。
 - **種別**: operations
-- **問題**: 多数のファイルが未コミットで、特に **`TRPG-SERVER/docs/` ディレクトリ全体が git 未追跡**。正本級の棚卸し文書も履歴に入っていない。
+- **問題**: 多数のファイルが未コミットで、特に **`TRPG-SERVER/docs/` ディレクトリ全体が git 未追跡**だった。正本級の棚卸し文書も履歴に入っていなかった。
 - **根拠**（本タスク開始時点の `git status --porcelain`）:
   - 変更総数 **136** ファイル / 削除（D）**15** 件。
   - `?? TRPG-SERVER/docs/` — docs ディレクトリ丸ごと未追跡。配下に `reviews/feature-inventory-2026-06-05.md`・`reviews/document-inventory-review-2026-06-05.md`（直近の正本級成果物）、`guides/`・`history/`・`refactor/` の再配置分が含まれる。
@@ -246,7 +249,7 @@
 
 実害が小さい / 既に注記済み / 履歴として許容されるもの。
 
-- **F4**: 大規模 dirty の整理（正本コミット・CRLF 根治）。本タスクでは触らない。コミット単位の選別は Codex/ユーザー判断。
+- **F4**: ✅ **解消済み（`57bd2b5`）** — docs 正本コミット・削除コミットは完了。残る検討は CRLF churn の根治（`.gitattributes`）のみ。
 - **F9**: 「型安全性 100%」表現の是正（`AI.md` 冒頭で既に注記済み）。
 - **F12**: frontend API クライアントのセキュリティ精査（推測段階・要実精読）。
 - **F13**: gameSystem / userDefinedDice の routing 経路確認（設計どおりの可能性が高い）。
@@ -286,7 +289,7 @@
 
 1. **F2 の優先度確定**: `characterCreate.tsx` が live な作成導線か（routes 参照の有無）を判定し、空 `discordUserId`/`discordChannelId` 送信を P1 として扱うか確認。バックエンド作成 DTO の必須バリデーションも要確認。
 2. **F1 の修正方針**: `jest.config.cjs` の `roots` 修正 + frontend テストの初期セットを Claude に実装委譲するか。coverageThreshold 80% を維持するか緩めるか。
-3. **F4 のコミット判断**: `TRPG-SERVER/docs/` 正本（reviews/guides/history/refactor）と本レビュー報告書のコミット是非、削除 7 docs のコミット是非。CRLF churn の根治（`.gitattributes`）方針。**本タスクでは未実施**。
+3. **F4 のコミット判断**: ✅ **`57bd2b5`「docs moved」で実施済み**（`TRPG-SERVER/docs/` 正本のコミット・削除 docs のコミット完了）。残課題は CRLF churn の根治（`.gitattributes`）方針のみ。
 4. **F8 の docs 注記更新可否**: DESIGN.md / interactions README / MIGRATION_GUIDE の As-Is 注記更新を許可するか（触らない範囲のため未改稿）。
 5. **F5 の処理方針**: `postActionButtons` dead path を撤去（A）するか機能化（B）するか。feature-inventory は A 推奨。
 6. **F7 の実装スコープ**: プリセット本格ルールをどこまで semantic 化するか、system 別 sub-slice の着手順。

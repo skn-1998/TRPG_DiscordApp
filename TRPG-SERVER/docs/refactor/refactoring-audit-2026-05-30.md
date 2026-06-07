@@ -6,6 +6,11 @@
 **判定基準の正本:** `src/ARCHITECTURE.md`（依存方向・責務境界）、各 `AI.*.md`。
 **各フォルダの詳細所見:** `outputs/refactor-audit/findings/<folder>.md`（本レポートは要約）。
 
+> ⚠️ **履歴注記（2026-06-06）**: 本書は 2026-05-30 時点の監査スナップショット。末尾ロードマップ等にある
+> 「`check:circular` で `UserDomain⇄AuthDomain` のみ許容」という記述は**当時は正しかった**が、**現行ポリシーでは無効**。
+> 当該循環は H6（2026-06-01・本書 High 課題表の H6）で解消済みで、現在は循環依存ゼロが必須
+> （`check:circular` は「No circular dependency found!」が正常）。本文は当時の判断記録としてそのまま残置する。
+
 ---
 
 ## エグゼクティブサマリ

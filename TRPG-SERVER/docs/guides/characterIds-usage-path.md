@@ -1,6 +1,20 @@
 # characterIds の保存・使用経路
 
-（最終確認: 2026-06-03。characterIds 保存経路は現役）
+（最終確認: 2026-06-06。保存経路・読み取り経路ともに `characterIds` で現役。
+ただし呼び出し元のファイル配置が diceRoll feature 化で移動し、旧 interactions 配下の 3 サービス
+（`character-dice-buttons.service.ts` / `diceroll-channel-create.service.ts` /
+`components/pagination/dice-roll-pagination.service.ts`）は**削除済み**。本書はそれを反映済み。）
+
+## 🧭 現行経路サマリ（2026-06-06）
+
+- **保存（現役）**: `DiceRollService.createText()` / `createOrGetChannel()` →
+  `DiceRollChannelRepository.addCharacterId()` が `characterIds` を `$addToSet` で保存。
+- **保存の呼び出し元（現役）**: `DiceRollLogicService`（**現在地**:
+  `src/discord/services/dice/dice-roll-logic.service.ts`。旧 `interactions/button/` から移動）。
+- **読み取り（現役）**: `DiceRollCharacterProviderService.findCharactersByChannelId()`（**現在地**:
+  `src/discord/features/diceRoll/services/pagination/dice-roll-character-provider.service.ts`）が
+  `diceRollChannel.characterIds` を読む。`DiceRollPaginationService`（同 pagination 配下）がこれを利用。
+- **削除済みの旧経路**: 下記 3.B / 3.C と「読み取り処理」旧節で取り消し線・注記済み。
 
 ## 📋 概要
 
@@ -82,7 +96,11 @@
 
 #### A. `DiceRollLogicService.handleDiceRoll()` - ダイスロール処理
 
-```48:60:TRPG-SERVER/src/discord/interactions/button/dice-roll-logic.service.ts
+> 📍 **現在地（2026-06-06）**: このサービスは `src/discord/services/dice/dice-roll-logic.service.ts`
+> へ移動済み（旧 `interactions/button/dice-roll-logic.service.ts` は削除）。`createText()` 呼び出しは
+> 現役（同ファイル内で 3 箇所）。下記の行番号は移動前スナップショットであり、現行行番号とは一致しない。
+
+```48:60:TRPG-SERVER/src/discord/services/dice/dice-roll-logic.service.ts
       // ダイスロール結果をDBに保存
       const diceRollData: DiceRollTextInputDto = {
         channelId: req.channelId,
@@ -107,9 +125,13 @@
 
 **注意**: このコードでは`characterId`が明示的に設定されていないため、`createText()`内で`characterId`が存在する場合のみ追加される条件分岐に依存しています。
 
-#### B. `CharacterDiceButtonsService.saveRollResult()` - キャラクターダイスボタン処理
+#### B. ~~`CharacterDiceButtonsService.saveRollResult()` - キャラクターダイスボタン処理~~（削除済み）
 
-```276:293:TRPG-SERVER/src/discord/interactions/button/character-dice-buttons.service.ts
+> 🗑️ **削除済み（2026-06-06 時点で実ファイル無し）**: `src/discord/interactions/button/character-dice-buttons.service.ts`
+> は dead サービス撤去（S-5 系）で削除済み。以下は当時のスナップショットで、現行コードには存在しない。
+> `characterId` 明示設定での `createText()` 保存という挙動自体は、現役の `DiceRollLogicService`（上記 A）が担う。
+
+```276:293:TRPG-SERVER/src/discord/interactions/button/character-dice-buttons.service.ts（削除済み）
       // ダイスロール結果をDBに保存
       const text: DiceRollTextInputDto = {
         textId: uuidv4(),
@@ -137,9 +159,13 @@
 2. `DiceRollTextInputDto`に`characterId`を明示的に設定
 3. `createText()`を呼び出し → `characterIds`に自動追加
 
-#### C. `DiceRollChannelCreateService.execute()` - チャンネル作成時
+#### C. ~~`DiceRollChannelCreateService.execute()` - チャンネル作成時~~（削除済み）
 
-```29:35:TRPG-SERVER/src/discord/interactions/channel/diceroll-channel-create.service.ts
+> 🗑️ **削除済み（2026-06-06 時点で実ファイル無し）**: `src/discord/interactions/channel/diceroll-channel-create.service.ts`
+> は削除済み。現状 `createOrGetChannel()` を呼ぶ discord 側経路は無い（`dice-roll.service.ts:51` の呼び出しも
+> コメントアウト）。`characterIds` への追加は保存時の `addCharacterId()`（上記 A 経路）が担う。以下は当時のスナップショット。
+
+```29:35:TRPG-SERVER/src/discord/interactions/channel/diceroll-channel-create.service.ts（削除済み）
     const createDiceRollChannelDto: DiceRollChannelInputDto = {
       discordChannelId: channel.id,
       characterIds: [],
@@ -158,9 +184,28 @@
 
 ## 📖 読み取り処理の経路
 
-### `DiceRollPaginationService.fetchCharacters()` - ページネーション表示
+> 📍 **現在地（2026-06-06）**: 読み取りの正本は `DiceRollCharacterProviderService.findCharactersByChannelId()`
+> （`src/discord/features/diceRoll/services/pagination/dice-roll-character-provider.service.ts`）。
+> ここで `diceRollChannel.characterIds` を読み、各 ID をキャラクター取得イベントへ渡す。
+> 旧 `src/discord/components/pagination/dice-roll-pagination.service.ts` は**削除済み**で、
+> `DiceRollPaginationService` は `features/diceRoll/services/pagination/` 配下へ移動済み。
+> 同サービスは `characterIds` を直接読まず、上記 provider 経由（`fetchCharacters` → `findCharactersByChannelId`）で取得する。
 
-```480:491:TRPG-SERVER/src/discord/components/pagination/dice-roll-pagination.service.ts
+### 現役の読み取り: `DiceRollCharacterProviderService.findCharactersByChannelId()`
+
+```13:24:TRPG-SERVER/src/discord/features/diceRoll/services/pagination/dice-roll-character-provider.service.ts
+  async findCharactersByChannelId(channelId: string): Promise<Character[]> {
+    try {
+      const diceRollChannel = await this.diceRollService.findChannelByChannelId(channelId)
+      if (!diceRollChannel || !diceRollChannel.characterIds || diceRollChannel.characterIds.length === 0) {
+        return []
+      }
+      // 各 characterId をイベント経由でキャラクター取得
+```
+
+### ~~（旧）`DiceRollPaginationService.fetchCharacters()` - ページネーション表示~~（ファイル移動・直接 characterIds 読みは provider へ集約）
+
+```480:491:TRPG-SERVER/src/discord/components/pagination/dice-roll-pagination.service.ts（削除済み・以下は当時のスナップショット）
       // DiceRollChannelを取得してcharacterIdsを取得
       const diceRollChannel = await this.diceRollService.findChannelByChannelId(channelId)
 
@@ -204,12 +249,14 @@ MongoDB: $addToSet { characterIds: characterId }
 DiceRollChannel.characterIds に追加完了
 ```
 
-### パターン2: キャラクターダイスボタン使用時
+### パターン2: ~~キャラクターダイスボタン使用時~~（削除済み・参考）
+
+> 🗑️ `CharacterDiceButtonsService` は削除済み。以下は当時のフロー。
 
 ```
 Discord Button Interaction
   ↓
-CharacterDiceButtonsService.saveRollResult()
+CharacterDiceButtonsService.saveRollResult()（削除済み）
   ├─ characterIdを取得
   └─ DiceRollTextInputDtoにcharacterIdを設定
       ↓
@@ -222,12 +269,14 @@ DiceRollChannelRepository.addCharacterId(channelId, characterId)
 MongoDB: $addToSet { characterIds: characterId }
 ```
 
-### パターン3: チャンネル初期作成時
+### パターン3: ~~チャンネル初期作成時~~（削除済み・参考）
+
+> 🗑️ `DiceRollChannelCreateService` は削除済み。現状この初期作成経路は配線されていない。以下は当時のフロー。
 
 ```
 Discord Channel Create Event
   ↓
-DiceRollChannelCreateService.execute()
+DiceRollChannelCreateService.execute()（削除済み）
   ↓
 DiceRollService.createOrGetChannel(DiceRollChannelInputDto)
   ├─ characterIds: [] で初期化
@@ -248,13 +297,14 @@ MongoDB: 新規ドキュメント作成
 
 ### 呼び出し元
 
-1. ✅ `DiceRollLogicService.handleDiceRoll()` - ダイスロール実行時
-2. ✅ `CharacterDiceButtonsService.saveRollResult()` - キャラクターダイスボタン使用時
-3. ✅ `DiceRollChannelCreateService.execute()` - チャンネル作成時
+1. ✅ `DiceRollLogicService.handleDiceRoll()` - ダイスロール実行時（現在地 `src/discord/services/dice/`）
+2. 🗑️ ~~`CharacterDiceButtonsService.saveRollResult()`~~ - 削除済み（旧 `interactions/button/`）
+3. 🗑️ ~~`DiceRollChannelCreateService.execute()`~~ - 削除済み（旧 `interactions/channel/`）
 
 ### 読み取り処理
 
-1. ✅ `DiceRollPaginationService.fetchCharacters()` - ページネーション表示
+1. ✅ `DiceRollCharacterProviderService.findCharactersByChannelId()` - `characterIds` 読み取り正本（`features/diceRoll/services/pagination/`）
+2. 🗑️ ~~`DiceRollPaginationService.fetchCharacters()` が直接 characterIds を読む~~ - 現在は上記 provider 経由（同サービスは `features/diceRoll/services/pagination/` へ移動）
 
 ---
 

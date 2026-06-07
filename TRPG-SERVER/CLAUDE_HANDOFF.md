@@ -2,6 +2,73 @@
 
 このファイルは作業を別ウィンドウ/セッションへ委譲するときに更新する。
 
+## 現在の委譲 — docs 精査結果反映・分割更新（2026-06-06）
+
+### 目的
+
+前回の Claude サブエージェント4本による docs 精査結果を、TRPG-SERVER のドキュメントへ最小限反映し、現役導線・解消済み注記・履歴注記・Discord docs の数値/状態ずれを整理する。
+
+### Claude 起動後に最初に読む
+
+- `CLAUDE.md`
+- `AGENTS.md`
+- `TRPG-SERVER/AI.md`
+- `TRPG-SERVER/src/ARCHITECTURE.md`
+- `TRPG-SERVER/docs/README.md`
+- `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md`
+- `TRPG-SERVER/docs/reviews/document-inventory-review-2026-06-05.md`
+- `TRPG-SERVER/docs/reviews/project-issues-report-2026-06-05.md`
+- 対象ファイルごとの関連設計書
+
+### 使うスキル
+
+- `claude-delegation-reviewer`: 精査結果を過不足なく反映し、証拠とスコープを維持するため。
+- `trpg-architecture`: 正本導線、docs 配置、TRPG-SERVER の依存/設計ルールを外さないため。
+
+### 変更してよい範囲
+
+分割委譲ごとに指定する docs / markdown のみ。実装コードは変更しない。
+
+### 触らない範囲
+
+- `.ts`, `.tsx`, `.spec.ts`, package scripts, lockfile, generated files。
+- docs 以外のリファクタ。
+- unrelated dirty files の revert / stage / commit。
+
+### 既知の作業ツリー状態
+
+開始時点の `git status --short` は clean。Claude は各サブエージェント開始/終了時に status を確認し、自分の担当ファイル以外を触らない。
+
+### 分割作業
+
+1. **Index / canonical**
+   - 対象: `TRPG-SERVER/AI.md`, `TRPG-SERVER/docs/README.md`, `AGENTS.md`, `TRPG-SERVER/src/discord/DESIGN.md`, `TRPG-SERVER/src/discord/interactions/README.md`, `TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md`
+   - 反映: `project-issues-report` の導線追加、AI.md 鮮度注記、Events DESIGN 既作成化、Discord docs の Phase/handler 数/As-Is 文言の最小更新。
+2. **reviews**
+   - 対象: `TRPG-SERVER/docs/reviews/*.md`
+   - 反映: `57bd2b5 docs moved` 後は docs 未追跡 / large dirty / F4 が解消済みである注記。現役 finding は残す。
+3. **guides/refactor/history**
+   - 対象: `TRPG-SERVER/docs/guides/characterIds-usage-path.md`, `TRPG-SERVER/docs/refactor/*.md`, `TRPG-SERVER/docs/history/DISCORD_SERVICES_ANALYSIS.md`
+   - 反映: characterIds guide の旧パス更新または履歴化判断、refactor docs の循環許容記述への現行注記、DISCORD_SERVICES_ANALYSIS の履歴 checklist 誤読防止注記。
+
+### 検証
+
+```powershell
+git status --short
+rg -n "project-issues-report-2026-06-05|feature-inventory-2026-06-05|document-inventory-review-2026-06-05" TRPG-SERVER/AI.md TRPG-SERVER/docs/README.md
+rg -n "未追跡|dirty|136|\\?\\? TRPG-SERVER/docs|git 未追跡|57bd2b5|解消済み" TRPG-SERVER/docs/reviews
+rg -n "Handler 24|toBe\\(23\\)|Phase 0 一部着手|God Module|slim 化予定|characterEdit 特例" TRPG-SERVER/src/discord/DESIGN.md TRPG-SERVER/src/discord/interactions/README.md TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md TRPG-SERVER/src/discord/interactions/handlers/handlers.integration.spec.ts
+rg -n "interactions/button/character-dice-buttons|interactions/channel/diceroll-channel-create|components/pagination/dice-roll-pagination|characterIds|DiceRollCharacterProvider" TRPG-SERVER/docs/guides/characterIds-usage-path.md
+```
+
+### 完了条件
+
+- 重要レポート3本が docs/README.md から辿れる。
+- コミット済み後に陳腐化した未追跡/dirty 記述に解消済み注記がある。
+- Discord docs の handler 数と Phase/As-Is 文言が現状を誤導しない。
+- history/refactor docs が現役タスクとして誤読されにくい。
+- 最終 `git status --short` と diff summary を Codex に返す。
+
 ## 現在の委譲 — プロジェクト問題点レビュー報告書（2026-06-05）
 
 ### 目的

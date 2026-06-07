@@ -4,12 +4,14 @@
 > 根拠付きの分類と推奨だけを記録する（委譲: `CLAUDE_HANDOFF.md` 冒頭「TRPG-SERVER ドキュメント整理レビュー（2026-06-05）」）。
 > 断定と推測は分け、実ファイルを読めたものだけを分類した。読めていない/追えていない点は `未確認` または `推測:` と明記する。
 
+> **【コミット後ステータス注記（2026-06-06 追記）】** 本レビューの git 状態スナップショット（現存 36 本 / 削除済み未コミット `D` 7 本 / 未追跡 `??` の `feature-inventory-2026-06-05.md`・現存 md 本数）は、すべて **`ecc6d63` 直後の作業ツリー時点**のもの。その後 **コミット `57bd2b5`「docs moved」で `TRPG-SERVER/docs/` 一式が追跡化され、削除 7 本もコミット済みとなった**。したがって本書の **「git 未追跡」「`D` 未コミット」「本タスクでは commit しない」系の記述は解消済み（履歴スナップショットとして保持）**。一方、**文書内容の陳腐化に関する分類・注記更新候補（Discord 設計系 As-Is、`AI.development.md` drift 等の現役 finding）は引き続き有効**で、本注記で弱めない。
+
 ## 結論
 
-- TRPG-SERVER 配下のレビュー対象として現存 Markdown **36 本**、git 上 `D`（削除済み・作業ツリー未コミット）が **7 本**、合計 **43 本** を確認した。加えて本レビュー文書自身が新規作成されたため、作成後の `rg --files -g "*.md"` は **37 本** を返す。
+- TRPG-SERVER 配下のレビュー対象として現存 Markdown **36 本**、git 上 `D`（削除済み・作業ツリー未コミット）が **7 本**、合計 **43 本** を確認した。加えて本レビュー文書自身が新規作成されたため、作成後の `rg --files -g "*.md"` は **37 本** を返す。**※これらの本数は `ecc6d63` 直後の作業ツリー時点のスナップショット。`57bd2b5` で削除 7 本がコミット確定し、追跡 md 本数は変動済み（現状は git 追跡ベースで確認のこと）。**
 - ドキュメント体系は概ね健全。**正本（canonical）は冒頭に正本ポインタ・履歴注記を持ち**、古い 2025 年スナップショットは自己注記で「履歴」と宣言されている。すぐ削除すべき「危険な誤導線」は少ない。
-- 削除済み 7 本は `AI.refactor.md:1037-1039` の「削除（役目を終えた一過性メモ / 空ファイル）7 本」と**完全一致**しており、削除は**意図的**。現状はワークツリー上 `D` のまま未コミット。**本タスクでは commit しない**。
-- すぐ対応すべきは「**索引(`AI.md`)に載っていない孤立 root スクラッチ文書**」の導線整理と、「**未追跡の正本 `feature-inventory-2026-06-05.md` を git 管理下に入れる**」こと。いずれも削除ではなく **索引化 / コミット** が推奨で、本タスクでは実行しない。
+- 削除済み 7 本は `AI.refactor.md:1037-1039` の「削除（役目を終えた一過性メモ / 空ファイル）7 本」と**完全一致**しており、削除は**意図的**。レビュー時点ではワークツリー上 `D` のまま未コミットだったが、**`57bd2b5`「docs moved」でコミット済み＝解消（履歴スナップショット）**。
+- すぐ対応すべきとして挙げた「**未追跡の正本 `feature-inventory-2026-06-05.md` を git 管理下に入れる**」は **`57bd2b5` で追跡化済み＝解消**。残るは「**索引(`AI.md` / `docs/README.md`)導線の整理**」で、こちらは削除ではなく索引化が推奨（`docs/README.md` から reviews/guides/history を案内済み）。
 - すぐ削除してよいとは断定しない。下記「削除・統合の推奨順」で P0〜P2 として優先度付きで示す。
 
 ---
@@ -27,7 +29,7 @@
 | `AI.refactor.md`                                      | AC           | リファクタ進捗・現状・残課題の最新正本（最終更新 2026-06-04）          | `AI.refactor.md` 冒頭・`:1037-1040` 削除リスト                                                   | 維持。**削除候補の管理台帳**としても機能。                                                                                             |
 | `AI.test.md`                                          | AC           | テスト戦略・テスタビリティ評価・カバレッジの正本（2026-06-03）         | エージェント精読（冒頭「最終更新 2026-06-03」）                                                  | 維持。                                                                                                                                 |
 | `AI.features.md`                                      | AC           | feature 正本への索引（2026-06-05・実体は棚卸しへ委譲）                 | `AI.features.md:1-16`                                                                            | 維持。                                                                                                                                 |
-| `docs/reviews/feature-inventory-2026-06-05.md`        | AC           | 実コード根拠の機能棚卸し現状スナップショット                           | 本書作成者が通読・`AI.md:82` / `AI.features.md:11` から被リンク                                  | **git 未追跡**（`??`）。コミットして導線を確定（本タスク外）。                                                                         |
+| `docs/reviews/feature-inventory-2026-06-05.md`        | AC           | 実コード根拠の機能棚卸し現状スナップショット                           | 本書作成者が通読・`AI.md:82` / `AI.features.md:11` から被リンク                                  | 維持。レビュー時点は git 未追跡（`??`）だったが **`57bd2b5` で追跡化済み＝解消**。                                                     |
 | `src/discord/DESIGN.md`                               | AS           | Discord 層統合設計（目標 arch・customId 契約・Phase 0〜4）             | 通読。Phase 1=完了・Phase 2 一部の更新済                                                         | 維持。**§2-3 As-Is（God Module 等）は解消済みで陳腐化**（feature-inventory D1）。注記更新候補（P1）。                                  |
 | `src/discord/interactions/README.md`                  | AS           | Interactions レイヤーの役割・Handler 作法                              | 通読。`:33-34` が「God Module/特例分岐(移管予定)」と記載                                         | 維持。**特例分岐は P1-A で撤去済**＝陳腐化（feature-inventory D2）。注記更新候補（P1）。                                               |
 | `src/discord/interactions/MIGRATION_GUIDE.md`         | AS           | Registry 移行・所有権移譲の手順書                                      | 通読。`:19` 「ルーティング1本化=Phase2 未着手」表記                                              | 維持。Phase 2 実態（slim 化済・特例撤去済）と差。注記更新候補（P1）。                                                                  |
@@ -77,7 +79,7 @@
 - **`AI.refactor.md`** — リファクタ進捗・残課題の最新正本（2026-06-04）。削除候補の管理台帳も兼ねる。
 - **`AI.test.md`** — テスト戦略・テスタビリティ評価・カバレッジ正本（2026-06-03）。
 - **`AI.features.md`** — feature 正本への索引（2026-06-05）。
-- **`docs/reviews/feature-inventory-2026-06-05.md`** — 実コード根拠の機能棚卸し現状スナップショット。**ただし git 未追跡**（コミット推奨）。
+- **`docs/reviews/feature-inventory-2026-06-05.md`** — 実コード根拠の機能棚卸し現状スナップショット。レビュー時点は git 未追跡だったが **`57bd2b5` で追跡化済み**。
 - **`CLAUDE_HANDOFF.md`** — 委譲運用ファイル（`AI.refactor.md:1040` で維持と明記）。
 
 ## Active scoped
@@ -117,18 +119,18 @@
 
 ## Broken / missing / link-risk
 
-### git 上 `D`（削除済み・作業ツリー未コミット）= 7 本
+### git 上 `D`（削除済み）= 7 本 — ✅ `57bd2b5` でコミット済み（解消）
 
 `AI.discord.md`(root) / `INTERACTION_REGISTRY_IMPLEMENTATION.md` / `adapters復旧必要性分析.md` / `postFlexibleDiceMenu-flow-analysis.md` / `src/claude.md` / `src/type-error-fixes.md` / `コメントアウト箇所管理.md`
 
 - これらは `AI.refactor.md:1037-1039` の「削除（役目を終えた一過性メモ / 空ファイル）7 本」と**完全一致**＝**意図的削除**。
-- 現状はワークツリー上 `D` のまま **未コミット**。**本タスクでは stage / commit しない**（委譲の触らない範囲）。
+- レビュー時点はワークツリー上 `D` のまま未コミットだったが、**`57bd2b5`「docs moved」で削除がコミットされ解消**（履歴スナップショット）。
 
 ### link-risk（リンク切れ・導線リスク）
 
 - **実害のあるリンク切れは検出されず**。`](...AI.discord.md)` 形式のリンクは全て現存する `src/discord/AI.discord.md` を指す（`AI.md:73` / `AI.features.md:15` / `src/discord/DESIGN.md:5`,`:321` を確認）。削除された root `AI.discord.md` を指す**実リンクは無い**。
 - **prose のみの陳腐化**: `README.md:80` が AI.\*.md の例として `AI.discord.md` を列挙。root 版は削除され src 版のみ存続のため、表記は `src/discord/AI.discord.md` が正確（実害は無いが軽微 drift）。
-- **未追跡の正本**: `docs/reviews/feature-inventory-2026-06-05.md` は `AI.md:82` / `AI.features.md:11` から被リンクされる正本だが git 未追跡（`??`）。コミット前に履歴へ残らない導線リスク。
+- **未追跡の正本**: `docs/reviews/feature-inventory-2026-06-05.md` は `AI.md:82` / `AI.features.md:11` から被リンクされる正本で、レビュー時点では git 未追跡（`??`）だった ＝ ✅ **`57bd2b5` で追跡化され解消**。
 - **索引未掲載（孤立）**: `docs/guides/IMPORT_PATHS.md` / `docs/history/PERFORMANCE_IMPROVEMENTS.md` / `docs/guides/characterIds-usage-path.md` / `docs/history/characterThread-dice-roll-functions.md` / `docs/history/flexible-dice-param-menu-existence.md` / `docs/history/DISCORD_SERVICES_ANALYSIS.md` は、初稿時点ではどの索引/正本からもリンクされていなかった。現在は `docs/README.md` から `guides/` と `history/` の置き場を案内する。
 
 ---
@@ -140,14 +142,14 @@
 ### P0: 参照切れ・削除済み参照の修正
 
 - **実リンク切れは無し**（上記検証）。P0 として緊急修正が必要なリンクは検出されなかった。
-- 強いて挙げれば、削除済み 7 本の **コミット是非を Codex が判断**する（現状 `D` 未コミット）。これは「修正」ではなく意思決定事項。
+- 削除済み 7 本の **コミット是非**は ✅ **`57bd2b5`「docs moved」で実施済み（解消）**。
 
 ### P1: 作業導線から外すべき陳腐化 docs / 注記更新
 
 1. `docs/history/DISCORD_SERVICES_ANALYSIS.md` を導線から外す（正本 `DESIGN.md §4.5`）。履歴として `docs/history/` に退避済み。
 2. Discord 設計系の **As-Is/Phase 表記を現状へ注記更新**（`src/discord/DESIGN.md` §2-3、`interactions/README.md` `:33-34`、`MIGRATION_GUIDE.md` Phase 2 表）。**設計方針変更を伴わない注記限定**（feature-inventory D1/D2 と同旨。Codex 判断）。
 3. `AI.development.md` 冒頭に正本ポインタ（パフォ/カバレッジ→AI.test.md）を 1 行追記し drift を抑止。
-4. `feature-inventory-2026-06-05.md` を git 追跡下へ（コミット）。
+4. ~~`feature-inventory-2026-06-05.md` を git 追跡下へ（コミット）。~~ ✅ **`57bd2b5` で追跡化済み（解消）**。
 
 ### P2: 履歴として残すが索引/導線から外す docs
 
@@ -174,7 +176,7 @@
 
 ## 未確認・要判断
 
-- **削除済み 7 本のコミット是非**（Codex 判断）。現状 `D` 未コミット。本タスクでは触らない範囲のため commit しない。
+- ~~**削除済み 7 本のコミット是非**（Codex 判断）。現状 `D` 未コミット。~~ ✅ **`57bd2b5`「docs moved」でコミット済み（解消・2026-06-06 注記）**。
 - **Discord 設計系（DESIGN.md / interactions README / MIGRATION_GUIDE）の注記更新可否**は触らない範囲（Codex 判断）。本書は陳腐化の記録に留めた。
 - **`AI.character.md` と src 実装（`core/types` 等）の完全一致**は未照合（`推測:` AttributeValue 設計は現役指針だが実装差分は要確認）。
 - **`AI.development.md` の Active/Historical 境界**: Phase S・操作系は現役、パフォ/カバレッジ数値は陳腐化。文書内での厳密な現役行範囲は精読エージェント報告ベース（一部は引用のみで全行未照合）。

@@ -12,7 +12,7 @@ TRPG-SERVER を触る場合は、最初に次を確認する。
    - Discord: `TRPG-SERVER/src/discord/DESIGN.md`
    - Discord interactions: `TRPG-SERVER/src/discord/interactions/README.md`
    - Interactions migration: `TRPG-SERVER/src/discord/interactions/MIGRATION_GUIDE.md`
-   - Events: `TRPG-SERVER/src/events/DESIGN.md`（未作成なら作成を優先）
+   - Events: `TRPG-SERVER/src/events/DESIGN.md`
 
 既存設計と矛盾する実装を入れない。矛盾を見つけた場合は、先に設計文書を更新するか、ユーザーに確認する。
 
