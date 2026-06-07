@@ -1,33 +1,18 @@
 import axios from 'axios'
+import http from 'node:http'
+import https from 'node:https'
 import { configService } from '../config'
 import { ApiClientResponse, KnownDomains, DomainDataMap } from '../types/api'
 
 // 開発環境判定
 const isDevelopment = !configService.isProduction()
 
-// Node.js環境でのSSL証明書検証設定（開発環境のみ）
-if (typeof process !== 'undefined' && process.versions?.node && isDevelopment) {
-  // 開発環境でのみSSL証明書検証を無効化
-  process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
-  if (isDevelopment) {
-    console.log('SSL certificate verification disabled for development environment')
-  }
-}
-
 // 安全なHTTPモジュール読み込み関数
 const loadHttpModules = () => {
-  if (typeof process !== 'undefined' && process.versions?.node && typeof require !== 'undefined') {
-    try {
-      // eval()を使わずに安全にモジュールを読み込み
-      return {
-        https: require('https'),
-        http: require('http')
-      }
-    } catch (error) {
-      if (isDevelopment) {
-        console.log('Failed to load HTTP modules:', error)
-      }
-      return null
+  if (typeof process !== 'undefined' && process.versions?.node) {
+    return {
+      https,
+      http
     }
   }
   return null

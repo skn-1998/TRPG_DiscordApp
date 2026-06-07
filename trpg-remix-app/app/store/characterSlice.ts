@@ -1,7 +1,11 @@
 import { StateCreator } from 'zustand'
 import { RootState } from '.'
 
-export interface CharacterSlice {}
+export interface CharacterSlice {
+  abc: string
+  setA: () => void
+  setB: () => void
+}
 
 export const createTestSlice: StateCreator<
   RootState,
