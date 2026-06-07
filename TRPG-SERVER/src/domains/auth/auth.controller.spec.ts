@@ -112,7 +112,12 @@ describe('AuthController', () => {
 
   /** ハンドラから throw された例外を HttpExceptionFilter に通して最終 envelope/status を得る */
   const filterError = (method: keyof AuthController, error: unknown): { status: number; body: any } => {
-    const filter = new HttpExceptionFilter(reflector)
+    // P1-C: filter は AppConfigService から dev 判定（includeStack）を得る。
+    // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
+    const mockAppConfig = {
+      get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+    } as unknown as import('../../config/config.service').AppConfigService
+    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
