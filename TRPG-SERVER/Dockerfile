@@ -4,14 +4,15 @@ FROM node:22-alpine AS base
 # 必要なパッケージをインストール
 RUN apk add --no-cache wget curl
 
-# pnpmをグローバルにインストール
-RUN npm install -g pnpm@latest
+# pnpmのバージョンを固定してインストール
+ARG PNPM_VERSION=11.5.1
+RUN npm install --global "pnpm@${PNPM_VERSION}"
 
 # 作業ディレクトリを設定
 WORKDIR /usr/src/app
 
 # パッケージ定義ファイルをコピー（依存関係キャッシュのため先にコピー）
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # 開発ステージ
 FROM base AS development

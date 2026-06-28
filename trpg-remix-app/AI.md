@@ -31,6 +31,7 @@ TRPG-Remix-Appは、テーブルトークRPG（TRPG）の管理・支援を行�
 - dependency build script は `allowBuilds` で明示管理する。現在は `esbuild` と `unrs-resolver` のみ許可し、`dangerouslyAllowAllBuilds` は禁止。
 - `vite@8` の peer dependency を満たすため、`esbuild@0.28.0` を devDependency と override で固定する。
 - `verifyDepsBeforeRun: error` により、`pnpm run` 時の暗黙 install を禁止する。依存がずれている場合は `pnpm install --frozen-lockfile` で明示確認する。
+- Docker 開発環境は起動時に `CI=true pnpm install --frozen-lockfile` で永続 `node_modules` を明示同期する。`.vite` は同じ `node_modules` ボリューム内で管理し、pnpm の再作成を妨げる入れ子のボリュームマウントは追加しない。
 - 監査は `pnpm run audit`、署名検証は `pnpm run audit:signatures` を使う。
 - Vite では `vite-plugin-env-compatible` を使わず、`vite.config.mjs` の `__APP_PUBLIC_ENV__` に公開してよい値だけを渡す。`DISCORD_SECRET` は client bundle に注入しない。
 - 開発環境の TLS 証明書回避は axios の HTTPS agent に閉じ込め、`NODE_TLS_REJECT_UNAUTHORIZED=0` のようなプロセス全体の無効化は使わない。

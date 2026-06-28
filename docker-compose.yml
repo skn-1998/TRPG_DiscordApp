@@ -9,7 +9,6 @@ services:
     volumes:
       - ./trpg-remix-app:/usr/src/app:cached
       - app_node_modules:/usr/src/app/node_modules
-      - app_vite_cache:/usr/src/app/node_modules/.vite  # Viteキャッシュ用ボリューム
     ports:
       - "5173:5173"
     environment:
@@ -88,7 +87,5 @@ networks:
 volumes:
   app_node_modules:
     name: trpg-app-node-modules
-  app_vite_cache:
-    name: trpg-app-vite-cache
   nestjs_node_modules:
     name: trpg-nestjs-node-modules

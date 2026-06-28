@@ -5,6 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@11.5.1",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
@@ -60,6 +61,7 @@
     "lodash": "^4.17.21",
     "moji": "^0.5.1",
     "mongoose": "^8.14.0",
+    "nest-winston": "^1.10.2",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "pg": "^8.15.6",
@@ -68,22 +70,8 @@
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.22",
     "uuid": "^11.1.0",
+    "winston": "^3.19.0",
     "zod": "^4.0.17"
-  },
-  "pnpm": {
-    "overrides": {
-      "brace-expansion": "2.0.2",
-      "tmp": "0.2.4"
-    },
-    "onlyBuiltDependencies": [
-      "cpu-features",
-      "protobufjs",
-      "ssh2"
-    ]
-  },
-  "overrides": {
-    "brace-expansion": "2.0.2",
-    "tmp": "0.2.4"
   },
   "devDependencies": {
     "@eslint/config-array": "^0.21.0",
