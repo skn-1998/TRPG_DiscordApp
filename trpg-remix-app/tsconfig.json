@@ -1,8 +1,22 @@
 {
-  "include": ["app/**/*.ts", "app/**/*.tsx"],
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
   "compilerOptions": {
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["@remix-run/node", "vite/client"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
+    "types": [
+      "node",
+      "react",
+      "jest"
+    ],
     "isolatedModules": true,
     "esModuleInterop": true,
     "jsx": "react-jsx",
@@ -11,6 +25,7 @@
     "resolveJsonModule": true,
     "target": "ES2022",
     "strict": true,
+    "incremental": true,
     "allowJs": false,
     "skipLibCheck": false,
     "noImplicitReturns": true,
@@ -18,16 +33,38 @@
     "noImplicitOverride": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "~/*": ["./app/*"],
-      "@features/*": ["./app/features/*"],
-      "@components/*": ["./app/components/*"],
-      "@lib/*": ["./app/lib/*"],
-      "@utils/*": ["./app/utils/*"],
-      "@types/*": ["./app/types/*"]
+      "~/*": [
+        "./app/*"
+      ],
+      "@features/*": [
+        "./app/features/*"
+      ],
+      "@components/*": [
+        "./app/components/*"
+      ],
+      "@lib/*": [
+        "./app/lib/*"
+      ],
+      "@utils/*": [
+        "./app/utils/*"
+      ],
+      "@types/*": [
+        "./app/types/*"
+      ]
     },
-
-    // Vite takes care of building everything, not tsc.
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "noEmit": true
   },
-  "exclude": ["node_modules", "build", "dist", "coverage", ".cache"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "build",
+    "dist",
+    "coverage",
+    ".cache"
+  ]
 }

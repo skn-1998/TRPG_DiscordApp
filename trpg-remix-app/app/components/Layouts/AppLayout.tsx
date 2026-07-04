@@ -1,4 +1,6 @@
-import { AppShell, useMantineTheme } from '@mantine/core'
+'use client'
+
+import { useMantineTheme } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { Header } from './Header'
 import { Footer } from './Footer'

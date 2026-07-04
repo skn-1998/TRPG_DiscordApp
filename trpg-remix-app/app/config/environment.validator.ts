@@ -1,29 +1,13 @@
-/**
- * Remix用環境変数のバリデーションとパース
- */
+/** Next.jsサーバー環境変数のバリデーションとパース */
 
 import { EnvironmentSchema, DEFAULT_VALUES, REQUIRED_VARIABLES, TYPE_CONVERTERS } from './schemas/environment.schema'
 
-declare const __APP_PUBLIC_ENV__: Record<string, string | undefined> | undefined
-
 function getRuntimeEnvironment(): Record<string, string | undefined> {
-  if (typeof window !== 'undefined' && typeof __APP_PUBLIC_ENV__ !== 'undefined') {
-    return __APP_PUBLIC_ENV__
-  }
-
   if (typeof process !== 'undefined' && process.env) {
     return process.env
   }
 
-  if (typeof __APP_PUBLIC_ENV__ !== 'undefined') {
-    return __APP_PUBLIC_ENV__
-  }
-
   return {}
-}
-
-function isBrowserRuntime(): boolean {
-  return typeof window !== 'undefined'
 }
 
 /**
@@ -54,15 +38,9 @@ export class EnvironmentValidator {
   static validate(env: Record<string, string | undefined> = getRuntimeEnvironment()): ValidationResult {
     const errors: ValidationError[] = []
     const result: Partial<EnvironmentSchema> = {}
-    const isBrowser = isBrowserRuntime()
-
     try {
       // 必須変数のチェック
       for (const variable of REQUIRED_VARIABLES) {
-        if (isBrowser && variable === 'DISCORD_SECRET') {
-          continue
-        }
-
         if (!env[variable]) {
           errors.push({
             variable,
@@ -77,7 +55,6 @@ export class EnvironmentValidator {
       result.PORT = TYPE_CONVERTERS.number(env.PORT, DEFAULT_VALUES.PORT)
 
       // Discord OAuth設定
-      result.DISCORD_SECRET = TYPE_CONVERTERS.string(env.DISCORD_SECRET)
       result.DISCORD_APPLICATIONID = TYPE_CONVERTERS.string(env.DISCORD_APPLICATIONID)
 
       // サーバー設定

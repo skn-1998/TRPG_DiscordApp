@@ -1,9 +1,11 @@
+'use client'
+
 import { Group, Text, Button, ActionIcon, useMantineTheme, darken, Loader, Menu, Avatar } from '@mantine/core'
 import { IconMenu2, IconDice6, IconLogin, IconLogout, IconUser } from '@tabler/icons-react'
-import { Link, useNavigate } from '@remix-run/react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../hooks/useAuth'
 import { getDiscordAvatarUrl, getDefaultDiscordAvatarUrl } from '../../utils/discordAvatar'
-import { logoutUser } from '../../features/auth/api/auth.service'
 
 interface HeaderProps {
   opened?: boolean
@@ -14,18 +16,18 @@ interface HeaderProps {
 export function Header({ toggle }: HeaderProps) {
   const theme = useMantineTheme()
   const { isLoggedIn, isLoading, hasValidJwt, user } = useAuth()
-  const navigate = useNavigate()
+  const router = useRouter()
 
   const handleLogout = async () => {
     try {
-      // サーバーサイドでクッキーを削除
-      await logoutUser()
-      // ログインページにリダイレクト
-      navigate('/login')
+      await fetch('/auth/logout', { method: 'POST' })
+      router.replace('/login')
+      router.refresh()
     } catch (error) {
       console.error('ログアウトエラー:', error)
       // エラーが発生してもリダイレクトは実行
-      navigate('/login')
+      router.replace('/login')
+      router.refresh()
     }
   }
 
@@ -54,7 +56,7 @@ export function Header({ toggle }: HeaderProps) {
             fw={700}
             c={theme.colors.accent[5]}
             component={Link}
-            to="/"
+            href="/"
             style={{ textDecoration: 'none' }}
           >
             TRPG Master
@@ -82,7 +84,7 @@ export function Header({ toggle }: HeaderProps) {
             </Menu.Target>
 
             <Menu.Dropdown>
-              <Menu.Item leftSection={<IconUser size={16} />} component={Link} to="/user">
+              <Menu.Item leftSection={<IconUser size={16} />} component={Link} href="/user">
                 ユーザーページ
               </Menu.Item>
               <Menu.Divider />
@@ -92,7 +94,7 @@ export function Header({ toggle }: HeaderProps) {
             </Menu.Dropdown>
           </Menu>
         ) : (
-          <Button variant="subtle" color="accent" component={Link} to="/login" leftSection={<IconLogin size={16} />}>
+          <Button variant="subtle" color="accent" component={Link} href="/login" leftSection={<IconLogin size={16} />}>
             ログイン
           </Button>
         )}

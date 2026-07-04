@@ -1,3 +1,5 @@
+'use client'
+
 import { Box, SimpleGrid, Modal } from '@mantine/core'
 import { useState } from 'react'
 import { CharacterCard, CharacterSummary } from './characterCard'

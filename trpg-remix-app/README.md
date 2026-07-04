@@ -1,36 +1,40 @@
-# Welcome to Remix + Vite!
+# TRPG Frontend
 
-📖 See the [Remix docs](https://remix.run/docs) and the [Remix Vite docs](https://remix.run/docs/en/main/future/vite) for details on supported features.
+Discord連携TRPG支援ツールのWebフロントエンドです。Next.js App Router、React、TypeScript、Mantineで構成します。
 
-## Development
+## 開発
 
-Run the Vite dev server:
-
-```shellscript
-npm run dev
+```powershell
+pnpm install --frozen-lockfile
+pnpm run dev
 ```
 
-## Deployment
+開発サーバーは `http://127.0.0.1:5173` で起動します。
 
-First, build your app for production:
+## 検証
 
-```sh
-npm run build
+```powershell
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
 ```
 
-Then run the app in production mode:
+## 環境変数
 
-```sh
-npm start
-```
+- `SERVER_DOMAIN`: Next.jsサーバーから接続するTRPG-SERVERのURL
+- `INTERNAL_SERVER_DOMAIN`: Docker内部などで`SERVER_DOMAIN`と接続先を分ける場合の優先URL
+- `HOST_DOMAIN`: Discord OAuth callbackのフロントエンドURL
+- `DISCORD_APPLICATIONID`: Discord Application ID
 
-Now you'll need to pick a host to deploy it to.
+DiscordのsecretやOAuth tokenはクライアントへ公開しません。
 
-### DIY
+## 実行構成
 
-If you're familiar with deploying Node applications, the built-in Remix app server is production-ready.
+- `app/`: Next.js App Routerと共通コード
+- `app/features/`: feature固有のUI・API・hooks・型
+- `app/backend/[...path]/route.ts`: HttpOnly JWTをBearerへ変換するBFF
+- `app/auth/`: Discord callbackとlogout
+- `app/lib/server-api.ts`: server-onlyのTRPG-SERVERクライアント
 
-Make sure to deploy the output of `npm run build`
-
-- `build/server`
-- `build/client`
+本番DockerはNext.js standalone outputを使用し、3000番ポートで起動します。

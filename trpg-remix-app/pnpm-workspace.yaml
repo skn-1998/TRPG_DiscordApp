@@ -5,10 +5,6 @@ minimumReleaseAgeExclude:
   - tar-fs@2.1.4
   - glob@10.5.0
   - valibot@1.2.0
-  - '@remix-run/router@1.23.2'
-  - '@remix-run/react@2.17.3'
-  - '@remix-run/node@2.17.2'
-  - '@remix-run/react@2.17.1'
   - tar@7.5.7
   - tar@7.5.3
   - tar@7.5.8
@@ -29,14 +25,11 @@ minimumReleaseAgeExclude:
   - picomatch@2.3.2
   - picomatch@4.0.4
   - lodash@4.17.24
-  - vite@7.3.2
   - axios@1.15.1
   - axios@1.13.5
   - axios@1.15.2
   - axios@1.16.0
-  - '@remix-run/server-runtime@2.17.5'
   - turbo-stream@3.0.0
-  - '@remix-run/server-runtime@2.17.3'
   - diff@5.2.2
   - js-yaml@3.14.2
   - js-yaml@4.1.1
@@ -50,7 +43,7 @@ minimumReleaseAgeExclude:
 strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
 allowBuilds:
-  esbuild: true
+  sharp: true
   unrs-resolver: true
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
@@ -73,19 +66,12 @@ overrides:
   brace-expansion@>=2.0.0 <=2.0.1: '>=2.0.2'
   braces@<3.0.3: '>=3.0.3'
   cross-spawn@>=7.0.0 <7.0.5: '>=7.0.5'
-  esbuild: 0.28.0
   estree-util-value-to-estree@<3.3.3: '>=3.3.3'
   form-data@>=4.0.0 <4.0.4: '>=4.0.4'
   micromatch@<4.0.8: '>=4.0.8'
   nanoid@<3.3.8: '>=3.3.8'
   on-headers@<1.1.0: '>=1.1.0'
-  vite@<=5.4.19: '>=5.4.20'
-  vite@>=6.0.0 <=6.3.5: '>=6.3.6'
   '@types/node': '>=22.12.0'
-  '@remix-run/node@<=2.17.1': ^2.17.2
-  '@remix-run/router@<=1.23.1': ^1.23.2
-  '@remix-run/server-runtime@<=2.17.2': ^2.17.3
-  '@remix-run/server-runtime@>=2.10.0 <2.17.5': ^2.17.5
   ajv@<6.14.0: ^6.14.0
   brace-expansion@>=2.0.0 <2.0.3: ^2.0.3
   diff@>=5.0.0 <5.2.2: ^5.2.2

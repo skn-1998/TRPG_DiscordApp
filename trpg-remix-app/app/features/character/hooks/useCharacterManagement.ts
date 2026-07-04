@@ -1,12 +1,9 @@
-import { useNavigation } from '@remix-run/react'
+'use client'
+
 import { CharacterSummary } from '~/features/character/api/character.service'
 import { useCharacterSummaries } from '~/lib/hooks/useCharacterSummaries'
 
 export function useCharacterManagement(initialCharacters: CharacterSummary[]) {
-  // ナビゲーション状態（Remixの遷移状態）
-  const navigation = useNavigation()
-  const isNavigating = navigation.state !== 'idle'
-
   // CSR用のカスタムフック（SSRデータを初期値として使用）
   const {
     characters,
@@ -61,7 +58,7 @@ export function useCharacterManagement(initialCharacters: CharacterSummary[]) {
 
   return {
     characters,
-    isLoading: isLoading || isNavigating,
+    isLoading,
     error,
     handleCharacterCreated,
     handleCharacterDelete,

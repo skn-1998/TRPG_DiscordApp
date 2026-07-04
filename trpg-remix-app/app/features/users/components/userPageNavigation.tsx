@@ -1,6 +1,8 @@
+'use client'
+
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Badge, Box, NavLink, Text, Stack, Group, rem, useMantineTheme, Divider } from '@mantine/core'
-import { useLocation } from '@remix-run/react'
+import { usePathname } from 'next/navigation'
 import { IconUsers, IconBook, IconShield, IconRobot, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
 import { navigationStyles } from '../../../theme'
@@ -43,7 +45,7 @@ const navData: LinkData[] = [
 
 export function UserPageNav() {
   const theme = useMantineTheme()
-  const location = useLocation()
+  const pathname = usePathname()
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   return (
@@ -78,7 +80,7 @@ export function UserPageNav() {
         <Stack gap="xs">
           {navData.map((item, index) => {
             const Icon = item.icon
-            const isActive = location.pathname.includes(item.href)
+            const isActive = pathname.startsWith(item.href)
             const isHovered = hoveredIndex === index
 
             return (

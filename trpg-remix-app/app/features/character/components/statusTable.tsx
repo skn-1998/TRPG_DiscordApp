@@ -123,7 +123,7 @@ function InputCell(props: Props) {
 
 type BananaProps = {
   // children: ReactElement
-  children: JSX.Element
+  children: ReactElement
 }
 
 function Banana({ children }: BananaProps) {

@@ -1,6 +1,4 @@
-/**
- * Remix用型安全な設定値を生成するための関数群と設定値の型定義
- */
+/** Next.js用型安全な設定値を生成するための関数群と設定値の型定義 */
 
 import { EnvironmentValidator } from './environment.validator'
 import { EnvironmentSchema } from './schemas/environment.schema'
@@ -24,7 +22,6 @@ function getValidatedEnvironment(): EnvironmentSchema {
     console.error('🚨 環境変数の検証に失敗しました:')
     console.error(EnvironmentValidator.formatErrors(validation.errors!))
 
-    // Remixでは即座に終了せず、エラーを投げる
     throw new Error('環境変数の検証に失敗しました')
   }
 
@@ -33,7 +30,7 @@ function getValidatedEnvironment(): EnvironmentSchema {
 }
 
 /**
- * Remix用アプリケーション設定値を生成する
+ * Next.js用アプリケーション設定値を生成する
  */
 export const generateAppConfig = () => {
   const env = getValidatedEnvironment()
@@ -47,7 +44,6 @@ export const generateAppConfig = () => {
 
     // Discord OAuth設定
     discord: {
-      secret: env.DISCORD_SECRET,
       applicationId: env.DISCORD_APPLICATIONID
     },
 
@@ -78,7 +74,6 @@ export type AppConfig = ReturnType<typeof generateAppConfig>
 export type ConfigPaths =
   | 'app.environment'
   | 'app.port'
-  | 'discord.secret'
   | 'discord.applicationId'
   | 'server.domain'
   | 'server.hostDomain'

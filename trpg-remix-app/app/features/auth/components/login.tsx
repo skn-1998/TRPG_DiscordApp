@@ -1,11 +1,11 @@
-import { useLoaderData } from '@remix-run/react'
 import { Container, Paper, Title, Text, Button, Stack, ThemeIcon } from '@mantine/core'
 import { IconBrandDiscord } from '@tabler/icons-react'
-import { loader } from '../../../routes/_auth.login'
 
-export function LoginBtn() {
-  const { discordAuthUrl } = useLoaderData<typeof loader>()
+interface LoginButtonProps {
+  discordAuthUrl: string
+}
 
+export function LoginBtn({ discordAuthUrl }: LoginButtonProps) {
   return (
     <Container size="xs" mt={80}>
       <Paper
@@ -32,14 +32,14 @@ export function LoginBtn() {
             <Title order={1} size="h2" c="white" ta="center">
               TRPG_APP
             </Title>
-            <Text c="dimmed" size="md" ta="center" maw={300}></Text>
+            <Text c="dimmed" size="md" ta="center" maw={300}>
+              Discordアカウントでログインします。
+            </Text>
           </Stack>
 
           <Button
             component="a"
             href={discordAuthUrl}
-            target="_blank"
-            rel="noreferrer"
             size="lg"
             radius="xl"
             fullWidth
@@ -53,19 +53,9 @@ export function LoginBtn() {
               boxShadow: '0 4px 14px 0 rgba(103, 58, 183, 0.3)',
               transition: 'all 0.2s ease'
             }}
-            styles={{
-              root: {
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 6px 20px 0 rgba(103, 58, 183, 0.4)'
-                }
-              }
-            }}
           >
             Discordでログイン
           </Button>
-
-          <Text size="xs" c="dimmed" ta="center"></Text>
         </Stack>
       </Paper>
     </Container>

@@ -13,6 +13,7 @@ export default defineConfig(
     ignores: [
       'node_modules/**',
       'build/**',
+      '.next/**',
       'dist/**',
       'coverage/**',
       '.cache/**',
@@ -50,7 +51,7 @@ export default defineConfig(
     }
   },
   {
-    files: ['vite.config.mjs', 'eslint.config.js'],
+    files: ['next.config.mjs', 'eslint.config.js'],
     languageOptions: {
       globals: {
         ...globals.node
@@ -88,8 +89,8 @@ export default defineConfig(
       },
       formComponents: ['Form'],
       linkComponents: [
-        { name: 'Link', linkAttribute: 'to' },
-        { name: 'NavLink', linkAttribute: 'to' }
+        { name: 'Link', linkAttribute: 'href' },
+        { name: 'NavLink', linkAttribute: 'href' }
       ],
       'import/resolver': {
         typescript: {}

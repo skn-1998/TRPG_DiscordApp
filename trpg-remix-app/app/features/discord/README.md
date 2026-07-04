@@ -1,17 +1,17 @@
-# Discord Bot Operations from Remix Client
+# Discord Bot Operations from Next.js Client
 
 ## 📋 概要
 
-この機能により、RemixクライアントアプリケーションからサーバーのDiscord Botを操作できます。  
+この機能により、Next.jsクライアントアプリケーションからサーバーのDiscord Botを操作できます。
 WebアプリケーションからDiscordチャンネルへのメッセージ送信、チャンネル作成、Bot状態確認などが可能です。
 
 ## 🔄 アーキテクチャ
 
 ```
-Remix Client → TRPG-SERVER → Discord Bot → Discord API
+Next.js Client → BFF Route Handler → TRPG-SERVER → Discord Bot → Discord API
 ```
 
-1. **Remix Client**: WebアプリケーションからのUI操作
+1. **Next.js Client**: WebアプリケーションからのUI操作
 2. **TRPG-SERVER**: NestJSサーバー（Discord Bot機能付き）
 3. **Discord Bot**: Discord.jsベースのBot
 4. **Discord API**: Discord公式API
@@ -26,7 +26,7 @@ import { sendDiscordMessage } from '~/features/discord/api/discord.service'
 // 基本的なメッセージ送信
 await sendDiscordMessage({
   channelId: '1234567890123456789',
-  content: 'Hello from Remix!'
+  content: 'Hello from Next.js!'
 })
 
 // リッチなEmbedメッセージ
@@ -179,7 +179,7 @@ const createSessionChannels = async (sessionName: string, guildId: string) => {
 }
 ```
 
-## 🛠️ Remixコンポーネントでの使用例
+## 🛠️ Next.jsコンポーネントでの使用例
 
 ### Discord操作コンポーネント
 
@@ -431,4 +431,4 @@ try {
 }
 ```
 
-この機能により、RemixアプリケーションからDiscord Botを完全に制御できるようになり、よりリッチなユーザーエクスペリエンスを提供できます。
+この機能により、Next.jsアプリケーションからDiscord Botを制御し、よりリッチなユーザーエクスペリエンスを提供できます。

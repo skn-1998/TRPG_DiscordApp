@@ -1,7 +1,4 @@
-/**
- * Remix用環境変数のバリデーションスキーマ
- * 型安全性とランタイムバリデーションを提供
- */
+/** Next.js用環境変数のバリデーションスキーマ */
 
 export interface EnvironmentSchema {
   // アプリケーション設定
@@ -9,7 +6,6 @@ export interface EnvironmentSchema {
   PORT?: number
 
   // Discord OAuth設定
-  DISCORD_SECRET: string
   DISCORD_APPLICATIONID: string
 
   // サーバー設定
@@ -35,7 +31,7 @@ export const DEFAULT_VALUES: Partial<EnvironmentSchema> = {
 /**
  * 必須環境変数のリスト
  */
-export const REQUIRED_VARIABLES: (keyof EnvironmentSchema)[] = ['DISCORD_SECRET', 'DISCORD_APPLICATIONID'] as const
+export const REQUIRED_VARIABLES: (keyof EnvironmentSchema)[] = ['DISCORD_APPLICATIONID'] as const
 
 /**
  * 環境変数の型変換関数

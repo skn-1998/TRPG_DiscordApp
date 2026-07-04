@@ -1,12 +1,14 @@
+'use client'
+
 import { useState, useCallback } from 'react'
-import { useRevalidator } from '@remix-run/react'
+import { useRouter } from 'next/navigation'
 import { getUserCharacterSummaries, CharacterSummary } from '~/features/character/api/character.service'
 
 export function useCharacterSummaries(initialCharacters: CharacterSummary[] = []) {
   const [characters, setCharacters] = useState<CharacterSummary[]>(initialCharacters)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const revalidator = useRevalidator()
+  const router = useRouter()
 
   // CSRでキャラクターデータを取得
   const fetchCharacters = useCallback(async () => {
@@ -27,8 +29,8 @@ export function useCharacterSummaries(initialCharacters: CharacterSummary[] = []
 
   // loader関数の再実行（SSRデータの更新）
   const revalidateLoader = useCallback(() => {
-    revalidator.revalidate()
-  }, [revalidator])
+    router.refresh()
+  }, [router])
 
   // CSRでの即座更新（ローディング表示なし）
   const refreshCharacters = useCallback(async () => {

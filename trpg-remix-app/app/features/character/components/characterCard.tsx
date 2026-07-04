@@ -1,3 +1,5 @@
+'use client'
+
 import { Card, Group, Text, ActionIcon, Modal, Select, Button, Stack, Title, Loader } from '@mantine/core'
 import { IconSettings, IconBrandDiscord } from '@tabler/icons-react'
 import { useState } from 'react'

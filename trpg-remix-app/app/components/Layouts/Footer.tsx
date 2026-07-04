@@ -1,3 +1,5 @@
+'use client'
+
 import { Group, Text, ActionIcon, Divider, Container, Stack, useMantineTheme, darken } from '@mantine/core'
 import { IconBrandGithub, IconBrandTwitter, IconMail, IconDice6 } from '@tabler/icons-react'
 

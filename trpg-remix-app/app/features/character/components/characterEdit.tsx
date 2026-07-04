@@ -1,6 +1,7 @@
+'use client'
+
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Button, ComboboxItem, NumberInput } from '@mantine/core'
-import { useOutletContext } from '@remix-run/react'
 import axios from 'axios'
 import { CustomError } from '~/utils/customError'
 import { Select } from '@mantine/core'

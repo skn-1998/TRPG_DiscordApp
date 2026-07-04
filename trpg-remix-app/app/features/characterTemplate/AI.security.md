@@ -136,7 +136,7 @@
 
 ### フロントエンド
 
-- React, Remix, Mantine, Zustand, Fuse.js
+- React, Next.js, Mantine, Zustand, Fuse.js
 - 定期アップデート（月1回）
 - 既知脆弱性監視（Dependabot）
 
