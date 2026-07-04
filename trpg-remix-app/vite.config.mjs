@@ -21,7 +21,10 @@ export default defineConfig({
   plugins: [
     remix({
       future: {
-        v3_singleFetch: true,
+        // Remix 2.17.5 expects turbo-stream 2.x for Single Fetch, while the
+        // security override resolves turbo-stream to 3.x. Keep Single Fetch
+        // disabled until Remix itself supports the newer stream protocol.
+        v3_singleFetch: false,
         v3_lazyRouteDiscovery: true,
         v3_throwAbortReason: true,
         v3_relativeSplatPath: true,
