@@ -20,6 +20,76 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ---
 
+## 📝 最新メモ（2026-06-11）
+
+### 修正: スレッド内ダイスロールの履歴保存キーを「実親チャンネル」へ変更（/dice-result に出ない問題）
+
+**実機ログで確認した症状**: キャラ登録チャンネル（`character.discordChannelId`）の**外**で `/character-thread` からスレッドを
+作成し、スレッド内でダイスを振ると、結果メッセージはスレッドの実親チャンネルへ投稿されるのに `/dice-result`（実行チャンネルで
+検索）には何も出ない。
+
+**真因**: 保存キーと表示先の乖離。スレッド内ボタンの customId にはキャラ登録チャンネル ID が埋め込まれ、履歴はそのキーで保存
+される一方、結果メッセージは `interaction.channel.parentId`（実親）へ投稿される。スレッドがキャラ登録チャンネル内に作られる
+限り両者は一致するが、別チャンネル配下にスレッドを作ると乖離する（2026-06-10 調査の「概念上はキャラ登録チャンネルで保存」が
+顕在化したケース）。
+
+**修正（ユーザー判断: 実親チャンネルで保存）**:
+
+- `DiceRollLogicService` に `resolveSaveChannelId(interaction, lookupChannelId)` を追加し、`handleDiceRoll` /
+  `handleSkillRoll` / `handleCustomDiceRoll` の **DB 保存のみ**「スレッド内なら `channel.parentId`、スレッド外・
+  parentId 欠落時は従来の lookup キー」で行う。**キャラ解決（`findByChannelId(customId 由来キー)`）は不変**＝
+  保存キーとキャラ解決キーの分離。5ハンドラ（dice_generic / flexible select / skill / ability / preset）は
+  この一箇所で全て修正される（handler 側のコード変更なし）。
+- `CustomDiceModalService.saveRollHistory` も同方針: 保存キーは「実親チャンネル → character.discordChannelId →
+  customId 由来 → 現在チャンネル」の優先に変更。
+- `diceroll.execute.completed/failed` イベントの channelId は**ロール文脈（lookup キー）のまま**（購読者ゼロを確認済み・
+  挙動影響なし）。過去の履歴データは旧キー（キャラ登録チャンネル）のまま残る（migration なし）。
+- **検証**: 対象 spec ＋新規回帰テスト5本（thread→parent-1 保存×3メソッド・parentId 欠落フォールバック・modal の
+  実親優先）緑 / build 0 / check:circular = No circular dependency found! / 全 **187 suites 2613 tests 緑**
+  （直前ベースライン 187/2608 ＋5件と整合＝新規破損ゼロ）。
+
+---
+
+## 📝 最新メモ（2026-06-10）
+
+### 修正: カスタムダイスモーダルの履歴保存欠落と ID 不一致（下記調査の別件 1・2 を解消）
+
+下記調査で見つかった `CustomDiceModalService`（`custom-dice-modal*` / `param-dice-modal*`）の確認済み不具合2件を修正。
+
+- **保存欠落の解消**: ロール成功時（custom / param 両系統）に `DiceRollService.createText` で dice-roll 履歴へ保存するようにした
+  （他のダイスボタン＝`DiceRollLogicService` 系と同じ保存系へ統一）。保存 channelId は
+  `character.discordChannelId`（親チャンネル）→ customId 由来の値 → interaction のチャンネル（スレッドなら親）の順で解決。
+  ロール失敗時は保存しない。**履歴保存の失敗はユーザーへの結果返信を妨げない**（Logger.error のみ）。
+- **ID 不一致の解消**: customId 第2要素を「まず `findByChannelId`（live 送出元 `FlexibleDiceSelectHandler` は
+  channelId を埋め込む）→ 不一致なら `findOne`（旧 param 系＝characterId 埋め込み。`flexible-dice-param*` メニューの
+  生成元は現存しないが投稿済みメッセージからの interaction は届き得る）」の二段解決にした。
+  これによりキャラ名が常に「プレイヤー」へフォールバックする latent bug も解消。
+- **配線**: `DiceRollFeatureModule` に domains `DiceRollModule` を再 import（S-5c で除去していたが、
+  `CustomDiceModalService` が `DiceRollService` を注入するため復活。leaf 方向の依存で循環なし）。
+- **検証**: `pnpm build` 成功 / spec 14 緑（履歴保存・二段解決・失敗時非保存・保存失敗時 UX の回帰テスト 5 本追加）/
+  全 suite 187 passed・2608 tests（新規破損ゼロ）/ `check:circular` = No circular dependency found!
+- 残課題: 調査メモの別件 3（preset の characterId フォールバック・`postBasicDiceButtons` の undefined エッジ）は未着手。
+
+### 調査: スレッド内ダイスボタンの保存 channelId は「スレッド ID ではない」（変更不要で決着）
+
+「スレッドでダイスボタンを押すと結果がスレッド ID で保存されているのでは」という疑いを実コードで全数調査。**結論: スレッド ID では保存されていない**。
+
+- スレッド内の全ダイスボタン（`dice_generic_` / `flexible_dice_`（即時ロール）/ `skill_` / `ability_` / `dice_{system}_` preset）は、
+  **ボタン生成時（`ThreadInteractionService`）に customId へ `character.discordChannelId`（キャラクターの親チャンネル ID）を埋め込み**、
+  各 handler はそれをパースして `DiceRollLogicService` へ渡す。保存（`DiceRollService.createText`）はこの customId 由来の channelId で行われ、
+  `interaction.channelId`（＝スレッド ID）は保存に使っていない。
+- スレッド作成時も `discordChannelId` は変更されない（`thread-creation.service.ts` は `discordThreadId` のみ設定。L103 のコメント
+  「discordChannelIdをスレッドIDに更新」は実装と不一致の stale コメント）。
+- 調査で見つかった別件:
+  1. ~~**カスタムダイスモーダル（`custom-dice-modal*` / `param-dice-modal*` → `CustomDiceModalService`）はそもそも DB 保存していない**
+     （`DiceOrchestratorService` は計算・送信のみ）。他のダイスボタンは履歴に残るのに modal 経由だけ残らない非一貫。~~ → **修正済み（上記 2026-06-10 メモ）**
+  2. ~~同 modal は customId 第2要素を characterId として `findOne` するが、送出側 `FlexibleDiceSelectHandler` は
+     **channelId** を埋めており不一致 → キャラ解決が常に失敗し表示名が「プレイヤー」になる latent bug。~~ → **修正済み（同上）**
+  3. preset ボタン生成の `character.discordChannelId || character.characterId` フォールバック、
+     `postBasicDiceButtons` の discordChannelId undefined 時（`..._undefined` な customId）はエッジケースとして残存（未着手）。
+
+---
+
 ## 📝 最新メモ（2026-06-01）
 
 ### H3 巨大サービス分割: `dice-roll-pagination.service.ts`（挙動保存）
@@ -111,11 +181,13 @@ discord/services/
 
 ```
 services/dice/
-├── dice-orchestrator.service.ts     (325行) - 統合オーケストレーター
+├── dice-orchestrator.service.ts     - 統合オーケストレーター
 ├── dice-calculation.service.ts      - 計算エンジン
-├── dice-parser.service.ts           - 数式解析エンジン
-└── dice-preset.service.ts           - プリセット管理
+└── dice-parser.service.ts           - 数式解析エンジン
 ```
+
+> 注（2026-06-10）: `dice-preset.service.ts`（旧 `preset-dice*` 系プリセット管理）は dead 化のため撤去済み。
+> 現役プリセットは `features/characterThread` の `PresetDiceQuickRollHandler`（`dice_(coc7|dnd5e|sw25)_`）。
 
 **各サービスの役割**:
 
@@ -123,10 +195,8 @@ services/dice/
   - `executeBasicNotation()` - 基本ダイス記法（1d100, 2d6+3等）
   - `calculateAndRoll()` - キャラクターパラメータ統合
   - `parseAndCalculate()` - 複雑な数式処理
-  - `handlePresetDiceRoll()` - プリセット処理
 - **DiceCalculationService**: ダイス計算コアロジック
 - **DiceParserService**: 複雑数式の解析と変換
-- **DicePresetService**: 定型ダイス処理
 
 **改善効果**:
 
