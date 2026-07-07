@@ -76,7 +76,6 @@ export class ThreadOrchestratorService {
       await this.characterEmbed.postCharacterDisplay(thread, character, displayType)
 
       // 5. インタラクティブ要素を投稿
-      // await this.threadInteraction.postActionButtons(thread, character.discordChannelId || character.characterId)
       await this.threadInteraction.postBasicDiceButtons(thread, character)
       await this.threadInteraction.postFlexibleDiceMenu(thread, character)
       await this.threadInteraction.postPresetDiceButtons(thread, character)

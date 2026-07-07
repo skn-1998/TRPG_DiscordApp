@@ -59,35 +59,6 @@ describe('ThreadInteractionService', () => {
   })
 
   // ==========================================================================
-  // postActionButtons
-  // ==========================================================================
-  describe('postActionButtons', () => {
-    it('編集・ダイスロール・詳細情報の3ボタンを channelId 付き customId で送信する', async () => {
-      const thread = buildMockThread()
-
-      await service.postActionButtons(thread, 'ch-42')
-
-      const sendArg = (thread.send as jest.Mock).mock.calls[0][0]
-      expect(sendArg.content).toBe('**🎮 アクション**')
-
-      const buttons = collectButtons(sendArg)
-      expect(buttons.map((b) => b.custom_id)).toEqual([
-        'character_edit_ch-42',
-        'dice_roll_ch-42',
-        'character_info_ch-42'
-      ])
-      expect(buttons.map((b) => b.label)).toEqual(['キャラクター編集', 'ダイスロール', '詳細情報'])
-    })
-
-    it('thread.send が失敗した場合はエラーを再throwする', async () => {
-      const thread = buildMockThread()
-      ;(thread.send as jest.Mock).mockRejectedValue(new Error('boom'))
-
-      await expect(service.postActionButtons(thread, 'ch-1')).rejects.toThrow('boom')
-    })
-  })
-
-  // ==========================================================================
   // postFlexibleDiceMenu
   // ==========================================================================
   describe('postFlexibleDiceMenu', () => {
