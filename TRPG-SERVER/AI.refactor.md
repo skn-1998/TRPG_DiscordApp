@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-07 E-5 完了（3層ルーティング1本化）＝ E 系列は E-6（中期）を残すのみ
+
+**コミット `491ddac`**（2ファイル・+75/−297・nestjs-best-practices 委譲＋司令塔裏取り）。
+
+- InteractionCreate 入口（discord-interaction-handler.service・239→131行）から、登録箇所ゼロの Map キャッシュ 3種・
+  register\* API・getHandlerStats・clearExpiredInteractions（filter 常 true の壊れ実装）を撤去。
+  button/select/modal は `handleComponentInteraction` 1本で InteractionsService（Registry）直結＝**3層→2層**。
+- **意図的挙動変更**: processedInteractions の dedup Set＋5分 setTimeout を撤去（計画の撤去候補条項。discord.js は
+  同一 interaction を二重配信せず・下流 replied/deferred チェック＋handler try/catch が防波堤・
+  「委譲先 reject でもリスナーが落ちない」を spec で明示固定）。**撤去後に対象 spec の Jest exit 警告が消滅＝
+  C-10 のリーク源の一つと実測確認**（C-10 の残作業が縮小）。
+- 検証: build 0 / No circular / 全 179 suites 2422 tests 緑（−7=削除分一致）/ start:dev リスナー設定・interaction 23・
+  Discord 初期化成功 / 残存コード参照ゼロ。discord/DESIGN.md の Phase 2 チェックボックス消化・stale 記述追従。
+- **運用メモ**: この slice では Codex CLI が2回連続で応答不達（タスク転送は成功・レビュー本文未返却）。
+  司令塔の自己検証（撤去安全性の論拠＋grep＋全ゲート）で代替した。次の slice で Codex 復調を確認すること。
+
+### 次にやること
+
+- E 系列: **E-6 のみ**（entity/schema 分離・中期）— **着手には別計画書の策定が必要＝ユーザーとスコープ合意から**。
+- C 系列残り: C-4（sendToParentChannel 5重複の共通化）/ C-5（console→Logger）は E-2/E-4 完了により再評価のうえ実施可。
+  C-7 は E-5 完了により縮小版（残り注入元の DiscordService 直依存化）が可能に。C-9（tsconfig 第2段階）/ C-10（フレーク・
+  E-5 で一因解消済み）/ C-3b′（監視系 dead 配線の一括整理）。
+
+---
+
 ## 2026-07-07 C-3/C-6 完了（dead 第2弾・ephemeral 全数置換）
 
 - **C-3 `9d523a4`**: C-3a=discord.utils.ts（import 元ゼロ再確認）ファイルごと削除／C-3b=PerformanceOrchestrator の

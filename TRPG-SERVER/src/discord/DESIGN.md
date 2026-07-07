@@ -47,7 +47,7 @@
 
 ```
 Discord.js Event
-  → DiscordInteractionHandlerService（Map キャッシュ、未登録時フォールバック）
+  → DiscordInteractionHandlerService（E-5 で Map キャッシュ層を撤去済み＝InteractionsService(Registry) へ直結）
     → InteractionsService.execute()（character 系特例 if 分岐あり）
       → InteractionsController.handleInteraction()
         → InteractionRegistryService.route()
@@ -308,7 +308,7 @@ export const DicePageCustomId = {
 
 - [ ] `InteractionsModule` export を Registry + PatternMatcher のみに
 - [ ] monitoring の二重登録解消
-- [ ] `DiscordInteractionHandlerService` の Map キャッシュ廃止
+- [x] `DiscordInteractionHandlerService` の Map キャッシュ廃止（E-5・2026-07-07・`491ddac`。dedup Set／5分 setTimeout も撤去し dispatcher → InteractionsService(Registry) の直結へ）
 - [ ] `InteractionsService.execute()` の特例 if を Handler へ移管
 - [x] `ModuleRef.get(InteractionsController)` 経路を削除し、Registry 直接委譲へ寄せる
 - [x] `InteractionRegistryService` の `ModuleRef` 依存を削除し、明示登録のみへ寄せる
