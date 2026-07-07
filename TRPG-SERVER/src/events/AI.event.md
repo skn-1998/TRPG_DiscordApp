@@ -7,8 +7,9 @@
 >
 > ### バスは TypedEventService 1系統
 >
-> - 唯一のイベントバスは **`TypedEventService`**（`src/core/events/typed-event.service.ts`）。内部は専用の `EventEmitter2`
->   インスタンス（プロバイダ `'TYPED_EVENT_EMITTER'`）。**@Global な `CoreEventsModule`（`src/core/events/core-events.module.ts`）**が
+> - 唯一のイベントバスは **`TypedEventService`**（`src/core/events/typed-event.service.ts`）。内部の `EventEmitter2` は
+>   **E-4c（2026-07-07）で `EventEmitterModule.forRoot()` のインスタンスへ一本化**（プロバイダ `'TYPED_EVENT_EMITTER'` は
+>   `useExisting` alias）。@OnEvent（監視系）と同一 emitter だがイベント名の交差はゼロ・wildcard:false で干渉なし。**@Global な `CoreEventsModule`（`src/core/events/core-events.module.ts`）**が
 >   提供・export し、AppModule に配線。型安全 API：`emit(name, payload)` / `on` / `once` / `waitForEvent`（`EventName`/`EventPayload` は `src/events/contracts`）。
 > - **撤去済み（B-2 T1/T2）**: レガシーの `GlobalEventBusService`・`EventRouterService`（`src/events/bus/`）は削除。
 >   かつて並存した3系統（GlobalEventBus / EventRouter / TypedEvent）は TypedEventService 1系統に統一済み。
@@ -69,7 +70,7 @@
 >
 > 2026-07-06 の設計評価で、①イベント RPC（`waitForEvent`）の順序バグ 2 箇所（必ずタイムアウト）と混線・リーク、
 > ② `EventEmitterModule.forRoot()` と `'TYPED_EVENT_EMITTER'` の**バス 2 インスタンス残存**（素バスへの
-> `discord.interaction.start/processed` emit は購読者ゼロ）、③ dead contracts 10+ 件、④契約の二重管理
+> `discord.interaction.start/processed` emit は購読者ゼロ）**→ E-3e/E-4c（2026-07-07）で解消済み（1 インスタンス化）**、③ dead contracts 10+ 件、④契約の二重管理
 > （unified-event-contracts.ts vs AppEventContracts・EVENT_NAMES 不完備）を確認した。
 > ①は E-2（2026-07-07 完了）、③④は E-3（2026-07-07 完了）と E-4a（2026-07-07 完了・上記）で解消済み。
 > 残るは ②バス 1 インスタンス化（E-4c）と EVENT_NAMES の利用側徹底（E-4b）。
