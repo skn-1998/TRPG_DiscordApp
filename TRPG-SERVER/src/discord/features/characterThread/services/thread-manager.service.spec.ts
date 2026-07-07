@@ -6,15 +6,15 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 import { ChannelType } from 'discord.js'
 import { ThreadManagerService, CreateThreadRequest } from './thread-manager.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { Character } from '../../../../domains/character/models/character.model'
 
 /**
  * ThreadManagerService の characterization / 単体テスト。
  *
- * 副作用境界（DiscordClientService 経由の client / TypedEventService.emit /
- * Date.now / setTimeout 待機）を seam として差し替え、公開 API の外部挙動
- * （戻り値・emit するイベント名と payload キー）を固定する。
+ * 副作用境界（DiscordClientService 経由の client / Date.now / setTimeout 待機）を
+ * seam として差し替え、公開 API の外部挙動（戻り値）を固定する。
+ * （E-3f: スレッド作成完了イベントの dead emit 撤去に伴い
+ *   TypedEventService 依存は削除された）
  *
  * setTimeout 待機はサービスへ注入した sleep seam を 0 遅延フェイクに差し替えることで
  * テストを遅延させない（本番のタイミング挙動自体は不変）。
@@ -93,22 +93,18 @@ const makeThreadChannel = (isThread: boolean) => ({
 })
 
 describe('ThreadManagerService', () => {
-  let emit: jest.Mock
-
   const createService = (client: unknown): ThreadManagerService => {
     const discordClientService = {
       getClient: jest.fn().mockReturnValue(client)
     } as unknown as DiscordClientService
-    emit = jest.fn().mockResolvedValue(undefined)
-    const typedEventService = { emit } as unknown as TypedEventService
-    const service = new ThreadManagerService(discordClientService, typedEventService)
+    const service = new ThreadManagerService(discordClientService)
     // sleep seam を 0 遅延に差し替え（タイミング挙動の検証はしないが、テストを遅延させない）
     ;(service as unknown as { sleep: (ms: number) => Promise<void> }).sleep = () => Promise.resolve()
     return service
   }
 
   describe('createCharacterThread', () => {
-    it('成功すると createDiscordThread → completed イベント emit ＋ {success,threadId,threadUrl} を返す', async () => {
+    it('成功すると createDiscordThread を実行し {success,threadId,threadUrl} を返す（E-3f: dead な completed emit は撤去）', async () => {
       // Arrange
       const thread = makeThread('thread-99')
       const threadsCreate = jest.fn().mockResolvedValue(thread)
@@ -136,25 +132,9 @@ describe('ThreadManagerService', () => {
           type: ChannelType.PublicThread
         })
       )
-      const completed = emit.mock.calls.find((c) => c[0] === 'character-thread.creation.completed')
-      expect(completed).toBeDefined()
-      expect(completed![1]).toEqual(
-        expect.objectContaining({
-          threadId: 'thread-99',
-          discordThreadId: 'thread-99',
-          threadUrl: `https://discord.com/channels/${GUILD_ID}/thread-99`,
-          characterId: 'char-1',
-          characterName: 'テスト探索者',
-          channelId: CHANNEL_ID,
-          creatorId: 'creator-1',
-          guildId: GUILD_ID,
-          source: 'thread-manager-service'
-        })
-      )
-      expect(completed![1].timestamp).toBeInstanceOf(Date)
     })
 
-    it('guild 取得失敗（null）→ dead な failed イベントは emit せず {success:false,error} を返す（E-3d）', async () => {
+    it('guild 取得失敗（null）→ {success:false,error} を返す', async () => {
       const client = makeClient({ guildFetch: jest.fn().mockResolvedValue(null) })
       const service = createService(client)
 
@@ -162,11 +142,9 @@ describe('ThreadManagerService', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain(GUILD_ID)
-      // E-3d: 恒常購読者ゼロの失敗イベントは emit しない
-      expect(emit).not.toHaveBeenCalled()
     })
 
-    it('channel が GuildText でない → emit せず {success:false} を返す（E-3d）', async () => {
+    it('channel が GuildText でない → {success:false} を返す', async () => {
       const nonText = { id: CHANNEL_ID, type: ChannelType.GuildVoice }
       const guild = { channels: { fetch: jest.fn().mockResolvedValue(nonText) } }
       const client = makeClient({ guildFetch: jest.fn().mockResolvedValue(guild) })
@@ -175,7 +153,6 @@ describe('ThreadManagerService', () => {
       const result = await service.createCharacterThread(buildRequest(), buildCharacter())
 
       expect(result.success).toBe(false)
-      expect(emit).not.toHaveBeenCalled()
     })
   })
 

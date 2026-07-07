@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Client, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
-import { buildThreadUrl, nextBackoffDelay, buildCreationCompletedPayload } from './thread-manager.util'
+import { buildThreadUrl, nextBackoffDelay } from './thread-manager.util'
 
 /**
  * スレッド作成リクエスト
@@ -40,10 +39,7 @@ export class ThreadManagerService {
   private readonly logger = new Logger(ThreadManagerService.name)
   private readonly discordClient: Client
 
-  constructor(
-    private readonly discordClientService: DiscordClientService,
-    private readonly typedEventService: TypedEventService
-  ) {
+  constructor(private readonly discordClientService: DiscordClientService) {
     this.discordClient = this.discordClientService.getClient()
     this.logger.debug('Thread manager service initialized')
   }
@@ -88,22 +84,7 @@ export class ThreadManagerService {
 
       const threadUrl = buildThreadUrl(request.guildId, thread.id)
 
-      // スレッド作成完了イベントを発行
-      await this.typedEventService.emit(
-        'character-thread.creation.completed',
-        buildCreationCompletedPayload(
-          {
-            threadId: thread.id,
-            characterId: request.characterId,
-            characterName: request.characterName,
-            channelId: request.channelId,
-            creatorId: request.creatorId,
-            guildId: request.guildId
-          },
-          threadUrl,
-          new Date()
-        )
-      )
+      // E-3f: スレッド作成完了イベントの emit は恒常購読者ゼロの dead emit だったため撤去
 
       this.logger.log(`Thread created successfully: ${thread.id}`)
 
