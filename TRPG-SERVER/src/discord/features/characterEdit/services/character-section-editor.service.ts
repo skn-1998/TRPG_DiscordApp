@@ -13,7 +13,8 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   EmbedBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  MessageFlags
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
@@ -344,7 +345,7 @@ export class CharacterSectionEditorService {
     } else {
       await interaction.reply({
         embeds: [embed],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     }
   }

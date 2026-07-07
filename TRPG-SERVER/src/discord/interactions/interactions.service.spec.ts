@@ -6,7 +6,7 @@
 //   CharacterEditChannelCreateListenerService へ移管済み・§8）
 
 import { Test } from '@nestjs/testing'
-import { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
+import { ButtonInteraction, StringSelectMenuInteraction, MessageFlags } from 'discord.js'
 import { InteractionsService } from './interactions.service'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
@@ -113,7 +113,7 @@ describe('InteractionsService', () => {
 
       // Assert
       expect(result).toBe(true)
-      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }))
     })
 
     it('registry が throw したら ephemeral error を返し true を返す', async () => {
@@ -127,7 +127,7 @@ describe('InteractionsService', () => {
 
       // Assert
       expect(result).toBe(true)
-      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }))
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }))
     })
   })
 

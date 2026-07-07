@@ -1,5 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import type { EmbedBuilder } from 'discord.js'
+import { MessageFlags } from 'discord.js'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageNextButtonService } from './dice-page-next-button.adapter'
 
@@ -68,7 +69,7 @@ describe('DicePageNextButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.updatePage).not.toHaveBeenCalled()
     expect(interaction.editReply).not.toHaveBeenCalled()
@@ -84,7 +85,7 @@ describe('DicePageNextButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('最後のページ'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('最後のページ'), flags: MessageFlags.Ephemeral })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -100,7 +101,7 @@ describe('DicePageNextButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('ページ状態'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('ページ状態'), flags: MessageFlags.Ephemeral })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -115,7 +116,7 @@ describe('DicePageNextButtonService', () => {
     // Act & Assert: 例外を外へ漏らさない
     await expect(service.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
   })
 })

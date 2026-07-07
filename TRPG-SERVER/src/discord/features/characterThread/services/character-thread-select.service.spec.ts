@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js'
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadSelectService } from './character-thread-select.service'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
@@ -143,7 +144,7 @@ describe('CharacterThreadSelectService', () => {
       // Act & Assert: 握り潰して reject しない
       await expect(service.execute(interaction)).resolves.toBeUndefined()
       expect(interaction.followUp).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+        expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
       )
     })
   })

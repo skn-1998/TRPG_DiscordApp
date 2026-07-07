@@ -7,7 +7,8 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  MessageFlags
 } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
@@ -74,7 +75,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       try {
         await interaction.followUp({
           content: '⚠️ キャラクター選択の処理中にエラーが発生しました。もう一度お試しください。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
       } catch (replyError) {
         this.logger.error(
@@ -112,7 +113,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       this.logger.error('Failed to handle flexible dice parameter selection', error)
       await interaction.reply({
         content: '❌ パラメータ選択の処理中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     }
   }

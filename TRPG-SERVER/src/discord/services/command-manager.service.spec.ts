@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import { MessageFlags } from 'discord.js'
 import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { CommandManagerService } from './command-manager.service'
@@ -21,6 +22,10 @@ jest.mock('discord.js', () => ({
   Routes: {
     applicationGuildCommands: jest.fn((appId: string, guildId: string) => `guild-route:${appId}:${guildId}`),
     applicationCommands: jest.fn((appId: string) => `global-route:${appId}`)
+  },
+  // C-6: 非推奨 ephemeral オプション → flags: MessageFlags.Ephemeral 置換に伴い必須（実 discord.js の数値に一致）
+  MessageFlags: {
+    Ephemeral: 64
   }
 }))
 
@@ -231,7 +236,7 @@ describe('CommandManagerService', () => {
       expect(mockLogger.warn).toHaveBeenCalledWith('未登録のコマンド「unknown」が呼び出されました')
       expect(interaction.reply).toHaveBeenCalledWith({
         content: '不明なコマンドです。管理者に問い合わせてください。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     })
 
@@ -252,7 +257,7 @@ describe('CommandManagerService', () => {
 
       expect(interaction.reply).toHaveBeenCalledWith({
         content: 'コマンドの実行中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       expect(interaction.followUp).not.toHaveBeenCalled()
       expect(mockLogger.error).toHaveBeenCalledWith('boom')
@@ -275,7 +280,7 @@ describe('CommandManagerService', () => {
 
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'コマンドの実行中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       expect(interaction.reply).not.toHaveBeenCalled()
     })

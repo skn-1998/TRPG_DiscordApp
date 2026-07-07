@@ -8,6 +8,7 @@
 // 持たないため、実際の discord.js を使って EmbedBuilder の挙動（.data.title 等）を検証する。
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
+import { MessageFlags } from 'discord.js'
 import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { createMockModalInteraction } from '@discord-test-utils'
@@ -96,7 +97,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true })
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral })
       // createCharacter は (characterData, channelId, userId)
       expect(mockEmbedManager.createCharacter).toHaveBeenCalledWith(
         {

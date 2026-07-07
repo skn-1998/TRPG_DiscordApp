@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ButtonInteraction, ChannelType, TextChannel } from 'discord.js'
+import { ButtonInteraction, ChannelType, TextChannel, MessageFlags } from 'discord.js'
 import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
@@ -32,7 +32,7 @@ export class PresetDiceQuickRollHandler extends ButtonInteractionHandler {
       const parsed = PresetDiceCustomId.parse(interaction.customId)
       if (!parsed) {
         this.logger.warn(`Invalid preset dice customId format: ${interaction.customId}`)
-        await interaction.reply({ content: '❌ プリセットダイスの形式が不正です。', ephemeral: true })
+        await interaction.reply({ content: '❌ プリセットダイスの形式が不正です。', flags: MessageFlags.Ephemeral })
         return
       }
 
@@ -55,13 +55,13 @@ export class PresetDiceQuickRollHandler extends ButtonInteractionHandler {
         if (!posted) {
           await interaction.followUp({
             content: '❌ 結果を親チャンネルへ送信できませんでした。',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           })
         }
       } else {
         await interaction.followUp({
           content: `❌ ダイスロールに失敗しました: ${result.error || '不明なエラー'}`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
       }
     } catch (error) {
@@ -70,7 +70,7 @@ export class PresetDiceQuickRollHandler extends ButtonInteractionHandler {
       const errorMessage = error instanceof Error ? error.message : 'ダイスロール処理中にエラーが発生しました'
 
       try {
-        await interaction.followUp({ content: `❌ ${errorMessage}`, ephemeral: true })
+        await interaction.followUp({ content: `❌ ${errorMessage}`, flags: MessageFlags.Ephemeral })
       } catch {
         // 応答失敗は無視
       }

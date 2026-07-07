@@ -1,5 +1,6 @@
 import { createMockButtonInteraction } from '@discord-test-utils'
 import type { EmbedBuilder } from 'discord.js'
+import { MessageFlags } from 'discord.js'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePagePrevButtonService } from './dice-page-prev-button.adapter'
 
@@ -65,7 +66,7 @@ describe('DicePagePrevButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.updatePage).not.toHaveBeenCalled()
     expect(interaction.editReply).not.toHaveBeenCalled()
@@ -81,7 +82,7 @@ describe('DicePagePrevButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('最初のページ'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('最初のページ'), flags: MessageFlags.Ephemeral })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -97,7 +98,7 @@ describe('DicePagePrevButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('ページ状態'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('ページ状態'), flags: MessageFlags.Ephemeral })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -112,7 +113,7 @@ describe('DicePagePrevButtonService', () => {
     // Act & Assert
     await expect(service.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
   })
 })

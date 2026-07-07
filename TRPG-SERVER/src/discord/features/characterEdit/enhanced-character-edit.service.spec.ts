@@ -3,6 +3,7 @@
 jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
+import { MessageFlags } from 'discord.js'
 import { Test, TestingModule } from '@nestjs/testing'
 import {
   createMockButtonInteraction,
@@ -201,7 +202,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       expect(mockCharacterService.findOne).toHaveBeenCalledWith('char-123')
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: '❌ キャラクターが見つかりません。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       // refresh は最後に embed refresh イベントを発行する
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
@@ -220,7 +221,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
 
       await service.handleButtonInteraction(interaction)
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true })
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral })
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: '📋 簡易表示機能は開発中です。'
       })

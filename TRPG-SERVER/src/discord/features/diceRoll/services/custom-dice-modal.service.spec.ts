@@ -1,4 +1,4 @@
-import { ChannelType } from 'discord.js'
+import { ChannelType, MessageFlags } from 'discord.js'
 import { createMockModalInteraction } from '@discord-test-utils'
 import { CustomDiceModalService } from './custom-dice-modal.service'
 import { CharacterService } from 'src/domains/character/character.service'
@@ -350,7 +350,7 @@ describe('CustomDiceModalService', () => {
       // Assert
       expect(diceOrchestrator.sendToParentChannelBasic).toHaveBeenCalledWith(interaction, expect.any(String))
       expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('親チャンネル'), ephemeral: true })
+        expect.objectContaining({ content: expect.stringContaining('親チャンネル'), flags: MessageFlags.Ephemeral })
       )
     })
 

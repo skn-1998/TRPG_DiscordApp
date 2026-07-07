@@ -203,6 +203,13 @@ jest.mock('discord.js', () => ({
     ThreeDays: 4320,
     OneWeek: 10080
   },
+  // メッセージフラグ（実 discord.js の数値に一致・主要分のみ）
+  // C-6: 非推奨 ephemeral オプション → flags: MessageFlags.Ephemeral 置換に伴い必須
+  MessageFlags: {
+    SuppressEmbeds: 4,
+    Ephemeral: 64,
+    SuppressNotifications: 4096
+  },
   Colors: {
     White: 0xffffff,
     Gold: 0xffd700,

@@ -5,7 +5,8 @@ import {
   TextChannel,
   MessageCreateOptions,
   StringSelectMenuBuilder,
-  StringSelectMenuInteraction
+  StringSelectMenuInteraction,
+  MessageFlags
 } from 'discord.js'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { SendMessageDto } from '../../../dto/send-message.dto'
@@ -462,7 +463,7 @@ export class CharacterUIService {
       if (!characterId) {
         await interaction.reply({
           content: 'キャラクター情報の取得に失敗しました。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
         return
       }
@@ -508,7 +509,7 @@ export class CharacterUIService {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'セクション選択の処理中にエラーが発生しました。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
       }
     }

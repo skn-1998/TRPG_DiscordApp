@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel } from 'discord.js'
+import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel, MessageFlags } from 'discord.js'
 import { discordButtonType } from '../../discord.type'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 import { CharacterDisplayService } from './services'
@@ -26,7 +26,10 @@ export class CharacterTabButtonsService implements discordButtonType {
 
       // スレッドチャンネルであることを確認
       if (!interaction.channel || !(interaction.channel instanceof ThreadChannel)) {
-        await interaction.reply({ content: 'このコマンドはスレッド内でのみ使用できます', ephemeral: true })
+        await interaction.reply({
+          content: 'このコマンドはスレッド内でのみ使用できます',
+          flags: MessageFlags.Ephemeral
+        })
         return
       }
 

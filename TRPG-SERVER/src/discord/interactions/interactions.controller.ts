@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common'
-import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
+import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction, MessageFlags } from 'discord.js'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
 /**
@@ -48,7 +48,7 @@ export class InteractionsController {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
             content: '⚠️ このインタラクションは現在処理できません。',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           })
         }
       }
@@ -60,7 +60,7 @@ export class InteractionsController {
         try {
           await interaction.reply({
             content: '❌ 処理中にエラーが発生しました。',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           })
         } catch (replyError) {
           this.logger.error('エラー応答の送信に失敗', replyError)

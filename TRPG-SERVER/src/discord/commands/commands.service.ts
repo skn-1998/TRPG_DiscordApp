@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Client, CommandInteraction, AutocompleteInteraction } from 'discord.js'
+import { Client, CommandInteraction, AutocompleteInteraction, MessageFlags } from 'discord.js'
 import 'dotenv/config'
 import { CharacterThreadService } from './commands-components/character-thread.service'
 import { DiceFromContextMenuService } from './commands-components/dice-from-context-menu.service'
@@ -92,14 +92,14 @@ export class CommandsService {
           this.logger.warn(`未実装のコマンド: ${commandName}`)
           await interaction.reply({
             content: 'このコマンドは現在利用できません。',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           })
       }
     } catch (error) {
       this.logger.error('コマンド実行エラー:', error)
       const replyOptions = {
         content: 'コマンドの実行中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral as const
       }
 
       if (interaction.replied || interaction.deferred) {
