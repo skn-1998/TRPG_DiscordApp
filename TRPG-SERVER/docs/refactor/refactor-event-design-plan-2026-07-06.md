@@ -1,7 +1,7 @@
 # イベント設計・discord⇔domains 接続 リファクタリング計画書
 
 **作成日:** 2026-07-06
-**ステータス:** **E-2a 完了（2026-07-07・`9e92fb6`・DI 直呼び化＝常時3秒タイムアウトのバグ修正）／E-2e 完了（同日・`50926be`・計画の DI 化から訂正: ChannelNameSyncService は本番呼び出し元ゼロの dead と確定しファイルごと削除＝E-2e′）**。E-1 は両 slice に包含され消化。残り: E-2b/E-2c/E-2d/E-2f → E-3 → E-4。優先順位は C 計画書の割り込みルール参照（E-2 残りは C-3 以降より優先）。
+**ステータス:** E-2a `9e92fb6`／E-2e′ `50926be`（DI 化から dead 削除に訂正）／**E-2b `214db1d`／E-2c `d4e5f0b`／E-2d `8e51698` すべて完了（2026-07-07）**。E-1 は包含消化。**残りは E-2f のみ**（要設計: creation ハンドラの中核〈重複チェック→create→completed 通知〉を application service へ抽出し、handler と embed-manager 双方から呼ぶ形を想定。creation.requested の他 3 発行元は fire-and-forget のため残置可）→ E-3 → E-4。E-3/E-4a への参考（Codex レビューで確認済み）: `character.update.failed` は恒常購読者ゼロ／`CharacterUpdateCompletedEvent` の契約型（type/characterId/changes 要求）は旧 handler の実 emit とも不一致の既存ずれ。
 **診断の記録:** `AI.refactor.md`『2026-07-06 設計評価』節（本書の元になった診断・裏取り結果）
 **上位方針:** `src/ARCHITECTURE.md`（依存方向・§7 Events 方針・§15 禁止事項）/ `src/events/DESIGN.md` / `src/discord/DESIGN.md`
 

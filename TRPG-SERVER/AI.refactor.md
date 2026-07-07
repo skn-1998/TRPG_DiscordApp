@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-07 E-2b/E-2c/E-2d 完了（イベント RPC 是正の第2弾・E-2 残りは E-2f のみ）
+
+3 slice を並列委譲（nestjs-best-practices×3・ファイル重複なし・build/lint はエージェント禁止で dist 衝突回避）→ 司令塔一括裏取り。
+
+- **E-2b `214db1d`**: dice-roll-character-provider（+pagination.module に CharacterModule）と character-section-editor の
+  findById RPC → `CharacterService.findOne` 直呼び。両サービスとも TypedEventService は他用途ゼロ＝**注入ごと削除**。
+  toObject 互換分岐は型注釈付き維持（findOne は repository `.lean()` 経由で通常 plain＝Codex 確認済み）。
+- **E-2c `d4e5f0b`**: enhanced-character-edit の getCharacterByChannelId/getCharacterById を DI 化（typedEventService は
+  message/embed 系 emit で live のため残置）。
+- **E-2d `8e51698`**: modal-handler の update RPC → `characterService.update` 直呼び＋**completed 通知の発行責務を本サービスへ移転**
+  （fire-and-forget・payload は旧 handler の emitSuccessEvent と同形＝CharacterUpdateCompletedHandler の UI 連鎖不変。
+  spec で「completed 発行の固定・失敗時未発行」を characterization）。旧 handler のバリデーション群は modal 経路の事前チェックで
+  全て担保済みと Codex が確認。
+
+検証: build 0 / No circular / 全 **185 suites 2538 tests 緑**（+5＝追加テスト）/ start:dev handler 23・DI エラー 0・Discord 初期化成功 /
+Codex スコープレビュー **4 観点すべて severity none**。
+
+### E-2f の設計メモ（次回着手・要設計の理由）
+
+`CharacterEmbedManagerService.createCharacter` は modal 経由キャラ作成の **live 経路**（character-modal-handler:91）。
+creation.requested ハンドラは重複チェック（findByChannelId）・featureId 分岐・characterIdService・create・completed/failed emit を
+内包するため、単純 DI 化は不可。**方針案: 中核（validate→create→completed 通知）を application service に抽出し、
+events handler と embed-manager の双方がそれを呼ぶ**。creation.requested の他 3 発行元（channel-create-orchestrator /
+character-creation.service / typed-event.service ヘルパ）は fire-and-forget のため event 経路残置で整合。
+
+### E-3/E-4a への参考（Codex レビュー副産物）
+
+- `character.update.failed` は恒常購読者ゼロ（E-3 の dead emit リストに追加確認済み）。
+- `CharacterUpdateCompletedEvent` の契約型（type/characterId/changes 要求）は旧 handler の実 emit とも不一致＝**既存の二重契約ずれ**（E-4a で解消）。
+
+### 次にやること
+
+E-2f（上記設計で実施）→ E-3（dead contracts/emit 一括掃除）→ E-4。C-3/C-6 は並行可。
+
+---
+
 ## 2026-07-07 C-8 マージ＋E-2a/E-2e′ 完了（イベント RPC 是正の第1弾・実バグ2箇所解消）
 
 ユーザー「進めてOK」により C-8 マージ→E-2 着手（Codex バランスレビューの推奨順序どおり）。
