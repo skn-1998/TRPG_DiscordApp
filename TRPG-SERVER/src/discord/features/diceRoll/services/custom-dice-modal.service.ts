@@ -136,7 +136,7 @@ export class CustomDiceModalService implements discordModalType {
         }
       } catch (calculationError) {
         // 統一ハンドラーでもエラーの場合
-        console.error('統一ダイス計算ハンドラーでエラー:', calculationError)
+        this.logger.error('統一ダイス計算ハンドラーでエラー:', calculationError)
 
         resultMessage = `🎲 **${characterName}** の柔軟ダイスロール\n`
         if (comment) {

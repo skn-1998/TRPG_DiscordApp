@@ -124,7 +124,7 @@ export class CommandManagerService implements OnModuleInit {
     try {
       const applicationId = this.appConfigService.get('discord.applicationId')
       const guildId = this.appConfigService.get('discord.guildId')
-      console.log(applicationId, guildId)
+      this.logger.debug(`applicationId=${applicationId}, guildId=${guildId}`)
 
       if (!applicationId) {
         throw new Error('Discord Application IDが設定されていません')

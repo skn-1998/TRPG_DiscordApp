@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { DiceRollPaginationService } from './dice-roll-pagination.service'
 import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
@@ -470,14 +471,14 @@ describe('DiceRollPaginationService', () => {
 
   describe('パフォーマンス', () => {
     it('should handle performance logging', async () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
+      const loggerSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation()
 
       const channelId = 'test-channel'
       await service.createPaginatedEmbeds(channelId)
 
-      // パフォーマンスログが出力されることを確認
-      expect(consoleSpy).toHaveBeenCalled()
-      consoleSpy.mockRestore()
+      // パフォーマンスログが出力されることを確認（C-5: console.log → Logger.debug）
+      expect(loggerSpy).toHaveBeenCalled()
+      loggerSpy.mockRestore()
     })
   })
 

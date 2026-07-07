@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -20,6 +21,9 @@ import { ALL_CHARACTERS, formatDiceRoll, isSpecificCharacter, resolveHistoryTitl
 
 /** Embed 1 ページあたりの description 上限（安全のため低めに設定） */
 export const PAGE_LIMIT = 500
+
+/** DI 非対象の純粋関数群のためモジュールスコープの Logger を使用（§12: 純粋層に DI を持ち込まない） */
+const logger = new Logger('DiceRollPaginationBuilder')
 
 type PaginationRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>
 
@@ -65,7 +69,7 @@ export function buildHistoryPages(
       currentPage.setDescription(currentDescription + rollText)
       currentLength += rollText.length
     } catch (error) {
-      console.error(`[PHASE3] ダイスロール処理エラー:`, error)
+      logger.error(`[PHASE3] ダイスロール処理エラー:`, error)
       continue
     }
   }
@@ -167,7 +171,7 @@ export function buildPageSelectRow(
 
     return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(pageSelectMenu)
   } catch (error) {
-    console.error('[PHASE3] ページ選択メニュー作成エラー:', error)
+    logger.error('[PHASE3] ページ選択メニュー作成エラー:', error)
     return null
   }
 }
