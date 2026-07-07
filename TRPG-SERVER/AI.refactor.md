@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-07 E-6 計画診断＋計画書策定（診断のみ・コード変更なし・ユーザー承認待ち）
+
+ユーザー依頼「E-6 の計画書を練って」。Explore 3系統（Character 露出マップ／threadId 重複＋controller 境界／
+共通ロジック棚卸し）＋司令塔裏取り＋**Codex 設計レビュー（High 2・Medium 2・Low 2 → 全て反映）**で
+**`docs/refactor/refactor-entity-boundary-plan-2026-07-07.md`（E-6a〜E-6e）を策定**。
+
+### 診断の要点（詳細は計画書）
+
+- **想定より軽い**: 「TS エラー 22 個」の旧記録は陳腐化・`*.entity.ts` 不存在・Document API 依存は本番1箇所・
+  CHARACTER_MODEL の discord 層リークゼロ・prod キャスト4箇所。露出は 38 ファイル/281 フィールド参照だが型注釈中心。
+  → 全面 DDD 化ではなく**5 slice の右サイズ計画**（診断エージェントの「4〜6週間」見積もりは司令塔判断で棄却）。
+- **threadId は deprecated 重複**（正=discordThreadId・migration 不要・フロント両方未使用）。
+- **character.controller は §9 三重違反**＋discord 系 REST 3本はフロント呼び出しゼロ＋thread.create 発行重複。
+- **Web/Discord 非対称**: BCDice 実行コア・保存キー解決が discord 層のみ＝Web からダイス API が存在しない
+  （REST 新設は機能開発として roadmap 側へ＝E-6e はその enabler）。
+
+### Codex レビューで計画を訂正した重要点
+
+1. **[High] E-6d の lean 前提**: repository の書き込み系（create/.save()・findOneAndUpdate 系・findAll/findByUserId）は
+   Document を返す（司令塔裏取り一致）→ **repository 境界の plain 化を先行**する順序を計画に明記。
+2. **[High] E-6a の条件是正方向**: creation.completed:146-150 は **discordChannelId 基準が正**
+   （discordThreadId 基準だと作成直後のスレッド作成を抑止）→ characterization 必須に変更。
+3. [Medium] 既存 zod 側 `CharacterEntity`（schemas/character.schema.ts）との名前衝突 → 着手時に dead 判定 or 改名。
+4. [Medium] E-6e は custom-dice-modal の4段 fallback も対象に含める。
+
+### ユーザー判断待ちの3点（計画書冒頭に明記）
+
+①E-6b の discord 系 REST 3本削除の可否（公開 API の破壊的変更）／②REST ダイス API 新設（機能開発）の時期／
+③E-6f（属性整形の引き上げ）の要否（既定「やらない」）。
+
+### 次にやること
+
+ユーザー承認後: E-6a → (判断①) E-6b → E-6c → E-6d → E-6e（Codex 優先度所見: これらを C 系列残りより先・
+E-6e は C-4/C-5 同格・いずれも C-9 より先）。
+
+---
+
 ## 2026-07-07 E-5 完了（3層ルーティング1本化）＝ E 系列は E-6（中期）を残すのみ
 
 **コミット `491ddac`**（2ファイル・+75/−297・nestjs-best-practices 委譲＋司令塔裏取り）。
