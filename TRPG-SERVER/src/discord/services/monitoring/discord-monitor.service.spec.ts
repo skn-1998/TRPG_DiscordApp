@@ -145,25 +145,7 @@ describe('DiscordMonitorService', () => {
     })
   })
 
-  describe('recordRateLimit', () => {
-    it('使用率を計算して discord.rate-limit.status イベントを emit する', () => {
-      // Act: remaining=2, limit=10 → utilizationRate=0.8
-      service.recordRateLimit('/r', 2, 10, FIXED_NOW + 1000)
-
-      // Assert
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'discord.rate-limit.status',
-        expect.objectContaining({
-          endpoint: '/r',
-          remaining: 2,
-          limit: 10,
-          utilizationRate: 0.8,
-          resetTime: FIXED_NOW + 1000,
-          timestamp: FIXED_NOW
-        })
-      )
-    })
-  })
+  // C-3b: recordRateLimit は孤児化により実装ごと撤去（describe も削除）
 
   describe('recordMemoryUsage', () => {
     it('process.memoryUsage を MB へ丸めて discord.memory.status を emit する', () => {

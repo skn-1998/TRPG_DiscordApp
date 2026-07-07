@@ -113,27 +113,8 @@ export class DiscordMonitorService {
     }
   }
 
-  /**
-   * レート制限情報記録
-   */
-  recordRateLimit(endpoint: string, remaining: number, limit: number, resetTime: number): void {
-    const utilizationRate = 1 - remaining / limit
-
-    if (utilizationRate > 0.8) {
-      // 80%以上使用時
-      this.logger.warn(`High rate limit utilization: ${endpoint} - ${remaining}/${limit} remaining`)
-    }
-
-    // レート制限統計をイベント発行
-    this.eventEmitter.emit('discord.rate-limit.status', {
-      endpoint,
-      remaining,
-      limit,
-      utilizationRate,
-      resetTime,
-      timestamp: Date.now()
-    })
-  }
+  // C-3b（2026-07-07）: recordRateLimit は唯一の呼び出し元（PerformanceOrchestratorService の dead ラッパー）の
+  // 撤去に伴い孤児化したため削除（発行していた discord.rate-limit.status も購読者ゼロだった）。
 
   /**
    * メモリ使用量監視

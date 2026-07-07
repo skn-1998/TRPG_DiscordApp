@@ -16,10 +16,7 @@ describe('PerformanceOrchestratorService', () => {
   let metricsCollector: jest.Mocked<Pick<MetricsCollectorService, 'getSystemMetrics' | 'getTrends'>>
   let alertManager: jest.Mocked<Pick<AlertManagerService, 'getAlertStatistics' | 'triggerAlert'>>
   let discordMonitor: jest.Mocked<
-    Pick<
-      DiscordMonitorService,
-      'getHealthStatus' | 'getStats' | 'performMaintenance' | 'startApiCall' | 'recordRateLimit' | 'reset'
-    >
+    Pick<DiscordMonitorService, 'getHealthStatus' | 'getStats' | 'performMaintenance' | 'startApiCall' | 'reset'>
   >
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>
 
@@ -57,7 +54,6 @@ describe('PerformanceOrchestratorService', () => {
       getStats: jest.fn().mockReturnValue({ global: { avgResponseTime: 0, errorRate: 0 }, alerts: [] }),
       performMaintenance: jest.fn(),
       startApiCall: jest.fn(),
-      recordRateLimit: jest.fn(),
       reset: jest.fn()
     }
     eventEmitter = {
@@ -280,24 +276,7 @@ describe('PerformanceOrchestratorService', () => {
       expect(discordMonitor.startApiCall).toHaveBeenCalledWith('/endpoint', 'GET')
     })
 
-    it('recordRateLimit は discordMonitor.recordRateLimit に委譲する', () => {
-      // Act
-      service.recordRateLimit('/e', 5, 10, 123)
-
-      // Assert
-      expect(discordMonitor.recordRateLimit).toHaveBeenCalledWith('/e', 5, 10, 123)
-    })
-
-    it('triggerAlert は alertManager.triggerAlert に委譲する', async () => {
-      // Arrange
-      const alert = { type: 't', severity: 'warning' as const, message: 'm' }
-
-      // Act
-      await service.triggerAlert(alert)
-
-      // Assert
-      expect(alertManager.triggerAlert).toHaveBeenCalledWith(alert)
-    })
+    // C-3b: recordRateLimit / triggerAlert の委譲ラッパーは外部呼び出し元ゼロの dead のため実装ごと撤去済み
 
     it('resetMonitoring は discordMonitor.reset に委譲する', () => {
       // Act

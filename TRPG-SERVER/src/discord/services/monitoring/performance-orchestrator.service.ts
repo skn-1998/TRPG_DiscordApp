@@ -205,19 +205,8 @@ export class PerformanceOrchestratorService implements OnModuleInit {
     return this.discordMonitor.startApiCall(endpoint, method)
   }
 
-  /**
-   * レート制限情報記録
-   */
-  recordRateLimit(endpoint: string, remaining: number, limit: number, resetTime: number) {
-    this.discordMonitor.recordRateLimit(endpoint, remaining, limit, resetTime)
-  }
-
-  /**
-   * カスタムアラートトリガー
-   */
-  async triggerAlert(alert: { type: string; severity: 'info' | 'warning' | 'critical'; message: string; data?: any }) {
-    await this.alertManager.triggerAlert(alert)
-  }
+  // C-3b（2026-07-07）: recordRateLimit / triggerAlert の委譲ラッパーは外部呼び出し元ゼロの dead のため撤去。
+  // alertManager.triggerAlert 自体は @OnEvent 経由の内部利用で live のため alert-manager 側に残る。
 
   /**
    * システムリセット（デバッグ用）
