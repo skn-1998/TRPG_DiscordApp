@@ -158,7 +158,7 @@ FeatureModule が `InteractionsModule` から Registry を import し、自身�
 
 旧調査メモ `docs/history/DISCORD_SERVICES_ANALYSIS.md` の「Phase 1 で廃止・`TypedEventService` で完全代替可能」は**事実誤認のため撤回**する。実コード（`discord-facade.service.ts`）にイベント発行（`emitEvent` 等）は存在せず、ファサードの実責務は次の 3 つ:
 
-1. **起動オーケストレーション** `initializeDiscord()` — `main.ts` から起動時に一度呼ばれ、`TypedEventEmitter` の client へのアタッチ、client/interactions/commands/guildManager/channelManager の `Promise.all` 初期化、Discord Client 初期化、初期化メトリクスを束ねる。
+1. **起動オーケストレーション** `initializeDiscord()` — `main.ts` から起動時に一度呼ばれ、client/interactions/commands/guildManager/channelManager の `Promise.all` 初期化（旧 `TypedEventEmitter` の client アタッチは E-4c（2026-07-07）で空クラスごと撤去）、Discord Client 初期化、初期化メトリクスを束ねる。
 2. **REST `DiscordController` の裏付け** — `verifyChannelAccess` / `verifyGuildAccess` / `sendMessage` / `createChannel` / `getGuildInfo` / `getChannelInfo`。各操作を `PerformanceOrchestratorService` の監視でラップして専門サービスへ委譲。
 3. **ヘルス・統計の集約** — `getHealthStatus` / `getPerformanceStats`（performance dashboard 経路）。
 

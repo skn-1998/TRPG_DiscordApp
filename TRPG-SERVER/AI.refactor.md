@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-07-07 E-4 全完了（契約一本化・厳密型化・バス1インスタンス化）＝ E 系列コア完遂
+
+E-3f（取りこぼし2件・`bb011c1`）に続き E-4 を 3 slice で完遂。Codex スコープレビュー2回（E-4a / E-4b+c）。
+
+- **E-3f `bb011c1`**: deletion.completed の dead listener・thread creation.completed の dead emit を撤去（E-3 の「発行元（例）」表記の漏れ分）
+- **E-4a `5b7d0de`**: 契約を **live 11 種のみ**の unified-event-contracts へ一本化（24種→11種・レガシー契約4ファイル削除・
+  −1,767 行）。**`EventName = string` の弱型を `keyof EventMap` 厳密型へ**・EventPayload の any フォールバック廃止・
+  EVENT_NAMES 11 種完備。payload は実 emit と購読参照に一致（type フィールド撤去・update.completed を実態へ）。
+  **Codex Medium 2件を反映**: event-registry の string→EventName 境界に EVENT_NAMES membership 検証／
+  update.completed handler の契約外 updatedFields dead 分岐（shouldNotifyUpdate ごと）撤去
+- **E-4b `f8454f3`**: production のイベント名リテラル 29 箇所（14 ファイル）を EVENT_NAMES 定数へ一掃（§15 整合・値同一を Codex 全数確認）
+- **E-4c `caaddbe`**: `'TYPED_EVENT_EMITTER'` を forRoot インスタンスの useExisting alias 化＝**バス1本化**。
+  空クラス TypedEventEmitter（provider/facade 注入/client attach）撤去。isolation spec を「1バス固定」へ反転。
+  設定差（maxListeners 20 / verboseMemoryLeak true へ統一）は警告閾値のみで配送条件に影響なし（Codex が eventemitter2 実装で確認）
+
+検証: build 0 / No circular / 全 **180 suites 2440 tests 緑** / start:dev interaction 23・Registry 1・DI エラー 0・Discord 初期化成功。
+docs 追従: AI.event.md（バス1本化）・discord/DESIGN.md（attach 撤去）。
+
+### E 系列の残りと C 系列への材料
+
+- **E-5**（3層ルーティング1本化＝discord/DESIGN Phase 2・独立・いつでも可）と **E-6**（entity/schema 分離・中期・別計画書）のみ。
+- **C-3b への追加材料（Codex/E-4 調査の副産物）**: metrics-collector の @OnEvent 5 本（discord.command.\* / discord.event.processed /
+  http.request.complete / database.query.complete）は **emit 元ゼロ**・discord-monitor の raw emit（rate-limit/memory/performance.alert）は
+  **購読者ゼロ**・alert-manager の @OnEvent('system.alert') も emit 名（system.alert.critical）と不一致疑い。
+  監視系の live 配線は performance-orchestrator → system.health.status → alert-manager の1本のみ＝**監視系はほぼ dead 配線**。
+
+### 次にやること
+
+C-3（dead 第2弾・上記監視系材料込みで liveness 確定）/ C-6（ephemeral）/ E-5 のいずれかから。C-4/C-5 は E-2/E-4 完了により再評価可能。
+
+---
+
 ## 2026-07-07 E-3 全完了（dead イベント大掃除・5 slice・約 -3,100 行）
 
 E-2 完了で dead 化が確定した系統を、購読3形態（直接 .on / getEventName 間接 / @OnEvent）の全数マップで裏取りしてから 5 slice で撤去。
