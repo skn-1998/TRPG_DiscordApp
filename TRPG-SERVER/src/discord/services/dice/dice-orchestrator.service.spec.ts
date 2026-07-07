@@ -1,9 +1,7 @@
 import { ChannelType } from 'discord.js'
-import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceOrchestratorService } from './dice-orchestrator.service'
 import { DiceCalculationService } from './dice-calculation.service'
 import { DiceParserService } from './dice-parser.service'
-import { DicePresetService } from './dice-preset.service'
 import dice from 'src/discord/utils/dice'
 
 // dice ユーティリティ(bcdice ラッパ)は副作用の境界なのでモックする
@@ -20,7 +18,6 @@ describe('DiceOrchestratorService', () => {
   let service: DiceOrchestratorService
   let calculationService: jest.Mocked<DiceCalculationService>
   let parserService: jest.Mocked<DiceParserService>
-  let presetService: jest.Mocked<DicePresetService>
 
   beforeEach(() => {
     // 依存サービスは副作用の境界としてモック(純粋に委譲先呼び出しを検証する)
@@ -37,13 +34,7 @@ describe('DiceOrchestratorService', () => {
       convertToDiceNotation: jest.fn()
     } as unknown as jest.Mocked<DiceParserService>
 
-    presetService = {
-      handlePresetDiceRoll: jest.fn(),
-      createPresetButton: jest.fn(),
-      validatePresetConfig: jest.fn()
-    } as unknown as jest.Mocked<DicePresetService>
-
-    service = new DiceOrchestratorService(calculationService, parserService, presetService)
+    service = new DiceOrchestratorService(calculationService, parserService)
   })
 
   describe('calculateAndRoll', () => {
@@ -102,20 +93,6 @@ describe('DiceOrchestratorService', () => {
     })
   })
 
-  describe('handlePresetDiceRoll', () => {
-    it('presetService.handlePresetDiceRoll に interaction と customId を委譲する', async () => {
-      // Arrange
-      const interaction = createMockButtonInteraction({ customId: 'preset-1' })
-      presetService.handlePresetDiceRoll.mockResolvedValue(undefined)
-
-      // Act
-      await service.handlePresetDiceRoll(interaction, 'preset-1')
-
-      // Assert
-      expect(presetService.handlePresetDiceRoll).toHaveBeenCalledWith(interaction, 'preset-1')
-    })
-  })
-
   describe('parseFormula', () => {
     it('既定値で parserService.parseFormula に委譲し戻り値を返す', () => {
       // Arrange
@@ -154,46 +131,6 @@ describe('DiceOrchestratorService', () => {
       // Assert
       expect(parserService.evaluateFormula).toHaveBeenCalledWith('12+2')
       expect(result).toBe(14)
-    })
-  })
-
-  describe('createPresetButton', () => {
-    it('既定 multiplier=1 で presetService.createPresetButton に委譲し戻り値を返す', () => {
-      // Arrange
-      const expected = { customId: 'cid', label: 'lbl' }
-      presetService.createPresetButton.mockReturnValue(expected)
-
-      // Act
-      const result = service.createPresetButton('char1', 'skill', 'spot', 60)
-
-      // Assert
-      expect(presetService.createPresetButton).toHaveBeenCalledWith('char1', 'skill', 'spot', 60, 1)
-      expect(result).toBe(expected)
-    })
-
-    it('multiplier を指定どおり委譲する', () => {
-      // Arrange
-      presetService.createPresetButton.mockReturnValue({ customId: 'x', label: 'y' })
-
-      // Act
-      service.createPresetButton('char1', 'param', 'STR', 15, 5)
-
-      // Assert
-      expect(presetService.createPresetButton).toHaveBeenCalledWith('char1', 'param', 'STR', 15, 5)
-    })
-  })
-
-  describe('validatePresetConfig', () => {
-    it('presetService.validatePresetConfig に委譲し戻り値を返す', () => {
-      // Arrange
-      presetService.validatePresetConfig.mockReturnValue(true)
-
-      // Act
-      const result = service.validatePresetConfig('preset-customId')
-
-      // Assert
-      expect(presetService.validatePresetConfig).toHaveBeenCalledWith('preset-customId')
-      expect(result).toBe(true)
     })
   })
 
@@ -437,7 +374,7 @@ describe('DiceOrchestratorService', () => {
       const stats = service.getServiceStats()
 
       // Assert
-      expect(stats.services).toEqual(['DiceCalculationService', 'DiceParserService', 'DicePresetService'])
+      expect(stats.services).toEqual(['DiceCalculationService', 'DiceParserService'])
       expect(stats.status).toBe('active')
       expect(stats.features.length).toBeGreaterThan(0)
     })
@@ -466,18 +403,6 @@ describe('DiceOrchestratorService', () => {
 
       // Assert
       expect(calculationService.parseAndCalculate).toHaveBeenCalledWith('2d6', 1, 0, undefined)
-    })
-
-    it('legacyHandlePresetDiceRoll は handlePresetDiceRoll と同じく委譲する', async () => {
-      // Arrange
-      const interaction = createMockButtonInteraction({ customId: 'preset-2' })
-      presetService.handlePresetDiceRoll.mockResolvedValue(undefined)
-
-      // Act
-      await service.legacyHandlePresetDiceRoll(interaction, 'preset-2')
-
-      // Assert
-      expect(presetService.handlePresetDiceRoll).toHaveBeenCalledWith(interaction, 'preset-2')
     })
 
     it('executeNotation は executeBasicNotation に委譲する', async () => {
