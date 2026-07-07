@@ -12,6 +12,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
 import { createMockModalInteraction } from '@discord-test-utils'
 import { CharacterModalHandlerService } from './character-modal-handler.service'
+import { CharacterService } from 'src/domains/character/character.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -19,6 +20,11 @@ import { ModalSessionManagerService } from './modal-session-manager.service'
 describe('CharacterModalHandlerService (characterization)', () => {
   let service: CharacterModalHandlerService
   let module: TestingModule
+
+  const mockCharacterService = {
+    update: jest.fn(),
+    findOne: jest.fn()
+  }
 
   const mockTypedEventService = {
     emit: jest.fn(),
@@ -46,6 +52,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         CharacterModalHandlerService,
+        { provide: CharacterService, useValue: mockCharacterService },
         { provide: TypedEventService, useValue: mockTypedEventService },
         { provide: CharacterEmbedManagerService, useValue: mockEmbedManager },
         { provide: ModalSessionManagerService, useValue: mockModalSessionManager }
@@ -171,13 +178,10 @@ describe('CharacterModalHandlerService (characterization)', () => {
     it('正常系: フィールド更新成功で embed 更新・deleteReply', async () => {
       setupSession()
 
-      // getCharacter (findById) と updateCharacterField の waitForEvent 応答を順に返す
-      // 呼び出し順:
-      //  1) updateCharacterField -> waitForEvent x2 (race) -> resolve completed
-      //  2) getCharacter(再取得) -> waitForEvent x2 (race)
+      // DI 化: 取得は findOne（初回＋更新後の再取得）、更新は update が直接呼ばれる
+      mockCharacterService.findOne.mockResolvedValue(character)
+      mockCharacterService.update.mockResolvedValue(character)
       mockTypedEventService.emit.mockResolvedValue(undefined)
-      // findById/update いずれも completed/failed の race 両側に character を返す
-      mockTypedEventService.waitForEvent.mockImplementation(() => Promise.resolve({ character }) as never)
 
       mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: ['e'], components: ['c'] })
 
@@ -200,33 +204,41 @@ describe('CharacterModalHandlerService (characterization)', () => {
       expect(mockModalSessionManager.getSession).toHaveBeenCalledWith('0001')
       expect(mockModalSessionManager.removeSession).toHaveBeenCalledWith('0001')
 
-      // 更新イベント発行: character.update.requested
-      const updateEmitCall = mockTypedEventService.emit.mock.calls.find((c) => c[0] === 'character.update.requested')
-      expect(updateEmitCall).toBeDefined()
-      expect(updateEmitCall[1]).toMatchObject({
-        characterId: 'char-1',
-        channelId: 'dch-1',
-        userId: 'duser-1',
-        source: 'character-modal-handler',
-        updateData: {
-          status: {
-            // formData.name が無いため finalName = fieldKey('hp')。
-            // 既存 sectionData の hp は AttributeValue で丸ごと置換される（現挙動）
-            hp: expect.objectContaining({
-              name: 'hp',
-              values: { base: 20 },
-              description: 'desc',
-              dice: null,
-              isVisible: true,
-              index: null
-            })
-          }
+      // 更新は CharacterService.update の直呼び（RPC ではない）
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
+        status: {
+          // formData.name が無いため finalName = fieldKey('hp')。
+          // 既存 sectionData の hp は AttributeValue で丸ごと置換される（現挙動）
+          hp: expect.objectContaining({
+            name: 'hp',
+            values: { base: 20 },
+            description: 'desc',
+            dice: null,
+            isVisible: true,
+            index: null
+          })
         }
       })
 
-      // findById イベントが発行されている
-      const findByIdCalls = mockTypedEventService.emit.mock.calls.filter((c) => c[0] === 'character.findById.requested')
-      expect(findByIdCalls).toHaveLength(2)
+      // 通知連鎖の characterization: 成功時は completed が本サービスから発行される
+      // （CharacterUpdateCompletedHandler の UI 連鎖が生き続ける保証）
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'character.update.completed',
+        expect.objectContaining({
+          channelId: 'dch-1',
+          character,
+          source: 'character-modal-handler'
+        })
+      )
+
+      // 回帰ガード: RPC（waitForEvent / requested イベント）へ戻っていないこと
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.requested')).toBe(false)
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.findById.requested')).toBe(false)
+
+      // 取得は findOne 直呼び（初回＋更新後の再取得の2回）
+      expect(mockCharacterService.findOne).toHaveBeenCalledTimes(2)
+      expect(mockCharacterService.findOne).toHaveBeenCalledWith('char-1')
 
       // 成功時は deleteReply が呼ばれる
       expect(interaction.deleteReply).toHaveBeenCalled()
@@ -246,6 +258,8 @@ describe('CharacterModalHandlerService (characterization)', () => {
       expect(arg.embeds[0].data.title).toBe('❌ エラー')
       expect(arg.embeds[0].data.description).toBe('モーダル情報の解析に失敗しました。')
       expect(mockTypedEventService.emit).not.toHaveBeenCalled()
+      expect(mockCharacterService.findOne).not.toHaveBeenCalled()
+      expect(mockCharacterService.update).not.toHaveBeenCalled()
     })
 
     it('フォームデータが全て空でエラーレスポンス', async () => {
@@ -263,10 +277,8 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
     it('キャラクターが見つからない場合エラーレスポンス', async () => {
       setupSession()
-      mockTypedEventService.emit.mockResolvedValue(undefined)
-      // getCharacter(初回) が null 相当（character プロパティ無し）。
-      // race の両側に値を返し undefined への in 演算を避ける
-      mockTypedEventService.waitForEvent.mockResolvedValue({} as never)
+      // getCharacter(初回) が null（findOne 直呼びで null）
+      mockCharacterService.findOne.mockResolvedValue(null)
 
       const interaction = createMockModalInteraction({
         customId: 'char-edit-modal-0001',
@@ -277,20 +289,16 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
       expect(arg.embeds[0].data.description).toBe('キャラクターが見つかりません。')
+      // 回帰ガード: findById RPC へ戻っていないこと
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.findById.requested')).toBe(false)
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockCharacterService.update).not.toHaveBeenCalled()
     })
 
-    it('更新失敗(update.failed)でエラーレスポンス', async () => {
+    it('更新失敗(update が reject)でエラーレスポンス・completed は発行しない', async () => {
       setupSession()
-      mockTypedEventService.emit.mockResolvedValue(undefined)
-      // 1) getCharacter(初回): completed/failed の race 両側に character を返す
-      // 2) updateCharacterField: update.completed/failed の race 両側に failed(character無し) を返す
-      mockTypedEventService.waitForEvent.mockImplementation((event: string) => {
-        if (event === 'character.findById.completed' || event === 'character.findById.failed') {
-          return Promise.resolve({ character }) as never
-        }
-        // character.update.completed / character.update.failed
-        return Promise.resolve({ error: 'failed' }) as never
-      })
+      mockCharacterService.findOne.mockResolvedValue(character)
+      mockCharacterService.update.mockRejectedValue(new Error('update failed'))
 
       const interaction = createMockModalInteraction({
         customId: 'char-edit-modal-0001',
@@ -301,12 +309,35 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
       expect(arg.embeds[0].data.description).toBe('キャラクター情報の更新に失敗しました。')
+      // 通知連鎖の characterization: 失敗時は completed を emit しない
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.completed')).toBe(false)
+      // 回帰ガード: update RPC へ戻っていないこと
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.requested')).toBe(false)
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+    })
+
+    it('更新失敗(update が null を返す)でエラーレスポンス・completed は発行しない', async () => {
+      setupSession()
+      mockCharacterService.findOne.mockResolvedValue(character)
+      mockCharacterService.update.mockResolvedValue(null)
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+
+      await service.handleModalSubmit(interaction)
+
+      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
+      expect(arg.embeds[0].data.description).toBe('キャラクター情報の更新に失敗しました。')
+      expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.completed')).toBe(false)
     })
 
     it('レガシー形式 customId を解析できる', async () => {
       // char-edit-{sectionType}-{fieldKey}-{characterId}
+      mockCharacterService.findOne.mockResolvedValue(character)
+      mockCharacterService.update.mockResolvedValue(character)
       mockTypedEventService.emit.mockResolvedValue(undefined)
-      mockTypedEventService.waitForEvent.mockImplementation(() => Promise.resolve({ character }) as never)
       mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: [], components: [] })
 
       const interaction = createMockModalInteraction({
@@ -321,9 +352,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       // レガシー形式ではセッションは使われない
       expect(mockModalSessionManager.getSession).not.toHaveBeenCalled()
-      const updateEmitCall = mockTypedEventService.emit.mock.calls.find((c) => c[0] === 'character.update.requested')
-      expect(updateEmitCall).toBeDefined()
-      expect(updateEmitCall[1].characterId).toBe('char-1')
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', expect.any(Object))
     })
   })
 
@@ -335,9 +364,8 @@ describe('CharacterModalHandlerService (characterization)', () => {
         sectionType: 'status',
         fieldKey: 'hp'
       })
-      // emit を reject させると getCharacter 内の catch で null になる
-      mockTypedEventService.emit.mockRejectedValue(new Error('boom'))
-      mockTypedEventService.waitForEvent.mockImplementation(() => new Promise(() => undefined))
+      // findOne を reject させると getCharacter 内の catch で null になる
+      mockCharacterService.findOne.mockRejectedValue(new Error('boom'))
 
       const interaction = createMockModalInteraction({
         customId: 'char-edit-modal-0001',

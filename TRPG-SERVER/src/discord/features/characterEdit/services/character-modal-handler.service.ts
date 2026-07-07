@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
+import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
@@ -32,6 +33,7 @@ export class CharacterModalHandlerService {
   private readonly logger = new Logger(CharacterModalHandlerService.name)
 
   constructor(
+    private readonly characterService: CharacterService,
     private readonly typedEventService: TypedEventService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly modalSessionManager: ModalSessionManagerService
@@ -312,35 +314,31 @@ export class CharacterModalHandlerService {
         return false
       }
 
-      // 先に待受をセットしてからemit（レースコンディション回避）
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.update.completed', 5000),
-        this.typedEventService.waitForEvent('character.update.failed', 5000)
-      ])
-
-      // キャラクター更新イベントを発行
-      await this.typedEventService.emit('character.update.requested', {
-        characterId: character.characterId,
-        channelId: character.discordChannelId || '',
-        updateData,
-        userId: character.discordUserId,
-        source: 'character-modal-handler',
-        timestamp: new Date()
-      } as any)
-
-      // 更新完了を待機
-      const result = await resultPromise
-
-      if ('character' in result) {
-        this.logger.log(
-          `Character field updated successfully: ${character.characterId} - ${sectionType}.${actualFieldKey}`
-        )
-        this.logger.debug(`Updated field value: ${JSON.stringify(attributeValue)}`)
-        return true
-      } else {
-        this.logger.error(`Character update failed: ${character.characterId}`, result)
+      // DI で直接更新（E-2d: update RPC の DI 化）
+      const updated = await this.characterService.update(character.characterId, updateData)
+      if (!updated) {
+        this.logger.error(`Character update failed: ${character.characterId}`)
         return false
       }
+
+      // completed 通知は本サービスから fire-and-forget で継続発行（発行責務の移転）。
+      // await しない＝UI 連鎖（CharacterUpdateCompletedHandler 等）の失敗が update の成否に混ざらない。
+      void this.typedEventService
+        .emit('character.update.completed', {
+          channelId: character.discordChannelId || '',
+          character: updated,
+          source: 'character-modal-handler',
+          timestamp: new Date()
+        })
+        .catch((error) => {
+          this.logger.warn(`Failed to emit character.update.completed: ${character.characterId}`, error)
+        })
+
+      this.logger.log(
+        `Character field updated successfully: ${character.characterId} - ${sectionType}.${actualFieldKey}`
+      )
+      this.logger.debug(`Updated field value: ${JSON.stringify(attributeValue)}`)
+      return true
     } catch (error) {
       this.logger.error('Failed to update character field', error)
       return false
@@ -352,25 +350,8 @@ export class CharacterModalHandlerService {
    */
   private async getCharacter(characterId: string): Promise<Character | null> {
     try {
-      // 先に待受をセットしてからemit（レースコンディション回避）
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.findById.completed', 5000),
-        this.typedEventService.waitForEvent('character.findById.failed', 5000)
-      ])
-
-      await this.typedEventService.emit('character.findById.requested', {
-        characterId,
-        source: 'character-modal-handler',
-        timestamp: new Date()
-      })
-
-      const result = await resultPromise
-
-      if ('character' in result && result.character) {
-        return result.character as Character
-      }
-
-      return null
+      // DI で直接取得（E-2d: findById RPC の DI 化）
+      return await this.characterService.findOne(characterId)
     } catch (error) {
       this.logger.error(`Failed to get character: ${characterId}`, error)
       return null
