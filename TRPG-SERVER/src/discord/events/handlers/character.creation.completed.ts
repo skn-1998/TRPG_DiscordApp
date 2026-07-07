@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
-import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { CharacterEmbedManagerService } from 'discord/features/characterEdit/services/character-embed-manager.service'
 import { DiscordClientService } from 'discord/services/discord-client.service'
 import { CharacterCreationCompletedEvent } from 'events/contracts/unified-event-contracts'
@@ -28,7 +27,6 @@ export class CharacterCreationCompletedHandler
   implements OnModuleInit
 {
   constructor(
-    private readonly characterUIService: CharacterUIService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly discordClientService: DiscordClientService,
     private readonly typedEventServiceLocal: TypedEventService
@@ -182,7 +180,7 @@ export class CharacterCreationCompletedHandler
   /**
    * リトライ可能エラーの判定
    */
-  protected isRetryableError(error: Error): boolean {
+  protected override isRetryableError(error: Error): boolean {
     // Discord API関連のエラーはリトライ可能
     if (error.message.includes('Discord') || error.message.includes('API')) {
       return true
@@ -194,7 +192,7 @@ export class CharacterCreationCompletedHandler
   /**
    * 最大リトライ回数
    */
-  protected getMaxRetries(): number {
+  protected override getMaxRetries(): number {
     return 2 // Discord API呼び出しのため控えめに設定
   }
 

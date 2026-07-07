@@ -71,7 +71,7 @@ export class DiscordThreadCreateRequestedHandler
   /**
    * カスタムバリデーション（オプション）
    */
-  protected async customValidation(event: EventPayload<'discord.thread.create.requested'>): Promise<void> {
+  protected override async customValidation(event: EventPayload<'discord.thread.create.requested'>): Promise<void> {
     if (!event.character) {
       throw new Error('Character is required for thread creation')
     }

@@ -2,11 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { EventPayload, EVENT_NAMES } from '../../../../events/contracts'
 import { ChannelDetectionService } from './channel-detection.service'
-import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { CharacterUIService } from './character-ui.service'
 
 // ============================================================================
 // Main Orchestrator Service
@@ -18,10 +16,8 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
   constructor(
     private readonly channelDetectionService: ChannelDetectionService,
-    private readonly characterCreationService: CharacterCreationService,
     private readonly characterNotificationService: CharacterNotificationService,
     private readonly typedEventService: TypedEventService,
-    private readonly characterUIService: CharacterUIService,
     private readonly discordClientService: DiscordClientService
   ) {}
 
@@ -95,8 +91,14 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
   /**
    * キャラクター作成成功イベントハンドラー
+   *
+   * 注: リスナー登録は File-based Event Handlers へ移行済みで本体からの呼び出しはないが、
+   *     spec が直接呼び出してテストしているため C-9 では削除せず protected で保持
+   *     （noUnusedLocals は private メンバのみ検査対象）。
    */
-  private async handleCharacterCreationCompleted(payload: EventPayload<'character.creation.completed'>): Promise<void> {
+  protected async handleCharacterCreationCompleted(
+    payload: EventPayload<'character.creation.completed'>
+  ): Promise<void> {
     try {
       const character = payload.character
       this.logger.log(`キャラクター作成成功: ${character.characterName} (ID: ${character.characterId})`)

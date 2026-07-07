@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
-import { CharacterService } from 'src/domains/character/character.service'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
@@ -23,7 +22,7 @@ export interface DiceCalculationResult {
 export class DiceCalculationService {
   private readonly logger = new Logger(DiceCalculationService.name)
 
-  constructor(private readonly characterService: CharacterService) {
+  constructor() {
     this.logger.debug('Dice Calculation Service initialized')
   }
 

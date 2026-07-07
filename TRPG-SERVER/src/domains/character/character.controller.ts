@@ -22,7 +22,6 @@ import { CharacterService } from './character.service'
 import { CharacterInputDto, CharacterIdParamDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterEntity } from './models/character.entity'
-import { AuthService } from '../auth/services/auth.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
 import { SuccessResponse } from '../../core/dto/api-response.dto'
@@ -51,10 +50,7 @@ import {
 @UseInterceptors(ResponseInterceptor)
 @UseFilters(CharacterHttpExceptionFilter)
 export class CharacterController {
-  constructor(
-    private readonly characterService: CharacterService,
-    private readonly authService: AuthService
-  ) {}
+  constructor(private readonly characterService: CharacterService) {}
 
   /**
    * 認証されたユーザーを取得するヘルパーメソッド

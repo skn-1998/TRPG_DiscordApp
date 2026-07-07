@@ -137,7 +137,7 @@ export class AuthController {
   @ApiErrorResponse(401, 'ログインに失敗しました')
   async login(
     @Body() loginDto: DiscordLoginDto,
-    @Req() req: ExpressRequest,
+    @Req() _req: ExpressRequest,
     @Res({ passthrough: true }) res: Response
   ): Promise<{
     message: string
@@ -188,7 +188,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiErrorResponse(500, 'ログアウトに失敗しました')
-  async logout(@Req() req: ExpressRequest, @Res({ passthrough: true }) res: Response): Promise<{ message: string }> {
+  async logout(@Req() _req: ExpressRequest, @Res({ passthrough: true }) res: Response): Promise<{ message: string }> {
     try {
       // クッキー削除をCookieServiceに委譲
       this.cookieService.clearJwtCookie(res)

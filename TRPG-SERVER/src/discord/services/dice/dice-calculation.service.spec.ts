@@ -1,7 +1,6 @@
 import { ChannelType } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue } from 'src/core/types/attribute.types'
-import { CharacterService } from 'src/domains/character/character.service'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { DiceCalculationService } from './dice-calculation.service'
 
@@ -27,11 +26,9 @@ const makeCharacter = (overrides: {
 
 describe('DiceCalculationService', () => {
   let service: DiceCalculationService
-  // calculateAndRoll のパスでは CharacterService は呼ばれないため空モックで十分
-  const characterService = {} as unknown as CharacterService
 
   beforeEach(() => {
-    service = new DiceCalculationService(characterService)
+    service = new DiceCalculationService()
     // dice() の戻り値はテスト個別で設定するが、未設定時の既定も用意
     mockedDice.mockResolvedValue({ rands: [] } as never)
   })

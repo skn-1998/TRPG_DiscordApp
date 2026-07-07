@@ -36,7 +36,7 @@ export class CreateCharacterDto extends DiscordDto {
 
   @IsString(ValidationUtils.optionalString('Discordチャンネル'))
   @IsOptional()
-  readonly discordChannelId?: string
+  override readonly discordChannelId?: string
 
   @IsString(ValidationUtils.optionalString('Discordスレッド'))
   @IsOptional()

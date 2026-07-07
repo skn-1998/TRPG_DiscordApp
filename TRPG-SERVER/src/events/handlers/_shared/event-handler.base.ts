@@ -110,7 +110,7 @@ export abstract class EventHandler<TEvent = any> {
   /**
    * 処理開始ログ
    */
-  private logEventStart(event: TEvent, context: EventContext): void {
+  private logEventStart(_event: TEvent, context: EventContext): void {
     this.logger.log(`🎯 [${context.correlationId}] Event processing started: ${this.getEventName()}`, {
       eventName: this.getEventName(),
       correlationId: context.correlationId,
@@ -122,7 +122,7 @@ export abstract class EventHandler<TEvent = any> {
   /**
    * 成功ログ
    */
-  private logEventSuccess(event: TEvent, context: EventContext, duration: number): void {
+  private logEventSuccess(_event: TEvent, context: EventContext, duration: number): void {
     this.logger.log(
       `✅ [${context.correlationId}] Event processed successfully: ${this.getEventName()} (${duration}ms)`,
       {

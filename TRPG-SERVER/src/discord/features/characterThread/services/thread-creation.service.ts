@@ -18,7 +18,6 @@ import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchi
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ThreadInteractionService } from './thread-interaction.service'
 import {
@@ -63,7 +62,6 @@ export class ThreadCreationService {
 
   constructor(
     private readonly discordClientService: DiscordClientService,
-    private readonly typedEventService: TypedEventService,
     private readonly characterService: CharacterService,
     private readonly threadInteraction: ThreadInteractionService
   ) {

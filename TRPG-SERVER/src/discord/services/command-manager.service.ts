@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { REST, Routes, AutocompleteInteraction, CommandInteraction, MessageFlags } from 'discord.js'
-import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { CommandsService } from '../commands/commands.service'
 import { AppConfigService } from '../../config/config.service'
@@ -15,7 +14,6 @@ export class CommandManagerService implements OnModuleInit {
   private readonly rest: REST
 
   constructor(
-    private readonly discordClientService: DiscordClientService,
     private readonly appConfigService: AppConfigService,
     private readonly commandsService: CommandsService
   ) {

@@ -50,7 +50,7 @@ export class CharacterNotificationService {
    */
   async updateCharacterEmbed(
     characterId: string,
-    channelId: string,
+    _channelId: string,
     updateType: 'status' | 'parameter' | 'skill' | 'full'
   ): Promise<void> {
     try {

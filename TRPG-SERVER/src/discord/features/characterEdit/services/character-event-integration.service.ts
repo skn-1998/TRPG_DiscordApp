@@ -1,8 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
-import { CharacterService } from '../../../../domains/character/character.service'
-import { CharacterCreationService } from './character-creation.service'
-import { CharacterNotificationService } from './character-notification.service'
 
 /**
  * Character Event Integration Service
@@ -15,12 +11,7 @@ import { CharacterNotificationService } from './character-notification.service'
 export class CharacterEventIntegrationService implements OnModuleInit {
   private readonly logger = new Logger(CharacterEventIntegrationService.name)
 
-  constructor(
-    private readonly typedEventService: TypedEventService,
-    private readonly characterService: CharacterService,
-    private readonly characterCreationService: CharacterCreationService,
-    private readonly characterNotificationService: CharacterNotificationService
-  ) {}
+  constructor() {}
 
   /**
    * モジュール初期化時にイベントハンドラーを登録

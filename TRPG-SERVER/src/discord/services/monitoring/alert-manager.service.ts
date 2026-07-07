@@ -59,9 +59,6 @@ export class AlertManagerService implements OnModuleInit {
     lastAlertTime: 0
   }
 
-  // コマンド失敗履歴
-  private commandFailureHistory: number[] = []
-
   // C-3b′（2026-07-07）: EventEmitter2 注入は dead emit（system.alert.critical / system.alert.${type}）の
   // 撤去に伴い未使用化したため削除。@OnEvent('system.health.status') の購読は注入不要（forRoot バスが配線）。
   constructor() {

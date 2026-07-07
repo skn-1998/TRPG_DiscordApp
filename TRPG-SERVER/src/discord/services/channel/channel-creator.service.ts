@@ -10,7 +10,6 @@ import {
   GuildMember
 } from 'discord.js'
 import { ErrorHandler } from '../../../core/http/error-handler'
-import { AppConfigService } from '../../../config/config.service'
 import {
   buildChannelInfo,
   buildChannelCreateOptions,
@@ -35,7 +34,7 @@ import {
 export class ChannelCreatorService {
   private readonly logger = new Logger(ChannelCreatorService.name)
 
-  constructor(private readonly appConfigService: AppConfigService) {
+  constructor() {
     this.logger.debug('Channel creator service initialized')
   }
 

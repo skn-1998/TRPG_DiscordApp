@@ -33,7 +33,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   /**
    * カスタムバリデーション
    */
-  protected async customValidation(event: CharacterCreationRequestedEvent): Promise<void> {
+  protected override async customValidation(event: CharacterCreationRequestedEvent): Promise<void> {
     // 必須フィールド検証
     validateRequired(event, ['createData', 'source'])
     validateRequired(event.createData, ['characterName']) // gameSystemIdは必須ではない
@@ -168,7 +168,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   /**
    * リトライ可能エラーの判定（オーバーライド）
    */
-  protected isRetryableError(error: Error): boolean {
+  protected override isRetryableError(error: Error): boolean {
     // ビジネスロジックエラーはリトライしない
     if (error instanceof BusinessLogicError || error instanceof ValidationError) {
       return false
@@ -181,7 +181,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   /**
    * 最大リトライ回数（オーバーライド）
    */
-  protected getMaxRetries(): number {
+  protected override getMaxRetries(): number {
     return 2 // キャラクター作成は最大2回リトライ
   }
 }
