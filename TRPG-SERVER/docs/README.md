@@ -15,11 +15,13 @@ TRPG-SERVER の補助ドキュメント置き場。
 | ----------- | -------------------------------------------- |
 | `guides/`   | 現役だが root 直下に置く必要が薄い補助ガイド |
 | `history/`  | 旧調査メモ、撤回済み提案、履歴として残す資料 |
-| `refactor/` | 完了済みリファクタ計画・監査メモ             |
+| `refactor/` | リファクタ計画・監査メモ（完了済み含む）     |
 | `reviews/`  | Claude/Codex による棚卸し・レビュー成果物    |
 
 ## 主な文書
 
+- `refactor/refactor-event-design-plan-2026-07-06.md` - イベント設計・discord⇔domains 接続のリファクタ計画（E-1〜E-6・未着手）
+- `refactor/refactor-legacy-cleanup-plan-2026-07-06.md` - 古い書き方・重複・未使用コードの掃除計画（C-1〜C-10・未着手）
 - `reviews/feature-inventory-2026-06-05.md` - TRPG-SERVER の機能棚卸し
 - `reviews/document-inventory-review-2026-06-05.md` - ドキュメント整理レビュー
 - `reviews/project-issues-report-2026-06-05.md` - モノレポ全体の問題点・リスク・未完了作業のレビュー報告

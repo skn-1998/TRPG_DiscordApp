@@ -38,6 +38,16 @@
 > - 新イベントは `src/events/contracts` に型を追加してから `TypedEventService.emit(name, payload)` で発行。
 > - ドメイン処理ハンドラは events 層＋EventRegistry、Discord UI ハンドラは discord 層＋自己購読、に置く（層を跨いで import しない）。
 > - リファクタ時は挙動を変えず、動作保証テスト（`src/discord/events/handlers/*.spec.ts` 等）を緑に保つこと。
+> - **`waitForEvent` による request-response（クエリ RPC）を production コードで新規に書かない**（correlationId 無しの混線・タイムアウト・リスナー残存の構造問題あり。クエリは domain service の DI 直呼びで行う）。
+>
+> ### ⚠️ 既知の構造問題と是正計画（2026-07-06 診断）
+>
+> 2026-07-06 の設計評価で、①イベント RPC（`waitForEvent`）の順序バグ 2 箇所（必ずタイムアウト）と混線・リーク、
+> ② `EventEmitterModule.forRoot()` と `'TYPED_EVENT_EMITTER'` の**バス 2 インスタンス残存**（素バスへの
+> `discord.interaction.start/processed` emit は購読者ゼロ）、③ dead contracts 10+ 件、④契約の二重管理
+> （unified-event-contracts.ts vs AppEventContracts・EVENT_NAMES 不完備）を確認した。
+> **是正計画は `docs/refactor/refactor-event-design-plan-2026-07-06.md`（E-1〜E-6）**、診断の裏取りは
+> `AI.refactor.md`『2026-07-06 設計評価』節を正とする。
 
 ---
 

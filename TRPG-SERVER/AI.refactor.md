@@ -5,6 +5,108 @@
 
 ---
 
+## 2026-07-06 全体クリーンアップ分析: 古い書き方・重複・未使用コードの洗い出し（診断＋計画のみ・コード変更なし）
+
+ユーザー依頼「コードベース全体を分析して古い書き方・重複・未使用コードを洗い出し、テストが通る状態を維持したまま順番にリファクタリング計画を追記」。trpg-refactor スキル＋Explore 3系統（未使用/古い書き方/重複）＋司令塔 grep 裏取りで実施。
+
+### ベースライン（司令塔実測）
+
+build exit 0 / check:circular **No circular(480)** / 全 **187 suites 2613 tests 緑**（未コミットの F5+F10・2026-06-10/11 修正込み。AI.test.md 直近記録と一致）。jest 終了時に worker teardown リーク警告あり（全緑には影響なし）。
+
+### 主要な発見（詳細と全リストは計画書へ）
+
+- **未使用 npm 依存 7 件**（司令塔 grep 裏取り済・src+test 参照ゼロ）: `@aws-sdk/client-dynamodb` `@aws-sdk/util-dynamodb` `dynamoose` `pg` `express-session`、＋`typeorm`/`@nestjs/typeorm`（src ゼロ・test の mock 3 ファイルのみ）。`@types/uuid`/`eslint-plugin-import` は dependencies 配置間違い。
+- **dead コード**: `DiceOrchestratorService` の 7 メソッド（F10 残課題リストと一致・外部非 spec 参照ゼロ確定。**`sendToParentChannel` は live** ＝ 2026-06-10 残課題リストの候補 8 件から 1 件訂正）／`discord/utils/discord.utils.ts` は **import 元ゼロ＝ファイルごと dead**／`PerformanceOrchestratorService.recordRateLimit`・`triggerAlert`（連鎖 liveness 要再確認）／lint script の実在しないディレクトリ ignore 2 件。
+- **古い書き方**: console.\* 直接使用 **非テスト 31 箇所/9 ファイル**（diceRoll pagination に集中）／discord.js 非推奨 `ephemeral: true` 4〜5 箇所／**依存バージョン不整合**（Nest core v10 に v11 系サテライト `@nestjs/config@4`・`@nestjs/mongoose@11`・`@nestjs/schedule@6` ＋ `express@5`。src から express 直 import 多数＝型と実体の乖離が潜在）／tsconfig 第2段階フラグ未有効。**再発ゼロ確認**: process.env・forwardRef・@Global・ConfigService 直 inject・ModuleRef.get・旧バス系統。
+- **重複**: `sendToParentChannel` private 実装が **5 handler に重複**／エラーハンドリング 3 系統（うち 1 つは dead 候補）／キャラ embed 生成 2〜3 系統・ダイス計算 5 系統（いずれも中期・要設計）。any 非テスト約 204 件は event contracts に集中＝ **E-4a と同時解消が効率的**。
+
+### 実施計画
+
+- **`docs/refactor/refactor-legacy-cleanup-plan-2026-07-06.md` に C-1〜C-10 の bounded slice として策定済み**（リスク昇順・各 slice の動作保証テスト方針・検証ゲート・E/F 系列との依存関係を定義）。
+- 順序: C-1（依存削除）→ C-2（dice dead 撤去=F10 完遂）→ C-3（dead 第2弾）→ C-4〜C-6（重複統合/console/ephemeral）→ C-7（DiscordService ラッパー解体・E-5 進捗確認後）→ C-8（バージョン整合・**要ユーザー判断**）→ C-9（tsconfig 第2段階）→ C-10（jest リーク）。
+- E 系列（イベント設計計画）とは独立実施可能。`DiscordInteractionHandlerService` の dead メソッドは E-5 へ吸収（二重作業禁止）。
+
+### 次にやること
+
+- C-1 から順に着手（C-1〜C-3 は純粋な削除系＝characterization 前倒し不要の例外規定を適用、build/全 suite/start:dev で担保）。
+- C-8（Nest v11 アップグレード / v10 整合ダウングレード / 現状維持記録）はユーザー判断待ち。
+
+---
+
+## 2026-07-06 ドメイン別 設計ガイドスキル作成（trpg-domain-\*・5本）
+
+ユーザー依頼「下位モデル（Opus/Codex）が参照して設計不備にならないよう、ドメインごとの責務・役割・
+やること・やらないことを整理したスキルを作成」。skill-creator スキルのワークフローに沿い、
+Explore 3系統（auth/user・character/dice-roll・discord features）で実コードを裏取りしてから執筆。
+
+- **新規スキル（`.claude/skills/`・git 管理）**: `trpg-domain-auth` / `trpg-domain-user` /
+  `trpg-domain-character` / `trpg-domain-dice-roll` / `trpg-domain-discord`。
+  各スキルは 役割・構成マップ・公開API・やること/やらないこと・既知の落とし穴・検証手順 を定義。
+  同日の設計評価で確定した禁止事項（**イベント RPC（waitForEvent）禁止・素の EventEmitter2 禁止・
+  H6 循環の再導入禁止・S-1 projection の罠・スレッド保存キーの意味論**）を明文化して下位モデルの再発を防ぐ。
+- **エコシステム配線**: `trpg-architecture`（地図）にドメインスキル一覧の節を追加、`trpg-refactor`（司令塔）の
+  役割分担と委譲プロンプトの型に「該当 trpg-domain-\* スキルの禁止事項を委譲プロンプトへ注入」を追加。
+- 注意: `AI.domain.md` の「イベント駆動パターン」例（requestCharacterSearch）は現方針（クエリは DI 直呼び）と
+  矛盾する旧例のため、各スキルで明示的に「踏襲しない」と記載した。
+
+---
+
+## 2026-07-06 設計評価: discord 層⇔ドメイン層の接続・イベント設計（診断のみ・コード変更なし）
+
+ユーザー依頼「TRPG-SERVER の設計評価（discord アプリケーション層とドメイン層の繋がり・イベント設計）」。
+trpg-architecture スキル＋Explore 2系統（discord→domains 依存全数・イベント emit/listen 全数）＋司令塔裏取りで診断。
+
+### 健全（裏取り済）
+
+- 依存方向は discord→domains の一方向のみ（逆流ゼロ・実コード forwardRef ゼロ・discord 層からの Mongoose 直アクセスゼロ）。
+- Interaction Registry（明示登録・競合検出・未登録統計）と feature 自己登録方式は設計通り機能。
+
+### 発見した構造問題（優先度順）
+
+1. **イベント RPC（waitForEvent + Promise.race）の構造バグ**: `character-display.service.ts:60-71` / `channel-name-sync.service.ts:64-78` は emit（emitAsync＝ハンドラが同期チェーンで完走し `.completed` は発火済み）の**後**に waitForEvent を登録するため**必ず 3〜5 秒タイムアウト**。channel-name-sync は DB 更新成功でも false を報告。correlationId が無いため併走時は他リクエストの応答と混線し得る（wait 先行の他 6 サービスも同様）。Promise.race の負け側 waiter は timeout 時 unhandled rejection ＋ once リスナー残存。**推奨: クエリ系 11 箇所はイベントをやめ CharacterService/DiceRollService の DI 直呼びへ**（イベントは通知専用に限定）。
+2. **バス 2 インスタンス残存**: `core-events.module.ts` は `EventEmitterModule.forRoot()`（素の EventEmitter2）と `'TYPED_EVENT_EMITTER'`（別 new）の両方を提供。`interactions.service.ts:36-85` は素のバスへ `discord.interaction.start/processed` を emit（恒常購読者ゼロ＝dead）。
+3. **dead contracts 10+ 件**: `character.*.failed` 全て・`diceroll.execute.*`・`discord.message.send.requested`・`characterEdit.section/field.selected` 等が emit のみ（`findBy*.completed/failed` は waitForEvent の一時 once のみが受け手）。
+4. **契約の二重管理**: `unified-event-contracts.ts` と `contracts/index.ts`（AppEventContracts）が並存。EVENT_NAMES 定数は 8 件のみで残りはマジック文字列、`characterEdit.creation.*` は契約外（as any キャストあり）。
+5. **ドメイン層の薄さ／永続化モデル露出**: domains 39 ファイル vs discord 198（features 119）＝ビジネスロジックの主体が discord 層。Character（Mongoose @Schema）が discord 層 30+ ファイルに型露出（entity/schema 未分離・`discordThreadId`/`threadId` 重複）。`domains/character/character.controller.ts:294,334` が `discord.*` イベントを発行＝ドメインパッケージが Discord ユースケースを知る（ARCHITECTURE §9 と緊張）。同一クエリ（findByChannelId）に DI 直呼びとイベント RPC の 2 経路が併存（S-1 projection 型の片経路バグの温床）。
+6. 3 層ルーティング残存（`DiscordInteractionHandlerService` の Map キャッシュ（登録ゼロ）→ InteractionsService → Registry。DESIGN.md Phase 2 未了）。
+
+### 次にやること（提案・未着手）
+
+- **実施計画を `docs/refactor/refactor-event-design-plan-2026-07-06.md` に策定済み**（E-1〜E-6 の bounded slice・依存順序・検証手順・スコープ外を定義）。
+- 問題 1 の 2 箇所は実挙動バグのため優先修正候補（正攻法はイベント RPC の DI 化＝クエリをイベントで行わない → 計画 E-2）。
+- 問題 2〜4 は events 統合の追加 slice（dead emit 撤去=E-3・契約一本化/素バス排除=E-4）。問題 5 は entity/schema 分離の中期テーマ（E-6・別計画書に切り出し予定）。
+
+---
+
+## 2026-06-10 F5+F10 dead-code 掃除（trpg-refactor スキル・nestjs-best-practices へ2 slice 委譲・司令塔裏取り）
+
+ユーザー依頼「次の作業は何か」→ 残課題棚卸し（本ファイル「次にやること」＋ `docs/reviews/project-issues-report-2026-06-05.md`）からユーザー選択で **F5（postActionButtons dead path）と F10（dice services の dead preset メソッド）の撤去**を実施。純粋な dead-code 削除のため characterization 前倒しは省略（build / check:circular / 既存 spec で挙動不変を担保＝Phase 3 例外規定・理由記録）。**合計 -582行/+47行・未コミット**。
+
+### Slice 1 — F5: `postActionButtons` dead path 撤去（4ファイル・-78行）
+
+- 撤去: `ThreadInteractionService.postActionButtons`（`character_edit_`/`dice_roll_`/`character_info_` ボタン生成。唯一の呼び出し元 `thread-orchestrator.service.ts:79` はコメントアウト済＝dead を司令塔が実コードで裏取り）＋当該コメント行＋`thread-interaction.service.spec` の describe＋`handlers.integration.spec` の dead path characterization（その it しか含まない describe ごと削除・**登録数 23 期待値は不変**）。
+
+### Slice 2 — F10: dead preset チェーン撤去（DicePresetService 丸ごと・6ファイル）
+
+- 司令塔裏取りで **記録（メソッドのみ）より広い dead** と確定: `DiceOrchestratorService` の live 利用は `custom-dice-modal.service` の6メソッド（calculateAndRoll / executeBasicNotation / getResultEmoji / getBasicResultEmoji / sendToParentChannel / sendToParentChannelBasic）のみ。preset 系4メソッド（`handlePresetDiceRoll`/`createPresetButton`/`validatePresetConfig`/`legacyHandlePresetDiceRoll`）は production 呼び出し元ゼロ、`DicePresetService` の参照は orchestrator 委譲のみ → **サービス丸ごと dead**（`preset-dice*` handler は S-5c で撤去済み）。
+- 撤去: orchestrator の preset 4メソッド＋`presetService` 注入＋`getServiceStats` の言及、`dice-preset.service.ts`(+spec) 削除、`dice-services.module` providers/exports、`services/dice/index.ts` re-export、orchestrator spec の preset describe（constructor 引数 3→2）。
+- docs/docstring 追従（司令塔が直接実施）: `dice-roll.module.ts`/`character-thread-feature.module.ts` の docstring、`services/dice/README.md`（dice-preset 節を撤去注記化・現役プリセットは characterThread の `PresetDiceQuickRollHandler` へ誘導）、`AI.discord.md`。
+
+### 検証（司令塔再裏取り）
+
+- build exit 0 / check:circular **No circular(480)**（削除2ファイル分減・整合）/ **全スイート 187 suites 2625→2603 tests 緑**（−1 suite/−22 tests＝削除した dead spec 分と整合・新規破損ゼロ）/ **start:dev 正常起動・batch 8+6+9＝23 handler 不変・tsc 0 errors・DI 解決エラーなし** / 撤去シンボルの残存参照ゼロ（grep・.ts）/ `/code-review`（medium・7 angle）**finding ゼロ**。
+
+### 残課題（スコープ外・記録のみ）
+
+- `DiceOrchestratorService` の他の呼び出し元ゼロ候補: `legacyCalculateAndRoll` / `legacyParseAndCalculate` / `executeNotation` / `parseFormula` / `evaluateFormula` / `convertToDiceNotation` / `parseAndCalculate` / `getServiceStats`（live は上記6メソッドのみ）。撤去は別 slice（要 grep 再確認）。
+
+### 次にやること
+
+- 本2 slice のコミット（ユーザー承認時・slice 単位・pathspec 限定）。
+- 既存残: develop の origin push 判断 / F1+F2（フロント jest roots・characterCreate 空送信）/ F7 プリセット本格ルール / CI 導入・CRLF churn 根治（.gitattributes）。
+
+---
+
 ## 2026-06-07 ブランチ `refactor/ref-path-deadcode-cleanup` を develop へマージ（trpg-refactor スキル・司令塔）＋マージ前ブロッカー修正
 
 ユーザー依頼「色々 develop にマージしたい」。調査の結果、**develop 未マージは本ブランチ1本のみ**（他の H1/H3/H6/H9/T2-T5/B-2/events/config/security 系は全てマージ済み）と判明。本ブランチは develop の HEAD を直接の祖先とする**クリーンな FF**（81コミット・304ファイル・+9092/−12858＝ダイスボタン customId 統合キャンペーン S-1〜S-5c ＋ P1-A/B/C/D・構造課題・events 統合・参照パス整理・docs 再編）。
