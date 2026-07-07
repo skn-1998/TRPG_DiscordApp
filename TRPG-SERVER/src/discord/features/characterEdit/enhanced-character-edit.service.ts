@@ -171,9 +171,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    */
   async handleSelectMenuInteraction(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
     try {
-      // セクション選択イベント発火
-      await this.eventEmitter.emitSectionSelected(interaction)
-
       // セクションエディターに委譲
       await this.sectionEditor.execute(interaction)
     } catch (error) {

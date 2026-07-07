@@ -7,13 +7,12 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, CacheType } from 'discord.js'
+import { ButtonInteraction, ModalSubmitInteraction, CacheType } from 'discord.js'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { AttributeValue } from '../../../../core/types/attribute.types'
 import {
   extractCharacterIdFromCustomId,
   parseModalSubmitCustomId,
-  parseSectionSelectValue,
   normalizeSectionType
 } from '../utils/enhanced-character-edit.util'
 
@@ -75,46 +74,6 @@ export class CharacterEditEventEmitterService {
       })
     } catch (error) {
       this.logger.error('Failed to emit modal submitted event', error)
-    }
-  }
-
-  /**
-   * セクション選択イベント発火（フィールド選択イベントも同時発火）
-   */
-  async emitSectionSelected(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
-    try {
-      const characterId = extractCharacterIdFromCustomId(interaction.customId)
-      if (!characterId) return
-
-      const { sectionType, fieldKey } = parseSectionSelectValue(interaction.values[0])
-
-      await this.typedEventService.emit('characterEdit.section.selected', {
-        characterId,
-        userId: interaction.user.id,
-        timestamp: new Date(),
-        sessionId: `section-${Date.now()}`,
-        section: {
-          sectionType: normalizeSectionType(sectionType),
-          displayMode: 'edit' as const
-        }
-      })
-
-      // フィールド選択イベントも同時発火
-      if (fieldKey && fieldKey !== 'unknown') {
-        await this.typedEventService.emit('characterEdit.field.selected', {
-          characterId,
-          userId: interaction.user.id,
-          timestamp: new Date(),
-          sessionId: `field-${Date.now()}`,
-          field: {
-            sectionType: normalizeSectionType(sectionType),
-            fieldKey,
-            action: 'edit' as const
-          }
-        })
-      }
-    } catch (error) {
-      this.logger.error('Failed to emit section selected event', error)
     }
   }
 
