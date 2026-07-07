@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-07 E-2f 完了 ＝ **E-2 全完了**（イベント RPC の production 利用ゼロ達成）
+
+**コミット `048eab5`**（9 ファイル・+619/-296・nestjs-best-practices 委譲＋司令塔裏取り＋Codex レビュー）。
+
+- **CharacterCreationCoreService 新設（domains/character/services）**: creation.requested handler から重複チェック・
+  gameSystem 別パラメータ検証・characterId 採番・create を移設（Codex が行対行同値を確認）。イベント発行なし（§9 準拠）。
+  domains→events 逆流回避のため等価エラークラスを domain 側に定義（name/code ベースの非リトライ判定・failed 発行の意味論維持）。
+- **embed-manager.createCharacter**: emit→wait の壊れ順 RPC（**診断未計上の3件目の実バグ**＝モーダル作成が常時 10 秒タイムアウト→
+  「キャラは作られるのに失敗応答」）をコア直呼び＋completed 自己発行（fire-and-forget）へ。チャンネル名同期・Embed 投稿・通知の
+  CharacterCreationCompletedHandler 連鎖は不変。
+- **Codex Medium 対応**: タイムアウトバグ解消により modal-handler 自身の Embed 送信と completed 連鎖の送信が**二重投稿**になる
+  経路が顕在化 → modal-handler 側の送信ブロックを撤去（チャンネル投稿は completed 連鎖の1回のみ＝旧 live と同経路。
+  本人向け成功 reply は維持・spec で二重投稿しないことを characterization）。Low 対応: コア input 型から characterId 除去。
+- 意図的挙動差分: 重複/検証エラーでも creation.failed が emit されるように（failed の恒常購読者ゼロ＝実影響なし・E-3 の掃除対象）。
+
+検証: build 0 / No circular(478) / 全 **186 suites 2555 tests 緑**（+1 suite/+17）/ start:dev handler 23・DI エラー 0・Discord 初期化成功 /
+**grep 裏取り: production コードの waitForEvent 呼び出しゼロ**（残存は TypedEventService 定義・spec 回帰ガード・docs のみ）＝ E-2 完了条件達成。
+
+### 記録: jest suite フレーク 1 回観測（C-10 の材料）
+
+全 suite 実行で 1 回だけ「3 suites failed / failed tests 0」（suite 未実行型）が出たが、直後 2 連続で全緑。既知の
+worker teardown リーク（C-10）による負荷時フレークの疑い。**suite failed ≠ test failed の場合は即再実行して切り分けること**。
+
+### 次にやること
+
+- **E-3**（dead contracts/emit 一括掃除）: E-2 完了で findBy\*.completed/failed・update.failed 等が完全 dead 化。
+  1 slice = 1 系統で分割実施。→ E-4（契約一本化・バス1本化）。C-3/C-6 は並行可。
+- C-8 の手動 smoke（Discord OAuth・実 Discord ダイス操作）は引き続きユーザー任意。
+
+---
+
 ## 2026-07-07 E-2b/E-2c/E-2d 完了（イベント RPC 是正の第2弾・E-2 残りは E-2f のみ）
 
 3 slice を並列委譲（nestjs-best-practices×3・ファイル重複なし・build/lint はエージェント禁止で dist 衝突回避）→ 司令塔一括裏取り。
