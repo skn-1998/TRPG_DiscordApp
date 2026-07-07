@@ -27,7 +27,7 @@ const makeCharacter = (overrides: {
 
 describe('DiceCalculationService', () => {
   let service: DiceCalculationService
-  // calculateAndRoll / parseAndCalculate のパスでは CharacterService は呼ばれないため空モックで十分
+  // calculateAndRoll のパスでは CharacterService は呼ばれないため空モックで十分
   const characterService = {} as unknown as CharacterService
 
   beforeEach(() => {
@@ -118,120 +118,6 @@ describe('DiceCalculationService', () => {
       expect(result.success).toBe(false)
       expect(result.description).toBe('計算エラー: 10')
       expect(result.targetValue).toBeUndefined()
-    })
-  })
-
-  describe('parseAndCalculate', () => {
-    it('単純な数値式を評価し diceCommand を生成する', async () => {
-      // Act
-      const result = await service.parseAndCalculate('12')
-
-      // Assert
-      expect(result.result).toBe(12)
-      expect(result.diceCommand).toBe('12b10')
-      expect(result.originalFormula).toBe('12')
-      expect(result.processedFormula).toBe('12')
-      expect(result.characterUsed).toBe(false)
-    })
-
-    it('式は小文字化・trim されて処理される', async () => {
-      // Act: '  5+3  ' → '5+3' = 8
-      const result = await service.parseAndCalculate('  5+3  ')
-
-      // Assert
-      expect(result.processedFormula).toBe('5+3')
-      expect(result.result).toBe(8)
-      expect(result.diceCommand).toBe('8b10')
-    })
-
-    it('キャラクター値(STR)を代入し characterUsed:true を返す', async () => {
-      // Arrange
-      const character = makeCharacter({ parameter: { STR: attr(14) } })
-
-      // Act: str → 14
-      const result = await service.parseAndCalculate('str', 1, 0, character)
-
-      // Assert
-      expect(result.result).toBe(14)
-      expect(result.characterUsed).toBe(true)
-      expect(result.description).toContain('STR(14)')
-      expect(result.diceCommand).toBe('14b10')
-    })
-
-    it('乗数と修正値を適用して入れ子の式を評価する', async () => {
-      // Act: (10) * 2 = 20, さらに + 5 = 25
-      const result = await service.parseAndCalculate('10', 2, 5)
-
-      // Assert
-      expect(result.processedFormula).toBe('((10) * 2) + 5')
-      expect(result.result).toBe(25)
-      expect(result.diceCommand).toBe('25b10')
-      expect(result.description).toContain('× 2')
-      expect(result.description).toContain('+5')
-    })
-
-    it('負の修正値を適用する', async () => {
-      // Act: (10) - 3 = 7
-      const result = await service.parseAndCalculate('10', 1, -3)
-
-      // Assert
-      expect(result.processedFormula).toBe('(10)  -3')
-      expect(result.result).toBe(7)
-      expect(result.diceCommand).toBe('7b10')
-    })
-
-    it('評価不能な式は計算エラーとしてフォールバック(1b10)を返す', async () => {
-      // Arrange: 許可外文字が除去された結果 evaluateFormula が Function 構文エラー → catch
-      // 'a-' は sanitize で '-' のみ残り 'return (-)' が SyntaxError になる
-      const result = await service.parseAndCalculate('a-')
-
-      // Assert: evaluateFormula 内 catch で 1 が返るため、計算は成功扱いで result:1
-      expect(result.result).toBe(1)
-      expect(result.diceCommand).toBe('1b10')
-    })
-  })
-
-  describe('evaluateFormula 挙動固定 (characterization: 旧 Function 評価との一致)', () => {
-    // private evaluateFormula は範囲チェック・丸めを行わず生の数値を返す。
-    // parseAndCalculate(formula, 1, 0) は processedFormula を toLowerCase().trim() した上で
-    // evaluateFormula にそのまま渡すため、result が evaluateFormula の生値となる。
-    // 旧実装 Function('"use strict"; return (' + sanitized + ')')() と同一結果であることを固定する。
-    const evalRaw = async (formula: string): Promise<number> => {
-      const r = await service.parseAndCalculate(formula)
-      return r.result
-    }
-
-    it.each<[string, number]>([
-      ['(50) * 3', 150],
-      ['1+2*3', 7],
-      ['(5+5)/2', 5],
-      ['(100) + -5', 95],
-      ['2.5*4', 10],
-      [' ( 3 ) ', 3],
-      ['1-2-3', -4], // 範囲チェック無しのため負値もそのまま
-      ['10001', 10001], // 範囲チェック無しのため >10000 もそのまま
-      ['2*3+4*5', 26],
-      ['100', 100]
-    ])('式 %p の生の評価結果は %p（範囲チェック/丸め無し）', async (formula, expected) => {
-      await expect(evalRaw(formula)).resolves.toBe(expected)
-    })
-
-    it('小数は丸めず生値を返す（10/3 = 3.333...）', async () => {
-      await expect(evalRaw('10/3')).resolves.toBeCloseTo(3.3333333333333335, 12)
-    })
-
-    it('0除算は JS と同じく Infinity を返す（範囲チェック無し）', async () => {
-      // 旧実装は Function 評価で Infinity → そのまま返す（dice-calc には妥当性チェック無し）
-      await expect(evalRaw('1/0')).resolves.toBe(Infinity)
-    })
-
-    it('空文字（trim後空）は評価不能として catch で 1 を返す', async () => {
-      await expect(evalRaw('   ')).resolves.toBe(1)
-    })
-
-    it('サニタイズ後に構文不正となる式は catch で 1 を返す（a- → -）', async () => {
-      // 'a-' は sanitize で '-' のみ残り、評価不能 → catch → 1
-      await expect(evalRaw('a-')).resolves.toBe(1)
     })
   })
 

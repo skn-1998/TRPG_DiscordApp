@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
-import { DiceCalculationService, DiceCalculationResult, FlexibleDiceResult } from './dice-calculation.service'
-import { DiceParserService, ParsedFormula } from './dice-parser.service'
+import { DiceCalculationService, DiceCalculationResult } from './dice-calculation.service'
 import dice from 'src/discord/utils/dice'
 
 /**
@@ -16,10 +15,7 @@ import dice from 'src/discord/utils/dice'
 export class DiceOrchestratorService {
   private readonly logger = new Logger(DiceOrchestratorService.name)
 
-  constructor(
-    private readonly calculationService: DiceCalculationService,
-    private readonly parserService: DiceParserService
-  ) {
+  constructor(private readonly calculationService: DiceCalculationService) {
     this.logger.debug('Dice Orchestrator Service initialized')
   }
 
@@ -38,35 +34,6 @@ export class DiceOrchestratorService {
   }
 
   /**
-   * 柔軟ダイス計算インターフェース
-   * 旧 flexible-dice-calculator.service.ts の parseAndCalculate メソッドの代替
-   */
-  async parseAndCalculate(
-    formula: string,
-    multiplier: number = 1,
-    modifier: number = 0,
-    character?: Character
-  ): Promise<FlexibleDiceResult> {
-    this.logger.debug(`Parsing and calculating: ${formula}`)
-    return this.calculationService.parseAndCalculate(formula, multiplier, modifier, character)
-  }
-
-  /**
-   * 数式解析インターフェース
-   */
-  parseFormula(formula: string, character?: Character, multiplier: number = 1, modifier: number = 0): ParsedFormula {
-    this.logger.debug(`Parsing formula: ${formula}`)
-    return this.parserService.parseFormula(formula, character, multiplier, modifier)
-  }
-
-  /**
-   * 数式評価インターフェース
-   */
-  evaluateFormula(formula: string): number {
-    return this.parserService.evaluateFormula(formula)
-  }
-
-  /**
    * 結果絵文字取得インターフェース
    */
   getResultEmoji(diceResult: any, rollResult: number): string {
@@ -78,13 +45,6 @@ export class DiceOrchestratorService {
    */
   async sendToParentChannel(interaction: any, message: string): Promise<void> {
     return this.calculationService.sendToParentChannel(interaction, message)
-  }
-
-  /**
-   * ダイス記法変換インターフェース
-   */
-  convertToDiceNotation(value: number): string {
-    return this.parserService.convertToDiceNotation(value)
   }
 
   /**
@@ -217,66 +177,5 @@ export class DiceOrchestratorService {
     } else {
       return '🎲' // 普通のロール
     }
-  }
-
-  /**
-   * サービス統計情報取得
-   */
-  getServiceStats(): {
-    services: string[]
-    features: string[]
-    status: string
-  } {
-    return {
-      services: ['DiceCalculationService', 'DiceParserService'],
-      features: [
-        'Unified dice calculation',
-        'Flexible formula parsing',
-        'Character parameter substitution',
-        'Safe formula evaluation'
-      ],
-      status: 'active'
-    }
-  }
-
-  /**
-   * レガシーサービス互換メソッド
-   * 既存コードの移行期間中に使用
-   */
-
-  // DiceCalculationHandlerService互換
-  async legacyCalculateAndRoll(
-    formula: string,
-    multiplier: number = 1,
-    modifier: number = 0,
-    character?: Character
-  ): Promise<DiceCalculationResult> {
-    this.logger.warn('Legacy method called: legacyCalculateAndRoll. Please use calculateAndRoll instead.')
-    return this.calculateAndRoll(formula, multiplier, modifier, character)
-  }
-
-  // FlexibleDiceCalculatorService互換
-  async legacyParseAndCalculate(
-    formula: string,
-    multiplier: number = 1,
-    modifier: number = 0,
-    character?: Character
-  ): Promise<FlexibleDiceResult> {
-    this.logger.warn('Legacy method called: legacyParseAndCalculate. Please use parseAndCalculate instead.')
-    return this.parseAndCalculate(formula, multiplier, modifier, character)
-  }
-
-  // DiceNotationHandlerService互換
-  async executeNotation(
-    notation: string,
-    characterName: string = 'プレイヤー'
-  ): Promise<{
-    success: boolean
-    diceResult?: any
-    description: string
-    characterName: string
-  }> {
-    this.logger.warn('Legacy method called: executeNotation. Please use executeBasicNotation instead.')
-    return this.executeBasicNotation(notation, characterName)
   }
 }

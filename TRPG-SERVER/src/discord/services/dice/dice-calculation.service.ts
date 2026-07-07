@@ -19,15 +19,6 @@ export interface DiceCalculationResult {
   characterName: string
 }
 
-export interface FlexibleDiceResult {
-  originalFormula: string
-  processedFormula: string
-  diceCommand: string
-  result: number
-  description: string
-  characterUsed?: boolean
-}
-
 @Injectable()
 export class DiceCalculationService {
   private readonly logger = new Logger(DiceCalculationService.name)
@@ -84,61 +75,6 @@ export class DiceCalculationService {
         success: false,
         description: `計算エラー: ${formula}`,
         characterName
-      }
-    }
-  }
-
-  /**
-   * 柔軟ダイス計算式のパースと実行
-   * 旧 flexible-dice-calculator.service.ts の parseAndCalculate メソッド
-   */
-  async parseAndCalculate(
-    formula: string,
-    multiplier: number = 1,
-    modifier: number = 0,
-    character?: Character
-  ): Promise<FlexibleDiceResult> {
-    const originalFormula = formula
-    let processedFormula = formula.toLowerCase().trim()
-    let characterUsed = false
-    let description = originalFormula
-
-    try {
-      // キャラクターデータを使用した計算式の処理
-      if (character) {
-        const characterSubstitution = this.substituteCharacterValues(processedFormula, character)
-        processedFormula = characterSubstitution.formula
-        characterUsed = characterSubstitution.characterUsed
-        description = characterSubstitution.description
-      }
-
-      // 乗数と修正値を適用
-      if (multiplier !== 1 || modifier !== 0) {
-        const finalFormula = this.applyMultiplierAndModifier(processedFormula, multiplier, modifier)
-        processedFormula = finalFormula.formula
-        description = finalFormula.description
-      }
-
-      // 計算実行
-      const result = this.evaluateFormula(processedFormula)
-
-      return {
-        originalFormula,
-        processedFormula,
-        diceCommand: `${result}b10`,
-        result,
-        description,
-        characterUsed
-      }
-    } catch (error) {
-      this.logger.error('柔軟ダイス計算エラー:', error)
-      return {
-        originalFormula,
-        processedFormula,
-        diceCommand: '1b10',
-        result: 1,
-        description: `計算エラー: ${originalFormula}`,
-        characterUsed
       }
     }
   }
@@ -219,31 +155,6 @@ export class DiceCalculationService {
     }
 
     return { formula: processedFormula, description, characterUsed }
-  }
-
-  /**
-   * 乗数と修正値の適用
-   */
-  private applyMultiplierAndModifier(
-    formula: string,
-    multiplier: number,
-    modifier: number
-  ): { formula: string; description: string } {
-    let finalFormula = formula
-    let description = formula
-
-    if (multiplier !== 1) {
-      finalFormula = `(${finalFormula}) * ${multiplier}`
-      description += ` × ${multiplier}`
-    }
-
-    if (modifier !== 0) {
-      const sign = modifier >= 0 ? '+' : ''
-      finalFormula = `(${finalFormula}) ${sign} ${modifier}`
-      description += ` ${sign}${modifier}`
-    }
-
-    return { formula: finalFormula, description }
   }
 
   /**
