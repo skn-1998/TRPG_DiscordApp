@@ -30,9 +30,6 @@ export class Character {
   @Prop()
   discordThreadId?: string
 
-  @Prop()
-  threadId?: string
-
   @Prop({ type: Object, default: {} })
   status: AttributeSection
 

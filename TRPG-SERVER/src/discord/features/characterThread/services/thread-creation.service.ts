@@ -100,11 +100,8 @@ export class ThreadCreationService {
       // スレッドを作成
       const thread = await this.createDiscordThread(channel, request.characterName)
 
-      // character-editチャンネルIDを保存してから、discordChannelIdをスレッドIDに更新
+      // スレッドIDを保存（discordThreadId が正。E-6a: deprecated threadId への二重書きは廃止）
       await this.updateCharacterChannelIds(character.characterId, thread.id, character.discordChannelId)
-
-      // threadIdも保存
-      await this.updateCharacterThreadId(character.characterId, thread.id)
 
       // キャラクター情報を投稿（表示タイプに応じて処理）
       await this.postCharacterDisplay(thread, character, request.displayType || 'basic')
@@ -235,19 +232,6 @@ export class ThreadCreationService {
       this.logger.log(`Character thread channel ID updated: ${characterId} -> thread: ${threadId}`)
     } catch (error) {
       this.logger.error(`Failed to update character thread channel ID: ${characterId}`, error)
-      // エラーが発生してもスレッド作成処理は継続
-    }
-  }
-
-  /**
-   * キャラクターのthreadIdを更新
-   */
-  private async updateCharacterThreadId(characterId: string, threadId: string): Promise<void> {
-    try {
-      await this.characterService.update(characterId, { threadId })
-      this.logger.log(`Character threadId updated: ${characterId} -> ${threadId}`)
-    } catch (error) {
-      this.logger.error(`Failed to update character threadId: ${characterId}`, error)
       // エラーが発生してもスレッド作成処理は継続
     }
   }
