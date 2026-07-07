@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-07 await バグ修正＋C-8 実施（Nest v11・ブランチ上）＋Codex 定期レビュー体制開始
+
+ユーザー指示「C-8 GO・await バグも修正・Codex に定期的にスコープ狭めたレビューと全体バランスレビューをさせる」に基づく。
+以後のリファクタでは **slice ごとの Codex スコープレビュー＋節目の全体バランスレビュー**を標準運用とする。
+
+### await バグ修正（develop・コミット `61ef9d4`）
+
+C-2 レビューで検出した `dice-calculation.service.ts:63` の await 漏れを修正（1行）＋ spec の `mockReturnValue`→`mockResolvedValue` 化
+（再発時に `toBe(sentinel)` が RED になる回帰テスト）。build 0 / 対象 spec 80 緑 / No circular(478) / 全 186 suites 2541 tests 緑 /
+**Codex スコープレビュー LGTM**（await 化で rejection が try/catch の success:false 契約へ正しく収まる・services/dice の dice() 呼び出し
+3箇所に同種漏れなし）。param-dice-modal（計算式ダイス）経路の本番バグが解消。
+
+### C-8 実施（ブランチ `refactor/nest-v11-upgrade`・コミット `97dbbef`・**マージは実機 smoke 後**）
+
+コード変更ゼロ・依存 bump のみ: core 系一式 10.4.20→**11.1.27** / cli→11.0.23 / jwt→11.0.2 / passport→11.0.5 / axios→4.0.1 /
+swagger→11.4.5 / reflect-metadata→0.2.2 / @types/express→5.0.6（config/mongoose/schedule/event-emitter/mapped-types は据え置き）。
+
+- 検証: peer 警告なし / **build 型エラーゼロ**（事前調査の「数件〜十数件」想定より良好）/ No circular(478) / 全 **186 suites 2541 tests 緑** /
+  start:dev で **handler 23 登録・Discord クライアント初期化成功（766ms）・GET / 200・未知ルート 404 JSON**（express5 実ランタイム確認）。
+- **Codex スコープレビュー: マージ可・Critical/High なし**。Medium 1件＝`passport-discord@0.1.4`（deprecated）の実 OAuth は
+  単体テストで拾えないため**手動 smoke 必須**。Low: express5 query parser 既定変更（現 @Query はスカラー2件で実害低）・
+  swagger は decorator のみで `SwaggerModule.setup` 不在（OpenAPI 生成運用があれば schema diff 要確認）。
+- **マージ前の手動 smoke チェックリスト（Codex 起案・ユーザー実施）**:
+  1. Discord OAuth ログイン一式（`/auth/discord` → callback → JWT cookie 属性 → validate-token → logout）
+  2. フロント origin からの credentials 付き CORS リクエスト
+  3. JSON body 系 API（POST /character 等）
+  4. 実 Discord でボタン/select/modal の代表 customId ルーティング（ダイスロール一式）
+- **注意**: node_modules は現在 v11 状態。develop 側で作業を続ける場合は `pnpm install` で v10 に戻すこと（マージ後は不要）。
+
+### Codex 全体バランスレビュー結果（要旨・計画へ反映済み）
+
+総合「C-1/C-2/C-8 の進め方自体は妥当だが、**優先順位に歪み**」:
+
+1. **E-2（イベント RPC の DI 直呼び化）を C-3 以降の掃除より優先すべき**。E-2 は「必ず 3〜5 秒タイムアウト」「DB 更新成功でも false 報告」
+   という**実挙動バグ**を含む（E-2a: character-display / E-2e: channel-name-sync が最優先）。
+2. 推奨順序: **C-8 を閉じる（smoke→マージ）→ E-2a/E-2e → E-2 残り → E-3 → E-4**。並行余地は C-3/C-6 のみ。
+   C-7 は E-5 と同一ファイルのため後回し、C-4/C-5 は E-2/E-4 後に再評価。
+3. 計画書追記事項（→ 両計画書へ反映済み）: 優先順位の割り込みルール／C-8 の完了条件に smoke 手順明記／
+   DI・依存バージョン・bus を触る slice は全 suite 必須／E-6 の前段棚卸し slice 追加検討。
+
+### 次にやること（バランスレビュー反映後）
+
+1. **ユーザー: C-8 の手動 smoke → GO なら `refactor/nest-v11-upgrade` を develop へマージ**。
+2. マージ後、**E-2a/E-2e（イベント RPC の実バグ 2 箇所の DI 化）へ着手**（E 計画書参照・characterization 前倒し必須）。
+3. C-3 は E-2 と並行可の範囲で実施。C-8 GO 済みのため案B/C は破棄。
+
+---
+
 ## 2026-07-07 C-2 完了（dead dice メソッド撤去・F10 完遂）＋既存 latent bug 1 件検出
 
 C-1 に続き C-2 を実施（nestjs-best-practices へ委譲・司令塔裏取り）。**コミット `c8aa131`**（10 ファイル・+29/-1119）。
