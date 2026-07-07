@@ -6,16 +6,19 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 import { Test } from '@nestjs/testing'
 import { CharacterDisplayService } from './character-display.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { CharacterService } from '../../../../domains/character/character.service'
 
 /**
  * CharacterDisplayService はチャンネルIDからキャラクターを検索し Embed を構築する統合サービス。
- * TypedEventService（イベント発行・待機）のみを注入する。
+ * TypedEventService（イベント発行・購読）と CharacterService（検索の DI 直呼び・E-2a）を注入する。
  * 純ロジック（isValidTabType / buildCharacterEmbed）を
- * 最優先で実 discord.js により検証し、createCharacterEmbed は waitForEvent を mock で固定して分岐を見る。
+ * 最優先で実 discord.js により検証し、createCharacterEmbed は CharacterService.findByChannelId を
+ * mock で固定して分岐を見る。
  */
 describe('CharacterDisplayService', () => {
   let service: CharacterDisplayService
   let eventService: jest.Mocked<Pick<TypedEventService, 'emit' | 'on' | 'once' | 'waitForEvent'>>
+  let characterService: jest.Mocked<Pick<CharacterService, 'findByChannelId'>>
 
   const buildCharacter = (overrides: Record<string, unknown> = {}) =>
     ({
@@ -32,9 +35,16 @@ describe('CharacterDisplayService', () => {
       once: jest.fn(),
       waitForEvent: jest.fn()
     }
+    characterService = {
+      findByChannelId: jest.fn()
+    }
 
     const moduleRef = await Test.createTestingModule({
-      providers: [CharacterDisplayService, { provide: TypedEventService, useValue: eventService }]
+      providers: [
+        CharacterDisplayService,
+        { provide: TypedEventService, useValue: eventService },
+        { provide: CharacterService, useValue: characterService }
+      ]
     }).compile()
 
     service = moduleRef.get(CharacterDisplayService)
@@ -52,37 +62,35 @@ describe('CharacterDisplayService', () => {
 
   describe('createCharacterEmbed', () => {
     it('キャラクターが見つかった場合はタブに応じた Embed を返す', async () => {
-      // Arrange: 検索完了イベントでキャラクターを返す
-      eventService.waitForEvent.mockResolvedValue({
-        character: buildCharacter({ characterId: 'found-1' })
-      } as never)
+      // Arrange: CharacterService の直呼びでキャラクターを返す（E-2a: イベント RPC 廃止）
+      characterService.findByChannelId.mockResolvedValue(buildCharacter({ characterId: 'found-1' }))
 
       // Act
       const embed = await service.createCharacterEmbed('channel-1', 'basic')
       const json = embed!.toJSON()
 
-      // Assert: 検索リクエストイベントを発行し、Embed にタブタイトルとIDが入る
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'character.findByChannelId.requested',
-        expect.objectContaining({ channelId: 'channel-1', tabType: 'basic' })
-      )
+      // Assert: channelId で検索し、Embed にタブタイトルとIDが入る
+      expect(characterService.findByChannelId).toHaveBeenCalledWith('channel-1')
       expect(json.title).toContain('基本情報')
       expect(json.fields).toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'キャラクターID', value: 'found-1' })])
       )
+      // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2a の回帰ガード）
+      expect(eventService.waitForEvent).not.toHaveBeenCalled()
+      expect(eventService.emit).not.toHaveBeenCalledWith('character.findByChannelId.requested', expect.anything())
     })
 
-    it('検索結果に character が無い場合は null を返す', async () => {
+    it('findByChannelId が null を返す場合は null を返す', async () => {
       // Arrange
-      eventService.waitForEvent.mockResolvedValue({} as never)
+      characterService.findByChannelId.mockResolvedValue(null)
 
       // Act & Assert
       expect(await service.createCharacterEmbed('channel-1', 'basic')).toBeNull()
     })
 
-    it('待機が失敗した場合は ErrorHandler 経由で HttpException を再スローする', async () => {
+    it('検索が失敗した場合は ErrorHandler 経由で HttpException を再スローする', async () => {
       // Arrange: 本体は catch 内で handleServiceError を呼び例外を再スローする
-      eventService.waitForEvent.mockRejectedValue(new Error('Event timeout'))
+      characterService.findByChannelId.mockRejectedValue(new Error('DB error'))
 
       // Act & Assert
       await expect(service.createCharacterEmbed('channel-1', 'status')).rejects.toThrow(
@@ -92,9 +100,7 @@ describe('CharacterDisplayService', () => {
 
     it('status タブでは parameter 情報を含む Embed を構築する', async () => {
       // Arrange
-      eventService.waitForEvent.mockResolvedValue({
-        character: buildCharacter({ parameter: { STR: 13, DEX: 12 } })
-      } as never)
+      characterService.findByChannelId.mockResolvedValue(buildCharacter({ parameter: { STR: 13, DEX: 12 } }))
 
       // Act
       const embed = await service.createCharacterEmbed('channel-1', 'status')

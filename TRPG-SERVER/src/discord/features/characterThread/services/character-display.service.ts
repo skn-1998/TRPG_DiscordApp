@@ -9,6 +9,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { EmbedBuilder, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { EventPayload } from '../../../../events/contracts'
@@ -28,7 +29,10 @@ export type TabType = 'basic' | 'status' | 'skills' | 'items' | 'desc'
 export class CharacterDisplayService implements OnModuleInit {
   private readonly logger = new Logger(CharacterDisplayService.name)
 
-  constructor(private readonly typedEventService: TypedEventService) {}
+  constructor(
+    private readonly typedEventService: TypedEventService,
+    private readonly characterService: CharacterService
+  ) {}
 
   /**
    * モジュール初期化時にイベントハンドラーを登録
@@ -56,33 +60,17 @@ export class CharacterDisplayService implements OnModuleInit {
     try {
       this.logger.log(`Creating character embed: channelId=${channelId}, tabType=${tabType}`)
 
-      // キャラクター検索イベントを発行
-      await this.typedEventService.emit('character.findByChannelId.requested', {
-        channelId,
-        source: 'character-display-service',
-        timestamp: new Date(),
-        tabType
-      })
+      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2a: イベント RPC 廃止）
+      const character = await this.characterService.findByChannelId(channelId)
 
-      // 結果を待機（タイムアウト3秒に短縮）
-      const result = await Promise.race([
-        this.typedEventService.waitForEvent('character.findByChannelId.completed', 3000),
-        this.typedEventService.waitForEvent('character.findByChannelId.failed', 3000)
-      ])
-
-      if ('character' in result && result.character) {
-        return this.buildCharacterEmbed(result.character, tabType)
+      if (character) {
+        return this.buildCharacterEmbed(character, tabType)
       }
 
       this.logger.warn(`Character not found for channelId: ${channelId}`)
       return null
     } catch (error) {
-      // タイムアウトエラーの場合は詳細ログを出力
-      if (error instanceof Error && error.message.includes('timeout')) {
-        this.logger.warn(`Character search timeout for channelId: ${channelId} - falling back to alternative method`)
-      } else {
-        this.logger.error(`Character embed creation failed for channelId: ${channelId}`, error)
-      }
+      this.logger.error(`Character embed creation failed for channelId: ${channelId}`, error)
 
       const context: ErrorContext = {
         channelId,
