@@ -154,7 +154,7 @@ describe('ThreadManagerService', () => {
       expect(completed![1].timestamp).toBeInstanceOf(Date)
     })
 
-    it('guild 取得失敗（null）→ failed イベント emit ＋ {success:false,error} を返す', async () => {
+    it('guild 取得失敗（null）→ dead な failed イベントは emit せず {success:false,error} を返す（E-3d）', async () => {
       const client = makeClient({ guildFetch: jest.fn().mockResolvedValue(null) })
       const service = createService(client)
 
@@ -162,24 +162,11 @@ describe('ThreadManagerService', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain(GUILD_ID)
-      const failed = emit.mock.calls.find((c) => c[0] === 'character-thread.creation.failed')
-      expect(failed).toBeDefined()
-      expect(failed![1]).toEqual(
-        expect.objectContaining({
-          characterId: 'char-1',
-          characterName: 'テスト探索者',
-          channelId: CHANNEL_ID,
-          creatorId: 'creator-1',
-          guildId: GUILD_ID,
-          source: 'thread-manager-service'
-        })
-      )
-      expect(failed![1].error).toContain(GUILD_ID)
-      expect(typeof failed![1].threadId).toBe('string')
-      expect(failed![1].threadId.startsWith('temp-')).toBe(true)
+      // E-3d: 恒常購読者ゼロの失敗イベントは emit しない
+      expect(emit).not.toHaveBeenCalled()
     })
 
-    it('channel が GuildText でない → failed イベント emit ＋ {success:false} を返す', async () => {
+    it('channel が GuildText でない → emit せず {success:false} を返す（E-3d）', async () => {
       const nonText = { id: CHANNEL_ID, type: ChannelType.GuildVoice }
       const guild = { channels: { fetch: jest.fn().mockResolvedValue(nonText) } }
       const client = makeClient({ guildFetch: jest.fn().mockResolvedValue(guild) })
@@ -188,7 +175,7 @@ describe('ThreadManagerService', () => {
       const result = await service.createCharacterThread(buildRequest(), buildCharacter())
 
       expect(result.success).toBe(false)
-      expect(emit).toHaveBeenCalledWith('character-thread.creation.failed', expect.anything())
+      expect(emit).not.toHaveBeenCalled()
     })
   })
 

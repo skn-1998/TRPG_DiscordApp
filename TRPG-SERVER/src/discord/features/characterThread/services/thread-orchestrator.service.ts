@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EventPayload } from '../../../../events/contracts'
 
 import { ThreadManagerService, CreateThreadRequest } from './thread-manager.service'
@@ -24,8 +23,7 @@ export class ThreadOrchestratorService {
     private readonly threadManager: ThreadManagerService,
     private readonly characterEmbed: CharacterEmbedService,
     private readonly threadInteraction: ThreadInteractionService,
-    private readonly characterService: CharacterService,
-    private readonly typedEventService: TypedEventService
+    private readonly characterService: CharacterService
   ) {
     this.logger.debug('Thread orchestrator service initialized')
   }
@@ -86,19 +84,6 @@ export class ThreadOrchestratorService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       this.logger.error(`Failed to handle thread create request: ${errorMessage}`, error)
-
-      // エラーイベントを発行
-      await this.typedEventService.emit('character-thread.creation.failed', {
-        threadId: `error-${Date.now()}`,
-        characterId: character.characterId,
-        characterName: character.characterName,
-        channelId,
-        creatorId,
-        guildId,
-        error: errorMessage,
-        timestamp: new Date(),
-        source: 'thread-orchestrator-service'
-      })
 
       throw error
     }

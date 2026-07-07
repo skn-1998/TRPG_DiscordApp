@@ -217,26 +217,20 @@ export class CharacterDisplayService implements OnModuleInit {
 
   /**
    * キャラクター表示リクエストを処理（character-thread専用）
+   *
+   * E-3d: dead な embed 更新通知 emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い
+   * 聞くだけで何もしないゴースト（購読・メソッドの解体は E-5/E-6 スコープ）。
    */
   private async handleCharacterDisplayRequest(
     payload: EventPayload<'discord.character.display.requested'>
   ): Promise<void> {
-    const { character, channelId, source } = payload
+    const { character, source } = payload
 
     this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display requested: ${character.characterId} from ${source}`)
 
     try {
       // character-thread専用の基本的なEmbed表示のみ
-      const embed = this.buildCharacterEmbed(character, 'basic')
-      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
-      void this.typedEventService.emit('discord.message.embed.update', {
-        channelId,
-        embed: embed.toJSON(),
-        character,
-        success: true,
-        source: 'character-thread-display',
-        timestamp: new Date()
-      })
+      this.buildCharacterEmbed(character, 'basic')
 
       this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display completed for ${character.characterId}`)
     } catch (error) {
@@ -247,22 +241,14 @@ export class CharacterDisplayService implements OnModuleInit {
   /**
    * Embed更新の直接実行
    * features/内の他のサービスから使用
+   *
+   * E-3d: dead な embed 更新通知 emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い何もしないゴースト。
    */
   async updateCharacterEmbed(character: Character, channelId: string, tabType: TabType = 'basic'): Promise<void> {
     try {
-      this.logger.log(`[CHARACTER-EMBED] Direct embed update: ${character.characterId}`)
+      this.logger.log(`[CHARACTER-EMBED] Direct embed update: ${character.characterId} (channel: ${channelId})`)
 
-      const embed = this.buildCharacterEmbed(character, tabType)
-
-      // emit の完了は待たない fire-and-forget（イベント駆動の通知）
-      void this.typedEventService.emit('discord.message.embed.update', {
-        channelId,
-        embed: embed.toJSON(),
-        character,
-        success: true,
-        source: 'character-display-direct',
-        timestamp: new Date()
-      })
+      this.buildCharacterEmbed(character, tabType)
     } catch (error) {
       this.logger.error(`[CHARACTER-EMBED] Direct embed update failed`, error)
       throw error

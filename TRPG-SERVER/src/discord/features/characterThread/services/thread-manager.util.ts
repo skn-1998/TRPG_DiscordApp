@@ -66,35 +66,5 @@ export function buildCreationCompletedPayload(
   }
 }
 
-/**
- * `character-thread.creation.failed` の payload を組み立てる純粋関数。
- * threadId（`temp-${nowMs}` 形式）と timestamp は呼び出し側から注入する。
- */
-export function buildCreationFailedPayload(
-  input: Omit<CreationEventInput, 'threadId'>,
-  tempThreadId: string,
-  error: string,
-  timestamp: Date
-): {
-  threadId: string
-  characterId: string
-  characterName: string
-  channelId: string
-  creatorId: string
-  guildId: string
-  error: string
-  timestamp: Date
-  source: string
-} {
-  return {
-    threadId: tempThreadId,
-    characterId: input.characterId,
-    characterName: input.characterName,
-    channelId: input.channelId,
-    creatorId: input.creatorId,
-    guildId: input.guildId,
-    error,
-    timestamp,
-    source: 'thread-manager-service'
-  }
-}
+// E-3d: buildCreationFailedPayload は dead emit（恒常購読者ゼロの失敗イベント）専用の
+// payload 組立関数だったため、emit 撤去に伴い削除した。

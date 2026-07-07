@@ -93,7 +93,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   // displayEnhancedCharacterEdit
   // ==========================================================================
   describe('displayEnhancedCharacterEdit', () => {
-    it('embed を生成し discord.message.send.requested を発行する', async () => {
+    it('embed を生成するが dead な discord.message.send.requested は発行しない（E-3d）', async () => {
       const character = buildCharacter()
       mockEmbedManager.createSectionedEmbeds.mockResolvedValue({
         embeds: ['embed-a'],
@@ -103,23 +103,15 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       await service.displayEnhancedCharacterEdit('channel-1', character)
 
       expect(mockEmbedManager.createSectionedEmbeds).toHaveBeenCalledWith(character)
-      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
-        'discord.message.send.requested',
-        expect.objectContaining({
-          channelId: 'channel-1',
-          content: '',
-          embeds: ['embed-a'],
-          source: 'enhanced-character-edit'
-        })
-      )
+      // E-3d: 恒常購読者ゼロの discord.message.send.requested は emit しない
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('embed 生成失敗時は ErrorHandler.handleServiceError 経由で HttpException を再スローする', async () => {
       const character = buildCharacter()
       mockEmbedManager.createSectionedEmbeds.mockRejectedValue(new Error('boom'))
 
-      // 現挙動: catch 節の先頭で handleServiceError が再スローするため
-      // フォールバックの emit には到達しない（try 内で1度も emit していない場合）
+      // 現挙動: catch 節の handleServiceError が HttpException を再スローする
       await expect(service.displayEnhancedCharacterEdit('channel-1', character)).rejects.toThrow(
         'サービス処理中にエラーが発生しました'
       )
@@ -348,10 +340,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       } as any)
 
       expect(mockEmbedManager.createSectionedEmbeds).toHaveBeenCalledWith(character)
-      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
-        'discord.message.send.requested',
-        expect.objectContaining({ channelId: 'channel-1', source: 'enhanced-character-edit' })
-      )
+      // E-3d: dead な discord.message.send.requested は emit しない（表示はゴースト化）
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('displayType=enhanced 以外では何も表示しない', async () => {
@@ -372,7 +362,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   // displayNewCharacterCreation
   // ==========================================================================
   describe('displayNewCharacterCreation', () => {
-    it('新規作成 embed を生成し send.requested を発行する', async () => {
+    it('新規作成 embed を生成するが dead な send.requested は発行しない（E-3d）', async () => {
       mockEmbedManager.createNewCharacterEmbed.mockReturnValue({
         embeds: ['new-embed'],
         components: ['new-comp']
@@ -381,15 +371,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       await service.displayNewCharacterCreation('channel-1', 'user-1')
 
       expect(mockEmbedManager.createNewCharacterEmbed).toHaveBeenCalledWith('channel-1', 'user-1')
-      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
-        'discord.message.send.requested',
-        expect.objectContaining({
-          channelId: 'channel-1',
-          content: '',
-          embeds: ['new-embed'],
-          source: 'enhanced-character-edit-creation'
-        })
-      )
+      // E-3d: 恒常購読者ゼロの discord.message.send.requested は emit しない
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
     })
 
     it('embed 生成失敗時は HttpException を再スローする', async () => {

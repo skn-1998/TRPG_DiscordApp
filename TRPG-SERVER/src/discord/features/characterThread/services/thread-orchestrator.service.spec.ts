@@ -8,10 +8,11 @@ import { TypedEventService } from '../../../../core/events/typed-event.service'
 
 /**
  * ThreadOrchestratorService は委譲オーケストレーター。
- * 注入された各サービス(ThreadManager/CharacterEmbed/ThreadInteraction/CharacterService/TypedEventService)を
+ * 注入された各サービス(ThreadManager/CharacterEmbed/ThreadInteraction/CharacterService)を
  * 協調させてスレッド作成フローを進める。各依存を mock し、
- * 「正しい引数・順序で委譲先が呼ばれるか」「失敗時に failed イベントを emit して再スローするか」
- * 「早期 return 分岐が機能するか」を検証する。
+ * 「正しい引数・順序で委譲先が呼ばれるか」「失敗時に再スローするか」「早期 return 分岐が機能するか」を検証する。
+ * E-3d: dead だった character-thread.creation.failed emit と TypedEventService 注入は撤去済み。
+ * typedEventService mock は「dead emit が再導入されていない」ことの回帰ガードとして残す。
  */
 describe('ThreadOrchestratorService', () => {
   let service: ThreadOrchestratorService
@@ -132,7 +133,7 @@ describe('ThreadOrchestratorService', () => {
       expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('スレッド作成が success:false の場合、failedイベントを emit して再スローする', async () => {
+    it('スレッド作成が success:false の場合、dead な failed イベントは emit せず再スローする（E-3d）', async () => {
       // Arrange
       threadManager.createCharacterThread.mockResolvedValue({
         success: false,
@@ -142,33 +143,20 @@ describe('ThreadOrchestratorService', () => {
       // Act / Assert
       await expect(service.handleThreadCreateRequest(buildPayload())).rejects.toThrow('作成失敗')
       expect(characterService.update).not.toHaveBeenCalled()
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character-thread.creation.failed',
-        expect.objectContaining({
-          characterId: 'char-1',
-          characterName: 'テスト探索者',
-          channelId: 'channel-1',
-          creatorId: 'creator-1',
-          guildId: 'guild-1',
-          error: '作成失敗',
-          source: 'thread-orchestrator-service'
-        })
-      )
+      // E-3d: 恒常購読者ゼロの失敗イベントは emit しない
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('作成成功だが threadId が無い場合も failedイベントを emit して再スローする', async () => {
+    it('作成成功だが threadId が無い場合も emit せず再スローする（E-3d）', async () => {
       // Arrange
       threadManager.createCharacterThread.mockResolvedValue({ success: true } as never)
 
       // Act / Assert
       await expect(service.handleThreadCreateRequest(buildPayload())).rejects.toThrow('Thread creation failed')
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character-thread.creation.failed',
-        expect.objectContaining({ error: 'Thread creation failed' })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('作成したスレッドが取得できない場合、failedイベントを emit して再スローする', async () => {
+    it('作成したスレッドが取得できない場合も emit せず再スローする（E-3d）', async () => {
       // Arrange
       threadManager.createCharacterThread.mockResolvedValue({
         success: true,
@@ -181,10 +169,7 @@ describe('ThreadOrchestratorService', () => {
         'Created thread not found: thread-x'
       )
       expect(characterEmbed.postCharacterDisplay).not.toHaveBeenCalled()
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character-thread.creation.failed',
-        expect.objectContaining({ error: 'Created thread not found: thread-x' })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 

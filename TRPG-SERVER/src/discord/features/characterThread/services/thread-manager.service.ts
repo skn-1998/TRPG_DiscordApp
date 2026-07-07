@@ -3,12 +3,7 @@ import { Client, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDurat
 import { Character } from '../../../../domains/character/models/character.model'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
-import {
-  buildThreadUrl,
-  nextBackoffDelay,
-  buildCreationCompletedPayload,
-  buildCreationFailedPayload
-} from './thread-manager.util'
+import { buildThreadUrl, nextBackoffDelay, buildCreationCompletedPayload } from './thread-manager.util'
 
 /**
  * スレッド作成リクエスト
@@ -120,23 +115,6 @@ export class ThreadManagerService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       this.logger.error(`Failed to create thread: ${errorMessage}`, error)
-
-      // スレッド作成失敗イベントを発行
-      await this.typedEventService.emit(
-        'character-thread.creation.failed',
-        buildCreationFailedPayload(
-          {
-            characterId: request.characterId,
-            characterName: request.characterName,
-            channelId: request.channelId,
-            creatorId: request.creatorId,
-            guildId: request.guildId
-          },
-          `temp-${this.now()}`,
-          errorMessage,
-          new Date()
-        )
-      )
 
       return {
         success: false,

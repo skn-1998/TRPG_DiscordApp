@@ -62,24 +62,6 @@ export class DiscordThreadCreateRequestedHandler
     } catch (error) {
       this.logger.error(`❌ [${context?.correlationId}] Discord thread creation failed: ${error}`)
 
-      // 失敗イベント発行（必要に応じて）
-      if (this.typedEventService) {
-        await this.typedEventService.emit('discord.thread.create.failed', {
-          character: event.character,
-          channelId: event.channelId,
-          guildId: event.guildId,
-          creatorId: event.creatorId,
-          error: {
-            code: 'THREAD_CREATION_ERROR',
-            message: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: new Date()
-          },
-          timestamp: new Date(),
-          source: event.source,
-          correlationId: context?.correlationId
-        })
-      }
-
       throw error
     }
   }
