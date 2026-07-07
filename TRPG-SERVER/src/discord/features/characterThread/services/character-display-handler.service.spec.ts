@@ -6,7 +6,9 @@ import { CharacterDisplayService } from './character-display.service'
 
 /**
  * CharacterDisplayHandlerService は constructor で discord.character.display.requested を購読し、
- * displayType に応じて Discord チャンネルを取得→ embed 更新イベントを発火、成否イベントを emit する。
+ * displayType に応じて Discord チャンネルを取得して表示処理へ進む。
+ * E-3d: dead だった embed 更新リクエスト・成否イベントの emit は撤去済みで、
+ * ハンドラは「聞くだけで何も emit しない」ゴースト（購読の解体は E-5/E-6 スコープ）。
  * typedEventService / discordClientService を mock し、on で登録されたハンドラを捕捉して直接駆動する。
  * channels.fetch + isTextBased を mock 固定し、正常系・非テキストチャンネル異常系・displayType スキップを検証する。
  */
@@ -55,36 +57,28 @@ describe('CharacterDisplayHandlerService', () => {
   })
 
   describe('handleCharacterDisplayRequested', () => {
-    it('basic 表示ではチャンネル取得後 embed 更新と completed イベントを emit する', async () => {
+    it('basic 表示ではチャンネルを取得するが dead イベントは一切 emit しない（E-3d）', async () => {
       // Arrange: テキストベースのチャンネルを返す
       channelsFetch.mockResolvedValue({ id: 'channel-1', isTextBased: () => true })
 
       // Act
       await registeredHandler(buildPayload({ displayType: 'basic' }))
 
-      // Assert: embed 更新リクエストと成功イベント
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.embed.character.update.requested',
-        expect.objectContaining({ channelId: 'channel-1', displayType: 'basic' })
-      )
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.completed',
-        expect.objectContaining({ characterId: 'char-1', success: true })
-      )
+      // Assert: チャンネル取得までは行うが、embed 更新リクエスト・成否イベントは emit しない
+      expect(channelsFetch).toHaveBeenCalledWith('channel-1')
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
 
-    it('displayType が未指定でも basic 経路として処理する', async () => {
+    it('displayType が未指定でも basic 経路として処理する（emit なし）', async () => {
       // Arrange
       channelsFetch.mockResolvedValue({ id: 'channel-1', isTextBased: () => true })
 
       // Act
       await registeredHandler(buildPayload({ displayType: undefined }))
 
-      // Assert
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.completed',
-        expect.objectContaining({ success: true })
-      )
+      // Assert: basic 経路（チャンネル取得）へ進むが emit はしない
+      expect(channelsFetch).toHaveBeenCalledWith('channel-1')
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
 
     it('basic/compact 以外の displayType は何もせずスキップする', async () => {
@@ -96,46 +90,31 @@ describe('CharacterDisplayHandlerService', () => {
       expect(eventService.emit).not.toHaveBeenCalled()
     })
 
-    it('チャンネルが取得できない場合は failed イベントを emit する', async () => {
+    it('チャンネルが取得できない場合もエラーを握りつぶし failed イベントは emit しない（E-3d）', async () => {
       // Arrange
       channelsFetch.mockResolvedValue(null)
 
-      // Act
-      await registeredHandler(buildPayload({ displayType: 'basic' }))
-
-      // Assert
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.failed',
-        expect.objectContaining({ characterId: 'char-1' })
-      )
+      // Act & Assert: 例外は外へ伝播せず、dead な failed イベントも emit しない
+      await expect(registeredHandler(buildPayload({ displayType: 'basic' }))).resolves.toBeUndefined()
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
 
-    it('チャンネルがテキストベースでない場合は failed イベントを emit する', async () => {
+    it('チャンネルがテキストベースでない場合もエラーを握りつぶし emit しない（E-3d）', async () => {
       // Arrange
       channelsFetch.mockResolvedValue({ id: 'channel-1', isTextBased: () => false })
 
-      // Act
-      await registeredHandler(buildPayload({ displayType: 'compact' }))
-
-      // Assert
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.failed',
-        expect.objectContaining({ channelId: 'channel-1' })
-      )
+      // Act & Assert
+      await expect(registeredHandler(buildPayload({ displayType: 'compact' }))).resolves.toBeUndefined()
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
 
-    it('fetch が例外を投げた場合も failed イベントを emit する', async () => {
+    it('fetch が例外を投げた場合もエラーを握りつぶし emit しない（E-3d）', async () => {
       // Arrange
       channelsFetch.mockRejectedValue(new Error('fetch error'))
 
-      // Act
-      await registeredHandler(buildPayload({ displayType: 'basic' }))
-
-      // Assert
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.failed',
-        expect.objectContaining({ error: 'fetch error' })
-      )
+      // Act & Assert
+      await expect(registeredHandler(buildPayload({ displayType: 'basic' }))).resolves.toBeUndefined()
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
   })
 })

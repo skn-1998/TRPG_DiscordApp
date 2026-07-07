@@ -2,7 +2,6 @@ import {
   buildThreadUrl,
   nextBackoffDelay,
   buildCreationCompletedPayload,
-  buildCreationFailedPayload,
   CreationEventInput
 } from './thread-manager.util'
 
@@ -54,23 +53,5 @@ describe('thread-manager.util', () => {
     })
   })
 
-  describe('buildCreationFailedPayload', () => {
-    it('注入した tempThreadId/error/timestamp/source を含む', () => {
-      const ts = new Date('2026-06-02T00:00:00.000Z')
-      const { threadId: _omit, ...input } = baseInput
-      const payload = buildCreationFailedPayload(input, 'temp-12345', 'boom', ts)
-
-      expect(payload).toEqual({
-        threadId: 'temp-12345',
-        characterId: 'char-1',
-        characterName: 'テスト探索者',
-        channelId: 'channel-1',
-        creatorId: 'creator-1',
-        guildId: 'guild-1',
-        error: 'boom',
-        timestamp: ts,
-        source: 'thread-manager-service'
-      })
-    })
-  })
+  // E-3d: buildCreationFailedPayload は dead emit 撤去に伴い削除（テストも撤去）
 })

@@ -26,7 +26,6 @@ import {
 } from 'discord.js'
 import { Character } from '../../../domains/character/models/character.model'
 import { CharacterService } from '../../../domains/character/character.service'
-import { TypedEventService } from '../../../core/events/typed-event.service'
 import { EventPayload } from '../../../events/contracts'
 import { ErrorHandler } from '../../../core/http/error-handler'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
@@ -49,7 +48,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   private readonly logger = new Logger(EnhancedCharacterEditService.name)
 
   constructor(
-    private readonly typedEventService: TypedEventService,
     private readonly characterService: CharacterService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly sectionEditor: CharacterSectionEditorService,
@@ -68,22 +66,15 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * 改善されたキャラクター編集画面を表示（イベント駆動）
+   * 改善されたキャラクター編集画面を表示
+   *
+   * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
    */
   async displayEnhancedCharacterEdit(channelId: string, character: Character): Promise<void> {
     try {
       this.logger.log(`Requesting enhanced character edit display for: ${character.characterId}`)
 
-      // Discord Message送信リクエストイベント発行
-      const { embeds } = await this.embedManager.createSectionedEmbeds(character)
-
-      await this.typedEventService.emit('discord.message.send.requested', {
-        channelId,
-        content: '',
-        embeds,
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
+      await this.embedManager.createSectionedEmbeds(character)
 
       this.logger.log(`Enhanced character edit display requested successfully`)
     } catch (error) {
@@ -95,14 +86,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
         },
         'EnhancedCharacterEditService'
       )
-
-      // フォールバック: エラーメッセージ送信
-      await this.typedEventService.emit('discord.message.send.requested', {
-        channelId,
-        content: `❌ ${character.characterName}の編集画面の表示に失敗しました。`,
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
     }
   }
 
@@ -266,49 +249,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * Discord Embed更新リクエストイベントの処理
-   */
-  async handleDiscordEmbedUpdateRequested(
-    payload: EventPayload<'discord.embed.character.update.requested'>
-  ): Promise<void> {
-    try {
-      const { character, channelId, displayType, source } = payload
-
-      this.logger.log(
-        `Discord embed update requested for character: ${character.characterId}, channel: ${channelId}, displayType: ${displayType}, source: ${source}`
-      )
-
-      // displayTypeが'enhanced'の場合のみ処理
-      if (displayType === 'enhanced') {
-        await this.updateCharacterEditEmbed(character, channelId)
-      } else {
-        this.logger.log(`Skipping enhanced display for displayType: ${displayType}`)
-        return
-      }
-
-      // 成功イベントを発行
-      await this.typedEventService.emit('discord.embed.character.update.completed', {
-        characterId: character.characterId,
-        channelId,
-        success: true,
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
-    } catch (error) {
-      this.logger.error('Failed to handle discord embed update requested event', error)
-
-      // 失敗イベントを発行
-      await this.typedEventService.emit('discord.embed.character.update.failed', {
-        characterId: payload.character.characterId,
-        channelId: payload.channelId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
-    }
-  }
-
-  /**
    * キャラクター表示リクエストイベントの処理
    */
   async handleCharacterDisplayRequested(payload: EventPayload<'discord.character.display.requested'>): Promise<void> {
@@ -336,20 +276,13 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * 新規キャラクター作成画面の表示（イベント駆動）
+   * 新規キャラクター作成画面の表示
+   *
+   * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
    */
   async displayNewCharacterCreation(channelId: string, userId: string): Promise<void> {
     try {
-      const { embeds } = this.embedManager.createNewCharacterEmbed(channelId, userId)
-
-      // イベント駆動でメッセージを送信
-      await this.typedEventService.emit('discord.message.send.requested', {
-        channelId,
-        content: '',
-        embeds,
-        source: 'enhanced-character-edit-creation',
-        timestamp: new Date()
-      })
+      this.embedManager.createNewCharacterEmbed(channelId, userId)
 
       this.logger.log(`New character creation display requested for user: ${userId} in channel: ${channelId}`)
     } catch (error) {
@@ -445,38 +378,5 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       embeds: [],
       components: []
     })
-  }
-
-  /**
-   * 指定されたチャンネルのcharacterEdit embedを更新する（イベント駆動）
-   */
-  private async updateCharacterEditEmbed(character: Character, channelId: string): Promise<void> {
-    try {
-      this.logger.log(`Updating character edit embed for channel: ${channelId}, character: ${character.characterId}`)
-
-      // 新しいcharacterEdit embedを作成
-      const { embeds } = await this.embedManager.createSectionedEmbeds(character)
-
-      // イベント駆動で更新メッセージを送信
-      await this.typedEventService.emit('discord.message.send.requested', {
-        channelId,
-        content: `🔄 ${character.characterName}の情報が更新されました`,
-        embeds,
-        source: 'enhanced-character-edit-update',
-        timestamp: new Date()
-      })
-
-      this.logger.log(`Character edit embed update requested for channel: ${channelId}`)
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          channelId,
-          characterId: character.characterId
-        },
-        'EnhancedCharacterEditService.updateCharacterEditEmbed'
-      )
-      throw error
-    }
   }
 }

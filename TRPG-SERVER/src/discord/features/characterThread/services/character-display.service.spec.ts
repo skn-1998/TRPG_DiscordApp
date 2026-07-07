@@ -113,18 +113,13 @@ describe('CharacterDisplayService', () => {
   })
 
   describe('updateCharacterEmbed', () => {
-    it('Embed を構築し discord.message.embed.update イベントを発行する', async () => {
+    it('Embed を構築するが dead な embed 更新イベントは発行しない（E-3d ゴースト化）', async () => {
       // Arrange
       const character = buildCharacter()
 
-      // Act
-      await service.updateCharacterEmbed(character, 'channel-9', 'basic')
-
-      // Assert
-      expect(eventService.emit).toHaveBeenCalledWith(
-        'discord.message.embed.update',
-        expect.objectContaining({ channelId: 'channel-9', source: 'character-display-direct' })
-      )
+      // Act & Assert: 例外なく完了し、恒常購読者ゼロのイベントは emit しない
+      await expect(service.updateCharacterEmbed(character, 'channel-9', 'basic')).resolves.toBeUndefined()
+      expect(eventService.emit).not.toHaveBeenCalled()
     })
   })
 

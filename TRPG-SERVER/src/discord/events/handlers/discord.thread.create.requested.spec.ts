@@ -4,10 +4,9 @@
 //   - onModuleInit(): setTypedEventService と自己購読（on(getEventName(), ...)）
 //   - getEventName() の戻り値
 //   - handle(): 正常時は handleThreadCreateRequest を1回呼ぶ
-//             例外時は typedEventService 設定済みなら failed イベントを emit してから再スロー
-//             typedEventService 未設定なら emit せず再スローのみ
+//             例外時は再スローのみ（E-3d: dead だった failed イベント emit は撤去済み）
 //   - customValidation(protected): character/channelId/guildId/creatorId 欠落で対応 Error を throw
-// 副作用境界は ThreadOrchestratorService と TypedEventService のみ。
+// 副作用境界は ThreadOrchestratorService と TypedEventService（購読のみ）。
 // 基底由来の this.logger は内部で new Logger されるため追加注入不要。
 
 import { Test } from '@nestjs/testing'
@@ -117,8 +116,8 @@ describe('DiscordThreadCreateRequestedHandler', () => {
       expect(threadOrchestrator.handleThreadCreateRequest).toHaveBeenCalledWith(event)
     })
 
-    it('委譲が例外を投げると failed イベントを emit してから再スローする', async () => {
-      // Arrange: onModuleInit で typedEventService を設定済みにする
+    it('委譲が例外を投げると dead な failed イベントは emit せず再スローする（E-3d）', async () => {
+      // Arrange: onModuleInit で typedEventService を設定済みにしても emit されない
       handler.onModuleInit()
       const failure = new Error('orchestrator boom')
       threadOrchestrator.handleThreadCreateRequest.mockRejectedValue(failure)
@@ -127,26 +126,11 @@ describe('DiscordThreadCreateRequestedHandler', () => {
       // Act & Assert: 同じエラーが再スローされる
       await expect(handler.handle(event, buildContext())).rejects.toBe(failure)
 
-      // Assert: failed イベントの payload を検証（引き継ぎ項目とエラーコード）
-      expect(typedEventService.emit).toHaveBeenCalledTimes(1)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'discord.thread.create.failed',
-        expect.objectContaining({
-          character: event.character,
-          channelId: 'ch-1',
-          guildId: 'guild-1',
-          creatorId: 'user-1',
-          source: 'discord',
-          correlationId: 'corr-1',
-          error: expect.objectContaining({
-            code: 'THREAD_CREATION_ERROR',
-            message: 'orchestrator boom'
-          })
-        })
-      )
+      // Assert: E-3d で恒常購読者ゼロの失敗イベント emit は撤去済み
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('Error 以外が投げられた場合は failed の message が Unknown error になる', async () => {
+    it('Error 以外が投げられた場合も emit せず再スローのみ行う（E-3d）', async () => {
       // Arrange
       handler.onModuleInit()
       threadOrchestrator.handleThreadCreateRequest.mockRejectedValue('string failure')
@@ -154,15 +138,10 @@ describe('DiscordThreadCreateRequestedHandler', () => {
 
       // Act & Assert
       await expect(handler.handle(event, buildContext())).rejects.toBe('string failure')
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'discord.thread.create.failed',
-        expect.objectContaining({
-          error: expect.objectContaining({ message: 'Unknown error' })
-        })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('typedEventService 未設定なら emit せず再スローのみ行う', async () => {
+    it('typedEventService 未設定でも同様に emit せず再スローのみ行う', async () => {
       // Arrange: onModuleInit を呼ばず typedEventService 未設定のままにする
       const failure = new Error('orchestrator boom')
       threadOrchestrator.handleThreadCreateRequest.mockRejectedValue(failure)
