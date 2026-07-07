@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-07 C-3/C-6 完了（dead 第2弾・ephemeral 全数置換）
+
+- **C-3 `9d523a4`**: C-3a=discord.utils.ts（import 元ゼロ再確認）ファイルごと削除／C-3b=PerformanceOrchestrator の
+  recordRateLimit・triggerAlert（外部呼び出し元ゼロの委譲ラッパー）撤去＋連鎖孤児化した DiscordMonitor.recordRateLimit 削除
+  （alertManager.triggerAlert 本体は @OnEvent 内部利用で live 残置）／C-3c=app.module の AdapterModule コメント残存の最終整理。
+  **監視系の広範 dead 配線（metrics-collector @OnEvent 5本 emit 元ゼロ等）は未着手のまま**＝専用 slice 候補（C-3b′）として残る。
+- **C-6 `987203d`**: `ephemeral: true` → `flags: MessageFlags.Ephemeral` 全数置換。**計画の「4〜5箇所」は過少で実測 122 箇所**
+  （非 spec 77＋spec 45・42 ファイル）。enum widening 2 箇所は as const・テスト基盤モック（jest-setup / discord-module.mock /
+  command-manager ローカル）に MessageFlags を実値一致で補完。未消費の ephemeral 宣言 3 箇所（error-handler.ts:22 /
+  send-message.dto.ts:61 / message-manager.service.ts:41）はデッド型として記録＝将来の掃除候補。
+
+検証: 各 slice で build 0 / No circular / 全 **179 suites 2429 tests 緑**（C-3 は −1 suite/−11 tests の削除分整合・C-6 は件数不変。
+C-6 の全 suite 1 fail は再実行2連続緑＝C-10 既知フレーク）。
+
+---
+
 ## 2026-07-07 E-4 全完了（契約一本化・厳密型化・バス1インスタンス化）＝ E 系列コア完遂
 
 E-3f（取りこぼし2件・`bb011c1`）に続き E-4 を 3 slice で完遂。Codex スコープレビュー2回（E-4a / E-4b+c）。
