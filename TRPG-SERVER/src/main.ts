@@ -5,7 +5,7 @@ import { AppModule } from './app.module'
 import cookieParser from 'cookie-parser'
 import { AppConfigService } from './config/config.service'
 import { Logger } from '@nestjs/common'
-import { DiscordService } from './discord/discord.service'
+import { DiscordFacadeService } from './discord/discord-facade.service'
 import { getErrorMessage } from './shared/utils/error-helpers'
 
 async function bootstrap() {
@@ -55,9 +55,9 @@ async function bootstrap() {
 
     // Webサーバーが起動した後で、Discord初期化を別のプロセスとして実行
     try {
-      const discordService = app.get(DiscordService)
+      const discordFacade = app.get(DiscordFacadeService)
       // 非同期で実行してもメインスレッドをブロックしないようにする
-      discordService.initializeDiscord().catch((err) => {
+      discordFacade.initializeDiscord().catch((err) => {
         Logger.error(`Discordの初期化中にエラーが発生しました: ${err.message}`)
       })
     } catch (discordError: unknown) {

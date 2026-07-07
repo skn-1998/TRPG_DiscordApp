@@ -7,7 +7,7 @@ import { ErrorHandler } from '../../core/http/error-handler'
 
 /**
  * Discord Guild（サーバー）管理サービス
- * DiscordServiceから分離してGuild関連操作を最適化
+ * 旧 Discord 統合サービス（C-7 で解体済み）から分離してGuild関連操作を最適化
  */
 @Injectable()
 export class DiscordGuildManagerService {

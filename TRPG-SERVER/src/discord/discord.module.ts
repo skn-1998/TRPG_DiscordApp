@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { ScheduleModule } from '@nestjs/schedule'
-import { DiscordService } from './discord.service'
 import { DiscordFacadeService } from './discord-facade.service'
 import { InteractionsModule } from './interactions/interactions.module'
 import { CommandsModule } from './commands/commands.module'
@@ -52,7 +51,6 @@ import { DiscordEventHandlersModule } from './events/discord-event-handlers.modu
     DiscordMonitorService,
 
     // 後方互換性のために保持
-    DiscordService,
     CommandManagerService,
     DiscordCommandRegistrationService
     // Note: DiscordClientService, DiscordUIService は
@@ -78,7 +76,6 @@ import { DiscordEventHandlersModule } from './events/discord-event-handlers.modu
     DiscordMonitorService,
 
     // 後方互換性のために保持
-    DiscordService,
     CommandManagerService,
     DiscordIntegrationModule // 他のモジュールがDiscord基盤サービスを使用できるように
   ]

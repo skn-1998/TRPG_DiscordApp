@@ -13,7 +13,7 @@ import {
   Logger
 } from '@nestjs/common'
 import { Request } from 'express'
-import { DiscordService } from './discord.service'
+import { DiscordFacadeService } from './discord-facade.service'
 import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
 import { CharacterService } from '../domains/character/character.service'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
@@ -48,7 +48,7 @@ export class DiscordController {
   private readonly logger = new Logger(DiscordController.name)
 
   constructor(
-    private readonly discordService: DiscordService,
+    private readonly discordFacade: DiscordFacadeService,
     private readonly characterService: CharacterService
   ) {}
 
@@ -77,13 +77,17 @@ export class DiscordController {
       }
 
       // ユーザーのチャンネルアクセス権限を確認
-      const hasAccess = await this.discordService.verifyChannelAccess(sendMessageDto.channelId, req.user.discordUserId)
+      const hasAccess = await this.discordFacade.verifyChannelAccess(sendMessageDto.channelId, req.user.discordUserId)
 
       if (!hasAccess) {
         throw new HttpException('このチャンネルへのアクセス権限がありません', HttpStatus.FORBIDDEN)
       }
 
-      const result = await this.discordService.sendMessage(sendMessageDto)
+      // 旧 deprecated ラッパーの sendMessage 相当: DTO を facade 引数へ展開（挙動不変）
+      const result = await this.discordFacade.sendMessage(sendMessageDto.channelId, sendMessageDto.content || '', {
+        embeds: sendMessageDto.embeds,
+        components: sendMessageDto.components
+      })
 
       this.logger.log(`メッセージ送信完了: success=${result.success}, messageId=${result.messageId}`)
       return result
@@ -118,16 +122,19 @@ export class DiscordController {
       this.logger.log(`チャンネル作成要求: guildId=${createChannelDto.guildId}, name=${createChannelDto.name}`)
 
       // ユーザーのギルド管理権限を確認
-      const hasPermission = await this.discordService.verifyGuildManagePermission(
-        createChannelDto.guildId,
-        req.user.discordUserId
-      )
+      const hasPermission = await this.verifyGuildManagePermission(createChannelDto.guildId, req.user.discordUserId)
 
       if (!hasPermission) {
         throw new HttpException('このギルドでのチャンネル作成権限がありません', HttpStatus.FORBIDDEN)
       }
 
-      const result = await this.discordService.createChannel(createChannelDto)
+      // 旧 deprecated ラッパーの createChannel 相当: DTO を facade 引数へ展開（parentId → parent、挙動不変）
+      const result = await this.discordFacade.createChannel(createChannelDto.guildId, createChannelDto.name, {
+        type: createChannelDto.type,
+        parent: createChannelDto.parentId,
+        topic: createChannelDto.topic,
+        permissions: createChannelDto.permissions
+      })
 
       this.logger.log(`チャンネル作成完了: success=${result.success}, channelId=${result.channelId}`)
       return result
@@ -158,7 +165,16 @@ export class DiscordController {
     try {
       this.logger.log('Bot状態取得要求')
 
-      const status = await this.discordService.getBotStatus()
+      // 旧 deprecated ラッパーの getBotStatus 相当: health/client 情報を集約（挙動不変）
+      const health = this.discordFacade.getHealthStatus()
+      const client = this.discordFacade.getClient()
+      const status = {
+        online: health.services.client,
+        guilds: client.guilds.cache.size,
+        users: client.users.cache.size,
+        ping: client.ws.ping,
+        uptime: client.uptime || 0
+      }
 
       this.logger.log(`Bot状態取得完了: online=${status.online}`)
       return status
@@ -197,13 +213,13 @@ export class DiscordController {
       }
 
       // ユーザーのギルドアクセス権限を確認
-      const hasAccess = await this.discordService.verifyGuildAccess(guildId, req.user.discordUserId)
+      const hasAccess = await this.discordFacade.verifyGuildAccess(guildId, req.user.discordUserId)
 
       if (!hasAccess) {
         throw new HttpException('このギルドへのアクセス権限がありません', HttpStatus.FORBIDDEN)
       }
 
-      const guildInfo = await this.discordService.getGuildInfo(guildId)
+      const guildInfo = await this.discordFacade.getGuildInfo(guildId)
 
       this.logger.log(`ギルド情報取得完了: name=${guildInfo.name}`)
       return guildInfo
@@ -250,13 +266,18 @@ export class DiscordController {
       }
 
       // ユーザーのチャンネルアクセス権限を確認
-      const hasAccess = await this.discordService.verifyChannelAccess(channelId, req.user.discordUserId)
+      const hasAccess = await this.discordFacade.verifyChannelAccess(channelId, req.user.discordUserId)
 
       if (!hasAccess) {
         throw new HttpException('このチャンネルへのアクセス権限がありません', HttpStatus.FORBIDDEN)
       }
 
-      const channelInfo = await this.discordService.getChannelInfo(channelId)
+      const channelInfo = await this.discordFacade.getChannelInfo(channelId)
+
+      // 旧 deprecated ラッパーの getChannelInfo 相当: null は Error として catch で 500 へ変換（挙動不変）
+      if (!channelInfo) {
+        throw new Error(`Channel not found: ${channelId}`)
+      }
 
       this.logger.log(`チャンネル情報取得完了: name=${channelInfo.name}`)
       return channelInfo
@@ -303,13 +324,13 @@ export class DiscordController {
       }
 
       // ユーザーのギルドアクセス権限を確認
-      const hasAccess = await this.discordService.verifyGuildAccess(postCharacterDto.guildId, req.user.discordUserId)
+      const hasAccess = await this.discordFacade.verifyGuildAccess(postCharacterDto.guildId, req.user.discordUserId)
       if (!hasAccess) {
         throw new HttpException('このギルドへのアクセス権限がありません', HttpStatus.FORBIDDEN)
       }
 
       // ギルド情報を取得
-      const guildInfo = await this.discordService.getGuildInfo(postCharacterDto.guildId)
+      const guildInfo = await this.discordFacade.getGuildInfo(postCharacterDto.guildId)
 
       // キャラクター投稿用のカテゴリを探す
       const characterCategories = guildInfo.channels.filter(
@@ -330,11 +351,9 @@ export class DiscordController {
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^\w-]/g, '')
-      const createChannelResult = await this.discordService.createChannel({
-        guildId: postCharacterDto.guildId,
-        name: channelName,
+      const createChannelResult = await this.discordFacade.createChannel(postCharacterDto.guildId, channelName, {
         type: CreateChannelType.TEXT,
-        parentId: targetCategory.id,
+        parent: targetCategory.id,
         topic: `${character.characterName}のキャラクター情報`
       })
 
@@ -368,6 +387,19 @@ export class DiscordController {
       }
 
       throw new HttpException('キャラクター投稿中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
+    }
+  }
+
+  /**
+   * ギルド管理権限を確認する
+   * 旧 deprecated ラッパーの verifyGuildManagePermission 相当（検証中のエラーは権限なし扱い＝挙動不変）
+   */
+  private async verifyGuildManagePermission(guildId: string, discordUserId: string): Promise<boolean> {
+    try {
+      return await this.discordFacade.verifyGuildAccess(guildId, discordUserId)
+    } catch (error) {
+      this.logger.error('Error verifying guild permission:', error)
+      return false
     }
   }
 }
