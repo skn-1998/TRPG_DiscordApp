@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter'
 
 /**
  * メトリクス収集サービス
@@ -79,7 +78,7 @@ export class MetricsCollectorService implements OnModuleInit {
     dailyStats: new Map<string, any>()
   }
 
-  constructor(private readonly eventEmitter: EventEmitter2) {
+  constructor() {
     this.logger.debug('Metrics Collector Service initialized')
   }
 
@@ -87,71 +86,10 @@ export class MetricsCollectorService implements OnModuleInit {
     this.logger.log('Metrics collection started')
   }
 
-  /**
-   * Discord コマンド実行監視
-   */
-  @OnEvent('discord.command.start')
-  onDiscordCommandStart(data: { commandName: string; userId: string; guildId?: string }) {
-    this.systemMetrics.discord.commandsExecuted++
-    this.logger.debug(`Command started: ${data.commandName} by ${data.userId}`)
-  }
-
-  @OnEvent('discord.command.complete')
-  onDiscordCommandComplete(data: { commandName: string; success: boolean; duration: number; error?: string }) {
-    this.systemMetrics.discord.totalResponseTime += data.duration
-
-    if (!data.success) {
-      this.systemMetrics.discord.errors++
-      this.logger.warn(`Command failed: ${data.commandName} - ${data.error}`)
-    }
-  }
-
-  /**
-   * Discord イベント処理監視
-   */
-  @OnEvent('discord.event.processed')
-  onDiscordEventProcessed(data: { eventType: string; success: boolean; duration: number }) {
-    this.systemMetrics.discord.eventsProcessed++
-
-    if (!data.success) {
-      this.systemMetrics.discord.errors++
-    }
-
-    this.systemMetrics.discord.totalResponseTime += data.duration
-  }
-
-  /**
-   * HTTP リクエスト監視
-   */
-  @OnEvent('http.request.complete')
-  onHttpRequestComplete(data: { method: string; url: string; statusCode: number; duration: number; success: boolean }) {
-    this.systemMetrics.http.requests++
-    this.systemMetrics.http.totalResponseTime += data.duration
-
-    if (!data.success || data.statusCode >= 400) {
-      this.systemMetrics.http.errors++
-    }
-  }
-
-  /**
-   * データベース操作監視
-   */
-  @OnEvent('database.query.complete')
-  onDatabaseQueryComplete(data: {
-    operation: string
-    collection?: string
-    duration: number
-    success: boolean
-    error?: string
-  }) {
-    this.systemMetrics.database.queries++
-    this.systemMetrics.database.totalResponseTime += data.duration
-
-    if (!data.success) {
-      this.systemMetrics.database.errors++
-      this.logger.warn(`Database operation failed: ${data.operation} - ${data.error}`)
-    }
-  }
+  // C-3b′（2026-07-07）: @OnEvent 購読 5 本（discord.command.start / discord.command.complete /
+  // discord.event.processed / http.request.complete / database.query.complete）は emit 元ゼロの
+  // dead 配線のため撤去。systemMetrics の discord/http/database セクションは getSystemMetrics の
+  // 出力形状維持のため残す（実行時は従来から常にゼロ＝挙動不変）。EventEmitter2 注入も未使用化により削除。
 
   /**
    * 1時間ごとのメトリクス集計

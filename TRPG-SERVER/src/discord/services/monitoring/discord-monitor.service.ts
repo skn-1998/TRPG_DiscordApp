@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { EventEmitter2 } from '@nestjs/event-emitter'
 
 /**
  * Discord API監視サービス
@@ -42,7 +41,9 @@ export class DiscordMonitorService {
   // アラート状態
   private readonly alerts = new Set<string>()
 
-  constructor(private readonly eventEmitter: EventEmitter2) {
+  // C-3b′（2026-07-07）: EventEmitter2 注入は dead emit（discord.memory.status /
+  // discord.performance.alert）の撤去に伴い未使用化したため削除。
+  constructor() {
     this.logger.debug('Discord Monitor Service initialized')
   }
 
@@ -136,7 +137,8 @@ export class DiscordMonitorService {
       this.logger.warn(`High memory usage: ${stats.heapUsed}MB heap used`)
     }
 
-    this.eventEmitter.emit('discord.memory.status', stats)
+    // C-3b′（2026-07-07）: 'discord.memory.status' の emit は購読者ゼロの dead emit につき撤去
+    //（記録・警告ログは live のまま維持。本メソッドは performMaintenance 経由で orchestrator の @Interval から駆動）。
   }
 
   /**
@@ -146,18 +148,13 @@ export class DiscordMonitorService {
     const alertKey = `${key}-performance`
     const errorAlertKey = `${key}-errors`
 
+    // C-3b′（2026-07-07）: 3 分岐の 'discord.performance.alert' emit は購読者ゼロの dead emit につき撤去
+    //（アラート状態の記録・リセットタイマー・エラーログは live のまま維持）。
+
     // 応答時間アラート
     if (duration > this.thresholds.slowApiCall && !this.alerts.has(alertKey)) {
       this.alerts.add(alertKey)
       this.logger.error(`Performance alert: ${key} average response time is ${metric.avgResponseTime}ms`)
-
-      this.eventEmitter.emit('discord.performance.alert', {
-        type: 'slow-response',
-        endpoint: key,
-        avgResponseTime: metric.avgResponseTime,
-        threshold: this.thresholds.slowApiCall,
-        timestamp: Date.now()
-      })
 
       // 1分後にアラートリセット
       setTimeout(() => this.alerts.delete(alertKey), 60000)
@@ -168,26 +165,12 @@ export class DiscordMonitorService {
       this.alerts.add(errorAlertKey)
       this.logger.error(`Error rate alert: ${key} error rate is ${(metric.errorRate * 100).toFixed(2)}%`)
 
-      this.eventEmitter.emit('discord.performance.alert', {
-        type: 'high-error-rate',
-        endpoint: key,
-        errorRate: metric.errorRate,
-        threshold: this.thresholds.highErrorRate,
-        timestamp: Date.now()
-      })
-
       setTimeout(() => this.alerts.delete(errorAlertKey), 300000) // 5分後リセット
     }
 
     // 429 (Rate Limited) 特別処理
     if (statusCode === 429) {
       this.logger.error(`Rate limit hit: ${key}`)
-
-      this.eventEmitter.emit('discord.performance.alert', {
-        type: 'rate-limited',
-        endpoint: key,
-        timestamp: Date.now()
-      })
     }
   }
 

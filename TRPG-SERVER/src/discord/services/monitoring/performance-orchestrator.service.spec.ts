@@ -288,15 +288,14 @@ describe('PerformanceOrchestratorService', () => {
   })
 
   describe('onModuleInit', () => {
-    it('初期ヘルスを評価し monitoring.system.started イベントを発行する', async () => {
+    // C-3b′（2026-07-07）: 'monitoring.system.started' は購読者ゼロの dead emit のため撤去。
+    it('初期ヘルスを評価し、監視開始イベントは emit しない', async () => {
       // Act
       await service.onModuleInit()
 
-      // Assert
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'monitoring.system.started',
-        expect.objectContaining({ health: expect.objectContaining({ status: 'healthy' }) })
-      )
+      // Assert: 初期ヘルスチェックは実行され、dead emit は発行されない
+      expect(discordMonitor.getHealthStatus).toHaveBeenCalled()
+      expect(eventEmitter.emit).not.toHaveBeenCalled()
     })
   })
 })

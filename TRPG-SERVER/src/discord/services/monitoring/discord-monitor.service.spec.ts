@@ -1,18 +1,19 @@
-import { EventEmitter2 } from '@nestjs/event-emitter'
+import { Logger } from '@nestjs/common'
 import { DiscordMonitorService } from './discord-monitor.service'
 
 /**
  * DiscordMonitorService は discord.js 非依存。API 呼び出しメトリクスの集計・
  * しきい値アラート・ヘルス判定・統計リセットを担う。
+ * C-3b′（2026-07-07）: dead emit（discord.memory.status / discord.performance.alert）と
+ * EventEmitter2 注入の撤去に伴い、emit ベースの検証はアラート状態（getStats().alerts）と
+ * ログ出力ベースへ置き換えた。
  *
- * 依存(EventEmitter2)は副作用の境界としてモックする。
  * 経過時間・lastCall は Date.now()/setTimeout 依存のため jest.useFakeTimers() で決定化する。
  * private(endApiCall/checkThresholds 等)は覗かず、公開 API(startApiCall().end・getStats 等)の
  * 振る舞いで検証する。
  */
 describe('DiscordMonitorService', () => {
   let service: DiscordMonitorService
-  let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>
 
   const FIXED_NOW = 1_700_000_000_000
 
@@ -20,8 +21,7 @@ describe('DiscordMonitorService', () => {
     jest.useFakeTimers()
     jest.setSystemTime(FIXED_NOW)
 
-    eventEmitter = { emit: jest.fn() }
-    service = new DiscordMonitorService(eventEmitter as unknown as EventEmitter2)
+    service = new DiscordMonitorService()
   })
 
   afterEach(() => {
@@ -91,65 +91,84 @@ describe('DiscordMonitorService', () => {
   })
 
   describe('checkThresholds (しきい値アラート)', () => {
-    it('応答時間がしきい値(1000ms)を超えると slow-response アラートを emit する', () => {
+    it('応答時間がしきい値(1000ms)を超えると performance アラート状態を記録する', () => {
       // Act: 1500ms かかる呼び出し
       const call = service.startApiCall('/slow', 'GET')
       jest.setSystemTime(FIXED_NOW + 1500)
       call.end(true)
 
       // Assert
-      const alertCalls = eventEmitter.emit.mock.calls.filter((c) => c[0] === 'discord.performance.alert')
-      expect(alertCalls.some((c) => (c[1] as { type: string }).type === 'slow-response')).toBe(true)
+      expect(service.getStats().alerts).toContain('GET:/slow-performance')
     })
 
     it('同一エンドポイントの応答時間アラートはクールダウン中は重複発火しない', () => {
-      // Arrange: 1回目で slow-response アラート
+      // Arrange: 1回目で slow-response アラート（エラーログ）
+      const errorSpy = jest.spyOn(Logger.prototype, 'error')
       const first = service.startApiCall('/slow', 'GET')
       jest.setSystemTime(FIXED_NOW + 1500)
       first.end(true)
-      const firstCount = eventEmitter.emit.mock.calls.filter(
-        (c) => c[0] === 'discord.performance.alert' && (c[1] as { type: string }).type === 'slow-response'
-      ).length
+      const firstCount = errorSpy.mock.calls.filter((c) => String(c[0]).startsWith('Performance alert:')).length
 
       // Act: 2回目も遅いがクールダウン未経過
       const second = service.startApiCall('/slow', 'GET')
       jest.setSystemTime(FIXED_NOW + 1500 + 1500)
       second.end(true)
 
-      // Assert: slow-response アラートは増えていない
-      const afterCount = eventEmitter.emit.mock.calls.filter(
-        (c) => c[0] === 'discord.performance.alert' && (c[1] as { type: string }).type === 'slow-response'
-      ).length
+      // Assert: slow-response アラート（エラーログ）は増えず、アラート状態も1件のまま
+      const afterCount = errorSpy.mock.calls.filter((c) => String(c[0]).startsWith('Performance alert:')).length
       expect(afterCount).toBe(firstCount)
+      expect(service.getStats().alerts).toEqual(['GET:/slow-performance'])
     })
 
-    it('statusCode 429 の場合は rate-limited アラートを emit する', () => {
+    it('statusCode 429 の場合は rate limit ログを出力する', () => {
+      // Arrange
+      const errorSpy = jest.spyOn(Logger.prototype, 'error')
+
       // Act
       const call = service.startApiCall('/limited', 'GET')
       call.end(false, 429)
 
       // Assert
-      const alertCalls = eventEmitter.emit.mock.calls.filter((c) => c[0] === 'discord.performance.alert')
-      expect(alertCalls.some((c) => (c[1] as { type: string }).type === 'rate-limited')).toBe(true)
+      expect(errorSpy).toHaveBeenCalledWith('Rate limit hit: GET:/limited')
     })
 
-    it('しきい値内の高速・成功呼び出しではアラートを emit しない', () => {
+    it('しきい値内の高速・成功呼び出しではアラート状態を記録しない', () => {
       // Act
       const call = service.startApiCall('/fast', 'GET')
       jest.setSystemTime(FIXED_NOW + 50)
       call.end(true)
 
       // Assert
-      const alertCalls = eventEmitter.emit.mock.calls.filter((c) => c[0] === 'discord.performance.alert')
-      expect(alertCalls).toHaveLength(0)
+      expect(service.getStats().alerts).toEqual([])
     })
   })
 
   // C-3b: recordRateLimit は孤児化により実装ごと撤去（describe も削除）
 
   describe('recordMemoryUsage', () => {
-    it('process.memoryUsage を MB へ丸めて discord.memory.status を emit する', () => {
+    // C-3b′（2026-07-07）: 'discord.memory.status' の emit は dead emit のため撤去。
+    // 残る観測可能な挙動は高メモリ時の警告ログのみ（MB への丸めはログ文言で固定）。
+    it('ヒープ使用量が 500MB を超えると丸めた MB 値で警告ログを出す', () => {
       // Arrange
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn')
+      jest.spyOn(process, 'memoryUsage').mockReturnValue({
+        rss: 700 * 1024 * 1024,
+        heapTotal: 650 * 1024 * 1024,
+        heapUsed: Math.round(600.4 * 1024 * 1024),
+        external: 5 * 1024 * 1024,
+        arrayBuffers: 0
+      } as NodeJS.MemoryUsage)
+
+      // Act
+      service.recordMemoryUsage()
+
+      // Assert
+      expect(warnSpy).toHaveBeenCalledWith('High memory usage: 600MB heap used')
+    })
+
+    it('ヒープ使用量がしきい値以下なら警告ログを出さない', () => {
+      // Arrange
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn')
       jest.spyOn(process, 'memoryUsage').mockReturnValue({
         rss: 100 * 1024 * 1024,
         heapTotal: 80 * 1024 * 1024,
@@ -162,16 +181,7 @@ describe('DiscordMonitorService', () => {
       service.recordMemoryUsage()
 
       // Assert
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'discord.memory.status',
-        expect.objectContaining({
-          rss: 100,
-          heapTotal: 80,
-          heapUsed: 40,
-          external: 5,
-          timestamp: FIXED_NOW
-        })
-      )
+      expect(warnSpy).not.toHaveBeenCalled()
     })
   })
 
@@ -275,7 +285,7 @@ describe('DiscordMonitorService', () => {
       expect(service.getStats().endpoints).toEqual([])
     })
 
-    it('新しいメトリクスは保持し、メモリ使用量記録イベントを emit する', () => {
+    it('新しいメトリクスは保持する', () => {
       // Arrange
       service.startApiCall('/recent', 'GET').end(true)
       jest.spyOn(process, 'memoryUsage').mockReturnValue({
@@ -285,14 +295,12 @@ describe('DiscordMonitorService', () => {
         external: 0,
         arrayBuffers: 0
       } as NodeJS.MemoryUsage)
-      eventEmitter.emit.mockClear()
 
       // Act
       service.performMaintenance()
 
-      // Assert: メトリクスは残り、memory.status が emit される
+      // Assert: メトリクスは残る
       expect(service.getStats().endpoints).toHaveLength(1)
-      expect(eventEmitter.emit).toHaveBeenCalledWith('discord.memory.status', expect.any(Object))
     })
   })
 })
