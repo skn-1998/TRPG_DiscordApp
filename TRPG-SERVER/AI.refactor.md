@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-07-07 E-6 全完了（entity/schema 分離・ドメイン境界是正）＝ **E 系列（E-1〜E-6）完遂**
+
+ユーザー「進めて／並列して進められる部分は並列して」。判断1（REST 3本削除）は承認込みと解釈して実施
+（E-6b は単独コミット＝revert 一手）。**Wave 並列実行**: Wave1=E-6a/E-6b/E-6e（Workflow で3エージェント並列・
+ファイル集合が互いに素）→ Wave2=E-6c（Codex Wave1 レビューと並列）→ Wave3=E-6d。
+
+| Slice | コミット            | 要点                                                                                                                                                                                                                         |
+| ----- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E-6a  | `04e0b5b`           | threadId 撤去＋creation.completed 条件を discordChannelId 基準へ **bugfix**（characterization RED→GREEN・migration 不要）                                                                                                    |
+| E-6b  | `6484123`           | controller §9 準拠化。**discord 系 REST 3 本削除（BREAKING）**・domains 層のイベント発行ゼロ達成・thread.create 発行重複解消                                                                                                 |
+| E-6e  | `a8c347e`           | BCDice 実行コア＋保存キー解決（2分岐＋modal 4段 fallback）を domains/dice-roll へ。**Web ダイス API の enabler**。import 元は計画の3→実測6箇所                                                                               |
+| E-6c  | `3f83923`           | ゴースト display 連鎖の全解体（handler サービスごと削除・契約 11→10・E-3d 申し送り消化）                                                                                                                                     |
+| E-6d  | `199b5e6` `c1ce714` | **CharacterEntity 公開型導入・@Schema を persistence 専用へ閉じ込め**。repository 境界 plain 化（save→toObject/lean 付与）・旧 zod dead 連鎖 2 ファイル削除（-576行）・discord 層 30 ファイル型置換・本番キャスト5箇所全解消 |
+
+- **grep 達成証明**: @Schema Character の import は domains/character 内部＋spec 以外でゼロ／本番の as Character・
+  Character 絡み as any ゼロ／src/domains 非 spec の TypedEventService/EVENT_NAMES 参照ゼロ（§9）。
+- **Codex レビュー 3 回**（Wave1・c/d、事前の計画設計レビュー含め正確性指摘は全反映）。既知ニュアンス（Low）:
+  lean 経路は旧データの schema default 欠損を補完しない → entity docstring に記録（`c1ce714`・実害限定的）。
+- 検証: 各 Wave で build 0 / No circular / **全 180 suites 2429 tests 緑**（増減は全 slice の削除/追加分と完全整合）/
+  start:dev 23 handler・Discord 初期化成功。セッション再起動を挟んだが全ゲート再実行で無傷を確認。
+
+### 残作業マップ（E 系列完遂後）
+
+- **C 系列残り**: C-4（sendToParentChannel 5重複の共通化）/ C-5（console→Logger）/ C-7 縮小版（DiscordService ラッパー解体）/
+  C-9（tsconfig 第2段階・E/C の掃除完了でベストタイミング）/ C-10（フレーク・E-5 で一因解消済み）/ C-3b′（監視系 dead 配線）
+- **機能開発（roadmap 側）**: REST ダイス API（POST /dice/roll・GET /dice/results）— E-6e で enabler 完了
+- **ユーザー任意**: C-8 手動 smoke（Discord OAuth・実機ダイス）
+
+---
+
 ## 2026-07-07 E-6 計画診断＋計画書策定（診断のみ・コード変更なし・ユーザー承認待ち）
 
 ユーザー依頼「E-6 の計画書を練って」。Explore 3系統（Character 露出マップ／threadId 重複＋controller 境界／
