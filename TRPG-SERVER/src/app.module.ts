@@ -15,7 +15,6 @@ import { EventsModule } from './events/events.module'
 import { winstonConfigFactory } from './config/winston.config'
 import { AppConfigService } from './config/config.service'
 // AI.architecture.md Phase 3: アダプター層統合
-// import { AdapterModule } from './adapters/adapter.module' // 一時的にコメントアウト
 
 // プロトタイプモジュールは削除されました
 
@@ -32,7 +31,6 @@ import { AppConfigService } from './config/config.service'
     AppConfigModule,
     DatabaseModule,
     // AI.architecture.md Phase 3: アダプター層を早期に初期化
-    // AdapterModule, // 一時的にコメントアウト
     EventsModule, // Events層を先に初期化
     CharacterModule,
     UserModule,
