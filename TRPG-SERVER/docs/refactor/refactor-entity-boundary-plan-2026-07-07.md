@@ -1,7 +1,7 @@
 # Entity/Schema 分離・ドメイン境界是正 計画書（E-6 系列）
 
 **作成日:** 2026-07-07
-**ステータス:** 計画のみ（コード変更なし）・**ユーザー承認待ち**（下記「ユーザー判断が必要な3点」）。Codex 設計レビュー済み（High 2/Medium 2/Low 2 をすべて本文へ反映済み。優先度所見: E-6a→b→c→d を C 系列残りより先・E-6e は C-4/C-5 と同格・いずれも C-9 より先）
+**ステータス:** **E-6 全完了（2026-07-07）** — E-6a `04e0b5b`（threadId 撤去＋creation.completed 条件を discordChannelId 基準へ bugfix）／E-6b `6484123`（controller §9 準拠化・discord 系 REST 3 本削除=BREAKING）／E-6c `3f83923`（ゴースト display 連鎖解体・契約 11→10）／E-6d `199b5e6`（CharacterEntity 導入・@Schema 閉じ込め・repository plain 化・旧 zod dead 連鎖 -576 行）＋`c1ce714`（レビュー Info/Low の契約 docstring 反映）／E-6e `a8c347e`（BCDice 実行コア＋保存キー解決を domains へ＝Web ダイス API の enabler）。**E-6f は既定どおり「やらない」**。Wave 並列実行（a/b/e → c → d）・Codex レビュー 3 回（計画設計＋Wave1＋c/d）で正確性指摘は全て反映済み。残る既知ニュアンス: lean 経路は旧データの default 欠損を補完しない（entity docstring に記録・実害限定的）
 **位置づけ:** `refactor-event-design-plan-2026-07-06.md` の E-6（中期・別計画書化）を本書として具体化
 **診断の記録:** `AI.refactor.md`『2026-07-07 E-6 計画診断』節（Explore 3系統＋司令塔裏取り）
 **上位方針:** `src/ARCHITECTURE.md` §9（Domains 方針）/ §12（置き場所決定表）/ §4（依存方向）
