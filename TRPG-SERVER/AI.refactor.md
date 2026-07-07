@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-07-07 C 系列 全 slice 完了 ＝ **両計画書（C-1〜C-10・E-1〜E-6）完遂**
+
+Wave 並列（A: C-4/C-5/C-7/C-3b′ を Workflow 4並列 → B: C-9 単独 → C: C-10）で C 系列を完遂。
+Codex Wave A レビュー**全5観点指摘なし**（挙動差・シグネチャ不整合・live 経路破断なし・C-3b′ への整形混入も実害なし確認）。
+
+| Slice | コミット            | 要点                                                                                                                                                             |
+| ----- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-4   | `387eef6`           | 5 handler の sendToParentChannel（挙動差ゼロを diff 表で確定）を parent-channel.util へ集約。既存 spec 無変更で緑＝挙動保存                                      |
+| C-5   | `3374178`           | console.\* 22 箇所 → Nest Logger（許容例外の config 2 ファイルのみ残置）                                                                                         |
+| C-7   | `0460900`           | **BREAKING**: DiscordService 委譲ラッパー削除 → facade 直依存（注入元は実測 3 サイト・計画の 4 は stale）                                                        |
+| C-3b′ | （amend 済み hash） | 監視系 dead 購読 6・dead emit 6・未使用注入 3 を撤去。live の system.health.status ペアは無傷                                                                    |
+| C-9   | `28fc18d`           | tsconfig 第2段階 3 フラグ有効化（機械修正 48 件）。build.json の「効かない上書き」の罠も解消。exactOptionalPropertyTypes は評価のみ（src 49 件・見送り理由記録） |
+| C-10  | 変更ゼロ            | **全数採取で open handle 0 件**＝リークは E-5 の 5 分 setTimeout が唯一の源だったと確定（180 suites×3 連続クリーン）                                             |
+
+### ★C-10 の重要発見: suite 未実行型フレークの正体（AI.test.md の旧教訓を訂正）
+
+「N suites failed / failed tests 0」フレークは worker teardown リークとは**無関係**。決定的に再現できた同型事象は
+**並行セッションが作成中の `src/domains/character-sheet-template/` の spec** によるもの:
+① controller.spec:95 の TS2345（`deleted: true` リテラル型 vs boolean widening → `true as const` で解消を実証済み・原状復帰済み）
+② JwtAuthGuard の `JwtTokenService` が TestingModule 未提供 → 7 tests DI エラー（2026-06-07 教訓と同型）。
+**→ 並行セッション側での修正が必要（本セッションは未接触）**。以後の全 suite 検証は同 spec の修正まで
+`--testPathIgnorePatterns="character-sheet-template"` でベースライン（180 suites / 2401 tests）を固定する。
+
+### 残作業（計画書ベースでは完遂・以下は任意/別枠）
+
+- C-8 手動 smoke（Discord OAuth・実機ダイス）— ユーザー任意
+- REST ダイス API 新設（roadmap 側・E-6e で enabler 済み）
+- C-9 で記録した dead 掃除候補 1 件（channel-create-orchestrator の未登録リスナーメソッド＋spec）と
+  exactOptionalPropertyTypes の再評価（イベント契約の userId optional 整理と同時が効率的）
+- test/ ヘルパーの既存 strict 型負債 24 件（C-9 スコープ外として記録）
+
+---
+
 ## 2026-07-07 C-9 tsconfig 第2段階フラグの段階有効化（機械的修正のみ・コミットは司令塔側）
 
 計画書 `docs/refactor/refactor-legacy-cleanup-plan-2026-07-06.md` C-9 節。継承関係:
