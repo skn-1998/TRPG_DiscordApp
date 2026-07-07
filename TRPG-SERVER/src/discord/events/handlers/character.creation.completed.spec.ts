@@ -18,10 +18,12 @@ const { CharacterUIService } = require('../../features/characterEdit/services/ch
  *
  * このハンドラは「生フロー」の橋渡し役。handle(event) を呼ぶと
  *  - discord.notification.requested / discord.embed.update.requested を TypedEventService へ emit（T2b 移設済み）
- *  - discord.thread.create.requested / discord.character.display.requested を TypedEventService へ emit
+ *  - discord.thread.create.requested を TypedEventService へ emit
  *  - Discord UI（EmbedManager / DiscordClient）を呼ぶ
  *
  * T2c でレガシーバスへの dead emit（system.audit.logged / system.error.occurred）を撤去した。
+ * E-6c でキャラクター表示リクエストイベント（旧 display.requested 契約）の emit を撤去した
+ * （購読側は E-3d ゴースト化済み＝観測可能な効果ゼロ・契約ごと削除）。
  * 観測可能な挙動（TypedEventService の生フロー・Discord UI 呼び出し）は不変であり、本テストはそれを引き続き保証する。
  */
 describe('CharacterCreationCompletedHandler', () => {
@@ -138,20 +140,6 @@ describe('CharacterCreationCompletedHandler', () => {
       )
     })
 
-    it('TypedEventService へ discord.character.display.requested を emit する', async () => {
-      await handler.handle(buildEvent())
-
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'discord.character.display.requested',
-        expect.objectContaining({
-          channelId: 'ch-1',
-          requesterId: 'user-1',
-          displayType: 'enhanced',
-          source: 'character-creation-completed-handler'
-        })
-      )
-    })
-
     it('Discord UI（EmbedManager.createSectionedEmbeds）を呼ぶ', async () => {
       await handler.handle(buildEvent())
 
@@ -159,7 +147,7 @@ describe('CharacterCreationCompletedHandler', () => {
       expect(discordClientService.getClient).toHaveBeenCalled()
     })
 
-    it('TypedEventService へ生フロー4件をこの順で emit する', async () => {
+    it('TypedEventService へ生フロー3件をこの順で emit する（E-6c: display.requested 撤去後）', async () => {
       await handler.handle(buildEvent())
 
       const typedEvents = typedEventService.emit.mock.calls.map((c) => c[0])
@@ -167,8 +155,7 @@ describe('CharacterCreationCompletedHandler', () => {
       expect(typedEvents).toEqual([
         'discord.notification.requested',
         'discord.thread.create.requested',
-        'discord.embed.update.requested',
-        'discord.character.display.requested'
+        'discord.embed.update.requested'
       ])
     })
   })
@@ -205,7 +192,7 @@ describe('CharacterCreationCompletedHandler', () => {
   })
 
   describe('handle - discordChannelId が無い場合', () => {
-    it('通知・Embed・thread・display は一切 emit しない', async () => {
+    it('通知・Embed・thread は一切 emit しない', async () => {
       // Arrange: channelId/threadId 無し
       const event = buildEvent({ discordChannelId: undefined, threadId: undefined })
 
