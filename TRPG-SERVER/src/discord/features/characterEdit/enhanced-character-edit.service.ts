@@ -25,6 +25,7 @@ import {
   ActionRowBuilder
 } from 'discord.js'
 import { Character } from '../../../domains/character/models/character.model'
+import { CharacterService } from '../../../domains/character/character.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 import { EventPayload } from '../../../events/contracts'
 import { ErrorHandler } from '../../../core/http/error-handler'
@@ -49,6 +50,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
   constructor(
     private readonly typedEventService: TypedEventService,
+    private readonly characterService: CharacterService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly sectionEditor: CharacterSectionEditorService,
     private readonly modalHandler: CharacterModalHandlerService,
@@ -380,26 +382,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    */
   private async getCharacterByChannelId(channelId: string): Promise<Character | null> {
     try {
-      // waitForEventを先に設定してからemitする
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.findByChannelId.completed', 5000),
-        this.typedEventService.waitForEvent('character.findByChannelId.failed', 5000)
-      ])
-
-      await this.typedEventService.emit('character.findByChannelId.requested', {
-        channelId,
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
-
-      const result = await resultPromise
-
-      if ('character' in result && result.character) {
-        // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
-        return result.character as Character
-      }
-
-      return null
+      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2c: イベント RPC 廃止）
+      return await this.characterService.findByChannelId(channelId)
     } catch (error) {
       this.logger.error(`Failed to get character by channel ID: ${channelId}`, error)
       return null
@@ -411,26 +395,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    */
   private async getCharacterById(characterId: string): Promise<Character | null> {
     try {
-      // waitForEventを先に設定してからemitする
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.findById.completed', 5000),
-        this.typedEventService.waitForEvent('character.findById.failed', 5000)
-      ])
-
-      await this.typedEventService.emit('character.findById.requested', {
-        characterId,
-        source: 'enhanced-character-edit',
-        timestamp: new Date()
-      })
-
-      const result = await resultPromise
-
-      if ('character' in result && result.character) {
-        // Character.EntityをCharacter型にキャスト（型定義統一まで一時的対応）
-        return result.character as Character
-      }
-
-      return null
+      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2c: イベント RPC 廃止）
+      return await this.characterService.findOne(characterId)
     } catch (error) {
       this.logger.error(`Failed to get character by ID: ${characterId}`, error)
       return null
