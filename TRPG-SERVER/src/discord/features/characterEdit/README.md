@@ -28,7 +28,6 @@ characterEdit/
 │   ├── character-notification.service.ts     # 作成通知・URL 送信（自己完結型）
 │   ├── channel-create-orchestrator.service.ts # チャンネル作成フローの統合
 │   ├── character-event-integration.service.ts # キャラクター関連イベントの統合処理
-│   ├── channel-name-sync.service.ts          # チャンネル名 ⇔ キャラクター名の同期
 │   ├── character-embed-manager.service.ts    # 分割 Embed の生成・管理
 │   ├── character-section-editor.service.ts   # セクション編集（SelectMenu / Modal）
 │   ├── character-modal-handler.service.ts    # モーダル送信処理（追加・更新・削除）
@@ -72,7 +71,6 @@ characterEdit/
 - `CharacterNotificationService`
 - `ChannelCreateOrchestratorService`
 - `CharacterEventIntegrationService`
-- `ChannelNameSyncService`
 
 **Enhanced Character Edit Services**
 
