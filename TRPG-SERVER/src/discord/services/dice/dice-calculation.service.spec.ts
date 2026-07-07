@@ -44,7 +44,9 @@ describe('DiceCalculationService', () => {
     it('数値式に乗数・修正値を適用し targetValue と diceコマンドを決定する', async () => {
       // Arrange
       const sentinel = { rands: [[3]] }
-      mockedDice.mockReturnValue(sentinel as never)
+      // mockResolvedValue であること自体が回帰テスト: 実装の await が漏れると
+      // diceResult に Promise が入り toBe(sentinel) が RED になる
+      mockedDice.mockResolvedValue(sentinel as never)
 
       // Act: 10 * 2 + 3 = 23
       const result = await service.calculateAndRoll('10', 2, 3)

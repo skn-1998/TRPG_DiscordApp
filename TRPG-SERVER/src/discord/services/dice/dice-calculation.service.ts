@@ -60,7 +60,7 @@ export class DiceCalculationService {
       description += ` = ${targetValue}`
 
       // ダイスロール実行
-      const diceResult = dice(`${targetValue}b10`)
+      const diceResult = await dice(`${targetValue}b10`)
 
       return {
         success: true,
