@@ -30,41 +30,6 @@ export class ThreadInteractionService {
   }
 
   /**
-   * アクションボタンを投稿
-   */
-  async postActionButtons(thread: ThreadChannel, channelId: string): Promise<void> {
-    try {
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`character_edit_${channelId}`)
-          .setLabel('キャラクター編集')
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('✏️'),
-        new ButtonBuilder()
-          .setCustomId(`dice_roll_${channelId}`)
-          .setLabel('ダイスロール')
-          .setStyle(ButtonStyle.Success)
-          .setEmoji('🎲'),
-        new ButtonBuilder()
-          .setCustomId(`character_info_${channelId}`)
-          .setLabel('詳細情報')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📊')
-      )
-
-      await thread.send({
-        content: '**🎮 アクション**',
-        components: [row]
-      })
-
-      this.logger.debug(`Action buttons posted to thread: ${thread.id}`)
-    } catch (error) {
-      this.logger.error(`Failed to post action buttons: ${thread.id}`, error)
-      throw error
-    }
-  }
-
-  /**
    * 基本ダイスボタンを投稿（1d100 / 1d6 / 2d6 の3ボタン1行）
    *
    * routed な `dice_generic_` 契約のみを用いる（custom ボタンは flexible メニューがカバーするため付けない）。

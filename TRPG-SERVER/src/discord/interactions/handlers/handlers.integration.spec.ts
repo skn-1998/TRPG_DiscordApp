@@ -494,19 +494,6 @@ describe('Interaction Handlers Integration', () => {
         expect(registry.hasHandler('dice_pathfinder_attack_1234567890', 'button')).toBe(false)
       })
     })
-
-    describe('characterThread が生成するが registry 未登録の customId（既知の latent gap・現状を固定）', () => {
-      // thread-interaction.service が生成する一部の customId は、対応する handler pattern が無く未routing。
-      // 挙動保存方針（Codex レビュー済）: ここでは現状（handler 無し＝クリック時「現在処理できません」reply）を
-      // 事実として固定し、routing 修正は仕様決定後の別タスクとする（AI.refactor.md / CLAUDE_HANDOFF.md の P1-D slice2 節参照）。
-      // handler は全てハイフン系 prefix だが、これら生成はアンダースコア系 prefix のため startsWith 不一致。
-      // 注: skill_ は P1-D slice2 で、dice_coc7_/dnd5e_/sw25_ は P1-D 後続で配線済み（routed・上の Character Thread系を参照）。
-      it('character_edit_ / dice_roll_ / character_info_ は dead path（postActionButtons がコメントアウト）かつ未routing', () => {
-        expect(registry.hasHandler('character_edit_1234567890', 'button')).toBe(false)
-        expect(registry.hasHandler('dice_roll_1234567890', 'button')).toBe(false)
-        expect(registry.hasHandler('character_info_1234567890', 'button')).toBe(false)
-      })
-    })
   })
 
   describe('未登録のcustomId', () => {
