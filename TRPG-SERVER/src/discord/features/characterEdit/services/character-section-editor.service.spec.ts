@@ -15,6 +15,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterSectionEditorService } from './character-section-editor.service'
+import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -24,6 +25,7 @@ type AnyInteraction = Record<string, unknown>
 
 describe('CharacterSectionEditorService', () => {
   let service: CharacterSectionEditorService
+  let characterService: { findOne: jest.Mock }
   let typedEventService: { emit: jest.Mock; waitForEvent: jest.Mock }
   let embedManager: {
     createFieldSelectMenu: jest.Mock
@@ -41,26 +43,13 @@ describe('CharacterSectionEditorService', () => {
     ...overrides
   })
 
-  /** getCharacter の emit→waitForEvent(race) を成功させるモック設定 */
+  /** getCharacter（CharacterService.findOne の DI 直呼び・E-2b）を成功させるモック設定 */
   const mockCharacterFound = (character: unknown) => {
-    typedEventService.waitForEvent.mockImplementation((eventName: string) => {
-      if (eventName === 'character.findById.completed') {
-        return Promise.resolve({ character })
-      }
-      // failed 側は永久に解決しない（race で completed が勝つ）
-      return new Promise(() => {})
-    })
-    typedEventService.emit.mockResolvedValue(undefined)
+    characterService.findOne.mockResolvedValue(character)
   }
 
   const mockCharacterNotFound = () => {
-    typedEventService.waitForEvent.mockImplementation((eventName: string) => {
-      if (eventName === 'character.findById.completed') {
-        return Promise.resolve({}) // character 無し -> null
-      }
-      return new Promise(() => {})
-    })
-    typedEventService.emit.mockResolvedValue(undefined)
+    characterService.findOne.mockResolvedValue(null)
   }
 
   /**
@@ -87,6 +76,8 @@ describe('CharacterSectionEditorService', () => {
   }
 
   beforeEach(async () => {
+    characterService = { findOne: jest.fn() }
+    // 注入されない前提だが、旧イベント RPC（emit + waitForEvent）へ戻った場合に検知できるよう残置（E-2b 回帰ガード）
     typedEventService = { emit: jest.fn(), waitForEvent: jest.fn() }
     embedManager = {
       createFieldSelectMenu: jest.fn(),
@@ -97,6 +88,7 @@ describe('CharacterSectionEditorService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterSectionEditorService,
+        { provide: CharacterService, useValue: characterService },
         { provide: TypedEventService, useValue: typedEventService },
         { provide: CharacterEmbedManagerService, useValue: embedManager },
         { provide: ModalSessionManagerService, useValue: modalSessionManager }
@@ -128,6 +120,9 @@ describe('CharacterSectionEditorService', () => {
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled()
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
+      // 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2b の回帰ガード）
+      expect(typedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
     })
 
     it('フィールド追加 (character-field-add) は deferUpdate せず showModal する', async () => {
@@ -163,6 +158,16 @@ describe('CharacterSectionEditorService', () => {
       expect(interaction.editReply).toHaveBeenCalledTimes(1)
       expect(interaction.showModal).not.toHaveBeenCalled()
     })
+
+    it('findOne が reject しても catch→null 契約で editReply エラーになる', async () => {
+      characterService.findOne.mockRejectedValue(new Error('DB error'))
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.showModal).not.toHaveBeenCalled()
+    })
   })
 
   describe('セクション選択 (characterization)', () => {
@@ -183,6 +188,22 @@ describe('CharacterSectionEditorService', () => {
       // 元 embed を保持し、2 行 (field + back) を返す
       expect(arg.embeds).toEqual([{ title: 'original-embed' }])
       expect(arg.components).toHaveLength(2)
+      // キャラクター取得は CharacterService.findOne の直呼び（E-2b）
+      expect(characterService.findOne).toHaveBeenCalledWith('abc123')
+      // 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2b の回帰ガード）
+      expect(typedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
+    })
+
+    it('findOne が Mongoose ドキュメントを返す場合は toObject() で plain 化して使う（E-2b 互換維持）', async () => {
+      const plain = buildCharacter()
+      mockCharacterFound({ toObject: () => plain })
+      embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+
+      await service.execute(interaction as never)
+
+      expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(plain, 'status', 'abc123')
     })
 
     it('character-section-select でも section選択として扱う', async () => {

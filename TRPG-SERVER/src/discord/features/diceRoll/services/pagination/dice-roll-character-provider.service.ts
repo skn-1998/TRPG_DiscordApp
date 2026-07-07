@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { Character } from 'src/domains/character/models/character.model'
+import { CharacterService } from 'src/domains/character/character.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
-import { TypedEventService } from 'src/core/events/typed-event.service'
 
 @Injectable()
 export class DiceRollCharacterProviderService {
   constructor(
     private readonly diceRollService: DiceRollService,
-    private readonly typedEventService: TypedEventService
+    private readonly characterService: CharacterService
   ) {}
 
   async findCharactersByChannelId(channelId: string): Promise<Character[]> {
@@ -40,23 +40,8 @@ export class DiceRollCharacterProviderService {
 
   private async findCharacterById(characterId: string): Promise<Character | null> {
     try {
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.findById.completed', 5000),
-        this.typedEventService.waitForEvent('character.findById.failed', 5000)
-      ])
-
-      await this.typedEventService.emit('character.findById.requested', {
-        characterId,
-        source: 'discord',
-        timestamp: new Date()
-      })
-
-      const result = await resultPromise
-      if ('character' in result && result.character) {
-        return result.character as Character
-      }
-
-      return null
+      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2b: イベント RPC 廃止）
+      return await this.characterService.findOne(characterId)
     } catch (error) {
       console.error(`[DiceRollCharacterProvider] キャラクター取得エラー (${characterId}):`, error)
       return null
