@@ -39,15 +39,15 @@
     "strictPropertyInitialization": false, // DIコンテナ使用のため無効化
 
     // 🔍 実装可能なコード品質設定
-    "noUnusedLocals": false, // 段階的修正のため一時的に無効化
-    "noUnusedParameters": false, // 段階的修正のため一時的に無効化
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
 
     // 🚀 将来の強化予定（現在は互換性のため無効化）
-    "exactOptionalPropertyTypes": false,
-    "noImplicitOverride": false,
+    "exactOptionalPropertyTypes": false, // E-4（event contracts の any 解消）完了後に再評価（C-9 実測: src 49 件）
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false,
 

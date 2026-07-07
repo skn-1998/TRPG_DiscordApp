@@ -11,7 +11,6 @@ import {
   ChannelType,
   OverwriteResolvable
 } from 'discord.js'
-import { AppConfigService } from '../../config/config.service'
 import { MessageManagerService, ChannelCacheService, ChannelCreatorService } from './channel'
 
 /**
@@ -26,7 +25,6 @@ export class DiscordChannelManagerService {
   private initialized = false
 
   constructor(
-    private readonly appConfigService: AppConfigService,
     private readonly messageManager: MessageManagerService,
     private readonly channelCache: ChannelCacheService,
     private readonly channelCreator: ChannelCreatorService

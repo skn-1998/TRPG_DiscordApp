@@ -30,9 +30,9 @@ export const mockAuthData = {
 
 // JWT Service モック
 export const mockJwtService = {
-  sign: jest.fn((payload: Record<string, unknown>) => 'mock-jwt-token'),
-  verify: jest.fn((token: string) => mockAuthData.jwtPayload),
-  decode: jest.fn((token: string) => mockAuthData.jwtPayload)
+  sign: jest.fn((_payload: Record<string, unknown>) => 'mock-jwt-token'),
+  verify: jest.fn((_token: string) => mockAuthData.jwtPayload),
+  decode: jest.fn((_token: string) => mockAuthData.jwtPayload)
 }
 
 // Config Service モック
@@ -84,7 +84,7 @@ export const mockAuthGuard = {
 
 // パスポート戦略 モック
 export const mockDiscordStrategy = {
-  validate: jest.fn((accessToken: string, refreshToken: string, profile: Record<string, unknown>) => {
+  validate: jest.fn((_accessToken: string, _refreshToken: string, _profile: Record<string, unknown>) => {
     return Promise.resolve(mockAuthData.discordUser)
   })
 }

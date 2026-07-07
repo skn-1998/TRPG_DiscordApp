@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { AutocompleteInteraction, ChannelType, CommandInteraction, TextChannel } from 'discord.js'
 import Fuse from 'fuse.js'
 import { convertSearchText } from '../../gameSystem'
@@ -14,8 +14,6 @@ const CATEGORY_NAME = 'オリジナル表'
 
 @Injectable()
 export class UserDefinedDiceOrchestrator {
-  private readonly logger = new Logger(UserDefinedDiceOrchestrator.name)
-
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     if (!interaction.guild) return
 

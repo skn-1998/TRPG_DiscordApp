@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-07-07 C-9 tsconfig 第2段階フラグの段階有効化（機械的修正のみ・コミットは司令塔側）
+
+計画書 `docs/refactor/refactor-legacy-cleanup-plan-2026-07-06.md` C-9 節。継承関係:
+基底 `tsconfig.json`（src＋test を型検査・src/\*_/_.spec.ts 除外）→ `tsconfig.build.json`（nest build・test 除外。
+旧 noUnusedLocals/Parameters:false 上書きは撤去済み）／ `tsconfig.spec.json`（ts-jest。strict 系と
+noUnusedLocals/Parameters を **意図的に false 上書きのまま維持**＝spec は対象外）／ e2e 2 本は全フラグ継承。
+
+| フラグ                     | エラー→修正                | 内容                                                                                                                                                              |
+| -------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| noImplicitOverride         | 10→0                       | `override` 付与のみ（6 ファイル。EventHandler 派生の isRetryableError/getMaxRetries/customValidation・AppConfigService.get・CreateCharacterDto.discordChannelId） |
+| noUnusedLocals             | 24→0                       | 未使用 DI パラメータプロパティ 19（constructor から削除・DI graph 上 dead）＋未使用 logger/プロパティ 5。dice-calculation spec の直接 new も引数削除              |
+| noUnusedParameters         | 8(+test 6)→0               | 全て `_` プレフィクス改名（シグネチャ互換維持・削除なし）                                                                                                         |
+| exactOptionalPropertyTypes | **評価のみ・false のまま** | src 49 件（TS2375:21 / TS2379:18 / TS2412:7 / TS2769:2 / TS2339:1）・test 込み +53。E-4 完了後に再評価（tsconfig にコメント記録）                                 |
+
+- **要注意の判断 1 件**: `channel-create-orchestrator.service.ts` の `handleCharacterCreationCompleted` は
+  リスナー未登録の移行残骸だが **spec が `(service as any)` で直接テストしているため削除せず protected 化**
+  （noUnusedLocals は private のみ検査）。本来は E 系残骸としてメソッド＋spec の削除が筋＝dead 掃除の別 slice 候補。
+- 検証: build 0 / No circular / **全 180 suites 2401 tests 緑（件数不変）**。基底 tsc --noEmit の既存エラー 24 件
+  （test/ 配下ユーティリティの strict 型負債・C-9 とは無関係）は増減なしを diff で確認。
+
+---
+
 ## 2026-07-07 E-6 全完了（entity/schema 分離・ドメイン境界是正）＝ **E 系列（E-1〜E-6）完遂**
 
 ユーザー「進めて／並列して進められる部分は並列して」。判断1（REST 3本削除）は承認込みと解釈して実施

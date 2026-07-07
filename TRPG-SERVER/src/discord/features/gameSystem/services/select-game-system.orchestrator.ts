@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { AutocompleteInteraction, CommandInteraction } from 'discord.js'
 import Fuse from 'fuse.js'
 import { loadJsonFile } from '../../../utils/loadJsonFile'
@@ -23,7 +23,6 @@ const CATEGORY_NAME = 'ダイスロールチャンネル'
 
 @Injectable()
 export class SelectGameSystemOrchestrator {
-  private readonly logger = new Logger(SelectGameSystemOrchestrator.name)
   private fuse = new Fuse<GameSystemJSON>(gameSystemList, options)
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {

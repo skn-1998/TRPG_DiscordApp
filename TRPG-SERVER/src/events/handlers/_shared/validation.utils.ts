@@ -241,7 +241,7 @@ export class MultipleValidationError extends Error {
 /**
  * バリデーション結果の集約
  */
-export function collectValidationErrors<T>(payload: T, validators: Array<() => void>): void {
+export function collectValidationErrors<T>(_payload: T, validators: Array<() => void>): void {
   const errors: ValidationError[] = []
 
   validators.forEach((validator) => {

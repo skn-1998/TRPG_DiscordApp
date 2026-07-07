@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Client, Guild, GuildChannel, ChannelType, TextChannel, PermissionsBitField } from 'discord.js'
 import { SendMessageDto } from '../dto/send-message.dto'
 import { CreateChannelDto } from '../dto/create-channel.dto'
-import { AppConfigService } from '../../config/config.service'
 import { ErrorHandler } from '../../core/http/error-handler'
 
 /**
@@ -13,7 +12,6 @@ import { ErrorHandler } from '../../core/http/error-handler'
 export class DiscordGuildManagerService {
   private readonly logger = new Logger(DiscordGuildManagerService.name)
   private initialized = false
-  private client: Client
 
   // Guild情報キャッシュ（パフォーマンス最適化）
   private guildCache = new Map<
@@ -28,17 +26,16 @@ export class DiscordGuildManagerService {
   // キャッシュ有効期限（5分）
   private readonly CACHE_TTL = 300000
 
-  constructor(private readonly appConfigService: AppConfigService) {}
+  constructor() {}
 
   /**
    * サービスを初期化
    */
-  async initialize(client: Client): Promise<void> {
+  async initialize(_client: Client): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    this.client = client
     this.initialized = true
     this.logger.log('DiscordGuildManagerService initialized')
   }

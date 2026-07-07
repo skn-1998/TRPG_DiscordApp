@@ -252,7 +252,7 @@ export class EventRegistryService implements OnModuleInit {
     }
 
     // 命名規約チェック
-    this.handlers.forEach((handler, eventName) => {
+    this.handlers.forEach((_handler, eventName) => {
       if (!this.isValidEventName(eventName)) {
         issues.push(`Invalid event name: ${eventName}`)
       }

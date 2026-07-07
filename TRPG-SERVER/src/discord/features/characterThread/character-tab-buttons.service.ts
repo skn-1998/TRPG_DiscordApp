@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel, MessageFlags } from 'discord.js'
 import { discordButtonType } from '../../discord.type'
-import { TypedEventService } from '../../../core/events/typed-event.service'
 import { CharacterDisplayService } from './services'
 import { ErrorHandler, ErrorContext } from '../../../core/http/error-handler'
 
@@ -9,10 +8,7 @@ import { ErrorHandler, ErrorContext } from '../../../core/http/error-handler'
 export class CharacterTabButtonsService implements discordButtonType {
   private readonly logger = new Logger(CharacterTabButtonsService.name)
 
-  constructor(
-    private readonly typedEventService: TypedEventService,
-    private readonly characterDisplayService: CharacterDisplayService
-  ) {}
+  constructor(private readonly characterDisplayService: CharacterDisplayService) {}
 
   public data = new ButtonBuilder().setCustomId('character-tab*').setLabel('基本情報').setStyle(ButtonStyle.Primary)
 

@@ -43,7 +43,6 @@ export class CommandsController {
     this.diceResultService = diceResultService
   }
 
-  private client: Client
   private interaction: CommandInteraction | AutocompleteInteraction
 
   /**
@@ -51,9 +50,8 @@ export class CommandsController {
    * 注意：InteractionCreateイベントリスナーは登録しない（EventManagerServiceに委任）
    * @param client Discord クライアント
    */
-  handleCommand(client: Client): void {
+  handleCommand(_client: Client): void {
     this.logger.log('コマンドコントローラーにクライアントを設定')
-    this.client = client
     // InteractionCreateイベントリスナーの登録はもう行わない（EventManagerServiceに委任）
   }
 
@@ -62,9 +60,8 @@ export class CommandsController {
    * 注意：InteractionCreateイベントリスナーは登録しない（EventManagerServiceに委任）
    * @param client Discord クライアント
    */
-  handleAutoComplete(client: Client): void {
+  handleAutoComplete(_client: Client): void {
     this.logger.log('オートコンプリートコントローラーにクライアントを設定')
-    this.client = client
     // InteractionCreateイベントリスナーの登録はもう行わない（EventManagerServiceに委任）
   }
 

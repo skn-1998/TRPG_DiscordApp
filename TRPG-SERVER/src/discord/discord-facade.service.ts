@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client } from 'discord.js'
-import { AppConfigService } from '../config/config.service'
 import { DiscordClientService } from './services/discord-client.service'
-import { CommandManagerService } from './services/command-manager.service'
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
@@ -24,8 +22,6 @@ export class DiscordFacadeService {
   constructor(
     private readonly discordClientService: DiscordClientService,
     private readonly commandsService: CommandsService,
-    private readonly appConfigService: AppConfigService,
-    private readonly commandManagerService: CommandManagerService,
     private readonly interactionHandler: DiscordInteractionHandlerService,
     private readonly guildManager: DiscordGuildManagerService,
     private readonly channelManager: DiscordChannelManagerService,

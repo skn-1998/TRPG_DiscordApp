@@ -45,7 +45,7 @@ export class AppConfigService extends ConfigService<AppConfig, true> {
    * @param path 設定へのパス（ドット記法）例: 'discord.applicationId'
    * @returns 設定値（型安全）
    */
-  get<P extends Path<AppConfig>>(path: P): PathValue<AppConfig, P> {
+  override get<P extends Path<AppConfig>>(path: P): PathValue<AppConfig, P> {
     // infer: true を常に適用することで、型推論を有効にする
     return super.get<AppConfig, P, PathValue<AppConfig, P>>(path, { infer: true })
   }

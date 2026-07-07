@@ -108,7 +108,7 @@ export class CharacterUpdateCompletedHandler
   /**
    * リトライ可能エラーの判定
    */
-  protected isRetryableError(error: Error): boolean {
+  protected override isRetryableError(error: Error): boolean {
     // Discord API関連のエラーはリトライ可能
     if (error.message.includes('Discord') || error.message.includes('API')) {
       return true
@@ -120,7 +120,7 @@ export class CharacterUpdateCompletedHandler
   /**
    * 最大リトライ回数
    */
-  protected getMaxRetries(): number {
+  protected override getMaxRetries(): number {
     return 2 // Discord API呼び出しのため控えめに設定
   }
 }

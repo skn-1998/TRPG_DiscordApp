@@ -371,8 +371,6 @@ export class ErrorHandler {
  * バックグラウンドタスクエラーハンドラー
  */
 export class BackgroundTaskErrorHandler {
-  private static readonly logger = new Logger(BackgroundTaskErrorHandler.name)
-
   /**
    * バックグラウンドタスクエラーをハンドリング
    * @param error エラーオブジェクト
