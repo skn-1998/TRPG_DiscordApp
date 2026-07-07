@@ -3,7 +3,6 @@ import { ChannelType, type ButtonInteraction } from 'discord.js'
 import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
-import { TypedEventService } from '../../../core/events/typed-event.service'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DEFAULT_MOCK_USER } from '@discord-test-utils/interactions/base.types'
 import dice from '../../utils/dice'
@@ -18,15 +17,15 @@ const mockedDice = dice as jest.MockedFunction<typeof dice>
  * DiceRollLogicService はダイス核ロジック。
  * - cleanDiceExpression / determineSuccessLevel は内部 private だが、validateDiceExpression と
  *   handleSkillRoll の公開 API 経由で挙動を網羅する。
- * - 副作用の境界(DiceRollService.createText / CharacterService.findByChannelId /
- *   TypedEventService.emit / dice())はモックする。
+ * - 副作用の境界(DiceRollService.createText / CharacterService.findByChannelId / dice())はモックする。
  * - interaction は @discord-test-utils ファクトリを使い、user.id 参照のみ利用する。
+ * - かつて存在した実行完了/失敗イベントの emit は購読者ゼロの dead emit として撤去済み（E-3b・2026-07-07）。
+ *   TypedEventService は注入ごと削除されたため、本 spec でもモックしない。
  */
 describe('DiceRollLogicService', () => {
   let service: DiceRollLogicService
   let diceRollService: jest.Mocked<Pick<DiceRollService, 'createText'>>
   let characterService: jest.Mocked<Pick<CharacterService, 'findByChannelId'>>
-  let typedEventService: jest.Mocked<Pick<TypedEventService, 'emit'>>
 
   // BCDice 風の結果を作るヘルパ(rands から total を計算する経路)。
   // 実 Result 型は本サービスが参照する text/rands 以外のフィールドも要求するため、
@@ -44,14 +43,12 @@ describe('DiceRollLogicService', () => {
   beforeEach(async () => {
     diceRollService = { createText: jest.fn() }
     characterService = { findByChannelId: jest.fn() }
-    typedEventService = { emit: jest.fn() }
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         DiceRollLogicService,
         { provide: DiceRollService, useValue: diceRollService },
-        { provide: CharacterService, useValue: characterService },
-        { provide: TypedEventService, useValue: typedEventService }
+        { provide: CharacterService, useValue: characterService }
       ]
     }).compile()
 
@@ -98,7 +95,7 @@ describe('DiceRollLogicService', () => {
   describe('handleDiceRoll', () => {
     const req = { channelId: 'ch-1', diceType: '1d100', reason: '幸運' }
 
-    it('キャラクターが見つからない場合は失敗結果を返し、failed イベントを emit する', async () => {
+    it('キャラクターが見つからない場合は失敗結果を返し、保存は行わない', async () => {
       // Arrange
       characterService.findByChannelId.mockResolvedValue(null)
       const interaction = createMockButtonInteraction()
@@ -110,15 +107,11 @@ describe('DiceRollLogicService', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('Character not found')
       expect(result.diceType).toBe('1d100')
-      // 副作用: createText は呼ばれず failed イベントが emit される
+      // 副作用: createText は呼ばれない（失敗イベントの emit は E-3b で撤去済み）
       expect(diceRollService.createText).not.toHaveBeenCalled()
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'diceroll.execute.failed',
-        expect.objectContaining({ channelId: 'ch-1', source: 'dice-roll-logic-service' })
-      )
     })
 
-    it('成功時は rands から total を計算し保存・completed イベント emit・成功結果を返す', async () => {
+    it('成功時は rands から total を計算し保存して成功結果を返す', async () => {
       // Arrange: 出目 73
       characterService.findByChannelId.mockResolvedValue(buildCharacter({ gameSystemId: 'coc7' }))
       mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 73', [[73]]))
@@ -138,13 +131,9 @@ describe('DiceRollLogicService', () => {
         characterName: 'テスト探索者',
         rollId: 'roll-id-1'
       })
-      // 副作用: 保存と completed イベント
+      // 副作用: 保存（完了イベントの emit は E-3b で撤去済み）
       expect(diceRollService.createText).toHaveBeenCalledWith(
         expect.objectContaining({ channelId: 'ch-1', diceExpression: '1d100', result: 73, gameSystem: 'coc7' })
-      )
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'diceroll.execute.completed',
-        expect.objectContaining({ channelId: 'ch-1' })
       )
     })
 
@@ -220,13 +209,9 @@ describe('DiceRollLogicService', () => {
       await service.handleDiceRoll(threadInteraction(), { channelId: 'ch-1', diceType: '1d100' })
 
       // Assert: lookup は 'ch-1'・保存は 'parent-1'
+      // （イベント payload の characterization は dead emit 撤去（E-3b）に伴い削除）
       expect(characterService.findByChannelId).toHaveBeenCalledWith('ch-1')
       expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'parent-1' }))
-      // イベント payload はロール文脈（lookup キー）のまま
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'diceroll.execute.completed',
-        expect.objectContaining({ channelId: 'ch-1' })
-      )
     })
 
     it('handleSkillRoll: スレッド内ロールは実親チャンネルで保存する', async () => {
