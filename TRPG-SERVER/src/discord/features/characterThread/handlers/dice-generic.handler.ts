@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { ButtonInteraction, ChannelType, TextChannel, MessageFlags } from 'discord.js'
+import { ButtonInteraction, MessageFlags } from 'discord.js'
 import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
 // P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
 import { DiceGenericCustomId } from '../custom-id'
+import { sendToParentChannel } from '../services/parent-channel.util'
 
 /**
  * 汎用ダイスボタンハンドラー
@@ -60,8 +61,8 @@ export class DiceGenericHandler extends ButtonInteractionHandler {
       const result = await this.diceRollLogicService.handleDiceRoll(interaction, request)
 
       if (result.success) {
-        // 親チャンネルに結果を送信
-        await this.sendToParentChannel(interaction, result.details || `${result.diceType}: ${result.total}`)
+        // 親チャンネルに結果を送信（C-4: 共通ヘルパ・logger は handler context を保存）
+        await sendToParentChannel(interaction, result.details || `${result.diceType}: ${result.total}`, this.logger)
       } else {
         // エラーの場合のみスレッドに通知（エフェメラル）
         await interaction.followUp({
@@ -79,34 +80,6 @@ export class DiceGenericHandler extends ButtonInteractionHandler {
       } catch {
         // 応答失敗は無視
       }
-    }
-  }
-
-  /**
-   * 親チャンネルに結果を送信
-   */
-  private async sendToParentChannel(interaction: ButtonInteraction, message: string): Promise<boolean> {
-    try {
-      if (!interaction.channel) return false
-
-      // スレッドチャンネルかチェック
-      if (
-        interaction.channel.type === ChannelType.PublicThread ||
-        interaction.channel.type === ChannelType.PrivateThread
-      ) {
-        const parentId = interaction.channel.parentId
-        if (parentId) {
-          const parentChannel = await interaction.client.channels.fetch(parentId)
-          if (parentChannel && parentChannel.isTextBased()) {
-            await (parentChannel as TextChannel).send({ content: message })
-            return true
-          }
-        }
-      }
-      return false
-    } catch (error) {
-      this.logger.warn('Failed to send result to parent channel', error)
-      return false
     }
   }
 }

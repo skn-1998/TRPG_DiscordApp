@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { ButtonInteraction, ChannelType, TextChannel, MessageFlags } from 'discord.js'
+import { ButtonInteraction, MessageFlags } from 'discord.js'
 import { ButtonInteractionHandler } from 'src/discord/interactions/handlers/base/interaction-handler.base'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
 import { PresetDiceCustomId, resolvePresetDiceRoll } from '../custom-id'
+import { sendToParentChannel } from '../services/parent-channel.util'
 
 /**
  * プリセットダイス（system 別クイックロール）ハンドラー（P1-D 後続・方針A 最小機能化）
@@ -51,7 +52,12 @@ export class PresetDiceQuickRollHandler extends ButtonInteractionHandler {
       const result = await this.diceRollLogicService.handleDiceRoll(interaction, request)
 
       if (result.success) {
-        const posted = await this.sendToParentChannel(interaction, result.details || `${reason}: ${result.total}`)
+        // C-4: 共通ヘルパ・logger は handler context を保存
+        const posted = await sendToParentChannel(
+          interaction,
+          result.details || `${reason}: ${result.total}`,
+          this.logger
+        )
         if (!posted) {
           await interaction.followUp({
             content: '❌ 結果を親チャンネルへ送信できませんでした。',
@@ -74,33 +80,6 @@ export class PresetDiceQuickRollHandler extends ButtonInteractionHandler {
       } catch {
         // 応答失敗は無視
       }
-    }
-  }
-
-  /**
-   * 親チャンネルに結果を送信（DiceGenericHandler / CharacterSkillRollHandler と同一ロジック）
-   */
-  private async sendToParentChannel(interaction: ButtonInteraction, message: string): Promise<boolean> {
-    try {
-      if (!interaction.channel) return false
-
-      if (
-        interaction.channel.type === ChannelType.PublicThread ||
-        interaction.channel.type === ChannelType.PrivateThread
-      ) {
-        const parentId = interaction.channel.parentId
-        if (parentId) {
-          const parentChannel = await interaction.client.channels.fetch(parentId)
-          if (parentChannel && parentChannel.isTextBased()) {
-            await (parentChannel as TextChannel).send({ content: message })
-            return true
-          }
-        }
-      }
-      return false
-    } catch (error) {
-      this.logger.warn('Failed to send result to parent channel', error)
-      return false
     }
   }
 }
