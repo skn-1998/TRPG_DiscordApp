@@ -13,6 +13,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
+import { CharacterCreationCoreService } from '../../../../domains/character/services/character-creation-core.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import {
@@ -40,7 +41,10 @@ export interface CharacterEditAction {
 export class CharacterEmbedManagerService {
   private readonly logger = new Logger(CharacterEmbedManagerService.name)
 
-  constructor(private readonly typedEventService: TypedEventService) {}
+  constructor(
+    private readonly typedEventService: TypedEventService,
+    private readonly creationCore: CharacterCreationCoreService
+  ) {}
 
   /**
    * キャラクター情報を分割Embedで表示
@@ -93,35 +97,23 @@ export class CharacterEmbedManagerService {
         description: characterData.description
       }
 
-      // キャラクター作成イベントを発行 (Event Bridge対応)
-      await this.typedEventService.emit('character.creation.requested', {
-        createData,
-        requester: {
-          featureId: 'characterEdit',
-          context: {
-            channelId: channelId,
-            sectionType: 'basic',
-            triggeredBy: 'modal' // embed manager経由はモーダル入力
-          }
-        },
-        userId,
-        source: 'character-embed-manager',
-        timestamp: new Date()
-      })
+      // キャラクター作成（イベント RPC を廃止し domain サービスへ直接委譲）
+      // 注: characterId は event 経路と同じ意味論で domain 側が 'char_' プレフィックスで採番する
+      const character = await this.creationCore.createValidated(createData)
 
-      // 作成完了を待機
-      const result = await Promise.race([
-        this.typedEventService.waitForEvent('character.creation.completed', 10000),
-        this.typedEventService.waitForEvent('character.creation.failed', 10000)
-      ])
+      // 恒常購読者（CharacterCreationCompletedHandler 等）向けの通知は fire-and-forget で維持
+      void this.typedEventService
+        .emit('character.creation.completed', {
+          character,
+          source: 'character-embed-manager',
+          timestamp: new Date()
+        })
+        .catch((emitError) => {
+          this.logger.error('Failed to emit character.creation.completed', emitError)
+        })
 
-      if ('character' in result) {
-        this.logger.log(`Character created successfully: ${result.character.characterId}`)
-        return result.character
-      } else {
-        this.logger.error(`Character creation failed:`, result)
-        return null
-      }
+      this.logger.log(`Character created successfully: ${character.characterId}`)
+      return character
     } catch (error) {
       this.logger.error('Failed to create character', error)
       return null

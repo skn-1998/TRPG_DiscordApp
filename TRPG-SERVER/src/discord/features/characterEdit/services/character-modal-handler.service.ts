@@ -93,22 +93,16 @@ export class CharacterModalHandlerService {
     const character = await this.embedManager.createCharacter(characterData, channelId, userId)
 
     if (character) {
-      // 成功メッセージ
+      // 成功メッセージ（本人向け reply のみ）
       const successEmbed = this.embedManager.createCharacterCreatedEmbed(character)
       await interaction.editReply({
         embeds: [successEmbed],
         components: []
       })
 
-      // キャラクター編集Embedをチャンネルに送信（新規作成の場合は常に新メッセージ）
-      if (interaction.channel && 'send' in interaction.channel) {
-        const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
-        await interaction.channel.send({
-          content: `🎉 新しいキャラクター **${character.characterName}** が作成されました！`,
-          embeds,
-          components
-        })
-      }
+      // チャンネルへのセクション Embed 投稿はここでは行わない:
+      // createCharacter が発行する character.creation.completed を CharacterCreationCompletedHandler が
+      // 購読して送信する（チャンネル名同期・通知も同経路）。ここでも送ると二重投稿になる（E-2f）。
     } else {
       await this.sendErrorResponse(interaction, 'キャラクターの作成に失敗しました。')
     }

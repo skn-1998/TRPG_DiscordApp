@@ -5,6 +5,7 @@ import { CharacterService } from './character.service'
 import { CHARACTER_COLLECTION, CHARACTER_MODEL, CharacterSchema } from './models/character.model'
 import { CharacterRepository } from './repositories/character.repository'
 import { CharacterIdService } from './services/character-id.service'
+import { CharacterCreationCoreService } from './services/character-creation-core.service'
 import { AuthModule } from '../auth/auth.module'
 import { UserModule } from '../user/user.module'
 // import { DiscordIntegrationModule } from '../../discord/application/discord-integration.module' // 循環依存回避のため一時削除
@@ -17,7 +18,7 @@ import { UserModule } from '../user/user.module'
     // forwardRef(() => DiscordIntegrationModule) // 循環依存回避のため一時削除
   ],
   controllers: [CharacterController],
-  providers: [CharacterService, CharacterRepository, CharacterIdService],
-  exports: [CharacterService, CharacterRepository, CharacterIdService]
+  providers: [CharacterService, CharacterRepository, CharacterIdService, CharacterCreationCoreService],
+  exports: [CharacterService, CharacterRepository, CharacterIdService, CharacterCreationCoreService]
 })
 export class CharacterModule {}

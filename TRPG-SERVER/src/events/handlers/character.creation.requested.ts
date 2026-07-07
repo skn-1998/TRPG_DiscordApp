@@ -1,23 +1,23 @@
 import { Injectable } from '@nestjs/common'
 import { EventHandler, EventContext, ValidationError, BusinessLogicError } from './_shared/event-handler.base'
 import { validateRequired, validateStringLength, validateDiscordId } from './_shared/validation.utils'
-import { CharacterService } from '../../domains/character/character.service'
+import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
 import { CharacterIdService } from '../../domains/character/services/character-id.service'
-import { CharacterCreationRequestedEvent, CharacterCreationData } from '../contracts/unified-event-contracts'
+import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
 
 /**
  * character.creation.requested 専用ハンドラー
  *
  * 🎯 責務:
- * - キャラクター作成リクエストの処理
- * - featureId判定とルーティング
- * - 各Feature向けの適切な処理実行
+ * - キャラクター作成リクエストの処理（入力形検証・featureId ルーティング）
+ * - ビジネス中核（重複チェック・パラメータ検証・ID採番・作成）は
+ *   CharacterCreationCoreService（domain）へ委譲
  * - 成功・失敗イベントの発行
  */
 @Injectable()
 export class CharacterCreationRequestedHandler extends EventHandler<CharacterCreationRequestedEvent> {
   constructor(
-    private readonly characterService: CharacterService,
+    private readonly creationCore: CharacterCreationCoreService,
     private readonly characterIdService: CharacterIdService
   ) {
     super()
@@ -50,107 +50,8 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
       validateDiscordId(event.createData.discordUserId, 'discordUserId')
     }
 
-    // ビジネスロジック検証
-    await this.validateBusinessLogic(event.createData)
-  }
-
-  /**
-   * ビジネスロジック検証
-   */
-  private async validateBusinessLogic(createData: CharacterCreationData): Promise<void> {
-    // キャラクター名重複チェック（チャンネル内）
-    if (createData.discordChannelId) {
-      const existingCharacter = await this.characterService.findByChannelId(createData.discordChannelId)
-      if (existingCharacter) {
-        throw new BusinessLogicError(
-          `Character already exists in channel: ${createData.discordChannelId}`,
-          'CHARACTER_ALREADY_EXISTS'
-        )
-      }
-    }
-
-    // パラメータ構造の検証（gameSystemIdが存在する場合のみ）
-    if (createData.parameter && createData.gameSystemId) {
-      this.validateParameterStructure(createData.parameter, createData.gameSystemId)
-    }
-  }
-
-  /**
-   * ゲームシステム別パラメータ検証
-   */
-  private validateParameterStructure(parameter: Record<string, any>, gameSystemId: string | undefined): void {
-    if (!gameSystemId) {
-      // gameSystemIdが未指定の場合は検証をスキップ
-      return
-    }
-    switch (gameSystemId) {
-      case 'coc':
-        this.validateCocParameters(parameter)
-        break
-      case 'dnd5e':
-        this.validateDnd5eParameters(parameter)
-        break
-      case 'sw2.5':
-        this.validateSw25Parameters(parameter)
-        break
-      case 'generic':
-        // 汎用システムは構造チェックなし
-        break
-      default:
-        throw new ValidationError(`Unsupported game system: ${gameSystemId}`)
-    }
-  }
-
-  /**
-   * Call of Cthulhuパラメータ検証
-   */
-  private validateCocParameters(parameter: Record<string, any>): void {
-    const requiredStats = ['STR', 'CON', 'POW', 'DEX', 'APP', 'SIZ', 'INT', 'EDU']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
-
-    if (missingStats.length > 0) {
-      throw new ValidationError(`CoC character missing required stats: ${missingStats.join(', ')}`)
-    }
-
-    // 能力値の範囲チェック
-    requiredStats.forEach((stat) => {
-      const value = parameter[stat]
-      if (typeof value !== 'number' || value < 1 || value > 99) {
-        throw new ValidationError(`CoC stat ${stat} must be between 1-99`)
-      }
-    })
-  }
-
-  /**
-   * D&D 5eパラメータ検証
-   */
-  private validateDnd5eParameters(parameter: Record<string, any>): void {
-    const requiredStats = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
-
-    if (missingStats.length > 0) {
-      throw new ValidationError(`D&D 5e character missing required stats: ${missingStats.join(', ')}`)
-    }
-
-    // 能力値の範囲チェック
-    requiredStats.forEach((stat) => {
-      const value = parameter[stat]
-      if (typeof value !== 'number' || value < 3 || value > 20) {
-        throw new ValidationError(`D&D 5e stat ${stat} must be between 3-20`)
-      }
-    })
-  }
-
-  /**
-   * ソード・ワールド2.5パラメータ検証
-   */
-  private validateSw25Parameters(parameter: Record<string, any>): void {
-    const requiredStats = ['器用度', '敏捷度', '筋力', '生命力', '知力', '精神力']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
-
-    if (missingStats.length > 0) {
-      throw new ValidationError(`SW2.5 character missing required stats: ${missingStats.join(', ')}`)
-    }
+    // 注: ビジネスロジック検証（重複チェック・ゲームシステム別パラメータ検証）は
+    //     CharacterCreationCoreService.createValidated（domain）へ移設した。
   }
 
   /**
@@ -204,20 +105,8 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
   private async handleCharacterEditCreation(event: CharacterCreationRequestedEvent, _context?: EventContext) {
     this.logger.debug('Handling CharacterEdit creation')
 
-    // ユニークなキャラクターIDの生成（未設定の場合）
-    const characterId = event.characterId || (await this.characterIdService.generateUniqueCharacterId('char_'))
-
-    // キャラクター作成
-    const characterData = {
-      ...event.createData,
-      characterId,
-      // description型をRecord<string, AttributeValueDto>に変換
-      description: event.createData.description ? (event.createData.description as any) : undefined
-    }
-    const character = await this.characterService.create(characterData)
-
-    this.logger.log(`✅ CharacterEdit creation completed: ${character.characterId}`)
-    return character
+    // ビジネス中核（重複チェック・パラメータ検証・ID採番・作成）は domain サービスへ委譲
+    return this.creationCore.createValidated(event.createData, event.characterId)
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { CharacterCreationRequestedHandler } from './character.creation.requested'
-import { CharacterService } from '../../domains/character/character.service'
+import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
 import { CharacterIdService } from '../../domains/character/services/character-id.service'
 import { ValidationError, BusinessLogicError } from './_shared/event-handler.base'
 import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
@@ -8,20 +8,20 @@ import { CharacterCreationRequestedEvent } from '../contracts/unified-event-cont
 /**
  * CharacterCreationRequestedHandler の現状挙動を固定するユニットテスト
  *
- * 依存（CharacterService / CharacterIdService）は { provide, useValue } でモックし、
- * typedEventService は setTypedEventService 経由でモックを注入する。
- * 「どの依存が・どの引数で呼ばれ・どのイベントを emit するか」を検証する。
+ * ビジネス中核（重複チェック・パラメータ検証・ID採番・作成）は
+ * CharacterCreationCoreService（domain）へ移設済みのため、本 spec では
+ * 「入力形検証 → featureId ルーティング → creationCore への委譲 →
+ * completed / failed イベント発行」の契約を検証する。
+ * 移設したビジネス検証は character-creation-core.service.spec.ts が固定する。
  *
  * 注意:
- * - customValidation（バリデーション分岐）は protected だが handle() の入口とは独立して
+ * - customValidation（入力形検証の分岐）は protected だが handle() の入口とは独立して
  *   走るため、execute() 経由で全体パイプラインの分岐も併せて固定する。
- * - 内部 private（validateCocParameters 等）は直接覗かず、customValidation の結果として検証する。
  */
 describe('CharacterCreationRequestedHandler', () => {
   let handler: CharacterCreationRequestedHandler
-  let characterService: {
-    findByChannelId: jest.Mock
-    create: jest.Mock
+  let creationCore: {
+    createValidated: jest.Mock
   }
   let characterIdService: {
     generateUniqueCharacterId: jest.Mock
@@ -45,9 +45,8 @@ describe('CharacterCreationRequestedHandler', () => {
   beforeEach(async () => {
     jest.clearAllMocks()
 
-    characterService = {
-      findByChannelId: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ characterId: 'char_created01' })
+    creationCore = {
+      createValidated: jest.fn().mockResolvedValue({ characterId: 'char_created01' })
     }
     characterIdService = {
       generateUniqueCharacterId: jest.fn().mockResolvedValue('char_generated1')
@@ -57,7 +56,7 @@ describe('CharacterCreationRequestedHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         CharacterCreationRequestedHandler,
-        { provide: CharacterService, useValue: characterService },
+        { provide: CharacterCreationCoreService, useValue: creationCore },
         { provide: CharacterIdService, useValue: characterIdService }
       ]
     }).compile()
@@ -77,25 +76,24 @@ describe('CharacterCreationRequestedHandler', () => {
   })
 
   describe('handle / 正常系', () => {
-    it('characterId が未設定なら CharacterIdService で生成し create に渡す', async () => {
+    it('characterId が未設定なら createData と undefined を creationCore に委譲する（ID採番は domain 側）', async () => {
       // Arrange
       const event = buildEvent()
 
       // Act
       await handler.handle(event)
 
-      // Assert: ID 生成 → create に生成IDが渡る
-      expect(characterIdService.generateUniqueCharacterId).toHaveBeenCalledWith('char_')
-      expect(characterService.create).toHaveBeenCalledTimes(1)
-      expect(characterService.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          characterName: 'テストキャラ',
-          characterId: 'char_generated1'
-        })
+      // Assert: ビジネス中核は creationCore へ委譲される
+      expect(creationCore.createValidated).toHaveBeenCalledTimes(1)
+      expect(creationCore.createValidated).toHaveBeenCalledWith(
+        expect.objectContaining({ characterName: 'テストキャラ' }),
+        undefined
       )
+      // 成功経路では handler 側の ID 採番（失敗イベント用）は呼ばれない
+      expect(characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
     })
 
-    it('characterId が指定済みなら ID 生成せず指定値で create する', async () => {
+    it('characterId が指定済みなら指定値をそのまま creationCore に渡す', async () => {
       // Arrange
       const event = buildEvent({ characterId: 'char_preset0001' })
 
@@ -103,14 +101,13 @@ describe('CharacterCreationRequestedHandler', () => {
       await handler.handle(event)
 
       // Assert
-      expect(characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
-      expect(characterService.create).toHaveBeenCalledWith(expect.objectContaining({ characterId: 'char_preset0001' }))
+      expect(creationCore.createValidated).toHaveBeenCalledWith(expect.anything(), 'char_preset0001')
     })
 
     it('成功時に character.creation.completed を emit する', async () => {
       // Arrange
       const created = { characterId: 'char_done00001' }
-      characterService.create.mockResolvedValue(created)
+      creationCore.createValidated.mockResolvedValue(created)
       const event = buildEvent()
 
       // Act
@@ -128,7 +125,7 @@ describe('CharacterCreationRequestedHandler', () => {
       )
     })
 
-    it('description が指定されていれば create にそのまま渡す', async () => {
+    it('description が指定されていれば createData ごと creationCore に渡す', async () => {
       // Arrange
       const description = { note: 'メモ' }
       const event = buildEvent({ createData: { ...baseCreateData(), description } })
@@ -137,18 +134,18 @@ describe('CharacterCreationRequestedHandler', () => {
       await handler.handle(event)
 
       // Assert
-      expect(characterService.create).toHaveBeenCalledWith(expect.objectContaining({ description }))
+      expect(creationCore.createValidated).toHaveBeenCalledWith(expect.objectContaining({ description }), undefined)
     })
   })
 
   describe('handle / featureId ルーティング', () => {
-    it('requester 未指定なら characterEdit 経路（create が呼ばれる）', async () => {
+    it('requester 未指定なら characterEdit 経路（creationCore が呼ばれる）', async () => {
       await handler.handle(buildEvent())
-      expect(characterService.create).toHaveBeenCalledTimes(1)
+      expect(creationCore.createValidated).toHaveBeenCalledTimes(1)
     })
 
     it.each(['characterThread', 'gameSystem', 'diceRoll', 'unknownFeature'])(
-      'featureId=%s でも最終的に characterEdit 経路へフォールバックして create する',
+      'featureId=%s でも最終的に characterEdit 経路へフォールバックして creationCore に委譲する',
       async (featureId) => {
         // Arrange
         const event = buildEvent({
@@ -158,18 +155,18 @@ describe('CharacterCreationRequestedHandler', () => {
         // Act
         await handler.handle(event)
 
-        // Assert: いずれの feature も create に到達し成功イベントを emit
-        expect(characterService.create).toHaveBeenCalledTimes(1)
+        // Assert: いずれの feature も creationCore に到達し成功イベントを emit
+        expect(creationCore.createValidated).toHaveBeenCalledTimes(1)
         expect(typedEventService.emit).toHaveBeenCalledWith('character.creation.completed', expect.anything())
       }
     )
   })
 
   describe('handle / 異常系（失敗イベント）', () => {
-    it('create が失敗したら character.creation.failed を emit し、エラーを再スローする', async () => {
+    it('作成が失敗したら character.creation.failed を emit し、エラーを再スローする', async () => {
       // Arrange
       const error = new Error('create failed')
-      characterService.create.mockRejectedValue(error)
+      creationCore.createValidated.mockRejectedValue(error)
       const event = buildEvent({ createData: { ...baseCreateData(), gameSystemId: 'coc' } })
 
       // Act & Assert: 再スローされる
@@ -193,14 +190,13 @@ describe('CharacterCreationRequestedHandler', () => {
 
     it('失敗イベントの createData.characterId は元イベントの characterId を優先する', async () => {
       // Arrange
-      characterService.create.mockRejectedValue(new Error('boom'))
+      creationCore.createValidated.mockRejectedValue(new Error('boom'))
       const event = buildEvent({ characterId: 'char_orig00001' })
 
       // Act
       await expect(handler.handle(event)).rejects.toThrow('boom')
 
       // Assert: 既存 characterId が使われ、失敗イベント用の追加 ID 生成は行われない
-      // （characterEdit 経路では characterId 指定済みのため generateUnique は未呼び出し）
       expect(characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
       expect(typedEventService.emit).toHaveBeenCalledWith(
         'character.creation.failed',
@@ -210,9 +206,9 @@ describe('CharacterCreationRequestedHandler', () => {
       )
     })
 
-    it('characterId 未指定で create 失敗時は失敗イベント用に ID を生成して埋める', async () => {
-      // Arrange: characterEdit 経路の ID 生成と失敗イベントの ID 生成の2回呼ばれる
-      characterService.create.mockRejectedValue(new Error('boom'))
+    it('characterId 未指定で作成失敗時は失敗イベント用に ID を生成して埋める', async () => {
+      // Arrange
+      creationCore.createValidated.mockRejectedValue(new Error('boom'))
       const event = buildEvent()
 
       // Act
@@ -230,7 +226,7 @@ describe('CharacterCreationRequestedHandler', () => {
   })
 
   describe('customValidation（execute 経由） / 正常系', () => {
-    it('正常な event は customValidation を通過し create まで到達する', async () => {
+    it('正常な event は customValidation を通過し creationCore まで到達する', async () => {
       // Arrange
       const event = buildEvent()
 
@@ -238,11 +234,11 @@ describe('CharacterCreationRequestedHandler', () => {
       await handler.execute(event)
 
       // Assert
-      expect(characterService.create).toHaveBeenCalledTimes(1)
+      expect(creationCore.createValidated).toHaveBeenCalledTimes(1)
     })
   })
 
-  describe('customValidation（直接呼び出し） / バリデーション分岐', () => {
+  describe('customValidation（直接呼び出し） / 入力形バリデーション分岐', () => {
     // customValidation は protected だが分岐網羅のため型回避で直接呼ぶ
     const callValidation = (event: CharacterCreationRequestedEvent) => (handler as any).customValidation(event)
 
@@ -287,98 +283,15 @@ describe('CharacterCreationRequestedHandler', () => {
       })
     })
 
-    it('discordChannelId が正しい形式なら findByChannelId で重複チェックする', async () => {
+    it('正しい形式の discordChannelId は入力形検証を通過する（重複チェックは creationCore へ移設済み）', async () => {
       const event = buildEvent({
         createData: { ...baseCreateData(), discordChannelId: '123456789012345678' }
       })
 
-      await callValidation(event)
-
-      expect(characterService.findByChannelId).toHaveBeenCalledWith('123456789012345678')
-    })
-
-    it('同一チャンネルに既存キャラがあれば BusinessLogicError(CHARACTER_ALREADY_EXISTS)', async () => {
-      characterService.findByChannelId.mockResolvedValue({ characterId: 'char_exists0001' })
-      const event = buildEvent({
-        createData: { ...baseCreateData(), discordChannelId: '123456789012345678' }
-      })
-
-      await expect(callValidation(event)).rejects.toMatchObject({
-        name: 'BusinessLogicError',
-        code: 'CHARACTER_ALREADY_EXISTS'
-      })
-    })
-  })
-
-  describe('customValidation / ゲームシステム別パラメータ検証', () => {
-    const callValidation = (event: CharacterCreationRequestedEvent) => (handler as any).customValidation(event)
-
-    it('coc: 必須能力値が欠けていると ValidationError', async () => {
-      const event = buildEvent({
-        createData: { ...baseCreateData(), gameSystemId: 'coc', parameter: { STR: 50 } }
-      })
-      await expect(callValidation(event)).rejects.toThrow(/missing required stats/)
-    })
-
-    it('coc: 能力値が範囲外（1-99）だと ValidationError', async () => {
-      const event = buildEvent({
-        createData: {
-          ...baseCreateData(),
-          gameSystemId: 'coc',
-          parameter: { STR: 100, CON: 50, POW: 50, DEX: 50, APP: 50, SIZ: 50, INT: 50, EDU: 50 }
-        }
-      })
-      await expect(callValidation(event)).rejects.toThrow(/must be between 1-99/)
-    })
-
-    it('coc: 全能力値が範囲内なら通過する', async () => {
-      const event = buildEvent({
-        createData: {
-          ...baseCreateData(),
-          gameSystemId: 'coc',
-          parameter: { STR: 50, CON: 50, POW: 50, DEX: 50, APP: 50, SIZ: 50, INT: 50, EDU: 50 }
-        }
-      })
       await expect(callValidation(event)).resolves.toBeUndefined()
-    })
 
-    it('dnd5e: 能力値が範囲外（3-20）だと ValidationError', async () => {
-      const event = buildEvent({
-        createData: {
-          ...baseCreateData(),
-          gameSystemId: 'dnd5e',
-          parameter: { STR: 21, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 }
-        }
-      })
-      await expect(callValidation(event)).rejects.toThrow(/must be between 3-20/)
-    })
-
-    it('sw2.5: 必須能力値が欠けていると ValidationError', async () => {
-      const event = buildEvent({
-        createData: { ...baseCreateData(), gameSystemId: 'sw2.5', parameter: { 器用度: 10 } }
-      })
-      await expect(callValidation(event)).rejects.toThrow(/missing required stats/)
-    })
-
-    it('未対応の gameSystemId かつ parameter ありで ValidationError(Unsupported game system)', async () => {
-      const event = buildEvent({
-        createData: { ...baseCreateData(), gameSystemId: 'unknownSystem', parameter: { foo: 1 } }
-      })
-      await expect(callValidation(event)).rejects.toThrow(/Unsupported game system/)
-    })
-
-    it('parameter が無ければ gameSystemId 不問でパラメータ検証をスキップする', async () => {
-      const event = buildEvent({
-        createData: { ...baseCreateData(), gameSystemId: 'coc' } // parameter 無し
-      })
-      await expect(callValidation(event)).resolves.toBeUndefined()
-    })
-
-    it('parameter はあるが gameSystemId が無ければパラメータ検証をスキップする', async () => {
-      const event = buildEvent({
-        createData: { characterName: 'テストキャラ', parameter: { STR: 999 } } as any
-      })
-      await expect(callValidation(event)).resolves.toBeUndefined()
+      // 回帰ガード: バリデーション段階ではビジネス中核（creationCore）に触れない
+      expect(creationCore.createValidated).not.toHaveBeenCalled()
     })
   })
 
