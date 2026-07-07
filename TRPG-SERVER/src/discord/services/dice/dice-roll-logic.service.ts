@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, ChannelType } from 'discord.js'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
-import { TypedEventService } from '../../../core/events/typed-event.service'
 import dice from '../../utils/dice'
 import { DiceRollRequest, DiceRollResult } from '../../utils/dice-roll.interface'
 import { DiceRollTextInputDto } from '../../../domains/dice-roll/dto/create-dice-roll-text.dto'
@@ -21,8 +20,7 @@ export class DiceRollLogicService {
 
   constructor(
     private readonly diceRollService: DiceRollService,
-    private readonly characterService: CharacterService,
-    private readonly typedEventService: TypedEventService
+    private readonly characterService: CharacterService
   ) {
     this.logger.debug('Dice roll logic service initialized')
   }
@@ -57,19 +55,6 @@ export class DiceRollLogicService {
 
       const savedRoll = await this.diceRollService.createText(diceRollData)
 
-      // イベントを発行
-      await this.typedEventService.emit('diceroll.execute.completed', {
-        channelId: req.channelId,
-        result: {
-          total: rollResult.total,
-          details: rollResult.details,
-          diceType: req.diceType,
-          reason: req.reason
-        },
-        source: 'dice-roll-logic-service',
-        timestamp: new Date()
-      })
-
       const result: DiceRollResult = {
         success: true,
         total: rollResult.total,
@@ -85,14 +70,6 @@ export class DiceRollLogicService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       this.logger.error(`Dice roll failed: ${errorMessage}`, error)
-
-      // エラーイベントを発行
-      await this.typedEventService.emit('diceroll.execute.failed', {
-        channelId: req.channelId,
-        error: errorMessage,
-        source: 'dice-roll-logic-service',
-        timestamp: new Date()
-      })
 
       return {
         success: false,
