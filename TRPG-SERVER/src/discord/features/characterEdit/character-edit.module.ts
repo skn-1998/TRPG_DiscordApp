@@ -13,7 +13,6 @@ import { CharacterNotificationService } from './services/character-notification.
 import { ChannelCreateOrchestratorService } from './services/channel-create-orchestrator.service'
 import { CharacterEditChannelCreateListenerService } from './services/character-edit-channel-create-listener.service'
 import { CharacterEventIntegrationService } from './services/character-event-integration.service'
-import { ChannelNameSyncService } from './services/channel-name-sync.service'
 
 // Enhanced Character Edit Services
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
@@ -74,7 +73,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     // OnModuleInit で DiscordClientService.on(ChannelCreate) に自己登録するため exports は不要。
     CharacterEditChannelCreateListenerService,
     CharacterEventIntegrationService,
-    ChannelNameSyncService,
 
     // ============================================================================
     // Enhanced Character Edit Services
@@ -113,7 +111,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     CharacterNotificationService,
     ChannelCreateOrchestratorService,
     CharacterEventIntegrationService,
-    ChannelNameSyncService,
 
     // ============================================================================
     // Enhanced Character Edit Services Export
