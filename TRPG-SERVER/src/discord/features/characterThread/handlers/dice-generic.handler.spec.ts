@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceGenericHandler } from './dice-generic.handler'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
@@ -48,7 +49,7 @@ describe('DiceGenericHandler', () => {
     // Assert
     expect(interaction.reply).toHaveBeenCalledWith({
       content: '❌ ダイスボタンの形式が不正です。',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     })
     expect(mockDiceRollLogicService.handleDiceRoll).not.toHaveBeenCalled()
     expect(interaction.deferUpdate).not.toHaveBeenCalled()
@@ -63,7 +64,7 @@ describe('DiceGenericHandler', () => {
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith({
       content: '❌ ダイスロールに失敗しました: ダイス式エラー',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     })
   })
 
@@ -74,6 +75,6 @@ describe('DiceGenericHandler', () => {
     // Act
     await handler.execute(interaction)
     // Assert
-    expect(interaction.followUp).toHaveBeenCalledWith({ content: '❌ 予期せぬ失敗', ephemeral: true })
+    expect(interaction.followUp).toHaveBeenCalledWith({ content: '❌ 予期せぬ失敗', flags: MessageFlags.Ephemeral })
   })
 })

@@ -6,6 +6,7 @@
 
 import { Test } from '@nestjs/testing'
 import type { ButtonInteraction } from 'discord.js'
+import { MessageFlags } from 'discord.js'
 import { InteractionsController } from './interactions.controller'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
@@ -103,7 +104,7 @@ describe('InteractionsController', () => {
       // Assert
       expect(interaction.reply).toHaveBeenCalledWith({
         content: '⚠️ このインタラクションは現在処理できません。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     })
 
@@ -133,7 +134,7 @@ describe('InteractionsController', () => {
       // Assert
       expect(interaction.reply).toHaveBeenCalledWith({
         content: '❌ 処理中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     })
 

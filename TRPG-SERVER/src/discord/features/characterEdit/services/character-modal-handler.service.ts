@@ -6,7 +6,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection } from 'discord.js'
+import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection, MessageFlags } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
@@ -46,7 +46,7 @@ export class CharacterModalHandlerService {
   async handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     try {
       this.logger.log(`Modal submit received: ${interaction.customId}`)
-      await interaction.deferReply({ ephemeral: true })
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
       // キャラクター作成モーダルかどうかを確認
       if (interaction.customId.includes('character-create-basic')) {

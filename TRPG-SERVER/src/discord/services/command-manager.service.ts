@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { REST, Routes, AutocompleteInteraction, CommandInteraction } from 'discord.js'
+import { REST, Routes, AutocompleteInteraction, CommandInteraction, MessageFlags } from 'discord.js'
 import { DiscordClientService } from './discord-client.service'
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { CommandsService } from '../commands/commands.service'
@@ -71,7 +71,7 @@ export class CommandManagerService implements OnModuleInit {
       this.logger.warn(`未登録のコマンド「${interaction.commandName}」が呼び出されました`)
       await interaction.reply({
         content: '不明なコマンドです。管理者に問い合わせてください。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       return
     }
@@ -86,7 +86,7 @@ export class CommandManagerService implements OnModuleInit {
 
       const replyOptions = {
         content: 'コマンドの実行中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral as const
       }
 
       if (interaction.replied || interaction.deferred) {

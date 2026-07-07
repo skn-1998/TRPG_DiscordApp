@@ -1,6 +1,6 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
 import { Response } from 'express'
-import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction } from 'discord.js'
+import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction, MessageFlags } from 'discord.js'
 
 /**
  * エラーレスポンスの型定義
@@ -181,7 +181,7 @@ export class ErrorHandler {
         } else if (!interaction.replied) {
           await interaction.reply({
             content: userMessage,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           })
         }
       }
@@ -229,12 +229,12 @@ export class ErrorHandler {
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({
           content: userMessage,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
       } else {
         await interaction.reply({
           content: userMessage,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
       }
     } catch (replyError) {

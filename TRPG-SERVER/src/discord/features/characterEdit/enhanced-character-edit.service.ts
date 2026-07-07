@@ -22,7 +22,8 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  MessageFlags
 } from 'discord.js'
 import { Character } from '../../../domains/character/models/character.model'
 import { CharacterService } from '../../../domains/character/character.service'
@@ -207,7 +208,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     if (!characterId) {
       await interaction.followUp({
         content: '❌ キャラクター情報の取得に失敗しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       return
     }
@@ -217,7 +218,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     if (!character) {
       await interaction.followUp({
         content: '❌ キャラクターが見つかりません。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       return
     }
@@ -230,7 +231,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    * 簡易表示ボタンの処理
    */
   private async handleCompactViewButton(interaction: ButtonInteraction<CacheType>): Promise<void> {
-    await interaction.deferReply({ ephemeral: true })
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
     // キャラクターIDを抽出
     const characterId = extractCharacterIdFromCustomId(interaction.customId)

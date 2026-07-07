@@ -11,7 +11,8 @@ import {
   CacheType,
   CommandInteraction,
   SlashCommandBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  MessageFlags
 } from 'discord.js'
 import { discordCommandType } from 'src/discord/discord.type'
 import { createCharacterThreadConfig } from '../commands.list'
@@ -42,7 +43,7 @@ export class CharacterThreadService extends BaseCommandService implements discor
       if (!interaction.guild || !interaction.channel) {
         await interaction.reply({
           content: '❌ このコマンドはサーバー内でのみ使用できます。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
         return
       }
@@ -69,7 +70,7 @@ export class CharacterThreadService extends BaseCommandService implements discor
       if (allCharacters.length === 0) {
         await interaction.reply({
           content: '❌ キャラクターが見つかりませんでした。\n先にキャラクターを作成してください。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
         return
       }
@@ -81,7 +82,7 @@ export class CharacterThreadService extends BaseCommandService implements discor
       await interaction.reply({
         content: `🎭 キャラクターを選択してスレッドを作成してください：`,
         components: [actionRow],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
 
       this.logger.log(`Displayed ${allCharacters.length} characters for user: ${interaction.user.id}`)
@@ -89,7 +90,7 @@ export class CharacterThreadService extends BaseCommandService implements discor
       this.logger.error('Failed to display character selection menu', error)
       await interaction.reply({
         content: '❌ キャラクター取得中にエラーが発生しました。',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
     }
   }
@@ -142,7 +143,7 @@ export class CharacterThreadService extends BaseCommandService implements discor
       if (channelCharacters.length === 0) {
         await interaction.reply({
           content: '❌ このチャンネルに関連するキャラクターが見つかりませんでした。',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         })
         return
       }

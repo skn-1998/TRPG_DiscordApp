@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { AnySelectMenuInteraction, CacheType, StringSelectMenuBuilder } from 'discord.js'
+import { AnySelectMenuInteraction, CacheType, StringSelectMenuBuilder, MessageFlags } from 'discord.js'
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import { DiceCharacterSelectCustomId } from 'src/discord/features/diceRoll/custom-id'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
@@ -18,7 +18,10 @@ export class DiceCharacterSelectService implements discordSelectMenuType {
       await interaction.deferUpdate()
       const parsed = DiceCharacterSelectCustomId.parse(interaction.customId)
       if (!parsed) {
-        await interaction.followUp({ content: '⚠️ 選択メニューの処理中にエラーが発生しました。', ephemeral: true })
+        await interaction.followUp({
+          content: '⚠️ 選択メニューの処理中にエラーが発生しました。',
+          flags: MessageFlags.Ephemeral
+        })
         return
       }
       const selectedCharacterId = interaction.values[0]
@@ -28,7 +31,7 @@ export class DiceCharacterSelectService implements discordSelectMenuType {
         selectedCharacterId
       )
       if (!newState || newState.pages.length === 0) {
-        await interaction.followUp({ content: `⚠️ 履歴が見つかりませんでした。`, ephemeral: true })
+        await interaction.followUp({ content: `⚠️ 履歴が見つかりませんでした。`, flags: MessageFlags.Ephemeral })
         return
       }
       const controls = await this.paginationService.createPaginationControls(
@@ -39,7 +42,10 @@ export class DiceCharacterSelectService implements discordSelectMenuType {
       await interaction.editReply({ embeds: [newState.pages[0]], components: controls })
     } catch {
       try {
-        await interaction.followUp({ content: '⚠️ キャラクター選択の処理中にエラーが発生しました。', ephemeral: true })
+        await interaction.followUp({
+          content: '⚠️ キャラクター選択の処理中にエラーが発生しました。',
+          flags: MessageFlags.Ephemeral
+        })
       } catch {}
     }
   }

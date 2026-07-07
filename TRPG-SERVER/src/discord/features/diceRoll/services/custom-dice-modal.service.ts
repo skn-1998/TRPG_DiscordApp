@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ModalBuilder, ModalSubmitInteraction, CacheType, ChannelType } from 'discord.js'
+import { ModalBuilder, ModalSubmitInteraction, CacheType, ChannelType, MessageFlags } from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
@@ -125,7 +125,10 @@ export class CustomDiceModalService implements discordModalType {
             await this.diceOrchestratorService.sendToParentChannelBasic(interaction, resultMessage)
           }
           // Thread内には応答しない（親チャンネルのみに送信）
-          await interaction.reply({ content: '親チャンネルにダイスロール結果を送信しました。', ephemeral: true })
+          await interaction.reply({
+            content: '親チャンネルにダイスロール結果を送信しました。',
+            flags: MessageFlags.Ephemeral
+          })
         } else {
           // 通常のチャンネルの場合は直接返信
           await interaction.reply({ content: resultMessage })

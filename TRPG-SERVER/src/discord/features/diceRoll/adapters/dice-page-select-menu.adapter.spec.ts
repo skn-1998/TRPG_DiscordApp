@@ -1,5 +1,6 @@
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import type { EmbedBuilder } from 'discord.js'
+import { MessageFlags } from 'discord.js'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageSelectMenuService } from './dice-page-select-menu.adapter'
 
@@ -52,7 +53,7 @@ describe('DicePageSelectMenuService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.jumpToPage).not.toHaveBeenCalled()
   })
@@ -66,7 +67,7 @@ describe('DicePageSelectMenuService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('開発中'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('開発中'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.jumpToPage).not.toHaveBeenCalled()
   })
@@ -80,7 +81,7 @@ describe('DicePageSelectMenuService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('無効なページ番号'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('無効なページ番号'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.jumpToPage).not.toHaveBeenCalled()
   })
@@ -95,7 +96,10 @@ describe('DicePageSelectMenuService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('移動できませんでした'), ephemeral: true })
+      expect.objectContaining({
+        content: expect.stringContaining('移動できませんでした'),
+        flags: MessageFlags.Ephemeral
+      })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -110,7 +114,7 @@ describe('DicePageSelectMenuService', () => {
     // Act & Assert
     await expect(service.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
   })
 })

@@ -4,7 +4,7 @@ jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
 import { Test } from '@nestjs/testing'
-import { ThreadChannel } from 'discord.js'
+import { ThreadChannel, MessageFlags } from 'discord.js'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
@@ -72,7 +72,7 @@ describe('CharacterTabButtonsService', () => {
       // Assert
       expect(interaction.reply).toHaveBeenCalledWith({
         content: 'このコマンドはスレッド内でのみ使用できます',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       })
       expect(interaction.deferReply).not.toHaveBeenCalled()
     })

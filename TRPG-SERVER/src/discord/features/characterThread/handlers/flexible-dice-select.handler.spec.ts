@@ -4,6 +4,7 @@
 jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
+import { MessageFlags } from 'discord.js'
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { FlexibleDiceSelectHandler } from './flexible-dice-select.handler'
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
@@ -97,7 +98,7 @@ describe('FlexibleDiceSelectHandler', () => {
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith({
       content: '❌ ダイスロールに失敗しました: ダイス式エラー',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     })
   })
 })

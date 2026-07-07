@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DicePageCancelButtonService } from './dice-page-cancel-button.adapter'
@@ -56,7 +57,7 @@ describe('DicePageCancelButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.cancelPagination).not.toHaveBeenCalled()
     expect(interaction.deleteReply).not.toHaveBeenCalled()
@@ -72,7 +73,10 @@ describe('DicePageCancelButtonService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('見つかりませんでした'), ephemeral: true })
+      expect.objectContaining({
+        content: expect.stringContaining('見つかりませんでした'),
+        flags: MessageFlags.Ephemeral
+      })
     )
     expect(interaction.deleteReply).not.toHaveBeenCalled()
   })
@@ -85,7 +89,7 @@ describe('DicePageCancelButtonService', () => {
     // Act & Assert
     await expect(service.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
   })
 })

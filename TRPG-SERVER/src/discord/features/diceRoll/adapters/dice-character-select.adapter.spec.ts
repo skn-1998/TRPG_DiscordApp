@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js'
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { DiceRollPaginationService } from 'src/discord/features/diceRoll/services/pagination/dice-roll-pagination.service'
 import { DiceCharacterSelectService } from './dice-character-select.adapter'
@@ -66,7 +67,7 @@ describe('DiceCharacterSelectService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
     expect(pagination.updateCharacter).not.toHaveBeenCalled()
   })
@@ -81,7 +82,10 @@ describe('DiceCharacterSelectService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('履歴が見つかりませんでした'), ephemeral: true })
+      expect.objectContaining({
+        content: expect.stringContaining('履歴が見つかりませんでした'),
+        flags: MessageFlags.Ephemeral
+      })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -96,7 +100,10 @@ describe('DiceCharacterSelectService', () => {
 
     // Assert
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('履歴が見つかりませんでした'), ephemeral: true })
+      expect.objectContaining({
+        content: expect.stringContaining('履歴が見つかりませんでした'),
+        flags: MessageFlags.Ephemeral
+      })
     )
     expect(interaction.editReply).not.toHaveBeenCalled()
   })
@@ -109,7 +116,7 @@ describe('DiceCharacterSelectService', () => {
     // Act & Assert
     await expect(service.execute(interaction)).resolves.toBeUndefined()
     expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('エラー'), ephemeral: true })
+      expect.objectContaining({ content: expect.stringContaining('エラー'), flags: MessageFlags.Ephemeral })
     )
   })
 })
