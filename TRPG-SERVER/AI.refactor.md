@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-07 C-8 マージ＋E-2a/E-2e′ 完了（イベント RPC 是正の第1弾・実バグ2箇所解消）
+
+ユーザー「進めてOK」により C-8 マージ→E-2 着手（Codex バランスレビューの推奨順序どおり）。
+
+### C-8 マージ（`959abeb`・--no-ff）
+
+`refactor/nest-v11-upgrade` を develop へマージ。マージ後 develop で build 0 / No circular / 全 186 suites 2541 tests 緑を再確認。
+**Nest v11 環境が正式に develop の基準になった**（手動 smoke はユーザー任意・チェックリストは前節）。ブランチは不要になったら削除可。
+
+### E-2a 完了（`9e92fb6`・nestjs-best-practices 委譲・characterization-first）
+
+`CharacterDisplayService.createCharacterEmbed` のイベント RPC（emit 後 waitForEvent＝**構造的に毎回3秒タイムアウト→null**）を
+`CharacterService.findByChannelId` の DI 直呼びへ置換。**タブボタンのキャラ表示バグが解消**。spec は Assert 不変で Arrange のみ
+DI mock 化＋「旧 RPC へ戻っていない」回帰ガード（Codex Low 指摘反映）。`findByChannelId.completed/failed` の恒常購読者ゼロは
+裏取り済み（@OnEvent・`on()` 両方 grep＋Codex 第三者確認）＝通知連鎖影響なし。旧 events handler の掃除は E-3 で実施。
+
+### E-2e′ 完了（`50926be`・計画訂正: DI 化 → dead 削除）
+
+**計画からの重要訂正**: `ChannelNameSyncService` は module 登録と spec のみで**本番呼び出し元ゼロの dead サービス**と確定
+（動的解決含め Codex 第三者検証済み）。DI 化ではなくファイルごと削除（S-5b の CharacterChannelService と同型）。
+「DB 更新成功でも 5 秒 timeout で false 報告」の壊れ RPC も呼び出し元ごと消滅。
+**注意（E-2d の前提知識）**: `character.update.completed` には `CharacterUpdateCompletedHandler`（discord/events・
+`getEventName()` 経由の間接登録のため literal grep では発見不可）という**恒常購読者が存在**する。E-2d（character-modal-handler の
+update DI 化）では completed 通知の発行責務の移し先を必ず設計すること。
+
+### 検証（司令塔実測・両 slice）
+
+build 0 / check:circular **No circular(476)** / 全 **185 suites 2533 tests 緑**（−1 suite/−8 tests＝削除 spec 分・新規破損ゼロ）/
+start:dev **handler 23 不変・DI エラー 0** / Codex スコープレビュー: 正確性指摘なし・Low 1件（回帰ガード）は反映済み。
+
+### 次にやること
+
+- **E-2b**（dice-roll-character-provider / character-section-editor の findById 系 DI 化）→ E-2c → E-2d（↑注意事項参照）→ E-2f。
+- E-2 完了後: E-3（dead contracts/emit 撤去・findBy\*.completed/failed も対象化）→ E-4。C-3/C-6 は並行可。
+
+---
+
 ## 2026-07-07 await バグ修正＋C-8 実施（Nest v11・ブランチ上）＋Codex 定期レビュー体制開始
 
 ユーザー指示「C-8 GO・await バグも修正・Codex に定期的にスコープ狭めたレビューと全体バランスレビューをさせる」に基づく。
