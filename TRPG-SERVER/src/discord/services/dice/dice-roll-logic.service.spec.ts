@@ -3,13 +3,16 @@ import { ChannelType, type ButtonInteraction } from 'discord.js'
 import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
+import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { DEFAULT_MOCK_USER } from '@discord-test-utils/interactions/base.types'
-import dice from '../../utils/dice'
+import dice from '../../../domains/dice-roll/services/bcdice.util'
 
 // dice モジュール(BCDice ローダ)は副作用の境界として丸ごとモックし、
 // 出目を固定して handleDiceRoll/handleSkillRoll/handleCustomDiceRoll の分岐を決定的に検証する。
-jest.mock('../../utils/dice')
+// （E-6e: BCDice 実行コアは DiceExecutionService 経由になったが、実 provider を組み込み
+//   境界モックは従来どおり bcdice.util に張ることで、既存 Assert 不変のまま挙動不変を証明する）
+jest.mock('../../../domains/dice-roll/services/bcdice.util')
 
 const mockedDice = dice as jest.MockedFunction<typeof dice>
 
@@ -47,6 +50,7 @@ describe('DiceRollLogicService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         DiceRollLogicService,
+        DiceExecutionService,
         { provide: DiceRollService, useValue: diceRollService },
         { provide: CharacterService, useValue: characterService }
       ]

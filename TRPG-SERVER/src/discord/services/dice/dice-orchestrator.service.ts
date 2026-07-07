@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { DiceCalculationService, DiceCalculationResult } from './dice-calculation.service'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 
 /**
  * ダイス処理オーケストレーター

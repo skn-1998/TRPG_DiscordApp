@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, ChannelType } from 'discord.js'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
-import dice from '../../utils/dice'
+import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
+import { resolveSaveChannelId } from '../../../domains/dice-roll/services/dice-save-key.util'
 import { DiceRollRequest, DiceRollResult } from '../../utils/dice-roll.interface'
 import { DiceRollTextInputDto } from '../../../domains/dice-roll/dto/create-dice-roll-text.dto'
 
@@ -10,9 +11,9 @@ import { DiceRollTextInputDto } from '../../../domains/dice-roll/dto/create-dice
  * ダイスロールロジックサービス
  *
  * 責務：
- * - ダイスロール処理の実行
- * - ダイス計算ロジック
- * - 結果の検証・フォーマット
+ * - ダイスロール処理の実行（BCDice 実行コアは DiceExecutionService へ委譲・E-6e）
+ * - ロール種別ごとの結果組み立て（スキル判定・カスタムロール）
+ * - 履歴保存（保存キー解決は dice-save-key.util の純関数へ委譲・E-6e）
  */
 @Injectable()
 export class DiceRollLogicService {
@@ -20,7 +21,8 @@ export class DiceRollLogicService {
 
   constructor(
     private readonly diceRollService: DiceRollService,
-    private readonly characterService: CharacterService
+    private readonly characterService: CharacterService,
+    private readonly diceExecutionService: DiceExecutionService
   ) {
     this.logger.debug('Dice roll logic service initialized')
   }
@@ -81,71 +83,10 @@ export class DiceRollLogicService {
   }
 
   /**
-   * ダイスロールを実行（内部実装）
+   * ダイスロールを実行（BCDice 実行コア DiceExecutionService へ委譲・E-6e で domains/dice-roll に移設）
    */
   private async executeDiceRoll(diceExpression: string, _reason?: string): Promise<{ total: number; details: string }> {
-    try {
-      // ダイス式をクリーンアップ
-      const cleanExpression = this.cleanDiceExpression(diceExpression)
-
-      // ダイスロールを実行
-      const result = await dice(cleanExpression)
-
-      if (!result || !result.text) {
-        throw new Error(`Invalid dice roll result for: ${cleanExpression}`)
-      }
-
-      // BCDiceの結果からtotalを取得
-      // 方法1: randsから合計を計算（最も正確）
-      let total = 0
-      if (result.rands && Array.isArray(result.rands)) {
-        total = result.rands.reduce((acc: number, curr: number[]) => acc + (curr[0] || 0), 0)
-      }
-
-      // 方法2: randsがない場合はtextから抽出
-      // BCDiceの形式: "(1D100) ＞ 73" または "(2D6) ＞ 7[3,4]"
-      if (total === 0 && result.text) {
-        // "＞" または ">" の後の数字を取得
-        const match = result.text.match(/[＞>]\s*(\d+)/)
-        if (match && match[1]) {
-          total = parseInt(match[1], 10)
-        }
-      }
-
-      this.logger.debug(`Dice roll result: ${cleanExpression} = ${total} (${result.text})`)
-
-      return {
-        total,
-        details: result.text || `${cleanExpression} = ${total}`
-      }
-    } catch (error) {
-      this.logger.error(`Failed to execute dice roll: ${diceExpression}`, error)
-      throw new Error(`ダイスロールの実行に失敗しました: ${diceExpression}`)
-    }
-  }
-
-  /**
-   * ダイス式をクリーンアップ
-   */
-  private cleanDiceExpression(expression: string): string {
-    // 基本的なクリーンアップ
-    let cleaned = expression.toLowerCase().trim()
-
-    // 危険な文字を除去
-    cleaned = cleaned.replace(/[^0-9d+\-*/() ]/gi, '')
-
-    // 空白を除去
-    cleaned = cleaned.replace(/\s+/g, '')
-
-    // 基本的な検証
-    if (!cleaned.match(/^\d*d\d+([+\-*/]\d+)*$/)) {
-      // 複雑な式の場合の追加検証
-      if (!cleaned.match(/^[\d+\-*/()d]+$/)) {
-        throw new Error(`無効なダイス式: ${expression}`)
-      }
-    }
-
-    return cleaned
+    return this.diceExecutionService.executeDiceRoll(diceExpression)
   }
 
   /**
@@ -285,18 +226,16 @@ export class DiceRollLogicService {
   /**
    * 履歴の保存先 channelId を解決する
    *
-   * キャラ解決キー（customId 由来 = character.discordChannelId）と保存キーを分離する。
-   * スレッド内のロールは、結果メッセージの投稿先（実親チャンネル）と同じキーで保存し、
-   * /dice-result（実行チャンネルで検索）と一致させる。キャラ登録チャンネルの外で
-   * 作成されたスレッドでも履歴が実親チャンネルから引けるようにするための分離。
-   * スレッド外は従来どおり lookup キー（customId 由来）で保存する。
+   * 「スレッド内は実親チャンネル・スレッド外は lookup キー」の意味論は
+   * domains/dice-roll/services/dice-save-key.util の純関数へ移設した（E-6e）。
+   * ここでは interaction → context への変換だけを行う。
    */
   private resolveSaveChannelId(interaction: ButtonInteraction, lookupChannelId: string): string {
     const channel = interaction.channel
     if (channel && (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread)) {
-      return channel.parentId ?? lookupChannelId
+      return resolveSaveChannelId({ channelId: lookupChannelId, parentId: channel.parentId, isThread: true })
     }
-    return lookupChannelId
+    return resolveSaveChannelId({ channelId: lookupChannelId, isThread: false })
   }
 
   /**
@@ -304,7 +243,7 @@ export class DiceRollLogicService {
    */
   validateDiceExpression(expression: string): { isValid: boolean; error?: string } {
     try {
-      const cleaned = this.cleanDiceExpression(expression)
+      const cleaned = this.diceExecutionService.cleanDiceExpression(expression)
 
       // 基本的なダイス式パターンをチェック
       const basicPattern = /^\d*d\d+([+\-*/]\d+)*$/

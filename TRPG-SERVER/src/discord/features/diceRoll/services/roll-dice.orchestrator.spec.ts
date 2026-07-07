@@ -1,11 +1,11 @@
 import { ChannelType } from 'discord.js'
 import { createMockChatInputInteraction } from '@discord-test-utils'
 import { RollDiceOrchestrator } from './roll-dice.orchestrator'
-import dice from '../../../utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { getGameSystemIdFromTopic, getParentChannelTopic } from '../utils/channel-topic.util'
 
 // dice(bcdice ラッパ) と topic 解決ユーティリティは副作用の境界なのでモックする
-jest.mock('../../../utils/dice')
+jest.mock('src/domains/dice-roll/services/bcdice.util')
 jest.mock('../utils/channel-topic.util')
 
 const diceMock = dice as jest.MockedFunction<typeof dice>

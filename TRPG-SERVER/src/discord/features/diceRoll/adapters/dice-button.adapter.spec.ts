@@ -8,11 +8,11 @@
 // discord.js スタブは PublicThread しか持たないため、実 discord.js の ChannelType を使う。
 jest.unmock('discord.js')
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
-jest.mock('src/discord/utils/dice')
+jest.mock('src/domains/dice-roll/services/bcdice.util')
 
 import { createMockButtonInteraction } from '@discord-test-utils'
 import { ChannelType, type ButtonInteraction } from 'discord.js'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { DiceButtonService } from './dice-button.adapter'
 
 const mockDice = dice as jest.MockedFunction<typeof dice>
