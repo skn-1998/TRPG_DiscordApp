@@ -216,104 +216,14 @@ export class TypedEventService {
 }
 
 /**
- * 型安全なイベント発行のためのヘルパー関数
+ * 型安全なイベント発行のためのヘルパークラス
+ *
+ * 注: request 系ヘルパ 7 本（character.*.requested / diceroll.execute.requested を
+ *     emit する薄いラッパ群）は E-2 完了により本番呼び出し元ゼロの dead コードと
+ *     なったため E-3a で削除した。
+ *     クラス自体は core-events.module の provider / discord-facade の注入先として
+ *     残置している（撤去は E-4 の contracts 一括整理で判断）。
  */
 export class TypedEventEmitter {
   constructor(private readonly typedEventService: TypedEventService) {}
-
-  /**
-   * Character検索リクエストイベント
-   */
-  async requestCharacterSearch(channelId: string, source: string, tabType?: string): Promise<void> {
-    await this.typedEventService.emit('character.findByChannelId.requested', {
-      channelId,
-      source,
-      timestamp: new Date(),
-      tabType
-    })
-  }
-
-  /**
-   * Character更新リクエストイベント
-   */
-  async requestCharacterUpdate(
-    channelId: string,
-    updateData: EventPayload<'character.update.requested'>['updateData'],
-    source: string,
-    userId?: string
-  ): Promise<void> {
-    await this.typedEventService.emit('character.update.requested', {
-      channelId,
-      updateData,
-      userId,
-      source,
-      timestamp: new Date()
-    })
-  }
-
-  /**
-   * Character作成リクエストイベント
-   */
-  async requestCharacterCreation(
-    createData: EventPayload<'character.creation.requested'>['createData'],
-    userId: string,
-    source: string
-  ): Promise<void> {
-    await this.typedEventService.emit('character.creation.requested', {
-      createData,
-      userId,
-      source,
-      timestamp: new Date()
-    })
-  }
-
-  /**
-   * DiceRoll実行リクエストイベント
-   */
-  async requestDiceRoll(channelId: string, diceExpression: string, userId: string, source: string): Promise<void> {
-    await this.typedEventService.emit('diceroll.execute.requested', {
-      channelId,
-      diceExpression,
-      userId,
-      source,
-      timestamp: new Date()
-    })
-  }
-
-  // 🚨 REMOVED: requestDiscordCharacterEmbedUpdate メソッドを削除
-  // File-based Event Handlersがcharacter.update.completedイベントを自動処理するため不要
-
-  /**
-   * ChannelIDによるキャラクター検索リクエストイベント
-   */
-  async requestCharacterByChannelId(channelId: string, source: string, tabType?: string): Promise<void> {
-    await this.typedEventService.emit('character.findByChannelId.requested', {
-      channelId,
-      source,
-      timestamp: new Date(),
-      tabType
-    })
-  }
-
-  /**
-   * キャラクターIDによるキャラクター検索リクエストイベント
-   */
-  async requestCharacterById(characterId: string, source: string): Promise<void> {
-    await this.typedEventService.emit('character.findById.requested', {
-      characterId,
-      source,
-      timestamp: new Date()
-    })
-  }
-
-  /**
-   * キャラクター名による検索リクエストイベント
-   */
-  async requestCharacterByName(characterName: string, source: string): Promise<void> {
-    await this.typedEventService.emit('character.findByName.requested', {
-      characterName,
-      source,
-      timestamp: new Date()
-    })
-  }
 }

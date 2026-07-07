@@ -35,12 +35,9 @@ export class CharacterEventIntegrationService implements OnModuleInit {
    *
    * 🚨 重複登録問題により無効化済み
    *
-   * 理由: 以下のイベントリスナーはFile-based Event Handlersで処理済み：
-   * - character.findByChannelId.requested → CharacterFindByChannelIdRequestedHandler
-   * - character.findById.requested → CharacterFindByIdRequestedHandler
-   * - character.update.requested → CharacterUpdateRequestedHandler
-   *
-   * このサービスは重複機能として、将来的に削除予定です。
+   * 注: かつて重複相手だった events 層の update.requested / findBy*.requested の
+   *     File-based Event Handlers は dead チェーンとして E-3a で削除済み。
+   *     このサービス自体も重複機能として、将来的に削除予定です。
    */
   private registerEventHandlers(): void {
     // 🚨 すべてのイベントリスナーはFile-based Event Handlersに移行済み

@@ -7,7 +7,7 @@ import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.
 import { CharacterInputDto } from './dto/create-character.dto'
 import { UserService } from '../user/user.service'
 import { AppConfigService } from '../../config/config.service'
-import { TypedEventEmitter, TypedEventService } from '../../core/events/typed-event.service'
+import { TypedEventService } from '../../core/events/typed-event.service'
 
 /**
  * Character Simple CRUD Test
@@ -43,11 +43,6 @@ describe('Character Simple CRUD Test', () => {
     on: jest.fn()
   }
 
-  const mockTypedEventEmitter = {
-    requestCharacterByChannelId: jest.fn().mockResolvedValue(undefined),
-    requestCharacterUpdate: jest.fn().mockResolvedValue(undefined)
-  }
-
   beforeAll(async () => {
     module = await Test.createTestingModule({
       imports: [
@@ -59,8 +54,7 @@ describe('Character Simple CRUD Test', () => {
         CharacterRepository,
         { provide: UserService, useValue: mockUserService },
         { provide: AppConfigService, useValue: mockConfigService },
-        { provide: TypedEventService, useValue: mockTypedEventService },
-        { provide: TypedEventEmitter, useValue: mockTypedEventEmitter }
+        { provide: TypedEventService, useValue: mockTypedEventService }
       ]
     }).compile()
 

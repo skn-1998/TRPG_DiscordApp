@@ -1,7 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { CharacterCreationRequestedHandler } from './character.creation.requested'
 import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
-import { CharacterIdService } from '../../domains/character/services/character-id.service'
 import { ValidationError, BusinessLogicError } from './_shared/event-handler.base'
 import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
 
@@ -11,8 +10,11 @@ import { CharacterCreationRequestedEvent } from '../contracts/unified-event-cont
  * ビジネス中核（重複チェック・パラメータ検証・ID採番・作成）は
  * CharacterCreationCoreService（domain）へ移設済みのため、本 spec では
  * 「入力形検証 → featureId ルーティング → creationCore への委譲 →
- * completed / failed イベント発行」の契約を検証する。
+ * completed イベント発行」の契約を検証する。
  * 移設したビジネス検証は character-creation-core.service.spec.ts が固定する。
+ *
+ * 注: character.creation.failed の emit は購読者ゼロの dead チェーンとして E-3a で
+ *     撤去したため、失敗系は「failed を emit しない＋エラー再スロー」を固定する。
  *
  * 注意:
  * - customValidation（入力形検証の分岐）は protected だが handle() の入口とは独立して
@@ -22,9 +24,6 @@ describe('CharacterCreationRequestedHandler', () => {
   let handler: CharacterCreationRequestedHandler
   let creationCore: {
     createValidated: jest.Mock
-  }
-  let characterIdService: {
-    generateUniqueCharacterId: jest.Mock
   }
   let typedEventService: { emit: jest.Mock }
 
@@ -48,17 +47,10 @@ describe('CharacterCreationRequestedHandler', () => {
     creationCore = {
       createValidated: jest.fn().mockResolvedValue({ characterId: 'char_created01' })
     }
-    characterIdService = {
-      generateUniqueCharacterId: jest.fn().mockResolvedValue('char_generated1')
-    }
     typedEventService = { emit: jest.fn().mockResolvedValue(undefined) }
 
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        CharacterCreationRequestedHandler,
-        { provide: CharacterCreationCoreService, useValue: creationCore },
-        { provide: CharacterIdService, useValue: characterIdService }
-      ]
+      providers: [CharacterCreationRequestedHandler, { provide: CharacterCreationCoreService, useValue: creationCore }]
     }).compile()
 
     handler = moduleRef.get(CharacterCreationRequestedHandler)
@@ -89,8 +81,6 @@ describe('CharacterCreationRequestedHandler', () => {
         expect.objectContaining({ characterName: 'テストキャラ' }),
         undefined
       )
-      // 成功経路では handler 側の ID 採番（失敗イベント用）は呼ばれない
-      expect(characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
     })
 
     it('characterId が指定済みなら指定値をそのまま creationCore に渡す', async () => {
@@ -162,66 +152,28 @@ describe('CharacterCreationRequestedHandler', () => {
     )
   })
 
-  describe('handle / 異常系（失敗イベント）', () => {
-    it('作成が失敗したら character.creation.failed を emit し、エラーを再スローする', async () => {
+  describe('handle / 異常系（failed emit は E-3a で撤去済み）', () => {
+    it('作成が失敗したらエラーを再スローし、イベントは一切 emit しない', async () => {
       // Arrange
       const error = new Error('create failed')
       creationCore.createValidated.mockRejectedValue(error)
       const event = buildEvent({ createData: { ...baseCreateData(), gameSystemId: 'coc' } })
 
-      // Act & Assert: 再スローされる
+      // Act & Assert: 再スローされる（EventHandler 基底のリトライ/統計はこの throw に依存）
       await expect(handler.handle(event)).rejects.toThrow('create failed')
 
-      // Assert: 失敗イベントが emit される（成功イベントは emit されない）
-      expect(typedEventService.emit).toHaveBeenCalledTimes(1)
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.creation.failed',
-        expect.objectContaining({
-          createData: expect.objectContaining({
-            characterName: 'テストキャラ',
-            gameSystemId: 'coc'
-          }),
-          error: 'create failed',
-          source: 'system',
-          timestamp: expect.any(Date)
-        })
-      )
+      // Assert: dead な character.creation.failed は emit されない（成功イベントも emit されない）
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 
-    it('失敗イベントの createData.characterId は元イベントの characterId を優先する', async () => {
+    it('characterId 指定済みイベントの作成失敗でも emit ゼロのまま再スローする', async () => {
       // Arrange
       creationCore.createValidated.mockRejectedValue(new Error('boom'))
       const event = buildEvent({ characterId: 'char_orig00001' })
 
-      // Act
+      // Act & Assert
       await expect(handler.handle(event)).rejects.toThrow('boom')
-
-      // Assert: 既存 characterId が使われ、失敗イベント用の追加 ID 生成は行われない
-      expect(characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.creation.failed',
-        expect.objectContaining({
-          createData: expect.objectContaining({ characterId: 'char_orig00001' })
-        })
-      )
-    })
-
-    it('characterId 未指定で作成失敗時は失敗イベント用に ID を生成して埋める', async () => {
-      // Arrange
-      creationCore.createValidated.mockRejectedValue(new Error('boom'))
-      const event = buildEvent()
-
-      // Act
-      await expect(handler.handle(event)).rejects.toThrow('boom')
-
-      // Assert
-      expect(characterIdService.generateUniqueCharacterId).toHaveBeenCalled()
-      expect(typedEventService.emit).toHaveBeenCalledWith(
-        'character.creation.failed',
-        expect.objectContaining({
-          createData: expect.objectContaining({ characterId: 'char_generated1' })
-        })
-      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 

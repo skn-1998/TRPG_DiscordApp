@@ -12,12 +12,10 @@ import { DiscordIntegrationHandler } from './handlers/discord-integration.handle
 // 注: Discord UI を更新する「完了系」ハンドラー（creation/update/deletion.completed,
 //     discord.thread.create.requested）は discord 層（DiscordEventHandlersModule）へ移設した。
 //     これにより events→discord/features の逆流依存（forwardRef）を撤去している。
+// 注: update.requested / findBy*.requested の 4 ハンドラーは E-2 完了で emit 元ゼロの
+//     dead チェーンとなったため E-3a で削除した。
 import { EventRegistryService } from './event-registry.service'
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
-import { CharacterUpdateRequestedHandler } from './handlers/character.update.requested'
-import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.findByChannelId.requested'
-import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
-import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
 
 /**
  * File-based Events Module
@@ -32,18 +30,10 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
  *
  * 🏗️ 新アーキテクチャ:
  * File-based Event Handlers (このモジュール)
- * ├── character.creation.requested.ts
- * ├── character.update.requested.ts
- * ├── character.findByChannelId.requested.ts
- * ├── character.findById.requested.ts
- * ├── character.creation.completed.ts
- * ├── character.update.completed.ts
- * └── character.deletion.completed.ts
+ * └── character.creation.requested.ts
  *
- * 🔄 移行計画:
- * 1. 新しいFile-based Handlersを併用開始
- * 2. 既存Event Bridgeから段階的移行
- * 3. レガシーコード削除
+ * 注: 完了系（creation/update/deletion.completed）は discord 層へ移設済み。
+ *     update.requested / findBy*.requested は dead チェーンのため E-3a で削除済み。
  */
 @Module({
   imports: [
@@ -56,10 +46,6 @@ import { CharacterFindByNameRequestedHandler } from './handlers/character.findBy
     // ✅ NEW: File-based Event Registry & Handlers
     EventRegistryService,
     CharacterCreationRequestedHandler,
-    CharacterUpdateRequestedHandler,
-    CharacterFindByChannelIdRequestedHandler,
-    CharacterFindByIdRequestedHandler,
-    CharacterFindByNameRequestedHandler,
 
     // Discord 統合（TypedEventService 経由のログ処理）
     DiscordIntegrationHandler

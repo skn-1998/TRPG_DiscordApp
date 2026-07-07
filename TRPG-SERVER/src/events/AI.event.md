@@ -18,7 +18,11 @@
 > 登録経路は「どの層が所有するか」「どう購読するか」で明確に2系統に分かれる。混在させない。
 >
 > - **経路A: events 層（ドメイン処理）** — _File-based 集中登録_
->   - 対象: `*.requested` 系（`character.creation/update/findBy*.requested`）。
+>   - 対象: `*.requested` 系。現存は `character.creation.requested` の 1 本のみ
+>     （`update.requested` / `findByChannelId/findById/findByName.requested` の 4 ハンドラは
+>     E-2 完了で emit 元ゼロの dead チェーンとなり **E-3a（2026-07-07）で削除済み**。
+>     あわせて `TypedEventEmitter` の request 系ヘルパ 7 本と、購読者ゼロの
+>     `character.creation.failed` emit も撤去。contracts の型整理は E-4a で実施予定）。
 >   - 所有: events 層。`EventRegistryService`（`src/events/event-registry.service.ts`）が File-based で `TypedEventService` に**集中登録**する（各ハンドラが個別に自己購読するのではなく registry が一括で配線）。
 >   - 呼び先: domain の `CharacterService` 等（**events→domains＝許可方向**）。
 > - **経路B: discord 層（Discord UI 更新）** — _ハンドラ自己購読_

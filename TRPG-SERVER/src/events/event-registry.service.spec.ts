@@ -3,18 +3,14 @@ import { Logger } from '@nestjs/common'
 import { EventRegistryService } from './event-registry.service'
 import { TypedEventService } from '../core/events/typed-event.service'
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
-import { CharacterUpdateRequestedHandler } from './handlers/character.update.requested'
-import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.findByChannelId.requested'
-import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
-import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
 
 /**
  * EventRegistryService のユニットテスト
  *
- * 方針: 副作用の境界（TypedEventService）と 5 ハンドラを mock スタブで注入し、
- *       実ハンドラの依存解決を回避する。純粋ロジック（isValidEventName / stats 更新 /
- *       healthReport 判定 / 相関ID生成）は private のため型アサーションで直接検証する。
- *       本番コードは一切変更しない。
+ * 方針: 副作用の境界（TypedEventService）と注入ハンドラ（E-3a の dead チェーン撤去後は
+ *       creation の 1 本）を mock スタブで注入し、実ハンドラの依存解決を回避する。
+ *       純粋ロジック（isValidEventName / stats 更新 / healthReport 判定 / 相関ID生成）は
+ *       private のため型アサーションで直接検証する。本番コードは一切変更しない。
  */
 
 /** EventHandler の最小スタブを生成する */
@@ -34,10 +30,6 @@ describe('EventRegistryService', () => {
   let service: EventRegistryService
   let typedEventService: { on: jest.Mock; emit: jest.Mock }
   let creationHandler: ReturnType<typeof createHandlerStub>
-  let updateHandler: ReturnType<typeof createHandlerStub>
-  let findByChannelIdHandler: ReturnType<typeof createHandlerStub>
-  let findByIdHandler: ReturnType<typeof createHandlerStub>
-  let findByNameHandler: ReturnType<typeof createHandlerStub>
 
   beforeEach(async () => {
     // ログ出力をテスト出力から抑制
@@ -49,20 +41,12 @@ describe('EventRegistryService', () => {
     typedEventService = { on: jest.fn(), emit: jest.fn() }
 
     creationHandler = createHandlerStub('character.creation.requested', 'CreationHandler')
-    updateHandler = createHandlerStub('character.update.requested', 'UpdateHandler')
-    findByChannelIdHandler = createHandlerStub('character.findByChannelId.requested', 'FindByChannelIdHandler')
-    findByIdHandler = createHandlerStub('character.findById.requested', 'FindByIdHandler')
-    findByNameHandler = createHandlerStub('character.findByName.requested', 'FindByNameHandler')
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         EventRegistryService,
         { provide: TypedEventService, useValue: typedEventService },
-        { provide: CharacterCreationRequestedHandler, useValue: creationHandler },
-        { provide: CharacterUpdateRequestedHandler, useValue: updateHandler },
-        { provide: CharacterFindByChannelIdRequestedHandler, useValue: findByChannelIdHandler },
-        { provide: CharacterFindByIdRequestedHandler, useValue: findByIdHandler },
-        { provide: CharacterFindByNameRequestedHandler, useValue: findByNameHandler }
+        { provide: CharacterCreationRequestedHandler, useValue: creationHandler }
       ]
     }).compile()
 
@@ -74,17 +58,13 @@ describe('EventRegistryService', () => {
   })
 
   describe('onModuleInit', () => {
-    it('全ハンドラを登録し、各イベント名で typedEventService.on が呼ばれる', async () => {
+    it('全ハンドラ（creation の 1 本）を登録し、イベント名で typedEventService.on が呼ばれる', async () => {
       // Act
       await service.onModuleInit()
 
-      // Assert: 5 ハンドラ分の on 登録
-      expect(typedEventService.on).toHaveBeenCalledTimes(5)
+      // Assert: 1 ハンドラ分の on 登録
+      expect(typedEventService.on).toHaveBeenCalledTimes(1)
       expect(typedEventService.on).toHaveBeenCalledWith('character.creation.requested', expect.any(Function))
-      expect(typedEventService.on).toHaveBeenCalledWith('character.update.requested', expect.any(Function))
-      expect(typedEventService.on).toHaveBeenCalledWith('character.findByChannelId.requested', expect.any(Function))
-      expect(typedEventService.on).toHaveBeenCalledWith('character.findById.requested', expect.any(Function))
-      expect(typedEventService.on).toHaveBeenCalledWith('character.findByName.requested', expect.any(Function))
     })
 
     it('各ハンドラに setTypedEventService が呼ばれ、handlers マップに登録される', async () => {
@@ -93,20 +73,20 @@ describe('EventRegistryService', () => {
 
       // Assert: setTypedEventService 呼出 + handlers 登録
       expect(creationHandler.setTypedEventService).toHaveBeenCalledWith(typedEventService)
-      expect(service.getRegisteredEventNames()).toHaveLength(5)
+      expect(service.getRegisteredEventNames()).toHaveLength(1)
       expect(service.getHandler('character.creation.requested')).toBe(creationHandler)
     })
 
-    it('登録時に重複や検証 throw が起きても内部 try/catch で握り、残りの登録を継続する', async () => {
-      // Arrange: 1 ハンドラだけ無効なイベント名を返させ registerHandler を throw させる
-      findByIdHandler.getEventName.mockReturnValue('invalid')
+    it('登録時の検証 throw は内部 try/catch で握られ、onModuleInit の外へ漏れない', async () => {
+      // Arrange: 無効なイベント名を返させ registerHandler を throw させる
+      creationHandler.getEventName.mockReturnValue('invalid')
 
       // Act: throw が onModuleInit の外に漏れないこと
       await expect(service.onModuleInit()).resolves.toBeUndefined()
 
-      // Assert: 失敗した 1 件を除く 4 件が登録される
-      expect(service.getRegisteredEventNames()).toHaveLength(4)
-      expect(service.getHandler('character.findById.requested')).toBeUndefined()
+      // Assert: 失敗したハンドラは登録されない
+      expect(service.getRegisteredEventNames()).toHaveLength(0)
+      expect(service.getHandler('character.creation.requested')).toBeUndefined()
     })
   })
 
@@ -371,15 +351,15 @@ describe('EventRegistryService', () => {
 
   describe('getRegisteredEventNames', () => {
     it('登録済みイベント名をソートして返す', async () => {
-      // Arrange: あえて登録順を非ソートにする
-      await (service as any).registerHandler(updateHandler)
-      await (service as any).registerHandler(creationHandler)
+      // Arrange: あえて登録順を非ソートにする（ローカルスタブ2本を直接登録）
+      await (service as any).registerHandler(createHandlerStub('test.beta.event', 'BetaHandler'))
+      await (service as any).registerHandler(createHandlerStub('test.alpha.event', 'AlphaHandler'))
 
       // Act
       const names = service.getRegisteredEventNames()
 
       // Assert
-      expect(names).toEqual(['character.creation.requested', 'character.update.requested'])
+      expect(names).toEqual(['test.alpha.event', 'test.beta.event'])
     })
   })
 
