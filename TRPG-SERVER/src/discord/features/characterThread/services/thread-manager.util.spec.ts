@@ -1,22 +1,8 @@
-import {
-  buildThreadUrl,
-  nextBackoffDelay,
-  buildCreationCompletedPayload,
-  CreationEventInput
-} from './thread-manager.util'
+import { buildThreadUrl, nextBackoffDelay } from './thread-manager.util'
 
 /**
  * thread-manager.util の純粋関数テスト。モック不要で入出力のみ検証する。
  */
-
-const baseInput: CreationEventInput = {
-  threadId: 'thread-1',
-  characterId: 'char-1',
-  characterName: 'テスト探索者',
-  channelId: 'channel-1',
-  creatorId: 'creator-1',
-  guildId: 'guild-1'
-}
 
 describe('thread-manager.util', () => {
   describe('buildThreadUrl', () => {
@@ -33,25 +19,6 @@ describe('thread-manager.util', () => {
     })
   })
 
-  describe('buildCreationCompletedPayload', () => {
-    it('threadId を discordThreadId にも複製し、注入した threadUrl/timestamp/source を含む', () => {
-      const ts = new Date('2026-06-02T00:00:00.000Z')
-      const payload = buildCreationCompletedPayload(baseInput, 'https://example/thread-1', ts)
-
-      expect(payload).toEqual({
-        threadId: 'thread-1',
-        discordThreadId: 'thread-1',
-        threadUrl: 'https://example/thread-1',
-        characterId: 'char-1',
-        characterName: 'テスト探索者',
-        channelId: 'channel-1',
-        creatorId: 'creator-1',
-        guildId: 'guild-1',
-        timestamp: ts,
-        source: 'thread-manager-service'
-      })
-    })
-  })
-
   // E-3d: buildCreationFailedPayload は dead emit 撤去に伴い削除（テストも撤去）
+  // E-3f: 作成完了イベント payload の組立関数も dead emit 撤去に伴い削除（テストも撤去）
 })

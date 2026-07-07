@@ -2,9 +2,9 @@
  * Thread Manager Util
  *
  * ThreadManagerService から抽出した「純粋ロジック」群。
- * Discord I/O（fetch/create/emit 等の副作用）や Date.now / setTimeout は一切持たず、
- * 入力（文字列・数値・Date）から出力（文字列・数値・プレーンな payload オブジェクト）を
- * 組み立てるだけ。既存の thread-creation.util.ts / channel-manager.util.ts と同じ方針。
+ * Discord I/O（fetch/create 等の副作用）や Date.now / setTimeout は一切持たず、
+ * 入力（文字列・数値）から出力（文字列・数値）を組み立てるだけ。
+ * 既存の thread-creation.util.ts / channel-manager.util.ts と同じ方針。
  */
 
 /**
@@ -22,49 +22,7 @@ export function nextBackoffDelay(current: number): number {
   return current * 2
 }
 
-/** スレッド作成完了イベント payload の組立に必要な入力 */
-export interface CreationEventInput {
-  threadId: string
-  characterId: string
-  characterName: string
-  channelId: string
-  creatorId: string
-  guildId: string
-}
-
-/**
- * `character-thread.creation.completed` の payload を組み立てる純粋関数。
- * timestamp は呼び出し側から Date を注入する（Date.now に触れない）。
- */
-export function buildCreationCompletedPayload(
-  input: CreationEventInput,
-  threadUrl: string,
-  timestamp: Date
-): {
-  threadId: string
-  discordThreadId: string
-  threadUrl: string
-  characterId: string
-  characterName: string
-  channelId: string
-  creatorId: string
-  guildId: string
-  timestamp: Date
-  source: string
-} {
-  return {
-    threadId: input.threadId,
-    discordThreadId: input.threadId,
-    threadUrl,
-    characterId: input.characterId,
-    characterName: input.characterName,
-    channelId: input.channelId,
-    creatorId: input.creatorId,
-    guildId: input.guildId,
-    timestamp,
-    source: 'thread-manager-service'
-  }
-}
-
 // E-3d: buildCreationFailedPayload は dead emit（恒常購読者ゼロの失敗イベント）専用の
 // payload 組立関数だったため、emit 撤去に伴い削除した。
+// E-3f: 作成完了イベント payload の組立関数（と専用入力型 CreationEventInput）も同様に
+// dead emit（恒常購読者ゼロの作成完了イベント）専用だったため、emit 撤去に伴い削除した。

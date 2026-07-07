@@ -7,7 +7,6 @@ import { CharacterThreadFeatureModule } from '../features/characterThread/charac
 // （events 層から移設。TypedEventService への自己購読で動作する）
 import { CharacterCreationCompletedHandler } from './handlers/character.creation.completed'
 import { CharacterUpdateCompletedHandler } from './handlers/character.update.completed'
-import { CharacterDeletionCompletedHandler } from './handlers/character.deletion.completed'
 import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.create.requested'
 
 /**
@@ -31,16 +30,11 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
  * - CharacterEditModule: CharacterUIService / CharacterEmbedManagerService
  * - CharacterThreadFeatureModule: ThreadOrchestratorService
  *
- * ⚠️ CharacterDeletionCompletedHandler は旧 EventRegistry でも未登録だった。
- *    挙動保存のため provider に登録するが自己購読は行わない。
+ * 🧹 E-3f: キャラクター削除完了イベントの専用ハンドラーは
+ *    emit 元ゼロ＋自己購読なしの dead listener だったため削除した。
  */
 @Module({
   imports: [DiscordIntegrationModule, CharacterEditModule, CharacterThreadFeatureModule],
-  providers: [
-    CharacterCreationCompletedHandler,
-    CharacterUpdateCompletedHandler,
-    CharacterDeletionCompletedHandler,
-    DiscordThreadCreateRequestedHandler
-  ]
+  providers: [CharacterCreationCompletedHandler, CharacterUpdateCompletedHandler, DiscordThreadCreateRequestedHandler]
 })
 export class DiscordEventHandlersModule {}
