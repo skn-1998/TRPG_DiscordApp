@@ -143,11 +143,12 @@ export class CharacterCreationCompletedHandler
         })
       }
 
-      // 2. スレッド作成リクエスト（threadIdが指定されている場合）
-      if (character.threadId || character.discordChannelId) {
+      // 2. スレッド作成リクエスト（discordChannelId 基準。E-6a: deprecated threadId 条件と
+      //    「threadId のみのとき channelId 空文字で emit する」旧挙動は bugfix として廃止）
+      if (character.discordChannelId) {
         await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED, {
           character: character as Character,
-          channelId: character.discordChannelId || '',
+          channelId: character.discordChannelId,
           guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
           creatorId: character.discordUserId || 'system',
           displayType: 'enhanced',

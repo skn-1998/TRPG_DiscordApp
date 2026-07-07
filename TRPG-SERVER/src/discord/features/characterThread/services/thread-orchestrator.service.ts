@@ -53,10 +53,9 @@ export class ThreadOrchestratorService {
         throw new Error(result.error || 'Thread creation failed')
       }
 
-      // 2. スレッドIDをキャラクターに保存（新しい設計：discordThreadIdに保存）
+      // 2. スレッドIDをキャラクターに保存（discordThreadId が正。E-6a: deprecated threadId への二重書きは廃止）
       this.logger.log(`[ORCHESTRATOR] Updating character ${character.characterId} with threadId: ${result.threadId}`)
       await this.characterService.update(character.characterId, {
-        threadId: result.threadId,
         discordThreadId: result.threadId
       })
       this.logger.log(`[ORCHESTRATOR] Character updated successfully`)

@@ -151,9 +151,9 @@ describe('ThreadCreationService (characterization)', () => {
       expect(createArgs.type).toBe(11) // PublicThread
       expect(createArgs.reason).toBe('Character thread for テストキャラ')
 
-      // DB 更新: discordThreadId と threadId の 2 回 update
+      // DB 更新: discordThreadId のみ 1 回 update（E-6a: deprecated threadId への二重書きは廃止）
+      expect(mockCharacterService.update).toHaveBeenCalledTimes(1)
       expect(mockCharacterService.update).toHaveBeenCalledWith('char-123', { discordThreadId: 'thread-xyz' })
-      expect(mockCharacterService.update).toHaveBeenCalledWith('char-123', { threadId: 'thread-xyz' })
 
       // thread.send が呼ばれている（embed + ボタン群）
       expect(thread.send).toHaveBeenCalled()

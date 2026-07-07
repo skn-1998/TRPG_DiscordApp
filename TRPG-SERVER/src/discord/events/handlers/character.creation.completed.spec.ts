@@ -173,6 +173,37 @@ describe('CharacterCreationCompletedHandler', () => {
     })
   })
 
+  describe('handle - thread.create.requested の emit 条件（E-6a characterization）', () => {
+    it('discordChannelId があれば（legacy threadId が無くても）discord.thread.create.requested を emit する', async () => {
+      // Arrange: threadId（deprecated フィールド）無し・discordChannelId あり
+      const event = buildEvent({ threadId: undefined })
+
+      // Act
+      await handler.handle(event)
+
+      // Assert: channelId は discordChannelId 基準で emit される
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.thread.create.requested',
+        expect.objectContaining({
+          channelId: 'ch-1',
+          source: 'character-creation-completed-handler'
+        })
+      )
+    })
+
+    it('legacy threadId のみ（discordChannelId 無し）のときは discord.thread.create.requested を emit しない', async () => {
+      // Arrange: legacy DB ドキュメント相当（threadId のみ保持）。
+      // 旧挙動は channelId 空文字で emit していたが、E-6a で bugfix として廃止。
+      const event = buildEvent({ discordChannelId: undefined, threadId: 'legacy-thread-1' })
+
+      // Act
+      await handler.handle(event)
+
+      // Assert
+      expect(typedEventService.emit).not.toHaveBeenCalledWith('discord.thread.create.requested', expect.anything())
+    })
+  })
+
   describe('handle - discordChannelId が無い場合', () => {
     it('通知・Embed・thread・display は一切 emit しない', async () => {
       // Arrange: channelId/threadId 無し

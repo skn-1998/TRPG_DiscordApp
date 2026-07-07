@@ -118,8 +118,8 @@ describe('ThreadOrchestratorService', () => {
         },
         character
       )
+      // E-6a: deprecated threadId への二重書きは廃止（discordThreadId のみ）
       expect(characterService.update).toHaveBeenCalledWith('char-1', {
-        threadId: 'thread-new',
         discordThreadId: 'thread-new'
       })
       expect(threadManager.getThreadChannel).toHaveBeenCalledWith('thread-new')
