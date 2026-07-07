@@ -10,6 +10,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, ModalSubmitInteraction, CacheType } from 'discord.js'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { AttributeValue } from '../../../../core/types/attribute.types'
+import { EVENT_NAMES } from '../../../../events/contracts'
 import {
   extractCharacterIdFromCustomId,
   parseModalSubmitCustomId,
@@ -30,7 +31,7 @@ export class CharacterEditEventEmitterService {
       const characterId = extractCharacterIdFromCustomId(interaction.customId)
       if (!characterId) return
 
-      await this.typedEventService.emit('characterEdit.modal.opened', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_MODAL_OPENED, {
         characterId,
         userId: interaction.user.id,
         timestamp: new Date(),
@@ -60,7 +61,7 @@ export class CharacterEditEventEmitterService {
         interaction.fields.getTextInputValue('game-system') ||
         ''
 
-      await this.typedEventService.emit('characterEdit.modal.submitted', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_MODAL_SUBMITTED, {
         characterId,
         userId: interaction.user.id,
         timestamp: new Date(),
@@ -85,7 +86,7 @@ export class CharacterEditEventEmitterService {
       const characterId = extractCharacterIdFromCustomId(interaction.customId)
       if (!characterId) return
 
-      await this.typedEventService.emit('characterEdit.embed.refresh.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_EMBED_REFRESH_REQUESTED, {
         characterId,
         userId: interaction.user.id,
         timestamp: new Date(),
@@ -108,7 +109,7 @@ export class CharacterEditEventEmitterService {
     try {
       const characterId = extractCharacterIdFromCustomId(customId)
 
-      await this.typedEventService.emit('characterEdit.error.occurred', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_ERROR_OCCURRED, {
         characterId: characterId || 'unknown',
         userId,
         timestamp: new Date(),

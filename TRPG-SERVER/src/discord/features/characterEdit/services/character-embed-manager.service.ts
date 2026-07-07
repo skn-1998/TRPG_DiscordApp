@@ -15,6 +15,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterCreationCoreService } from '../../../../domains/character/services/character-creation-core.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { EVENT_NAMES } from '../../../../events/contracts'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import {
   generateShortCharacterId,
@@ -103,7 +104,7 @@ export class CharacterEmbedManagerService {
 
       // 恒常購読者（CharacterCreationCompletedHandler 等）向けの通知は fire-and-forget で維持
       void this.typedEventService
-        .emit('character.creation.completed', {
+        .emit(EVENT_NAMES.CHARACTER_CREATION_COMPLETED, {
           character,
           source: 'character-embed-manager',
           timestamp: new Date()

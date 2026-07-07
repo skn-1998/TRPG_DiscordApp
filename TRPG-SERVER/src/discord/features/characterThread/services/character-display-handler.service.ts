@@ -9,7 +9,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { TextChannel, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
-import { EventPayload } from '../../../../events/contracts'
+import { EventPayload, EVENT_NAMES } from '../../../../events/contracts'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterDisplayService } from './character-display.service'
@@ -36,7 +36,10 @@ export class CharacterDisplayHandlerService {
    * イベントハンドラーを登録
    */
   private registerEventHandlers(): void {
-    this.typedEventService.on('discord.character.display.requested', this.handleCharacterDisplayRequested.bind(this))
+    this.typedEventService.on(
+      EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED,
+      this.handleCharacterDisplayRequested.bind(this)
+    )
 
     this.logger.debug('Character Display Handler event handlers registered')
   }

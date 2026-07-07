@@ -3,6 +3,7 @@ import { EventHandler, EventContext, ValidationError, BusinessLogicError } from 
 import { validateRequired, validateStringLength, validateDiscordId } from './_shared/validation.utils'
 import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
 import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
+import { EVENT_NAMES } from '../contracts'
 
 /**
  * character.creation.requested 専用ハンドラー
@@ -26,7 +27,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
    * 処理するイベント名
    */
   getEventName(): string {
-    return 'character.creation.requested'
+    return EVENT_NAMES.CHARACTER_CREATION_REQUESTED
   }
 
   /**
@@ -159,7 +160,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
       timestamp: new Date()
     }
 
-    await this.typedEventService?.emit('character.creation.completed', successEvent)
+    await this.typedEventService?.emit(EVENT_NAMES.CHARACTER_CREATION_COMPLETED, successEvent)
 
     this.logger.log(`📤 Success event emitted: character.creation.completed for ${character.characterId}`)
   }

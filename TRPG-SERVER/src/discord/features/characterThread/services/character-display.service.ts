@@ -12,7 +12,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
-import { EventPayload } from '../../../../events/contracts'
+import { EventPayload, EVENT_NAMES } from '../../../../events/contracts'
 
 /**
  * タブ表示タイプ
@@ -48,7 +48,10 @@ export class CharacterDisplayService implements OnModuleInit {
    */
   private registerEmbedEventHandlers(): void {
     // character-thread専用のキャラクター表示リクエストハンドラー
-    this.typedEventService.on('discord.character.display.requested', this.handleCharacterDisplayRequest.bind(this))
+    this.typedEventService.on(
+      EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED,
+      this.handleCharacterDisplayRequest.bind(this)
+    )
 
     this.logger.debug('Character thread display event handlers registered')
   }

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { EventPayload } from '../../../../events/contracts'
+import { EventPayload, EVENT_NAMES } from '../../../../events/contracts'
 import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
@@ -65,7 +65,7 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
       // 2. キャラクター作成イベント発火 (イベント駆動アーキテクチャ)
       this.logger.log('キャラクター作成イベントを発火します')
 
-      await this.typedEventService.emit('character.creation.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_CREATION_REQUESTED, {
         createData: {
           characterName: detectionResult.context.channel.name,
           gameSystemId: '', // デフォルト値
