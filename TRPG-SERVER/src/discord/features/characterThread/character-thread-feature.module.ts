@@ -5,7 +5,6 @@ import { ThreadCreationService } from './services/thread-creation.service'
 import { CharacterThreadOrchestrator } from './services/character-thread.orchestrator'
 import { CharacterDisplayService } from './services/character-display.service'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
-import { CharacterDisplayHandlerService } from './services/character-display-handler.service'
 // 新しい分割サービス
 import { ChannelManagerService } from './services/channel-manager.service'
 import { CharacterEmbedService } from './services/character-embed.service'
@@ -66,7 +65,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     ThreadCreationService,
     CharacterThreadOrchestrator,
     CharacterDisplayService, // CharacterTabButtonsServiceより先に定義
-    CharacterDisplayHandlerService,
     CharacterTabButtonsService,
     // 新しい分割サービス
     ChannelManagerService,
@@ -91,7 +89,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     ThreadCreationService,
     CharacterThreadOrchestrator,
     CharacterDisplayService,
-    CharacterDisplayHandlerService,
     CharacterTabButtonsService,
     // 新しい分割サービス
     ChannelManagerService,

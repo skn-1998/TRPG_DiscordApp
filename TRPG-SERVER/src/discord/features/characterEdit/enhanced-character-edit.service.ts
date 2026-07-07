@@ -27,7 +27,6 @@ import {
 } from 'discord.js'
 import { Character } from '../../../domains/character/models/character.model'
 import { CharacterService } from '../../../domains/character/character.service'
-import { EventPayload } from '../../../events/contracts'
 import { ErrorHandler } from '../../../core/http/error-handler'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
@@ -250,33 +249,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   /**
-   * キャラクター表示リクエストイベントの処理
-   */
-  async handleCharacterDisplayRequested(payload: EventPayload<'discord.character.display.requested'>): Promise<void> {
-    try {
-      const { character, channelId, displayType, source } = payload
-
-      this.logger.log(
-        `[CHARACTER-EDIT] Display requested: ${character.characterId}, channel: ${channelId}, displayType: ${displayType}, source: ${source}`
-      )
-
-      // character-edit専用: enhanced表示のみ処理
-      if (displayType === 'enhanced' && this.isCharacterEditChannel(channelId)) {
-        this.logger.log(`[CHARACTER-EDIT] Processing enhanced display for ${character.characterId}`)
-
-        // イベント駆動でEnhanced表示を実行
-        await this.displayEnhancedCharacterEdit(channelId, character)
-
-        this.logger.log(`[CHARACTER-EDIT] Enhanced display completed for ${character.characterId}`)
-      } else {
-        this.logger.log(`[CHARACTER-EDIT] Skipping - displayType: ${displayType}, channel: ${channelId}`)
-      }
-    } catch (error) {
-      this.logger.error(`[CHARACTER-EDIT] Display request failed for ${payload.character.characterId}`, error)
-    }
-  }
-
-  /**
    * 新規キャラクター作成画面の表示
    *
    * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
@@ -297,15 +269,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       )
       throw error
     }
-  }
-
-  /**
-   * チャンネルがcharacter-edit管理下かどうかを判定
-   */
-  private isCharacterEditChannel(_channelId: string): boolean {
-    // この実装は要件に応じて調整
-    // 例: character-editが作成したチャンネル、特定のチャンネル名パターンなど
-    return true // 暫定的にすべてのチャンネルを対象とする
   }
 
   /**

@@ -5,19 +5,19 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
 import { Test } from '@nestjs/testing'
 import { CharacterDisplayService } from './character-display.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 
 /**
  * CharacterDisplayService はチャンネルIDからキャラクターを検索し Embed を構築する統合サービス。
- * TypedEventService（イベント発行・購読）と CharacterService（検索の DI 直呼び・E-2a）を注入する。
+ * CharacterService（検索の DI 直呼び・E-2a）のみを注入する。
+ * E-6c: TypedEventService 注入とゴースト購読（旧 display.requested 契約）を撤去済み。
+ * イベントバス非依存になったこと自体が旧イベント RPC（E-2a）への回帰ガードとなる。
  * 純ロジック（isValidTabType / buildCharacterEmbed）を
  * 最優先で実 discord.js により検証し、createCharacterEmbed は CharacterService.findByChannelId を
  * mock で固定して分岐を見る。
  */
 describe('CharacterDisplayService', () => {
   let service: CharacterDisplayService
-  let eventService: jest.Mocked<Pick<TypedEventService, 'emit' | 'on' | 'once' | 'waitForEvent'>>
   let characterService: jest.Mocked<Pick<CharacterService, 'findByChannelId'>>
 
   const buildCharacter = (overrides: Record<string, unknown> = {}) =>
@@ -29,22 +29,12 @@ describe('CharacterDisplayService', () => {
     }) as never
 
   beforeEach(async () => {
-    eventService = {
-      emit: jest.fn().mockResolvedValue(undefined),
-      on: jest.fn(),
-      once: jest.fn(),
-      waitForEvent: jest.fn()
-    }
     characterService = {
       findByChannelId: jest.fn()
     }
 
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        CharacterDisplayService,
-        { provide: TypedEventService, useValue: eventService },
-        { provide: CharacterService, useValue: characterService }
-      ]
+      providers: [CharacterDisplayService, { provide: CharacterService, useValue: characterService }]
     }).compile()
 
     service = moduleRef.get(CharacterDisplayService)
@@ -75,9 +65,8 @@ describe('CharacterDisplayService', () => {
       expect(json.fields).toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'キャラクターID', value: 'found-1' })])
       )
-      // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2a の回帰ガード）
-      expect(eventService.waitForEvent).not.toHaveBeenCalled()
-      expect(eventService.emit).not.toHaveBeenCalledWith('character.findByChannelId.requested', expect.anything())
+      // E-2a の回帰ガード（旧イベント RPC への逆行防止）は、E-6c で TypedEventService の
+      // 注入自体を撤去したことで DI レベルで保証される（emit/waitForEvent アサーションは不要化）
     })
 
     it('findByChannelId が null を返す場合は null を返す', async () => {
@@ -113,13 +102,12 @@ describe('CharacterDisplayService', () => {
   })
 
   describe('updateCharacterEmbed', () => {
-    it('Embed を構築するが dead な embed 更新イベントは発行しない（E-3d ゴースト化）', async () => {
+    it('Embed を構築して例外なく完了する（E-3d/E-6c: イベント発行なし・バス非依存）', async () => {
       // Arrange
       const character = buildCharacter()
 
-      // Act & Assert: 例外なく完了し、恒常購読者ゼロのイベントは emit しない
+      // Act & Assert: 例外なく完了する（emit しないことは TypedEventService 非注入で DI レベル保証）
       await expect(service.updateCharacterEmbed(character, 'channel-9', 'basic')).resolves.toBeUndefined()
-      expect(eventService.emit).not.toHaveBeenCalled()
     })
   })
 

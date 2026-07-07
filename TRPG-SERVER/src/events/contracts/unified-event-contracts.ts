@@ -2,7 +2,7 @@
  * 統一イベント契約定義（唯一の定義源 / Single Source of Truth）
  *
  * 🎯 責務:
- * - live なタイプドバスイベント（11 種）の payload 型定義
+ * - live なタイプドバスイベント（10 種）の payload 型定義
  * - イベント名 → payload の map 型（EventMap）と厳密な EventName 型の提供
  * - EVENT_NAMES 定数（イベント名の単一ソース）の提供
  *
@@ -125,22 +125,6 @@ export interface DiscordThreadCreateRequestedEvent {
 }
 
 /**
- * Discordキャラクター表示リクエスト
- * emit: domains/character/character.controller / discord/events/handlers/character.creation.completed
- * on:   characterThread/services/character-display-handler.service / character-display.service
- *       （E-3d でゴースト化済みだが購読は live。解体は E-5/E-6）
- */
-export interface DiscordCharacterDisplayRequestedEvent {
-  character: Character
-  channelId: string
-  guildId: string
-  requesterId: string
-  displayType?: 'basic' | 'enhanced' | 'compact'
-  source: string
-  timestamp: Date
-}
-
-/**
  * Discord Embed 更新リクエスト
  * emit: discord/events/handlers/character.creation.completed / characterEdit/events/handlers/character-edit-feature.handler
  * on:   events/handlers/discord-integration.handler（ログ記録のみ）
@@ -252,7 +236,7 @@ export interface CharacterEditErrorOccurredEvent {
 }
 
 // ============================================================================
-// イベント名 → payload の map 型（live 11 種のみ）
+// イベント名 → payload の map 型（live 10 種のみ）
 // ============================================================================
 
 export type EventMap = {
@@ -262,7 +246,6 @@ export type EventMap = {
   'character.update.completed': CharacterUpdateCompletedEvent
   // Discord Events
   'discord.thread.create.requested': DiscordThreadCreateRequestedEvent
-  'discord.character.display.requested': DiscordCharacterDisplayRequestedEvent
   'discord.embed.update.requested': DiscordEmbedUpdateRequestedEvent
   'discord.notification.requested': DiscordNotificationRequestedEvent
   // CharacterEdit Feature Events
@@ -288,7 +271,7 @@ export type EventPayload<T extends EventName> = EventMap[T]
 export type GetEventType<T extends EventName> = EventMap[T]
 
 // ============================================================================
-// Event Name Constants（イベント名の単一ソース・live 11 種完備）
+// Event Name Constants（イベント名の単一ソース・live 10 種完備）
 // ============================================================================
 
 /**
@@ -306,7 +289,6 @@ export const EVENT_NAMES = {
 
   // Discord Events
   DISCORD_THREAD_CREATE_REQUESTED: 'discord.thread.create.requested',
-  DISCORD_CHARACTER_DISPLAY_REQUESTED: 'discord.character.display.requested',
   DISCORD_EMBED_UPDATE_REQUESTED: 'discord.embed.update.requested',
   DISCORD_NOTIFICATION_REQUESTED: 'discord.notification.requested',
 

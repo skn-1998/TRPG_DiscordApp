@@ -326,40 +326,6 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   })
 
   // ==========================================================================
-  // handleCharacterDisplayRequested
-  // ==========================================================================
-  describe('handleCharacterDisplayRequested', () => {
-    it('displayType=enhanced のとき編集画面を表示する', async () => {
-      const character = buildCharacter()
-      mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: ['e'], components: ['c'] })
-
-      await service.handleCharacterDisplayRequested({
-        character,
-        channelId: 'channel-1',
-        displayType: 'enhanced',
-        source: 'test'
-      } as any)
-
-      expect(mockEmbedManager.createSectionedEmbeds).toHaveBeenCalledWith(character)
-      // E-3d: dead な discord.message.send.requested は emit しない（表示はゴースト化）
-      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
-    })
-
-    it('displayType=enhanced 以外では何も表示しない', async () => {
-      const character = buildCharacter()
-
-      await service.handleCharacterDisplayRequested({
-        character,
-        channelId: 'channel-1',
-        displayType: 'compact',
-        source: 'test'
-      } as any)
-
-      expect(mockEmbedManager.createSectionedEmbeds).not.toHaveBeenCalled()
-    })
-  })
-
-  // ==========================================================================
   // displayNewCharacterCreation
   // ==========================================================================
   describe('displayNewCharacterCreation', () => {

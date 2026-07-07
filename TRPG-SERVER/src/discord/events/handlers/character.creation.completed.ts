@@ -170,23 +170,9 @@ export class CharacterCreationCompletedHandler
             updateMode: 'create'
           }
         })
-
-        // CharacterEdit Enhanced Embed作成リクエスト（TypedEventService経由）
-        await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED, {
-          character: {
-            ...character,
-            discordChannelId: character.discordChannelId // 確実に存在するためNon-null assertion
-          } as Character,
-          channelId: character.discordChannelId,
-          guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
-          requesterId: character.discordUserId || 'system',
-          displayType: 'enhanced',
-          source: 'character-creation-completed-handler',
-          timestamp: new Date()
-        })
-
-        this.logger.log(`🎨 CharacterEdit Enhanced Embed requested: ${character.characterId}`)
       }
+      // E-6c: キャラクター表示リクエストイベント（旧 display.requested 契約）の emit を撤去
+      // （購読側 2 サービスは E-3d でゴースト化済み＝観測可能な効果ゼロ。契約ごと削除）
 
       this.logger.log(`✅ Integrated notifications processed: ${character.characterId}`)
     } catch (error) {

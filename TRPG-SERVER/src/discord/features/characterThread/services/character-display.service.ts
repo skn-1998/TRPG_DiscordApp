@@ -6,13 +6,11 @@
  * features/内でのEmbed生成・更新ロジック一元化
  */
 
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { EmbedBuilder, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
-import { EventPayload, EVENT_NAMES } from '../../../../events/contracts'
 
 /**
  * タブ表示タイプ
@@ -24,37 +22,16 @@ export type TabType = 'basic' | 'status' | 'skills' | 'items' | 'desc'
  *
  * 各種タブでのキャラクター情報表示とEmbed更新を統合管理
  * DiscordEmbedHandlerServiceの機能を統合
+ *
+ * E-6c: キャラクター表示リクエストイベント（旧 display.requested 契約）のゴースト購読
+ * （E-3d で効果ゼロ化済み）を契約ごと撤去。本サービスは DI 直呼びの Embed 構築サービスとなり、
+ * イベントバスへ依存しない。
  */
 @Injectable()
-export class CharacterDisplayService implements OnModuleInit {
+export class CharacterDisplayService {
   private readonly logger = new Logger(CharacterDisplayService.name)
 
-  constructor(
-    private readonly typedEventService: TypedEventService,
-    private readonly characterService: CharacterService
-  ) {}
-
-  /**
-   * モジュール初期化時にイベントハンドラーを登録
-   * DiscordEmbedHandlerServiceから統合
-   */
-  async onModuleInit(): Promise<void> {
-    this.registerEmbedEventHandlers()
-    this.logger.log('Character Display Service initialized with Embed handlers')
-  }
-
-  /**
-   * Embed関連イベントハンドラーを登録（character-thread専用）
-   */
-  private registerEmbedEventHandlers(): void {
-    // character-thread専用のキャラクター表示リクエストハンドラー
-    this.typedEventService.on(
-      EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED,
-      this.handleCharacterDisplayRequest.bind(this)
-    )
-
-    this.logger.debug('Character thread display event handlers registered')
-  }
+  constructor(private readonly characterService: CharacterService) {}
 
   /**
    * チャンネルIDからキャラクターを検索し、指定タブのEmbedを作成
@@ -217,29 +194,6 @@ export class CharacterDisplayService implements OnModuleInit {
   // ============================================================================
   // Character Thread 専用機能
   // ============================================================================
-
-  /**
-   * キャラクター表示リクエストを処理（character-thread専用）
-   *
-   * E-3d: dead な embed 更新通知 emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い
-   * 聞くだけで何もしないゴースト（購読・メソッドの解体は E-5/E-6 スコープ）。
-   */
-  private async handleCharacterDisplayRequest(
-    payload: EventPayload<'discord.character.display.requested'>
-  ): Promise<void> {
-    const { character, source } = payload
-
-    this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display requested: ${character.characterId} from ${source}`)
-
-    try {
-      // character-thread専用の基本的なEmbed表示のみ
-      this.buildCharacterEmbed(character, 'basic')
-
-      this.logger.log(`[CHARACTER-THREAD-DISPLAY] Character display completed for ${character.characterId}`)
-    } catch (error) {
-      this.logger.error(`[CHARACTER-THREAD-DISPLAY] Character display failed for ${character.characterId}`, error)
-    }
-  }
 
   /**
    * Embed更新の直接実行
