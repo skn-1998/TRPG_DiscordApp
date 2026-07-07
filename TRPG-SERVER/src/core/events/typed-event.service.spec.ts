@@ -452,4 +452,5 @@ describe('TypedEventService', () => {
   })
 })
 
-// 注: TypedEventEmitter の request 系ヘルパの describe は、ヘルパ削除（E-3a）に伴い撤去した。
+// 注: 旧 typed イベント発行ヘルパクラス（request 系ヘルパ 7 本）の describe は E-3a の
+//     ヘルパ削除に伴い撤去、空クラス自体も E-4c で削除済み。

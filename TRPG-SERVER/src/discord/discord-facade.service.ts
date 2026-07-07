@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client } from 'discord.js'
-import { TypedEventEmitter } from '../core/events/typed-event.service'
 import { AppConfigService } from '../config/config.service'
 import { DiscordClientService } from './services/discord-client.service'
 import { CommandManagerService } from './services/command-manager.service'
@@ -27,7 +26,6 @@ export class DiscordFacadeService {
     private readonly commandsService: CommandsService,
     private readonly appConfigService: AppConfigService,
     private readonly commandManagerService: CommandManagerService,
-    private readonly typedEventEmitter: TypedEventEmitter,
     private readonly interactionHandler: DiscordInteractionHandlerService,
     private readonly guildManager: DiscordGuildManagerService,
     private readonly channelManager: DiscordChannelManagerService,
@@ -52,8 +50,8 @@ export class DiscordFacadeService {
       // パフォーマンス監視開始
       const initMetrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.initialize', 'INIT')
 
-      // TypedEventEmitterをクライアントにアタッチ（イベント駆動型）
-      ;(this.client as any)['typedEventEmitter'] = this.typedEventEmitter
+      // 注: 旧 typed イベント発行ヘルパクラスの client へのアタッチは E-4c で撤去
+      //    （クラスは E-3a で空化済み・client['typedEventEmitter'] の読み取り箇所ゼロを確認）
 
       // 各サービスにクライアントを設定（並列処理）
       // loadClient は同期 void だが、初期化処理の塊として Promise.all 内にまとめている。

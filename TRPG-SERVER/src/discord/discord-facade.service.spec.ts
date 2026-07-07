@@ -7,7 +7,6 @@ import { DiscordClientService } from './services/discord-client.service'
 import { CommandsService } from './commands/commands.service'
 import { AppConfigService } from '../config/config.service'
 import { CommandManagerService } from './services/command-manager.service'
-import { TypedEventEmitter } from '../core/events/typed-event.service'
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
@@ -79,8 +78,6 @@ describe('DiscordFacadeService', () => {
       getSystemHealth: jest.fn()
     }
 
-    const typedEventEmitter = {} as TypedEventEmitter
-
     // ログ出力は副作用なので抑制（テスト出力を汚さない）
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
@@ -92,7 +89,6 @@ describe('DiscordFacadeService', () => {
         { provide: CommandsService, useValue: commandsService },
         { provide: AppConfigService, useValue: {} },
         { provide: CommandManagerService, useValue: {} },
-        { provide: TypedEventEmitter, useValue: typedEventEmitter },
         { provide: DiscordInteractionHandlerService, useValue: interactionHandler },
         { provide: DiscordGuildManagerService, useValue: guildManager },
         { provide: DiscordChannelManagerService, useValue: channelManager },
@@ -119,23 +115,19 @@ describe('DiscordFacadeService', () => {
   })
 
   describe('initializeDiscord', () => {
-    it('全サービスを並列初期化し client に typedEventEmitter をアタッチして end(true) を呼ぶ', async () => {
-      // Arrange
-      const typedEventEmitter = service['typedEventEmitter']
-
+    it('全サービスを並列初期化し end(true) を呼ぶ', async () => {
       // Act
       await service.initializeDiscord()
 
       // Assert: 各 loadClient/initialize へ client が渡る
       // （ChannelCreate リスナー登録は characterEdit feature へ移管済み・§8 のため interactions は対象外）
+      // （旧 typed イベント発行ヘルパクラスの client アタッチは E-4c で撤去済みのため検証対象外）
       expect(commandsService.loadClient).toHaveBeenCalledWith(clientStub)
       expect(interactionHandler.initialize).toHaveBeenCalledWith(clientStub)
       expect(guildManager.initialize).toHaveBeenCalledWith(clientStub)
       expect(channelManager.initialize).toHaveBeenCalledWith(clientStub)
       // Discord Client 初期化
       expect(discordClientService.initializeClient).toHaveBeenCalledTimes(1)
-      // typedEventEmitter のアタッチ
-      expect(clientStub['typedEventEmitter']).toBe(typedEventEmitter)
       // 成功メトリクス
       expect(performanceOrchestrator.startDiscordApiMonitoring).toHaveBeenCalledWith('discord.initialize', 'INIT')
       expect(metricsEnd).toHaveBeenCalledWith(true)

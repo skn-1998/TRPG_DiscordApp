@@ -218,16 +218,3 @@ export class TypedEventService {
     }
   }
 }
-
-/**
- * 型安全なイベント発行のためのヘルパークラス
- *
- * 注: request 系ヘルパ 7 本（character.*.requested / diceroll.execute.requested を
- *     emit する薄いラッパ群）は E-2 完了により本番呼び出し元ゼロの dead コードと
- *     なったため E-3a で削除した。
- *     クラス自体は core-events.module の provider / discord-facade の注入先として
- *     残置している（撤去は E-4 の contracts 一括整理で判断）。
- */
-export class TypedEventEmitter {
-  constructor(private readonly typedEventService: TypedEventService) {}
-}
