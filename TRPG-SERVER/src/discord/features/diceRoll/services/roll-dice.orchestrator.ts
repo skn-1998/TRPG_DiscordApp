@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { CommandInteraction, ChannelType } from 'discord.js'
 import { isNull } from 'lodash'
-import dice from '../../../utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { getGameSystemIdFromTopic, getParentChannelTopic } from '../utils/channel-topic.util'
 
 @Injectable()

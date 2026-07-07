@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ChannelType } from 'discord.js'
 import { discordButtonType } from 'src/discord/discord.type'
 import { isNull } from 'lodash'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 
 @Injectable()
 export class DiceButtonService implements discordButtonType {

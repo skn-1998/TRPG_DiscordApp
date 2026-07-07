@@ -3,7 +3,7 @@ import { ChannelType, TextChannel } from 'discord.js'
 import { CharacterService } from 'src/domains/character/character.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { evaluateArithmetic } from '../../../shared/utils/arithmetic-evaluator.util'
 
 /**

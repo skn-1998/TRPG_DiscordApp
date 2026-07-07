@@ -2,11 +2,11 @@ import { ChannelType } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeValue } from 'src/core/types/attribute.types'
 import { CharacterService } from 'src/domains/character/character.service'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { DiceCalculationService } from './dice-calculation.service'
 
 // 外部の bcdice ローダ依存を遮断し、ダイス結果を決定的にする
-jest.mock('src/discord/utils/dice')
+jest.mock('src/domains/dice-roll/services/bcdice.util')
 
 const mockedDice = dice as jest.MockedFunction<typeof dice>
 

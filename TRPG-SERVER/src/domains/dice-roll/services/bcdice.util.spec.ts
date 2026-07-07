@@ -1,7 +1,8 @@
 // bcdice の StaticLoader は重く非決定的なため、loader.dynamicLoad を固定モックする。
-// dice.ts は「dynamicLoad で得た gameSystem の eval を呼んで返すだけ」の純 wrapper なので、
+// bcdice.util.ts は「dynamicLoad で得た gameSystem の eval を呼んで返すだけ」の純 wrapper なので、
 // 検証対象は「どの gameSystemId をロードするか」「command をそのまま eval に渡すか」
 // 「eval の戻り値を透過するか」「dynamicLoad / eval の reject を伝播するか」の4点。
+// （E-6e で src/discord/utils/dice.spec.ts から移設・Assert 不変）
 const mockDynamicLoad = jest.fn()
 
 jest.mock('bcdice/lib/loader/static_loader', () => {
@@ -11,7 +12,7 @@ jest.mock('bcdice/lib/loader/static_loader', () => {
   }))
 })
 
-import dice from './dice'
+import dice from './bcdice.util'
 
 describe('dice', () => {
   beforeEach(() => {

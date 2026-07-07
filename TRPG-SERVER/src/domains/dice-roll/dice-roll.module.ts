@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
 import { DiceRollService } from './dice-roll.service'
+import { DiceExecutionService } from './services/dice-execution.service'
 import { DiceRollChannelRepository } from './repositories/dice-roll-channel.repository'
 import { DiceRollTextRepository } from './repositories/dice-roll-text.repository'
 import {
@@ -25,7 +26,7 @@ import { DiceRollTextSchema, DICE_ROLL_TEXT_MODEL, DICE_ROLL_TEXT_COLLECTION } f
       }
     ])
   ],
-  providers: [DiceRollService, DiceRollChannelRepository, DiceRollTextRepository],
-  exports: [DiceRollService, DiceRollChannelRepository, DiceRollTextRepository]
+  providers: [DiceRollService, DiceExecutionService, DiceRollChannelRepository, DiceRollTextRepository],
+  exports: [DiceRollService, DiceExecutionService, DiceRollChannelRepository, DiceRollTextRepository]
 })
 export class DiceRollModule {}

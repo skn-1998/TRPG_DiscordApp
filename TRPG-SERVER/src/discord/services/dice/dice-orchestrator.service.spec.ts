@@ -1,10 +1,10 @@
 import { ChannelType } from 'discord.js'
 import { DiceOrchestratorService } from './dice-orchestrator.service'
 import { DiceCalculationService } from './dice-calculation.service'
-import dice from 'src/discord/utils/dice'
+import dice from 'src/domains/dice-roll/services/bcdice.util'
 
 // dice ユーティリティ(bcdice ラッパ)は副作用の境界なのでモックする
-jest.mock('src/discord/utils/dice')
+jest.mock('src/domains/dice-roll/services/bcdice.util')
 const diceMock = dice as jest.MockedFunction<typeof dice>
 
 /**

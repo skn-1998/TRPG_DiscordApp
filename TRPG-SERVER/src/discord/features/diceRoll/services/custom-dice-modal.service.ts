@@ -7,6 +7,7 @@ import { ErrorHandler } from 'src/core/http/error-handler'
 import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { DiceRollTextInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
+import { resolveModalSaveChannelId } from 'src/domains/dice-roll/services/dice-save-key.util'
 
 @Injectable()
 export class CustomDiceModalService implements discordModalType {
@@ -205,9 +206,9 @@ export class CustomDiceModalService implements discordModalType {
   /**
    * ロール結果を dice-roll 履歴へ保存する（dice_generic_ 等の他ダイスボタンと同じ保存系へ統一）
    *
-   * 保存 channelId は「スレッドの実親チャンネル」を最優先とする（結果メッセージの投稿先・
-   * /dice-result の検索キーと一致させる。DiceRollLogicService.resolveSaveChannelId と同方針）。
-   * スレッド外はキャラクターの discordChannelId → customId 由来の値 → 現在チャンネルの順でフォールバック。
+   * 保存 channelId の 4 段 fallback（スレッド実親 → character.discordChannelId → customId 由来 →
+   * 現在チャンネル）は domains/dice-roll/services/dice-save-key.util の純関数へ移設した（E-6e）。
+   * ここでは interaction → context への変換だけを行う。
    * 履歴保存の失敗はロール結果の返信を妨げない（ログのみ）。
    */
   private async saveRollHistory(
@@ -221,12 +222,12 @@ export class CustomDiceModalService implements discordModalType {
       reason?: string
     }
   ): Promise<void> {
-    const channelId =
-      this.threadParentChannelId(interaction) ||
-      params.character?.discordChannelId ||
-      params.extractedId ||
-      interaction.channelId ||
-      null
+    const channelId = resolveModalSaveChannelId({
+      threadParentId: this.threadParentChannelId(interaction),
+      characterChannelId: params.character?.discordChannelId,
+      extractedChannelId: params.extractedId,
+      currentChannelId: interaction.channelId
+    })
     if (!channelId) {
       this.logger.warn(`Skip dice roll history save: channelId unresolved (customId: ${interaction.customId})`)
       return
