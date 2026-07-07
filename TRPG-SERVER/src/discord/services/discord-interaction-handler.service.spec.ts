@@ -10,20 +10,23 @@ import { Events, type Client, type Interaction } from 'discord.js'
 import { DiscordInteractionHandlerService } from './discord-interaction-handler.service'
 import { InteractionsService } from '../interactions/interactions.service'
 import { CommandsService } from '../commands/commands.service'
-import { AppConfigService } from '../../config/config.service'
 import { ErrorHandler } from '../../core/http/error-handler'
-import type { DiscordButton, DiscordModal, DiscordSelectMenu } from '../interfaces/discord-interaction-types.interface'
 
 /**
  * DiscordInteractionHandlerService は Discord.js の Interaction を受け取り、
  * 型ガード（isCommand / isAutocomplete / isButton / isAnySelectMenu / isModalSubmit）に応じて
- * 該当ハンドラへ振り分ける imperative shell。
+ * 委譲先へルーティングする imperative shell（client.on(InteractionCreate) の唯一の入口）。
+ *
+ * ルーティング契約（characterization）:
+ *   - command      → CommandsService.execute
+ *   - autocomplete → CommandsService.autocomplete
+ *   - button / select / modal → InteractionsService.execute（Registry へ一本化）
+ *   - 委譲先が throw してもリスナーは落ちない（Promise.allSettled / ErrorHandler で吸収）
  *
  * 副作用の境界（=モックする対象）:
- *   - InteractionsService.execute      … 未登録 customId の fallback 先
+ *   - InteractionsService.execute      … component 系（button/select/modal）の委譲先
  *   - CommandsService.execute/autocomplete … コマンド・オートコンプリート委譲先
- *   - ErrorHandler.handleError         … 例外時の委譲先（jest.mock でスタブ）
- *   - setTimeout（5分後の cleanup）     … jest.useFakeTimers() で制御
+ *   - ErrorHandler.handleError         … 同期例外時の委譲先（jest.mock でスタブ）
  *   - client.on                        … リスナー登録。jest.fn でコールバックを捕捉
  *
  * handleInteraction は private だが、setupInteractionListeners 経由で
@@ -77,8 +80,7 @@ describe('DiscordInteractionHandlerService', () => {
       providers: [
         DiscordInteractionHandlerService,
         { provide: InteractionsService, useValue: interactionsService },
-        { provide: CommandsService, useValue: commandsService },
-        { provide: AppConfigService, useValue: {} }
+        { provide: CommandsService, useValue: commandsService }
       ]
     }).compile()
 
@@ -133,20 +135,7 @@ describe('DiscordInteractionHandlerService', () => {
     })
   })
 
-  describe('handleInteraction（捕捉した client.on コールバック経由）', () => {
-    it('同一 interaction.id を重複処理しようとすると2回目は何もしない', async () => {
-      // Arrange
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('command', { id: 'dup-1' })
-
-      // Act
-      await cb(interaction)
-      await cb(interaction)
-
-      // Assert: 委譲は初回の1回のみ
-      expect(commandsService.execute).toHaveBeenCalledTimes(1)
-    })
-
+  describe('handleInteraction（捕捉した client.on コールバック経由のルーティング）', () => {
     it('コマンドは CommandsService.execute に委譲する', async () => {
       const cb = captureInteractionCallback()
       const interaction = createInteractionStub('command')
@@ -155,6 +144,7 @@ describe('DiscordInteractionHandlerService', () => {
 
       expect(commandsService.execute).toHaveBeenCalledWith(interaction)
       expect(commandsService.autocomplete).not.toHaveBeenCalled()
+      expect(interactionsService.execute).not.toHaveBeenCalled()
     })
 
     it('オートコンプリートは CommandsService.autocomplete に委譲する', async () => {
@@ -165,33 +155,48 @@ describe('DiscordInteractionHandlerService', () => {
 
       expect(commandsService.autocomplete).toHaveBeenCalledWith(interaction)
       expect(commandsService.execute).not.toHaveBeenCalled()
+      expect(interactionsService.execute).not.toHaveBeenCalled()
     })
 
-    it('ボタンはボタンハンドラ処理に振り分けられる（未登録なら fallback）', async () => {
+    it('ボタンは InteractionsService.execute に委譲する', async () => {
       const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('button', { customId: 'unregistered-btn' })
+      const interaction = createInteractionStub('button', { customId: 'any-btn' })
+
+      await cb(interaction)
+
+      expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
+      expect(commandsService.execute).not.toHaveBeenCalled()
+    })
+
+    it('セレクトメニューは InteractionsService.execute に委譲する', async () => {
+      const cb = captureInteractionCallback()
+      const interaction = createInteractionStub('select', { customId: 'any-select' })
+
+      await cb(interaction)
+
+      expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
+      expect(commandsService.execute).not.toHaveBeenCalled()
+    })
+
+    // 旧 character-section-select- 特例分岐は撤去済み。同 customId も統一ルーティングで
+    // InteractionsService へ委譲されること（routing 不変）を regression guard として固定する。
+    it('character-section-select- で始まるセレクトも統一ルーティングで InteractionsService に委譲する', async () => {
+      const cb = captureInteractionCallback()
+      const interaction = createInteractionStub('select', { customId: 'character-section-select-hp' })
 
       await cb(interaction)
 
       expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
     })
 
-    it('セレクトメニューはセレクト処理に振り分けられる', async () => {
+    it('モーダル送信は InteractionsService.execute に委譲する', async () => {
       const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('select', { customId: 'unregistered-select' })
+      const interaction = createInteractionStub('modal', { customId: 'any-modal' })
 
       await cb(interaction)
 
       expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
-    })
-
-    it('モーダル送信はモーダル処理に振り分けられる', async () => {
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('modal', { customId: 'unregistered-modal' })
-
-      await cb(interaction)
-
-      expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
+      expect(commandsService.execute).not.toHaveBeenCalled()
     })
 
     it('どの型ガードにも該当しないインタラクションは何も委譲しない', async () => {
@@ -205,22 +210,34 @@ describe('DiscordInteractionHandlerService', () => {
       expect(interactionsService.execute).not.toHaveBeenCalled()
       expect(handleErrorMock).not.toHaveBeenCalled()
     })
+  })
 
-    it('ハンドラが例外を投げた場合 ErrorHandler.handleError に委譲する', async () => {
+  describe('handleInteraction（例外時もリスナーが落ちない）', () => {
+    it('コマンド委譲先が reject しても cb は正常終了する（Promise.allSettled が吸収）', async () => {
       // Arrange: コマンド委譲先で例外を起こす
       commandsService.execute.mockRejectedValue(new Error('boom'))
       const cb = captureInteractionCallback()
       const interaction = createInteractionStub('command', { id: 'err-1', type: 2 })
 
-      // Act
-      await cb(interaction)
+      // Act & Assert: cb 自体は reject しない（リスナーが落ちない）
+      await expect(cb(interaction)).resolves.toBeUndefined()
 
-      // Assert: Promise.allSettled で握りつぶされるため、ここでは handleError ではなく
-      // 正常終了する（allSettled は reject を catch に伝播させない）
+      // allSettled は reject を catch に伝播させないため handleError は呼ばれない
       expect(handleErrorMock).not.toHaveBeenCalled()
     })
 
-    it('型ガード呼び出し自体が例外を投げた場合 ErrorHandler.handleError に委譲する', async () => {
+    it('component 委譲先（InteractionsService.execute）が reject しても cb は正常終了する', async () => {
+      // Arrange
+      interactionsService.execute.mockRejectedValue(new Error('component boom'))
+      const cb = captureInteractionCallback()
+      const interaction = createInteractionStub('button', { id: 'err-btn', customId: 'boom-btn' })
+
+      // Act & Assert
+      await expect(cb(interaction)).resolves.toBeUndefined()
+      expect(handleErrorMock).not.toHaveBeenCalled()
+    })
+
+    it('型ガード呼び出し自体が例外を投げた場合 ErrorHandler.handleError に委譲し、cb は正常終了する', async () => {
       // Arrange: isCommand が throw する異常系
       const cb = captureInteractionCallback()
       const interaction = createInteractionStub('command', { id: 'err-2', type: 2 })
@@ -228,10 +245,8 @@ describe('DiscordInteractionHandlerService', () => {
         throw new Error('guard failure')
       })
 
-      // Act
-      await cb(interaction)
-
-      // Assert
+      // Act & Assert
+      await expect(cb(interaction)).resolves.toBeUndefined()
       expect(handleErrorMock).toHaveBeenCalledTimes(1)
       expect(handleErrorMock).toHaveBeenCalledWith(
         expect.any(Error),
@@ -240,135 +255,6 @@ describe('DiscordInteractionHandlerService', () => {
           interactionId: 'err-2'
         })
       )
-    })
-
-    it('finally の setTimeout 経過後に processedInteractions から id を削除する', async () => {
-      // Arrange
-      jest.useFakeTimers()
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('command', { id: 'cleanup-1' })
-
-      // Act
-      await cb(interaction)
-
-      // Assert: 直後はまだ記録されている
-      expect(service.getHandlerStats().processedCount).toBe(1)
-
-      // 5分経過させると削除される
-      jest.advanceTimersByTime(300000)
-      expect(service.getHandlerStats().processedCount).toBe(0)
-
-      jest.useRealTimers()
-    })
-  })
-
-  describe('handleButtonInteraction（登録済みハンドラの分岐）', () => {
-    it('登録済み customId のボタンは専用ハンドラの execute を呼び、fallback しない', async () => {
-      // Arrange
-      const buttonHandler = {
-        data: {},
-        execute: jest.fn().mockResolvedValue(undefined)
-      } as unknown as DiscordButton
-      service.registerButton('registered-btn', buttonHandler)
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('button', { customId: 'registered-btn' })
-
-      // Act
-      await cb(interaction)
-
-      // Assert
-      expect(buttonHandler.execute).toHaveBeenCalledWith(interaction)
-      expect(interactionsService.execute).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('handleSelectMenuInteraction（2分岐: 登録済みハンドラ / 未登録は InteractionsService へ）', () => {
-    it('登録済み customId のセレクトは専用ハンドラの execute を呼ぶ', async () => {
-      const selectHandler = {
-        data: {},
-        execute: jest.fn().mockResolvedValue(undefined)
-      } as unknown as DiscordSelectMenu
-      service.registerSelectMenu('registered-select', selectHandler)
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('select', { customId: 'registered-select' })
-
-      await cb(interaction)
-
-      expect(selectHandler.execute).toHaveBeenCalledWith(interaction)
-      expect(interactionsService.execute).not.toHaveBeenCalled()
-    })
-
-    // 旧 character-section-select- 特例分岐は撤去済み。同 customId も統一 fallback で InteractionsService へ
-    // 委譲されること（routing 不変）を regression guard として固定する。
-    it('character-section-select- で始まる未登録セレクトも統一 fallback で InteractionsService に委譲する', async () => {
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('select', { customId: 'character-section-select-hp' })
-
-      await cb(interaction)
-
-      expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
-    })
-
-    it('その他の未登録セレクトも InteractionsService に委譲する', async () => {
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('select', { customId: 'other-select' })
-
-      await cb(interaction)
-
-      expect(interactionsService.execute).toHaveBeenCalledWith(interaction)
-    })
-  })
-
-  describe('handleModalInteraction（登録済みハンドラの分岐）', () => {
-    it('登録済み customId のモーダルは専用ハンドラの execute を呼び、fallback しない', async () => {
-      const modalHandler = {
-        data: {},
-        execute: jest.fn().mockResolvedValue(undefined)
-      } as unknown as DiscordModal
-      service.registerModal('registered-modal', modalHandler)
-      const cb = captureInteractionCallback()
-      const interaction = createInteractionStub('modal', { customId: 'registered-modal' })
-
-      await cb(interaction)
-
-      expect(modalHandler.execute).toHaveBeenCalledWith(interaction)
-      expect(interactionsService.execute).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('registerButton / registerModal / registerSelectMenu / getHandlerStats', () => {
-    it('登録した各ハンドラ数と処理済み件数を集計して返す', () => {
-      // Arrange
-      const handler = { data: {}, execute: jest.fn() }
-      service.registerButton('b1', handler as unknown as DiscordButton)
-      service.registerButton('b2', handler as unknown as DiscordButton)
-      service.registerModal('m1', handler as unknown as DiscordModal)
-      service.registerSelectMenu('s1', handler as unknown as DiscordSelectMenu)
-
-      // Act
-      const stats = service.getHandlerStats()
-
-      // Assert
-      expect(stats).toEqual({ buttons: 2, modals: 1, selects: 1, processedCount: 0 })
-    })
-  })
-
-  describe('clearExpiredInteractions', () => {
-    it('処理済みインタラクション記録をすべて削除する', async () => {
-      // Arrange: timer を止めて自動削除を無効化し、記録を残す
-      jest.useFakeTimers()
-      const cb = captureInteractionCallback()
-      await cb(createInteractionStub('command', { id: 'a' }))
-      await cb(createInteractionStub('command', { id: 'b' }))
-      expect(service.getHandlerStats().processedCount).toBe(2)
-
-      // Act
-      service.clearExpiredInteractions()
-
-      // Assert
-      expect(service.getHandlerStats().processedCount).toBe(0)
-
-      jest.useRealTimers()
     })
   })
 })
