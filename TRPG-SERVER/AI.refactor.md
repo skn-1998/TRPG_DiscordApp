@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-07-07 未コミット分の一括コミット（ユーザー承認・5コミット・pathspec 限定・コード変更なし）
+
+2026-06-10〜07-06 に検証済みのまま未コミットだった全差分を、作業系統別に5コミットへ分割してコミット。
+いずれも 2026-07-06 ベースライン（build 0 / check:circular No circular / 全 187 suites 2613 tests 緑）で
+検証済みの状態をそのまま分割したもの（新規コード変更なし）。作業ツリーはクリーン。
+
+- `02410f1` refactor(discord): **F5** postActionButtons dead path 撤去（4ファイル・-78行）
+- `139b6fe` refactor(dice): **F10** DicePresetService ごと dead preset チェーン撤去（8ファイル・+50/-525）
+- `f8d5073` fix(dice): **履歴保存修正2件**（2026-06-10 custom modal 保存欠落＋06-11 スレッド内保存キー実親化・5ファイル。
+  dice-roll.module.ts の F10 docstring 追従は DiceRollModule 再 import と同一ハンクのためここに同乗）
+- `215fd10` docs: AI.\*.md 更新・計画書2本（E/C 系列）・キャラシート提案書一式・ロードマップ（21ファイル）
+- `aead1aa` chore(skills): trpg-domain-\* 5本新設＋trpg-architecture/trpg-refactor 配線（7ファイル）
+
+### 記録の陳腐化訂正（重要）
+
+- 2026-06-07 節の「develop はローカル 108 コミット先行・origin push 判断待ち」は**解消済み**。現在は push 済みで、
+  逆に **origin/develop がローカルより 2 コミット先行**（PR #12 front-intro-ai マージ＋フロント Skills 導入）。
+  **次回作業前に pull で取り込むこと**（分岐防止）。
+- stash 3件（`作業中の変更を一時保存`＋WIP 2件）が残存・棚卸し未実施。
+
+### 次にやること
+
+- origin/develop の先行 2 コミットを pull で取り込む。
+- C-1（未使用 npm 依存 7 件削除）から着手。C-8（依存バージョン整合）はユーザー判断待ち。
+
+---
+
 ## 2026-07-06 全体クリーンアップ分析: 古い書き方・重複・未使用コードの洗い出し（診断＋計画のみ・コード変更なし）
 
 ユーザー依頼「コードベース全体を分析して古い書き方・重複・未使用コードを洗い出し、テストが通る状態を維持したまま順番にリファクタリング計画を追記」。trpg-refactor スキル＋Explore 3系統（未使用/古い書き方/重複）＋司令塔 grep 裏取りで実施。
