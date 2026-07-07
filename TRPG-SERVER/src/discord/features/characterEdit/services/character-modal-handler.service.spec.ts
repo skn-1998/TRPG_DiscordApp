@@ -74,7 +74,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
   // ===== キャラクター作成モーダル =====
   describe('handleModalSubmit - character creation', () => {
-    it('正常系: 作成成功で editReply と channel.send が呼ばれる', async () => {
+    it('正常系: 作成成功で editReply のみ・チャンネルへの重複投稿はしない（E-2f）', async () => {
       const createdCharacter = { characterId: 'c1', characterName: 'Hero' }
       mockEmbedManager.createCharacter.mockResolvedValue(createdCharacter)
       mockEmbedManager.createCharacterCreatedEmbed.mockReturnValue({ data: 'success-embed' })
@@ -113,11 +113,10 @@ describe('CharacterModalHandlerService (characterization)', () => {
         embeds: [{ data: 'success-embed' }],
         components: []
       })
-      expect(channelSend).toHaveBeenCalledWith({
-        content: '🎉 新しいキャラクター **Hero** が作成されました！',
-        embeds: ['e1'],
-        components: ['cmp1']
-      })
+      // チャンネルへのセクション Embed は creation.completed 経由（CharacterCreationCompletedHandler）が
+      // 送信するため、modal-handler 自身は送らない（送ると二重投稿＝E-2f の characterization）
+      expect(channelSend).not.toHaveBeenCalled()
+      expect(mockEmbedManager.createSectionedEmbeds).not.toHaveBeenCalled()
     })
 
     it('作成データ無効(キャラ名空)でエラーレスポンス', async () => {

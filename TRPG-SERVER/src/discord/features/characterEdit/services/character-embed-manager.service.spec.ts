@@ -6,6 +6,7 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
+import { CharacterCreationCoreService } from 'src/domains/character/services/character-creation-core.service'
 import { Character } from 'src/domains/character/models/character.model'
 import { AttributeSection } from 'src/core/types/attribute.types'
 
@@ -15,6 +16,10 @@ import { AttributeSection } from 'src/core/types/attribute.types'
  * 目的: 分割リファクタ前の embed 生成挙動（タイトル / フィールド名 / 値 / 個数 /
  * 24件超の分割挙動 等）を「現状のまま」固定する安全網。
  * 内部実装には密結合せず、公開メソッドの出力（EmbedBuilder.toJSON() 等）を検証する。
+ *
+ * createCharacter は E-2f で「emit(creation.requested) → waitForEvent の RPC」から
+ * 「CharacterCreationCoreService 直呼び + completed の fire-and-forget 発行」へ置換した。
+ * 戻り値契約（Character / null）は不変。
  */
 describe('CharacterEmbedManagerService (characterization)', () => {
   let service: CharacterEmbedManagerService
@@ -25,6 +30,10 @@ describe('CharacterEmbedManagerService (characterization)', () => {
     waitForEvent: jest.fn()
   }
 
+  const mockCreationCore = {
+    createValidated: jest.fn()
+  }
+
   beforeEach(async () => {
     module = await Test.createTestingModule({
       providers: [
@@ -32,12 +41,18 @@ describe('CharacterEmbedManagerService (characterization)', () => {
         {
           provide: TypedEventService,
           useValue: mockTypedEventService
+        },
+        {
+          provide: CharacterCreationCoreService,
+          useValue: mockCreationCore
         }
       ]
     }).compile()
 
     service = module.get<CharacterEmbedManagerService>(CharacterEmbedManagerService)
     jest.clearAllMocks()
+    // fire-and-forget の .catch() が機能するよう emit は Promise を返す
+    mockTypedEventService.emit.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -195,6 +210,99 @@ describe('CharacterEmbedManagerService (characterization)', () => {
       const character = buildCharacter()
       const menu = service.createFieldSelectMenu(character, 'basic' as EmbedSectionType, character.characterId)
       expect(menu).toBeNull()
+    })
+  })
+
+  describe('createCharacter', () => {
+    it('creationCore.createValidated に変換済み createData を渡し、作成キャラクターを返す', async () => {
+      // Arrange
+      const created = buildCharacter({ characterId: 'char_new000001' })
+      mockCreationCore.createValidated.mockResolvedValue(created)
+
+      // Act
+      const result = await service.createCharacter(
+        { characterName: '新キャラ', gameSystemId: 'coc' },
+        'channel-1',
+        'user-999'
+      )
+
+      // Assert: 戻り値契約（Character）は不変
+      expect(result).toBe(created)
+      expect(mockCreationCore.createValidated).toHaveBeenCalledTimes(1)
+      expect(mockCreationCore.createValidated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          characterId: expect.any(String),
+          characterName: '新キャラ',
+          gameSystemId: 'coc',
+          discordUserId: 'user-999',
+          discordChannelId: 'channel-1'
+        })
+      )
+    })
+
+    it('未指定フィールドは空文字へフォールバックして createData を組み立てる', async () => {
+      mockCreationCore.createValidated.mockResolvedValue(buildCharacter())
+
+      await service.createCharacter({}, 'channel-1', 'user-999')
+
+      expect(mockCreationCore.createValidated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          characterName: '',
+          gameSystemId: '',
+          characterId: expect.any(String)
+        })
+      )
+    })
+
+    it('成功時に character.creation.completed を fire-and-forget で emit する（恒常購読者向け通知の維持）', async () => {
+      // Arrange
+      const created = buildCharacter()
+      mockCreationCore.createValidated.mockResolvedValue(created)
+
+      // Act
+      await service.createCharacter({ characterName: 'x' }, 'channel-1', 'user-999')
+
+      // Assert
+      expect(mockTypedEventService.emit).toHaveBeenCalledTimes(1)
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.completed',
+        expect.objectContaining({
+          character: created,
+          source: 'character-embed-manager',
+          timestamp: expect.any(Date)
+        })
+      )
+    })
+
+    it('回帰ガード: creation.requested の emit / waitForEvent による RPC 待機は行わない', async () => {
+      mockCreationCore.createValidated.mockResolvedValue(buildCharacter())
+
+      await service.createCharacter({ characterName: 'x' }, 'channel-1', 'user-999')
+
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalledWith('character.creation.requested', expect.anything())
+    })
+
+    it('completed の emit が失敗しても作成キャラクターは返る（fire-and-forget）', async () => {
+      const created = buildCharacter()
+      mockCreationCore.createValidated.mockResolvedValue(created)
+      mockTypedEventService.emit.mockRejectedValueOnce(new Error('emit boom'))
+
+      const result = await service.createCharacter({ characterName: 'x' }, 'channel-1', 'user-999')
+
+      expect(result).toBe(created)
+    })
+
+    it('作成失敗（重複エラー含む）時は null を返し、completed を emit しない', async () => {
+      // Arrange
+      mockCreationCore.createValidated.mockRejectedValue(new Error('Character already exists in channel: channel-1'))
+
+      // Act
+      const result = await service.createCharacter({ characterName: 'x' }, 'channel-1', 'user-999')
+
+      // Assert: 戻り値契約（null）は不変・失敗時は completed 未発行
+      expect(result).toBeNull()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
     })
   })
 
