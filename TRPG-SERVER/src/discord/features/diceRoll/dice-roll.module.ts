@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
+import { DiceRollModule } from '../../../domains/dice-roll/dice-roll.module'
 import { DiceServicesModule } from '../../services/dice/dice-services.module'
 import { RollDiceOrchestrator } from './services/roll-dice.orchestrator'
 import { DiceResultOrchestrator } from './services/dice-result.orchestrator'
@@ -39,19 +40,21 @@ import { DiceRollModalHandler } from './handlers/dice-roll/dice-roll-modal.handl
  *
  * 📋 import 構成:
  * - InteractionRegistryModule: handler を registry へ登録するため。
- * - DiceServicesModule: 横断 dice 基盤（DiceRollLogicService/DiceOrchestratorService/DicePresetService 等）を解決するため。
+ * - DiceServicesModule: 横断 dice 基盤（DiceRollLogicService/DiceOrchestratorService 等）を解決するため。
  * - DiceRollPaginationModule: pagination adapter が DiceRollPaginationService を解決するため。
  * - CharacterModule: CustomDiceModalService が CharacterService を解決するため。
+ * - DiceRollModule(domains): CustomDiceModalService がロール結果を履歴保存（DiceRollService.createText）するため
+ *   （2026-06-10 保存欠落不具合の修正で再導入）。
  *
  * 🔧 構造課題③ 履歴: Step5a で CustomDiceModalService、Step5b で CharacterDiceOrchestratorService /
  *    DiceButtonUIService / DiceHistoryService を feature 所有へ移管し、InteractionsModule import を撤去。
  *    S-5c で旧 roll* / preset-dice* 系 4 handler と CharacterDiceOrchestratorService / DiceButtonUIService /
  *    DiceHistoryService（生成元消滅により dead 化）を撤去。これに伴い DiceHistoryService 専用だった
- *    DiceRollModule(domains) import も除去（pagination は DiceRollPaginationModule が自身で解決）。
+ *    DiceRollModule(domains) import も一時除去（pagination は DiceRollPaginationModule が自身で解決）。
  *    共有 dice ロジック（DiceRollLogicService 等）は中立 DiceServicesModule(services/dice) へ集約。
  */
 @Module({
-  imports: [InteractionRegistryModule, DiceServicesModule, DiceRollPaginationModule, CharacterModule],
+  imports: [InteractionRegistryModule, DiceServicesModule, DiceRollPaginationModule, CharacterModule, DiceRollModule],
   providers: [
     RollDiceOrchestrator,
     DiceResultOrchestrator,

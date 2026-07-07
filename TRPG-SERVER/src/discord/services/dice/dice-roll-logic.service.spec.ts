@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing'
-import type { ButtonInteraction } from 'discord.js'
+import { ChannelType, type ButtonInteraction } from 'discord.js'
 import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
@@ -190,6 +190,82 @@ describe('DiceRollLogicService', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('ダイスロールの実行に失敗しました')
       expect(diceRollService.createText).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('保存先 channelId の解決（スレッド内は実親チャンネル・2026-06-11 修正）', () => {
+    // キャラ登録チャンネルの外で作られたスレッドでも /dice-result（実行チャンネルで検索）と
+    // 一致するよう、スレッド内ロールは実親チャンネル ID で保存する。キャラ解決キーは不変。
+    const threadInteraction = (parentId: string | null = 'parent-1') =>
+      createMockButtonInteraction({
+        base: {
+          channel: {
+            id: 'thread-1',
+            name: 'thread',
+            type: ChannelType.PublicThread,
+            parentId,
+            isTextBased: jest.fn().mockReturnValue(true),
+            isThread: jest.fn().mockReturnValue(true)
+          } as any
+        }
+      })
+
+    it('handleDiceRoll: キャラ解決は customId キーのまま、保存は実親チャンネルで行う', async () => {
+      // Arrange
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 73', [[73]]))
+      diceRollService.createText.mockResolvedValue({ _id: { toString: () => 'r' } } as any)
+
+      // Act
+      await service.handleDiceRoll(threadInteraction(), { channelId: 'ch-1', diceType: '1d100' })
+
+      // Assert: lookup は 'ch-1'・保存は 'parent-1'
+      expect(characterService.findByChannelId).toHaveBeenCalledWith('ch-1')
+      expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'parent-1' }))
+      // イベント payload はロール文脈（lookup キー）のまま
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'diceroll.execute.completed',
+        expect.objectContaining({ channelId: 'ch-1' })
+      )
+    })
+
+    it('handleSkillRoll: スレッド内ロールは実親チャンネルで保存する', async () => {
+      // Arrange
+      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 40', [[40]]))
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      diceRollService.createText.mockResolvedValue({} as any)
+
+      // Act
+      await service.handleSkillRoll(threadInteraction(), 'ch-1', '目星', 50)
+
+      // Assert
+      expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'parent-1' }))
+    })
+
+    it('handleCustomDiceRoll: スレッド内ロールは実親チャンネルで保存する', async () => {
+      // Arrange
+      mockedDice.mockResolvedValue(diceResult('(2D6) ＞ 7', [[3], [4]]))
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      diceRollService.createText.mockResolvedValue({} as any)
+
+      // Act
+      await service.handleCustomDiceRoll(threadInteraction(), 'ch-1', '2d6')
+
+      // Assert
+      expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'parent-1' }))
+    })
+
+    it('parentId が無いスレッドでは lookup キーへフォールバックして保存する', async () => {
+      // Arrange
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 50', [[50]]))
+      diceRollService.createText.mockResolvedValue({ _id: { toString: () => 'r' } } as any)
+
+      // Act
+      await service.handleDiceRoll(threadInteraction(null), { channelId: 'ch-1', diceType: '1d100' })
+
+      // Assert
+      expect(diceRollService.createText).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'ch-1' }))
     })
   })
 

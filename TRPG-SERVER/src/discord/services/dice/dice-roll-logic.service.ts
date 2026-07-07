@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ButtonInteraction } from 'discord.js'
+import { ButtonInteraction, ChannelType } from 'discord.js'
 import { DiceRollService } from '../../../domains/dice-roll/dice-roll.service'
 import { CharacterService } from '../../../domains/character/character.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
@@ -45,7 +45,7 @@ export class DiceRollLogicService {
 
       // ダイスロール結果をDBに保存
       const diceRollData: DiceRollTextInputDto = {
-        channelId: req.channelId,
+        channelId: this.resolveSaveChannelId(interaction, req.channelId),
         userId: req.userId || interaction.user.id,
         diceExpression: req.diceType,
         result: rollResult.total,
@@ -198,7 +198,7 @@ export class DiceRollLogicService {
 
       // データベースに保存
       const diceRollData: DiceRollTextInputDto = {
-        channelId,
+        channelId: this.resolveSaveChannelId(interaction, channelId),
         userId: interaction.user.id,
         diceExpression: '1d100',
         result: rollResult.total,
@@ -270,7 +270,7 @@ export class DiceRollLogicService {
 
       // データベースに保存
       const diceRollData: DiceRollTextInputDto = {
-        channelId,
+        channelId: this.resolveSaveChannelId(interaction, channelId),
         userId: interaction.user.id,
         diceExpression,
         result: rollResult.total,
@@ -303,6 +303,23 @@ export class DiceRollLogicService {
         isCustomRoll: true
       }
     }
+  }
+
+  /**
+   * 履歴の保存先 channelId を解決する
+   *
+   * キャラ解決キー（customId 由来 = character.discordChannelId）と保存キーを分離する。
+   * スレッド内のロールは、結果メッセージの投稿先（実親チャンネル）と同じキーで保存し、
+   * /dice-result（実行チャンネルで検索）と一致させる。キャラ登録チャンネルの外で
+   * 作成されたスレッドでも履歴が実親チャンネルから引けるようにするための分離。
+   * スレッド外は従来どおり lookup キー（customId 由来）で保存する。
+   */
+  private resolveSaveChannelId(interaction: ButtonInteraction, lookupChannelId: string): string {
+    const channel = interaction.channel
+    if (channel && (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread)) {
+      return channel.parentId ?? lookupChannelId
+    }
+    return lookupChannelId
   }
 
   /**
