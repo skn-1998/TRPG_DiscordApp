@@ -6,11 +6,9 @@ import { EventHandler, EventContext } from './handlers/_shared/event-handler.bas
 // 注: Discord UI を更新する「完了系」ハンドラー（creation/update/deletion.completed,
 //     discord.thread.create.requested）は discord 層へ移設し、TypedEventService への
 //     自己購読で動作する（events→discord/features の逆流依存を解消）。
+// 注: update.requested / findBy*.requested の 4 ハンドラーは E-2 完了で emit 元ゼロの
+//     dead チェーンとなったため E-3a で削除した。
 import { CharacterCreationRequestedHandler } from './handlers/character.creation.requested'
-import { CharacterUpdateRequestedHandler } from './handlers/character.update.requested'
-import { CharacterFindByChannelIdRequestedHandler } from './handlers/character.findByChannelId.requested'
-import { CharacterFindByIdRequestedHandler } from './handlers/character.findById.requested'
-import { CharacterFindByNameRequestedHandler } from './handlers/character.findByName.requested'
 
 /**
  * File-based Event Registry Service
@@ -35,11 +33,7 @@ export class EventRegistryService implements OnModuleInit {
   constructor(
     private readonly typedEventService: TypedEventService,
     // 各ハンドラーを注入（NestJS DIによる自動解決）
-    private readonly characterCreationHandler: CharacterCreationRequestedHandler,
-    private readonly characterUpdateHandler: CharacterUpdateRequestedHandler,
-    private readonly characterFindByChannelIdHandler: CharacterFindByChannelIdRequestedHandler,
-    private readonly characterFindByIdHandler: CharacterFindByIdRequestedHandler,
-    private readonly characterFindByNameHandler: CharacterFindByNameRequestedHandler
+    private readonly characterCreationHandler: CharacterCreationRequestedHandler
     // 新しいハンドラーはここに追加
   ) {}
 
@@ -62,11 +56,7 @@ export class EventRegistryService implements OnModuleInit {
   private async registerAllHandlers(): Promise<void> {
     // 登録対象ハンドラー一覧
     const handlersToRegister = [
-      this.characterCreationHandler,
-      this.characterUpdateHandler,
-      this.characterFindByChannelIdHandler,
-      this.characterFindByIdHandler,
-      this.characterFindByNameHandler
+      this.characterCreationHandler
       // 新しいハンドラーはここに追加
     ]
 

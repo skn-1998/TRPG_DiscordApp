@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import { TypedEventService, TypedEventEmitter } from './typed-event.service'
+import { TypedEventService } from './typed-event.service'
 import { EventPayload } from '../../events/contracts'
 
 // テスト用イベント契約の拡張
@@ -452,97 +452,4 @@ describe('TypedEventService', () => {
   })
 })
 
-describe('TypedEventEmitter', () => {
-  let typedEventEmitter: TypedEventEmitter
-  let typedEventService: TypedEventService
-
-  beforeEach(async () => {
-    const testEventEmitter = new EventEmitter2({
-      wildcard: false,
-      delimiter: '.',
-      maxListeners: 10,
-      ignoreErrors: false
-    })
-
-    const module = await Test.createTestingModule({
-      providers: [
-        {
-          provide: 'TYPED_EVENT_EMITTER',
-          useValue: testEventEmitter
-        },
-        {
-          provide: TypedEventService,
-          useFactory: (emitter: EventEmitter2) => new TypedEventService(emitter),
-          inject: ['TYPED_EVENT_EMITTER']
-        },
-        {
-          provide: TypedEventEmitter,
-          useFactory: (service: TypedEventService) => new TypedEventEmitter(service),
-          inject: [TypedEventService]
-        }
-      ]
-    }).compile()
-
-    typedEventService = module.get<TypedEventService>(TypedEventService)
-    typedEventEmitter = module.get<TypedEventEmitter>(TypedEventEmitter)
-  })
-
-  describe('helper methods', () => {
-    it('should emit character search request', async () => {
-      // Arrange
-      const emitSpy = jest.spyOn(typedEventService, 'emit')
-
-      // Act
-      await typedEventEmitter.requestCharacterSearch('channel-123', 'test-source', 'info')
-
-      // Assert
-      expect(emitSpy).toHaveBeenCalledWith('character.findByChannelId.requested', {
-        channelId: 'channel-123',
-        source: 'test-source',
-        timestamp: expect.any(Date),
-        tabType: 'info'
-      })
-    })
-
-    it('should emit character creation request', async () => {
-      // Arrange
-      const createData = {
-        characterId: '',
-        characterName: 'Test Character',
-        gameSystemId: 'coc',
-        discordChannelId: 'channel-123',
-        discordUserId: 'user-456'
-      } as any
-
-      const emitSpy = jest.spyOn(typedEventService, 'emit')
-
-      // Act
-      await typedEventEmitter.requestCharacterCreation(createData, 'user-456', 'test-source')
-
-      // Assert
-      expect(emitSpy).toHaveBeenCalledWith('character.creation.requested', {
-        createData,
-        userId: 'user-456',
-        source: 'test-source',
-        timestamp: expect.any(Date)
-      })
-    })
-
-    it('should emit dice roll request', async () => {
-      // Arrange
-      const emitSpy = jest.spyOn(typedEventService, 'emit')
-
-      // Act
-      await typedEventEmitter.requestDiceRoll('channel-123', '1d100', 'user-456', 'test-source')
-
-      // Assert
-      expect(emitSpy).toHaveBeenCalledWith('diceroll.execute.requested', {
-        channelId: 'channel-123',
-        diceExpression: '1d100',
-        userId: 'user-456',
-        source: 'test-source',
-        timestamp: expect.any(Date)
-      })
-    })
-  })
-})
+// 注: TypedEventEmitter の request 系ヘルパの describe は、ヘルパ削除（E-3a）に伴い撤去した。

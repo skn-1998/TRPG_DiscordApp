@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
 import { EventHandler, EventContext, ValidationError, BusinessLogicError } from './_shared/event-handler.base'
 import { validateRequired, validateStringLength, validateDiscordId } from './_shared/validation.utils'
 import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
-import { CharacterIdService } from '../../domains/character/services/character-id.service'
 import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
 
 /**
@@ -12,14 +11,14 @@ import { CharacterCreationRequestedEvent } from '../contracts/unified-event-cont
  * - キャラクター作成リクエストの処理（入力形検証・featureId ルーティング）
  * - ビジネス中核（重複チェック・パラメータ検証・ID採番・作成）は
  *   CharacterCreationCoreService（domain）へ委譲
- * - 成功・失敗イベントの発行
+ * - 成功イベント（character.creation.completed）の発行
+ *
+ * 注: character.creation.failed の emit は恒常購読者ゼロの dead チェーンだったため
+ *     E-3a で撤去した。失敗時はログ＋再スローし、EventHandler 基底のリトライ/統計に委ねる。
  */
 @Injectable()
 export class CharacterCreationRequestedHandler extends EventHandler<CharacterCreationRequestedEvent> {
-  constructor(
-    private readonly creationCore: CharacterCreationCoreService,
-    private readonly characterIdService: CharacterIdService
-  ) {
+  constructor(private readonly creationCore: CharacterCreationCoreService) {
     super()
   }
 
@@ -93,8 +92,9 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
       // 成功イベント発行
       await this.emitSuccessEvent(character, event, context)
     } catch (error) {
-      // 失敗イベント発行
-      await this.emitFailureEvent(error as Error, event, context)
+      // 注: character.creation.failed の emit は購読者ゼロのため E-3a で撤去。
+      //     再スローにより EventHandler 基底のリトライ/統計がそのまま機能する。
+      this.logger.error(`Character creation failed: ${(error as Error).message}`)
       throw error // エラーを再スロー
     }
   }
@@ -162,32 +162,6 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
     await this.typedEventService?.emit('character.creation.completed', successEvent)
 
     this.logger.log(`📤 Success event emitted: character.creation.completed for ${character.characterId}`)
-  }
-
-  /**
-   * 失敗イベントの発行
-   */
-  private async emitFailureEvent(
-    error: Error,
-    originalEvent: CharacterCreationRequestedEvent,
-    _context?: EventContext
-  ): Promise<void> {
-    const failureEvent = {
-      createData: {
-        characterName: originalEvent.createData.characterName,
-        gameSystemId: originalEvent.createData.gameSystemId || '',
-        discordUserId: originalEvent.createData.discordUserId || '',
-        discordChannelId: originalEvent.createData.discordChannelId,
-        characterId: originalEvent.characterId || (await this.characterIdService.generateUniqueCharacterId('char_'))
-      },
-      error: error.message,
-      source: originalEvent.source,
-      timestamp: new Date()
-    }
-
-    await this.typedEventService?.emit('character.creation.failed', failureEvent)
-
-    this.logger.error(`📤 Failure event emitted: character.creation.failed - ${error.message}`)
   }
 
   /**
