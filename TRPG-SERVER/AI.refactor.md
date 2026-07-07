@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-07-07 E-3 全完了（dead イベント大掃除・5 slice・約 -3,100 行）
+
+E-2 完了で dead 化が確定した系統を、購読3形態（直接 .on / getEventName 間接 / @OnEvent）の全数マップで裏取りしてから 5 slice で撤去。
+実装は nestjs-best-practices ×5 並列/逐次委譲・司令塔一括裏取り・Codex スコープレビュー2回（a/b/c と d/e）いずれも正確性指摘なし。
+
+- **E-3a `4b2e51d`**: request 系ヘルパ 7 本（全て呼び出し元ゼロ）→ update.requested/findBy\* の **4 handler をチェーンごと削除**。
+  EventRegistry は creation 1 handler 構成へ。creation handler の dead な failed emit も撤去（throw ベースで基底のリトライ/統計は同値）
+- **E-3b `dcb8f0e`**: diceroll.execute.completed/failed の dead emit＋typedEventService 注入ごと削除
+- **E-3c `4592d07`**: CharacterEditCreationHandler 丸ごと（as any キャスト消滅）・emitSectionSelected・dead listener 2 本
+- **E-3d `f62eff5`**: discord UI 系 dead emit **13+1 箇所**（thread-manager 分は計画の「発行元（例）」漏れをスコープ拡張）。
+  **重要記録: display 系（handleCharacterDisplayRequest 等）は「聞くだけで何もしない」ゴーストとして残置**
+  （発行元 domains/character/character.controller が live のため。連鎖の解体は E-5/E-6 で扱う＝docstring にも明記）
+- **E-3e `89b0a8a`**: interactions.service の素の EventEmitter2 注入＋interaction.start/processed emit 撤去（**E-4c の前提完了**。
+  EventEmitterModule.forRoot は @OnEvent の監視系〈discord.command.\* 等〉が live のため残置）
+
+検証: build 0 / No circular / 全 **181 suites 2469 tests 緑**（E-2 完了時 186/2555 から −5 suites/−86 tests＝削除 spec 分と整合）/
+start:dev interaction 23 不変・EventRegistry 1 handler・DI エラー 0・Discord 初期化成功。
+（start:dev の ERROR 1 行は DiscordMonitorService の性能アラートログ＝監視系の正常動作・コード無関係）
+
+### E-4 への申し送り
+
+- dead contract 型が contracts 2 ファイルに残存（discord.message.send.requested / embed.character.update.\* 等）→ **E-4a で一括整理**
+- `TypedEventEmitter` は空クラス化済み（provider: core-events.module / 注入先: discord-facade）→ E-4c で撤去判断
+- `channel-create-orchestrator` の無効化済み private handleCharacterCreationFailed（contracts 型参照のみ）→ E-4a 整理対象
+- `CharacterUpdateCompletedEvent` の契約型ずれ（type/characterId/changes 要求 vs 実 emit）→ E-4a
+
+### 次にやること
+
+E-4a（契約一本化）→ E-4b（EVENT_NAMES 完備）→ E-4c（バス1インスタンス化）。C-3/C-6 は引き続き並行可。
+
+---
+
 ## 2026-07-07 E-2f 完了 ＝ **E-2 全完了**（イベント RPC の production 利用ゼロ達成）
 
 **コミット `048eab5`**（9 ファイル・+619/-296・nestjs-best-practices 委譲＋司令塔裏取り＋Codex レビュー）。
