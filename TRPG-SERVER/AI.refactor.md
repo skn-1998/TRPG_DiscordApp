@@ -5,7 +5,35 @@
 
 ---
 
-## 2026-07-07 C-1 完了（未使用 npm 依存 9 件削除）＋ C-8 事前調査（v11 整合・調査のみ）
+## 2026-07-07 C-2 完了（dead dice メソッド撤去・F10 完遂）＋既存 latent bug 1 件検出
+
+C-1 に続き C-2 を実施（nestjs-best-practices へ委譲・司令塔裏取り）。**コミット `c8aa131`**（10 ファイル・+29/-1119）。
+
+### 計画からの訂正（司令塔 grep 裏取り）
+
+- 撤去対象は計画の 7 → **8 メソッド**（`parseAndCalculate` も非 spec 呼び出し元ゼロ＝2026-06-10 残課題リストどおり dead）。
+- カスケード確定: **DiceParserService は消費者が orchestrator の dead ラッパーのみ＝丸ごと削除**（F10 の DicePresetService と同型）。
+  DiceCalculationService 側も public `parseAndCalculate`・`FlexibleDiceResult`・孤児化 private `applyMultiplierAndModifier` を削除
+  （live `calculateAndRoll` は multiplier/modifier を inline 処理・共有 private は維持＝挙動不変）。
+- orchestrator の残存 live 6 メソッド: `calculateAndRoll` / `executeBasicNotation` / `getResultEmoji` / `getBasicResultEmoji` /
+  `sendToParentChannel` / `sendToParentChannelBasic`（constructor は calculationService 単独注入へ）。
+
+### 検証（司令塔実測）
+
+build 0 / check:circular **No circular(478)**（-2 ファイル整合）/ 全 **186 suites 2541 tests 緑**（-1 suite/-72 tests＝削除 spec 分・
+新規破損ゼロ）/ start:dev **handler 8+6+9=23 不変・DI エラー 0**（EADDRINUSE 1 件は検証プロセスの多重起動＝環境要因・コード無関係）/
+削除シンボル残存参照ゼロ（残りは live メソッド JSDoc の歴史記述 1 行のみ）/ diff レビュー 3 角度（読み取り専用制約付き）: **C-2 起因 finding 0**。
+
+### ★レビューで検出した既存 latent bug（C-2 スコープ外・未修正・要対応）
+
+**`dice-calculation.service.ts:63` の await 漏れ**: `const diceResult = dice(\`${targetValue}b10\`)`—`dice()`は async のため`diceResult`は **Promise のまま**`DiceCalculationResult.diceResult`に入る。消費者`custom-dice-modal.service.ts:83-84`は
+Promise が truthy なので通過し`.rands.reduce`で **TypeError → param-dice-modal（計算式ダイス）経路は本番でエラー返信**になる。
+spec は`mockReturnValue`（本来 `mockResolvedValue`）＋orchestrator 全 mock のため緑のまま見逃し。
+**修正は 1 行（await 追加）＋spec の mockResolvedValue 化**だが挙動変更＝バグ修正のため C-2 に混ぜず別タスク化。
+
+### 次にやること
+
+- **await 漏れバグ修正**（上記・優先）→ C-3（dead 第2弾: discord.utils.ts 削除・PerformanceOrchestrator liveness 確定・app.module コメント整理）。
 
 pull（origin/develop の PR #12 取り込み・マージ `5a9e393`・コンフリクトなし）後、
 `docs/refactor/refactor-legacy-cleanup-plan-2026-07-06.md` の C-1 を trpg-refactor スキルで実施。**コミット `c27c224`**。
