@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter'
+import { OnEvent } from '@nestjs/event-emitter'
 
 /**
  * アラート管理サービス
@@ -62,7 +62,9 @@ export class AlertManagerService implements OnModuleInit {
   // コマンド失敗履歴
   private commandFailureHistory: number[] = []
 
-  constructor(private readonly eventEmitter: EventEmitter2) {
+  // C-3b′（2026-07-07）: EventEmitter2 注入は dead emit（system.alert.critical / system.alert.${type}）の
+  // 撤去に伴い未使用化したため削除。@OnEvent('system.health.status') の購読は注入不要（forRoot バスが配線）。
+  constructor() {
     this.logger.debug('Alert Manager Service initialized')
   }
 
@@ -118,18 +120,8 @@ export class AlertManagerService implements OnModuleInit {
     this.logger.debug(`Initialized ${defaultRules.length} default alert rules`)
   }
 
-  /**
-   * システムアラートハンドリング
-   */
-  @OnEvent('system.alert')
-  async handleSystemAlert(data: any) {
-    await this.triggerAlert({
-      type: data.type || 'system',
-      severity: data.severity || 'info',
-      message: data.message || 'System alert triggered',
-      data: data.data || {}
-    })
-  }
+  // C-3b′（2026-07-07）: @OnEvent('system.alert') の handleSystemAlert は exact 'system.alert' の
+  // emit 元がゼロ（wildcard:false のため system.alert.* とは不一致）の dead 購読につき撤去。
 
   /**
    * システムヘルス監視
@@ -200,11 +192,8 @@ export class AlertManagerService implements OnModuleInit {
     const logLevel = alert.severity === 'critical' ? 'error' : alert.severity === 'warning' ? 'warn' : 'log'
     this.logger[logLevel](`[ALERT:${alert.type.toUpperCase()}] ${alert.message}`)
 
-    // イベント発行
-    this.eventEmitter.emit(`system.alert.${alert.type}`, activeAlert)
-    if (alert.severity === 'critical') {
-      this.eventEmitter.emit('system.alert.critical', activeAlert)
-    }
+    // C-3b′（2026-07-07）: `system.alert.${type}` / 'system.alert.critical' の emit は購読者ゼロの
+    // dead emit につき撤去（アラートの記録・統計・ログは live のまま維持）。
   }
 
   /**

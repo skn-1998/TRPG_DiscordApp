@@ -40,11 +40,8 @@ export class PerformanceOrchestratorService implements OnModuleInit {
       this.logger.warn('Initial health issues detected:', initialHealth.issues)
     }
 
-    // 監視開始イベント発行
-    this.eventEmitter.emit('monitoring.system.started', {
-      timestamp: Date.now(),
-      health: initialHealth
-    })
+    // C-3b′（2026-07-07）: 'monitoring.system.started' の emit は購読者ゼロの dead emit につき撤去
+    //（初期ヘルスチェックとログは live のまま維持。eventEmitter は live の 'system.health.status' 発行用に残置）。
   }
 
   /**

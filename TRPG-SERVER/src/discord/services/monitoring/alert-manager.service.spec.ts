@@ -1,17 +1,16 @@
-import { EventEmitter2 } from '@nestjs/event-emitter'
 import { AlertManagerService, AlertRule } from './alert-manager.service'
 
 /**
- * AlertManagerService は「ルール容器(Map) + EventEmitter2 発行 + クールダウン状態管理 + 統計」を持つ
+ * AlertManagerService は「ルール容器(Map) + クールダウン状態管理 + 統計」を持つ
  * 監視サービス。discord.js 非依存。
+ * C-3b′（2026-07-07）: dead emit（system.alert.*）と EventEmitter2 注入の撤去に伴い、
+ * emit ベースの検証はアクティブアラート・統計（公開 API の状態）ベースへ置き換えた。
  *
- * 依存(EventEmitter2)は副作用の境界としてモックする。
  * 時刻は Date.now() を直呼びするため jest.useFakeTimers() で決定化する。
- * private(isInCooldown 等)は覗かず、公開 API の振る舞い(emit 呼び出し・戻り値・統計)で検証する。
+ * private(isInCooldown 等)は覗かず、公開 API の振る舞い(戻り値・統計)で検証する。
  */
 describe('AlertManagerService', () => {
   let service: AlertManagerService
-  let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit' | 'on'>>
 
   const FIXED_NOW = 1_700_000_000_000
 
@@ -19,10 +18,7 @@ describe('AlertManagerService', () => {
     jest.useFakeTimers()
     jest.setSystemTime(FIXED_NOW)
 
-    // 指示どおり EventEmitter2 は emit/on を持つモックにする
-    eventEmitter = { emit: jest.fn(), on: jest.fn() }
-
-    service = new AlertManagerService(eventEmitter as unknown as EventEmitter2)
+    service = new AlertManagerService()
   })
 
   afterEach(() => {
@@ -104,7 +100,9 @@ describe('AlertManagerService', () => {
   })
 
   describe('triggerAlert', () => {
-    it('アラートを発行すると system.alert.<type> イベントを emit する', async () => {
+    // C-3b′（2026-07-07）: system.alert.<type> / system.alert.critical の emit 検証 2 件は
+    // dead emit の撤去に伴い、アクティブアラート記録の検証へ置き換え・削除。
+    it('アラートを発行するとアクティブアラートとして記録される', async () => {
       // Act
       await service.triggerAlert({
         type: 'custom-type',
@@ -113,11 +111,9 @@ describe('AlertManagerService', () => {
         data: { foo: 'bar' }
       })
 
-      // Assert: 副作用(emit)の検証
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(1)
-      const [eventName, payload] = eventEmitter.emit.mock.calls[0]
-      expect(eventName).toBe('system.alert.custom-type')
-      expect(payload).toMatchObject({
+      // Assert: 副作用(アクティブアラート記録)の検証
+      const [alert] = service.getActiveAlerts()
+      expect(alert).toMatchObject({
         ruleId: 'custom-type',
         severity: 'info',
         message: 'テストメッセージ',
@@ -126,21 +122,6 @@ describe('AlertManagerService', () => {
         acknowledged: false,
         count: 1
       })
-    })
-
-    it('severity が critical の場合は system.alert.critical も追加で emit する', async () => {
-      // Act
-      await service.triggerAlert({
-        type: 'custom-type',
-        severity: 'critical',
-        message: '重大'
-      })
-
-      // Assert
-      const eventNames = eventEmitter.emit.mock.calls.map((c) => c[0])
-      expect(eventNames).toContain('system.alert.custom-type')
-      expect(eventNames).toContain('system.alert.critical')
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2)
     })
 
     it('data 省略時は空オブジェクトでアクティブアラートに格納される', async () => {
@@ -180,29 +161,26 @@ describe('AlertManagerService', () => {
       // Arrange: ルールを登録し1回発火 → クールダウン設定される
       service.addAlertRule(cooldownRule)
       await service.triggerAlert({ type: 'cooled', severity: 'warning', message: '1回目' })
-      eventEmitter.emit.mockClear()
 
       // Act: クールダウン未満の経過時間で再発火を試みる
       jest.setSystemTime(FIXED_NOW + 4999)
       await service.triggerAlert({ type: 'cooled', severity: 'warning', message: '2回目' })
 
-      // Assert: emit されない
-      expect(eventEmitter.emit).not.toHaveBeenCalled()
+      // Assert: 2件目は記録されない
       expect(service.getActiveAlerts()).toHaveLength(1)
+      expect(service.getAlertStatistics().totalAlerts).toBe(1)
     })
 
     it('クールダウン経過後は再発火できる', async () => {
       // Arrange
       service.addAlertRule(cooldownRule)
       await service.triggerAlert({ type: 'cooled', severity: 'warning', message: '1回目' })
-      eventEmitter.emit.mockClear()
 
       // Act: クールダウン(5000ms)を満たす時刻まで進める
       jest.setSystemTime(FIXED_NOW + 5000)
       await service.triggerAlert({ type: 'cooled', severity: 'warning', message: '2回目' })
 
-      // Assert: 再び emit される
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(1)
+      // Assert: 2件目も記録される
       expect(service.getActiveAlerts()).toHaveLength(2)
     })
 
@@ -212,8 +190,7 @@ describe('AlertManagerService', () => {
       jest.setSystemTime(FIXED_NOW + 1)
       await service.triggerAlert({ type: 'unregistered', severity: 'info', message: 'b' })
 
-      // Assert: 両方とも emit される
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2)
+      // Assert: 両方とも記録される
       expect(service.getActiveAlerts()).toHaveLength(2)
     })
   })
@@ -223,32 +200,30 @@ describe('AlertManagerService', () => {
       await service.onModuleInit()
     })
 
-    it('エラー率がしきい値(0.05)を超えると high-error-rate アラートを emit する', async () => {
+    it('エラー率がしきい値(0.05)を超えると high-error-rate アラートを記録する', async () => {
       // Act
       await service.handleHealthStatus({ metrics: { errorRate: 0.06 } })
 
       // Assert
-      const eventNames = eventEmitter.emit.mock.calls.map((c) => c[0])
-      expect(eventNames).toContain('system.alert.high-error-rate')
-      expect(eventNames).toContain('system.alert.critical')
+      const [alert] = service.getActiveAlerts()
+      expect(alert.ruleId).toBe('high-error-rate')
+      expect(alert.severity).toBe('critical')
     })
 
-    it('しきい値を超えない場合はアラートを emit しない', async () => {
+    it('しきい値を超えない場合はアラートを記録しない', async () => {
       // Act
       await service.handleHealthStatus({ metrics: { errorRate: 0.01, memory: { heapUsedMB: 100 } } })
 
       // Assert
-      expect(eventEmitter.emit).not.toHaveBeenCalled()
       expect(service.getActiveAlerts()).toHaveLength(0)
     })
 
-    it('メモリ使用量がしきい値(800MB)を超えると high-memory-usage アラートを emit する', async () => {
+    it('メモリ使用量がしきい値(800MB)を超えると high-memory-usage アラートを記録する', async () => {
       // Act
       await service.handleHealthStatus({ metrics: { memory: { heapUsedMB: 801 } } })
 
       // Assert
-      const eventNames = eventEmitter.emit.mock.calls.map((c) => c[0])
-      expect(eventNames).toContain('system.alert.high-memory-usage')
+      expect(service.getActiveAlerts().map((a) => a.ruleId)).toContain('high-memory-usage')
     })
 
     it('condition 評価で例外が発生しても他ルールの評価を止めない', async () => {
@@ -265,43 +240,12 @@ describe('AlertManagerService', () => {
       // Act
       await service.handleHealthStatus(throwingData)
 
-      // Assert: memory ルールは評価され emit される
-      const eventNames = eventEmitter.emit.mock.calls.map((c) => c[0])
-      expect(eventNames).toContain('system.alert.high-memory-usage')
+      // Assert: memory ルールは評価されアラートが記録される
+      expect(service.getActiveAlerts().map((a) => a.ruleId)).toContain('high-memory-usage')
     })
   })
 
-  describe('handleSystemAlert', () => {
-    it('受け取った data の値で triggerAlert に委譲し emit する', async () => {
-      // Act
-      await service.handleSystemAlert({
-        type: 'sys',
-        severity: 'warning',
-        message: 'システム警告',
-        data: { x: 1 }
-      })
-
-      // Assert
-      const [eventName, payload] = eventEmitter.emit.mock.calls[0]
-      expect(eventName).toBe('system.alert.sys')
-      expect(payload).toMatchObject({ severity: 'warning', message: 'システム警告', data: { x: 1 } })
-    })
-
-    it('フィールド省略時は既定値(type=system, severity=info, 既定メッセージ)で発火する', async () => {
-      // Act
-      await service.handleSystemAlert({})
-
-      // Assert
-      const [eventName, payload] = eventEmitter.emit.mock.calls[0]
-      expect(eventName).toBe('system.alert.system')
-      expect(payload).toMatchObject({
-        ruleId: 'system',
-        severity: 'info',
-        message: 'System alert triggered',
-        data: {}
-      })
-    })
-  })
+  // C-3b′（2026-07-07）: handleSystemAlert（@OnEvent('system.alert')）は dead 購読の撤去に伴い describe を削除。
 
   describe('acknowledgeAlert', () => {
     it('存在するアラートを承認すると true を返し承認情報が記録される', async () => {
