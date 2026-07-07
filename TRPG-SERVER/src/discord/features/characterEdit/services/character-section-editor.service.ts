@@ -16,7 +16,7 @@ import {
   StringSelectMenuBuilder
 } from 'discord.js'
 import { Character } from '../../../../domains/character/models/character.model'
-import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -52,7 +52,7 @@ export class CharacterSectionEditorService {
   private readonly logger = new Logger(CharacterSectionEditorService.name)
 
   constructor(
-    private readonly typedEventService: TypedEventService,
+    private readonly characterService: CharacterService,
     private readonly embedManager: CharacterEmbedManagerService,
     private readonly modalSessionManager: ModalSessionManagerService
   ) {}
@@ -292,24 +292,12 @@ export class CharacterSectionEditorService {
    */
   private async getCharacter(characterId: string): Promise<Character | null> {
     try {
-      // 先に待受をセットしてからemit（レースコンディション回避）
-      const resultPromise = Promise.race([
-        this.typedEventService.waitForEvent('character.findById.completed', 5000),
-        this.typedEventService.waitForEvent('character.findById.failed', 5000)
-      ])
+      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2b: イベント RPC 廃止）
+      const character = (await this.characterService.findOne(characterId)) as
+        | (Character & { toObject?: () => Character })
+        | null
 
-      // イベントを発行してキャラクター情報を取得
-      await this.typedEventService.emit('character.findById.requested', {
-        characterId,
-        source: 'character-section-editor',
-        timestamp: new Date()
-      })
-
-      // 結果を待機
-      const result = await resultPromise
-
-      if ('character' in result && result.character) {
-        const character = result.character
+      if (character) {
         // Mongooseドキュメントの場合は適切に変換
         if (character.toObject) {
           return character.toObject()

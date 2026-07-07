@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { DiceRollModule } from 'src/domains/dice-roll/dice-roll.module'
+import { CharacterModule } from 'src/domains/character/character.module'
 import { DiceRollPaginationService } from './dice-roll-pagination.service'
 import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
 
@@ -22,7 +23,10 @@ import { DiceRollCharacterProviderService } from './dice-roll-character-provider
  * ⚠️ 挙動不変: pagination の実体・customId 生成・routing は不変。提供元の module 境界のみ移動。
  */
 @Module({
-  imports: [DiceRollModule], // DiceRollService（DiceRollPaginationService / CharacterProvider の依存）解決のため
+  imports: [
+    DiceRollModule, // DiceRollService（DiceRollPaginationService / CharacterProvider の依存）解決のため
+    CharacterModule // CharacterService（CharacterProvider の findOne 直呼び・E-2b: イベント RPC 廃止）解決のため
+  ],
   providers: [DiceRollPaginationService, DiceRollCharacterProviderService],
   exports: [DiceRollPaginationService, DiceRollCharacterProviderService]
 })
