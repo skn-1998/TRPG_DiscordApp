@@ -182,21 +182,21 @@ discord/services/
 ```
 services/dice/
 ├── dice-orchestrator.service.ts     - 統合オーケストレーター
-├── dice-calculation.service.ts      - 計算エンジン
-└── dice-parser.service.ts           - 数式解析エンジン
+└── dice-calculation.service.ts      - 計算エンジン
 ```
 
 > 注（2026-06-10）: `dice-preset.service.ts`（旧 `preset-dice*` 系プリセット管理）は dead 化のため撤去済み。
 > 現役プリセットは `features/characterThread` の `PresetDiceQuickRollHandler`（`dice_(coc7|dnd5e|sw25)_`）。
+> 注（2026-07-07 C-2）: `dice-parser.service.ts`（DiceParserService）は孤児化のため丸ごと撤去済み。
+> orchestrator の dead 委譲メソッド（`parseAndCalculate`/`parseFormula`/`evaluateFormula`/`convertToDiceNotation`/
+> `getServiceStats`/レガシー互換 3 種）と calculation の `parseAndCalculate`/`FlexibleDiceResult` も同時撤去。
 
 **各サービスの役割**:
 
 - **DiceOrchestratorService**: 全ダイス処理の統一インターフェース
   - `executeBasicNotation()` - 基本ダイス記法（1d100, 2d6+3等）
   - `calculateAndRoll()` - キャラクターパラメータ統合
-  - `parseAndCalculate()` - 複雑な数式処理
 - **DiceCalculationService**: ダイス計算コアロジック
-- **DiceParserService**: 複雑数式の解析と変換
 
 **改善効果**:
 
@@ -210,9 +210,6 @@ services/dice/
 // 推奨
 constructor(private diceOrchestrator: DiceOrchestratorService) {}
 const result = await this.diceOrchestrator.executeBasicNotation('1d100')
-
-// 非推奨（警告ログ出力）
-const legacyResult = await this.diceOrchestrator.executeNotation('1d100')
 ```
 
 ---

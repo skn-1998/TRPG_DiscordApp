@@ -4,7 +4,6 @@ import { CharacterModule } from '../../../domains/character/character.module'
 import { DiceRollLogicService } from './dice-roll-logic.service'
 import { DiceOrchestratorService } from './dice-orchestrator.service'
 import { DiceCalculationService } from './dice-calculation.service'
-import { DiceParserService } from './dice-parser.service'
 
 /**
  * Dice Services Module
@@ -13,7 +12,7 @@ import { DiceParserService } from './dice-parser.service'
  *
  * 📋 責務（providers/exports）:
  * - DiceRollLogicService: ボタン/セレクトからのダイスロール実行ロジック（旧 interactions/button から移設）。
- * - DiceOrchestratorService / DiceCalculationService / DiceParserService: ダイス計算・解析。
+ * - DiceOrchestratorService / DiceCalculationService: ダイス計算・解析。
  *
  * 🏗️ 位置づけ（ARCHITECTURE §5.3 / §6 / §12）:
  * これらは特定 feature の所有物ではなく「複数の利用者（interactions の character-thread handler・
@@ -26,7 +25,7 @@ import { DiceParserService } from './dice-parser.service'
  */
 @Module({
   imports: [DiceRollModule, CharacterModule],
-  providers: [DiceRollLogicService, DiceOrchestratorService, DiceCalculationService, DiceParserService],
-  exports: [DiceRollLogicService, DiceOrchestratorService, DiceCalculationService, DiceParserService]
+  providers: [DiceRollLogicService, DiceOrchestratorService, DiceCalculationService],
+  exports: [DiceRollLogicService, DiceOrchestratorService, DiceCalculationService]
 })
 export class DiceServicesModule {}

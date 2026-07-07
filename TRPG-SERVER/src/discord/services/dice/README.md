@@ -20,7 +20,6 @@ TRPGサーバーのダイス処理を統合管理するサービス群のドキ�
 
 ```typescript
 export { DiceCalculationService } from './dice-calculation.service'
-export { DiceParserService } from './dice-parser.service'
 export { DiceOrchestratorService } from './dice-orchestrator.service'
 export { DiceOrchestratorService as DiceService } from './dice-orchestrator.service' // 推奨エイリアス
 ```
@@ -34,10 +33,8 @@ export { DiceOrchestratorService as DiceService } from './dice-orchestrator.serv
 
 - **基本ダイス記法処理**: 1d100, 2d6+3等の標準ダイス記法
 - **高度なダイス計算**: キャラクターパラメータとの統合計算
-- **柔軟な数式解析**: 複雑な数式の解析と実行
 - **BCDice統合**: Cthulhuシステム対応の標準処理
 - **エラーハンドリング**: 統一されたエラー処理とログ出力
-- **レガシー互換**: 既存コードとの後方互換性
 
 **アーキテクチャパターン**: Facade Pattern + Strategy Pattern
 
@@ -52,13 +49,11 @@ executeBasicNotation(notation: string, characterName?: string): Promise<BasicDic
 
 // 高度計算（推奨）
 calculateAndRoll(formula: string, multiplier?: number, modifier?: number, character?: Character): Promise<DiceCalculationResult>
-
-// 柔軟解析（推奨）
-parseAndCalculate(formula: string, multiplier?: number, modifier?: number, character?: Character): Promise<FlexibleDiceResult>
-
-// レガシー互換（非推奨）
-executeNotation(notation: string, characterName?: string): Promise<BasicDiceResult> // 警告ログ出力
 ```
+
+> 注（2026-07-07 C-2）: `parseAndCalculate` / `parseFormula` / `evaluateFormula` / `convertToDiceNotation` /
+> `getServiceStats` / レガシー互換メソッド（`legacyCalculateAndRoll` / `legacyParseAndCalculate` / `executeNotation`）は
+> 呼び出し元ゼロの dead code として撤去済み。
 
 ### dice-calculation.service.ts
 
@@ -69,7 +64,7 @@ executeNotation(notation: string, characterName?: string): Promise<BasicDiceResu
 
 - **数値計算**: 修正値・乗数の適用と計算実行
 - **キャラクター統合**: AttributeValue型とCharacterモデルとの連携
-- **結果フォーマット**: DiceCalculationResult/FlexibleDiceResult生成
+- **結果フォーマット**: DiceCalculationResult生成
 - **計算エラー処理**: 詳細な計算エラー分析と報告
 - **Discord統合**: 親チャンネル送信とメッセージフォーマット
 - **結果表示**: 絵文字とメッセージの生成
@@ -85,30 +80,12 @@ executeNotation(notation: string, characterName?: string): Promise<BasicDiceResu
 - `AttributeValue` (型定義)
 - `dice` utils (BCDice統合)
 
-### dice-parser.service.ts
+### ~~dice-parser.service.ts~~（撤去済み: 2026-07-07 C-2）
 
-**役割**: 数式解析エンジン
-**責務**: 複雑なダイス数式の解析と変換
-
-**主要機能**:
-
-- **数式パース**: 複雑な数式文字列の構文解析
-- **変数展開**: キャラクターパラメータの変数置換
-- **妥当性検証**: 数式の論理的・構文的妥当性チェック
-- **安全評価**: セキュアな数式評価（インジェクション対策）
-- **型変換**: 数値とダイス記法間の相互変換
-- **エラー分析**: 解析エラーの詳細レポート
-
-**設計パターン**: Interpreter Pattern + Visitor Pattern
-
-- 数式の抽象構文木(AST)解析
-- 各ノードタイプごとの処理実装
-
-**セキュリティ機能**:
-
-- 危険な関数呼び出しの検出
-- 無限ループ防止
-- メモリ使用量制限
+旧・数式解析エンジン（`parseFormula` / `evaluateFormula` / `convertToDiceNotation`）。
+唯一の利用者だった DiceOrchestratorService の委譲ラッパーが dead code として撤去され孤児化したため、
+サービス本体・spec・module 登録・index re-export ごと撤去した。
+現役の数式評価は DiceCalculationService 内部（`shared/utils/arithmetic-evaluator.util` ベース）が担う。
 
 ### ~~dice-preset.service.ts~~（撤去済み: 2026-06-10）
 
@@ -125,8 +102,7 @@ executeNotation(notation: string, characterName?: string): Promise<BasicDiceResu
 
 ```
 DiceOrchestratorService (統合層)
-├── DiceCalculationService (計算層)
-└── DiceParserService (解析層)
+└── DiceCalculationService (計算層)
 ```
 
 ### 外部依存関係
@@ -179,10 +155,9 @@ const result = await diceOrchestrator.executeBasicNotation('2d6+3')
 // ❌ 非推奨: 個別サービス直接使用
 const calcService = new DiceCalculationService()
 const result = await calcService.calculateAndRoll('2d6+3')
-
-// ⚠️ レガシー: 互換メソッド（警告ログ出力）
-const legacyResult = await diceOrchestrator.executeNotation('2d6+3')
 ```
+
+> 注: レガシー互換メソッド（`executeNotation` 等）は 2026-07-07 C-2 で撤去済み。
 
 ### エラーハンドリングパターン
 
@@ -233,9 +208,8 @@ try {
 
 ### 新しいダイス記法の追加
 
-1. `DiceParserService`に解析ルール追加
-2. `DiceCalculationService`に計算ロジック追加
-3. `DiceOrchestratorService`にインターフェース追加
+1. `DiceCalculationService`に計算ロジック追加
+2. `DiceOrchestratorService`にインターフェース追加
 
 ### 新しいプリセットタイプの追加
 
@@ -250,4 +224,4 @@ try {
 
 ---
 
-_最終更新: 2026-06-10（DicePresetService 撤去を反映）_
+_最終更新: 2026-07-07（C-2: DiceParserService 撤去・orchestrator/calculation の dead メソッド撤去を反映）_

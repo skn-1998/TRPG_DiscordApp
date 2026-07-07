@@ -1,7 +1,6 @@
 import { ChannelType } from 'discord.js'
 import { DiceOrchestratorService } from './dice-orchestrator.service'
 import { DiceCalculationService } from './dice-calculation.service'
-import { DiceParserService } from './dice-parser.service'
 import dice from 'src/discord/utils/dice'
 
 // dice ユーティリティ(bcdice ラッパ)は副作用の境界なのでモックする
@@ -11,30 +10,22 @@ const diceMock = dice as jest.MockedFunction<typeof dice>
 /**
  * DiceOrchestratorService は委譲オーケストレーター。
  * 依存サービスはすべて mock し、「正しい引数で委譲先が呼ばれ、戻り値をそのまま返す」ことを検証する。
- * executeBasicNotation / sendToParentChannelBasic / getBasicResultEmoji /
- * getServiceStats など自前ロジックを持つメソッドは挙動を直接検証する。
+ * executeBasicNotation / sendToParentChannelBasic / getBasicResultEmoji など
+ * 自前ロジックを持つメソッドは挙動を直接検証する。
  */
 describe('DiceOrchestratorService', () => {
   let service: DiceOrchestratorService
   let calculationService: jest.Mocked<DiceCalculationService>
-  let parserService: jest.Mocked<DiceParserService>
 
   beforeEach(() => {
     // 依存サービスは副作用の境界としてモック(純粋に委譲先呼び出しを検証する)
     calculationService = {
       calculateAndRoll: jest.fn(),
-      parseAndCalculate: jest.fn(),
       getResultEmoji: jest.fn(),
       sendToParentChannel: jest.fn()
     } as unknown as jest.Mocked<DiceCalculationService>
 
-    parserService = {
-      parseFormula: jest.fn(),
-      evaluateFormula: jest.fn(),
-      convertToDiceNotation: jest.fn()
-    } as unknown as jest.Mocked<DiceParserService>
-
-    service = new DiceOrchestratorService(calculationService, parserService)
+    service = new DiceOrchestratorService(calculationService)
   })
 
   describe('calculateAndRoll', () => {
@@ -66,74 +57,6 @@ describe('DiceOrchestratorService', () => {
     })
   })
 
-  describe('parseAndCalculate', () => {
-    it('既定値で calculationService.parseAndCalculate に委譲し戻り値を返す', async () => {
-      // Arrange
-      const expected = { value: 10 } as never
-      calculationService.parseAndCalculate.mockResolvedValue(expected)
-
-      // Act
-      const result = await service.parseAndCalculate('2d6')
-
-      // Assert
-      expect(calculationService.parseAndCalculate).toHaveBeenCalledWith('2d6', 1, 0, undefined)
-      expect(result).toBe(expected)
-    })
-
-    it('明示した引数をそのまま委譲する', async () => {
-      // Arrange
-      const character = { id: 'c2' } as never
-      calculationService.parseAndCalculate.mockResolvedValue({ value: 1 } as never)
-
-      // Act
-      await service.parseAndCalculate('DEX', 4, -2, character)
-
-      // Assert
-      expect(calculationService.parseAndCalculate).toHaveBeenCalledWith('DEX', 4, -2, character)
-    })
-  })
-
-  describe('parseFormula', () => {
-    it('既定値で parserService.parseFormula に委譲し戻り値を返す', () => {
-      // Arrange
-      const expected = { isValid: true } as never
-      parserService.parseFormula.mockReturnValue(expected)
-
-      // Act
-      const result = service.parseFormula('12+2')
-
-      // Assert
-      expect(parserService.parseFormula).toHaveBeenCalledWith('12+2', undefined, 1, 0)
-      expect(result).toBe(expected)
-    })
-
-    it('character/multiplier/modifier を指定どおり委譲する', () => {
-      // Arrange
-      const character = { id: 'c3' } as never
-      parserService.parseFormula.mockReturnValue({ isValid: false } as never)
-
-      // Act
-      service.parseFormula('STR+1', character, 3, 5)
-
-      // Assert
-      expect(parserService.parseFormula).toHaveBeenCalledWith('STR+1', character, 3, 5)
-    })
-  })
-
-  describe('evaluateFormula', () => {
-    it('parserService.evaluateFormula に委譲し戻り値を返す', () => {
-      // Arrange
-      parserService.evaluateFormula.mockReturnValue(14)
-
-      // Act
-      const result = service.evaluateFormula('12+2')
-
-      // Assert
-      expect(parserService.evaluateFormula).toHaveBeenCalledWith('12+2')
-      expect(result).toBe(14)
-    })
-  })
-
   describe('getResultEmoji', () => {
     it('calculationService.getResultEmoji に委譲し戻り値を返す', () => {
       // Arrange
@@ -160,20 +83,6 @@ describe('DiceOrchestratorService', () => {
 
       // Assert
       expect(calculationService.sendToParentChannel).toHaveBeenCalledWith(interaction, 'hello')
-    })
-  })
-
-  describe('convertToDiceNotation', () => {
-    it('parserService.convertToDiceNotation に委譲し戻り値を返す', () => {
-      // Arrange
-      parserService.convertToDiceNotation.mockReturnValue('1d6')
-
-      // Act
-      const result = service.convertToDiceNotation(6)
-
-      // Assert
-      expect(parserService.convertToDiceNotation).toHaveBeenCalledWith(6)
-      expect(result).toBe('1d6')
     })
   })
 
@@ -365,57 +274,6 @@ describe('DiceOrchestratorService', () => {
 
     it('いずれの条件にも該当しなければ🎲を返す', () => {
       expect(service.getBasicResultEmoji({}, 50)).toBe('🎲')
-    })
-  })
-
-  describe('getServiceStats', () => {
-    it('サービス名一覧と status:active を返す', () => {
-      // Act
-      const stats = service.getServiceStats()
-
-      // Assert
-      expect(stats.services).toEqual(['DiceCalculationService', 'DiceParserService'])
-      expect(stats.status).toBe('active')
-      expect(stats.features.length).toBeGreaterThan(0)
-    })
-  })
-
-  describe('レガシー互換メソッド', () => {
-    it('legacyCalculateAndRoll は calculateAndRoll と同じく委譲する', async () => {
-      // Arrange
-      const expected = { roll: 1 } as never
-      calculationService.calculateAndRoll.mockResolvedValue(expected)
-
-      // Act
-      const result = await service.legacyCalculateAndRoll('1d6', 2, 1)
-
-      // Assert
-      expect(calculationService.calculateAndRoll).toHaveBeenCalledWith('1d6', 2, 1, undefined)
-      expect(result).toBe(expected)
-    })
-
-    it('legacyParseAndCalculate は parseAndCalculate と同じく委譲する', async () => {
-      // Arrange
-      calculationService.parseAndCalculate.mockResolvedValue({ value: 2 } as never)
-
-      // Act
-      await service.legacyParseAndCalculate('2d6')
-
-      // Assert
-      expect(calculationService.parseAndCalculate).toHaveBeenCalledWith('2d6', 1, 0, undefined)
-    })
-
-    it('executeNotation は executeBasicNotation に委譲する', async () => {
-      // Arrange
-      diceMock.mockResolvedValue({ ok: true } as never)
-
-      // Act
-      const result = await service.executeNotation('1d100', '探索者D')
-
-      // Assert
-      expect(diceMock).toHaveBeenCalledWith('1d100', 'Cthulhu')
-      expect(result.success).toBe(true)
-      expect(result.characterName).toBe('探索者D')
     })
   })
 })
