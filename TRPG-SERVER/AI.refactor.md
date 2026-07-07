@@ -5,6 +5,62 @@
 
 ---
 
+## 2026-07-07 C-1 完了（未使用 npm 依存 9 件削除）＋ C-8 事前調査（v11 整合・調査のみ）
+
+pull（origin/develop の PR #12 取り込み・マージ `5a9e393`・コンフリクトなし）後、
+`docs/refactor/refactor-legacy-cleanup-plan-2026-07-06.md` の C-1 を trpg-refactor スキルで実施。**コミット `c27c224`**。
+
+### C-1 実施内容（計画からの差分を含む）
+
+- **C-1a**: `@aws-sdk/client-dynamodb` `@aws-sdk/util-dynamodb` `dynamoose` `pg` `express-session` 削除（参照ゼロ再裏取り）。
+- **C-1b**: `typeorm` `@nestjs/typeorm` 削除。裏取り結果: `test-db.config.ts`・`mock-typeorm.module.ts` は**利用元ゼロ→ファイルごと削除**。
+  `mock.module.ts` は typeorm 由来（`getRepositoryToken(Character)` provider＋`mockCharacterRepository`）のみ除去し
+  Mongoose mock・UserService mock は維持。なお **e2e spec は 0 本**（`*.e2e-spec.ts` 不存在・`TestAppModule` 利用元ゼロ）＝
+  e2e インフラ全体が休眠と判明（下記スコープ外記録）。
+- **C-1c**: `@types/uuid` は**削除**（uuid@11.1.0 が `dist/cjs/index.d.ts` 同梱・build で裏取り）。`eslint-plugin-import` は
+  flat config・旧 eslintrc とも参照ゼロのため計画の「devDeps へ移動」から**削除に格上げ**。
+- **C-1d**: lint script の ignore 2 件除去（両ディレクトリ実在せず＝lint 対象集合は不変）。
+- 純削除系のため characterization 前倒しは省略（計画書の例外規定を適用・build/全 suite/start:dev で担保）。
+
+### 検証（司令塔実測）
+
+build exit 0 / check:circular **No circular(480)** / 全 **187 suites 2613 tests 緑**（ベースライン完全一致）/
+lint 従来同等 / start:dev **DI エラー 0・handler 登録 8+6+9=23 不変** / diff レビュー（6 角度並列）**正確性 finding 0**。
+
+### C-8 事前調査結果（案A=v11 全面アップグレードのリファクタリング観点評価・コード変更なし）
+
+ユーザー方針「新しい方（v11）に合わせたい。ただしコードが汚くて難しくないか先に確認」を受けた実測調査。
+**結論: 「コードが汚くて難しい」懸念は当たらない。案A は単独ブランチの 1 slice として実行可能（難易度: 低〜中）。**
+
+- 環境: Node v20.17.0（Nest 11 要件を満たす）。nest-cli は標準 tsc ビルダー（webpack 非使用）。
+- サテライト peer 実測（node_modules の peerDependencies 直読）:
+  - **既に ^10||^11 対応＝変更不要**: config@4.0.2 / mongoose@11.0.3 / schedule@6.0.1 / event-emitter@3.0.1 / mapped-types@2.1.0
+  - **v11 化と同時に要 bump（peer ≤10）**: `@nestjs/jwt@10→11` / `@nestjs/passport@10→11` / `@nestjs/axios@3→4` /
+    `@nestjs/swagger@7.4→8+`（decorator 利用 9 ファイル・機械的）＋ core/common/platform-express/testing/cli/schematics→^11
+  - **必須随伴**: `reflect-metadata 0.1.14→^0.2`（Nest 11 要件・package.json は ^0.1.13）/ `@types/express 4→5`（platform-express@11 は express5）
+- コード側の地雷（実測でほぼ無し）:
+  - `from 'express'` 直 import は **17 ファイル全てが型 import（Request/Response）のみ**＝実行時 API 依存なし
+  - ワイルドカードルート（express5 で構文変更）**ゼロ** / express4 削除 API（res.sendfile 等）使用**ゼロ**
+  - `@Query` はスカラー 2 箇所のみ（express5 の query parser 既定変更の影響なし）
+  - main.ts は素の `NestFactory.create`＋cookieParser＋enableCors のみ（アダプタ固有コード・カスタムロガーなし）
+- 想定作業: 依存 bump 一式 → build の型エラー修正（@types/express@5 の Request/Response 型差分が中心・数件〜十数件想定）→
+  全 suite → start:dev → Discord 実機 smoke。計画書の指示どおり単独ブランチ。e2e spec は 0 本のため test:e2e は実質 start:dev＋実機で代替。
+- **状態: ユーザーの最終 GO 待ち**（実測上のブロッカーなし）。
+
+### スコープ外記録（別 slice 候補）
+
+- **lint 既存 error 1 件**: `character-edit-channel-create-listener.service.spec.ts:37` の `no-unsafe-enum-comparison`
+  （C-1 とは無関係の既存負債。lint script は --fix 付きだが本件は auto-fix 不可）。
+- **休眠 e2e インフラ**: `TestAppModule`＋`MockModule` は利用元ゼロ（e2e spec 0 本）・`mockCharacters` の不要 export・
+  UserService mock の providers/exports 重複。**C-3（dead 第2弾）で「削除 or e2e 整備」をユーザー判断のうえ扱う**。
+
+### 次にやること
+
+- C-2（DiceOrchestratorService の dead 7 メソッド撤去）から続行。
+- C-8 はユーザー GO で単独ブランチ実施（上記調査どおり）。
+
+---
+
 ## 2026-07-07 未コミット分の一括コミット（ユーザー承認・5コミット・pathspec 限定・コード変更なし）
 
 2026-06-10〜07-06 に検証済みのまま未コミットだった全差分を、作業系統別に5コミットへ分割してコミット。

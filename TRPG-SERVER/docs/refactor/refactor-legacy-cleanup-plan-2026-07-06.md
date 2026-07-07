@@ -1,7 +1,7 @@
 # 古い書き方・重複・未使用コード 掃除計画書（C 系列）
 
 **作成日:** 2026-07-06
-**ステータス:** 未着手（分析＋計画のみ・コード変更なし）
+**ステータス:** C-1 完了（2026-07-07・コミット `c27c224`）／C-8 事前調査完了（案A 実行可・ユーザー GO 待ち。調査詳細は AI.refactor.md 2026-07-07 節）／C-2 以降 未着手
 **診断の記録:** `AI.refactor.md`『2026-07-06 全体クリーンアップ分析』節
 **上位方針:** `src/ARCHITECTURE.md`（§11 Config / §12 置き場所決定表 / §15 禁止事項）
 **関連計画:** `refactor-event-design-plan-2026-07-06.md`（E-1〜E-6・イベント設計）— 本書は E 系列と**独立実施可能**な掃除系スライスを扱う。重複する項目は E 系列へ吸収し、本書では扱わない。
@@ -143,6 +143,7 @@ pnpm run start:dev      # DI 解決・handler 登録数（現 23）・エラー�
   - **案B: サテライトを v10 互換へ降格＋express を ^4 へピン**（config@3 / mongoose@10（mongoose8 対応可否要確認）/ schedule@4-5）。ダウングレードは機能退行の逆リスクあり。
   - **案C: 現状維持を明示記録**（動作実績はある。express の型乖離だけ `@types/express@^4` で緩和済みの可能性を確認し、リスクを AI.development.md に記録）。
 - **推奨**: まず C-1 完了後に `pnpm ls --depth 1 | grep -i unmet` 等で peer 警告を実測し、警告実態を見てから A/B/C を選ぶ。**本 slice のみ「テストが緑でも実行時差が出得る」ため start:dev＋主要 E2E（test:e2e）まで回す**。
+- **2026-07-07 事前調査済み（詳細: AI.refactor.md 同日節）**: ユーザー方針は案A。実測の結果、express 直 import 17 ファイルは全て型のみ・ワイルドカードルートゼロ・express4 削除 API 使用ゼロ・main.ts アダプタ非依存で、**案A のブロッカーなし**。要 bump: core 系一式→^11＋jwt@11/passport@11/axios@4/swagger@8+＋reflect-metadata@^0.2＋@types/express@5（config/mongoose/schedule/event-emitter/mapped-types は既に ^10||^11 で変更不要）。e2e spec 0 本のため test:e2e は start:dev＋Discord 実機 smoke で代替。**ユーザー GO 待ち**。
 
 ### C-9: tsconfig 第2段階の段階有効化（中リスク・C-2/C-3 後）
 
