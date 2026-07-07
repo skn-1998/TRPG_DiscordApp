@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { CharacterService } from '../character.service'
 import { CharacterIdService } from './character-id.service'
-import { Character } from '../models/character.model'
+import { CharacterEntity } from '../models/character.entity'
 
 /**
  * キャラクター作成コア入力
@@ -16,7 +16,6 @@ export interface CharacterCreationCoreInput {
   gameSystemId?: string
   discordChannelId?: string
   discordUserId?: string
-  threadId?: string
   status?: Record<string, any>
   parameter?: Record<string, any>
   skill?: Record<string, any>
@@ -82,11 +81,11 @@ export class CharacterCreationCoreService {
    *
    * @param createData 作成データ（events 層 CharacterCreationData と構造互換）
    * @param characterId 指定済みキャラクターID（未指定なら 'char_' プレフィックスで採番）
-   * @returns 作成された Character
+   * @returns 作成された CharacterEntity
    * @throws CharacterCreationBusinessError 同一チャンネルに既存キャラクターがいる場合（CHARACTER_ALREADY_EXISTS）
    * @throws CharacterCreationValidationError ゲームシステム別パラメータ構造が不正な場合
    */
-  async createValidated(createData: CharacterCreationCoreInput, characterId?: string): Promise<Character> {
+  async createValidated(createData: CharacterCreationCoreInput, characterId?: string): Promise<CharacterEntity> {
     // キャラクター重複チェック（チャンネル内）
     // 移設元: CharacterCreationRequestedHandler.validateBusinessLogic
     if (createData.discordChannelId) {

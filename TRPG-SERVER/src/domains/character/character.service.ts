@@ -3,7 +3,8 @@ import { CharacterRepository } from './repositories/character.repository'
 import { CharacterInputDto, AttributeValueDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
-import { Character, UpdatePrimary } from './models/character.model'
+import { UpdatePrimary } from './models/character.model'
+import { CharacterEntity } from './models/character.entity'
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
@@ -46,8 +47,8 @@ export class CharacterService {
   /**
    * UpdateCharacterDto を Character 形式に変換
    */
-  private convertUpdateDtoToCharacter(dto: UpdateCharacterDto): Partial<Character> {
-    const converted: Partial<Character> = {}
+  private convertUpdateDtoToCharacter(dto: UpdateCharacterDto): Partial<CharacterEntity> {
+    const converted: Partial<CharacterEntity> = {}
 
     if (dto.characterName !== undefined) converted.characterName = dto.characterName
     if (dto.gameSystemId !== undefined) converted.gameSystemId = dto.gameSystemId
@@ -72,11 +73,11 @@ export class CharacterService {
    * キャラクターを作成する（型安全性強化版）
    * @param createCharacterDto キャラクター作成DTO（完全版またはパーシャル版）
    */
-  async create(createCharacterDto: CharacterInputDto): Promise<Character> {
+  async create(createCharacterDto: CharacterInputDto): Promise<CharacterEntity> {
     this.logger.log(`Creating character: ${createCharacterDto.characterName}`)
 
     // 必要なデータの取得
-    const { gameSystemId, characterName, discordUserId, discordChannelId, discordThreadId } = createCharacterDto
+    const { gameSystemId, characterName, discordUserId, discordChannelId } = createCharacterDto
 
     // キャラクターIDがない場合はエラー（IDは外部で生成される想定）
     if (!createCharacterDto.characterId) {
@@ -84,13 +85,12 @@ export class CharacterService {
     }
     const characterId = createCharacterDto.characterId
 
-    const character: Partial<Character> = {
+    const character: Partial<CharacterEntity> = {
       characterId,
       gameSystemId,
       characterName,
       discordUserId,
       discordChannelId,
-      discordThreadId,
       status: this.convertDtoSectionToAttributeSection(createCharacterDto.status),
       skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill),
       parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter),
@@ -111,7 +111,7 @@ export class CharacterService {
    * ユーザーが所有するすべてのキャラクターを取得する
    * @param discordUserId DiscordユーザーID
    */
-  async findHavingAll(discordUserId: string): Promise<Character[]> {
+  async findHavingAll(discordUserId: string): Promise<CharacterEntity[]> {
     return this.characterRepository.findByUserId(discordUserId)
   }
 
@@ -119,7 +119,7 @@ export class CharacterService {
    * 特定のキャラクターを取得する
    * @param id キャラクターID
    */
-  async findOne(id: string): Promise<Character | null> {
+  async findOne(id: string): Promise<CharacterEntity | null> {
     return this.characterRepository.findById(id)
   }
 
@@ -127,7 +127,7 @@ export class CharacterService {
    * キャラクター名で特定のキャラクターを取得する
    * @param name キャラクター名
    */
-  async findByName(name: string): Promise<Character | null> {
+  async findByName(name: string): Promise<CharacterEntity | null> {
     return this.characterRepository.findByName(name)
   }
 
@@ -135,7 +135,7 @@ export class CharacterService {
    * チャンネルIDで特定のキャラクターを取得する（単純化済み）
    * @param channelId DiscordチャンネルID
    */
-  async findByChannelId(channelId: string): Promise<Character | null> {
+  async findByChannelId(channelId: string): Promise<CharacterEntity | null> {
     this.logger.log(`Searching character by channelId: ${channelId}`)
     return this.characterRepository.findByChannelId(channelId)
   }
@@ -145,7 +145,7 @@ export class CharacterService {
    * @param id キャラクターID
    * @param updateCharacterDto 更新データ
    */
-  async update(id: string, updateCharacterDto: UpdateCharacterDto): Promise<Character | null> {
+  async update(id: string, updateCharacterDto: UpdateCharacterDto): Promise<CharacterEntity | null> {
     const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
     const updatedCharacter = await this.characterRepository.update(id, convertedDto)
 
@@ -161,7 +161,7 @@ export class CharacterService {
    * @param channelId DiscordチャンネルID
    * @param updateCharacterDto 更新データ
    */
-  async updateByChannelId(channelId: string, updateCharacterDto: UpdateCharacterDto): Promise<Character | null> {
+  async updateByChannelId(channelId: string, updateCharacterDto: UpdateCharacterDto): Promise<CharacterEntity | null> {
     this.logger.log(`Updating character by channelId: ${channelId}`)
     const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
     const updatedCharacter = await this.characterRepository.updateByChannelId(channelId, convertedDto)
@@ -179,7 +179,7 @@ export class CharacterService {
    * @param field 更新するフィールド
    * @param data 更新するデータ
    */
-  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<Character | null> {
+  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<CharacterEntity | null> {
     const updatedCharacter = await this.characterRepository.updateField(id, field, data)
 
     if (updatedCharacter) {
@@ -199,7 +199,7 @@ export class CharacterService {
     channelId: string,
     field: UpdatePrimary,
     data: Record<string, unknown>
-  ): Promise<Character | null> {
+  ): Promise<CharacterEntity | null> {
     const updatedCharacter = await this.characterRepository.updateFieldByChannelId(channelId, field, data)
 
     if (updatedCharacter) {
@@ -214,7 +214,7 @@ export class CharacterService {
    * @param id キャラクターID
    * @param userId ユーザーID（将来の権限チェック用、現在は未使用）
    */
-  async remove(id: string, _userId?: string): Promise<Character | null> {
+  async remove(id: string, _userId?: string): Promise<CharacterEntity | null> {
     this.logger.log(`Deleting character: ${id}`)
     const deletedCharacter = await this.characterRepository.remove(id)
 
@@ -245,7 +245,7 @@ export class CharacterService {
    * キャラクター更新時にDiscordのEmbedを更新する
    * @param character 更新されたキャラクター
    */
-  private async updateDiscordEmbed(character: Character): Promise<void> {
+  private async updateDiscordEmbed(character: CharacterEntity): Promise<void> {
     try {
       // キャラクターにDiscordチャンネルIDが設定されていない場合は処理を終了
       if (!character.discordChannelId) {

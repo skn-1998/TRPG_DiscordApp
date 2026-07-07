@@ -12,7 +12,7 @@
  * - 新イベントを追加するときは、payload 型 → EventMap エントリ → EVENT_NAMES の 3 点を揃えること。
  */
 
-import type { Character } from '../../domains/character/models/character.model'
+import type { CharacterEntity } from '../../domains/character/models/character.entity'
 
 // ============================================================================
 // 共通サポート型
@@ -48,7 +48,6 @@ export interface CharacterCreationData {
   gameSystemId?: string
   discordChannelId?: string
   discordUserId?: string
-  threadId?: string
   status?: Record<string, any>
   parameter?: Record<string, any>
   skill?: Record<string, any>
@@ -86,7 +85,7 @@ export interface CharacterCreationRequestedEvent {
  * on:   discord/events/handlers/character.creation.completed
  */
 export interface CharacterCreationCompletedEvent {
-  character: Character
+  character: CharacterEntity
   source: string
   timestamp: Date
 }
@@ -99,7 +98,7 @@ export interface CharacterCreationCompletedEvent {
  */
 export interface CharacterUpdateCompletedEvent {
   channelId: string
-  character: Character
+  character: CharacterEntity
   source: string
   timestamp: Date
 }
@@ -115,7 +114,7 @@ export interface CharacterUpdateCompletedEvent {
  * on:   discord/events/handlers/discord.thread.create.requested
  */
 export interface DiscordThreadCreateRequestedEvent {
-  character: Character
+  character: CharacterEntity
   channelId: string
   guildId: string
   creatorId: string

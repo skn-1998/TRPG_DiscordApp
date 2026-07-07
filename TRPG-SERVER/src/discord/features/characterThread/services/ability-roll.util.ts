@@ -10,7 +10,7 @@
  * （skill-roll.util.ts の resolveSkillRoll と対称なミラー）
  */
 
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { extractSkillLevel } from './skill-roll.util'
 
 export interface ResolvedAbilityRoll {
@@ -28,7 +28,7 @@ export interface ResolvedAbilityRoll {
  * - abilityName: 生成側と同じく `abilityValue?.name || abilityKey`。
  * - abilityValue: extractSkillLevel の数値化（存在するがレベル解決不能 / NaN は 0）。
  */
-export function resolveAbilityRoll(character: Character, abilityKey: string): ResolvedAbilityRoll | null {
+export function resolveAbilityRoll(character: CharacterEntity, abilityKey: string): ResolvedAbilityRoll | null {
   const raw = character.parameter?.[abilityKey] as { name?: string } | undefined
   if (raw === undefined || raw === null) {
     return null

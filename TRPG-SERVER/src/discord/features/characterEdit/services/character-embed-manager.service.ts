@@ -11,7 +11,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterCreationCoreService } from '../../../../domains/character/services/character-creation-core.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -50,7 +50,7 @@ export class CharacterEmbedManagerService {
   /**
    * キャラクター情報を分割Embedで表示
    */
-  async createSectionedEmbeds(character: Character): Promise<{
+  async createSectionedEmbeds(character: CharacterEntity): Promise<{
     embeds: EmbedBuilder[]
     components: ActionRowBuilder<any>[]
   }> {
@@ -66,7 +66,7 @@ export class CharacterEmbedManagerService {
    * 特定セクションのフィールド選択メニューを作成
    */
   createFieldSelectMenu(
-    character: Character,
+    character: CharacterEntity,
     sectionType: EmbedSectionType,
     characterId: string
   ): StringSelectMenuBuilder | null {
@@ -80,7 +80,7 @@ export class CharacterEmbedManagerService {
     characterData: CharacterInputDto,
     channelId: string,
     userId: string
-  ): Promise<Character | null> {
+  ): Promise<CharacterEntity | null> {
     try {
       this.logger.log(`Creating new character: ${characterData.characterName} for user: ${userId}`)
 
@@ -137,7 +137,7 @@ export class CharacterEmbedManagerService {
   /**
    * キャラクター作成完了メッセージ
    */
-  createCharacterCreatedEmbed(character: Character): EmbedBuilder {
+  createCharacterCreatedEmbed(character: CharacterEntity): EmbedBuilder {
     return buildCharacterCreatedEmbed(character)
   }
 }

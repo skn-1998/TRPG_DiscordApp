@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { buildThreadUrl, nextBackoffDelay } from './thread-manager.util'
 
@@ -65,7 +65,7 @@ export class ThreadManagerService {
   /**
    * キャラクター用スレッドを作成
    */
-  async createCharacterThread(request: CreateThreadRequest, _character: Character): Promise<CreateThreadResult> {
+  async createCharacterThread(request: CreateThreadRequest, _character: CharacterEntity): Promise<CreateThreadResult> {
     try {
       this.logger.log(`Creating thread for character: ${request.characterName}`)
 

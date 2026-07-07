@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { DiceCalculationService, DiceCalculationResult } from './dice-calculation.service'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
 
@@ -27,7 +27,7 @@ export class DiceOrchestratorService {
     formula: string,
     multiplier: number = 1,
     modifier: number = 0,
-    character?: Character
+    character?: CharacterEntity
   ): Promise<DiceCalculationResult> {
     this.logger.debug(`Calculating dice roll: ${formula}`)
     return this.calculationService.calculateAndRoll(formula, multiplier, modifier, character)

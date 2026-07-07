@@ -8,7 +8,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { EmbedBuilder, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 
@@ -65,7 +65,7 @@ export class CharacterDisplayService {
   /**
    * キャラクター情報からEmbedを構築
    */
-  private buildCharacterEmbed(character: Character, tabType: TabType): EmbedBuilder {
+  private buildCharacterEmbed(character: CharacterEntity, tabType: TabType): EmbedBuilder {
     const embed = new EmbedBuilder()
       .setTitle(`${character.characterName} - ${this.getTabTitle(tabType)}`)
       .setColor(0x00ae86)
@@ -201,7 +201,7 @@ export class CharacterDisplayService {
    *
    * E-3d: dead な embed 更新通知 emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い何もしないゴースト。
    */
-  async updateCharacterEmbed(character: Character, channelId: string, tabType: TabType = 'basic'): Promise<void> {
+  async updateCharacterEmbed(character: CharacterEntity, channelId: string, tabType: TabType = 'basic'): Promise<void> {
     try {
       this.logger.log(`[CHARACTER-EMBED] Direct embed update: ${character.characterId} (channel: ${channelId})`)
 

@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 
 // ページネーションの状態を保持するためのインターフェース
 export interface PaginatedDiceRoll {
@@ -44,7 +44,7 @@ export class DiceRollPaginationStore {
   // キャラクター情報のキャッシュ（チャンネルID別）
   private characterCache: {
     [channelId: string]: {
-      characters: Character[]
+      characters: CharacterEntity[]
       timestamp: number
     }
   } = {}
@@ -96,7 +96,7 @@ export class DiceRollPaginationStore {
 
   // --- キャラクター情報キャッシュ ---
 
-  getCharactersFromCache(channelId: string): Character[] | null {
+  getCharactersFromCache(channelId: string): CharacterEntity[] | null {
     const cached = this.characterCache[channelId]
     if (!cached) return null
 
@@ -109,7 +109,7 @@ export class DiceRollPaginationStore {
     return cached.characters
   }
 
-  saveCharactersToCache(channelId: string, characters: Character[]): void {
+  saveCharactersToCache(channelId: string, characters: CharacterEntity[]): void {
     this.characterCache[channelId] = {
       characters,
       timestamp: Date.now()

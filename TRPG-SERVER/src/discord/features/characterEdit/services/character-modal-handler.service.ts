@@ -7,7 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection, MessageFlags } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -270,7 +270,7 @@ export class CharacterModalHandlerService {
    * キャラクターフィールドを更新
    */
   private async updateCharacterField(
-    character: Character,
+    character: CharacterEntity,
     sectionType: EmbedSectionType,
     fieldKey: string,
     formData: FieldData
@@ -343,7 +343,7 @@ export class CharacterModalHandlerService {
   /**
    * キャラクター情報を取得
    */
-  private async getCharacter(characterId: string): Promise<Character | null> {
+  private async getCharacter(characterId: string): Promise<CharacterEntity | null> {
     try {
       // DI で直接取得（E-2d: findById RPC の DI 化）
       return await this.characterService.findOne(characterId)
@@ -393,7 +393,7 @@ export class CharacterModalHandlerService {
    * 既存のcharacterEditEmbedを更新
    */
   private async updateExistingCharacterEditEmbed(
-    character: Character,
+    character: CharacterEntity,
     interaction: ModalSubmitInteraction
   ): Promise<void> {
     try {

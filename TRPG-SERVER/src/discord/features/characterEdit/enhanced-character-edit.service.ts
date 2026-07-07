@@ -25,7 +25,7 @@ import {
   ActionRowBuilder,
   MessageFlags
 } from 'discord.js'
-import { Character } from '../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../domains/character/character.service'
 import { ErrorHandler } from '../../../core/http/error-handler'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
@@ -70,7 +70,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    *
    * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
    */
-  async displayEnhancedCharacterEdit(channelId: string, character: Character): Promise<void> {
+  async displayEnhancedCharacterEdit(channelId: string, character: CharacterEntity): Promise<void> {
     try {
       this.logger.log(`Requesting enhanced character edit display for: ${character.characterId}`)
 
@@ -274,7 +274,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * チャンネルIDでキャラクターを取得
    */
-  private async getCharacterByChannelId(channelId: string): Promise<Character | null> {
+  private async getCharacterByChannelId(channelId: string): Promise<CharacterEntity | null> {
     try {
       // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2c: イベント RPC 廃止）
       return await this.characterService.findByChannelId(channelId)
@@ -287,7 +287,7 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   /**
    * キャラクターIDでキャラクターを取得
    */
-  private async getCharacterById(characterId: string): Promise<Character | null> {
+  private async getCharacterById(characterId: string): Promise<CharacterEntity | null> {
     try {
       // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2c: イベント RPC 廃止）
       return await this.characterService.findOne(characterId)

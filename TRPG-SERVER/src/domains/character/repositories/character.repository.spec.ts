@@ -61,11 +61,13 @@ describe('CharacterRepository', () => {
   })
 
   describe('create', () => {
-    it('Model のインスタンスを生成し save の結果を返す', async () => {
+    it('Model のインスタンスを生成し save 後に toObject() で plain 化して返す（E-6d）', async () => {
       // Arrange
       const entity: Partial<Character> = { characterId: 'c1', characterName: 'Alice' }
-      const saved = { characterId: 'c1', characterName: 'Alice' }
-      const save = jest.fn().mockResolvedValue(saved)
+      const plain = { characterId: 'c1', characterName: 'Alice' }
+      // save は Mongoose Document（toObject を持つ）を解決する
+      const toObject = jest.fn().mockReturnValue(plain)
+      const save = jest.fn().mockResolvedValue({ ...plain, toObject })
       // new this.characterModel(entity) が save を持つインスタンスを返すよう設定
       model.mockImplementation((arg: unknown) => ({ ...(arg as object), save }))
 
@@ -75,7 +77,8 @@ describe('CharacterRepository', () => {
       // Assert
       expect(model).toHaveBeenCalledWith(entity)
       expect(save).toHaveBeenCalledTimes(1)
-      expect(result).toBe(saved)
+      expect(toObject).toHaveBeenCalledTimes(1)
+      expect(result).toBe(plain)
     })
   })
 

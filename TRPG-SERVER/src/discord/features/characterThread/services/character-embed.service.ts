@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client, ThreadChannel, EmbedBuilder } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { DiscordClientService } from '../../../services/discord-client.service'
 
 /**
@@ -26,7 +26,7 @@ export class CharacterEmbedService {
    */
   async postCharacterDisplay(
     thread: ThreadChannel,
-    character: Character,
+    character: CharacterEntity,
     displayType: 'basic' | 'enhanced' | 'compact' = 'enhanced'
   ): Promise<void> {
     this.logger.debug(`Posting character display: ${character.characterName} (${displayType})`)
@@ -55,7 +55,7 @@ export class CharacterEmbedService {
   /**
    * 強化表示：詳細なキャラクター情報
    */
-  private async postEnhancedCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postEnhancedCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     // DiscordチャンネルURLを生成
     const guildId = thread.guildId
     const channelUrl = character.discordChannelId
@@ -121,7 +121,7 @@ export class CharacterEmbedService {
   /**
    * コンパクト表示：最小限の情報
    */
-  private async postCompactCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postCompactCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     // DiscordチャンネルURLを生成
     const guildId = thread.guildId
     const channelUrl = character.discordChannelId
@@ -155,7 +155,7 @@ export class CharacterEmbedService {
   /**
    * 基本表示：標準的な情報
    */
-  private async postBasicCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postBasicCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     // DiscordチャンネルURLを生成
     const guildId = thread.guildId
     const channelUrl = character.discordChannelId
@@ -227,7 +227,7 @@ export class CharacterEmbedService {
   /**
    * キャラクター情報をスレッドに投稿（従来のpostCharacterInfo互換メソッド）
    */
-  async postCharacterInfo(thread: ThreadChannel, character: Character, _userName?: string): Promise<void> {
+  async postCharacterInfo(thread: ThreadChannel, character: CharacterEntity, _userName?: string): Promise<void> {
     this.logger.debug(`Posting character info: ${character.characterName}`)
     await this.postCharacterDisplay(thread, character, 'enhanced')
   }
@@ -235,7 +235,7 @@ export class CharacterEmbedService {
   /**
    * キャラクター表示の更新
    */
-  async updateCharacterDisplay(character: Character): Promise<void> {
+  async updateCharacterDisplay(character: CharacterEntity): Promise<void> {
     try {
       if (!character.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${character.characterId}`)
@@ -261,7 +261,7 @@ export class CharacterEmbedService {
   /**
    * 既存のキャラクター情報Embedメッセージを検索して更新
    */
-  private async updateExistingCharacterEmbed(thread: ThreadChannel, character: Character): Promise<void> {
+  private async updateExistingCharacterEmbed(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       // 最近の50メッセージを取得してキャラクター情報Embedを検索
       const messages = await thread.messages.fetch({ limit: 50 })

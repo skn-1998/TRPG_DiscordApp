@@ -21,7 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { CharacterInputDto, CharacterIdParamDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
-import { Character } from './models/character.model'
+import { CharacterEntity } from './models/character.entity'
 import { AuthService } from '../auth/services/auth.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
@@ -85,7 +85,7 @@ export class CharacterController {
   @ApiResponse({ status: 400, description: 'バリデーションエラー' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async create(@Body() characterData: CharacterInputDto, @Req() req: Request): Promise<Character> {
+  async create(@Body() characterData: CharacterInputDto, @Req() req: Request): Promise<CharacterEntity> {
     const user = this.extractAuthenticatedUser(req)
 
     const createCharacterDto: CharacterInputDto = {
@@ -111,7 +111,7 @@ export class CharacterController {
   @ApiResponse({ status: 200, description: 'キャラクター一覧取得成功' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async findAll(@Req() req: Request): Promise<SuccessResponse<Character[]>> {
+  async findAll(@Req() req: Request): Promise<SuccessResponse<CharacterEntity[]>> {
     const user = this.extractAuthenticatedUser(req)
     const characters = await this.characterService.findHavingAll(user.discordUserId)
 
@@ -169,7 +169,7 @@ export class CharacterController {
   @ApiResponse({ status: 404, description: 'キャラクターが見つかりません' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async findOne(@Param() params: CharacterIdParamDto): Promise<Character> {
+  async findOne(@Param() params: CharacterIdParamDto): Promise<CharacterEntity> {
     const { id } = params
     const character = await this.characterService.findOne(id)
     if (!character) {
@@ -197,7 +197,7 @@ export class CharacterController {
   async update(
     @Param() params: CharacterIdParamDto,
     @Body() updateCharacterDto: UpdateCharacterDto
-  ): Promise<Character> {
+  ): Promise<CharacterEntity> {
     const { id } = params
     const character = await this.characterService.update(id, updateCharacterDto)
     if (!character) {

@@ -15,7 +15,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -75,7 +75,7 @@ export class ThreadCreationService {
   /**
    * キャラクタースレッドを作成
    */
-  async createCharacterThread(request: CreateThreadRequest, character: Character): Promise<CreateThreadResult> {
+  async createCharacterThread(request: CreateThreadRequest, character: CharacterEntity): Promise<CreateThreadResult> {
     this.logger.log(`Creating thread for character: ${request.characterName}`)
 
     try {
@@ -150,7 +150,7 @@ export class ThreadCreationService {
    */
   private async postCharacterDisplay(
     thread: ThreadChannel,
-    character: Character,
+    character: CharacterEntity,
     displayType: 'basic' | 'enhanced' | 'compact'
   ): Promise<void> {
     try {
@@ -184,7 +184,7 @@ export class ThreadCreationService {
   /**
    * Enhanced Character表示（character-thread用：詳細情報）
    */
-  private async postEnhancedCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postEnhancedCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       this.logger.log(`Posting enhanced character info for: ${character.characterId}`)
 
@@ -201,7 +201,7 @@ export class ThreadCreationService {
   /**
    * コンパクト表示（将来の拡張用）
    */
-  private async postCompactCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postCompactCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     // 簡単な1行表示など、将来実装
     await this.postCharacterInfo(thread, character)
   }
@@ -209,7 +209,7 @@ export class ThreadCreationService {
   /**
    * キャラクター情報Embedを投稿（基本版 + 編集URL）
    */
-  private async postCharacterInfo(thread: ThreadChannel, character: Character): Promise<void> {
+  private async postCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     const embed = createBasicCharacterEmbed(character, thread.guild?.id || '')
     await thread.send({ embeds: [embed] })
   }

@@ -6,7 +6,6 @@ import { DiscordClientService } from 'discord/services/discord-client.service'
 import { CharacterCreationCompletedEvent } from 'events/contracts/unified-event-contracts'
 import { EVENT_NAMES } from 'events/contracts'
 import { TextChannel } from 'discord.js'
-import { Character } from 'domains/character/models/character.model'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 
 /**
@@ -92,7 +91,7 @@ export class CharacterCreationCompletedHandler
 
       try {
         // EmbedManagerを使用してセクション分割されたEmbed+セレクトメニューを作成
-        const { embeds, components } = await this.embedManager.createSectionedEmbeds(character as Character)
+        const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
 
         const client = this.discordClientService.getClient()
         if (!client) {
@@ -147,7 +146,7 @@ export class CharacterCreationCompletedHandler
       //    「threadId のみのとき channelId 空文字で emit する」旧挙動は bugfix として廃止）
       if (character.discordChannelId) {
         await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED, {
-          character: character as Character,
+          character,
           channelId: character.discordChannelId,
           guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
           creatorId: character.discordUserId || 'system',

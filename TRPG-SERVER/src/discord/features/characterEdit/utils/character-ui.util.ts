@@ -12,7 +12,7 @@
  */
 
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 // P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
 import { CharacterSectionCustomId, CharacterFieldCustomId } from '../custom-id'
 
@@ -87,7 +87,7 @@ const SECTION_OPTIONS_WITH_BACK = [
  * status / skill は JSON 文字列 or オブジェクトの双方を受け付け、
  * パース失敗時は文字列としてフィールド化する（現挙動を保存）。
  */
-export function buildCharacterEmbedData(character: Character, guildInfo: GuildInfo): EmbedData {
+export function buildCharacterEmbedData(character: CharacterEntity, guildInfo: GuildInfo): EmbedData {
   const fields: Array<{ name: string; value: string; inline: boolean }> = []
 
   // 基本情報
@@ -157,7 +157,7 @@ export function buildCharacterEmbed(embedData: EmbedData, withTimestamp = false)
  * キャラクター更新完了通知メッセージを構築する（純粋関数）。
  */
 export function buildCharacterUpdateNotificationMessage(
-  character: Character,
+  character: CharacterEntity,
   updatedFields: string[],
   userId?: string
 ): string {
@@ -182,7 +182,7 @@ export function buildCharacterDeletionNotificationMessage(characterName: string,
  *
  * status は JSON 文字列 or オブジェクト双方を受け付け、パース失敗時は名前のみ（現挙動を保存）。
  */
-export function buildChannelStatusText(character: Character): string {
+export function buildChannelStatusText(character: CharacterEntity): string {
   let statusText = `🎭 ${character.characterName}`
 
   if (character.status) {

@@ -10,7 +10,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 
 /**
  * スレッド名を生成する（🎭 名前 [YYYY-MM-DD]）
@@ -31,7 +31,7 @@ export function buildThreadUrl(guildId: string, channelId: string, threadId: str
  * キャラクター編集 URL（Discord チャンネル URL）を生成する。
  * 編集は常に元の discordChannelId を使用する。
  */
-export function generateCharacterEditUrl(character: Character, guildId: string): string | null {
+export function generateCharacterEditUrl(character: CharacterEntity, guildId: string): string | null {
   const editChannelId = character.discordChannelId
   if (editChannelId) {
     return `https://discord.com/channels/${guildId}/${editChannelId}`
@@ -77,7 +77,7 @@ export function extractNumericValue(value: unknown): number {
 /**
  * thread 用の基本キャラクター Embed を作成（postCharacterInfo と同じ形式）
  */
-export function createBasicCharacterEmbed(character: Character, guildId: string): EmbedBuilder {
+export function createBasicCharacterEmbed(character: CharacterEntity, guildId: string): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle(`🎭 ${character.characterName}`).setColor(0x00ae86).setTimestamp()
 
   if (character.gameSystemId) {
@@ -131,7 +131,7 @@ export function createBasicCharacterEmbed(character: Character, guildId: string)
 /**
  * 詳細キャラクター情報の Embed を作成（編集機能なし）
  */
-export function createDetailedCharacterEmbed(character: Character, guildId: string): EmbedBuilder {
+export function createDetailedCharacterEmbed(character: CharacterEntity, guildId: string): EmbedBuilder {
   const basicEmbed = new EmbedBuilder()
     .setTitle(`🎭 ${character.characterName} - 詳細情報`)
     .setColor(0x00ae86)

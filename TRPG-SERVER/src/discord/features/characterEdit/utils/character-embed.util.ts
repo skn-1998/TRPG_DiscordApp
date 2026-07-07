@@ -20,7 +20,7 @@ import {
   EmbedField
 } from 'discord.js'
 import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 // P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
 import {
   CharacterSectionCustomId,
@@ -209,7 +209,7 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
 /**
  * 基本情報 Embed を構築する純粋関数。
  */
-export function buildBasicEmbed(character: Character): EmbedBuilder {
+export function buildBasicEmbed(character: CharacterEntity): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`🏷️ ${character.characterName} - 基本情報`)
     .setColor('#3498db')
@@ -325,7 +325,7 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
  * 5 つの Embed（基本/ステータス/パラメータ/スキル/アイテム）と
  * 編集コンポーネントを組み立てて返す。
  */
-export function buildSectionedEmbeds(character: Character): {
+export function buildSectionedEmbeds(character: CharacterEntity): {
   embeds: EmbedBuilder[]
   components: ActionRowBuilder<any>[]
 } {
@@ -349,7 +349,7 @@ export function buildSectionedEmbeds(character: Character): {
  * 未知のセクションタイプは null。表示整形は buildFieldOptionDisplay に委譲。
  */
 export function buildFieldSelectMenu(
-  character: Character,
+  character: CharacterEntity,
   sectionType: EmbedSectionType,
   characterId: string
 ): StringSelectMenuBuilder | null {
@@ -464,7 +464,7 @@ export function buildNewCharacterEmbed(
 /**
  * キャラクター作成完了メッセージ Embed を構築する純粋関数。
  */
-export function buildCharacterCreatedEmbed(character: Character): EmbedBuilder {
+export function buildCharacterCreatedEmbed(character: CharacterEntity): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle('✅ キャラクター作成完了')
     .setDescription(

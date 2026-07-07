@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
 import { CharacterService } from 'src/domains/character/character.service'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
 import { evaluateArithmetic } from '../../../shared/utils/arithmetic-evaluator.util'
@@ -35,7 +35,7 @@ export class DiceCalculationService {
     formula: string,
     multiplier: number = 1,
     modifier: number = 0,
-    character?: Character
+    character?: CharacterEntity
   ): Promise<DiceCalculationResult> {
     let characterName = 'プレイヤー'
     if (character) {
@@ -82,7 +82,7 @@ export class DiceCalculationService {
   /**
    * 計算式を解析してキャラクター値を適用
    */
-  private parseFormula(formula: string, character?: Character): { value: number; description: string } {
+  private parseFormula(formula: string, character?: CharacterEntity): { value: number; description: string } {
     // 基本的な数値の場合
     const numericValue = parseInt(formula)
     if (!isNaN(numericValue)) {
@@ -105,7 +105,7 @@ export class DiceCalculationService {
    */
   private substituteCharacterValues(
     formula: string,
-    character: Character
+    character: CharacterEntity
   ): { formula: string; description: string; characterUsed: boolean } {
     let processedFormula = formula
     let description = formula

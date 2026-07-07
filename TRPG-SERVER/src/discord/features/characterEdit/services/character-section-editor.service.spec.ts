@@ -195,9 +195,9 @@ describe('CharacterSectionEditorService', () => {
       expect(typedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
     })
 
-    it('findOne が Mongoose ドキュメントを返す場合は toObject() で plain 化して使う（E-2b 互換維持）', async () => {
+    it('findOne の戻り値（plain な CharacterEntity）をそのまま createFieldSelectMenu へ渡す（E-6d: repository 境界の plain 化保証により toObject ガードは撤去済み）', async () => {
       const plain = buildCharacter()
-      mockCharacterFound({ toObject: () => plain })
+      mockCharacterFound(plain)
       embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
