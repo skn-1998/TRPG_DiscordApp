@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../../../../core/events/typed-event.service'
-import { EventPayload } from '../../../../../events/contracts'
+import { EventPayload, EVENT_NAMES } from '../../../../../events/contracts'
 
 /**
  * Character Edit Feature Event Handler
@@ -23,14 +23,17 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
    */
   private registerFeatureEventHandlers(): void {
     // Modal Events
-    this.typedEventService.on('characterEdit.modal.opened', this.handleModalOpened.bind(this))
-    this.typedEventService.on('characterEdit.modal.submitted', this.handleModalSubmitted.bind(this))
+    this.typedEventService.on(EVENT_NAMES.CHARACTER_EDIT_MODAL_OPENED, this.handleModalOpened.bind(this))
+    this.typedEventService.on(EVENT_NAMES.CHARACTER_EDIT_MODAL_SUBMITTED, this.handleModalSubmitted.bind(this))
 
     // Embed Events
-    this.typedEventService.on('characterEdit.embed.refresh.requested', this.handleEmbedRefreshRequested.bind(this))
+    this.typedEventService.on(
+      EVENT_NAMES.CHARACTER_EDIT_EMBED_REFRESH_REQUESTED,
+      this.handleEmbedRefreshRequested.bind(this)
+    )
 
     // Error Events
-    this.typedEventService.on('characterEdit.error.occurred', this.handleFeatureError.bind(this))
+    this.typedEventService.on(EVENT_NAMES.CHARACTER_EDIT_ERROR_OCCURRED, this.handleFeatureError.bind(this))
 
     this.logger.debug('Character edit feature event handlers registered')
   }
@@ -65,7 +68,7 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
       // ここではイベントログ記録とワークフロー管理のみ
 
       // Embed更新リクエスト発行
-      await this.typedEventService.emit('characterEdit.embed.refresh.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_EMBED_REFRESH_REQUESTED, {
         characterId: event.characterId,
         timestamp: new Date(),
         userId: event.userId,
@@ -91,7 +94,7 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
 
     try {
       // グローバルDiscord Embed更新イベント発行
-      await this.typedEventService.emit('discord.embed.update.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.DISCORD_EMBED_UPDATE_REQUESTED, {
         timestamp: new Date(),
         source: 'discord',
         channelId: event.embed.channelId,
@@ -121,7 +124,7 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
    */
   private async emitFeatureError(code: string, error: any, originalEvent: any): Promise<void> {
     try {
-      await this.typedEventService.emit('characterEdit.error.occurred', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_EDIT_ERROR_OCCURRED, {
         characterId: originalEvent.characterId,
         timestamp: new Date(),
         userId: originalEvent.userId,

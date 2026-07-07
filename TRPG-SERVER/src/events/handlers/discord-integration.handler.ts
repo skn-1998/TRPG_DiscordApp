@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { TypedEventService } from '../../core/events/typed-event.service'
-import { EventPayload } from '../contracts'
+import { EventPayload, EVENT_NAMES } from '../contracts'
 
 /**
  * Discord Integration Event Handler
@@ -26,10 +26,10 @@ export class DiscordIntegrationHandler implements OnModuleInit {
    */
   private registerEventHandlers(): void {
     // Embed Events（生フローを TypedEventService へ移設済み: T2b）
-    this.typedEventService.on('discord.embed.update.requested', this.handleEmbedUpdateRequested.bind(this))
+    this.typedEventService.on(EVENT_NAMES.DISCORD_EMBED_UPDATE_REQUESTED, this.handleEmbedUpdateRequested.bind(this))
 
     // Notification Events（生フローを TypedEventService へ移設済み: T2b）
-    this.typedEventService.on('discord.notification.requested', this.handleNotificationRequested.bind(this))
+    this.typedEventService.on(EVENT_NAMES.DISCORD_NOTIFICATION_REQUESTED, this.handleNotificationRequested.bind(this))
 
     this.logger.debug('Discord integration event handlers registered')
   }

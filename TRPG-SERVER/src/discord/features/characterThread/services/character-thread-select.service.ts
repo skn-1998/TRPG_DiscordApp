@@ -12,6 +12,7 @@ import {
 import { discordSelectMenuType } from 'src/discord/discord.type'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { TypedEventService } from 'src/core/events/typed-event.service'
+import { EVENT_NAMES } from 'src/events/contracts'
 import { CharacterService } from 'src/domains/character/character.service'
 
 @Injectable()
@@ -310,7 +311,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       })
 
       // TypedEventServiceを使用してスレッド作成イベントを発行
-      await this.typedEventService.emit('discord.thread.create.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED, {
         character,
         channelId: interaction.channel!.id,
         guildId: interaction.guild!.id,

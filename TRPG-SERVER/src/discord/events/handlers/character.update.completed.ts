@@ -3,6 +3,7 @@ import { EventHandler, EventContext } from 'events/handlers/_shared/event-handle
 import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
+import { EVENT_NAMES } from 'events/contracts'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 
 /**
@@ -44,7 +45,7 @@ export class CharacterUpdateCompletedHandler
    * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
   getEventName(): 'character.update.completed' {
-    return 'character.update.completed'
+    return EVENT_NAMES.CHARACTER_UPDATE_COMPLETED
   }
 
   /**

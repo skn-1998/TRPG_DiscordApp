@@ -11,6 +11,7 @@ import { Character } from '../../../../domains/character/models/character.model'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { EVENT_NAMES } from '../../../../events/contracts'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -318,7 +319,7 @@ export class CharacterModalHandlerService {
       // completed 通知は本サービスから fire-and-forget で継続発行（発行責務の移転）。
       // await しない＝UI 連鎖（CharacterUpdateCompletedHandler 等）の失敗が update の成否に混ざらない。
       void this.typedEventService
-        .emit('character.update.completed', {
+        .emit(EVENT_NAMES.CHARACTER_UPDATE_COMPLETED, {
           channelId: character.discordChannelId || '',
           character: updated,
           source: 'character-modal-handler',

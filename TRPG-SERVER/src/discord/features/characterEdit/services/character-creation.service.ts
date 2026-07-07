@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
+import { EVENT_NAMES } from '../../../../events/contracts'
 import { ChannelCreationContext } from './channel-detection.service'
 
 // ============================================================================
@@ -31,7 +32,7 @@ export class CharacterCreationService {
       this.logger.log(`キャラクター作成イベントを発火: ${context.channel.name}`)
 
       // キャラクター作成イベントを発行 (Event Bridge対応)
-      await this.typedEventService.emit('character.creation.requested', {
+      await this.typedEventService.emit(EVENT_NAMES.CHARACTER_CREATION_REQUESTED, {
         createData: {
           characterName: context.channel.name,
           gameSystemId: '', // デフォルト値

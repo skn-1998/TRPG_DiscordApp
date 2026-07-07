@@ -4,6 +4,7 @@ import { CharacterUIService } from 'discord/features/characterEdit/services/char
 import { CharacterEmbedManagerService } from 'discord/features/characterEdit/services/character-embed-manager.service'
 import { DiscordClientService } from 'discord/services/discord-client.service'
 import { CharacterCreationCompletedEvent } from 'events/contracts/unified-event-contracts'
+import { EVENT_NAMES } from 'events/contracts'
 import { TextChannel } from 'discord.js'
 import { Character } from 'domains/character/models/character.model'
 import { TypedEventService } from 'src/core/events/typed-event.service'
@@ -49,7 +50,7 @@ export class CharacterCreationCompletedHandler
    * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
   getEventName(): 'character.creation.completed' {
-    return 'character.creation.completed'
+    return EVENT_NAMES.CHARACTER_CREATION_COMPLETED
   }
 
   /**
@@ -127,7 +128,7 @@ export class CharacterCreationCompletedHandler
     try {
       // 1. Discord統合通知イベント発行
       if (character.discordChannelId) {
-        await this.typedEventServiceLocal.emit('discord.notification.requested', {
+        await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_NOTIFICATION_REQUESTED, {
           timestamp: new Date(),
           source: 'system',
           channelId: character.discordChannelId,
@@ -144,7 +145,7 @@ export class CharacterCreationCompletedHandler
 
       // 2. スレッド作成リクエスト（threadIdが指定されている場合）
       if (character.threadId || character.discordChannelId) {
-        await this.typedEventServiceLocal.emit('discord.thread.create.requested', {
+        await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED, {
           character: character as Character,
           channelId: character.discordChannelId || '',
           guildId: 'default-guild', // Channel Create Orchestratorで実際のguildIdに更新される
@@ -157,7 +158,7 @@ export class CharacterCreationCompletedHandler
 
       // 3. Embed更新リクエスト
       if (character.discordChannelId) {
-        await this.typedEventServiceLocal.emit('discord.embed.update.requested', {
+        await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_EMBED_UPDATE_REQUESTED, {
           timestamp: new Date(),
           source: 'system',
           channelId: character.discordChannelId,
@@ -170,7 +171,7 @@ export class CharacterCreationCompletedHandler
         })
 
         // CharacterEdit Enhanced Embed作成リクエスト（TypedEventService経由）
-        await this.typedEventServiceLocal.emit('discord.character.display.requested', {
+        await this.typedEventServiceLocal.emit(EVENT_NAMES.DISCORD_CHARACTER_DISPLAY_REQUESTED, {
           character: {
             ...character,
             discordChannelId: character.discordChannelId // 確実に存在するためNon-null assertion

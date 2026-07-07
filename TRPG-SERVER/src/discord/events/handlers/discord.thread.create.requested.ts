@@ -3,6 +3,7 @@ import { EventHandler, EventContext } from 'events/handlers/_shared/event-handle
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import type { EventPayload } from 'events/contracts'
+import { EVENT_NAMES } from 'events/contracts'
 
 /**
  * discord.thread.create.requested 専用ハンドラー
@@ -42,7 +43,7 @@ export class DiscordThreadCreateRequestedHandler
    * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
   getEventName(): 'discord.thread.create.requested' {
-    return 'discord.thread.create.requested'
+    return EVENT_NAMES.DISCORD_THREAD_CREATE_REQUESTED
   }
 
   /**
