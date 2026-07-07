@@ -168,11 +168,14 @@ describe('EventRegistryService', () => {
   })
 
   describe('isValidEventName', () => {
+    // E-4a: 形式チェックに加えて契約（EVENT_NAMES）membership を必須化。
+    // 形式が正しくても契約外の名前は false（string→EventName キャスト境界の保護）。
     it.each([
-      ['a.b.c', true],
       ['character.creation.requested', true],
-      ['my-domain.find-by-id.requested', true],
-      ['Character.Creation.Requested', true],
+      ['character.creation.completed', true],
+      ['a.b.c', false],
+      ['my-domain.find-by-id.requested', false],
+      ['Character.Creation.Requested', false],
       ['foo', false],
       ['a.b', false],
       ['1domain.action.type', false],
@@ -351,15 +354,16 @@ describe('EventRegistryService', () => {
 
   describe('getRegisteredEventNames', () => {
     it('登録済みイベント名をソートして返す', async () => {
-      // Arrange: あえて登録順を非ソートにする（ローカルスタブ2本を直接登録）
-      await (service as any).registerHandler(createHandlerStub('test.beta.event', 'BetaHandler'))
-      await (service as any).registerHandler(createHandlerStub('test.alpha.event', 'AlphaHandler'))
+      // Arrange: あえて登録順を非ソートにする（契約内の実イベント名でローカルスタブ2本を直接登録。
+      // E-4a の membership 検証により契約外の test.* 名は登録できないため）
+      await (service as any).registerHandler(createHandlerStub('character.update.completed', 'BetaHandler'))
+      await (service as any).registerHandler(createHandlerStub('character.creation.completed', 'AlphaHandler'))
 
       // Act
       const names = service.getRegisteredEventNames()
 
       // Assert
-      expect(names).toEqual(['test.alpha.event', 'test.beta.event'])
+      expect(names).toEqual(['character.creation.completed', 'character.update.completed'])
     })
   })
 

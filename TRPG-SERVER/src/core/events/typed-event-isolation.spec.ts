@@ -85,7 +85,9 @@ describe('TypedEventService とグローバル EventEmitter2 の分離', () => {
     })
 
     // Act: TypedEventService（独立 emitter）経由で emit する
-    await typedEventService.emit('character.findById.requested', {
+    // 注: character.findById.requested は E-3/E-4a で契約から削除済みの dead イベント名。
+    //     本 spec は「emitter インスタンスの分離」だけを検証するため、契約外名を as any で通す。
+    await typedEventService.emit('character.findById.requested' as any, {
       characterId: 'char-1',
       source: 'isolation-test',
       timestamp: new Date()
@@ -98,12 +100,12 @@ describe('TypedEventService とグローバル EventEmitter2 の分離', () => {
   it('TypedEventService に登録した on リスナーには自身の emit が届く（往復は独立 emitter 内で成立）', async () => {
     // Arrange
     let typedReceived = false
-    typedEventService.on('character.findById.requested', () => {
+    typedEventService.on('character.findById.requested' as any, () => {
       typedReceived = true
     })
 
     // Act
-    await typedEventService.emit('character.findById.requested', {
+    await typedEventService.emit('character.findById.requested' as any, {
       characterId: 'char-2',
       source: 'isolation-test',
       timestamp: new Date()

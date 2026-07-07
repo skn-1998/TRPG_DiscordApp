@@ -358,29 +358,8 @@ describe('ChannelCreateOrchestratorService', () => {
       })
     })
 
-    describe('handleCharacterCreationFailed', () => {
-      it('should handle character creation failure event', async () => {
-        const handler = (service as any).handleCharacterCreationFailed.bind(service)
-
-        const payload = {
-          createData: {
-            characterName: 'Failed Character',
-            discordChannelId: 'test-channel-id'
-          },
-          error: 'Database connection error',
-          source: 'character-service',
-          timestamp: new Date()
-        }
-
-        const loggerSpy = jest.spyOn(Logger.prototype, 'error')
-        const debugSpy = jest.spyOn(Logger.prototype, 'debug')
-
-        await handler(payload)
-
-        expect(loggerSpy).toHaveBeenCalledWith('キャラクター作成失敗: Database connection error')
-        expect(debugSpy).toHaveBeenCalledWith('失敗した作成データ:', payload.createData)
-      })
-    })
+    // 注: handleCharacterCreationFailed の describe は、メソッド本体が E-3 残骸
+    //     （listener 未登録・dead contract 型参照のみ）として E-4a で削除されたため撤去した。
   })
 
   describe('sanitizeChannelName', () => {

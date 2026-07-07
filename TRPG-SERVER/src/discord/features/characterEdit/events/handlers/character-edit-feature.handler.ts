@@ -60,8 +60,8 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
 
     try {
       // Feature内部での値更新処理は別のサービスが担当
-      // （実際の modal → キャラ更新は character-modal-handler.service が
-      //  TypedEventService 経由で character.update.requested を発行して処理する）
+      // （実際の modal → キャラ更新は character-modal-handler.service が CharacterService を
+      //  DI 直呼びで更新し、character.update.completed を通知として発行する: E-2d）
       // ここではイベントログ記録とワークフロー管理のみ
 
       // Embed更新リクエスト発行
@@ -128,7 +128,8 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
         error: {
           code,
           message: error.message || 'Unknown error',
-          operation: originalEvent.type,
+          // E-4a: 契約から type フィールドを撤去したため、診断用 operation はハンドラ文脈（code）を使う
+          operation: code,
           details: { originalEvent, stack: error.stack },
           severity: 'medium'
         }

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
 import { TypedEventService } from '../core/events/typed-event.service'
+import { EventName, EVENT_NAMES } from './contracts'
 import { EventHandler, EventContext } from './handlers/_shared/event-handler.base'
 
 // ハンドラーのインポート
@@ -97,7 +98,9 @@ export class EventRegistryService implements OnModuleInit {
     this.handlers.set(eventName, handler)
 
     // TypedEventService にリスナー登録
-    this.typedEventService.on(eventName, async (event) => {
+    // 注: EventHandler.getEventName() は string を返す動的レジストリのため、
+    //     契約に存在することを validateHandler で確認済みの名前として EventName へ絞る。
+    this.typedEventService.on(eventName as EventName, async (event) => {
       await this.executeHandler(eventName, event)
     })
 
@@ -140,12 +143,19 @@ export class EventRegistryService implements OnModuleInit {
   }
 
   /**
-   * イベント名形式の検証
+   * イベント名の検証
+   *
+   * E-4a: 形式（ドット記法）チェックに加え、契約（EVENT_NAMES）への membership を必須化。
+   * これにより string → EventName のキャスト境界（registerHandler 内）が契約で保護される。
    */
   private isValidEventName(eventName: string): boolean {
     // ドット記法の検証: domain.action.type（複数セグメント許可、英数字・ハイフン許可）
     const pattern = /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*){2,}$/
-    return pattern.test(eventName)
+    if (!pattern.test(eventName)) {
+      return false
+    }
+    // 契約 membership チェック（契約外イベントの handler 登録をコンパイル境界の外でも遮断）
+    return (Object.values(EVENT_NAMES) as string[]).includes(eventName)
   }
 
   /**

@@ -46,102 +46,10 @@ export class CharacterEventIntegrationService implements OnModuleInit {
     this.logger.debug('Character event handlers registration skipped (migrated to File-based Event Handlers)')
   }
 
-  /**
-   * チャンネルIDによるキャラクター検索を処理
-   */
-  private async handleCharacterSearchByChannelId(payload: any): Promise<void> {
-    const { channelId, source } = payload
-
-    this.logger.debug(`[CHARACTER-SEARCH] チャンネルID検索: ${channelId}`)
-
-    try {
-      const character = await this.characterService.findByChannelId(channelId)
-
-      // 検索完了イベントを発行
-      await this.typedEventService.emit('character.findByChannelId.completed', {
-        channelId,
-        character,
-        source,
-        timestamp: new Date()
-      })
-
-      this.logger.debug(`キャラクター検索結果: ${character ? character.characterId : 'not found'}`)
-    } catch (error) {
-      this.logger.error(`チャンネルID検索エラー: ${channelId}`, error)
-
-      // 検索失敗イベントを発行
-      await this.typedEventService.emit('character.findByChannelId.failed', {
-        channelId,
-        error: error instanceof Error ? error.message : String(error),
-        source,
-        timestamp: new Date()
-      })
-    }
-  }
-
-  /**
-   * IDによるキャラクター検索を処理
-   */
-  private async handleCharacterSearchById(payload: any): Promise<void> {
-    const { characterId, source } = payload
-
-    this.logger.debug(`[CHARACTER-SEARCH] ID検索: ${characterId}`)
-
-    try {
-      const character = await this.characterService.findOne(characterId)
-
-      // 検索完了イベントを発行
-      await this.typedEventService.emit('character.findById.completed', {
-        characterId,
-        character,
-        source,
-        timestamp: new Date()
-      })
-
-      this.logger.debug(`キャラクターID検索結果: ${character ? character.characterId : 'not found'}`)
-    } catch (error) {
-      this.logger.error(`キャラクターID検索エラー: ${characterId}`, error)
-
-      // 検索失敗イベントを発行
-      await this.typedEventService.emit('character.findById.failed', {
-        characterId,
-        error: error instanceof Error ? error.message : String(error),
-        source,
-        timestamp: new Date()
-      })
-    }
-  }
-
-  /**
-   * キャラクター更新リクエストを処理
-   */
-  private async handleCharacterUpdateRequest(payload: any): Promise<void> {
-    const { channelId, updateData, source } = payload
-
-    this.logger.debug(`[CHARACTER-UPDATE] 更新リクエスト: ${channelId}`)
-
-    try {
-      const updatedCharacter = await this.characterService.updateByChannelId(channelId, updateData)
-
-      if (updatedCharacter) {
-        // 更新完了通知は character.update.requested -> completed 経由で自動処理される
-        this.logger.debug(`キャラクター更新完了: ${updatedCharacter.characterId}`)
-      } else {
-        throw new Error('Character not found or update failed')
-      }
-    } catch (error) {
-      this.logger.error(`キャラクター更新エラー: ${channelId}`, error)
-
-      // 更新失敗イベントを発行
-      await this.typedEventService.emit('character.update.failed', {
-        channelId,
-        error: error instanceof Error ? error.message : String(error),
-        source,
-        timestamp: new Date()
-      })
-    }
-  }
-
+  // 注: handleCharacterSearchByChannelId / handleCharacterSearchById / handleCharacterUpdateRequest は
+  //     listener 未登録・呼び出しゼロの dead private メソッド（dead イベント
+  //     character.findBy*.completed/failed・character.update.failed の emit のみ）だったため
+  //     E-4a の契約厳密化に伴い削除した。
   // 削除: Event Bridge移行完了によりレガシー処理は不要
   // handleCharacterCreationRequest メソッドは削除されました
   // 新しい処理は character-edit-creation.handler.ts で実行されます

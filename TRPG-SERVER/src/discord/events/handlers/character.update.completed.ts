@@ -41,8 +41,9 @@ export class CharacterUpdateCompletedHandler
 
   /**
    * 処理するイベント名
+   * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
-  getEventName(): string {
+  getEventName(): 'character.update.completed' {
     return 'character.update.completed'
   }
 
@@ -70,7 +71,6 @@ export class CharacterUpdateCompletedHandler
    */
   private async updateDiscordUI(event: CharacterUpdateCompletedEvent, _context?: EventContext): Promise<void> {
     const { character } = event
-    const updatedFields = (event as any).updatedFields as string[] | undefined
 
     // 1. チャンネルが存在する場合、Embedを更新
     if (character.discordChannelId) {
@@ -85,23 +85,7 @@ export class CharacterUpdateCompletedHandler
       }
     }
 
-    // // 2. 重要な更新の場合は通知を送信
-    // if (character.discordChannelId && this.shouldNotifyUpdate(updatedFields)) {
-    //   try {
-    //     await this.characterUIService.sendCharacterUpdateNotification(
-    //       character.discordChannelId,
-    //       character as any,
-    //       updatedFields || [],
-    //       character.discordUserId
-    //     )
-    //     this.logger.debug(`✅ Update notification sent successfully`)
-    //   } catch (error) {
-    //     this.logger.warn(`⚠️ Update notification failed: ${error instanceof Error ? error.message : String(error)}`)
-    //     // 通知の失敗は致命的ではないため、処理を続行
-    //   }
-    // }
-
-    // 3. スレッドが存在する場合、Thread内のEmbedを更新
+    // 2. スレッドが存在する場合、Thread内のEmbedを更新
     if (character.discordThreadId) {
       this.logger.debug(`Updating character thread display in thread: ${(character as any).discordThreadId}`)
 
@@ -116,32 +100,8 @@ export class CharacterUpdateCompletedHandler
       }
     }
 
-    // 4. ステータス変更の場合はステータス表示を更新
-    if (updatedFields?.includes('status') && character.discordChannelId) {
-      try {
-        await this.characterUIService.updateChannelStatusDisplay(character.discordChannelId, character as any)
-        this.logger.debug(`✅ Channel status display updated successfully`)
-      } catch (error) {
-        this.logger.warn(
-          `⚠️ Channel status display update failed: ${error instanceof Error ? error.message : String(error)}`
-        )
-        // ステータス表示更新の失敗は致命的ではないため、処理を続行
-      }
-    }
-  }
-
-  /**
-   * 更新内容に基づいて通知が必要かどうかを判定
-   */
-  private shouldNotifyUpdate(updatedFields?: string[]): boolean {
-    if (!updatedFields || updatedFields.length === 0) {
-      return false
-    }
-
-    // 重要なフィールドの更新時のみ通知
-    const importantFields = ['characterName', 'status', 'level', 'hp', 'mp', 'gameSystemId']
-
-    return updatedFields.some((field) => importantFields.includes(field))
+    // 契約外 updatedFields に依存していたステータス表示更新の分岐は撤去（E-4a）:
+    // 実 emit（character-modal-handler）は updatedFields を渡しておらず、到達不能の dead 分岐だった。
   }
 
   /**

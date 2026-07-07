@@ -7,7 +7,6 @@ import { TypedEventService } from '../../core/events/typed-event.service'
 import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { v4 as uuidv4 } from 'uuid'
-import { EventPayload } from '../../events/contracts'
 
 /**
  * Character CRUD 結合テスト（実 MongoDB 使用）
@@ -76,8 +75,9 @@ describe('Character CRUD Integration Test', () => {
     await clearTestDatabase()
 
     if (typedEventService) {
-      typedEventService.removeAllListeners('character.updated')
-      typedEventService.removeAllListeners('character.deleted')
+      // 契約外の dead イベント名（E-4a で削除済み）の後始末のため as any で通す
+      typedEventService.removeAllListeners('character.updated' as any)
+      typedEventService.removeAllListeners('character.deleted' as any)
     }
 
     await module.close()
@@ -241,8 +241,10 @@ describe('Character CRUD Integration Test', () => {
     })
 
     it('should update by id in DB and NOT emit the retired character.updated event', async () => {
-      let emittedPayload: EventPayload<'character.updated'> | null = null
-      typedEventService.once('character.updated', (payload) => {
+      // 注: character.updated は契約から削除済みの dead イベント名（E-4a）。
+      //     「emit されないこと」の検証のため契約外名を as any で購読する。
+      let emittedPayload: unknown = null
+      typedEventService.once('character.updated' as any, (payload: unknown) => {
         emittedPayload = payload
       })
 
@@ -281,8 +283,10 @@ describe('Character CRUD Integration Test', () => {
     })
 
     it('should remove character by channelId and clear DB without emitting the retired character.deleted event', async () => {
-      let emittedPayload: EventPayload<'character.deleted'> | null = null
-      typedEventService.once('character.deleted', (payload) => {
+      // 注: character.deleted は契約から削除済みの dead イベント名（E-4a）。
+      //     「emit されないこと」の検証のため契約外名を as any で購読する。
+      let emittedPayload: unknown = null
+      typedEventService.once('character.deleted' as any, (payload: unknown) => {
         emittedPayload = payload
       })
 
