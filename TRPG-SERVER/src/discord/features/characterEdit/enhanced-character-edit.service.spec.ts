@@ -11,6 +11,7 @@ import {
 } from '@discord-test-utils'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
+import { CharacterService } from 'src/domains/character/character.service'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
@@ -32,6 +33,12 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   const mockTypedEventService = {
     emit: jest.fn().mockResolvedValue(undefined),
     waitForEvent: jest.fn()
+  }
+
+  // E-2c: キャラクター取得はイベント RPC ではなく CharacterService の DI 直呼び
+  const mockCharacterService = {
+    findByChannelId: jest.fn(),
+    findOne: jest.fn()
   }
 
   const mockEmbedManager = {
@@ -64,6 +71,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         CharacterEditEventEmitterService,
         CharacterEditMessageUpdaterService,
         { provide: TypedEventService, useValue: mockTypedEventService },
+        { provide: CharacterService, useValue: mockCharacterService },
         { provide: CharacterEmbedManagerService, useValue: mockEmbedManager },
         { provide: CharacterSectionEditorService, useValue: mockSectionEditor },
         { provide: CharacterModalHandlerService, useValue: mockModalHandler }
@@ -124,27 +132,37 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   describe('displayCharacterEditByChannelId', () => {
     it('チャンネルからキャラクターを取得し編集画面を表示する', async () => {
       const character = buildCharacter()
-      mockTypedEventService.waitForEvent.mockResolvedValue({ character })
+      // Arrange: CharacterService の直呼びでキャラクターを返す（E-2c: イベント RPC 廃止）
+      mockCharacterService.findByChannelId.mockResolvedValue(character)
       mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: ['e'], components: ['c'] })
 
       await service.displayCharacterEditByChannelId('channel-1')
 
-      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
-        'character.findByChannelId.requested',
-        expect.objectContaining({ channelId: 'channel-1', source: 'enhanced-character-edit' })
-      )
+      expect(mockCharacterService.findByChannelId).toHaveBeenCalledWith('channel-1')
       // 取得成功 → 表示まで進む
       expect(mockEmbedManager.createSectionedEmbeds).toHaveBeenCalledWith(character)
+      // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2c の回帰ガード）
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalledWith(
+        'character.findByChannelId.requested',
+        expect.anything()
+      )
     })
 
     it('キャラクターが見つからない場合は何もしない', async () => {
-      mockTypedEventService.waitForEvent.mockResolvedValue({})
+      mockCharacterService.findByChannelId.mockResolvedValue(null)
 
       await service.displayCharacterEditByChannelId('channel-1')
 
       expect(mockEmbedManager.createSectionedEmbeds).not.toHaveBeenCalled()
-      // findByChannelId.requested 以外の send は発行されない
+      // キャラクター未取得時は send は発行されない
       expect(mockTypedEventService.emit).not.toHaveBeenCalledWith('discord.message.send.requested', expect.anything())
+      // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2c の回帰ガード）
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalledWith(
+        'character.findByChannelId.requested',
+        expect.anything()
+      )
     })
   })
 
@@ -182,12 +200,13 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       const interaction = createMockButtonInteraction({
         customId: 'character-refresh-char-123'
       })
-      // getCharacterById -> waitForEvent が character なしを返す
-      mockTypedEventService.waitForEvent.mockResolvedValue({})
+      // getCharacterById -> CharacterService.findOne が null を返す（E-2c: イベント RPC 廃止）
+      mockCharacterService.findOne.mockResolvedValue(null)
 
       await service.handleButtonInteraction(interaction)
 
       expect(interaction.deferUpdate).toHaveBeenCalled()
+      expect(mockCharacterService.findOne).toHaveBeenCalledWith('char-123')
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: '❌ キャラクターが見つかりません。',
         ephemeral: true
@@ -197,6 +216,9 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         'characterEdit.embed.refresh.requested',
         expect.objectContaining({ characterId: 'char-123' })
       )
+      // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2c の回帰ガード）
+      expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
     })
 
     it('character-compact-view- で deferReply し editReply で開発中メッセージを返す', async () => {
