@@ -1,16 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ButtonInteraction, ChannelType, TextChannel } from 'discord.js'
+import { ChannelType, TextChannel } from 'discord.js'
 import { Character } from 'src/domains/character/models/character.model'
 import { DiceCalculationService, DiceCalculationResult, FlexibleDiceResult } from './dice-calculation.service'
 import { DiceParserService, ParsedFormula } from './dice-parser.service'
-import { DicePresetService } from './dice-preset.service'
 import dice from 'src/discord/utils/dice'
 
 /**
  * ダイス処理オーケストレーター
  *
  * 既存のダイス関連サービスを統合し、統一されたインターフェースを提供
- * 旧 dice-calculation-handler.service.ts, flexible-dice-calculator.service.ts, preset-dice-handler.service.ts の統合
+ * 旧 dice-calculation-handler.service.ts, flexible-dice-calculator.service.ts の統合
  * 旧 dice-notation-handler.service.ts の統合（基本ダイス記法処理）
  */
 @Injectable()
@@ -19,8 +18,7 @@ export class DiceOrchestratorService {
 
   constructor(
     private readonly calculationService: DiceCalculationService,
-    private readonly parserService: DiceParserService,
-    private readonly presetService: DicePresetService
+    private readonly parserService: DiceParserService
   ) {
     this.logger.debug('Dice Orchestrator Service initialized')
   }
@@ -54,15 +52,6 @@ export class DiceOrchestratorService {
   }
 
   /**
-   * プリセットダイス処理インターフェース
-   * 旧 preset-dice-handler.service.ts の handlePresetDiceRoll メソッドの代替
-   */
-  async handlePresetDiceRoll(interaction: ButtonInteraction, customId: string): Promise<void> {
-    this.logger.debug(`Handling preset dice roll: ${customId}`)
-    return this.presetService.handlePresetDiceRoll(interaction, customId)
-  }
-
-  /**
    * 数式解析インターフェース
    */
   parseFormula(formula: string, character?: Character, multiplier: number = 1, modifier: number = 0): ParsedFormula {
@@ -75,26 +64,6 @@ export class DiceOrchestratorService {
    */
   evaluateFormula(formula: string): number {
     return this.parserService.evaluateFormula(formula)
-  }
-
-  /**
-   * プリセットボタン作成インターフェース
-   */
-  createPresetButton(
-    characterId: string,
-    section: string,
-    key: string,
-    value: number,
-    multiplier: number = 1
-  ): { customId: string; label: string } {
-    return this.presetService.createPresetButton(characterId, section, key, value, multiplier)
-  }
-
-  /**
-   * プリセット設定検証インターフェース
-   */
-  validatePresetConfig(customId: string): boolean {
-    return this.presetService.validatePresetConfig(customId)
   }
 
   /**
@@ -259,11 +228,10 @@ export class DiceOrchestratorService {
     status: string
   } {
     return {
-      services: ['DiceCalculationService', 'DiceParserService', 'DicePresetService'],
+      services: ['DiceCalculationService', 'DiceParserService'],
       features: [
         'Unified dice calculation',
         'Flexible formula parsing',
-        'Preset dice handling',
         'Character parameter substitution',
         'Safe formula evaluation'
       ],
@@ -296,12 +264,6 @@ export class DiceOrchestratorService {
   ): Promise<FlexibleDiceResult> {
     this.logger.warn('Legacy method called: legacyParseAndCalculate. Please use parseAndCalculate instead.')
     return this.parseAndCalculate(formula, multiplier, modifier, character)
-  }
-
-  // PresetDiceHandlerService互換
-  async legacyHandlePresetDiceRoll(interaction: ButtonInteraction, customId: string): Promise<void> {
-    this.logger.warn('Legacy method called: legacyHandlePresetDiceRoll. Please use handlePresetDiceRoll instead.')
-    return this.handlePresetDiceRoll(interaction, customId)
   }
 
   // DiceNotationHandlerService互換

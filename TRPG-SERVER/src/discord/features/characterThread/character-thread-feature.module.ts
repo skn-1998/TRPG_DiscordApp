@@ -47,7 +47,7 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
  * - DiscordIntegrationModule: 既存（P1-B で forwardRef 解消・循環なし）。
  * - InteractionRegistryModule: handler を registry へ登録するため。
  * - DiceServicesModule: dice-generic / flexible-dice-select / skill / ability / preset-quick handler が
- *   DiceRollLogicService / DicePresetService を解決するため。
+ *   DiceRollLogicService を解決するため。
  *   （TypedEventService / TypedEventEmitter は core-events @Global のため import 不要）
  *
  * 🔧 S-5c: CharacterDiceHandler と委譲先 CharacterDiceButtonsService / CharacterDiceHistoryService
