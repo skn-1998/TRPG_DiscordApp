@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { EventEmitter2 } from '@nestjs/event-emitter'
 import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction } from 'discord.js'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
 
@@ -17,10 +16,7 @@ import { InteractionRegistryService } from './registry/interaction-registry.serv
 export class InteractionsService {
   private readonly logger = new Logger(InteractionsService.name)
 
-  constructor(
-    private readonly eventEmitter: EventEmitter2,
-    private readonly interactionRegistry: InteractionRegistryService
-  ) {}
+  constructor(private readonly interactionRegistry: InteractionRegistryService) {}
 
   /**
    * インタラクションをInteractionRegistryServiceに委譲する
@@ -29,61 +25,21 @@ export class InteractionsService {
   async handleInteraction(
     interaction: ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
   ): Promise<boolean> {
-    const startTime = Date.now()
-    const interactionType = interaction.isButton() ? 'button' : interaction.isAnySelectMenu() ? 'select' : 'modal'
-
-    // インタラクション処理開始メトリクス
-    this.eventEmitter.emit('discord.interaction.start', {
-      eventType: `${interactionType}-interaction`,
-      interactionId: interaction.id,
-      userId: interaction.user.id,
-      guildId: interaction.guildId
-    })
-
     try {
       // 応答済みのインタラクションは処理しない
       if (interaction.replied || interaction.deferred) {
-        const duration = Date.now() - startTime
         this.logger.warn(
           `インタラクション(ID: ${interaction.id})は既に応答済みです。InteractionRegistryServiceへの委譲をスキップします。`
         )
-
-        // 処理済みメトリクス記録
-        this.eventEmitter.emit('discord.interaction.processed', {
-          eventType: `${interactionType}-interaction`,
-          success: true,
-          duration,
-          reason: 'already-replied'
-        })
         return true // すでに処理済みとみなす
       }
 
       this.logger.log(`インタラクション(ID: ${interaction.id})をInteractionRegistryServiceに委譲します。`)
       await this.routeInteraction(interaction)
 
-      const duration = Date.now() - startTime
-
-      // 成功メトリクス記録
-      this.eventEmitter.emit('discord.interaction.processed', {
-        eventType: `${interactionType}-interaction`,
-        success: true,
-        duration,
-        interactionId: interaction.id
-      })
-
       return true // 処理成功
     } catch (error) {
-      const duration = Date.now() - startTime
       this.logger.error(`InteractionsServiceでのハンドリングエラー(ID: ${interaction.id}):`, error)
-
-      // エラーメトリクス記録
-      this.eventEmitter.emit('discord.interaction.processed', {
-        eventType: `${interactionType}-interaction`,
-        success: false,
-        duration,
-        error: (error as Error).message
-      })
-
       return false // エラーが発生した
     }
   }
