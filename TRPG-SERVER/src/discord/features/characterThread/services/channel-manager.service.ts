@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, Guild, StringSelectMenuOptionBuilder, TextChannel, ThreadChannel } from 'discord.js'
 import { AppConfigService } from '../../../../config/config.service'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import _ from 'lodash'
 import {
   buildFallbackOption,
@@ -31,7 +31,7 @@ export class ChannelManagerService {
   /**
    * キャラクタースレッドを作成
    */
-  async createCharacterThread(guild: Guild, channelId: string, character: Character): Promise<ThreadChannel> {
+  async createCharacterThread(guild: Guild, channelId: string, character: CharacterEntity): Promise<ThreadChannel> {
     try {
       // チャンネルを取得
       const targetChannel = await guild.channels.fetch(channelId)

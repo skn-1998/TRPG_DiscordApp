@@ -6,7 +6,7 @@ import {
   StringSelectMenuBuilder,
   APISelectMenuOption
 } from 'discord.js'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { DiceRollText } from 'src/domains/dice-roll/models/dice-roll-text.model'
 import { DiceCharacterSelectCustomId, DicePageCustomId } from '../../custom-id'
 import { ALL_CHARACTERS, formatDiceRoll, isSpecificCharacter, resolveHistoryTitle } from './dice-roll-pagination.util'
@@ -41,7 +41,7 @@ export function createEmptyEmbed(title: string): EmbedBuilder {
 export function buildHistoryPages(
   rolls: DiceRollText[],
   characterId: string | undefined,
-  characters: Character[] | null
+  characters: CharacterEntity[] | null
 ): EmbedBuilder[] {
   const title = resolveHistoryTitle(characterId, characters)
 
@@ -179,7 +179,7 @@ export function buildPageSelectRow(
 export function buildCharacterSelectRow(
   messageId: string,
   channelId: string,
-  characters: Character[],
+  characters: CharacterEntity[],
   selectedCharacterId: string | undefined
 ): ActionRowBuilder<StringSelectMenuBuilder> | null {
   // キャラクターが見つからない場合は何も表示しない

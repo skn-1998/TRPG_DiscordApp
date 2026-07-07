@@ -8,7 +8,12 @@ import { AttributeSection } from '../../../core/types/attribute.types'
 export type CharacterDocument = Character & Document
 
 /**
- * キャラクタースキーマ定義
+ * キャラクタースキーマ定義（persistence 専用・E-6d）
+ *
+ * ⚠ この @Schema クラスは Mongoose の永続化定義であり、domains/character 内部
+ * （repository / module の schema 登録）でのみ import すること。
+ * 公開型としては plain interface の `CharacterEntity`（character.entity.ts）を使う。
+ * フィールドを増減する場合は CharacterEntity と同期させること。
  */
 @Schema({ timestamps: true })
 export class Character {

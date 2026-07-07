@@ -7,7 +7,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder
 } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 // P1-D slice2: routed な customId 生成を feature-local 契約モジュールの Factory へ集約（byte-identical・挙動不変）
 import { FlexibleDiceSelectCustomId, DiceGenericCustomId, SkillRollCustomId, AbilityRollCustomId } from '../custom-id'
 // skill 解決ロジックは handler と共有する純粋 util へ集約
@@ -35,7 +35,7 @@ export class ThreadInteractionService {
    * routed な `dice_generic_` 契約のみを用いる（custom ボタンは flexible メニューがカバーするため付けない）。
    * channelId は `character.discordChannelId` を採用する。
    */
-  async postBasicDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
+  async postBasicDiceButtons(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       const channelId = character.discordChannelId
 
@@ -72,7 +72,7 @@ export class ThreadInteractionService {
   /**
    * フレキシブルダイスメニューを投稿
    */
-  async postFlexibleDiceMenu(thread: ThreadChannel, character: Character): Promise<void> {
+  async postFlexibleDiceMenu(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       const diceOptions = [
         { label: '1d6', value: '1d6', description: '6面ダイス1個' },
@@ -112,7 +112,7 @@ export class ThreadInteractionService {
   /**
    * プリセットダイスボタンを投稿
    */
-  async postPresetDiceButtons(thread: ThreadChannel, character: Character): Promise<void> {
+  async postPresetDiceButtons(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       const gameSystem = character.gameSystemId?.toLowerCase() || 'generic'
       let presetButtons: ButtonBuilder[] = []
@@ -160,7 +160,7 @@ export class ThreadInteractionService {
   /**
    * スキルロールボタンを投稿
    */
-  async postSkillRollButtons(thread: ThreadChannel, character: Character): Promise<void> {
+  async postSkillRollButtons(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       if (!character.skill || Object.keys(character.skill).length === 0) {
         this.logger.debug(`No skills found for character: ${character.characterId}`)
@@ -211,7 +211,7 @@ export class ThreadInteractionService {
    * `ability_{discordChannelId}_{abilityKey}` 契約のボタンを生成する。
    * 値0以下・parameter 空はスキップし、最大20個・5個ずつの行に分割して送信する。
    */
-  async postAbilityRollButtons(thread: ThreadChannel, character: Character): Promise<void> {
+  async postAbilityRollButtons(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
     try {
       if (!character.parameter || Object.keys(character.parameter).length === 0) {
         this.logger.debug(`No parameters found for character: ${character.characterId}`)
@@ -258,7 +258,7 @@ export class ThreadInteractionService {
   /**
    * Call of Cthulhu 7th用ボタン
    */
-  private createCoC7Buttons(character: Character): ButtonBuilder[] {
+  private createCoC7Buttons(character: CharacterEntity): ButtonBuilder[] {
     const channelId = character.discordChannelId || character.characterId
 
     return [
@@ -293,7 +293,7 @@ export class ThreadInteractionService {
   /**
    * D&D 5e用ボタン
    */
-  private createDnD5eButtons(character: Character): ButtonBuilder[] {
+  private createDnD5eButtons(character: CharacterEntity): ButtonBuilder[] {
     const channelId = character.discordChannelId || character.characterId
 
     return [
@@ -323,7 +323,7 @@ export class ThreadInteractionService {
   /**
    * ソード・ワールド2.5用ボタン
    */
-  private createSW25Buttons(character: Character): ButtonBuilder[] {
+  private createSW25Buttons(character: CharacterEntity): ButtonBuilder[] {
     const channelId = character.discordChannelId || character.characterId
 
     return [
@@ -353,7 +353,7 @@ export class ThreadInteractionService {
   /**
    * 汎用ボタン
    */
-  private createGenericButtons(character: Character): ButtonBuilder[] {
+  private createGenericButtons(character: CharacterEntity): ButtonBuilder[] {
     const channelId = character.discordChannelId || character.characterId
 
     return [

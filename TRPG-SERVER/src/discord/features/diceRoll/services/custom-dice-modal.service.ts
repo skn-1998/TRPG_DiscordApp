@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ModalBuilder, ModalSubmitInteraction, CacheType, ChannelType, MessageFlags } from 'discord.js'
 import { discordModalType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { ErrorHandler } from 'src/core/http/error-handler'
 import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
@@ -190,7 +190,7 @@ export class CustomDiceModalService implements discordModalType {
    * live 送出元は channelId を埋め込むため findByChannelId を優先し、
    * 旧 param 系（characterId 埋め込み）からの interaction は findOne へフォールバックする。
    */
-  private async resolveCharacter(id: string | null): Promise<Character | undefined> {
+  private async resolveCharacter(id: string | null): Promise<CharacterEntity | undefined> {
     if (!id) return undefined
     try {
       const byChannel = await this.characterService.findByChannelId(id)
@@ -215,7 +215,7 @@ export class CustomDiceModalService implements discordModalType {
     interaction: ModalSubmitInteraction<CacheType>,
     params: {
       extractedId: string | null
-      character: Character | undefined
+      character: CharacterEntity | undefined
       diceExpression: string
       result: number
       resultDetails: string

@@ -6,7 +6,7 @@
  * discord.js / NestJS DI に依存しない純粋関数のみ。
  */
 
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 
 /**
  * スキル値オブジェクトからスキルレベル文字列を抽出する（純粋）。
@@ -50,7 +50,7 @@ export interface ResolvedSkillRoll {
  * - skillName: 生成側（postSkillRollButtons）と同じく `skillValue?.name || skillKey`。
  * - skillValue: extractSkillLevel の数値化（存在するがレベル解決不能 / NaN は 0）。
  */
-export function resolveSkillRoll(character: Character, skillKey: string): ResolvedSkillRoll | null {
+export function resolveSkillRoll(character: CharacterEntity, skillKey: string): ResolvedSkillRoll | null {
   const raw = character.skill?.[skillKey] as { name?: string } | undefined
   if (raw === undefined || raw === null) {
     return null

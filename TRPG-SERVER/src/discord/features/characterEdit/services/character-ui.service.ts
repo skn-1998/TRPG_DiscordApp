@@ -11,7 +11,7 @@ import {
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { SendMessageDto } from '../../../dto/send-message.dto'
 import { CreateChannelDto } from '../../../dto/create-channel.dto'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import {
   CHARACTER_EMBED_TITLE_KEYWORD,
   GuildInfo,
@@ -110,7 +110,7 @@ export class CharacterUIService {
    * キャラクター情報のEmbedを作成または更新
    */
   async createOrUpdateCharacterEmbed(
-    character: Character,
+    character: CharacterEntity,
     channelId: string,
     guildInfo: GuildInfo
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
@@ -196,7 +196,7 @@ export class CharacterUIService {
   /**
    * キャラクターEmbedの更新
    */
-  async updateCharacterEmbed(channelId: string, character: Character): Promise<void> {
+  async updateCharacterEmbed(channelId: string, character: CharacterEntity): Promise<void> {
     try {
       const client = this.discordClientService.getClient()
       if (!client) {
@@ -246,7 +246,7 @@ export class CharacterUIService {
    */
   async sendCharacterUpdateNotification(
     channelId: string,
-    character: Character,
+    character: CharacterEntity,
     updatedFields: string[],
     userId?: string
   ): Promise<void> {
@@ -313,7 +313,7 @@ export class CharacterUIService {
   /**
    * チャンネルのステータス表示更新
    */
-  async updateChannelStatusDisplay(channelId: string, character: Character): Promise<void> {
+  async updateChannelStatusDisplay(channelId: string, character: CharacterEntity): Promise<void> {
     // チャンネルトピックにステータス情報を設定
     try {
       const client = this.discordClientService.getClient()
@@ -407,7 +407,11 @@ export class CharacterUIService {
   /**
    * セレクトメニュー付きキャラクターEmbedの送信
    */
-  async sendCharacterEmbedWithSelectMenu(channelId: string, character: Character, _userId?: string): Promise<void> {
+  async sendCharacterEmbedWithSelectMenu(
+    channelId: string,
+    character: CharacterEntity,
+    _userId?: string
+  ): Promise<void> {
     try {
       const client = this.discordClientService.getClient()
       if (!client) {

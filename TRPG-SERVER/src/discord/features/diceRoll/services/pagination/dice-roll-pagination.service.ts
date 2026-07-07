@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { EmbedBuilder } from 'discord.js'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { DiceRollCharacterProviderService } from './dice-roll-character-provider.service'
 import { DiceRollPaginationStore, PaginatedDiceRoll } from './dice-roll-pagination.store'
@@ -267,7 +267,7 @@ export class DiceRollPaginationService {
 /**
  * ログ表示用にキャラクター名のみを解決する（タイトル文字列は付けない）。
  */
-function resolveTitleCharacterName(characterId: string, characters: Character[] | null): string {
+function resolveTitleCharacterName(characterId: string, characters: CharacterEntity[] | null): string {
   const character = characters?.find((c) => c.characterId === characterId)
   return character?.characterName || characterId
 }

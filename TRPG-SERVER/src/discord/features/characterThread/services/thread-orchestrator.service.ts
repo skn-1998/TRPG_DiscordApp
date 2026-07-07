@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { EventPayload } from '../../../../events/contracts'
 
@@ -91,7 +91,7 @@ export class ThreadOrchestratorService {
   /**
    * キャラクター表示更新
    */
-  async updateCharacterThreadDisplay(character: Character): Promise<void> {
+  async updateCharacterThreadDisplay(character: CharacterEntity): Promise<void> {
     try {
       if (!character.discordThreadId) {
         this.logger.warn(`No thread ID found for character: ${character.characterId}`)

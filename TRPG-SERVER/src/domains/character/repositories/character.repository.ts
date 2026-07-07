@@ -2,14 +2,15 @@ import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import { Repository } from 'src/core/interfaces/repository.interface'
-import { Character, CHARACTER_MODEL, CharacterDocument, UpdatePrimary } from '../models/character.model'
+import { CHARACTER_MODEL, CharacterDocument, UpdatePrimary } from '../models/character.model'
+import { CharacterEntity } from '../models/character.entity'
 import { CharacterSummaryDto } from '../dto/character-summary.dto'
 
 /**
  * キャラクターリポジトリの実装
  */
 @Injectable()
-export class CharacterRepository implements Repository<Character, string> {
+export class CharacterRepository implements Repository<CharacterEntity, string> {
   constructor(
     @InjectModel(CHARACTER_MODEL)
     private readonly characterModel: Model<CharacterDocument>
@@ -18,17 +19,19 @@ export class CharacterRepository implements Repository<Character, string> {
   /**
    * キャラクターを作成する
    * @param entity キャラクターデータ
+   * @returns plain object（E-6d: repository 境界で Document を露出しない）
    */
-  async create(entity: Partial<Character>): Promise<Character> {
+  async create(entity: Partial<CharacterEntity>): Promise<CharacterEntity> {
     const createdCharacter = new this.characterModel(entity)
-    return createdCharacter.save()
+    const saved = await createdCharacter.save()
+    return saved.toObject()
   }
 
   /**
    * IDによってキャラクターを検索する（インデックス最適化済み）
    * @param id キャラクターID
    */
-  async findById(id: string): Promise<Character | null> {
+  async findById(id: string): Promise<CharacterEntity | null> {
     return this.characterModel.findOne({ characterId: id }).lean().exec()
   }
 
@@ -36,7 +39,7 @@ export class CharacterRepository implements Repository<Character, string> {
    * キャラクター名で検索する（インデックス最適化済み）
    * @param name キャラクター名
    */
-  async findByName(name: string): Promise<Character | null> {
+  async findByName(name: string): Promise<CharacterEntity | null> {
     return this.characterModel
       .findOne({ characterName: name })
       .select('characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt')
@@ -48,7 +51,7 @@ export class CharacterRepository implements Repository<Character, string> {
    * ChannelIDによってキャラクターを検索する（インデックス最適化済み）
    * @param channelId DiscordチャンネルID
    */
-  async findByChannelId(channelId: string): Promise<Character | null> {
+  async findByChannelId(channelId: string): Promise<CharacterEntity | null> {
     // S-1: スレッド内のダイス/技能/能力ロールは channelId からキャラを引いて
     // status/skill/parameter/gameSystemId を再解決するため、projection に含める。
     return this.characterModel
@@ -64,16 +67,19 @@ export class CharacterRepository implements Repository<Character, string> {
    * 条件に一致するすべてのキャラクターを検索する
    * @param filter フィルター条件
    */
-  async findAll(filter?: Partial<Character>): Promise<Character[]> {
-    return this.characterModel.find(filter || {}).exec()
+  async findAll(filter?: Partial<CharacterEntity>): Promise<CharacterEntity[]> {
+    return this.characterModel
+      .find(filter || {})
+      .lean()
+      .exec()
   }
 
   /**
    * ユーザーが所有するすべてのキャラクターを検索する（更新日順）
    * @param discordUserId DiscordユーザーID
    */
-  async findByUserId(discordUserId: string): Promise<Character[]> {
-    return this.characterModel.find({ discordUserId }).sort({ updatedAt: -1 }).exec()
+  async findByUserId(discordUserId: string): Promise<CharacterEntity[]> {
+    return this.characterModel.find({ discordUserId }).sort({ updatedAt: -1 }).lean().exec()
   }
 
   /**
@@ -81,8 +87,8 @@ export class CharacterRepository implements Repository<Character, string> {
    * @param id キャラクターID
    * @param updateData 更新するデータ
    */
-  async update(id: string, updateData: Partial<Character>): Promise<Character | null> {
-    return this.characterModel.findOneAndUpdate({ characterId: id }, updateData, { new: true }).exec()
+  async update(id: string, updateData: Partial<CharacterEntity>): Promise<CharacterEntity | null> {
+    return this.characterModel.findOneAndUpdate({ characterId: id }, updateData, { new: true }).lean().exec()
   }
 
   /**
@@ -90,8 +96,11 @@ export class CharacterRepository implements Repository<Character, string> {
    * @param channelId DiscordチャンネルID
    * @param updateData 更新するデータ
    */
-  async updateByChannelId(channelId: string, updateData: Partial<Character>): Promise<Character | null> {
-    return this.characterModel.findOneAndUpdate({ discordChannelId: channelId }, updateData, { new: true }).exec()
+  async updateByChannelId(channelId: string, updateData: Partial<CharacterEntity>): Promise<CharacterEntity | null> {
+    return this.characterModel
+      .findOneAndUpdate({ discordChannelId: channelId }, updateData, { new: true })
+      .lean()
+      .exec()
   }
 
   /**
@@ -100,7 +109,7 @@ export class CharacterRepository implements Repository<Character, string> {
    * @param field 更新するフィールド
    * @param data 更新するデータ
    */
-  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<Character | null> {
+  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<CharacterEntity | null> {
     const updateData = { [field]: data }
     return this.update(id, updateData)
   }
@@ -115,7 +124,7 @@ export class CharacterRepository implements Repository<Character, string> {
     channelId: string,
     field: UpdatePrimary,
     data: Record<string, unknown>
-  ): Promise<Character | null> {
+  ): Promise<CharacterEntity | null> {
     const updateData = { [field]: data }
     return this.updateByChannelId(channelId, updateData)
   }
@@ -124,8 +133,8 @@ export class CharacterRepository implements Repository<Character, string> {
    * キャラクターを削除する
    * @param id キャラクターID
    */
-  async remove(id: string): Promise<Character | null> {
-    return this.characterModel.findOneAndDelete({ characterId: id }).exec()
+  async remove(id: string): Promise<CharacterEntity | null> {
+    return this.characterModel.findOneAndDelete({ characterId: id }).lean().exec()
   }
 
   /**

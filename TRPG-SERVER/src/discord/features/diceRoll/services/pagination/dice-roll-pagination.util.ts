@@ -1,5 +1,5 @@
 import { DiceRollText } from 'src/domains/dice-roll/models/dice-roll-text.model'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 
 /**
  * ページネーションに関する純粋関数群（副作用なし・discord.js 非依存）。
@@ -30,7 +30,7 @@ export function isSpecificCharacter(characterId?: string): boolean {
  * 特定キャラクター指定時はキャッシュからキャラクター名を引き、
  * 見つからなければ characterId をそのまま使う。
  */
-export function resolveHistoryTitle(characterId: string | undefined, characters: Character[] | null): string {
+export function resolveHistoryTitle(characterId: string | undefined, characters: CharacterEntity[] | null): string {
   if (!isSpecificCharacter(characterId)) {
     return DEFAULT_HISTORY_TITLE
   }

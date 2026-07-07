@@ -78,7 +78,7 @@ export class CharacterUpdateCompletedHandler
       this.logger.debug(`Updating character embed in channel: ${character.discordChannelId}`)
 
       try {
-        await this.characterUIService.updateCharacterEmbed(character.discordChannelId, character as any)
+        await this.characterUIService.updateCharacterEmbed(character.discordChannelId, character)
         this.logger.debug(`✅ Character embed updated successfully`)
       } catch (error) {
         this.logger.warn(`⚠️ Character embed update failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -88,10 +88,10 @@ export class CharacterUpdateCompletedHandler
 
     // 2. スレッドが存在する場合、Thread内のEmbedを更新
     if (character.discordThreadId) {
-      this.logger.debug(`Updating character thread display in thread: ${(character as any).discordThreadId}`)
+      this.logger.debug(`Updating character thread display in thread: ${character.discordThreadId}`)
 
       try {
-        await this.threadOrchestratorService.updateCharacterThreadDisplay(character as any)
+        await this.threadOrchestratorService.updateCharacterThreadDisplay(character)
         this.logger.debug(`✅ Character thread display updated successfully`)
       } catch (error) {
         this.logger.warn(

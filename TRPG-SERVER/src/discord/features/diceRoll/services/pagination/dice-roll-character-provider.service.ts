@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { Character } from 'src/domains/character/models/character.model'
+import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 
@@ -10,7 +10,7 @@ export class DiceRollCharacterProviderService {
     private readonly characterService: CharacterService
   ) {}
 
-  async findCharactersByChannelId(channelId: string): Promise<Character[]> {
+  async findCharactersByChannelId(channelId: string): Promise<CharacterEntity[]> {
     try {
       console.log(`[DiceRollCharacterProvider] キャラクター情報取得開始: ${channelId}`)
 
@@ -22,7 +22,7 @@ export class DiceRollCharacterProviderService {
 
       console.log(`[DiceRollCharacterProvider] キャラクターID取得: ${diceRollChannel.characterIds.length}件`)
 
-      const characters: Character[] = []
+      const characters: CharacterEntity[] = []
       for (const characterId of diceRollChannel.characterIds) {
         const character = await this.findCharacterById(characterId)
         if (character) {
@@ -38,7 +38,7 @@ export class DiceRollCharacterProviderService {
     }
   }
 
-  private async findCharacterById(characterId: string): Promise<Character | null> {
+  private async findCharacterById(characterId: string): Promise<CharacterEntity | null> {
     try {
       // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2b: イベント RPC 廃止）
       return await this.characterService.findOne(characterId)

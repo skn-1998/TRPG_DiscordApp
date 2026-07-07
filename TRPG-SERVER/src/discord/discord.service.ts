@@ -3,7 +3,7 @@ import { Client } from 'discord.js'
 import { DiscordFacadeService } from './discord-facade.service'
 import { SendMessageDto } from './dto/send-message.dto'
 import { CreateChannelDto } from './dto/create-channel.dto'
-import { Character } from '../domains/character/models/character.model'
+import { CharacterEntity } from '../domains/character/models/character.entity'
 
 // Legacy型定義（後方互換性のため保持）
 interface GuildInfo {
@@ -166,7 +166,7 @@ export class DiscordService {
   /**
    * @deprecated Character-specific functionality moved to features/characterEdit/ and features/characterThread/
    */
-  async createCharacterEmbed(_character: Character, _guildId: string): Promise<any> {
+  async createCharacterEmbed(_character: CharacterEntity, _guildId: string): Promise<any> {
     this.logger.error(
       'createCharacterEmbed is deprecated. Use features/characterThread/ or features/characterEdit/ instead.'
     )
@@ -176,7 +176,7 @@ export class DiscordService {
   /**
    * @deprecated Use features/characterThread/CharacterDisplayService instead
    */
-  async createOrUpdateCharacterEmbed(_character: Character, _channelId: string, _guildInfo?: any): Promise<any> {
+  async createOrUpdateCharacterEmbed(_character: CharacterEntity, _channelId: string, _guildInfo?: any): Promise<any> {
     this.logger.error(
       'createOrUpdateCharacterEmbed is deprecated. Use CharacterDisplayService in features/characterThread/ instead.'
     )

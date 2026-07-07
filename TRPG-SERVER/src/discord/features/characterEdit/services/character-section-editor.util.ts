@@ -12,7 +12,7 @@
 
 import { getDisplayNumber, AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 // P1-D slice1 Slice C: characterId 抽出の正規表現を feature-local 契約モジュールへ集約（byte-identical・非アンカーのまま）
 import {
   CHARACTER_EDIT_SECTION_PARSE_PATTERN,
@@ -45,7 +45,7 @@ type SectionFieldValue = unknown
  * 該当しないセクション（basic/back 等）は undefined。
  */
 export function getSectionData(
-  character: Character,
+  character: CharacterEntity,
   sectionType: EmbedSectionType
 ): Record<string, unknown> | undefined {
   switch (sectionType) {

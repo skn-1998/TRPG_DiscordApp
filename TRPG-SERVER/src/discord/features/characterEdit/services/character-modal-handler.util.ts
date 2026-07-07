@@ -5,7 +5,7 @@
  * discord.js / NestJS DI に依存せず、入力 → 出力の変換・解析・バリデーションのみを担う。
  * 副作用（reply/update・イベント発行・セッション取得）はサービス側に残す。
  */
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
 import { AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
 import { EmbedSectionType } from './character-embed-manager.service'
@@ -181,7 +181,7 @@ export function isValidAttributeValue(attributeValue: BuiltAttributeValue): bool
  * Character から指定セクションのデータを取得する（純粋）。
  */
 export function getSectionData(
-  character: Character,
+  character: CharacterEntity,
   sectionType: EmbedSectionType
 ): Record<string, unknown> | undefined {
   switch (sectionType) {

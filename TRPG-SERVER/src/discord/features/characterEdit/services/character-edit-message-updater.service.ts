@@ -8,7 +8,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonInteraction, TextChannel, Message, Collection, CacheType } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { messageHasCharacterEditButtons, MessageLike } from '../utils/enhanced-character-edit.util'
@@ -23,7 +23,7 @@ export class CharacterEditMessageUpdaterService {
    * 既存のcharacterEditEmbedを更新（refresh button用）
    */
   async updateExistingCharacterEditEmbed(
-    character: Character,
+    character: CharacterEntity,
     interaction: ButtonInteraction<CacheType>
   ): Promise<void> {
     try {

@@ -16,7 +16,7 @@ import {
   StringSelectMenuBuilder,
   MessageFlags
 } from 'discord.js'
-import { Character } from '../../../../domains/character/models/character.model'
+import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
@@ -116,7 +116,7 @@ export class CharacterSectionEditorService {
    */
   private async handleSectionSelection(
     interaction: StringSelectMenuInteraction,
-    character: Character,
+    character: CharacterEntity,
     sectionType: EmbedSectionType
   ): Promise<void> {
     // 「戻る」オプションの処理
@@ -158,7 +158,10 @@ export class CharacterSectionEditorService {
   /**
    * メインセクション選択画面を表示
    */
-  private async showMainSectionMenu(interaction: StringSelectMenuInteraction, character: Character): Promise<void> {
+  private async showMainSectionMenu(
+    interaction: StringSelectMenuInteraction,
+    character: CharacterEntity
+  ): Promise<void> {
     // 元の分割Embedに戻す
     const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
 
@@ -173,7 +176,7 @@ export class CharacterSectionEditorService {
    */
   private async handleFieldSelection(
     interaction: StringSelectMenuInteraction,
-    character: Character,
+    character: CharacterEntity,
     sectionType: EmbedSectionType,
     fieldKey: string
   ): Promise<void> {
@@ -291,22 +294,11 @@ export class CharacterSectionEditorService {
   /**
    * キャラクター情報を取得
    */
-  private async getCharacter(characterId: string): Promise<Character | null> {
+  private async getCharacter(characterId: string): Promise<CharacterEntity | null> {
     try {
       // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2b: イベント RPC 廃止）
-      const character = (await this.characterService.findOne(characterId)) as
-        | (Character & { toObject?: () => Character })
-        | null
-
-      if (character) {
-        // Mongooseドキュメントの場合は適切に変換
-        if (character.toObject) {
-          return character.toObject()
-        }
-        return character
-      }
-
-      return null
+      // E-6d: repository 境界で plain 化が保証されるため toObject ガードは不要
+      return await this.characterService.findOne(characterId)
     } catch (error) {
       this.logger.error(`Failed to get character: ${characterId}`, error)
       return null
