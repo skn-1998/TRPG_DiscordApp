@@ -14,6 +14,7 @@ import { TypedEventService } from '../../../../../core/events/typed-event.servic
  *  - modal.submitted の character.update.requested（レガシーバス行き／dead。実際の modal→更新は
  *    character-modal-handler.service が TypedEventService 経由で別途処理する）
  *  - error.occurred(severity=high) の system.error.occurred（レガシーバス行き／dead）
+ * E-3c で emit 元ゼロの dead listener（validation.completed / session.created）を撤去した。
  * 観測可能な挙動（TypedEventService 経由の発行・ログ）は不変であり、本テストはそれを引き続き保証する。
  */
 describe('CharacterEditFeatureHandler', () => {
@@ -42,12 +43,15 @@ describe('CharacterEditFeatureHandler', () => {
   })
 
   describe('onModuleInit / ハンドラ登録', () => {
-    it('characterEdit.* を TypedEventService に listen 登録する', () => {
+    it('live な characterEdit.* のみ TypedEventService に listen 登録する', () => {
+      expect(registered.has('characterEdit.modal.opened')).toBe(true)
       expect(registered.has('characterEdit.modal.submitted')).toBe(true)
       expect(registered.has('characterEdit.embed.refresh.requested')).toBe(true)
-      expect(registered.has('characterEdit.validation.completed')).toBe(true)
-      expect(registered.has('characterEdit.session.created')).toBe(true)
       expect(registered.has('characterEdit.error.occurred')).toBe(true)
+
+      // E-3c: emit 元ゼロの dead listener（バリデーション完了 / セッション作成）は撤去済みのため、
+      // 登録されるのは上記 live な 4 イベントのみ（全数チェックで再登録を防ぐ）
+      expect(typedEventService.on).toHaveBeenCalledTimes(4)
     })
   })
 
@@ -143,50 +147,6 @@ describe('CharacterEditFeatureHandler', () => {
           })
         })
       )
-    })
-  })
-
-  describe('characterEdit.validation.completed ハンドラ', () => {
-    it('検証成功時はイベントを発行しない', async () => {
-      // Arrange
-      const cb = registered.get('characterEdit.validation.completed')!
-      const event = {
-        type: 'characterEdit.validation.completed',
-        characterId: 'char-1',
-        userId: 'user-1',
-        timestamp: new Date(),
-        validation: { sectionType: 'status', fieldKey: 'hp', value: 10, isValid: true }
-      }
-
-      // Act
-      await cb(event)
-
-      // Assert
-      expect(typedEventService.emit).not.toHaveBeenCalled()
-    })
-
-    it('検証失敗時もイベントは発行しない（現状はログのみ）', async () => {
-      // Arrange
-      const cb = registered.get('characterEdit.validation.completed')!
-      const event = {
-        type: 'characterEdit.validation.completed',
-        characterId: 'char-1',
-        userId: 'user-1',
-        timestamp: new Date(),
-        validation: {
-          sectionType: 'status',
-          fieldKey: 'hp',
-          value: -1,
-          isValid: false,
-          errors: ['HPは0以上']
-        }
-      }
-
-      // Act
-      await cb(event)
-
-      // Assert
-      expect(typedEventService.emit).not.toHaveBeenCalled()
     })
   })
 

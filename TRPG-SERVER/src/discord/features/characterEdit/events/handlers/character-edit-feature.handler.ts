@@ -26,14 +26,8 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
     this.typedEventService.on('characterEdit.modal.opened', this.handleModalOpened.bind(this))
     this.typedEventService.on('characterEdit.modal.submitted', this.handleModalSubmitted.bind(this))
 
-    // Validation Events
-    this.typedEventService.on('characterEdit.validation.completed', this.handleValidationCompleted.bind(this))
-
     // Embed Events
     this.typedEventService.on('characterEdit.embed.refresh.requested', this.handleEmbedRefreshRequested.bind(this))
-
-    // Session Events
-    this.typedEventService.on('characterEdit.session.created', this.handleSessionCreated.bind(this))
 
     // Error Events
     this.typedEventService.on('characterEdit.error.occurred', this.handleFeatureError.bind(this))
@@ -88,27 +82,6 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
   }
 
   /**
-   * バリデーション完了イベントハンドラー
-   */
-  private async handleValidationCompleted(event: EventPayload<'characterEdit.validation.completed'>): Promise<void> {
-    const status = event.validation.isValid ? '✅' : '❌'
-    this.logger.debug(`${status} Validation Completed: ${event.validation.fieldKey}`)
-
-    try {
-      if (!event.validation.isValid) {
-        // バリデーション失敗時の処理
-        this.logger.warn(`Validation failed for ${event.validation.fieldKey}: ${event.validation.errors?.join(', ')}`)
-
-        // 必要に応じてユーザーへのフィードバック処理
-        // 例: Discord ephemeral messageの送信など
-      }
-    } catch (error) {
-      this.logger.error(`❌ Validation completed event processing failed`, error)
-      await this.emitFeatureError('VALIDATION_COMPLETED_HANDLER_ERROR', error, event)
-    }
-  }
-
-  /**
    * Embed更新リクエストイベントハンドラー
    */
   private async handleEmbedRefreshRequested(
@@ -132,23 +105,6 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
     } catch (error) {
       this.logger.error(`❌ Embed refresh requested event processing failed`, error)
       await this.emitFeatureError('EMBED_REFRESH_HANDLER_ERROR', error, event)
-    }
-  }
-
-  /**
-   * セッション作成イベントハンドラー
-   */
-  private async handleSessionCreated(event: EventPayload<'characterEdit.session.created'>): Promise<void> {
-    this.logger.debug(`🔐 Session Created: ${event.session.sessionId}`)
-
-    try {
-      // セッション管理処理
-      // 例: セッション有効期限の設定、クリーンアップスケジューリングなど
-
-      this.logger.debug(`Session ${event.session.sessionId} expires at ${event.session.expiresAt}`)
-    } catch (error) {
-      this.logger.error(`❌ Session created event processing failed`, error)
-      await this.emitFeatureError('SESSION_CREATED_HANDLER_ERROR', error, event)
     }
   }
 

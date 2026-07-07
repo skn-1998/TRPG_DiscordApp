@@ -250,7 +250,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   // handleSelectMenuInteraction
   // ==========================================================================
   describe('handleSelectMenuInteraction', () => {
-    it('section.selected を発行し sectionEditor へ委譲する', async () => {
+    it('sectionEditor へ委譲する（dead な section.selected emit は E-3c で撤去済み）', async () => {
       const interaction = createMockSelectMenuInteraction({
         customId: 'character-refresh-char-123',
         values: ['status-hp']
@@ -258,13 +258,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
 
       await service.handleSelectMenuInteraction(interaction)
 
-      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
-        'characterEdit.section.selected',
-        expect.objectContaining({
-          characterId: 'char-123',
-          section: expect.objectContaining({ sectionType: 'status', displayMode: 'edit' })
-        })
-      )
+      // E-3c: 恒常購読者ゼロだったセクション選択/フィールド選択イベントは emit しない
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
       expect(mockSectionEditor.execute).toHaveBeenCalledWith(interaction)
     })
 

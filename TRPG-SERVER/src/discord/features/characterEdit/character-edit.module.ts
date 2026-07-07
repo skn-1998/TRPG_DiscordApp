@@ -4,7 +4,6 @@ import { DiscordIntegrationModule } from '../../application/discord-integration.
 
 // Feature Events
 import { CharacterEditFeatureHandler } from './events/handlers/character-edit-feature.handler'
-import { CharacterEditCreationHandler } from './events/handlers/character-edit-creation.handler'
 
 // Modern Services (分離されたサービス群)
 import { ChannelDetectionService } from './services/channel-detection.service'
@@ -60,7 +59,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     // Feature Event Handlers
     // ============================================================================
     CharacterEditFeatureHandler,
-    CharacterEditCreationHandler,
 
     // ============================================================================
     // Modern Services (推奨) - Discord依存関係なし
@@ -101,7 +99,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     // Feature Event Handlers Export
     // ============================================================================
     CharacterEditFeatureHandler,
-    CharacterEditCreationHandler,
 
     // ============================================================================
     // Modern Services Export (新しいコードで使用)

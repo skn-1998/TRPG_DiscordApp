@@ -62,7 +62,6 @@ characterEdit/
 **Event Handlers**
 
 - `CharacterEditFeatureHandler`
-- `CharacterEditCreationHandler`
 
 **Modern Services**
 
