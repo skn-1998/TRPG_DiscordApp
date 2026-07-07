@@ -22,7 +22,8 @@
  */
 
 // Feature Event Contracts
-export * from './contracts/character-edit-events.contract'
+// 注: characterEdit.* の契約は E-4a で src/events/contracts/unified-event-contracts.ts へ正式契約化した。
+//     旧 character-edit-events.contract.ts（type フィールド付き・利用箇所ゼロの二重管理）は削除済み。
 
 // Feature Event Handlers
 export { CharacterEditFeatureHandler } from './handlers/character-edit-feature.handler'

@@ -22,7 +22,8 @@
 >     （`update.requested` / `findByChannelId/findById/findByName.requested` の 4 ハンドラは
 >     E-2 完了で emit 元ゼロの dead チェーンとなり **E-3a（2026-07-07）で削除済み**。
 >     あわせて `TypedEventEmitter` の request 系ヘルパ 7 本と、購読者ゼロの
->     `character.creation.failed` emit も撤去。contracts の型整理は E-4a で実施予定）。
+>     `character.creation.failed` emit も撤去。contracts の型整理は E-4a（2026-07-07）で完了、
+>     下の「契約の一本化と厳密型化」節を参照）。
 >   - 所有: events 層。`EventRegistryService`（`src/events/event-registry.service.ts`）が File-based で `TypedEventService` に**集中登録**する（各ハンドラが個別に自己購読するのではなく registry が一括で配線）。
 >   - 呼び先: domain の `CharacterService` 等（**events→domains＝許可方向**）。
 > - **経路B: discord 層（Discord UI 更新）** — _ハンドラ自己購読_
@@ -44,12 +45,34 @@
 > - リファクタ時は挙動を変えず、動作保証テスト（`src/discord/events/handlers/*.spec.ts` 等）を緑に保つこと。
 > - **`waitForEvent` による request-response（クエリ RPC）を production コードで新規に書かない**（correlationId 無しの混線・タイムアウト・リスナー残存の構造問題あり。クエリは domain service の DI 直呼びで行う）。
 >
+> ### 契約の一本化と厳密型化（E-4a・2026-07-07 完了）
+>
+> - **契約の唯一の定義源は `src/events/contracts/unified-event-contracts.ts`**。live なタイプドバスイベント
+>   **11 種のみ**を定義（character.creation.requested/completed・character.update.completed・
+>   discord.thread.create.requested・discord.character.display.requested・discord.embed.update.requested・
+>   discord.notification.requested・characterEdit.modal.opened/modal.submitted/embed.refresh.requested/error.occurred）。
+>   dead エントリ（findBy\*・update/creation.failed・deletion・character.updated/deleted・discord.channel.\*・
+>   system.\* 等）はすべて削除した。
+> - `contracts/index.ts` は**互換 barrel**（`AppEventContracts = EventMap` の alias と TypedEventHandler/Listener のみ）。
+>   **`EventName = keyof EventMap` の厳密型**になり、`EventName = string` 弱型・`[eventName: string]: any`
+>   フォールバック・`EventPayload` の `: any` フォールバックは廃止（契約外イベントの emit/on はコンパイルエラー）。
+> - payload 型は**実 emit サイトと購読側の参照フィールドに一致**させた（旧契約の `type` フィールドや
+>   `CharacterUpdateCompletedEvent` の characterId/changes 必須などの過剰要求は実態へ縮小。
+>   `character` フィールドは domain の `Character` モデルを `import type` で参照）。
+> - **`EVENT_NAMES` は live 11 種を完備**（`satisfies Record<string, EventName>` で契約と同期保証。E-4b の前提）。
+> - レガシー契約 3 ファイル（character-events / discord-events / system-events.contract.ts）と、
+>   feature 側の二重管理だった `characterEdit/events/contracts/character-edit-events.contract.ts`（利用箇所ゼロ）を削除。
+> - spec の契約外イベント名（test.event.\* や「廃止イベントを emit しない」検証用の character.updated 等）は
+>   `as any` キャストで残置する運用（新規の仕組みは作らない）。
+>
 > ### ⚠️ 既知の構造問題と是正計画（2026-07-06 診断）
 >
 > 2026-07-06 の設計評価で、①イベント RPC（`waitForEvent`）の順序バグ 2 箇所（必ずタイムアウト）と混線・リーク、
 > ② `EventEmitterModule.forRoot()` と `'TYPED_EVENT_EMITTER'` の**バス 2 インスタンス残存**（素バスへの
 > `discord.interaction.start/processed` emit は購読者ゼロ）、③ dead contracts 10+ 件、④契約の二重管理
 > （unified-event-contracts.ts vs AppEventContracts・EVENT_NAMES 不完備）を確認した。
+> ①は E-2（2026-07-07 完了）、③④は E-3（2026-07-07 完了）と E-4a（2026-07-07 完了・上記）で解消済み。
+> 残るは ②バス 1 インスタンス化（E-4c）と EVENT_NAMES の利用側徹底（E-4b）。
 > **是正計画は `docs/refactor/refactor-event-design-plan-2026-07-06.md`（E-1〜E-6）**、診断の裏取りは
 > `AI.refactor.md`『2026-07-06 設計評価』節を正とする。
 

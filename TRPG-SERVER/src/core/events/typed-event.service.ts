@@ -205,11 +205,15 @@ export class TypedEventService {
     }
 
     // 共通フィールドのバリデーション
-    if ('source' in payload && typeof payload.source !== 'string') {
+    // 注: EventPayload<T> は generic な indexed access 型のためプロパティ有無を直接絞り込めない。
+    //     ランタイム検証用に Record として読む（挙動は従来と同一）。
+    const record = payload as unknown as Record<string, unknown>
+
+    if ('source' in record && typeof record.source !== 'string') {
       throw new Error(`[TYPED-EVENT] Source must be a string for event: ${event}`)
     }
 
-    if ('timestamp' in payload && !(payload.timestamp instanceof Date)) {
+    if ('timestamp' in record && !(record.timestamp instanceof Date)) {
       throw new Error(`[TYPED-EVENT] Timestamp must be a Date for event: ${event}`)
     }
   }

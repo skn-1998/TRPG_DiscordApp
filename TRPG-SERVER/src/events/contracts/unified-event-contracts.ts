@@ -1,25 +1,25 @@
 /**
- * 統一イベント契約定義
+ * 統一イベント契約定義（唯一の定義源 / Single Source of Truth）
  *
  * 🎯 責務:
- * - 全イベントの型定義一元管理
- * - TypeScript型安全性の保証
- * - イベント契約のSingle Source of Truth
+ * - live なタイプドバスイベント（11 種）の payload 型定義
+ * - イベント名 → payload の map 型（EventMap）と厳密な EventName 型の提供
+ * - EVENT_NAMES 定数（イベント名の単一ソース）の提供
+ *
+ * 📏 方針（E-4a: 2026-07-07）:
+ * - 契約は「実際の emit サイトの payload」と「購読側が参照するフィールド」に一致させる。
+ *   emit されない dead イベント・過剰な必須フィールドはここに置かない。
+ * - 新イベントを追加するときは、payload 型 → EventMap エントリ → EVENT_NAMES の 3 点を揃えること。
  */
 
-/**
- * 基本イベント構造
- */
-export interface BaseEvent {
-  timestamp: Date
-  source: string
-  correlationId?: string
-  userId?: string
-  sessionId?: string
-}
+import type { Character } from '../../domains/character/models/character.model'
+
+// ============================================================================
+// 共通サポート型
+// ============================================================================
 
 /**
- * Requester情報（共通）
+ * Requester情報（character.creation.requested の要求元 feature 情報）
  */
 export interface EventRequester {
   featureId: FeatureId
@@ -39,12 +39,13 @@ export interface RequesterContext {
 export type FeatureId = 'characterEdit' | 'characterThread' | 'gameSystem' | 'diceRoll' | 'discord'
 
 /**
- * キャラクター作成データ（統一型）
+ * キャラクター作成データ（character.creation.requested の createData。
+ * domains の CharacterCreationCoreService.createValidated 入力と構造互換）
  */
 export interface CharacterCreationData {
   characterId?: string
   characterName: string
-  gameSystemId?: string // オプショナルに変更
+  gameSystemId?: string
   discordChannelId?: string
   discordUserId?: string
   threadId?: string
@@ -58,400 +59,262 @@ export interface CharacterCreationData {
   updatedAt?: Date
 }
 
-/**
- * キャラクター更新データ
- */
-export interface CharacterUpdateData {
-  characterName?: string
-  status?: Record<string, any>
-  parameter?: Record<string, any>
-  skill?: Record<string, any>
-  item?: Record<string, any>
-  description?: Record<string, any>
-  profileImageUrl?: string
-  updatedAt?: Date
-}
+/** characterEdit.* イベントで使うセクション種別 */
+export type CharacterEditSectionType = 'status' | 'parameter' | 'skill' | 'item' | 'basic'
 
-/**
- * キャラクターモデル（統一型）
- */
-export interface Character {
-  characterId: string
-  characterName: string
-  gameSystemId: string
-  discordChannelId?: string
-  discordUserId?: string
-  discordThreadId?: string
-  threadId?: string
-  status: Record<string, any>
-  parameter: Record<string, any>
-  skill: Record<string, any>
-  item: Record<string, any>
-  description?: Record<string, any>
-  profileImageUrl?: string
-  createdAt: Date
-  updatedAt: Date
-}
-
-/**
- * Discord チャンネル作成データ
- */
-export interface DiscordChannelCreateData {
-  name: string
-  type?: 'text' | 'voice' | 'category' | 'forum' | 'thread'
-  parentId?: string
-  topic?: string
-  nsfw?: boolean
-  position?: number
-  permissionOverwrites?: any[]
-  rateLimitPerUser?: number
-  autoArchiveDuration?: number
-  reason?: string
-}
-
-/**
- * エラー情報
- */
-export interface EventError {
-  code: string
-  message: string
-  details?: any
-  stack?: string
-  timestamp: Date
-}
-
-// ===== Character Events =====
+// ============================================================================
+// Character Events（作成・更新）
+// ============================================================================
 
 /**
  * キャラクター作成リクエスト
+ * emit: channel-create-orchestrator.service / character-creation.service
+ * on:   events/handlers/character.creation.requested（EventRegistryService 経由）
  */
-export interface CharacterCreationRequestedEvent extends BaseEvent {
-  type: 'character.creation.requested'
+export interface CharacterCreationRequestedEvent {
   characterId?: string
   createData: CharacterCreationData
   requester?: EventRequester
+  userId?: string
+  source: string
+  timestamp: Date
 }
 
 /**
  * キャラクター作成完了
+ * emit: character.creation.requested handler（emitSuccessEvent）/ character-embed-manager.service
+ * on:   discord/events/handlers/character.creation.completed
  */
-export interface CharacterCreationCompletedEvent extends BaseEvent {
-  type: 'character.creation.completed'
-  characterId: string
+export interface CharacterCreationCompletedEvent {
   character: Character
-}
-
-/**
- * キャラクター作成失敗
- */
-export interface CharacterCreationFailedEvent extends BaseEvent {
-  type: 'character.creation.failed'
-  createData: CharacterCreationData
-  error: EventError
-}
-
-/**
- * キャラクター更新リクエスト
- */
-export interface CharacterUpdateRequestedEvent extends BaseEvent {
-  type: 'character.update.requested'
-  characterId?: string
-  channelId?: string
-  updateData: CharacterUpdateData
+  source: string
+  timestamp: Date
 }
 
 /**
  * キャラクター更新完了
+ * emit: character-modal-handler.service（{channelId, character, source, timestamp}）
+ * on:   discord/events/handlers/character.update.completed
+ * 注: 旧契約の type/characterId/changes 必須は実 payload と不一致だったため実態へ修正（E-4a）
  */
-export interface CharacterUpdateCompletedEvent extends BaseEvent {
-  type: 'character.update.completed'
-  characterId: string
+export interface CharacterUpdateCompletedEvent {
+  channelId: string
   character: Character
-  changes: Array<{
-    field: string
-    oldValue: any
-    newValue: any
-  }>
+  source: string
+  timestamp: Date
 }
 
-/**
- * キャラクター更新失敗
- */
-export interface CharacterUpdateFailedEvent extends BaseEvent {
-  type: 'character.update.failed'
-  characterId?: string
-  channelId?: string
-  updateData: CharacterUpdateData
-  error: EventError
-}
+// ============================================================================
+// Discord Events
+// ============================================================================
 
 /**
- * キャラクター削除要求
+ * Discordスレッド作成リクエスト
+ * emit: domains/character/character.controller / discord/events/handlers/character.creation.completed /
+ *       characterThread/services/character-thread-select.service
+ * on:   discord/events/handlers/discord.thread.create.requested
  */
-export interface CharacterDeletionRequestedEvent extends BaseEvent {
-  type: 'character.deletion.requested'
-  characterId: string
-  userId: string
-  reason?: string
-  source: 'discord' | 'web' | 'api'
-}
-
-/**
- * キャラクター削除完了
- */
-export interface CharacterDeletionCompletedEvent extends BaseEvent {
-  type: 'character.deletion.completed'
-  characterId: string
-  deletedCharacterData: {
-    characterName: string
-    discordChannelId?: string
-    discordUserId?: string
-  }
-}
-
-/**
- * キャラクター削除失敗
- */
-export interface CharacterDeletionFailedEvent extends BaseEvent {
-  type: 'character.deletion.failed'
-  characterId: string
-  userId: string
-  reason?: string
-  error: EventError
-}
-
-/**
- * キャラクター検索リクエスト（チャンネルID）
- */
-export interface CharacterFindByChannelIdRequestedEvent extends BaseEvent {
-  type: 'character.findByChannelId.requested'
+export interface DiscordThreadCreateRequestedEvent {
+  character: Character
   channelId: string
-}
-
-/**
- * キャラクター検索完了（チャンネルID）
- */
-export interface CharacterFindByChannelIdCompletedEvent extends BaseEvent {
-  type: 'character.findByChannelId.completed'
-  channelId: string
-  character: Character | null
-}
-
-/**
- * キャラクター検索失敗（チャンネルID）
- */
-export interface CharacterFindByChannelIdFailedEvent extends BaseEvent {
-  type: 'character.findByChannelId.failed'
-  channelId: string
-  error: EventError
-}
-
-/**
- * キャラクター検索リクエスト（ID）
- */
-export interface CharacterFindByIdRequestedEvent extends BaseEvent {
-  type: 'character.findById.requested'
-  characterId: string
-}
-
-/**
- * キャラクター検索完了（ID）
- */
-export interface CharacterFindByIdCompletedEvent extends BaseEvent {
-  type: 'character.findById.completed'
-  characterId: string
-  character: Character | null
-}
-
-/**
- * キャラクター検索失敗（ID）
- */
-export interface CharacterFindByIdFailedEvent extends BaseEvent {
-  type: 'character.findById.failed'
-  characterId: string
-  error: EventError
-}
-
-/**
- * キャラクター名検索リクエスト
- */
-export interface CharacterFindByNameRequestedEvent extends BaseEvent {
-  type: 'character.findByName.requested'
-  characterName: string
-}
-
-/**
- * キャラクター名検索完了
- */
-export interface CharacterFindByNameCompletedEvent extends BaseEvent {
-  type: 'character.findByName.completed'
-  characterName: string
-  character: Character | null
-}
-
-/**
- * キャラクター名検索失敗
- */
-export interface CharacterFindByNameFailedEvent extends BaseEvent {
-  type: 'character.findByName.failed'
-  characterName: string
-  error: string
-}
-
-// ===== Discord Events =====
-
-/**
- * Discordチャンネル作成リクエスト
- */
-export interface DiscordChannelCreateRequestedEvent extends BaseEvent {
-  type: 'discord.channel.create.requested'
   guildId: string
-  channelData: DiscordChannelCreateData
-  context?: {
-    characterId?: string
-    purpose?: string
-    requesterId?: string
-  }
-}
-
-/**
- * Discordチャンネル作成完了
- */
-export interface DiscordChannelCreateCompletedEvent extends BaseEvent {
-  type: 'discord.channel.create.completed'
-  guildId: string
-  channelId: string
-  channel: {
-    id: string
-    name: string
-    type: string
-    parentId?: string
-    position?: number
-  }
-  context?: any
-}
-
-/**
- * Discordチャンネル作成失敗
- */
-export interface DiscordChannelCreateFailedEvent extends BaseEvent {
-  type: 'discord.channel.create.failed'
-  guildId: string
-  channelData: DiscordChannelCreateData
-  error: EventError
-  context?: any
+  creatorId: string
+  displayType?: 'basic' | 'enhanced' | 'compact'
+  source: string
+  timestamp: Date
 }
 
 /**
  * Discordキャラクター表示リクエスト
+ * emit: domains/character/character.controller / discord/events/handlers/character.creation.completed
+ * on:   characterThread/services/character-display-handler.service / character-display.service
+ *       （E-3d でゴースト化済みだが購読は live。解体は E-5/E-6）
  */
-export interface DiscordCharacterDisplayRequestedEvent extends BaseEvent {
-  type: 'discord.character.display.requested'
+export interface DiscordCharacterDisplayRequestedEvent {
   character: Character
   channelId: string
   guildId: string
   requesterId: string
-  displayType: 'basic' | 'enhanced' | 'summary'
-}
-
-// ===== System Events =====
-
-/**
- * イベント処理失敗
- */
-export interface EventProcessingFailedEvent extends BaseEvent {
-  type: 'event.processing.failed'
-  eventName: string
-  handlerName: string
-  correlationId: string
-  error: string
-  originalEvent: any
+  displayType?: 'basic' | 'enhanced' | 'compact'
+  source: string
+  timestamp: Date
 }
 
 /**
- * デッドレターキュー
+ * Discord Embed 更新リクエスト
+ * emit: discord/events/handlers/character.creation.completed / characterEdit/events/handlers/character-edit-feature.handler
+ * on:   events/handlers/discord-integration.handler（ログ記録のみ）
  */
-export interface EventDeadLetterEvent extends BaseEvent {
-  type: 'event.dead.letter'
-  eventName: string
-  handlerName: string
-  correlationId: string
-  originalEvent: any
-  finalError: string
-  retryCount: number
+export interface DiscordEmbedUpdateRequestedEvent {
+  timestamp: Date
+  source: 'discord' | 'system'
+  channelId?: string
+  embedData: {
+    channelId: string
+    characterId: string
+    embedType: 'character' | 'status' | 'enhanced' | 'parameter' | 'compact'
+    updateMode: 'create' | 'update' | 'refresh'
+  }
 }
 
 /**
- * 全イベント型の統合
+ * Discord 通知リクエスト
+ * emit: discord/events/handlers/character.creation.completed
+ * on:   events/handlers/discord-integration.handler（ログ記録のみ）
  */
-export type UnifiedEvent =
-  // Character Events
-  | CharacterCreationRequestedEvent
-  | CharacterCreationCompletedEvent
-  | CharacterCreationFailedEvent
-  | CharacterUpdateRequestedEvent
-  | CharacterUpdateCompletedEvent
-  | CharacterUpdateFailedEvent
-  | CharacterDeletionRequestedEvent
-  | CharacterDeletionCompletedEvent
-  | CharacterDeletionFailedEvent
-  | CharacterFindByChannelIdRequestedEvent
-  | CharacterFindByChannelIdCompletedEvent
-  | CharacterFindByChannelIdFailedEvent
-  | CharacterFindByIdRequestedEvent
-  | CharacterFindByIdCompletedEvent
-  | CharacterFindByIdFailedEvent
-  | CharacterFindByNameRequestedEvent
-  | CharacterFindByNameCompletedEvent
-  | CharacterFindByNameFailedEvent
-  // Discord Events
-  | DiscordChannelCreateRequestedEvent
-  | DiscordChannelCreateCompletedEvent
-  | DiscordChannelCreateFailedEvent
-  | DiscordCharacterDisplayRequestedEvent
-  // System Events
-  | EventProcessingFailedEvent
-  | EventDeadLetterEvent
+export interface DiscordNotificationRequestedEvent {
+  timestamp: Date
+  source: 'discord' | 'system'
+  channelId?: string
+  notification: {
+    type: 'character.created' | 'character.updated' | 'character.deleted' | 'system.alert'
+    channelId: string
+    title: string
+    message: string
+    color?: number
+    characterId?: string
+  }
+}
+
+// ============================================================================
+// CharacterEdit Feature Events（E-4a で正式契約化）
+// ============================================================================
 
 /**
- * イベント名からイベント型へのマッピング
+ * characterEdit モーダル表示
+ * emit: characterEdit/services/character-edit-event-emitter.service
+ * on:   characterEdit/events/handlers/character-edit-feature.handler
  */
+export interface CharacterEditModalOpenedEvent {
+  characterId: string
+  userId?: string
+  sessionId?: string
+  timestamp: Date
+  modal: {
+    sectionType: CharacterEditSectionType
+    fieldKey: string
+    currentValue?: any
+  }
+}
+
+/**
+ * characterEdit モーダル送信
+ * emit: characterEdit/services/character-edit-event-emitter.service
+ * on:   characterEdit/events/handlers/character-edit-feature.handler
+ */
+export interface CharacterEditModalSubmittedEvent {
+  characterId: string
+  userId?: string
+  sessionId?: string
+  timestamp: Date
+  modal: {
+    sectionType: CharacterEditSectionType
+    fieldKey: string
+    newValue: any
+    oldValue?: any
+  }
+}
+
+/**
+ * characterEdit Embed 更新リクエスト
+ * emit: characterEdit/services/character-edit-event-emitter.service / character-edit-feature.handler（modal.submitted 連鎖）
+ * on:   characterEdit/events/handlers/character-edit-feature.handler
+ */
+export interface CharacterEditEmbedRefreshRequestedEvent {
+  characterId: string
+  userId?: string
+  sessionId?: string
+  timestamp: Date
+  embed: {
+    channelId: string
+    embedType: 'enhanced' | 'compact' | 'status' | 'parameter'
+    section?: CharacterEditSectionType
+  }
+}
+
+/**
+ * characterEdit エラー発生
+ * emit: characterEdit/services/character-edit-event-emitter.service / character-edit-feature.handler（emitFeatureError）
+ * on:   characterEdit/events/handlers/character-edit-feature.handler（ログ記録のみ）
+ */
+export interface CharacterEditErrorOccurredEvent {
+  characterId: string
+  userId?: string
+  sessionId?: string
+  timestamp: Date
+  error: {
+    code: string
+    message: string
+    operation?: string
+    details?: any
+    severity?: 'low' | 'medium' | 'high'
+  }
+}
+
+// ============================================================================
+// イベント名 → payload の map 型（live 11 種のみ）
+// ============================================================================
+
 export type EventMap = {
   // Character Events
   'character.creation.requested': CharacterCreationRequestedEvent
   'character.creation.completed': CharacterCreationCompletedEvent
-  'character.creation.failed': CharacterCreationFailedEvent
-  'character.update.requested': CharacterUpdateRequestedEvent
   'character.update.completed': CharacterUpdateCompletedEvent
-  'character.update.failed': CharacterUpdateFailedEvent
-  'character.deletion.requested': CharacterDeletionRequestedEvent
-  'character.deletion.completed': CharacterDeletionCompletedEvent
-  'character.deletion.failed': CharacterDeletionFailedEvent
-  'character.findByChannelId.requested': CharacterFindByChannelIdRequestedEvent
-  'character.findByChannelId.completed': CharacterFindByChannelIdCompletedEvent
-  'character.findByChannelId.failed': CharacterFindByChannelIdFailedEvent
-  'character.findById.requested': CharacterFindByIdRequestedEvent
-  'character.findById.completed': CharacterFindByIdCompletedEvent
-  'character.findById.failed': CharacterFindByIdFailedEvent
-  'character.findByName.requested': CharacterFindByNameRequestedEvent
-  'character.findByName.completed': CharacterFindByNameCompletedEvent
-  'character.findByName.failed': CharacterFindByNameFailedEvent
   // Discord Events
-  'discord.channel.create.requested': DiscordChannelCreateRequestedEvent
-  'discord.channel.create.completed': DiscordChannelCreateCompletedEvent
-  'discord.channel.create.failed': DiscordChannelCreateFailedEvent
+  'discord.thread.create.requested': DiscordThreadCreateRequestedEvent
   'discord.character.display.requested': DiscordCharacterDisplayRequestedEvent
-  // System Events
-  'event.processing.failed': EventProcessingFailedEvent
-  'event.dead.letter': EventDeadLetterEvent
+  'discord.embed.update.requested': DiscordEmbedUpdateRequestedEvent
+  'discord.notification.requested': DiscordNotificationRequestedEvent
+  // CharacterEdit Feature Events
+  'characterEdit.modal.opened': CharacterEditModalOpenedEvent
+  'characterEdit.modal.submitted': CharacterEditModalSubmittedEvent
+  'characterEdit.embed.refresh.requested': CharacterEditEmbedRefreshRequestedEvent
+  'characterEdit.error.occurred': CharacterEditErrorOccurredEvent
 }
 
 /**
- * イベント名の型
+ * イベント名の厳密型（EventMap に存在するイベント名のみ許可）
  */
 export type EventName = keyof EventMap
 
 /**
- * 特定のイベント名に対応するイベント型を取得
+ * 特定のイベント名に対応する payload 型を取得
+ */
+export type EventPayload<T extends EventName> = EventMap[T]
+
+/**
+ * 旧名互換 alias（unified-event-contracts の従来 API）
  */
 export type GetEventType<T extends EventName> = EventMap[T]
+
+// ============================================================================
+// Event Name Constants（イベント名の単一ソース・live 11 種完備）
+// ============================================================================
+
+/**
+ * イベント名定数。emit / on の第1引数に渡す文字列をここに集約し、直書き（magic string）を排除する。
+ * ARCHITECTURE §9（feature event 名の直書きを避ける）/ §15（event name の文字列直書き追加を禁止）に対応。
+ *
+ * `satisfies Record<string, EventName>` により、契約に存在しないイベント名を
+ * 登録しようとするとコンパイルエラーになる（タイポ防止・契約との同期保証）。
+ */
+export const EVENT_NAMES = {
+  // Character Events
+  CHARACTER_CREATION_REQUESTED: 'character.creation.requested',
+  CHARACTER_CREATION_COMPLETED: 'character.creation.completed',
+  CHARACTER_UPDATE_COMPLETED: 'character.update.completed',
+
+  // Discord Events
+  DISCORD_THREAD_CREATE_REQUESTED: 'discord.thread.create.requested',
+  DISCORD_CHARACTER_DISPLAY_REQUESTED: 'discord.character.display.requested',
+  DISCORD_EMBED_UPDATE_REQUESTED: 'discord.embed.update.requested',
+  DISCORD_NOTIFICATION_REQUESTED: 'discord.notification.requested',
+
+  // CharacterEdit Feature Events
+  CHARACTER_EDIT_MODAL_OPENED: 'characterEdit.modal.opened',
+  CHARACTER_EDIT_MODAL_SUBMITTED: 'characterEdit.modal.submitted',
+  CHARACTER_EDIT_EMBED_REFRESH_REQUESTED: 'characterEdit.embed.refresh.requested',
+  CHARACTER_EDIT_ERROR_OCCURRED: 'characterEdit.error.occurred'
+} as const satisfies Record<string, EventName>
+
+export type EventNameConstant = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES]

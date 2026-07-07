@@ -39,8 +39,9 @@ export class DiscordThreadCreateRequestedHandler
 
   /**
    * イベント名の取得（必須実装）
+   * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
-  getEventName(): string {
+  getEventName(): 'discord.thread.create.requested' {
     return 'discord.thread.create.requested'
   }
 

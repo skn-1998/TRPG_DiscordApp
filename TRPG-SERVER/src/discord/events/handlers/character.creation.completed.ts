@@ -46,8 +46,9 @@ export class CharacterCreationCompletedHandler
 
   /**
    * 処理するイベント名
+   * 注: 契約リテラル型で返す（TypedEventService.on の厳密 EventName 型に適合させるため）
    */
-  getEventName(): string {
+  getEventName(): 'character.creation.completed' {
     return 'character.creation.completed'
   }
 

@@ -24,15 +24,11 @@ describe('CharacterUpdateCompletedHandler', () => {
   let threadOrchestratorService: jest.Mocked<Pick<ThreadOrchestratorService, 'updateCharacterThreadDisplay'>>
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'on'>>
 
-  // 最小スタブ。character は as any で Character へ通す。updatedFields は
-  // 契約型に無いが実装が (event as any).updatedFields で参照するため付与する。
-  function buildEvent(
-    characterOverrides: Record<string, unknown> = {},
-    updatedFields?: string[]
-  ): CharacterUpdateCompletedEvent {
+  // 最小スタブ。character は as any で Character へ通す。
+  // E-4a: 契約は {channelId, character, source, timestamp}（実 emit と一致）。契約外 updatedFields は撤去済み。
+  function buildEvent(characterOverrides: Record<string, unknown> = {}): CharacterUpdateCompletedEvent {
     return {
-      type: 'character.update.completed',
-      characterId: 'char-1',
+      channelId: 'ch-1',
       character: {
         characterName: 'アリス',
         characterId: 'char-1',
@@ -41,7 +37,8 @@ describe('CharacterUpdateCompletedHandler', () => {
         discordUserId: 'user-1',
         ...characterOverrides
       },
-      updatedFields
+      source: 'test',
+      timestamp: new Date()
     } as unknown as CharacterUpdateCompletedEvent
   }
 
@@ -138,9 +135,9 @@ describe('CharacterUpdateCompletedHandler', () => {
   })
 
   describe('handle', () => {
-    it('channelId / threadId / status 更新ありで全 UI 更新を呼び出し、正常完了する', async () => {
+    it('channelId / threadId ありで embed とスレッド表示を更新し、正常完了する', async () => {
       // Arrange
-      const event = buildEvent({}, ['status'])
+      const event = buildEvent()
 
       // Act
       await handler.handle(event)
@@ -148,12 +145,13 @@ describe('CharacterUpdateCompletedHandler', () => {
       // Assert
       expect(characterUIService.updateCharacterEmbed).toHaveBeenCalledWith('ch-1', event.character)
       expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
-      expect(characterUIService.updateChannelStatusDisplay).toHaveBeenCalledWith('ch-1', event.character)
+      // E-4a: 契約外 updatedFields 依存のステータス表示分岐は撤去済み＝呼ばれないことを固定
+      expect(characterUIService.updateChannelStatusDisplay).not.toHaveBeenCalled()
     })
 
-    it('discordChannelId 無しのときは embed・status 更新を呼ばない', async () => {
-      // Arrange: channelId 無し、threadId のみ。status を含めても channelId 無しなら status 更新は呼ばれない
-      const event = buildEvent({ discordChannelId: undefined }, ['status'])
+    it('discordChannelId 無しのときは embed 更新を呼ばない', async () => {
+      // Arrange: channelId 無し、threadId のみ
+      const event = buildEvent({ discordChannelId: undefined })
 
       // Act
       await handler.handle(event)
@@ -178,43 +176,21 @@ describe('CharacterUpdateCompletedHandler', () => {
       expect(characterUIService.updateCharacterEmbed).toHaveBeenCalledWith('ch-1', event.character)
     })
 
-    it("updatedFields に 'status' を含まないときはステータス表示更新を呼ばない", async () => {
-      // Arrange: channelId はあるが updatedFields に status 無し
-      const event = buildEvent({}, ['characterName'])
-
-      // Act
-      await handler.handle(event)
-
-      // Assert
-      expect(characterUIService.updateChannelStatusDisplay).not.toHaveBeenCalled()
-    })
-
     it('embed 更新が失敗しても握り潰して後続処理を続行する', async () => {
       // Arrange
       characterUIService.updateCharacterEmbed.mockRejectedValue(new Error('embed boom'))
-      const event = buildEvent({}, ['status'])
+      const event = buildEvent()
 
       // Act & Assert: 再スローされない
       await expect(handler.handle(event)).resolves.toBeUndefined()
-      // 後続のスレッド更新・status 更新は実行される
+      // 後続のスレッド更新は実行される
       expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
-      expect(characterUIService.updateChannelStatusDisplay).toHaveBeenCalledWith('ch-1', event.character)
     })
 
-    it('スレッド表示更新が失敗しても握り潰して後続処理を続行する', async () => {
+    it('スレッド表示更新が失敗しても握り潰して正常終了する', async () => {
       // Arrange
       threadOrchestratorService.updateCharacterThreadDisplay.mockRejectedValue(new Error('thread boom'))
-      const event = buildEvent({}, ['status'])
-
-      // Act & Assert
-      await expect(handler.handle(event)).resolves.toBeUndefined()
-      expect(characterUIService.updateChannelStatusDisplay).toHaveBeenCalledWith('ch-1', event.character)
-    })
-
-    it('ステータス表示更新が失敗しても握り潰して正常終了する', async () => {
-      // Arrange
-      characterUIService.updateChannelStatusDisplay.mockRejectedValue(new Error('status boom'))
-      const event = buildEvent({}, ['status'])
+      const event = buildEvent()
 
       // Act & Assert
       await expect(handler.handle(event)).resolves.toBeUndefined()
@@ -234,31 +210,6 @@ describe('CharacterUpdateCompletedHandler', () => {
     })
   })
 
-  describe('shouldNotifyUpdate', () => {
-    const callShouldNotify = (updatedFields?: string[]): boolean =>
-      (handler as unknown as { shouldNotifyUpdate(f?: string[]): boolean }).shouldNotifyUpdate(updatedFields)
-
-    it('updatedFields が undefined のとき false を返す', () => {
-      // Act & Assert
-      expect(callShouldNotify(undefined)).toBe(false)
-    })
-
-    it('updatedFields が空配列のとき false を返す', () => {
-      // Act & Assert
-      expect(callShouldNotify([])).toBe(false)
-    })
-
-    it.each(['characterName', 'status', 'level', 'hp', 'mp', 'gameSystemId'])(
-      "importantFields の '%s' を含むとき true を返す",
-      (field) => {
-        // Act & Assert
-        expect(callShouldNotify([field])).toBe(true)
-      }
-    )
-
-    it('importantFields を含まない更新のとき false を返す', () => {
-      // Act & Assert
-      expect(callShouldNotify(['memo', 'avatar'])).toBe(false)
-    })
-  })
+  // E-4a: 契約外 updatedFields に依存していた shouldNotifyUpdate（コメントアウト済み通知分岐の残骸）は
+  // 実装ごと撤去したため、対応する describe も削除した。
 })

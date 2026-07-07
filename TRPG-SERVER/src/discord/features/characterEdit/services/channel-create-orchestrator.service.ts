@@ -30,9 +30,9 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
    *
    * 🚨 File-based Event Handlersへの移行により無効化済み
    *
-   * 理由: 以下のイベントリスナーはFile-based Event Handlersで処理済み：
-   * - character.creation.completed → CharacterCreationCompletedChannelOrchestratorHandler
-   * - character.creation.failed → CharacterCreationFailedChannelOrchestratorHandler
+   * 理由: character.creation.completed の購読は discord/events/handlers の
+   * CharacterCreationCompletedHandler（自己購読）が担う。
+   * （旧 character.creation.failed 連鎖は購読者ゼロの dead としてE-3/E-4aで契約ごと撤去済み）
    *
    * チャンネル同期とエラーハンドリングはFile-based Event Handlersで実行されます。
    */
@@ -145,13 +145,8 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
     }
   }
 
-  /**
-   * キャラクター作成失敗イベントハンドラー
-   */
-  private async handleCharacterCreationFailed(payload: EventPayload<'character.creation.failed'>): Promise<void> {
-    this.logger.error(`キャラクター作成失敗: ${payload.error}`)
-    this.logger.debug('失敗した作成データ:', payload.createData)
-  }
+  // 注: handleCharacterCreationFailed は listener 未登録・呼び出しゼロの E-3 残骸
+  //     （dead contract 'character.creation.failed' 型参照のみ）だったため E-4a で削除した。
 
   /**
    * チャンネルIDからTextChannelオブジェクトを取得するヘルパーメソッド
