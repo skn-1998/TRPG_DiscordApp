@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 
 @Injectable()
 export class DiceRollCharacterProviderService {
+  private readonly logger = new Logger(DiceRollCharacterProviderService.name)
+
   constructor(
     private readonly diceRollService: DiceRollService,
     private readonly characterService: CharacterService
@@ -12,15 +14,15 @@ export class DiceRollCharacterProviderService {
 
   async findCharactersByChannelId(channelId: string): Promise<CharacterEntity[]> {
     try {
-      console.log(`[DiceRollCharacterProvider] キャラクター情報取得開始: ${channelId}`)
+      this.logger.debug(`[DiceRollCharacterProvider] キャラクター情報取得開始: ${channelId}`)
 
       const diceRollChannel = await this.diceRollService.findChannelByChannelId(channelId)
       if (!diceRollChannel || !diceRollChannel.characterIds || diceRollChannel.characterIds.length === 0) {
-        console.log(`[DiceRollCharacterProvider] チャンネルまたはキャラクターIDが見つかりません`)
+        this.logger.debug(`[DiceRollCharacterProvider] チャンネルまたはキャラクターIDが見つかりません`)
         return []
       }
 
-      console.log(`[DiceRollCharacterProvider] キャラクターID取得: ${diceRollChannel.characterIds.length}件`)
+      this.logger.debug(`[DiceRollCharacterProvider] キャラクターID取得: ${diceRollChannel.characterIds.length}件`)
 
       const characters: CharacterEntity[] = []
       for (const characterId of diceRollChannel.characterIds) {
@@ -30,10 +32,10 @@ export class DiceRollCharacterProviderService {
         }
       }
 
-      console.log(`[DiceRollCharacterProvider] キャラクター情報取得完了: ${characters.length}件`)
+      this.logger.debug(`[DiceRollCharacterProvider] キャラクター情報取得完了: ${characters.length}件`)
       return characters
     } catch (error) {
-      console.error('[DiceRollCharacterProvider] キャラクター情報取得エラー:', error)
+      this.logger.error('[DiceRollCharacterProvider] キャラクター情報取得エラー:', error)
       return []
     }
   }
@@ -43,7 +45,7 @@ export class DiceRollCharacterProviderService {
       // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2b: イベント RPC 廃止）
       return await this.characterService.findOne(characterId)
     } catch (error) {
-      console.error(`[DiceRollCharacterProvider] キャラクター取得エラー (${characterId}):`, error)
+      this.logger.error(`[DiceRollCharacterProvider] キャラクター取得エラー (${characterId}):`, error)
       return null
     }
   }

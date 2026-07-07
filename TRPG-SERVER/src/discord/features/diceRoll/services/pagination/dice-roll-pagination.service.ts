@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { EmbedBuilder } from 'discord.js'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
@@ -35,6 +35,7 @@ export { PaginatedDiceRoll } from './dice-roll-pagination.store'
  */
 @Injectable()
 export class DiceRollPaginationService {
+  private readonly logger = new Logger(DiceRollPaginationService.name)
   private readonly store = new DiceRollPaginationStore()
 
   constructor(
@@ -50,14 +51,14 @@ export class DiceRollPaginationService {
       // キャッシュから取得
       const cachedPages = this.store.getPagesFromCache(channelId, characterId || ALL_CHARACTERS)
       if (cachedPages) {
-        console.log(`[PHASE3] キャッシュから取得: ${characterId || ALL_CHARACTERS} in ${channelId}`)
+        this.logger.debug(`[PHASE3] キャッシュから取得: ${characterId || ALL_CHARACTERS} in ${channelId}`)
         return cachedPages
       }
 
       // ダイスロールデータを取得
       const diceRolls = await this.diceRollService.findTextsByChannelId(channelId)
       if (!diceRolls || diceRolls.length === 0) {
-        console.log(`[PHASE3] ダイスロールデータが見つかりません: ${channelId}`)
+        this.logger.debug(`[PHASE3] ダイスロールデータが見つかりません: ${channelId}`)
         return this.createEmptyEmbed(channelId, characterId)
       }
 
@@ -71,7 +72,7 @@ export class DiceRollPaginationService {
       // キャラクター名を取得してタイトルに追加（特定キャラクターの場合のログ）
       if (characterId && characterId !== ALL_CHARACTERS) {
         const characterName = resolveTitleCharacterName(characterId, charactersFromCache)
-        console.log(`[DiceRollPagination] キャラクター指定: ${characterName}`)
+        this.logger.debug(`[DiceRollPagination] キャラクター指定: ${characterName}`)
       }
 
       // ロール履歴がない場合
@@ -94,10 +95,12 @@ export class DiceRollPaginationService {
       // キャッシュに保存
       this.store.savePagesToCache(channelId, characterId || ALL_CHARACTERS, pagesWithFooter)
 
-      console.log(`[PHASE3] ${pagesWithFooter.length}ページ生成完了: ${characterId || ALL_CHARACTERS} in ${channelId}`)
+      this.logger.debug(
+        `[PHASE3] ${pagesWithFooter.length}ページ生成完了: ${characterId || ALL_CHARACTERS} in ${channelId}`
+      )
       return pagesWithFooter
     } catch (error) {
-      console.error('[PHASE3] ページネーション生成エラー:', error)
+      this.logger.error('[PHASE3] ページネーション生成エラー:', error)
       return this.createEmptyEmbed(channelId, characterId)
     }
   }
@@ -154,7 +157,7 @@ export class DiceRollPaginationService {
     state: PaginatedDiceRoll | null
   ): Promise<void> {
     try {
-      console.log(`[DiceRollPagination] キャラクター選択メニュー生成開始: ${channelId}`)
+      this.logger.debug(`[DiceRollPagination] キャラクター選択メニュー生成開始: ${channelId}`)
 
       // キャッシュから取得
       let characters = this.store.getCharactersFromCache(channelId)
@@ -165,7 +168,7 @@ export class DiceRollPaginationService {
 
       // キャラクターが見つからない場合は何も表示しない
       if (characters.length === 0) {
-        console.log('[DiceRollPagination] キャラクター情報なし - 選択メニューをスキップ')
+        this.logger.debug('[DiceRollPagination] キャラクター情報なし - 選択メニューをスキップ')
         return
       }
 
@@ -174,9 +177,9 @@ export class DiceRollPaginationService {
         rows.push(selectRow)
       }
 
-      console.log(`[DiceRollPagination] キャラクター選択メニュー生成完了: ${characters.length}件`)
+      this.logger.debug(`[DiceRollPagination] キャラクター選択メニュー生成完了: ${characters.length}件`)
     } catch (error) {
-      console.error('[DiceRollPagination] キャラクター選択メニュー作成エラー:', error)
+      this.logger.error('[DiceRollPagination] キャラクター選択メニュー作成エラー:', error)
       // エラーをスローしない - ボタンだけでも表示できるようにする
     }
   }
@@ -255,10 +258,10 @@ export class DiceRollPaginationService {
       // 状態を保存
       this.store.savePaginationState(channelId, messageId, newState)
 
-      console.log(`[PHASE3] キャラクター選択更新完了: ${characterId} (${pages.length}ページ)`)
+      this.logger.debug(`[PHASE3] キャラクター選択更新完了: ${characterId} (${pages.length}ページ)`)
       return newState
     } catch (error) {
-      console.error('[PHASE3] キャラクター選択更新エラー:', error)
+      this.logger.error('[PHASE3] キャラクター選択更新エラー:', error)
       return null
     }
   }
