@@ -21,9 +21,15 @@
 > （none→publishing(opId)→active の CAS・自動再投稿なし）、耐久 worker（pendingRevision/appliedRevision・
 > coalesce・edit 失敗3分類）、select/panel handler 3 本追加（feature module 計 5 handler・BOOT 実証済み）。
 > 全ゲート緑（server 208 suites/2660・characterization・projection 12・engine 42・front 全部）。
-> 開示制約: 作者ピン留めフラグ未定義→先頭 20 ロール縮退（README 未決 15）。残タスク＝
-> ①characterThread 旧投稿群の materialized 抑止（補完スライス・Codex 使用量上限で待機中）
-> ②Codex スコープレビュー ③PH-7 実機受入（チェックリスト作成済み: `document/character-sheet-proposals/phase2-ph7-acceptance-checklist.md`。D-3・ユーザー実施）。
+> 開示制約: 作者ピン留めフラグ未定義→先頭 20 ロール縮退（README 未決 15）。
+> **同日追記7b（9a3d2da）**: 補完スライス完了（materialized の旧投稿抑止＝ThreadOrchestrator/ThreadCreation 両経路、
+> direct select 経路は ThreadCreationService→postHub 直接呼出で hub 到達性を保証）。Codex スコープレビュー反映済み
+> （customId 契約を sheet-projection に一元化＋表現不能 delta の warnings 縮退／publish 非空 label 強制＋projection fallback／
+> hub 遷移ガード assertCharacterHubTransition／worker の edit 失敗と CAS 永続化失敗の分離）。
+> 既知の残置: 429 リトライ回数メモリ限定・listener の TypedEventService 直接登録（Phase 3 で ARCHITECTURE 方針へ追従）・
+> jest.config の実 DB 3 spec 隔離が PH-6b コミットに同居（レビュー指摘・実質は正当）。
+> 最終ゲート: 209 suites/2673 緑・projection 14・engine 44・BOOT 5 handler。残タスク＝PH-7 実機受入
+> （`document/character-sheet-proposals/phase2-ph7-acceptance-checklist.md`。D-3・ユーザー実施）のみ。
 > **追記6（2026-07-08・Phase 1 wave 2 完了）**: Slice C（`features/character-sheet` 新設＝features 層の最初の住人:
 > SheetMaterializerService／CharacterInstantiationService、ValidationPort を sheet-engine 実装へ差し替え）・
 > Slice E（`seeds/legacy-coc.template.ts`＋境界値 spec）・Slice D（Web エディタ実 API 化: `/templates` ルート・
