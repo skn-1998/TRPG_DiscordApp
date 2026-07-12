@@ -26,8 +26,6 @@ export async function action(args: ActionFunctionArgs) {
 
   const result = await corsApiWithJwt(args, { method: 'GET', endpoint: '/character' })
   console.log(result)
-  const data = await corsApiWithJwt(args, { endpoint: '/character/create', data: { TRPGName: 'DiceBot' } })
-  console.log(data)
 
   return { test: 'this is test data.' }
 }

@@ -1,13 +1,3 @@
-import { Outlet } from '@remix-run/react'
-import { CharacterCreate } from '~/features/character'
-import { CharacterEditMock } from '~/features/character/components/characterEdit'
+import { redirect } from '@remix-run/node'
 
-export default function CharacterEdit() {
-  return (
-    <div>
-      character edit
-      <CharacterEditMock />
-      <Outlet />
-    </div>
-  )
-}
+export const loader = () => redirect('/user/character')

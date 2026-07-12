@@ -1,5 +1,5 @@
 import { json, LoaderFunctionArgs, ActionFunctionArgs, redirect } from '@remix-run/node'
-import { useLoaderData } from '@remix-run/react'
+import { useActionData, useLoaderData } from '@remix-run/react'
 import {
   createSheetTemplate,
   deleteSheetTemplate,
@@ -11,11 +11,14 @@ import {
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { clearServerRequestContext, setServerRequestContext } from '~/lib/api-client'
 import type { CharacterSheetTemplateSummary, CreateSheetTemplateRequest } from '~/features/characterTemplate/types/v3'
+import { createCharacterFromTemplate } from '~/features/character/api/character.service'
 
 type TemplatesLoaderData = {
   summaries: CharacterSheetTemplateSummary[]
   error: string | null
 }
+
+type TemplatesActionData = { error?: string }
 
 function isTemplateSummary(
   summary: CharacterSheetTemplateSummary | null | undefined
@@ -48,6 +51,18 @@ export async function action({ request }: ActionFunctionArgs) {
   try {
     setServerRequestContext(request, jwt)
 
+    if (intent === 'create-character') {
+      const templateId = String(formData.get('templateId') ?? '')
+      const templateVersion = String(formData.get('templateVersion') ?? '')
+      const characterName = String(formData.get('characterName') ?? '').trim()
+      if (!templateId || !templateVersion || !characterName) {
+        return json({ error: 'テンプレートとキャラクター名を入力してください' }, { status: 400 })
+      }
+
+      await createCharacterFromTemplate({ templateId, templateVersion, characterName })
+      return redirect('/user/character')
+    }
+
     if (intent === 'delete') {
       const templateId = String(formData.get('templateId') ?? '')
       if (!templateId) return json({ error: 'templateId がありません' }, { status: 400 })
@@ -77,7 +92,11 @@ export async function action({ request }: ActionFunctionArgs) {
     const created = await createSheetTemplate(normalizedRequestBody, jwt)
     return redirect(`/templates/${created.templateId}/edit`)
   } catch (error) {
-    return json({ error: extractApiErrorMessages(error).join(' / ') }, { status: 400 })
+    const status = getResponseStatus(error)
+    return json(
+      { error: extractApiErrorMessages(error).join(' / ') },
+      { status: status === 403 || status === 409 || status === 422 ? status : 400 }
+    )
   } finally {
     clearServerRequestContext()
   }
@@ -85,5 +104,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function TemplatesRoute() {
   const { summaries, error } = useLoaderData<typeof loader>()
-  return <TemplateListV3 summaries={summaries} error={error} />
+  const actionData = useActionData<TemplatesActionData>()
+  return <TemplateListV3 summaries={summaries} error={error} actionError={actionData?.error} />
+}
+
+function getResponseStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    return (error as { response?: { status?: number } }).response?.status
+  }
+  return undefined
 }

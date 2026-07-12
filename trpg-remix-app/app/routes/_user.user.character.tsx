@@ -1,6 +1,6 @@
 import { LoaderFunctionArgs } from '@remix-run/node'
 import { useLoaderData } from '@remix-run/react'
-import { CharacterCreate, CharacterList } from '~/features/character'
+import { CharacterList } from '~/features/character'
 import { getUserCharacterSummaries, CharacterSummary } from '~/features/character/api/character.service'
 import { setServerRequestContext, clearServerRequestContext } from '~/lib/api-client'
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
@@ -43,8 +43,7 @@ export default function UserCharacter() {
   const { characters: initialCharacters, error: loaderError, isAuthenticated } = useLoaderData<typeof loader>()
 
   // ビジネスロジックをカスタムフックに委譲
-  const { characters, isLoading, error, handleCharacterCreated, handleCharacterDelete, handleManualRefresh, setError } =
-    useCharacterManagement(initialCharacters)
+  const { characters, isLoading, error, handleManualRefresh, setError } = useCharacterManagement(initialCharacters)
 
   // 認証されていない場合の表示
   if (!isAuthenticated) {
@@ -95,14 +94,7 @@ export default function UserCharacter() {
           {characters.length} character(s) loaded
         </span>
       </div>
-      <CharacterList
-        characters={characters}
-        onCreateNew={() => {}}
-        onEditCharacter={handleManualRefresh}
-        onCharacterClick={(character) => console.log('詳細:', character)}
-        onCharacterDelete={handleCharacterDelete}
-        onCharacterCreated={handleCharacterCreated}
-      />
+      <CharacterList characters={characters} onCharacterClick={(character) => console.log('詳細:', character)} />
     </div>
   )
 }
