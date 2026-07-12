@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getUserCharacters, createCharacter, updateCharacter, deleteCharacter } from '~/features/character'
+import { deleteCharacter, getUserCharacters, updateCharacter } from '~/features/character'
 import { Character } from '~/types'
 
 export function useCharacters(jwt?: string) {
@@ -19,21 +19,6 @@ export function useCharacters(jwt?: string) {
       setError(err instanceof Error ? err.message : 'Failed to fetch characters')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const handleCreateCharacter = async (characterData: Omit<Character, '_id' | 'createdAt' | 'updatedAt'>) => {
-    if (!jwt) throw new Error('JWT token is required')
-
-    try {
-      setError(null)
-      const newCharacter = await createCharacter(characterData)
-      setCharacters((prev) => [...prev, newCharacter])
-      return newCharacter
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create character'
-      setError(errorMessage)
-      throw new Error(errorMessage)
     }
   }
 
@@ -75,7 +60,6 @@ export function useCharacters(jwt?: string) {
     isLoading,
     error,
     refetch: fetchCharacters,
-    createCharacter: handleCreateCharacter,
     updateCharacter: handleUpdateCharacter,
     deleteCharacter: handleDeleteCharacter
   }

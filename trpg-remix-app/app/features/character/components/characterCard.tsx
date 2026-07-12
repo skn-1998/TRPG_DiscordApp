@@ -1,5 +1,20 @@
-import { Card, Group, Text, ActionIcon, Modal, Select, Button, Stack, Title, Loader } from '@mantine/core'
-import { IconSettings, IconBrandDiscord } from '@tabler/icons-react'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Tooltip
+} from '@mantine/core'
+import { Link } from '@remix-run/react'
+import { IconAlertTriangle, IconBrandDiscord, IconPencil } from '@tabler/icons-react'
 import { useState } from 'react'
 import { getGameSystemNameById } from '~/lib'
 import { getDiscordServers, formatGuildsForSelect, postCharacterToDiscord } from '../../discord'
@@ -10,15 +25,16 @@ interface CharacterSummary {
   characterId: string
   characterName: string
   gameSystemId: string
+  templateVersion?: string
+  hub?: { status: 'none' | 'publishing' | 'active' | 'error' }
 }
 
 interface CharacterCardProps {
   character: CharacterSummary
-  onEdit?: () => void
   onClick?: () => void
 }
 
-export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps) {
+export function CharacterCard({ character, onClick }: CharacterCardProps) {
   const [modalOpened, setModalOpened] = useState(false)
   const [selectedServer, setSelectedServer] = useState<string | null>(null)
   const [discordServers, setDiscordServers] = useState<DiscordServerSelectOption[]>([])
@@ -99,16 +115,12 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
           <Text fw={500} size="lg" lineClamp={1}>
             {character.characterName}
           </Text>
-          {onEdit && (
-            <ActionIcon
-              variant="light"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit()
-              }}
-            >
-              <IconSettings size={16} />
-            </ActionIcon>
+          {character.templateVersion && (
+            <Tooltip label="テンプレート更新に自動追従しない" withArrow>
+              <Badge variant="light" color="accent">
+                template v{character.templateVersion}
+              </Badge>
+            </Tooltip>
           )}
         </Group>
 
@@ -116,7 +128,25 @@ export function CharacterCard({ character, onEdit, onClick }: CharacterCardProps
           System Name: {getGameSystemNameById(character.gameSystemId)}
         </Text>
 
-        <Group justify="flex-end" mt="auto">
+        {character.hub?.status === 'error' && (
+          <Alert color="red" icon={<IconAlertTriangle size={16} />} title="Discord hub の更新に失敗しています">
+            Discord 権限または接続状態を確認してください。
+          </Alert>
+        )}
+
+        <Group justify="space-between" mt="auto">
+          {character.hub && (
+            <Button
+              component={Link}
+              to={`/user/character/${character.characterId}/sheet`}
+              size="xs"
+              variant="outline"
+              leftSection={<IconPencil size={14} />}
+              onClick={(event) => event.stopPropagation()}
+            >
+              シート編集
+            </Button>
+          )}
           <ActionIcon
             variant="light"
             color="blue"

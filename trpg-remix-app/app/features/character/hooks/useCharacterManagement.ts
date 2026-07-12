@@ -15,27 +15,9 @@ export function useCharacterManagement(initialCharacters: CharacterSummary[]) {
     fetchCharacters,
     refreshCharacters,
     revalidateLoader,
-    addCharacterOptimistic,
     removeCharacterOptimistic,
     setError
   } = useCharacterSummaries(initialCharacters)
-
-  // キャラクター作成成功時の処理
-  const handleCharacterCreated = async (newCharacter?: CharacterSummary) => {
-    try {
-      if (newCharacter) {
-        // 楽観的更新: 即座にUIに反映
-        addCharacterOptimistic(newCharacter)
-      }
-
-      // バックグラウンドでデータを同期
-      await refreshCharacters()
-    } catch (err) {
-      console.error('Failed to refresh after character creation:', err)
-      // 楽観的更新が失敗した場合はSSRデータに戻す
-      revalidateLoader()
-    }
-  }
 
   // キャラクター削除時の処理
   const handleCharacterDelete = async (characterId: string) => {
@@ -63,7 +45,6 @@ export function useCharacterManagement(initialCharacters: CharacterSummary[]) {
     characters,
     isLoading: isLoading || isNavigating,
     error,
-    handleCharacterCreated,
     handleCharacterDelete,
     handleManualRefresh,
     setError

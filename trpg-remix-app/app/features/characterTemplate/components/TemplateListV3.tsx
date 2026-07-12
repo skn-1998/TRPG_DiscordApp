@@ -1,23 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useFetcher } from '@remix-run/react'
-import { Alert, Badge, Button, Card, Container, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core'
-import { IconAlertCircle, IconFilePlus, IconPencil, IconRefresh, IconTrash } from '@tabler/icons-react'
+import { Form, Link, useFetcher } from '@remix-run/react'
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Container,
+  Group,
+  Modal,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Title
+} from '@mantine/core'
+import { IconAlertCircle, IconFilePlus, IconPencil, IconRefresh, IconTrash, IconUserPlus } from '@tabler/icons-react'
 import type { CharacterSheetTemplateSummary, Template } from '../types'
 import { isV2LocalTemplate, migrateV2TemplateToCreateRequest } from '../utils/v3Template'
 
 interface TemplateListV3Props {
   summaries: CharacterSheetTemplateSummary[]
   error?: string | null
+  actionError?: string | null
 }
 
 type TemplateListActionData = {
   error?: string
 }
 
-export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
+export function TemplateListV3({ summaries, error, actionError }: TemplateListV3Props) {
   const fetcher = useFetcher<TemplateListActionData>()
   const [legacyTemplates, setLegacyTemplates] = useState<Template[]>([])
   const [legacyReadError, setLegacyReadError] = useState<string | null>(null)
+  const [creationTemplate, setCreationTemplate] = useState<CharacterSheetTemplateSummary | null>(null)
+  const [characterName, setCharacterName] = useState('')
 
   useEffect(() => {
     try {
@@ -63,9 +79,9 @@ export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
           </fetcher.Form>
         </Group>
 
-        {(error || fetcher.data?.error) && (
+        {(error || fetcher.data?.error || actionError) && (
           <Alert color="red" icon={<IconAlertCircle size={16} />} title="テンプレート一覧の処理に失敗しました">
-            {error ?? fetcher.data?.error}
+            {error ?? fetcher.data?.error ?? actionError}
           </Alert>
         )}
 
@@ -97,7 +113,7 @@ export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
                     ))}
                   </Group>
 
-                  <Group justify="space-between" mt="xs">
+                  <Group justify="space-between" mt="xs" wrap="wrap">
                     <Button
                       component={Link}
                       to={`/templates/${summary.templateId}/edit`}
@@ -107,6 +123,20 @@ export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
                     >
                       編集
                     </Button>
+                    {summary.status === 'published' && (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconUserPlus size={14} />}
+                        onClick={() => {
+                          setCharacterName('')
+                          setCreationTemplate(summary)
+                        }}
+                      >
+                        このテンプレートで作成
+                      </Button>
+                    )}
                     <fetcher.Form method="post">
                       <input type="hidden" name="intent" value="delete" />
                       <input type="hidden" name="templateId" value={summary.templateId} />
@@ -161,6 +191,45 @@ export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
             </Stack>
           </Card>
         )}
+
+        <Modal
+          opened={creationTemplate !== null}
+          onClose={() => setCreationTemplate(null)}
+          title="テンプレートからキャラクターを作成"
+          centered
+        >
+          <Form method="post">
+            <Stack gap="md">
+              <Text size="sm" c="dimmed">
+                {creationTemplate?.name} / v{creationTemplate?.version}
+              </Text>
+              <input type="hidden" name="intent" value="create-character" />
+              <input type="hidden" name="templateId" value={creationTemplate?.templateId ?? ''} />
+              <input type="hidden" name="templateVersion" value={creationTemplate?.version ?? ''} />
+              <TextInput
+                name="characterName"
+                label="キャラクター名"
+                value={characterName}
+                onChange={(event) => setCharacterName(event.currentTarget.value)}
+                required
+                autoFocus
+              />
+              {actionError && (
+                <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                  {actionError}
+                </Alert>
+              )}
+              <Group justify="flex-end">
+                <Button type="button" variant="outline" onClick={() => setCreationTemplate(null)}>
+                  キャンセル
+                </Button>
+                <Button type="submit" disabled={!characterName.trim()}>
+                  作成
+                </Button>
+              </Group>
+            </Stack>
+          </Form>
+        </Modal>
       </Stack>
     </Container>
   )
