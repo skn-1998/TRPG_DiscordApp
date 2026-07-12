@@ -147,3 +147,5 @@ export interface EvaluationContext {
 export interface DependencyGraph {
   [fieldId: string]: Set<string> // fieldId → 依存先のfieldId集合
 }
+
+export * from './v3'
