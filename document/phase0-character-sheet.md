@@ -1,5 +1,14 @@
 # Phase 0 — キャラクター作成基盤 詳細設計
 
+> ⚠️ **SUPERSEDED（2026-07-12）**: 本書は歴史的文書。再レビュー
+> [phase0-character-sheet-review.md](phase0-character-sheet-review.md) により処置が確定した。
+> **実施禁止（Replaced）**: §4.1.3 固定5セクション CharacterSheetTemplate 型／§3.2.2 モデル直下
+> templateId・templateVersion／§7-3 description への式保存 —— いずれも
+> `document/character-sheet-proposals/design-v1.md` v1.2（schema v3・nested sheet/templatePin）が正本。
+> **現役**: §2 のコーディング規約（参考）／AttributeValue 意味論（正本は AI.character.md の正準形契約）。
+> **ユーザー決定（U-1〜U-3）**: legacy Web 作成は廃止・二重導線は解消・作成導線はテンプレ経由
+> （Phase 2 PH-5b）へ再設計。
+
 > **親プラン**: [キャラクター作成ベース設計](../.cursor/plans/キャラクター作成ベース設計_c8529dd9.plan.md)  
 > **対象**: Phase 0a（既存修正）+ Phase 0b（型・ドキュメント）  
 > **最終更新**: 2026-05-30
