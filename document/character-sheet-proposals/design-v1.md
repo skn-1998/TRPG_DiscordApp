@@ -1,10 +1,10 @@
 # 具体設計 v1 — シートテンプレート基盤（A2＋A4 融合）
 
 > **分類**: 具体設計（A/B 案・横断調査の統合）
-> **ステータス**: **確定（v1）** — Claude ドラフトに対し Codex と討論 2 ラウンド（2026-07-06・§9）を実施し、
-> 全争点を決着させた版。以後の変更は v1.x として追記する。
+> **ステータス**: **確定（v1.2）** — v1 確定（Codex 討論 2R・§9）→ v1.1（UI 三面）→ **v1.2 = フィールド型充足性監査
+> （[field-sufficiency-audit.md](field-sufficiency-audit.md)・52 エージェント＋Codex レッドチーム）の反映**。
 > **前提資料**: [README.md](README.md) / [trpg-system-survey.md](trpg-system-survey.md)（P1〜P14）/ a2 / a4 / b1 / b2 / b4
-> **最終更新**: 2026-07-06
+> **最終更新**: 2026-07-07
 
 ---
 
@@ -59,6 +59,11 @@ interface FieldBase {
   visibleTo?: 'public' | 'owner' | 'gm'
   // ★v1 制約（決着 §8-11）: publish バリデータは visibleTo != 'public' および secret 系 role を
   //   「エラーで拒否」する（inert 受理は漏洩事故のもと）。GM 権限モデル導入時に解禁
+  // ★v1.x 予約（v1.2・監査 G34）: when?: string（palette 生成ゲート・boolean 式。false でエントリ生成をスキップ）。
+  //   v1 の publish は when 指定を「未対応」としてエラーで拒否（黙殺しない）。
+  //   採用時: 式は既存の検証・resolvedRefs 対象、行内 role では {row.*} 可、未解決参照は publish 拒否、
+  //   false 中に押された既存ボタンは「該当エントリなし」応答。
+  //   ⇒ 帰結の明記: 状態依存のボタン無効化（例: ネクロニカの破損パーツ）は v1 非対応
 }
 ```
 
@@ -77,11 +82,27 @@ type SheetField =
 // TrackField（侵蝕率・ストレス・死亡セーヴ）
 interface TrackField extends FieldBase {
   type: 'track'
+  min?: number              // v1.2（監査 R25）: 既定 0。負値域が要るシステム用
   max: number | { formula: string }
   style: 'gauge' | 'checkboxes'
   thresholds?: Array<{ at: number; label: string }> // v1 は到達ラベル通知まで（効果自動適用はしない）
   resetOn?: 'scene' | 'session' | 'rest'            // 発火は Web/Discord の明示操作（発火権限は未決・README）
+  resetTo?: 'zero' | 'max' | { formula: string }    // v1.2（監査 G28）。既定: checkboxes→'zero' / gauge→'max'
 }
+```
+
+**track の値意味論（v1.2・監査 G28/R25 の確定）**:
+
+- **値域**: 現在値（parts 合算）は `[min(既定0), max]` にクランプする。± 操作で境界を越える delta は
+  境界に届く分まで切り詰め、**切り詰め後の実効 delta を parts.other に書く**（合算がレンジ外にならない）。
+- **reset の意味論**: reset は「現在値の上書き」＝ **parts を丸ごと `{ base: 解決値 }` に置換**する
+  （`'zero'`→置換後合算 0、`'max'`→max の解決値、formula→式の解決値）。加算ではないので**冪等**。
+- **reset のスコープと権限**: 明示発火はシート内の該当 `resetOn` を持つ全 track（list 行内 track は行ごとに
+  `{row.*}` 込みで評価）。reset 後に追加された行は次回 reset まで対象外。実行権限は変異系＝所有者のみ。
+- **resetTo formula の制約**: `{row.*}`＋グローバル参照可・publish 時 resolvedRefs 解決＋循環検査。
+  **自 track の現在値は参照不可**（FATE 型「現在値と refresh の高い方を維持」は README 未決へ）。
+
+```ts
 
 // ListField（武器・忍法・エフェクト・パーツ）
 interface ListField extends FieldBase {
@@ -114,8 +135,55 @@ interface ListField extends FieldBase {
 - 関数（v1）: `floor ceil round max min lookup if` ＋比較演算子、list 集計は `sum count` のみ。
   行内式は `{row.subFieldId}` スコープ（**list 内限定**。外部式から個別行の参照は禁止、集計のみ可）。
   SW 威力表型（多入力・振り足し）は v1 外（README 未決へ）。
-- 丸め既定は `settings.rounding`。循環検出・AST ノード数/評価ステップ/テーブル行数の上限つき。
+- 丸め既定は `settings.rounding`。循環検出・AST ノード数/評価ステップ/テーブル行数の上限つき
+  （テーブル行数上限は累積コスト表ユースケース＝〜100 行規模を根拠に設定）。
 - 確定値の正本は**サーバー評価**。フロント評価はプレビュー専用（同一パッケージを import）。
+
+### 2.1 role notation の差し込み文法（v1.2・監査 G02。**Phase 2 の legacy-coc 定義前に確定必須**）
+
+- **許可トークン**: `{value}`（自フィールドの値）/ `{sectionId.fieldId}` / 行内 role（itemFields の subfield
+  role・rowRole）では `{row.subFieldId}`。**rowRole では `{value}` を publish 時に拒否**（どの subfield か
+  不定のため）し `{row.*}` を必須とする。リテラル波括弧は `{{` `}}` でエスケープ。
+- **差し込み可能な値の型（インジェクション防止）**: number、および **publish 時に検証済みの notation fragment**
+  （`computed(resultType:'dice')` の結果・lookup 表が返す dice / 断片 text）に限る。
+  **自由入力 text（プレイヤーが入力する text/select 値）の notation 参照は publish 時にエラー**
+  —— 任意 bcdice コマンド断片の注入経路を型で塞ぐ。
+- **notation fragment**: 先頭符号付き・空文字の断片（`'+1d4'` / `'-1d4'` / `''`）を fragment として許容する
+  **専用語彙**（式の `dice` 値型＝算術混入不可、とは別概念。混同しない）。符号正規化（`+-1`→`-1`、
+  0 は省略）は fragment 連結境界で適用する。
+- **差し込み位置**: 式が number / 検証済み fragment に評価される**任意の位置**（ダイス個数位置
+  `({remainLois})d10` を含む）。
+- **検証の二段構え**: (1) publish 時 —— notation 内参照も resolvedRefs へ uid 解決（rename 耐性）＋参照型検査。
+  (2) materialize 時 —— **補間後の最終 notation を gameSystemId 付きで bcdice parse 検証**してから palette へ。
+  失敗したエントリはエラー状態として保存し（黙って公開しない）、hub/Web に警告表示する。
+
+### 2.2 仕様明文化（v1.2・監査反映。実装時の解釈割れ防止）
+
+1. 行内式は `{row.subFieldId}` に**加えて**通常の `{sectionId.fieldId}` を参照可。禁止は従来どおり
+   「外部式 → 個別行」の一方向のみ（行内 computed が集計を参照する逆向き循環は publish 時に拒否）
+2. `sum`/`count` の対象＝「number を返す itemField（行内 ComputedField を含む）」。外部からの集計参照は
+   `sum({sectionId.listId.subFieldId})`、resolvedRefs には listUid＋subFieldUid のペアで格納。
+   評価順序は依存グラフのトポロジカル順（行内 → 集計 → シート）で一意
+3. TrackField への式参照は**現在値（parts 合算・クランプ後）の number** に評価される
+4. 等値比較（`==`/`!=`）は同型スカラー全般（text/select 含む）で可、大小比較は number のみ。
+   select の式中の値は option value（text）
+5. list の itemFields 内 subfield に付与した role は**行ごとに** materialize され fieldRef{uid, rowId} 付き
+   PaletteEntry になる。rowRole（行代表ロール）と subfield role が並存する場合は**別エントリ**
+   （key は registry 発行で衝突しない。label は「行ラベル＋subfield ラベル」、group は各 role 指定に従う）
+6. itemFields 内の Track/Computed の式（max 式含む）は {row.*}＋グローバル参照可で**行ごとに評価**。
+   行内 track の resource role も行ごとに palette 化される
+7. itemFields 内の RollField は **v1 では publish 時に拒否**（number 手入力を正とする。
+   「行追加時に自動ロール」は将来拡張）
+8. RollField の結果値は**事後編集不可**。成長・老化は「roll 原値の凍結＋修正 scalar＋computed 合算」の
+   3 点セットで表現する
+9. TagField は v1 では**式から参照不可**（機械参照が要る集合は boolean 分解が正）。タグの同一性は
+   完全文字列一致、catalog タグと自由入力は同一名前空間
+10. RelationField の attrs は**スカラー限定**（決定）。「関係＋型付き属性」の複雑形は
+    「list 行の兄弟フィールド」を正規イディオムとする（ロイス・Hx・未練・Influence が同型）。
+    relation 先シートのフィールド値への live 参照は**非対応**（手動転記。P14 系の将来論点）
+11. sheet-engine は数値精度・丸め誤差の仕様（比較・floor/ceil 適用前の epsilon 丸め）を定め、
+    小数集計（SR5 エッセンス 0.1 刻み）をテストベクタに含める
+12. `max`/`min` は二項関数（可変長は不要。二項ネストが正準形）
 
 ## 3. character ドメイン再設計
 
@@ -126,7 +194,7 @@ class Character {
   gameSystemId: string
   discordUserId: string
   discordChannelId?: string
-  discordThreadId?: string   // threadId との重複 2 フィールドは本再設計で discordThreadId に一本化
+  discordThreadId?: string   // 旧 threadId 重複は E-6a（2026-07-07 実施済み・コミット 04e0b5b）で撤去済み
 
   sheet: {
     templateId: string
@@ -147,6 +215,11 @@ class Character {
 }
 ```
 
+- **E-6d との整合（v1.2）**: character の公開型は E-6d（実施済み・コミット 199b5e6）で導入された
+  **`CharacterEntity`（plain interface）が正本**、@Schema クラスは persistence 専用。Phase 2 の拡張
+  （sheet / computedCache / palette）は **CharacterEntity と @Schema の両方**へ追加し、repository 境界の
+  plain 化契約（lean / toObject）に従う。上の `class Character` スケッチはフィールド構成の説明であり、
+  実装時の型配置は E-6d の様式に従う。
 - **三層モデル**（決着 §8-12): (1) `sheet.values` ＝入力の唯一の正本 →
   (2) `computedCache` ＝materializer が保存時に再計算する派生キャッシュ（**クライアント提出の computed 値は常に無視**）→
   (3) projection（旧 5 セクション）＋ palette ＝ UI/Discord 向け materialized view。
@@ -165,17 +238,26 @@ interface PaletteEntry {
                                            //   基本は fieldPath 短縮形、衝突時は suffix 付与（決着 §8-4）
   fieldRef: { uid: string; rowId?: string } // ★書き戻し・再生成用の逆引き（正本）
   label: string                            // "目星 (65)"
-  kind: 'roll' | 'resource'
+  kind: 'roll' | 'resource'                // v1 の既知 kind。予約済み: 'check'（案C1）/ 'declare'（監査 G35・v1.x）
   notation?: string                        // 評価済み bcdice 記法（roll）
   deltas?: number[]                        // resource（± ボタン）
   group: string
 }
 ```
 
+- **kind の拡張規約（v1.2・監査 G35＋Codex レッドチーム）**: kind は拡張前提だが扱いを二分する ——
+  **publish/materialize バリデータは既知 kind のみ受理**（作者の書き間違いや未対応 kind が「ボタンが出ると
+  思ったのに黙殺」になる事故を防ぐ）。**runtime consumer（Bot）は未知 kind を無視**（新しい kind を持つ
+  キャラを古い Bot が読んだときの前方互換）。
+
 - **上限（決着 §8-4）**: soft cap **128** —— 超過分は Discord 側で select menu／ページングへ自動フォールバック
   ＋作者へ警告。hard cap **512** —— 保存時 validate エラー（テンプレート publish 時も静的検査）。
   cap は palette 総数に対して。512 は通常 UX ではなく abuse/肥大化の防波堤（検索・ページング前提）。
 - customId v2: `roll_{channelId}_{key}` / `res_{channelId}_{key}_{delta}`。
+  **予約プレフィックス（v1.2）**: `chk_`（案C1 の kind:'check' 用）/ `dec_`（kind:'declare' 用・v1.x）。
+  機能名でなく action kind 単位で予約する（`c1_` のような機能名プレフィックスは使わない）。
+  **パース安全性**: palette key の文字種は registry 発行で `[a-z0-9]` に限定（`_` を含めない）。
+  channelId は snowflake（数字のみ）なので `prefix_channelId_key(_delta)` は `_` 区切りで一意にパースできる。
   fieldPath を customId に直接埋めないため、Discord の 100 字制限は key 側で構造的に担保。
   新契約は Factory / Parser / pattern 定数の custom-id モジュールとして新設（文字列直書き禁止を踏襲）。
   旧 `skill_` / `ability_` は legacy テンプレートのキャラ用に registry 併存 → 投影廃止ゲートと同時に段階廃止。
@@ -188,8 +270,9 @@ interface PaletteEntry {
   構文検証（sheet-engine の validate）。依存は character → template の一方向のみ。
   利用数集計等は character 側イベントの購読で解く（逆依存・イベント RPC 禁止）。
 - **`src/features/character-sheet/`（新設・決着 §8-13）**: ARCHITECTURE 目標 features 層の**最初の住人**。所有:
-  - `CharacterInstantiationService` —— テンプレート解決 → rollOnCreate（bcdice adapter）→ 式評価 →
-    `CharacterService.create`（ID は CharacterIdService）→ 初回 materialize
+  - `CharacterInstantiationService` —— テンプレート解決 → rollOnCreate（**E-6e で `domains/dice-roll` に
+    抽出済みの BCDice 実行コア〔dice-execution 系サービス・discord.js 非依存〕を再利用**。二重実装しない）→
+    式評価 → `CharacterService.create`（ID は CharacterIdService）→ 初回 materialize
   - `SheetMaterializerService` —— computed 評価・computedCache・projection・palette 生成の**単一書き込み点**。
     `sheet.revision` の楽観ロック＋競合時再試行。Web 保存・Discord ±・migrate のすべてがここを通る（決着 §8-14）
   - テンプレート適用（migrate）ユースケース —— uid ベース自動 mapping。削除フィールドの値は
@@ -211,8 +294,8 @@ interface PaletteEntry {
 | Phase | 内容 | 検証ゲート |
 |-------|------|-----------|
 | 1 | `domains/character-sheet-template` 新設＋`packages/sheet-engine`＋`features/character-sheet` 骨格（instantiation/materializer）＋schema v3 最小（scalar/computed/roll/tables）＋Web エディタの mock→実 API 置換＋legacy-coc テンプレート定義 | build / check:circular / 新ドメイン・engine spec / エディタ E2E |
-| 2 | `character.sheet`＋`computedCache`＋palette 併存＋customId v2＋投影生成＋既存キャラ backfill | 全 suite（マージ前必須）＋**characterization test: legacy-coc の materialize 出力 ≡ 現行 5 セクション**＋Discord 実機（スレッドロール・±・/dice-result） |
-| 3 | track / list / relation / tag＋ブロック UI（Web）＋Discord の track ±・行ロール＋palette/user-dice 名前空間統合（分離表示） | 同上＋列挙: ボタン→select フォールバックの実機確認 |
+| 2 | `character.sheet`＋`computedCache`＋palette 併存＋customId v2＋投影生成＋既存キャラ backfill＋hub メッセージ化（`hubMessageId` 永続化）＋templateVersion バッジ表示（v1.1） | 全 suite（マージ前必須）＋**characterization test: legacy-coc の materialize 出力 ≡ 現行 5 セクション**＋Discord 実機（スレッドロール・±・/dice-result） |
+| 3 | track / list / relation / tag＋ブロック UI（Web）＋Discord の track ±・行ロール＋palette/user-dice 名前空間統合（分離表示）＋migrate ウィザード最小（差分・orphan review・hub rebuild、v1.1） | 同上＋列挙: ボタン→select フォールバックの実機確認 |
 | 4 | 配布（publish / gallery / fork / import-export）＋未認証閲覧の認可設計＋通報・ライセンス | B3 安全性チェック（サイズ上限・sanitize・publish 静的検査） |
 
 - 各 Phase は「1 slice ずつ独立検証」の既存方針に従い、`/domains` と `/discord` を同時に大きく動かさない。
@@ -255,3 +338,20 @@ interface PaletteEntry {
 - **確定宣言**: 残ブロッカー「なし」、判定「**可**」（(a)(e) の反映を条件 → 本版で反映済み）。
 - **持ち越し（本設計のスコープ外として README 未決事項へ）**: 公開ギャラリーの未認証 read・通報・license 運用、
   GM/セッション権限モデル、共有シート（P14）、track リセットの発火権限、SW 威力表型 lookup 拡張。
+
+## 10. 改版履歴
+
+- **v1.1（2026-07-07）**: UI 三面設計の討論（[design-v1-ui.md](design-v1-ui.md)）の決着を Phase 表へ反映 ——
+  Phase 2 に hub メッセージ化（hubMessageId 永続化）と templateVersion バッジ、Phase 3 に migrate ウィザード最小を追加。
+  Discord 投影の共有単位は palette から `DiscordProjectionViewModel`（`packages/sheet-projection`）へ拡張
+  （§4 palette はデータ仕様として有効のまま、行分割・embed・警告の算出は projection 側が正本）。
+- **v1.2（2026-07-07）**: フィールド型充足性監査（[field-sufficiency-audit.md](field-sufficiency-audit.md)＝
+  52 エージェントのストレステスト＋Codex レッドチーム検証）の反映 ——
+  (1) §1 TrackField に `min` / `resetTo` と**値域クランプ・reset 意味論**（parts 置換・冪等）を追加（G28/R25）、
+  (2) §2.1 に **notation 差し込み文法**（許可トークン・fragment 型によるインジェクション防止・補間後 bcdice 検証、G02）、
+  (3) §2.2 に仕様明文化 12 件、(4) §1 FieldBase に `when` を**名前ごと予約**（v1 は publish 拒否・
+  ネクロニカ型の状態依存ボタン無効化は v1 非対応と明記、G34）、(5) §4 に kind 拡張規約
+  （publish は既知のみ・runtime は未知無視）と `chk_`/`dec_` プレフィックス予約（G35・案C1 整合）、
+  (6) E-6 系列（threadId 撤去・CharacterEntity 公開型・BCDice 実行コアの domains 引き上げ）が
+  **実施済み**である事実へ記述を更新。エンコード可能と確定した 37 件は [encoding-cookbook.md](encoding-cookbook.md) 参照
+  （うち 4 件はレッドチームで反証が破れ、明示 deferral として監査文書に記録）。

@@ -20,6 +20,16 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ---
 
+## 📝 最新メモ（2026-07-12）
+
+### Discord REST操作の契約を統一
+
+`send-message` / `create-channel` は、Discord SDKオブジェクトをHTTPへ露出せず、`success` で判別できる結果型を返す。成功時は `messageId` / `channelId`、失敗時は `error` を必須とする。入力optionsと結果型の正本は `interfaces/discord-operation-options.interface.ts` / `discord-operation-result.interface.ts`、詳細な事前条件・事後条件・不変条件は [DESIGN.md §4.5](./DESIGN.md#45-discordfacadeservice-の位置づけ2026-06-03-決着存続) を参照。
+
+単数Embedと複数Embedはcontrollerで統合し、`#RRGGBB` はDTOで数値へ変換する。文字列チャンネル種別はmanagerでDiscord `ChannelType` へ変換する。`create-channel` の `thread` は通常チャンネルへ暗黙変換せず400とし、親チャンネルを持つ専用処理へ分離する。
+
+---
+
 ## 📝 最新メモ（2026-06-11）
 
 ### 修正: スレッド内ダイスロールの履歴保存キーを「実親チャンネル」へ変更（/dice-result に出ない問題）

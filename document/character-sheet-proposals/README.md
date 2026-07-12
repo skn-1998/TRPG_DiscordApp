@@ -30,6 +30,9 @@
 |----|---------|-------------|
 | 調査 | [trpg-system-survey.md](trpg-system-survey.md) | **14 系統の TRPG を棚卸しし、5 セクションと AttributeValue の充足性を検証**（結論: どちらも汎用正本としては不足。構造パターン P1〜P14 を定義） |
 | **設計** | [design-v1.md](design-v1.md) | **Codex との討論 2 ラウンドを経て確定した具体設計 v1**（schema v3・式エンジン・ドメイン境界・palette・Phase 分割・争点決着表・討論記録） |
+| **設計** | [design-v1-ui.md](design-v1-ui.md) | **UI 三面設計（エディタ／作成フォーム／Discord hub）を同討論プロトコルで確定**（DiscordProjectionViewModel 正本化・署名付き roll proof・ephemeral パネル・決着表 U1〜U13） |
+| **監査** | [field-sufficiency-audit.md](field-sufficiency-audit.md) | **schema v3 の充足性再精査**（52 エージェント×約40システム＋Codex レッドチーム）。真ギャップ 4＋復活 4 を確定し design-v1 **v1.2** へ反映（TrackField min/resetTo・notation 文法 §2.1・明文化 §2.2・when/declare 予約） |
+| 参照 | [encoding-cookbook.md](encoding-cookbook.md) | **エンコード集** — 「書けないのでは」37 主張の正準エンコード（破れ 4 件は注記）＋非自明レシピ 79 件。テンプレート作者/実装者向けリファレンス |
 | A1 | [a1-extend-current-sections.md](a1-extend-current-sections.md) | 現行 AttributeSection（5セクション）を温存し formula を足す最小変更案 |
 | A2 | [a2-schema-driven-fields.md](a2-schema-driven-fields.md) | フロントの characterTemplate DSL をサーバー正本に昇格するスキーマ駆動案（本命候補） |
 | A3 | [a3-spreadsheet-cells.md](a3-spreadsheet-cells.md) | セル参照＋自由グリッドの「Excel そのもの」案 |
@@ -38,6 +41,7 @@
 | B2 | [b2-domain-boundaries.md](b2-domain-boundaries.md) | ドメイン境界（character-sheet ドメイン新設と character ドメイン再設計） |
 | B3 | [b3-distribution-sharing.md](b3-distribution-sharing.md) | 配布・共有（公開範囲・版管理・fork・ギャラリー・安全性） |
 | B4 | [b4-discord-mapping.md](b4-discord-mapping.md) | Discord 連携マッピング（ロール注釈→ボタン/チャットパレット自動生成） |
+| C1 | [c1-outcome-effects.md](c1-outcome-effects.md) | **結果連動エフェクト**（判定→成功/失敗分岐→SAN/HP/MP 自動増減→undo）＋先行スライス **Apply Roll Result**（ロール結果メッセージの右クリック→リソース適用）。design-v1 の v1.x 拡張候補（R4/R5 討論・2026-07-07 骨子合意） |
 
 ## A系 比較早見表
 
@@ -66,6 +70,13 @@
   （＝実質 A2＋A4 融合が本命）。現行 5 セクションは B2 の「Discord 向け materialized view」としてのみ存続させる。
 - **具体設計は [design-v1.md](design-v1.md) で確定（2026-07-06・Codex 討論 2 ラウンド、確定宣言「可」）**。
   以後の設計変更は design-v1 の改版（v1.x）として管理する。A/B 各案ドキュメントは決定の経緯資料として凍結。
+- **UI 三面設計も [design-v1-ui.md](design-v1-ui.md) で確定（2026-07-07・同プロトコル、確定宣言「可」）**。
+  鍵は `DiscordProjectionViewModel` の正本化 —— エディタの Discord プレビューと実機が同一の純 TS 算出を読む
+  ことで「プレビュー＝実機」を CI（golden fixture）で保証する。
+- **フィールド型の充足性は [field-sufficiency-audit.md](field-sufficiency-audit.md)（2026-07-07）で再精査済み**。
+  約 40 システムの総当たり＋敵対的反証＋Codex レッドチームの結果、**型セットはほぼ充足**（型追加ゼロ・
+  TrackField への min/resetTo 追加と仕様明文化のみ）と確定し、design-v1 は **v1.2** に改版。
+  「書けないのでは」への回答集は [encoding-cookbook.md](encoding-cookbook.md)。
 
 ## 共通の前提・制約（どの案でも守る）
 
@@ -93,6 +104,11 @@
 7. キャラ間関係（ロイス/絆）・共有シート（国/ギルド）を初期スコープに含めるか（調査 P7 / P14）
 8. 回数リソースのリセット語彙（シーン / セッション / 休息）を誰が発火するか（調査 P11）
 9. 特技表グリッド（シノビガミ系）を専用ブロックとして開発するか（調査 P6）
+10. 個別 list 行の選択参照（selectedRow / relation-to-row）— プレイヤーが任意数の行を作って選択する構造の v1.x 拡張（監査 R10）
+11. Discord からの boolean トグル（toggle role / set 意味論）— v1 は「切替は Web のみ」（監査 R31）
+12. relation 先フィールドの live 参照 — v1 は手動転記・非対応明記（監査 R33。P14 と同系）
+13. `resetTo` formula からの自 track 現在値参照（FATE 型「現在値と refresh の高い方」持ち越し。監査 G28）
+14. `kind:'declare'`（ロールなし宣言アクション）の v1.x 採用案 — label＋textRefs→plain 投稿、`dec_` prefix は予約済み（監査 G35）
 
 ## 関連する既存資産
 
