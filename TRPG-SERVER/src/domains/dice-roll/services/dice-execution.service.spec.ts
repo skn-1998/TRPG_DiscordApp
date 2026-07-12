@@ -98,6 +98,25 @@ describe('DiceExecutionService', () => {
     })
   })
 
+  describe('executeEvaluatedDiceRoll', () => {
+    it('BCDice text の最後の評価値を total とし、3d6*5 の修飾子を反映する', async () => {
+      mockedDice.mockResolvedValue(diceResult('(3D6*5) ＞ 11[2,4,5]*5 ＞ 55', [[2], [4], [5]]))
+
+      const result = await service.executeEvaluatedDiceRoll('3d6*5', 'Cthulhu7th')
+
+      expect(mockedDice).toHaveBeenCalledWith('3d6*5', 'Cthulhu7th')
+      expect(result).toEqual({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+    })
+
+    it('BCDice result に total がある場合は text 抽出より優先する', async () => {
+      mockedDice.mockResolvedValue({ ...diceResult('(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'), total: 55 } as DiceReturn)
+
+      const result = await service.executeEvaluatedDiceRoll('3d6*5')
+
+      expect(result.total).toBe(55)
+    })
+  })
+
   describe('cleanDiceExpression', () => {
     it('大文字・空白を正規化する', () => {
       expect(service.cleanDiceExpression(' 1D100 ')).toBe('1d100')

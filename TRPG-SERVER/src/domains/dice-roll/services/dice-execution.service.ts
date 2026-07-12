@@ -65,6 +65,37 @@ export class DiceExecutionService {
   }
 
   /**
+   * ダイス式全体の評価済み最終値を返す。
+   *
+   * executeDiceRoll は legacy 互換の rands 合算 total を維持するため、
+   * 作成時ロールなど式修飾子込みの値が必要な呼び出し元はこちらを使う。
+   */
+  async executeEvaluatedDiceRoll(
+    diceExpression: string,
+    gameSystemId?: string
+  ): Promise<{ total: number; details: string }> {
+    try {
+      const cleanExpression = this.cleanDiceExpression(diceExpression)
+      const result = await dice(cleanExpression, gameSystemId)
+
+      if (!result || !result.text) {
+        throw new Error(`Invalid dice roll result for: ${cleanExpression}`)
+      }
+
+      const total = this.extractEvaluatedTotal(result)
+      this.logger.debug(`Evaluated dice roll result: ${cleanExpression} = ${total} (${result.text})`)
+
+      return {
+        total,
+        details: result.text
+      }
+    } catch (error) {
+      this.logger.error(`Failed to execute evaluated dice roll: ${diceExpression}`, error)
+      throw new Error(`ダイスロールの実行に失敗しました: ${diceExpression}`)
+    }
+  }
+
+  /**
    * ダイス式をクリーンアップ
    *
    * 無効な式は throw する（validateDiceExpression 系の呼び出し元は catch して解析失敗にする）。
@@ -88,5 +119,20 @@ export class DiceExecutionService {
     }
 
     return cleaned
+  }
+
+  private extractEvaluatedTotal(result: NonNullable<Awaited<ReturnType<typeof dice>>>): number {
+    const explicitTotal = (result as { total?: unknown }).total
+    if (typeof explicitTotal === 'number' && Number.isFinite(explicitTotal)) {
+      return explicitTotal
+    }
+
+    const matches = Array.from(result.text.matchAll(/[＞>]\s*(-?\d+(?:\.\d+)?)/g))
+    const lastMatch = matches[matches.length - 1]
+    if (lastMatch?.[1]) {
+      return Number(lastMatch[1])
+    }
+
+    throw new Error(`Could not extract evaluated total from: ${result.text}`)
   }
 }

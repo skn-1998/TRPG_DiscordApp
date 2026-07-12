@@ -7,6 +7,8 @@ import { CoreEventsModule } from './core/events/core-events.module'
 import { AppConfigModule } from './config/config.module'
 import { DatabaseModule } from './core/database/database.module'
 import { CharacterModule } from './domains/character/character.module'
+import { CharacterSheetTemplateModule } from './domains/character-sheet-template/character-sheet-template.module'
+import { CharacterSheetModule } from './features/character-sheet/character-sheet.module'
 import { UserModule } from './domains/user/user.module'
 import { AuthModule } from './domains/auth/auth.module'
 import { DiceRollModule } from './domains/dice-roll/dice-roll.module'
@@ -33,6 +35,8 @@ import { AppConfigService } from './config/config.service'
     // AI.architecture.md Phase 3: アダプター層を早期に初期化
     EventsModule, // Events層を先に初期化
     CharacterModule,
+    CharacterSheetTemplateModule,
+    CharacterSheetModule,
     UserModule,
     AuthModule,
     DiceRollModule,
