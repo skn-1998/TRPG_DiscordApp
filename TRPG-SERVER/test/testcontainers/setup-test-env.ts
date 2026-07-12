@@ -1,19 +1,19 @@
 import { existsSync, readFileSync } from 'fs'
 import { setupTestEnvironment } from '../config/test-environment'
-import { testcontainersStateFilePath } from './runtime-state'
+import { MongoContainerRuntimeState, testcontainersStateFilePath } from './runtime-state'
 
-interface RuntimeState {
-  containerId: string
-  mongoUri: string
+if (!existsSync(testcontainersStateFilePath)) {
+  throw new Error('Testcontainers runtime state is missing; refusing to use MONGODB_URI from the host environment')
 }
+
+const state = JSON.parse(readFileSync(testcontainersStateFilePath, 'utf-8')) as MongoContainerRuntimeState
 
 setupTestEnvironment()
+process.env.MONGODB_URI = state.mongoUri
+process.env.MONGO_URI = state.mongoUri
+process.env.TEST_DATABASE_PROVIDER = 'isolated-docker'
+process.env.TEST_DATABASE_RUN_ID = state.runId
+process.env.TEST_MOCK_DATABASE = 'false'
 
-if (existsSync(testcontainersStateFilePath)) {
-  const state = JSON.parse(readFileSync(testcontainersStateFilePath, 'utf-8')) as RuntimeState
-  process.env.MONGODB_URI = state.mongoUri
-  process.env.MONGO_URI = state.mongoUri
-}
-
-console.log('Testcontainers setup loaded')
+console.log('Isolated MongoDB setup loaded')
 console.log(`MONGODB_URI: ${process.env.MONGODB_URI}`)

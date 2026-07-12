@@ -18,6 +18,8 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+/test/testcontainers/.runtime-state.json
+/test/testcontainers/.runtime-state.lock
 
 # IDEs and editors
 /.idea

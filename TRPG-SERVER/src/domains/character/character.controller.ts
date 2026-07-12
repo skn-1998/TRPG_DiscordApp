@@ -1,5 +1,6 @@
 import {
   Controller,
+  Inject,
   Get,
   Post,
   Body,
@@ -12,6 +13,8 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  UnauthorizedException,
   ValidationPipe,
   UsePipes
 } from '@nestjs/common'
@@ -26,11 +29,35 @@ import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
 import { SuccessResponse } from '../../core/dto/api-response.dto'
 import { v4 as uuidv4 } from 'uuid'
+import { CreateCharacterFromTemplateDto, SaveCharacterSheetDto } from './dto/character-sheet.dto'
 import {
   CharacterHttpExceptionFilter,
   CharacterAuthenticationException,
   CharacterNotFoundException
 } from './character-http.exception'
+
+export const CHARACTER_SHEET_OPERATION_USE_CASE = Symbol('CHARACTER_SHEET_OPERATION_USE_CASE')
+export const CHARACTER_INSTANTIATION_USE_CASE = Symbol('CHARACTER_INSTANTIATION_USE_CASE')
+
+interface CharacterSheetOperationUseCase {
+  saveSheet(input: {
+    characterId: string
+    baseRevision: number
+    changes: SaveCharacterSheetDto['changes']
+  }): Promise<unknown>
+}
+
+interface CharacterInstantiationUseCase {
+  instantiate(input: {
+    templateId: string
+    templateVersion: string
+    requesterDiscordUserId: string
+    characterName: string
+    discordUserId: string
+    discordChannelId: string
+    values?: Record<string, unknown>
+  }): Promise<{ character: { characterId: string } }>
+}
 
 /**
  * キャラクターコントローラー
@@ -234,5 +261,81 @@ export class CharacterController {
     }
 
     return { message: 'キャラクターを削除しました', characterId: id }
+  }
+}
+
+/**
+ * materialized character の Web ユースケース境界。
+ * feature module が所有し、domain CRUD controller へ feature provider を逆注入しない。
+ */
+@ApiTags('キャラクターシート')
+@Controller('character')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+export class CharacterSheetController {
+  constructor(
+    private readonly characterService: CharacterService,
+    @Inject(CHARACTER_SHEET_OPERATION_USE_CASE)
+    private readonly sheetOperationService: CharacterSheetOperationUseCase,
+    @Inject(CHARACTER_INSTANTIATION_USE_CASE)
+    private readonly instantiationService: CharacterInstantiationUseCase
+  ) {}
+
+  @Put(':id/sheet')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'materialized キャラクターシート保存' })
+  @ApiParam({ name: 'id', description: 'キャラクターID' })
+  @ApiResponse({ status: 200, description: '保存成功' })
+  @ApiResponse({ status: 409, description: '同一値への競合' })
+  @ApiResponse({ status: 422, description: 'テンプレート整合検査違反' })
+  async saveSheet(
+    @Param() params: CharacterIdParamDto,
+    @Body() dto: SaveCharacterSheetDto,
+    @Req() req: Request
+  ): Promise<unknown> {
+    const user = this.extractAuthenticatedUser(req)
+    const ownedCharacter = await this.characterService.findOneForOwner(params.id, user.discordUserId)
+    if (ownedCharacter === null) {
+      throw new NotFoundException('character not found')
+    }
+
+    return this.sheetOperationService.saveSheet({
+      characterId: params.id,
+      baseRevision: dto.baseRevision,
+      changes: dto.changes
+    })
+  }
+
+  @Post('from-template')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'published テンプレートから materialized キャラクターを作成' })
+  @ApiResponse({ status: 201, description: '作成成功' })
+  @ApiResponse({ status: 409, description: 'publish または version の競合' })
+  @ApiResponse({ status: 422, description: 'テンプレート整合検査違反' })
+  async createFromTemplate(
+    @Body() dto: CreateCharacterFromTemplateDto,
+    @Req() req: Request
+  ): Promise<{ characterId: string }> {
+    const user = this.extractAuthenticatedUser(req)
+    const result = await this.instantiationService.instantiate({
+      templateId: dto.templateId,
+      templateVersion: dto.templateVersion,
+      requesterDiscordUserId: user.discordUserId,
+      characterName: dto.characterName,
+      discordUserId: user.discordUserId,
+      discordChannelId: '',
+      values: dto.values
+    })
+
+    return { characterId: result.character.characterId }
+  }
+
+  private extractAuthenticatedUser(req: Request): JwtTokenPayload {
+    const user = req.user as JwtTokenPayload | undefined
+    if (!user?.discordUserId) {
+      throw new UnauthorizedException('認証トークンがありません')
+    }
+    return user
   }
 }
