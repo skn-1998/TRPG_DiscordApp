@@ -1,5 +1,57 @@
 import { AttributeSection } from '../../../core/types/attribute.types'
 
+export interface CharacterSheetState {
+  templateId: string
+  templateVersion: string
+  revision: number
+  values: Record<string, unknown>
+}
+
+export interface CharacterTemplatePin {
+  templateId: string
+  templateVersion: string
+  pinnedBy: string
+}
+
+interface CharacterPaletteEntryBase {
+  key: string
+  fieldRef: {
+    uid: string
+    rowId?: string
+  }
+  label: string
+  group: string
+}
+
+export type CharacterPaletteEntry =
+  | (CharacterPaletteEntryBase & {
+      kind: 'roll'
+      notation: string
+      deltas?: never
+    })
+  | (CharacterPaletteEntryBase & {
+      kind: 'resource'
+      notation?: never
+      deltas: number[]
+    })
+
+export type CharacterHubStatus = 'none' | 'publishing' | 'active' | 'error'
+
+export interface CharacterHub {
+  status: CharacterHubStatus
+  opId?: string
+  messageId?: string
+  threadId?: string
+  pendingRevision?: number
+  appliedRevision?: number
+  retryAt?: Date
+  errorCode?: string
+}
+
+export type CharacterHubTransition = Pick<CharacterHub, 'status'> & Partial<Omit<CharacterHub, 'status'>>
+
+export type CharacterState = 'legacy-unpinned' | 'legacy-pinned' | 'materialized'
+
 /**
  * キャラクター公開エンティティ（plain object・E-6d）
  *
@@ -33,6 +85,57 @@ export interface CharacterEntity {
   parameter?: AttributeSection
   item?: AttributeSection
   description?: AttributeSection
+  sheet?: CharacterSheetState
+  templatePin?: CharacterTemplatePin
+  computedCache?: Record<string, number | string | boolean>
+  palette?: CharacterPaletteEntry[]
+  hub?: CharacterHub
+  appliedInteractionIds?: string[]
   createdAt?: Date
   updatedAt?: Date
+}
+
+export type LegacyCharacterEntity = Omit<
+  CharacterEntity,
+  'sheet' | 'templatePin' | 'computedCache' | 'palette' | 'hub' | 'appliedInteractionIds'
+>
+
+/**
+ * Phase 2 の3状態を決定的に解決する。
+ * sheet が正本なので、移行途中に templatePin と同時に存在しても materialized を優先する。
+ */
+export const resolveCharacterState = (character: Pick<CharacterEntity, 'sheet' | 'templatePin'>): CharacterState => {
+  if (character.sheet !== undefined) return 'materialized'
+  if (character.templatePin !== undefined) return 'legacy-pinned'
+  return 'legacy-unpinned'
+}
+
+export type MaterializedCharacterEntity = Omit<CharacterEntity, 'templatePin'> &
+  Required<
+    Pick<
+      CharacterEntity,
+      | 'sheet'
+      | 'computedCache'
+      | 'palette'
+      | 'hub'
+      | 'appliedInteractionIds'
+      | 'status'
+      | 'parameter'
+      | 'skill'
+      | 'item'
+      | 'description'
+    >
+  > & { templatePin?: never }
+
+export interface SaveSheetMaterializedPayload {
+  values: Record<string, unknown>
+  computedCache: Record<string, number | string | boolean>
+  palette: CharacterPaletteEntry[]
+  status: AttributeSection
+  parameter: AttributeSection
+  skill: AttributeSection
+  item: AttributeSection
+  description: AttributeSection
+  pendingRevision: number
+  appliedInteractionIds: string[]
 }

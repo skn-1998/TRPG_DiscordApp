@@ -72,4 +72,27 @@ describe('SheetEngineTemplateValidationService', () => {
   it('publish は public visibility 以外を拒否する', () => {
     expect(() => service.validateForPublish({ ...template, visibility: 'private' })).toThrow(BadRequestException)
   })
+
+  it('T-23: publish は description へ集約される top-level field id 重複を拒否するが save は許可する', () => {
+    const duplicatedProjectionKey: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'profile',
+          label: 'Profile',
+          fields: [{ id: 'memo', uid: 'uid-profile-memo', label: 'Profile memo', type: 'scalar', valueType: 'text' }]
+        },
+        {
+          id: 'notes',
+          label: 'Notes',
+          fields: [{ id: 'memo', uid: 'uid-notes-memo', label: 'Notes memo', type: 'scalar', valueType: 'text' }]
+        }
+      ]
+    }
+
+    expect(() => service.validateForSave(duplicatedProjectionKey)).not.toThrow()
+    expect(() => service.validateForPublish(duplicatedProjectionKey)).toThrow(
+      /duplicate projected field id in description: memo/
+    )
+  })
 })

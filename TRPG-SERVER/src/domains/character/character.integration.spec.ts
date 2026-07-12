@@ -1,12 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { MongooseModule } from '@nestjs/mongoose'
+import { getModelToken, MongooseModule } from '@nestjs/mongoose'
 import { EventEmitterModule } from '@nestjs/event-emitter'
+import { Model } from 'mongoose'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
 import { TypedEventService } from '../../core/events/typed-event.service'
-import { Character, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
+import { Character, CharacterDocument, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { v4 as uuidv4 } from 'uuid'
+import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
 
 /**
  * Character CRUD 結合テスト（実 MongoDB 使用）
@@ -28,12 +30,9 @@ describe('Character CRUD Integration Test', () => {
   let characterService: CharacterService
   let characterRepository: CharacterRepository
   let typedEventService: TypedEventService
+  let characterModel: Model<CharacterDocument>
 
-  // テスト用のMongoDB URI
-  const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
-  const mongoUri = baseUri.includes('mongodb+srv://')
-    ? baseUri.replace('/?', '/trpg_integration_test_db?')
-    : 'mongodb://localhost:27017/trpg_integration_test_db'
+  const mongoUri = requireIsolatedMongoUri()
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
@@ -67,6 +66,7 @@ describe('Character CRUD Integration Test', () => {
     characterService = module.get<CharacterService>(CharacterService)
     characterRepository = module.get<CharacterRepository>(CharacterRepository)
     typedEventService = module.get<TypedEventService>(TypedEventService)
+    characterModel = module.get<Model<CharacterDocument>>(getModelToken(CHARACTER_MODEL))
 
     await clearTestDatabase()
   })
@@ -84,13 +84,9 @@ describe('Character CRUD Integration Test', () => {
   })
 
   async function clearTestDatabase(): Promise<void> {
-    try {
-      const characters = await characterRepository.findAll()
-      for (const char of characters) {
-        await characterRepository.remove(char.characterId)
-      }
-    } catch (error) {
-      console.warn('Database clear warning:', error)
+    const characters = await characterRepository.findAll()
+    for (const char of characters) {
+      await characterRepository.remove(char.characterId)
     }
   }
 
@@ -109,6 +105,7 @@ describe('Character CRUD Integration Test', () => {
             index: 1,
             values: { base: 50, other: 0 },
             description: 'ヒットポイント',
+            dice: '1d6',
             isVisible: true
           }
         },
@@ -118,6 +115,7 @@ describe('Character CRUD Integration Test', () => {
             index: 1,
             values: { base: 13, other: 0 },
             description: '筋力',
+            dice: '3d6',
             isVisible: true
           }
         }
@@ -140,6 +138,41 @@ describe('Character CRUD Integration Test', () => {
       expect(savedCharacter!.characterName).toBe(createData.characterName)
       expect(savedCharacter!.status).toEqual(createData.status)
       expect(savedCharacter!.parameter).toEqual(createData.parameter)
+    })
+
+    it('legacy属性をread時に正規化し、同一セクションのupdateで正準形へ書き戻せる', async () => {
+      const characterId = uuidv4()
+      await characterModel.create({
+        characterId,
+        characterName: 'Legacy Character',
+        gameSystemId: 'coc',
+        discordUserId: 'legacy-user',
+        discordChannelId: 'legacy-channel',
+        status: {
+          HP: { name: 'HP', index: null, values: { base: 10 }, description: null, dice: null },
+          MP: 5
+        }
+      })
+
+      const normalized = await characterRepository.findById(characterId)
+      expect(normalized?.status).toEqual({
+        HP: { name: 'HP', values: { base: 10 } },
+        MP: { values: { base: 5 } }
+      })
+
+      const updated = await characterService.update(characterId, {
+        status: {
+          ...normalized!.status,
+          HP: { ...normalized!.status.HP, values: { base: 12 }, dice: '1d6' }
+        }
+      })
+      expect(updated?.status.HP.dice).toBe('1d6')
+
+      const raw = await characterModel.findOne({ characterId }).lean().exec()
+      expect(raw?.status).toEqual({
+        HP: { name: 'HP', values: { base: 12 }, dice: '1d6' },
+        MP: { values: { base: 5 } }
+      })
     })
 
     it('should throw when characterId is not provided', async () => {
@@ -213,6 +246,7 @@ describe('Character CRUD Integration Test', () => {
             index: 1,
             values: { base: 30, other: 0 },
             description: 'ヒットポイント',
+            dice: '1d6+1',
             isVisible: true
           },
           MP: {
@@ -220,6 +254,7 @@ describe('Character CRUD Integration Test', () => {
             index: 2,
             values: { base: 20, other: 5 },
             description: 'マジックポイント',
+            dice: '2d6',
             isVisible: true
           }
         }
@@ -238,6 +273,8 @@ describe('Character CRUD Integration Test', () => {
       expect((savedCharacter!.status as any).HP.values.base).toBe(30)
       expect((savedCharacter!.status as any).MP.values.base).toBe(20)
       expect((savedCharacter!.status as any).MP.values.other).toBe(5)
+      expect((savedCharacter!.status as any).HP.dice).toBe('1d6+1')
+      expect((savedCharacter!.status as any).MP.dice).toBe('2d6')
     })
 
     it('should update by id in DB and NOT emit the retired character.updated event', async () => {

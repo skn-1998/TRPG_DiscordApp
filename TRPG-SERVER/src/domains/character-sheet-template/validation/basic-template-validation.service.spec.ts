@@ -155,4 +155,25 @@ describe('BasicTemplateValidationService', () => {
 
     expect(() => service.validateForPublish(nestedRoll)).toThrow(BadRequestException)
   })
+
+  it('T-23: publish は description へ集約される top-level field id 重複を拒否するが save は許可する', () => {
+    const duplicatedProjectionKey: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'profile',
+          fields: [{ id: 'memo', uid: 'uid-profile-memo', label: 'Profile memo', type: 'scalar' }]
+        },
+        {
+          id: 'notes',
+          fields: [{ id: 'memo', uid: 'uid-notes-memo', label: 'Notes memo', type: 'computed' }]
+        }
+      ]
+    }
+
+    expect(() => service.validateForSave(duplicatedProjectionKey)).not.toThrow()
+    expect(() => service.validateForPublish(duplicatedProjectionKey)).toThrow(
+      /duplicate projected field id in description: memo/
+    )
+  })
 })

@@ -1,3 +1,5 @@
+import { CharacterHubStatus } from '../models/character.entity'
+
 /**
  * キャラクターカード表示用の軽量データ
  */
@@ -20,5 +22,13 @@ export interface CharacterSummaryDto {
   /**
    * キャラクターチャンネルID
    */
-  discordChannelId: string
+  discordChannelId?: string
+
+  /** materialized sheet を legacy pin より優先して解決したテンプレート版 */
+  templateVersion?: string
+
+  /** Discord hub の現在状態 */
+  hub?: {
+    status: CharacterHubStatus
+  }
 }

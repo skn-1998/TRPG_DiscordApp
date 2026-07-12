@@ -36,6 +36,43 @@ export interface AttributeValue {
  */
 export type AttributeSection = Record<string, AttributeValue>
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+const ATTRIBUTE_VALUE_KEYS = new Set(['name', 'index', 'values', 'description', 'dice', 'isVisible'])
+
+/**
+ * values の実行時契約。JSON 境界で扱える有限数だけを許可する。
+ */
+export const isAttributeNumberParts = (value: unknown): value is AttributeNumberParts =>
+  isRecord(value) && Object.values(value).every((part) => typeof part === 'number' && Number.isFinite(part))
+
+/**
+ * AttributeValue の実行時契約。未指定可能な各プロパティも、存在する場合は宣言型と一致させる。
+ */
+export const isAttributeValue = (value: unknown): value is AttributeValue => {
+  if (!isRecord(value)) return false
+  if (Object.keys(value).some((key) => !ATTRIBUTE_VALUE_KEYS.has(key))) return false
+
+  return (
+    (value.name === undefined || typeof value.name === 'string') &&
+    (value.index === undefined || (typeof value.index === 'number' && Number.isFinite(value.index))) &&
+    (value.values === undefined || isAttributeNumberParts(value.values)) &&
+    (value.description === undefined || typeof value.description === 'string') &&
+    (value.dice === undefined || typeof value.dice === 'string') &&
+    (value.isVisible === undefined || typeof value.isVisible === 'boolean')
+  )
+}
+
+/**
+ * 5 セクション共通の正準形を実行時にも判定する。
+ */
+export const isAttributeSection = (value: unknown): value is AttributeSection =>
+  isRecord(value) && Object.values(value).every(isAttributeValue)
+
 /**
  * 表示用合算値を算出（index は対象外。values の number をすべて合算）
  * @param attr 属性値オブジェクト

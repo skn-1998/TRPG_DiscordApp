@@ -4,10 +4,41 @@ import {
   addDisplayValue,
   addDisplayValuesToSection,
   applyDiscordDelta,
-  getDisplayNumber
+  getDisplayNumber,
+  isAttributeNumberParts,
+  isAttributeSection,
+  isAttributeValue
 } from './attribute.types'
 
 describe('attribute.types', () => {
+  describe('AttributeValue 実行時契約', () => {
+    it('有限数だけの values と dice を持つ正準形を受理する', () => {
+      const value = {
+        name: '目星',
+        values: { base: 25, growth: 15 },
+        dice: '1d100<=40',
+        isVisible: true
+      }
+
+      expect(isAttributeNumberParts(value.values)).toBe(true)
+      expect(isAttributeValue(value)).toBe(true)
+      expect(isAttributeSection({ 目星: value })).toBe(true)
+    })
+
+    it.each([
+      ['プリミティブ属性', { STR: 50 }],
+      ['非数値 part', { STR: { values: { base: '50' } } }],
+      ['非有限 part', { STR: { values: { base: Number.POSITIVE_INFINITY } } }],
+      ['配列 values', { STR: { values: [50] } }],
+      ['数値 dice', { STR: { values: { base: 50 }, dice: 100 } }],
+      ['null プロパティ', { STR: { values: {}, description: null } }],
+      ['未知プロパティ', { STR: { value: 50 } }],
+      ['非プレーンオブジェクト', { STR: new Date() }]
+    ])('%s を正準形として受理しない', (_label, section) => {
+      expect(isAttributeSection(section)).toBe(false)
+    })
+  })
+
   describe('getDisplayNumber', () => {
     it('values が未定義なら 0 を返す', () => {
       expect(getDisplayNumber({})).toBe(0)

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { CharacterService } from '../character.service'
 import { CharacterIdService } from './character-id.service'
 import { CharacterEntity } from '../models/character.entity'
+import { AttributeSection, getDisplayNumber, isAttributeSection } from '../../../core/types/attribute.types'
 
 /**
  * キャラクター作成コア入力
@@ -16,11 +17,11 @@ export interface CharacterCreationCoreInput {
   gameSystemId?: string
   discordChannelId?: string
   discordUserId?: string
-  status?: Record<string, any>
-  parameter?: Record<string, any>
-  skill?: Record<string, any>
-  item?: Record<string, any>
-  description?: Record<string, any>
+  status?: AttributeSection
+  parameter?: AttributeSection
+  skill?: AttributeSection
+  item?: AttributeSection
+  description?: AttributeSection
   profileImageUrl?: string
   createdAt?: Date
   updatedAt?: Date
@@ -86,6 +87,8 @@ export class CharacterCreationCoreService {
    * @throws CharacterCreationValidationError ゲームシステム別パラメータ構造が不正な場合
    */
   async createValidated(createData: CharacterCreationCoreInput, characterId?: string): Promise<CharacterEntity> {
+    this.validateCanonicalSections(createData)
+
     // キャラクター重複チェック（チャンネル内）
     // 移設元: CharacterCreationRequestedHandler.validateBusinessLogic
     if (createData.discordChannelId) {
@@ -107,12 +110,11 @@ export class CharacterCreationCoreService {
     // 移設元: CharacterCreationRequestedHandler.handleCharacterEditCreation
     const resolvedCharacterId = characterId || (await this.characterIdService.generateUniqueCharacterId('char_'))
 
-    // キャラクター作成（description 変換は移設元と同一）
+    // キャラクター作成
     const characterData = {
       ...createData,
       characterId: resolvedCharacterId,
-      // description型をRecord<string, AttributeValueDto>に変換
-      description: createData.description ? (createData.description as any) : undefined
+      description: createData.description
     }
     const character = await this.characterService.create(characterData)
 
@@ -121,9 +123,23 @@ export class CharacterCreationCoreService {
   }
 
   /**
+   * 全セクションが AttributeSection の正準形であることを保証する。
+   */
+  private validateCanonicalSections(createData: CharacterCreationCoreInput): void {
+    const sectionNames = ['status', 'parameter', 'skill', 'item', 'description'] as const
+
+    for (const sectionName of sectionNames) {
+      const section = createData[sectionName]
+      if (section !== undefined && !isAttributeSection(section)) {
+        throw new CharacterCreationValidationError(`Invalid ${sectionName}: expected AttributeSection canonical form`)
+      }
+    }
+  }
+
+  /**
    * ゲームシステム別パラメータ検証
    */
-  private validateParameterStructure(parameter: Record<string, any>, gameSystemId: string | undefined): void {
+  private validateParameterStructure(parameter: AttributeSection, gameSystemId: string | undefined): void {
     if (!gameSystemId) {
       // gameSystemIdが未指定の場合は検証をスキップ
       return
@@ -149,9 +165,9 @@ export class CharacterCreationCoreService {
   /**
    * Call of Cthulhuパラメータ検証
    */
-  private validateCocParameters(parameter: Record<string, any>): void {
+  private validateCocParameters(parameter: AttributeSection): void {
     const requiredStats = ['STR', 'CON', 'POW', 'DEX', 'APP', 'SIZ', 'INT', 'EDU']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
+    const missingStats = requiredStats.filter((stat) => !Object.prototype.hasOwnProperty.call(parameter, stat))
 
     if (missingStats.length > 0) {
       throw new CharacterCreationValidationError(`CoC character missing required stats: ${missingStats.join(', ')}`)
@@ -159,8 +175,8 @@ export class CharacterCreationCoreService {
 
     // 能力値の範囲チェック
     requiredStats.forEach((stat) => {
-      const value = parameter[stat]
-      if (typeof value !== 'number' || value < 1 || value > 99) {
+      const value = this.getRequiredStatValue(parameter, stat, 'CoC')
+      if (value < 1 || value > 99) {
         throw new CharacterCreationValidationError(`CoC stat ${stat} must be between 1-99`)
       }
     })
@@ -169,9 +185,9 @@ export class CharacterCreationCoreService {
   /**
    * D&D 5eパラメータ検証
    */
-  private validateDnd5eParameters(parameter: Record<string, any>): void {
+  private validateDnd5eParameters(parameter: AttributeSection): void {
     const requiredStats = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
+    const missingStats = requiredStats.filter((stat) => !Object.prototype.hasOwnProperty.call(parameter, stat))
 
     if (missingStats.length > 0) {
       throw new CharacterCreationValidationError(`D&D 5e character missing required stats: ${missingStats.join(', ')}`)
@@ -179,8 +195,8 @@ export class CharacterCreationCoreService {
 
     // 能力値の範囲チェック
     requiredStats.forEach((stat) => {
-      const value = parameter[stat]
-      if (typeof value !== 'number' || value < 3 || value > 20) {
+      const value = this.getRequiredStatValue(parameter, stat, 'D&D 5e')
+      if (value < 3 || value > 20) {
         throw new CharacterCreationValidationError(`D&D 5e stat ${stat} must be between 3-20`)
       }
     })
@@ -189,12 +205,32 @@ export class CharacterCreationCoreService {
   /**
    * ソード・ワールド2.5パラメータ検証
    */
-  private validateSw25Parameters(parameter: Record<string, any>): void {
+  private validateSw25Parameters(parameter: AttributeSection): void {
     const requiredStats = ['器用度', '敏捷度', '筋力', '生命力', '知力', '精神力']
-    const missingStats = requiredStats.filter((stat) => !(stat in parameter))
+    const missingStats = requiredStats.filter((stat) => !Object.prototype.hasOwnProperty.call(parameter, stat))
 
     if (missingStats.length > 0) {
       throw new CharacterCreationValidationError(`SW2.5 character missing required stats: ${missingStats.join(', ')}`)
     }
+
+    requiredStats.forEach((stat) => this.getRequiredStatValue(parameter, stat, 'SW2.5'))
+  }
+
+  /**
+   * 必須能力値の values を合算し、数値が存在することを保証する。
+   */
+  private getRequiredStatValue(parameter: AttributeSection, stat: string, gameSystem: string): number {
+    const attribute = parameter[stat]
+    if (!attribute.values || Object.keys(attribute.values).length === 0) {
+      throw new CharacterCreationValidationError(
+        `${gameSystem} stat ${stat} must contain at least one finite numeric value part`
+      )
+    }
+
+    const value = getDisplayNumber(attribute)
+    if (!Number.isFinite(value)) {
+      throw new CharacterCreationValidationError(`${gameSystem} stat ${stat} total must be finite`)
+    }
+    return value
   }
 }

@@ -23,6 +23,7 @@ import {
 } from './character-http.exception'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
+import { GUARDS_METADATA } from '@nestjs/common/constants'
 
 /**
  * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
@@ -152,8 +153,11 @@ describe('CharacterController', () => {
       findHavingAll: jest.fn(),
       findUserCharacterSummaries: jest.fn(),
       findOne: jest.fn(),
+      findOneForOwner: jest.fn(),
       update: jest.fn(),
+      updateForOwner: jest.fn(),
       remove: jest.fn(),
+      removeForOwner: jest.fn(),
       findByChannelId: jest.fn(),
       removeByChannelId: jest.fn(),
       findByUserId: jest.fn(),
@@ -377,11 +381,12 @@ describe('CharacterController', () => {
   describe('GET /character/:id', () => {
     it('指定IDのキャラクターを200で返す', async () => {
       const characterId = 'test-character-001'
-      characterService.findOne.mockResolvedValue(mockCharacter)
+      const req: any = mockRequest()
+      characterService.findOneForOwner.mockResolvedValue(mockCharacter)
 
-      const data = await controller.findOne({ id: characterId })
+      const data = await controller.findOne({ id: characterId }, req)
 
-      expect(characterService.findOne).toHaveBeenCalledWith(characterId)
+      expect(characterService.findOneForOwner).toHaveBeenCalledWith(characterId, mockUser.discordUserId)
       expect(data).toEqual(mockCharacter)
 
       const envelope = await wrapSuccess('findOne', data)
@@ -396,11 +401,12 @@ describe('CharacterController', () => {
 
     it('キャラクターが見つからない場合は404を返す', async () => {
       const characterId = 'non-existent-character'
-      characterService.findOne.mockResolvedValue(null)
+      const req: any = mockRequest()
+      characterService.findOneForOwner.mockResolvedValue(null)
 
       let thrown: unknown
       try {
-        await controller.findOne({ id: characterId })
+        await controller.findOne({ id: characterId }, req)
       } catch (e) {
         thrown = e
       }
@@ -416,9 +422,10 @@ describe('CharacterController', () => {
     it('ServiceのfindOneエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
-      characterService.findOne.mockRejectedValue(error)
+      const req: any = mockRequest()
+      characterService.findOneForOwner.mockRejectedValue(error)
 
-      await expect(controller.findOne({ id: characterId })).rejects.toBe(error)
+      await expect(controller.findOne({ id: characterId }, req)).rejects.toBe(error)
       expect(filterError(error).status).toBe(500)
     })
   })
@@ -427,11 +434,16 @@ describe('CharacterController', () => {
     it('更新に成功すると200を返し、過去形 character.updated イベントは発行しない', async () => {
       const characterId = 'test-character-001'
       const updatedCharacter = { ...mockCharacter, ...mockUpdateCharacterDto }
-      characterService.update.mockResolvedValue(updatedCharacter)
+      const req: any = mockRequest()
+      characterService.updateForOwner.mockResolvedValue(updatedCharacter)
 
-      const data = await controller.update({ id: characterId }, mockUpdateCharacterDto)
+      const data = await controller.update({ id: characterId }, mockUpdateCharacterDto, req)
 
-      expect(characterService.update).toHaveBeenCalledWith(characterId, mockUpdateCharacterDto)
+      expect(characterService.updateForOwner).toHaveBeenCalledWith(
+        characterId,
+        mockUser.discordUserId,
+        mockUpdateCharacterDto
+      )
       // E-6b: controller はイベントサービス非注入（イベント不発行は構造的に保証）
       expect(data).toEqual(updatedCharacter)
 
@@ -447,11 +459,12 @@ describe('CharacterController', () => {
 
     it('更新対象が見つからない場合は404を返す', async () => {
       const characterId = 'non-existent-character'
-      characterService.update.mockResolvedValue(null)
+      const req: any = mockRequest()
+      characterService.updateForOwner.mockResolvedValue(null)
 
       let thrown: unknown
       try {
-        await controller.update({ id: characterId }, mockUpdateCharacterDto)
+        await controller.update({ id: characterId }, mockUpdateCharacterDto, req)
       } catch (e) {
         thrown = e
       }
@@ -467,9 +480,10 @@ describe('CharacterController', () => {
     it('Serviceのupdateエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
-      characterService.update.mockRejectedValue(error)
+      const req: any = mockRequest()
+      characterService.updateForOwner.mockRejectedValue(error)
 
-      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto)).rejects.toBe(error)
+      await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, req)).rejects.toBe(error)
       expect(filterError(error).status).toBe(500)
     })
   })
@@ -477,11 +491,12 @@ describe('CharacterController', () => {
   describe('DELETE /character/:id', () => {
     it('削除に成功すると200を返し、過去形 character.deleted イベントは発行しない', async () => {
       const characterId = 'test-character-001'
-      characterService.remove.mockResolvedValue(mockCharacter)
+      const req: any = mockRequest()
+      characterService.removeForOwner.mockResolvedValue(mockCharacter)
 
-      const data = await controller.remove({ id: characterId })
+      const data = await controller.remove({ id: characterId }, req)
 
-      expect(characterService.remove).toHaveBeenCalledWith(characterId)
+      expect(characterService.removeForOwner).toHaveBeenCalledWith(characterId, mockUser.discordUserId)
       // E-6b: controller はイベントサービス非注入（イベント不発行は構造的に保証）
       expect(data).toEqual({ message: 'キャラクターを削除しました', characterId })
 
@@ -503,11 +518,12 @@ describe('CharacterController', () => {
 
     it('削除対象が見つからない場合は404を返す', async () => {
       const characterId = 'non-existent-character'
-      characterService.remove.mockResolvedValue(null)
+      const req: any = mockRequest()
+      characterService.removeForOwner.mockResolvedValue(null)
 
       let thrown: unknown
       try {
-        await controller.remove({ id: characterId })
+        await controller.remove({ id: characterId }, req)
       } catch (e) {
         thrown = e
       }
@@ -523,9 +539,10 @@ describe('CharacterController', () => {
     it('Serviceのremoveエラー時は500を返す', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
-      characterService.remove.mockRejectedValue(error)
+      const req: any = mockRequest()
+      characterService.removeForOwner.mockRejectedValue(error)
 
-      await expect(controller.remove({ id: characterId })).rejects.toBe(error)
+      await expect(controller.remove({ id: characterId }, req)).rejects.toBe(error)
       expect(filterError(error).status).toBe(500)
     })
   })
@@ -535,6 +552,15 @@ describe('CharacterController', () => {
       expect(controller).toBeDefined()
       expect(characterService).toBeDefined()
       expect(authService).toBeDefined()
+    })
+
+    it('全HTTPメソッドがJwtAuthGuardで保護される', () => {
+      const methods = ['create', 'findAll', 'findUserCharacterSummaries', 'findOne', 'update', 'remove'] as const
+
+      for (const method of methods) {
+        const guards = Reflect.getMetadata(GUARDS_METADATA, CharacterController.prototype[method]) as unknown[]
+        expect(guards).toContain(JwtAuthGuard)
+      }
     })
   })
 
@@ -548,7 +574,10 @@ describe('CharacterController', () => {
         for (const act of [
           () => controller.create(mockCharacterDto, req),
           () => controller.findAll(req),
-          () => controller.findUserCharacterSummaries(req)
+          () => controller.findUserCharacterSummaries(req),
+          () => controller.findOne({ id: 'test-id' }, req),
+          () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto, req),
+          () => controller.remove({ id: 'test-id' }, req)
         ]) {
           let thrown: unknown
           try {
@@ -570,17 +599,17 @@ describe('CharacterController', () => {
       characterService.create.mockRejectedValue(serviceError)
       characterService.findHavingAll.mockRejectedValue(serviceError)
       characterService.findUserCharacterSummaries.mockRejectedValue(serviceError)
-      characterService.findOne.mockRejectedValue(serviceError)
-      characterService.update.mockRejectedValue(serviceError)
-      characterService.remove.mockRejectedValue(serviceError)
+      characterService.findOneForOwner.mockRejectedValue(serviceError)
+      characterService.updateForOwner.mockRejectedValue(serviceError)
+      characterService.removeForOwner.mockRejectedValue(serviceError)
 
       for (const act of [
         () => controller.create(mockCharacterDto, req),
         () => controller.findAll(req),
         () => controller.findUserCharacterSummaries(req),
-        () => controller.findOne({ id: 'test-id' }),
-        () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto),
-        () => controller.remove({ id: 'test-id' })
+        () => controller.findOne({ id: 'test-id' }, req),
+        () => controller.update({ id: 'test-id' }, mockUpdateCharacterDto, req),
+        () => controller.remove({ id: 'test-id' }, req)
       ]) {
         let thrown: unknown
         try {

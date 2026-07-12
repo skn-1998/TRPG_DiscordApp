@@ -7,6 +7,7 @@ import {
 } from './character-creation-core.service'
 import { CharacterService } from '../character.service'
 import { CharacterIdService } from './character-id.service'
+import { AttributeValue } from '../../../core/types/attribute.types'
 
 /**
  * CharacterCreationCoreService のユニットテスト
@@ -28,6 +29,30 @@ describe('CharacterCreationCoreService', () => {
   const baseCreateData = (): CharacterCreationCoreInput => ({
     characterName: 'テストキャラ',
     gameSystemId: 'generic'
+  })
+
+  const attribute = (base: number): AttributeValue => ({ values: { base } })
+
+  const cocParameters = (overrides: Record<string, ReturnType<typeof attribute>> = {}) => ({
+    STR: attribute(50),
+    CON: attribute(50),
+    POW: attribute(50),
+    DEX: attribute(50),
+    APP: attribute(50),
+    SIZ: attribute(50),
+    INT: attribute(50),
+    EDU: attribute(50),
+    ...overrides
+  })
+
+  const dnd5eParameters = (overrides: Record<string, ReturnType<typeof attribute>> = {}) => ({
+    STR: attribute(10),
+    DEX: attribute(10),
+    CON: attribute(10),
+    INT: attribute(10),
+    WIS: attribute(10),
+    CHA: attribute(10),
+    ...overrides
   })
 
   beforeEach(async () => {
@@ -93,7 +118,7 @@ describe('CharacterCreationCoreService', () => {
   describe('createValidated / ゲームシステム別パラメータ検証', () => {
     it('coc: 必須能力値が欠けていると ValidationError', async () => {
       await expect(
-        service.createValidated({ ...baseCreateData(), gameSystemId: 'coc', parameter: { STR: 50 } })
+        service.createValidated({ ...baseCreateData(), gameSystemId: 'coc', parameter: { STR: attribute(50) } })
       ).rejects.toThrow(/missing required stats/)
       expect(characterService.create).not.toHaveBeenCalled()
     })
@@ -103,16 +128,16 @@ describe('CharacterCreationCoreService', () => {
         service.createValidated({
           ...baseCreateData(),
           gameSystemId: 'coc',
-          parameter: { STR: 100, CON: 50, POW: 50, DEX: 50, APP: 50, SIZ: 50, INT: 50, EDU: 50 }
+          parameter: cocParameters({ STR: attribute(100) })
         })
       ).rejects.toThrow(/must be between 1-99/)
     })
 
-    it('coc: 全能力値が範囲内なら通過して create する', async () => {
+    it('coc: AttributeValue.values の合算値が範囲内なら通過して create する', async () => {
       await service.createValidated({
         ...baseCreateData(),
         gameSystemId: 'coc',
-        parameter: { STR: 50, CON: 50, POW: 50, DEX: 50, APP: 50, SIZ: 50, INT: 50, EDU: 50 }
+        parameter: cocParameters({ STR: { values: { base: 45, growth: 5 } } })
       })
       expect(characterService.create).toHaveBeenCalledTimes(1)
     })
@@ -122,20 +147,24 @@ describe('CharacterCreationCoreService', () => {
         service.createValidated({
           ...baseCreateData(),
           gameSystemId: 'dnd5e',
-          parameter: { STR: 21, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 }
+          parameter: dnd5eParameters({ STR: attribute(21) })
         })
       ).rejects.toThrow(/must be between 3-20/)
     })
 
     it('sw2.5: 必須能力値が欠けていると ValidationError', async () => {
       await expect(
-        service.createValidated({ ...baseCreateData(), gameSystemId: 'sw2.5', parameter: { 器用度: 10 } })
+        service.createValidated({ ...baseCreateData(), gameSystemId: 'sw2.5', parameter: { 器用度: attribute(10) } })
       ).rejects.toThrow(/missing required stats/)
     })
 
     it('未対応の gameSystemId かつ parameter ありで ValidationError(Unsupported game system)', async () => {
       await expect(
-        service.createValidated({ ...baseCreateData(), gameSystemId: 'unknownSystem', parameter: { foo: 1 } })
+        service.createValidated({
+          ...baseCreateData(),
+          gameSystemId: 'unknownSystem',
+          parameter: { foo: attribute(1) }
+        })
       ).rejects.toThrow(/Unsupported game system/)
     })
 
@@ -143,7 +172,7 @@ describe('CharacterCreationCoreService', () => {
       const promise = service.createValidated({
         ...baseCreateData(),
         gameSystemId: 'coc',
-        parameter: { STR: 50 }
+        parameter: { STR: attribute(50) }
       })
       await expect(promise).rejects.toBeInstanceOf(CharacterCreationValidationError)
       await expect(promise).rejects.toMatchObject({ name: 'ValidationError' })
@@ -155,8 +184,19 @@ describe('CharacterCreationCoreService', () => {
     })
 
     it('parameter はあるが gameSystemId が無ければパラメータ検証をスキップする', async () => {
-      await service.createValidated({ characterName: 'テストキャラ', parameter: { STR: 999 } })
+      await service.createValidated({ characterName: 'テストキャラ', parameter: { STR: attribute(999) } })
       expect(characterService.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('プリミティブ能力値は AttributeSection 正準形ではないため拒否する', async () => {
+      const invalid = {
+        ...baseCreateData(),
+        gameSystemId: 'coc',
+        parameter: { STR: 50 }
+      } as unknown as CharacterCreationCoreInput
+
+      await expect(service.createValidated(invalid)).rejects.toThrow(/AttributeSection/)
+      expect(characterService.create).not.toHaveBeenCalled()
     })
   })
 
@@ -205,10 +245,24 @@ describe('CharacterCreationCoreService', () => {
     })
 
     it('description が指定されていれば create にそのまま渡す', async () => {
-      const description = { note: 'メモ' }
+      const description = { note: { description: 'メモ', dice: '1d6' } }
       await service.createValidated({ ...baseCreateData(), description })
 
       expect(characterService.create).toHaveBeenCalledWith(expect.objectContaining({ description }))
+    })
+
+    it('全セクションの values と dice を正準形のまま create へ渡す', async () => {
+      const skill = {
+        目星: {
+          name: '目星',
+          values: { base: 25, growth: 15 },
+          dice: '1d100<=40'
+        }
+      }
+
+      await service.createValidated({ ...baseCreateData(), skill })
+
+      expect(characterService.create).toHaveBeenCalledWith(expect.objectContaining({ skill }))
     })
 
     it('description が無ければ undefined で create に渡す', async () => {
