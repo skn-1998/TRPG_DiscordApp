@@ -1,6 +1,6 @@
 # TRPG-SERVER Character モデル設計メモ
 
-最終更新: 2025-08-11
+最終更新: 2026-07-12
 
 > **関連（2026-07-06 追記）**: ユーザー自作キャラクターシートテンプレート（作成・配布・CoC ダメージボーナス級の
 > 導出ステータス対応）に向けた **character ドメイン再設計・character-sheet ドメイン新設の案出しドキュメント集**を
@@ -16,6 +16,34 @@
 > palette／互換投影（旧 5 セクション・read-only・materializer 専有、廃止は実装ゲートで判断）。
 > インスタンス化・materialize は新設 `src/features/character-sheet/` の所有とし、domains/character は
 > 保存と不変条件（characterId 不変・DTO/Zod・projection 整合）に縮退する方針。実装は未着手（Phase 1〜4 の分割あり）。
+> **追記6（2026-07-08・Phase 1 wave 2 完了）**: Slice C（`features/character-sheet` 新設＝features 層の最初の住人:
+> SheetMaterializerService／CharacterInstantiationService、ValidationPort を sheet-engine 実装へ差し替え）・
+> Slice E（`seeds/legacy-coc.template.ts`＋境界値 spec）・Slice D（Web エディタ実 API 化: `/templates` ルート・
+> v3 モデル・draft autosave 409・publish・engine evaluator プレビュー・v2→v3 片方向移行）を Codex 実装＋レビューで完了。
+> レビュー必須修正 4 件反映済み（**rollOnCreate が「3d6\*5」の ×5 を落とし能力値 1/5 で保存される実バグ**→
+> dice-execution に評価済み値メソッドを追加〔既存メソッド不変〕／values から computed 除去／投影 5 セクション化で
+> 値消失ゼロ／v2 移行式の canonical 化）。palette hard cap 512 実装。front 初のユニット spec 導入
+> （tsconfig に jest 型追加・カバレッジ閾値 80% 充足）。全ゲート緑: server 2451／engine 27／front typecheck・build・
+> jest 22／circular 0／start:dev DI OK（CharacterSheetModule 込み）。未コミット。**Phase 1 はこれで実装完了**
+> （残: docker compose build のユーザー実証のみ）。
+> **追記5（2026-07-08・C-0 workspace 化）**: リポジトリを pnpm workspace 化（root 単一 lockfile・
+> `@trpg/sheet-engine` を両アプリに workspace:* 接続・Docker build context ルート化・pnpm 10.12.1 固定）。
+> ネストしていたサプライチェーン設定は root `pnpm-workspace.yaml` へ統合（調整の経緯は同ファイルのコメントが正本）。
+> **副産物として front の重大な潜在バグ4層を修復**: 上限なし override が宣言レンジを破壊し、fresh install では
+> vite:dev すら起動しない状態だった（remark-mdx の ESM 注入・Remix 非対応の vite 8・@babel/runtime 8 跳ね・
+> esbuild 0.28 衝突）→ vite ^5.4.20 / typescript 5.4.3 / @remix-run/dev 2.16.8 固定と override の bound 化で解消。
+> **front の `pnpm run build` が初めて緑化**。全ゲート緑（engine 27・server 2438・circular 0・front build/dev）。
+> docker compose build のみ実機未実証（Docker engine 起動不可。Codex 静的レビュー済み・重大なし）。未コミット。
+> **追記4（2026-07-08・Phase 1 wave 1 実装）**: design-v1 v1.2 の Phase 1 を着工し、
+> **`packages/sheet-engine`**（standalone 純TS: schema v3 型・Zod publish 検証・式エンジン・notation 補間。5 suites/27 tests）と
+> **`src/domains/character-sheet-template/`**（E-6d 様式 entity・CRUD/draft autosave 409/publish 不変・ValidationPort 暫定実装。4 suites/37 tests）を
+> Codex 実装＋Codex スコープレビュー（指摘4件修正済み: publish の draftRevision 原子性・validator 拒否穴・
+> resultType 照合・notation fragment の publish 時静的検証）で追加。ゲート: build／check:circular 0／全 suite 184 suites・2438 tests 緑／start:dev DI 起動 OK。
+> **未コミット**（作業ツリー）。engine⇔server の依存配線は未実施（Slice C・配線方式はユーザー判断待ち）。
+> **同日追記3（2026-07-07）**: フィールド型充足性の再精査（52 エージェント×約 40 システム＋Codex レッドチーム、
+> `document/character-sheet-proposals/field-sufficiency-audit.md`）を実施し、design-v1 は **v1.2** に改版
+> （TrackField min/resetTo・notation 差し込み文法 §2.1・仕様明文化 §2.2・when/declare 予約）。
+> E-6 系列（threadId 撤去・CharacterEntity 公開型・BCDice 実行コア引き上げ）は**実施済み**の前提として設計へ反映済み。
 
 ## 目的
 
@@ -38,8 +66,9 @@ export type AttributeNumberParts = Record<string, number>
 export interface AttributeValue {
   name?: string // 表示名（キーと同じなら省略可）
   index?: number // 並び順（合算に含めない）
-  values: AttributeNumberParts // 合算対象の数値群（index 以外の number はここへ）
+  values?: AttributeNumberParts // 合算対象の数値群（index 以外の number はここへ）
   description?: string
+  dice?: string // ゲームシステム固有のダイス記法
   isVisible?: boolean
 }
 
@@ -79,8 +108,9 @@ export class Character {
 class AttributeValueDto {
   name?: string
   index?: number // 並び順（合算対象外）
-  values!: Record<string, number> // base, fluctuation, other など
+  values?: Record<string, number> // base, fluctuation, other など
   description?: string
+  dice?: string
   isVisible?: boolean
 }
 
@@ -97,11 +127,16 @@ class CreateCharacterDto /* extends DiscordDto */ {
 }
 ```
 
-バリデーション強化案:
+### AttributeValue正準形の契約（2026-07-12）
 
-- `index`: 0 以上の整数
-- `values`: number のみを許容、NaN を排除
-- 必要に応じ、`values.base` の必須化などゲームシステム固有制約を追加
+- **事前条件**: セクションと属性はプレーンオブジェクト。属性の許可キーは `name / index / values / description / dice / isVisible` のみ。`values` は有限数だけを値に持つ辞書で、`dice` は文字列。プリミティブ、配列、`null`、未知キーは拒否する。
+- **成功時事後条件**: create/updateは辞書キー、`values` の全part、`dice` を保持する。ゲーム別能力値検証はプリミティブ値ではなく `getDisplayNumber(AttributeValue)` の合算値を使う。
+- **失敗時事後条件**: 不正入力を `{ values: {} }` へ暗黙変換せず、永続化前に失敗させる。
+- **不変条件**: 実行時判定は `core/types/attribute.types.ts` の `isAttributeNumberParts / isAttributeValue / isAttributeSection` が正本。HTTP DTO、event contract、作成コア、CharacterService、CharacterEntityは同じ形を使う。
+- `dice` の構文はBCDiceのゲームシステムごとに異なるため、AttributeValue境界では文字列性だけを保証する。構文の可否は実際にロールを実行する境界で判定する。
+- 過去に自システムが保存した `null` 付き属性、有限数/文字列プリミティブ、`name/value` 形は、外部入力を緩めずrepository読出専用adapterで正準化する。既知でない破損形は情報を捨てず例外にする。正規化は非破壊で、DBへの一括書戻しは行わない。
+
+将来候補として、`index` を0以上の整数へ狭めること、ゲームシステム固有に`values.base`等を必須化することは別契約として検討する。
 
 ## 表示・更新ユーティリティ（基準実装案）
 

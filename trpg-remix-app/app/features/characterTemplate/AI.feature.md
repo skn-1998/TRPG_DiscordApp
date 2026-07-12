@@ -4,6 +4,10 @@
 > `document/character-sheet-proposals/`（リポジトリルート直下・README が索引）に作成した。
 > 本 DSL（schemaVersion 2）は **案 A2（スキーマ駆動フィールド定義）の土台**として参照されており、
 > LOOKUP 参照表・ダイス値型・repeater・Discord 用 role 注釈が schemaVersion 3 相当の拡張候補に挙がっている。
+> **（2026-07-07 追記）**: 基盤は `design-v1.md`、UI 三面（エディタ／作成フォーム／Discord hub）は `design-v1-ui.md`
+> として Codex 討論を経て**確定**。本 feature に将来入る主な変更 = schema v3 エディタ化・
+> `TemplateFormRenderer`（controlled）新設・**サーバー draft 正への移行（localStorage 正の卒業）**・
+> Discord プレビュー（`packages/sheet-projection` の ViewModel 描画）。実装は未着手。
 
 ## 目的
 
