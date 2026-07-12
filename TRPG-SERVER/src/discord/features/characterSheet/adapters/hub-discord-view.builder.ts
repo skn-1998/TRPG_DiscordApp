@@ -22,7 +22,14 @@ export class HubDiscordViewBuilder {
   buildHubMessage(view: DiscordProjectionViewModel): MessageCreateOptions & MessageEditOptions {
     const embed = new EmbedBuilder().setTitle(view.hub.embed.title)
     if (view.hub.embed.description) embed.setDescription(view.hub.embed.description)
-    if (view.hub.embed.fields.length > 0) embed.addFields(view.hub.embed.fields)
+    if (view.hub.embed.fields.length > 0) {
+      embed.addFields(
+        view.hub.embed.fields.map((field, index) => ({
+          ...field,
+          name: this.labelOrFallback(field.name, `Field ${index + 1}`)
+        }))
+      )
+    }
     if (view.hub.embed.footer) embed.setFooter(view.hub.embed.footer)
 
     const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = view.hub.pinnedButtonRows.map((row) =>
@@ -34,7 +41,12 @@ export class HubDiscordViewBuilder {
           new StringSelectMenuBuilder()
             .setCustomId(view.hub.groupSelect.menuCustomId)
             .setPlaceholder(view.hub.groupSelect.placeholder)
-            .addOptions(view.hub.groupSelect.options)
+            .addOptions(
+              view.hub.groupSelect.options.map((option) => ({
+                ...option,
+                label: this.labelOrFallback(option.label, option.value)
+              }))
+            )
         )
       )
     }
@@ -49,7 +61,7 @@ export class HubDiscordViewBuilder {
       (button): button is DiscordButtonModel => button !== undefined
     )
     if (navigation.length > 0) components.push(this.buttonRow(navigation))
-    return { content: view.title, components }
+    return { content: this.labelOrFallback(view.title, view.groupId), components }
   }
 
   buildGroupBrowser(view: GroupBrowserViewModel): MessageCreateOptions & MessageEditOptions {
@@ -58,8 +70,13 @@ export class HubDiscordViewBuilder {
     }
     const select = new StringSelectMenuBuilder()
       .setCustomId(view.menuCustomId)
-      .setPlaceholder(view.title)
-      .addOptions(view.options)
+      .setPlaceholder(this.labelOrFallback(view.title, 'Group'))
+      .addOptions(
+        view.options.map((option) => ({
+          ...option,
+          label: this.labelOrFallback(option.label, option.value)
+        }))
+      )
     const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
     ]
@@ -67,7 +84,7 @@ export class HubDiscordViewBuilder {
       (button): button is DiscordButtonModel => button !== undefined
     )
     if (navigation.length > 0) components.push(this.buttonRow(navigation))
-    return { content: view.title, components }
+    return { content: this.labelOrFallback(view.title, 'Group'), components }
   }
 
   private buttonRow(row: DiscordButtonRowModel): ActionRowBuilder<MessageActionRowComponentBuilder> {
@@ -77,7 +94,14 @@ export class HubDiscordViewBuilder {
   }
 
   private button(model: DiscordButtonModel): ButtonBuilder {
-    return new ButtonBuilder().setCustomId(model.customId).setLabel(model.label).setStyle(this.buttonStyle(model.style))
+    return new ButtonBuilder()
+      .setCustomId(model.customId)
+      .setLabel(this.labelOrFallback(model.label, model.paletteKey ?? model.customId))
+      .setStyle(this.buttonStyle(model.style))
+  }
+
+  private labelOrFallback(label: string, fallback: string): string {
+    return label.trim().length > 0 ? label : fallback
   }
 
   private buttonStyle(style: DiscordButtonModel['style']): ButtonStyle {

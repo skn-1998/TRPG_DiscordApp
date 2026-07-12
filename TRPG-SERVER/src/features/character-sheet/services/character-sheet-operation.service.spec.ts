@@ -215,6 +215,16 @@ describe('CharacterSheetOperationService', () => {
         { status: 'publishing', opId: 'op-1' }
       )
     })
+
+    it.each([
+      [{ status: 'none' } as const, { status: 'active', messageId: 'm1' } as const],
+      [{ status: 'none' } as const, { status: 'publishing' } as const],
+      [{ status: 'publishing', opId: 'op-1' } as const, { status: 'active' } as const],
+      [{ status: 'active', messageId: 'm1' } as const, { status: 'none' } as const]
+    ])('合法集合外または必須marker不足のhub遷移をrepository呼出前に拒否する', async (from, to) => {
+      expect(() => service.setHubState('character-1', from, to)).toThrow()
+      expect(repository.setHubState).not.toHaveBeenCalled()
+    })
   })
 
   describe('saveSheet', () => {

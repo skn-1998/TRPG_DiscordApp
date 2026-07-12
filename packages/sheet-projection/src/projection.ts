@@ -17,6 +17,14 @@ import {
   PINNED_BUTTON_LIMIT,
   SAFE_PROJECTION_ID_PATTERN,
 } from './constants'
+import {
+  canonicalizeResourceDelta,
+  createHubGroupBrowserCustomId,
+  createHubGroupSelectCustomId,
+  createHubPanelCustomId,
+  createResourceDeltaCustomId,
+  createRollPaletteCustomId,
+} from './custom-id'
 import type {
   DiscordButtonModel,
   DiscordButtonRowModel,
@@ -56,6 +64,21 @@ function warnForTruncation(
   warnings.push({ code: 'label-truncated', message: `${path} was truncated to fit Discord limits`, path })
 }
 
+function labelOrFallback(
+  value: string,
+  fallback: string,
+  path: string,
+  warnings: ProjectionWarning[]
+): string {
+  if (value.trim().length > 0) return value
+  warnings.push({
+    code: 'empty-label-fallback',
+    message: `${path} was empty; ${JSON.stringify(fallback)} is displayed instead`,
+    path,
+  })
+  return fallback
+}
+
 function validateIdPart(value: string, path: string, warnings: ProjectionWarning[]): boolean {
   if (SAFE_PROJECTION_ID_PATTERN.test(value)) return true
   warnings.push({
@@ -86,7 +109,22 @@ function acceptCustomId(customId: string, path: string, warnings: ProjectionWarn
   return false
 }
 
+function acceptGeneratedCustomId(
+  customId: string | null,
+  path: string,
+  warnings: ProjectionWarning[]
+): boolean {
+  if (customId !== null) return acceptCustomId(customId, path, warnings)
+  warnings.push({
+    code: 'invalid-custom-id-part',
+    message: `${path} cannot be represented by the customId contract; the related component was omitted`,
+    path,
+  })
+  return false
+}
+
 interface GroupReference {
+  source: string
   id: string
   label: string
 }
@@ -104,13 +142,13 @@ function createGroupReferences(
   palette: readonly ProjectionPaletteEntry[],
   warnings: ProjectionWarning[]
 ): GroupReference[] {
-  const labels = [...new Set(palette.map((entry) => entry.group))]
-  const isReusableGroupId = (label: string): boolean =>
-    SAFE_PROJECTION_ID_PATTERN.test(label) && label.length <= 48
-  const reserved = new Set(labels.filter(isReusableGroupId))
+  const sources = [...new Set(palette.map((entry) => entry.group))]
+  const isReusableGroupId = (source: string): boolean =>
+    SAFE_PROJECTION_ID_PATTERN.test(source) && source.length <= 48
+  const reserved = new Set(sources.filter(isReusableGroupId))
   const assigned = new Map<string, string>()
-  for (const label of labels.filter((candidate) => !isReusableGroupId(candidate)).sort()) {
-    const base = hashGroupId(label)
+  for (const source of sources.filter((candidate) => !isReusableGroupId(candidate)).sort()) {
+    const base = hashGroupId(source)
     let id = base
     let suffix = 0
     while (reserved.has(id)) {
@@ -118,17 +156,20 @@ function createGroupReferences(
       id = `${base}${suffix.toString(36)}`
     }
     reserved.add(id)
-    assigned.set(label, id)
+    assigned.set(source, id)
   }
-  return labels.map((label) => {
-    if (isReusableGroupId(label)) return { id: label, label }
-    const id = assigned.get(label) as string
+  return sources.map((source) => {
+    const firstEntry = palette.find((entry) => entry.group === source)
+    const fallback = firstEntry?.fieldRef.uid.split('.')[0] || firstEntry?.key || 'group'
+    const label = labelOrFallback(source, fallback, `group.${source || fallback}.label`, warnings)
+    if (isReusableGroupId(source)) return { source, id: source, label }
+    const id = assigned.get(source) as string
     warnings.push({
       code: 'group-id-normalized',
-      message: `group ${JSON.stringify(label)} uses the customId-safe key ${id}`,
-      path: `group.${label}`,
+      message: `group ${JSON.stringify(source)} uses the customId-safe key ${id}`,
+      path: `group.${source || fallback}`,
     })
-    return { id, label }
+    return { source, id, label }
   })
 }
 
@@ -194,9 +235,15 @@ function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
   const candidates = includedResources.map((entry) => {
     const rawValue = formatResourceValue(input.resourceValues?.[entry.fieldRef.uid])
     const materializedSuffix = ` (${rawValue})`
-    const rawName = rawValue !== '—' && entry.label.endsWith(materializedSuffix)
-      ? entry.label.slice(0, -materializedSuffix.length)
-      : entry.label
+    const displayLabel = labelOrFallback(
+      entry.label,
+      entry.fieldRef.uid || entry.key,
+      `palette.${entry.key}.label`,
+      warnings
+    )
+    const rawName = rawValue !== '—' && displayLabel.endsWith(materializedSuffix)
+      ? displayLabel.slice(0, -materializedSuffix.length)
+      : displayLabel
     const name = truncate(rawName, DISCORD_EMBED_FIELD_NAME_MAX_LENGTH)
     const value = truncate(rawValue, DISCORD_EMBED_FIELD_VALUE_MAX_LENGTH)
     if (name !== rawName || value !== rawValue) {
@@ -237,10 +284,24 @@ function buildRollButton(
   warnings: ProjectionWarning[]
 ): DiscordButtonModel | undefined {
   if (!validateIdPart(entry.key, `palette.${entry.key}.key`, warnings)) return undefined
-  const customId = `roll_${channelId}_${entry.key}`
+  const customId = createRollPaletteCustomId(channelId, entry.key)
+  if (customId === null) {
+    warnings.push({
+      code: 'invalid-custom-id-part',
+      message: `palette.${entry.key} cannot be represented by the roll customId contract; the action was omitted`,
+      path: `palette.${entry.key}.customId`,
+    })
+    return undefined
+  }
   if (!acceptCustomId(customId, `palette.${entry.key}.customId`, warnings)) return undefined
-  const label = truncate(entry.label, DISCORD_BUTTON_LABEL_MAX_LENGTH)
-  warnForTruncation(warnings, entry.label, label, `palette.${entry.key}.label`)
+  const rawLabel = labelOrFallback(
+    entry.label,
+    entry.fieldRef.uid || entry.key,
+    `palette.${entry.key}.label`,
+    warnings
+  )
+  const label = truncate(rawLabel, DISCORD_BUTTON_LABEL_MAX_LENGTH)
+  warnForTruncation(warnings, rawLabel, label, `palette.${entry.key}.label`)
   return { type: 'button', action: 'roll', label, customId, style: 'primary', paletteKey: entry.key }
 }
 
@@ -252,18 +313,25 @@ function buildResourceButtons(
   if (!validateIdPart(entry.key, `palette.${entry.key}.key`, warnings)) return []
   const buttons: DiscordButtonModel[] = []
   for (const delta of entry.deltas) {
-    if (!Number.isFinite(delta)) {
+    const canonicalDelta = canonicalizeResourceDelta(delta)
+    if (canonicalDelta === null) {
       warnings.push({
         code: 'invalid-custom-id-part',
-        message: `palette.${entry.key}.deltas contains a non-finite value; the action was omitted`,
+        message: `palette.${entry.key}.deltas contains a value without a canonical decimal customId representation; the action was omitted`,
         path: `palette.${entry.key}.deltas`,
       })
       continue
     }
-    const normalizedDelta = Object.is(delta, -0) ? 0 : delta
-    const customId = `res_${channelId}_${entry.key}_${normalizedDelta}`
+    const customId = createResourceDeltaCustomId(channelId, entry.key, delta)
+    if (customId === null) continue
     if (!acceptCustomId(customId, `palette.${entry.key}.customId`, warnings)) continue
-    const rawLabel = `${entry.label} ${normalizedDelta > 0 ? '+' : ''}${normalizedDelta}`
+    const entryLabel = labelOrFallback(
+      entry.label,
+      entry.fieldRef.uid || entry.key,
+      `palette.${entry.key}.label`,
+      warnings
+    )
+    const rawLabel = `${entryLabel} ${delta > 0 ? '+' : ''}${canonicalDelta}`
     const label = truncate(rawLabel, DISCORD_BUTTON_LABEL_MAX_LENGTH)
     warnForTruncation(warnings, rawLabel, label, `palette.${entry.key}.label`)
     buttons.push({
@@ -271,9 +339,9 @@ function buildResourceButtons(
       action: 'resource',
       label,
       customId,
-      style: normalizedDelta < 0 ? 'danger' : 'success',
+      style: delta < 0 ? 'danger' : 'success',
       paletteKey: entry.key,
-      delta: normalizedDelta,
+      delta,
     })
   }
   return buttons
@@ -322,7 +390,8 @@ function buildGroupSelect(
   if (!validateChannelId(channelId, warnings)) return { value: undefined, warnings }
   const groups = createGroupReferences(palette, warnings)
   if (groups.length === 0) return { value: undefined, warnings }
-  const menuCustomId = `hub_group_${channelId}`
+  const menuCustomId = createHubGroupSelectCustomId(channelId)
+  if (menuCustomId === null) return { value: undefined, warnings }
   if (!acceptCustomId(menuCustomId, 'groupSelect.menuCustomId', warnings)) return { value: undefined, warnings }
   const hasMore = groups.length > GROUP_SELECT_VISIBLE_LIMIT
   if (hasMore) {
@@ -369,18 +438,18 @@ function collectProjectionWarnings(input: DiscordProjectionInput): ProjectionWar
   const groups = createGroupReferences(input.palette, warnings)
   for (const group of groups) {
     const actionCount = input.palette
-      .filter((entry) => entry.group === group.label)
+      .filter((entry) => entry.group === group.source)
       .reduce((count, entry) => count + (entry.kind === 'roll' ? 1 : entry.deltas.length), 0)
     const lastPage = Math.max(1, Math.ceil(actionCount / PANEL_ACTIONS_PER_PAGE))
-    acceptCustomId(
-      `hub_panel_${input.channelId}_${group.id}_${lastPage}`,
+    acceptGeneratedCustomId(
+      createHubPanelCustomId(input.channelId, group.id, lastPage),
       `group.${group.label}.panelCustomId`,
       warnings
     )
   }
   const browserLastPage = Math.max(1, Math.ceil(groups.length / GROUP_BROWSER_PAGE_SIZE))
-  acceptCustomId(
-    `hub_groups_${input.channelId}_${browserLastPage}`,
+  acceptGeneratedCustomId(
+    createHubGroupBrowserCustomId(input.channelId, browserLastPage),
     'groupBrowser.menuCustomId',
     warnings
   )
@@ -432,9 +501,17 @@ function clampPage(requestedPage: number | undefined, totalPages: number): numbe
 function pageButton(
   action: 'panel-page' | 'group-browser-page',
   label: string,
-  customId: string,
+  customId: string | null,
   warnings: ProjectionWarning[]
 ): DiscordButtonModel | undefined {
+  if (customId === null) {
+    warnings.push({
+      code: 'invalid-custom-id-part',
+      message: `${action}.${label} cannot be represented by the customId contract; the action was omitted`,
+      path: `${action}.${label}`,
+    })
+    return undefined
+  }
   if (!acceptCustomId(customId, `${action}.${label}`, warnings)) return undefined
   return { type: 'button', action, label, customId, style: 'secondary' }
 }
@@ -450,10 +527,10 @@ function panelPageNavigation(
     currentPage,
     totalPages,
     ...(currentPage > 1
-      ? { previous: pageButton('panel-page', '前へ', `hub_panel_${channelId}_${groupId}_${currentPage - 1}`, warnings) }
+      ? { previous: pageButton('panel-page', '前へ', createHubPanelCustomId(channelId, groupId, currentPage - 1), warnings) }
       : {}),
     ...(currentPage < totalPages
-      ? { next: pageButton('panel-page', '次へ', `hub_panel_${channelId}_${groupId}_${currentPage + 1}`, warnings) }
+      ? { next: pageButton('panel-page', '次へ', createHubPanelCustomId(channelId, groupId, currentPage + 1), warnings) }
       : {}),
   }
 }
@@ -465,7 +542,7 @@ export function createEphemeralPanel(input: EphemeralPanelInput): EphemeralPanel
     validateChannelId(input.channelId, warnings) &&
     validateIdPart(input.groupId, 'groupId', warnings) &&
     group !== undefined
-  const entries = group ? input.palette.filter((entry) => entry.group === group.label) : []
+  const entries = group ? input.palette.filter((entry) => entry.group === group.source) : []
   const allActions = idsValid
     ? entries.flatMap((entry) =>
         entry.kind === 'roll'
@@ -502,10 +579,10 @@ function browserPageNavigation(
     currentPage,
     totalPages,
     ...(currentPage > 1
-      ? { previous: pageButton('group-browser-page', '前へ', `hub_groups_${channelId}_${currentPage - 1}`, warnings) }
+      ? { previous: pageButton('group-browser-page', '前へ', createHubGroupBrowserCustomId(channelId, currentPage - 1), warnings) }
       : {}),
     ...(currentPage < totalPages
-      ? { next: pageButton('group-browser-page', '次へ', `hub_groups_${channelId}_${currentPage + 1}`, warnings) }
+      ? { next: pageButton('group-browser-page', '次へ', createHubGroupBrowserCustomId(channelId, currentPage + 1), warnings) }
       : {}),
   }
 }
@@ -520,8 +597,9 @@ export function createGroupBrowser(input: GroupBrowserInput): GroupBrowserViewMo
     (currentPage - 1) * GROUP_BROWSER_PAGE_SIZE,
     currentPage * GROUP_BROWSER_PAGE_SIZE
   )
-  const menuCustomId = `hub_groups_${input.channelId}_${currentPage}`
-  const menuAccepted = channelValid && acceptCustomId(menuCustomId, 'groupBrowser.menuCustomId', warnings)
+  const menuCustomId = createHubGroupBrowserCustomId(input.channelId, currentPage)
+  const menuAccepted =
+    channelValid && menuCustomId !== null && acceptCustomId(menuCustomId, 'groupBrowser.menuCustomId', warnings)
   const options = menuAccepted
     ? pageGroups.map((group) => {
         const label = truncate(group.label, DISCORD_SELECT_LABEL_MAX_LENGTH)
@@ -532,7 +610,7 @@ export function createGroupBrowser(input: GroupBrowserInput): GroupBrowserViewMo
   return {
     kind: 'group-browser',
     title: 'その他のグループ',
-    menuCustomId: menuAccepted ? menuCustomId : '',
+    menuCustomId: menuAccepted && menuCustomId !== null ? menuCustomId : '',
     options,
     page: browserPageNavigation(input.channelId, currentPage, totalPages, warnings),
     warnings,

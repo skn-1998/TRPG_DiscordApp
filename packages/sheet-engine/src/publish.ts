@@ -24,6 +24,9 @@ const DEFAULT_AST_NODE_LIMIT = 256;
 const ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
 const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', 'floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
+const nonBlankLabelSchema = z.string().refine((label) => label.trim().length > 0, {
+  message: 'label must not be empty',
+});
 
 const roleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rollable'), notation: z.string(), group: z.string().optional(), secret: z.boolean().optional() }).passthrough(),
@@ -34,7 +37,7 @@ const roleSchema = z.discriminatedUnion('kind', [
 const fieldBaseSchema = {
   id: z.string(),
   uid: z.string(),
-  label: z.string(),
+  label: nonBlankLabelSchema,
   description: z.string().optional(),
   role: roleSchema.optional(),
   visibleTo: z.enum(['public', 'owner', 'gm']).optional(),
@@ -64,7 +67,7 @@ const templateSchema: z.ZodType<SheetTemplate> = z.object({
   authorDiscordUserId: z.string(),
   forkedFrom: z.object({ templateId: z.string(), version: z.string() }).optional(),
   license: z.string().optional(),
-  sections: z.array(z.object({ id: z.string(), label: z.string(), fields: z.array(fieldSchema), layout: z.unknown().optional() }).passthrough()),
+  sections: z.array(z.object({ id: z.string(), label: nonBlankLabelSchema, fields: z.array(fieldSchema), layout: z.unknown().optional() }).passthrough()),
   tables: z.array(z.object({ id: z.string(), uid: z.string().optional(), resultType: z.enum(['number', 'text', 'boolean', 'dice']).optional(), rows: z.array(z.any()) }).passthrough()),
   settings: z.object({ rounding: z.enum(['floor', 'ceil', 'round']) }),
 }).passthrough();

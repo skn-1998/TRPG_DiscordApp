@@ -91,6 +91,21 @@ describe('CharacterRepository', () => {
 
       expect(model).not.toHaveBeenCalled()
     })
+
+    it('legacy create は undefined を除去し、非正準セクションを拒否する', async () => {
+      const plain = { characterId: 'c1' }
+      const toObject = jest.fn().mockReturnValue(plain)
+      const save = jest.fn().mockResolvedValue({ ...plain, toObject })
+      model.mockImplementation((arg: unknown) => ({ ...(arg as object), save }))
+
+      await repository.create({ characterId: 'c1', discordThreadId: undefined })
+
+      expect(model).toHaveBeenCalledWith({ characterId: 'c1' })
+      await expect(repository.create({ characterId: 'c2', status: { HP: 10 } as any })).rejects.toThrow(
+        /AttributeSection/
+      )
+      expect(model).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('materialized-write', () => {
@@ -300,6 +315,14 @@ describe('CharacterRepository', () => {
         repository.setHubState('c1', { status: 'none' }, { status: 'active', pendingRevision: Number.NaN })
       ).rejects.toThrow()
 
+      await expect(
+        repository.setHubState('c1', { status: 'publishing', opId: 'op-1' }, { status: 'active' })
+      ).rejects.toThrow('publishing->active requires messageId')
+
+      await expect(
+        repository.setHubState('c1', { status: 'active', messageId: 'm1' }, { status: 'none' })
+      ).rejects.toThrow('Illegal character hub transition')
+
       expect(model.findOneAndUpdate).not.toHaveBeenCalled()
     })
   })
@@ -478,6 +501,26 @@ describe('CharacterRepository', () => {
         'Legacy write cannot update hub'
       )
 
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('section更新では undefined をpipelineへ渡さず、非正準セクションを拒否する', async () => {
+      const status = { HP: { values: { base: 10 } } }
+      model.findOneAndUpdate.mockReturnValue(createQuery({ characterId: 'c1', status }))
+
+      await repository.update('c1', { status, discordThreadId: undefined })
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1' },
+        [{ $set: { status: { $literal: status } } }],
+        { new: true }
+      )
+
+      model.findOneAndUpdate.mockClear()
+      await expect(repository.update('c1', { status: { HP: 10 } as any })).rejects.toThrow(/AttributeSection/)
+      await expect(
+        repository.update('c1', { status: { HP: { values: { base: 10 }, dice: undefined } } })
+      ).rejects.toThrow(/AttributeSection/)
       expect(model.findOneAndUpdate).not.toHaveBeenCalled()
     })
   })

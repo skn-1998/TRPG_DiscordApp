@@ -139,6 +139,45 @@ describe('HubRefreshWorker', () => {
       expect.objectContaining({ status: 'active', retryAt: expect.any(Date) })
     )
   })
+
+  it('Discord edit成功後のappliedRevision永続化失敗はerror遷移せず次sweepへ残す', async () => {
+    operations.getHubCharacter.mockResolvedValue(activeCharacter(2, 2, 1))
+    gateway.edit.mockResolvedValue(undefined)
+    operations.setHubState.mockRejectedValue(new Error('mongo unavailable'))
+    const logger = (worker as unknown as { logger: { error: jest.Mock } }).logger
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    worker.wake('char-1')
+    await waitForIdle(worker)
+
+    expect(gateway.edit).toHaveBeenCalledTimes(1)
+    expect(operations.setHubState).toHaveBeenCalledTimes(1)
+    expect(operations.setHubState).toHaveBeenCalledWith(
+      'char-1',
+      expect.objectContaining({ status: 'active', appliedRevision: 1 }),
+      expect.objectContaining({ status: 'active', appliedRevision: 2 })
+    )
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('edit succeeded but appliedRevision persistence failed'),
+      expect.any(Error)
+    )
+    expect(gateway.send).not.toHaveBeenCalled()
+  })
+
+  it('Discord edit成功後のappliedRevision CAS不一致もerror遷移しない', async () => {
+    operations.getHubCharacter.mockResolvedValue(activeCharacter(2, 2, 1))
+    gateway.edit.mockResolvedValue(undefined)
+    operations.setHubState.mockResolvedValue(null)
+    const logger = (worker as unknown as { logger: { error: jest.Mock } }).logger
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    worker.wake('char-1')
+    await waitForIdle(worker)
+
+    expect(operations.setHubState).toHaveBeenCalledTimes(1)
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('appliedRevision CAS did not match'))
+    expect(gateway.send).not.toHaveBeenCalled()
+  })
 })
 
 function thisTurn(): Promise<void> {

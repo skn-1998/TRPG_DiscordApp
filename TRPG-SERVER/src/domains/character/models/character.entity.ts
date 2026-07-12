@@ -50,6 +50,44 @@ export interface CharacterHub {
 
 export type CharacterHubTransition = Pick<CharacterHub, 'status'> & Partial<Omit<CharacterHub, 'status'>>
 
+function hasText(value: string | undefined): boolean {
+  return value !== undefined && value.trim().length > 0
+}
+
+/** Phase 2 OP-5/OP-6 で許可された hub 状態機械だけを通す。 */
+export function assertCharacterHubTransition(from: CharacterHubTransition, to: CharacterHubTransition): void {
+  const transition = `${from.status}->${to.status}`
+  switch (transition) {
+    case 'none->publishing':
+      if (!hasText(to.opId)) throw new TypeError('none->publishing requires opId')
+      return
+    case 'publishing->active':
+      if (!hasText(from.opId)) throw new TypeError('publishing->active requires the source opId')
+      if (!hasText(to.messageId)) throw new TypeError('publishing->active requires messageId')
+      return
+    case 'publishing->none':
+      if (!hasText(from.opId)) throw new TypeError('publishing->none requires the source opId')
+      return
+    case 'publishing->error':
+      if (!hasText(from.opId)) throw new TypeError('publishing->error requires the source opId')
+      if (!hasText(to.errorCode)) throw new TypeError('publishing->error requires errorCode')
+      return
+    case 'active->active': {
+      if (!hasText(from.messageId)) throw new TypeError('active->active requires the source messageId')
+      const changesActiveMetadata =
+        hasText(to.messageId) || to.appliedRevision !== undefined || to.retryAt !== undefined
+      if (!changesActiveMetadata) throw new TypeError('active->active requires a metadata update')
+      return
+    }
+    case 'active->error':
+      if (!hasText(from.messageId)) throw new TypeError('active->error requires the source messageId')
+      if (!hasText(to.errorCode)) throw new TypeError('active->error requires errorCode')
+      return
+    default:
+      throw new TypeError(`Illegal character hub transition: ${transition}`)
+  }
+}
+
 export type CharacterState = 'legacy-unpinned' | 'legacy-pinned' | 'materialized'
 
 /**

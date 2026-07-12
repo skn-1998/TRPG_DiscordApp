@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import { CharacterEntity, resolveCharacterState } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { EventPayload } from '../../../../events/contracts'
 
@@ -59,6 +59,11 @@ export class ThreadOrchestratorService {
         discordThreadId: result.threadId
       })
       this.logger.log(`[ORCHESTRATOR] Character updated successfully`)
+
+      if (resolveCharacterState(character) === 'materialized') {
+        this.logger.log(`Thread creation completed: ${result.threadId}`)
+        return
+      }
 
       // 3. スレッドを取得
       this.logger.log(`[ORCHESTRATOR] Fetching created thread: ${result.threadId}`)
