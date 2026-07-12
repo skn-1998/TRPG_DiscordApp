@@ -1,15 +1,17 @@
 services:
   app:
     build:
-      context: ./trpg-remix-app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: trpg-remix-app/Dockerfile
       target: development  # 開発環境用のステージを指定
     container_name: TRPG-CLIENT
     working_dir: /usr/src/app
     volumes:
-      - ./trpg-remix-app:/usr/src/app:cached
-      - app_node_modules:/usr/src/app/node_modules
-      - app_vite_cache:/usr/src/app/node_modules/.vite  # Viteキャッシュ用ボリューム
+      - .:/usr/src/app:cached
+      - app_root_node_modules:/usr/src/app/node_modules
+      - app_node_modules:/usr/src/app/trpg-remix-app/node_modules
+      - sheet_engine_node_modules:/usr/src/app/packages/sheet-engine/node_modules
+      - app_vite_cache:/usr/src/app/trpg-remix-app/node_modules/.vite  # Viteキャッシュ用ボリューム
     ports:
       - "5173:5173"
     environment:
@@ -32,14 +34,16 @@ services:
 
   nestjs:
     build:
-      context: ./TRPG-SERVER
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: TRPG-SERVER/Dockerfile
       target: development  # 開発環境用のステージを指定
     container_name: TRPG-SERVER
     working_dir: /usr/src/app
     volumes:
-      - ./TRPG-SERVER:/usr/src/app:cached
-      - nestjs_node_modules:/usr/src/app/node_modules
+      - .:/usr/src/app:cached
+      - nestjs_root_node_modules:/usr/src/app/node_modules
+      - nestjs_node_modules:/usr/src/app/TRPG-SERVER/node_modules
+      - sheet_engine_node_modules:/usr/src/app/packages/sheet-engine/node_modules
     ports:
       - "3000:3000"
     environment:
@@ -86,9 +90,15 @@ networks:
     name: trpg-network
 
 volumes:
+  app_root_node_modules:
+    name: trpg-app-root-node-modules
+  nestjs_root_node_modules:
+    name: trpg-nestjs-root-node-modules
   app_node_modules:
     name: trpg-app-node-modules
   app_vite_cache:
     name: trpg-app-vite-cache
   nestjs_node_modules:
     name: trpg-nestjs-node-modules
+  sheet_engine_node_modules:
+    name: trpg-sheet-engine-node-modules

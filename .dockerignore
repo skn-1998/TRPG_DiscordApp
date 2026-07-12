@@ -1,2 +1,21 @@
-# .dockerignore
-node_modules
+**/node_modules
+**/dist
+**/.cache
+**/coverage
+**/.turbo
+**/.next
+**/build
+**/.env*
+
+.git
+.claude
+.codex
+.cursor
+.pnpm-store
+.vscode
+
+document
+e2e
+
+*.log
+_eval_answer_tmp.md
