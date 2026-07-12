@@ -16,6 +16,14 @@
 > palette／互換投影（旧 5 セクション・read-only・materializer 専有、廃止は実装ゲートで判断）。
 > インスタンス化・materialize は新設 `src/features/character-sheet/` の所有とし、domains/character は
 > 保存と不変条件（characterId 不変・DTO/Zod・projection 整合）に縮退する方針。実装は未着手（Phase 1〜4 の分割あり）。
+> **追記7（2026-07-12・Phase 2 実装完了＝PH-6b コミット 680db9a）**: hub UI スライスを完了。
+> `packages/sheet-projection` 新設（DiscordProjectionViewModel 純関数＋golden fixtures）、hub 状態機械
+> （none→publishing(opId)→active の CAS・自動再投稿なし）、耐久 worker（pendingRevision/appliedRevision・
+> coalesce・edit 失敗3分類）、select/panel handler 3 本追加（feature module 計 5 handler・BOOT 実証済み）。
+> 全ゲート緑（server 208 suites/2660・characterization・projection 12・engine 42・front 全部）。
+> 開示制約: 作者ピン留めフラグ未定義→先頭 20 ロール縮退（README 未決 15）。残タスク＝
+> ①characterThread 旧投稿群の materialized 抑止（補完スライス・Codex 使用量上限で待機中）
+> ②Codex スコープレビュー ③PH-7 実機受入（チェックリスト作成済み: `document/character-sheet-proposals/phase2-ph7-acceptance-checklist.md`。D-3・ユーザー実施）。
 > **追記6（2026-07-08・Phase 1 wave 2 完了）**: Slice C（`features/character-sheet` 新設＝features 層の最初の住人:
 > SheetMaterializerService／CharacterInstantiationService、ValidationPort を sheet-engine 実装へ差し替え）・
 > Slice E（`seeds/legacy-coc.template.ts`＋境界値 spec）・Slice D（Web エディタ実 API 化: `/templates` ルート・
@@ -135,6 +143,8 @@ class CreateCharacterDto /* extends DiscordDto */ {
 - **不変条件**: 実行時判定は `core/types/attribute.types.ts` の `isAttributeNumberParts / isAttributeValue / isAttributeSection` が正本。HTTP DTO、event contract、作成コア、CharacterService、CharacterEntityは同じ形を使う。
 - `dice` の構文はBCDiceのゲームシステムごとに異なるため、AttributeValue境界では文字列性だけを保証する。構文の可否は実際にロールを実行する境界で判定する。
 - 過去に自システムが保存した `null` 付き属性、有限数/文字列プリミティブ、`name/value` 形は、外部入力を緩めずrepository読出専用adapterで正準化する。既知でない破損形は情報を捨てず例外にする。正規化は非破壊で、DBへの一括書戻しは行わない。
+- legacy CharacterServiceのセクション単位更新は部分キーのdeep mergeではなく、検証済み `AttributeSection` 全体の原子的置換とする。Mongoose `Mixed` にはaggregation pipelineの `$literal` を使い、optional keyは定義済みのものだけを永続化境界へ渡す。
+- 2026-07-12の隔離MongoDB検証で、新規 `values/dice` 往復とlegacy fixtureのread→正規化→同一セクションupdate→正準形保存を確認済み（2 suites / 19 tests）。
 
 将来候補として、`index` を0以上の整数へ狭めること、ゲームシステム固有に`values.base`等を必須化することは別契約として検討する。
 
