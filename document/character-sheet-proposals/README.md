@@ -109,6 +109,7 @@
 12. relation 先フィールドの live 参照 — v1 は手動転記・非対応明記（監査 R33。P14 と同系）
 13. `resetTo` formula からの自 track 現在値参照（FATE 型「現在値と refresh の高い方」持ち越し。監査 G28）
 14. `kind:'declare'`（ロールなし宣言アクション）の v1.x 採用案 — label＋textRefs→plain 投稿、`dec_` prefix は予約済み（監査 G35）
+15. 作者ピン留めフラグの schema v3 追加 — design-v1-ui の hub「作者ピン留めボタン」に対応するフィールド属性が schema v3 に存在せず、Phase 2 実装は**先頭 20 ロールへの縮退**で出荷（PH-6b 開示制約。[phase2-ph7-acceptance-checklist.md](phase2-ph7-acceptance-checklist.md) §7-1）
 
 ## 関連する既存資産
 
