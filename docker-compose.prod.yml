@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: ./trpg-remix-app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: trpg-remix-app/Dockerfile
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-CLIENT-PROD
     environment:
@@ -23,8 +23,8 @@ services:
 
   nestjs:
     build:
-      context: ./TRPG-SERVER
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: TRPG-SERVER/Dockerfile
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-SERVER-PROD
     environment:
@@ -70,4 +70,4 @@ services:
 networks:
   app-network:
     driver: bridge
-    name: trpg-network-prod 
+    name: trpg-network-prod

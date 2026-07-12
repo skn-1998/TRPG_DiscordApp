@@ -1,4 +1,9 @@
 {
+	"packageManager": "pnpm@10.12.1",
+	"scripts": {
+		"build:engine": "pnpm --filter @trpg/sheet-engine build",
+		"test:engine": "pnpm --filter @trpg/sheet-engine test"
+	},
 	"devDependencies": {
 		"@types/mocha": "^10.0.10"
 	},

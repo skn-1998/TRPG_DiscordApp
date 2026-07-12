@@ -5,18 +5,21 @@ FROM node:22-alpine AS base
 RUN apk add --no-cache wget curl
 
 # pnpmをグローバルにインストール
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@10.12.1
 
-# 作業ディレクトリを設定
+# workspace root を作業ディレクトリにする
 WORKDIR /usr/src/app
 
 # パッケージ定義ファイルをコピー（依存関係キャッシュのため先にコピー）
-COPY package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
+COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
+COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
 
 # 開発ステージ
 FROM base AS development
 # 開発用の依存関係をインストール
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...
 
 # アプリケーションコードをコピー
 COPY . .
@@ -26,19 +29,22 @@ RUN echo '#!/bin/sh' > /start-remix.sh && \
     echo 'echo "=== Remix 開発環境起動開始 ==="' >> /start-remix.sh && \
     echo '' >> /start-remix.sh && \
     echo '# node_modulesが空の場合のみインストール' >> /start-remix.sh && \
-    echo 'if [ ! -d "node_modules/@remix-run" ]; then' >> /start-remix.sh && \
+    echo 'if [ ! -d "trpg-remix-app/node_modules/@remix-run" ] || [ ! -d "packages/sheet-engine/node_modules/zod" ]; then' >> /start-remix.sh && \
     echo '  echo "依存関係をインストール中..."' >> /start-remix.sh && \
-    echo '  pnpm install --frozen-lockfile' >> /start-remix.sh && \
+    echo '  pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...' >> /start-remix.sh && \
     echo 'else' >> /start-remix.sh && \
     echo '  echo "依存関係は既にインストール済みです"' >> /start-remix.sh && \
     echo 'fi' >> /start-remix.sh && \
     echo '' >> /start-remix.sh && \
+    echo 'echo "Sheet engine をビルド中..."' >> /start-remix.sh && \
+    echo 'pnpm --filter @trpg/sheet-engine build' >> /start-remix.sh && \
+    echo '' >> /start-remix.sh && \
     echo '# Viteキャッシュをクリア' >> /start-remix.sh && \
     echo 'echo "Viteキャッシュをクリア中..."' >> /start-remix.sh && \
-    echo 'rm -rf node_modules/.vite' >> /start-remix.sh && \
+    echo 'rm -rf trpg-remix-app/node_modules/.vite' >> /start-remix.sh && \
     echo '' >> /start-remix.sh && \
     echo 'echo "=== Remix アプリケーション起動 ==="' >> /start-remix.sh && \
-    echo 'exec pnpm run dev --host' >> /start-remix.sh && \
+    echo 'exec pnpm --filter trpg-remix-app run dev -- --host' >> /start-remix.sh && \
     chmod +x /start-remix.sh
 
 # ポートをExpose
@@ -54,21 +60,22 @@ CMD ["/start-remix.sh"]
 # 本番ビルドステージ
 FROM base AS build
 # 全ての依存関係をインストール
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...
 
 # アプリケーションコードをコピー
 COPY . .
 
 # 本番用ビルド
-RUN pnpm run build
+RUN pnpm --filter @trpg/sheet-engine build && pnpm --filter trpg-remix-app run build
 
 # 本番ステージ
 FROM base AS production
 # 本番用依存関係のみインストール
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --filter trpg-remix-app... --filter @trpg/sheet-engine...
 
 # ビルド済みアプリケーションをコピー
-COPY --from=build /usr/src/app/build ./build
+COPY --from=build /usr/src/app/trpg-remix-app/build ./trpg-remix-app/build
+COPY --from=build /usr/src/app/packages/sheet-engine/dist ./packages/sheet-engine/dist
 
 # ポートをExpose
 EXPOSE 3000
@@ -78,4 +85,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
 # 本番モードで起動
-CMD ["pnpm", "run", "start"]
+CMD ["pnpm", "--filter", "trpg-remix-app", "run", "start"]

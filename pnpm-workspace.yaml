@@ -1,0 +1,145 @@
+packages:
+  - "TRPG-SERVER"
+  - "trpg-remix-app"
+  - "packages/*"
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+# server ツリー統合時に minimatch 等で time metadata 欠落が発生するため true へ緩和（2026-07-08・C-0）。
+# time-based 解決・minimumReleaseAge・CVE 床 overrides・strictDepBuilds は維持
+minimumReleaseAgeIgnoreMissingTime: true
+minimumReleaseAgeExclude:
+  - tar-fs@2.1.4
+  - glob@10.5.0
+  - valibot@1.2.0
+  - '@remix-run/router@1.23.2'
+  - '@remix-run/react@2.17.3'
+  - '@remix-run/node@2.17.2'
+  - '@remix-run/react@2.17.1'
+  - tar@7.5.7
+  - tar@7.5.3
+  - tar@7.5.8
+  - minimatch@3.1.3
+  - minimatch@9.0.6
+  - minimatch@10.2.1
+  - rollup@4.59.0
+  - minimatch@9.0.7
+  - minimatch@10.2.3
+  - minimatch@3.1.4
+  - tar@7.5.10
+  - tar@7.5.11
+  - flatted@3.4.0
+  - undici@6.24.0
+  - tar@7.5.4
+  - flatted@3.4.2
+  - path-to-regexp@0.1.13
+  - picomatch@2.3.2
+  - picomatch@4.0.4
+  - lodash@4.17.24
+  - vite@7.3.2
+  - axios@1.15.1
+  - axios@1.13.5
+  - axios@1.15.2
+  - axios@1.16.0
+  - '@remix-run/server-runtime@2.17.5'
+  - turbo-stream@3.0.0
+  - '@remix-run/server-runtime@2.17.3'
+  - diff@5.2.2
+  - js-yaml@3.14.2
+  - js-yaml@4.1.1
+  - qs@6.14.2
+  - ajv@6.14.0
+  - qs@6.14.1
+  - brace-expansion@2.0.3
+  - yaml@2.8.3
+  - postcss@8.5.10
+  - qs@6.15.2
+strictDepBuilds: true
+dangerouslyAllowAllBuilds: false
+# 正式キーは onlyBuiltDependencies。旧 allowBuilds は意図の記録として残置。
+# allowBuilds:
+#   esbuild: true
+#   unrs-resolver: true
+#   cpu-features: true
+#   protobufjs: true
+#   ssh2: true
+# @scarf/scarf はテレメトリのため意図的に許可しない（2026-07-08・C-0）
+onlyBuiltDependencies:
+  - cpu-features
+  - esbuild
+  - protobufjs
+  - ssh2
+  - unrs-resolver
+ignoredBuiltDependencies:
+  - '@scarf/scarf'
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 10080
+trustLockfile: false
+verifyDepsBeforeRun: error
+# time-based は time metadata 欠落パッケージ（minimatch 等）で ERR_PNPM_MISSING_TIME になるため
+# highest へ変更（2026-07-08・C-0）。リリース隔離は minimumReleaseAge 系が引き続き担保
+resolutionMode: highest
+savePrefix: ""
+auditLevel: moderate
+pmOnFail: error
+registries:
+  default: https://registry.npmjs.org/
+overrides:
+# 上限なしの '>=x' 型 override は宣言レンジを置換して次メジャー（@babel/runtime 8 は exports 構造が
+# 非互換）まで跳ねるため、<8 で bound する（2026-07-08・C-0）
+  '@babel/helpers@<7.26.10': '>=7.26.10 <8'
+  '@babel/runtime@<7.26.10': '>=7.26.10 <8'
+  '@nestjs/platform-express>multer': '>=2.0.2'
+  axios@<1.12.0: '>=1.12.0'
+  axios@>=1.0.0 <1.8.2: '>=1.8.2'
+  axios@>=1.3.2 <=1.7.3: '>=1.7.4'
+  brace-expansion@>=1.0.0 <=1.1.11: '>=1.1.12'
+  brace-expansion@>=2.0.0 <=2.0.1: '>=2.0.2'
+  braces@<3.0.3: '>=3.0.3'
+  cross-spawn@>=7.0.0 <7.0.5: '>=7.0.5'
+# esbuild の bare pin 0.28.0 は vite 5.4（宣言 ^0.21）の transpile と非互換（destructuring target エラー）のため撤去。
+# 各消費者の宣言レンジに委ねる（2026-07-08・C-0）。esbuild <0.25 の CORS 勧告は esbuild 自身の serve 機能の話で、
+# vite はライブラリ利用のみのため許容。app 直依存の esbuild は devDependencies の 0.28.0 のまま
+  estree-util-value-to-estree@<3.3.3: '>=3.3.3'
+  # ↑の包括 floor は ^1.0.0 を宣言する CJS 消費者（remark-mdx-frontmatter@1.1.1・@remix-run/dev 経由の
+  # ビルド時 MDX 処理）へ pure ESM の v3 を強制注入し、front build を ERR_REQUIRE_ESM で壊していた
+  # （workspace 化前の lockfile でも 3.4.0 に解決されており既存の潜在バグ）。v1 系に修正版が存在しないため、
+  # この消費者に限り宣言レンジ内の CJS 最新 1.3.0 へ固定する。リスク許容の根拠: ビルド時専用・
+  # 本リポジトリに .mdx なし・信頼できない入力を処理しない（2026-07-08・C-0）
+  remark-mdx-frontmatter>estree-util-value-to-estree: 1.3.0
+  form-data@>=4.0.0 <4.0.4: '>=4.0.4'
+  micromatch@<4.0.8: '>=4.0.8'
+  multer@>=1.4.4-lts.1 <2.0.0: '>=2.0.0'
+  multer@>=1.4.4-lts.1 <2.0.1: '>=2.0.1'
+  multer@>=1.4.4-lts.1 <2.0.2: '>=2.0.2'
+  nanoid@<3.3.8: '>=3.3.8'
+  on-headers@<1.1.0: '>=1.1.0'
+  sha.js@<=2.4.11: '>=2.4.12'
+  tmp@<=0.2.3: '>=0.2.4'
+  undici@>=6.0.0 <6.21.2: '>=6.21.2'
+  vite@<=5.4.19: '>=5.4.20'
+  vite@>=6.0.0 <=6.3.5: '>=6.3.6'
+  '@types/node': '>=22.12.0'
+  '@remix-run/node@<=2.17.1': ^2.17.2
+  '@remix-run/router@<=1.23.1': ^1.23.2
+  '@remix-run/server-runtime@<=2.17.2': ^2.17.3
+  '@remix-run/server-runtime@>=2.10.0 <2.17.5': ^2.17.5
+  ajv@<6.14.0: ^6.14.0
+  brace-expansion@>=2.0.0 <2.0.3: ^2.0.3
+  diff@>=5.0.0 <5.2.2: ^5.2.2
+  js-yaml@<3.14.2: ^3.14.2
+  js-yaml@>=4.0.0 <4.1.1: ^4.1.1
+  path-to-regexp@<0.1.13: ^0.1.13
+  postcss@<8.5.10: ^8.5.10
+  qs@<6.14.1: ^6.14.1
+  qs@>=6.11.1 <=6.15.1: ^6.15.2
+  qs@>=6.7.0 <=6.14.1: ^6.14.2
+  tar@<7.5.7: ^7.5.7
+  tar@<7.5.8: ^7.5.8
+  tar@<=7.5.10: ^7.5.11
+  tar@<=7.5.2: ^7.5.3
+  tar@<=7.5.3: ^7.5.4
+  tar@<=7.5.9: ^7.5.10
+  turbo-stream@<3.0.0: ^3.0.0
+  valibot@>=0.31.0 <1.2.0: ^1.2.0
+  yaml@>=2.0.0 <2.8.3: ^2.8.3
