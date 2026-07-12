@@ -1,0 +1,40 @@
+{
+  "hub": {
+    "embed": {
+      "title": "アリス",
+      "description": "探索者 · v3.1.0",
+      "fields": [{ "name": "HP", "value": "11", "inline": true }],
+      "footer": { "text": "opId:hub-op-001" }
+    },
+    "pinnedButtonRows": [[
+      {
+        "type": "button",
+        "action": "roll",
+        "label": "目星",
+        "customId": "roll_123456789012345678_spot",
+        "style": "primary",
+        "paletteKey": "spot"
+      },
+      {
+        "type": "button",
+        "action": "roll",
+        "label": "聞き耳",
+        "customId": "roll_123456789012345678_listen",
+        "style": "primary",
+        "paletteKey": "listen"
+      }
+    ]],
+    "groupSelect": {
+      "type": "select",
+      "menuCustomId": "hub_group_123456789012345678",
+      "placeholder": "グループを選択",
+      "options": [
+        { "label": "skills", "value": "skills" },
+        { "label": "resources", "value": "resources" }
+      ],
+      "hasMore": false
+    }
+  },
+  "warnings": []
+}
+

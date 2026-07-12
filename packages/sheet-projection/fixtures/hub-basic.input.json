@@ -1,0 +1,38 @@
+{
+  "characterName": "アリス",
+  "templateName": "探索者",
+  "templateVersion": "3.1.0",
+  "channelId": "123456789012345678",
+  "opId": "hub-op-001",
+  "pinnedKeys": ["spot", "listen"],
+  "resourceValues": {
+    "uid-hp": { "base": 12, "buff": 1, "temp": 0, "other": -2 }
+  },
+  "palette": [
+    {
+      "key": "spot",
+      "kind": "roll",
+      "notation": "1d100<=65",
+      "label": "目星",
+      "group": "skills",
+      "fieldRef": { "uid": "uid-spot" }
+    },
+    {
+      "key": "listen",
+      "kind": "roll",
+      "notation": "1d100<=55",
+      "label": "聞き耳",
+      "group": "skills",
+      "fieldRef": { "uid": "uid-listen" }
+    },
+    {
+      "key": "hp",
+      "kind": "resource",
+      "deltas": [-1, 1],
+      "label": "HP",
+      "group": "resources",
+      "fieldRef": { "uid": "uid-hp" }
+    }
+  ]
+}
+

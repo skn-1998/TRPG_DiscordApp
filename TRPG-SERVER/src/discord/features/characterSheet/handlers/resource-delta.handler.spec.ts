@@ -5,6 +5,7 @@ import type { CharacterService } from '../../../../domains/character/character.s
 import type { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import { ResourceDeltaCustomId } from '../custom-id'
 import { ResourceDeltaHandler } from './resource-delta.handler'
+import type { HubRefreshWorker } from '../services/hub-refresh.worker'
 
 describe('ResourceDeltaHandler', () => {
   const channelId = '123456789012345678'
@@ -12,6 +13,7 @@ describe('ResourceDeltaHandler', () => {
   let operationService: { applyResourceDelta: jest.Mock }
   let interaction: ButtonInteraction
   let handler: ResourceDeltaHandler
+  const refreshWorker = { wake: jest.fn() }
 
   beforeEach(() => {
     characterService = { findByChannelId: jest.fn() }
@@ -26,7 +28,8 @@ describe('ResourceDeltaHandler', () => {
     } as unknown as ButtonInteraction
     handler = new ResourceDeltaHandler(
       characterService as unknown as CharacterService,
-      operationService as unknown as CharacterSheetOperationService
+      operationService as unknown as CharacterSheetOperationService,
+      refreshWorker as unknown as HubRefreshWorker
     )
   })
 
@@ -35,7 +38,8 @@ describe('ResourceDeltaHandler', () => {
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
       clamped: false,
-      effectiveDelta: 1
+      effectiveDelta: 1,
+      character: { characterId: 'char-1' }
     })
 
     await handler.execute(interaction)
@@ -76,7 +80,12 @@ describe('ResourceDeltaHandler', () => {
   ] as const)('delta=%s の clamp 縮退を ephemeral で案内する', async (delta, message) => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', delta) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
-    operationService.applyResourceDelta.mockResolvedValue({ noOp: false, clamped: true, effectiveDelta: 0 })
+    operationService.applyResourceDelta.mockResolvedValue({
+      noOp: false,
+      clamped: true,
+      effectiveDelta: 0,
+      character: { characterId: 'char-1' }
+    })
 
     await handler.execute(interaction)
 

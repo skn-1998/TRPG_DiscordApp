@@ -45,6 +45,7 @@
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.4.5",
     "@trpg/sheet-engine": "workspace:*",
+    "@trpg/sheet-projection": "workspace:*",
     "axios": "^1.7.2",
     "bcdice": "^4.6.0",
     "class-transformer": "^0.5.1",

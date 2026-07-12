@@ -83,6 +83,8 @@ describe('CharacterSheetOperationService', () => {
   let repository: {
     findById: jest.Mock
     findByChannelId: jest.Mock
+    findAll: jest.Mock
+    setHubState: jest.Mock
     saveSheetMaterialized: jest.Mock
   }
   let templateService: { resolvePublished: jest.Mock }
@@ -131,6 +133,8 @@ describe('CharacterSheetOperationService', () => {
     repository = {
       findById: jest.fn().mockImplementation(async () => current),
       findByChannelId: jest.fn().mockResolvedValue({ characterId: 'character-1' }),
+      findAll: jest.fn().mockResolvedValue([]),
+      setHubState: jest.fn(),
       saveSheetMaterialized: jest
         .fn()
         .mockImplementation(
@@ -170,6 +174,47 @@ describe('CharacterSheetOperationService', () => {
       templateService as unknown as CharacterSheetTemplateService,
       materializer as unknown as SheetMaterializerService
     )
+  })
+
+  describe('hub thin API', () => {
+    it('materializedだけをhub対象として返し、legacyはnullにする', async () => {
+      await expect(service.getHubCharacter('character-1')).resolves.toBe(current)
+      current = makeCharacter({ sheet: undefined })
+      await expect(service.getHubCharacter('character-1')).resolves.toBeNull()
+    })
+
+    it('activeかつpending>appliedかつretryAt到来済みだけをworker候補にする', async () => {
+      const eligible = makeCharacter({
+        characterId: 'eligible',
+        hub: { status: 'active', pendingRevision: 2, appliedRevision: 1 }
+      })
+      repository.findAll.mockResolvedValue([
+        eligible,
+        makeCharacter({ characterId: 'caught-up', hub: { status: 'active', pendingRevision: 2, appliedRevision: 2 } }),
+        makeCharacter({
+          characterId: 'future',
+          hub: { status: 'active', pendingRevision: 2, appliedRevision: 1, retryAt: new Date(2_000) }
+        }),
+        makeCharacter({
+          characterId: 'publishing',
+          hub: { status: 'publishing', pendingRevision: 2, appliedRevision: 1 }
+        })
+      ])
+
+      await expect(service.findHubRefreshCandidates(new Date(1_000))).resolves.toEqual([eligible])
+    })
+
+    it('hub CASをrepositoryへそのまま委譲する', async () => {
+      repository.setHubState.mockResolvedValue(current)
+
+      await service.setHubState('character-1', { status: 'none' }, { status: 'publishing', opId: 'op-1' })
+
+      expect(repository.setHubState).toHaveBeenCalledWith(
+        'character-1',
+        { status: 'none' },
+        { status: 'publishing', opId: 'op-1' }
+      )
+    })
   })
 
   describe('saveSheet', () => {
