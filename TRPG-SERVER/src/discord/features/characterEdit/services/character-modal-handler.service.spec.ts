@@ -208,15 +208,13 @@ describe('CharacterModalHandlerService (characterization)', () => {
       expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
         status: {
           // formData.name が無いため finalName = fieldKey('hp')。
-          // 既存 sectionData の hp は AttributeValue で丸ごと置換される（現挙動）
-          hp: expect.objectContaining({
+          // 未指定の dice/index は null を保存せず、省略可能プロパティとして省く。
+          hp: {
             name: 'hp',
             values: { base: 20 },
             description: 'desc',
-            dice: null,
-            isVisible: true,
-            index: null
-          })
+            isVisible: true
+          }
         }
       })
 
@@ -293,6 +291,73 @@ describe('CharacterModalHandlerService (characterization)', () => {
       expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.findById.requested')).toBe(false)
       expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
       expect(mockCharacterService.update).not.toHaveBeenCalled()
+    })
+
+    it('T-16: materialized キャラクターへの旧 modal 書き込みを拒否する', async () => {
+      setupSession()
+      mockCharacterService.findOne.mockResolvedValue({
+        ...character,
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          values: {}
+        }
+      })
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+
+      await service.handleModalSubmit(interaction)
+
+      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
+      expect(arg.embeds[0].data.description).toBe('このキャラクターは新しいキャラクターシート側から編集してください。')
+      expect(mockCharacterService.findOne).toHaveBeenCalledTimes(1)
+      expect(mockCharacterService.update).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
+      expect(mockEmbedManager.createSectionedEmbeds).not.toHaveBeenCalled()
+      expect(interaction.deleteReply).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['legacy-unpinned', character],
+      [
+        'legacy-pinned',
+        {
+          ...character,
+          templatePin: {
+            templateId: 'template-1',
+            templateVersion: '1.0.0',
+            pinnedBy: 'user-1'
+          }
+        }
+      ]
+    ])('T-16: %s キャラクターは従来どおり更新する', async (_state, legacyCharacter) => {
+      setupSession()
+      mockCharacterService.findOne.mockResolvedValue(legacyCharacter)
+      mockCharacterService.update.mockResolvedValue(legacyCharacter)
+      mockTypedEventService.emit.mockResolvedValue(undefined)
+      mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: [], components: [] })
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+      ;(interaction as unknown as { channel: unknown }).channel = {}
+
+      const promise = service.handleModalSubmit(interaction)
+      await jest.advanceTimersByTimeAsync(200)
+      await promise
+
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', expect.any(Object))
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'character.update.completed',
+        expect.objectContaining({ character: legacyCharacter })
+      )
+      expect(mockCharacterService.findOne).toHaveBeenCalledTimes(2)
+      expect(interaction.deleteReply).toHaveBeenCalled()
     })
 
     it('更新失敗(update が reject)でエラーレスポンス・completed は発行しない', async () => {

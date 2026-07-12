@@ -32,6 +32,10 @@ import { CharacterSkillRollHandler } from '../../features/characterThread/handle
 import { AbilityRollHandler } from '../../features/characterThread/handlers/ability-roll.handler'
 import { PresetDiceQuickRollHandler } from '../../features/characterThread/handlers/preset-dice-quick-roll.handler'
 
+// Character Sheet Handlers（PH-6a Discord 新経路）
+import { RollPaletteHandler } from '../../features/characterSheet/handlers/roll-palette.handler'
+import { ResourceDeltaHandler } from '../../features/characterSheet/handlers/resource-delta.handler'
+
 // モックサービス
 const mockEnhancedCharacterEditService = {
   handleButtonInteraction: jest.fn().mockResolvedValue(undefined),
@@ -51,9 +55,11 @@ const mockCharacterThreadSelectService = { execute: jest.fn().mockResolvedValue(
 const mockCharacterTabButtonsService = { execute: jest.fn().mockResolvedValue(undefined) }
 const mockDiceRollLogicService = {
   handleDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' }),
-  handleSkillRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
+  handleSkillRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' }),
+  handleCustomDiceRoll: jest.fn().mockResolvedValue({ success: true, total: 10, details: 'test' })
 }
 const mockCharacterService = { findByChannelId: jest.fn().mockResolvedValue(null) }
+const mockCharacterSheetOperationService = { applyResourceDelta: jest.fn().mockResolvedValue(undefined) }
 
 describe('Interaction Handlers Integration', () => {
   let registry: InteractionRegistryService
@@ -82,6 +88,8 @@ describe('Interaction Handlers Integration', () => {
   let characterSkillRollHandler: CharacterSkillRollHandler
   let abilityRollHandler: AbilityRollHandler
   let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
+  let rollPaletteHandler: RollPaletteHandler
+  let resourceDeltaHandler: ResourceDeltaHandler
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -188,6 +196,15 @@ describe('Interaction Handlers Integration', () => {
         {
           provide: PresetDiceQuickRollHandler,
           useFactory: () => new (PresetDiceQuickRollHandler as any)(mockDiceRollLogicService)
+        },
+        {
+          provide: RollPaletteHandler,
+          useFactory: () => new RollPaletteHandler(mockCharacterService as any, mockDiceRollLogicService as any)
+        },
+        {
+          provide: ResourceDeltaHandler,
+          useFactory: () =>
+            new ResourceDeltaHandler(mockCharacterService as any, mockCharacterSheetOperationService as any)
         }
       ]
     }).compile()
@@ -218,6 +235,8 @@ describe('Interaction Handlers Integration', () => {
     characterSkillRollHandler = module.get<CharacterSkillRollHandler>(CharacterSkillRollHandler)
     abilityRollHandler = module.get<AbilityRollHandler>(AbilityRollHandler)
     presetDiceQuickRollHandler = module.get<PresetDiceQuickRollHandler>(PresetDiceQuickRollHandler)
+    rollPaletteHandler = module.get<RollPaletteHandler>(RollPaletteHandler)
+    resourceDeltaHandler = module.get<ResourceDeltaHandler>(ResourceDeltaHandler)
 
     // 全ハンドラーを登録
     registry.registerHandlers([
@@ -243,7 +262,9 @@ describe('Interaction Handlers Integration', () => {
       flexibleDiceSelectHandler,
       characterSkillRollHandler,
       abilityRollHandler,
-      presetDiceQuickRollHandler
+      presetDiceQuickRollHandler,
+      rollPaletteHandler,
+      resourceDeltaHandler
     ])
   })
 
@@ -252,9 +273,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('23個のハンドラーが登録されている', () => {
+    it('25個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(23)
+      expect(stats.totalHandlers).toBe(25)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {

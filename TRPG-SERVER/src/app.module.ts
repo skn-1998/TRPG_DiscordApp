@@ -13,6 +13,7 @@ import { UserModule } from './domains/user/user.module'
 import { AuthModule } from './domains/auth/auth.module'
 import { DiceRollModule } from './domains/dice-roll/dice-roll.module'
 import { DiscordModule } from './discord/discord.module'
+import { CharacterSheetDiscordFeatureModule } from './discord/features/characterSheet/character-sheet-discord-feature.module'
 import { EventsModule } from './events/events.module'
 import { winstonConfigFactory } from './config/winston.config'
 import { AppConfigService } from './config/config.service'
@@ -40,7 +41,8 @@ import { AppConfigService } from './config/config.service'
     UserModule,
     AuthModule,
     DiceRollModule,
-    DiscordModule
+    DiscordModule,
+    CharacterSheetDiscordFeatureModule
   ],
   controllers: [AppController],
   providers: [AppService],

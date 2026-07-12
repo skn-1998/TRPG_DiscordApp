@@ -7,7 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection, MessageFlags } from 'discord.js'
-import { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import { CharacterEntity, resolveCharacterState } from '../../../../domains/character/models/character.entity'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -137,6 +137,11 @@ export class CharacterModalHandlerService {
     const character = await this.getCharacter(characterId)
     if (!character) {
       await this.sendErrorResponse(interaction, 'キャラクターが見つかりません。')
+      return
+    }
+
+    if (resolveCharacterState(character) === 'materialized') {
+      await this.sendErrorResponse(interaction, 'このキャラクターは新しいキャラクターシート側から編集してください。')
       return
     }
 
