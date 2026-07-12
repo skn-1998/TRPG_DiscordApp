@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common'
+import { HttpException, Injectable, UnprocessableEntityException } from '@nestjs/common'
 import { CharacterIdService } from '../../../domains/character/services/character-id.service'
-import { CharacterService } from '../../../domains/character/character.service'
+import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
+import type { MaterializedCharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
@@ -16,40 +17,66 @@ import { SheetMaterializerService } from './sheet-materializer.service'
 export class CharacterInstantiationService {
   constructor(
     private readonly templateService: CharacterSheetTemplateService,
-    private readonly characterService: CharacterService,
+    private readonly characterRepository: CharacterRepository,
     private readonly characterIdService: CharacterIdService,
     private readonly diceExecutionService: DiceExecutionService,
     private readonly sheetMaterializer: SheetMaterializerService
   ) {}
 
   async instantiate(input: InstantiateCharacterInput): Promise<InstantiateCharacterResult> {
-    const template = await this.templateService.findOne(input.templateId, input.requesterDiscordUserId)
-    const { values, rollOnCreateResults } = await this.applyRollOnCreate(template, input.values ?? {})
-    const materialized = this.sheetMaterializer.materialize({
-      template,
-      sheet: {
-        templateId: template.templateId,
-        templateVersion: template.version,
-        revision: 1,
-        values
-      }
-    })
+    const template = await this.templateService.resolvePublished(
+      input.templateId,
+      input.templateVersion,
+      input.requesterDiscordUserId
+    )
+    const submittedValues = this.sheetMaterializer.validateInputValues(template, input.values ?? {})
+    const { values, rollOnCreateResults } = await this.applyRollOnCreate(template, submittedValues)
+    const materialized = this.materializeOrThrow(template, values)
     const characterId = await this.characterIdService.generateUniqueCharacterId()
-    const character = await this.characterService.create({
+    const entity: MaterializedCharacterEntity = {
       characterId,
       characterName: input.characterName,
       gameSystemId: template.gameSystemId ?? '',
       discordUserId: input.discordUserId,
       discordChannelId: input.discordChannelId,
-      discordThreadId: input.discordThreadId,
+      ...(input.discordThreadId === undefined ? {} : { discordThreadId: input.discordThreadId }),
+      sheet: materialized.sheet,
+      computedCache: materialized.computedCache,
+      palette: materialized.palette,
       status: materialized.projection.status,
       parameter: materialized.projection.parameter,
       skill: materialized.projection.skill,
       item: materialized.projection.item,
-      description: materialized.projection.description
-    })
+      description: materialized.projection.description,
+      hub: { status: 'none' },
+      appliedInteractionIds: []
+    }
+    const character = await this.characterRepository.createMaterializedCharacter(entity)
 
     return { character, materialized, rollOnCreateResults }
+  }
+
+  private materializeOrThrow(
+    template: CharacterSheetTemplateEntity,
+    values: Record<string, unknown>
+  ): ReturnType<SheetMaterializerService['materialize']> {
+    try {
+      return this.sheetMaterializer.materialize({
+        template,
+        sheet: {
+          templateId: template.templateId,
+          templateVersion: template.version,
+          revision: 1,
+          values
+        }
+      })
+    } catch (error) {
+      if (error instanceof HttpException) throw error
+      throw new UnprocessableEntityException({
+        message: 'sheet evaluation or projection failed',
+        detail: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   private async applyRollOnCreate(

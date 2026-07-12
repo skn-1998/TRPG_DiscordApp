@@ -9,14 +9,24 @@ export interface CharacterSheetState {
   values: Record<string, unknown>
 }
 
-export interface PaletteEntry {
+interface PaletteEntryBase {
   key: string
   fieldRef: { uid: string; rowId?: string }
   label: string
-  kind: 'roll'
-  notation: string
   group: string
 }
+
+export type PaletteEntry =
+  | (PaletteEntryBase & {
+      kind: 'roll'
+      notation: string
+      deltas?: never
+    })
+  | (PaletteEntryBase & {
+      kind: 'resource'
+      notation?: never
+      deltas: number[]
+    })
 
 export interface CharacterSheetProjection {
   status: AttributeSection
@@ -41,6 +51,7 @@ export interface MaterializedCharacterSheet {
 
 export interface InstantiateCharacterInput {
   templateId: string
+  templateVersion: string
   requesterDiscordUserId: string
   characterName: string
   discordUserId: string
