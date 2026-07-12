@@ -59,6 +59,14 @@
 
 ## 6. Claude 側 起動・登録ログ（I-4 提出物）
 
+2026-07-12 21:38 再実施（補完スライス＋レビュー fix 込み・コミット 9a3d2da）:
+
+- BOOT: `successfully started` ✅・characterSheet 5 handler ✅・DI エラーなし（characterThread→characterSheet の module import 追加後）
+- server: build ✅ / circular 0 ✅ / **209 suites・2673 tests 緑** / characterization 緑
+- packages: projection 14 / engine 44 緑（customId 契約一元化・publish 非空 label 込み）
+- front: tsc ✅ / jest 22 緑（sheet-engine publish 変更の影響なし）
+- §2-a / 2-f（旧投稿抑止）は補完スライス実装済みのため**実施可能**
+
 2026-07-12 20:16 実施（PH-6b 最終ゲート）:
 
 - BOOT 確認: `Nest application successfully started` ✅（DI エラーなし）
