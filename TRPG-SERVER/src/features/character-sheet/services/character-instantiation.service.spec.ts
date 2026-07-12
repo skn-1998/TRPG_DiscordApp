@@ -1,6 +1,9 @@
-import { CharacterEntity } from '../../../domains/character/models/character.entity'
-import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
+import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
+import type { CharacterEntity } from '../../../domains/character/models/character.entity'
+import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
+import type { MaterializedCharacterSheet } from '../types/character-sheet.types'
 import { CharacterInstantiationService } from './character-instantiation.service'
+import { SheetMaterializerService } from './sheet-materializer.service'
 
 describe('CharacterInstantiationService', () => {
   const template: CharacterSheetTemplateEntity = {
@@ -43,55 +46,107 @@ describe('CharacterInstantiationService', () => {
     draftRevision: 1
   }
 
-  it('テンプレート解決、rollOnCreate、materialize、CharacterService.create を順に実行する', async () => {
-    const created: CharacterEntity = {
-      characterId: 'char-1',
-      characterName: 'Investigator',
-      gameSystemId: 'DiceBot',
-      discordUserId: 'user-1',
-      discordChannelId: 'channel-1',
-      parameter: { dex: { name: 'DEX', values: { base: 55 } } },
-      status: {}
-    }
-    const templateService = { findOne: jest.fn().mockResolvedValue(template) }
-    const characterService = { create: jest.fn().mockResolvedValue(created) }
+  const materialized: MaterializedCharacterSheet = {
+    sheet: {
+      templateId: 'template-1',
+      templateVersion: '1.0.0',
+      revision: 1,
+      values: { 'uid-dex': 55 }
+    },
+    computedCache: { 'uid-dex-half': 27 },
+    projection: {
+      status: {},
+      parameter: {
+        dex: {
+          name: 'DEX',
+          values: { base: 50, buff: 5, temp: 0, other: 0 },
+          index: 0,
+          isVisible: true
+        }
+      },
+      skill: {},
+      item: {},
+      description: {}
+    },
+    palette: [
+      {
+        key: 'dex',
+        fieldRef: { uid: 'uid-dex' },
+        label: 'DEX (55)',
+        kind: 'roll',
+        notation: '1d100<=55',
+        group: 'ability'
+      }
+    ]
+  }
+
+  const created: CharacterEntity = {
+    characterId: 'char-1',
+    characterName: 'Investigator',
+    gameSystemId: 'DiceBot',
+    discordUserId: 'user-1',
+    discordChannelId: 'channel-1',
+    discordThreadId: 'thread-1',
+    sheet: materialized.sheet,
+    computedCache: materialized.computedCache,
+    palette: materialized.palette,
+    status: materialized.projection.status,
+    parameter: materialized.projection.parameter,
+    skill: materialized.projection.skill,
+    item: materialized.projection.item,
+    description: materialized.projection.description,
+    hub: { status: 'none' },
+    appliedInteractionIds: []
+  }
+
+  const instantiateInput = {
+    templateId: 'template-1',
+    templateVersion: '1.0.0',
+    requesterDiscordUserId: 'user-1',
+    characterName: 'Investigator',
+    discordUserId: 'user-1',
+    discordChannelId: 'channel-1',
+    discordThreadId: 'thread-1'
+  }
+
+  function createDependencies() {
+    const templateService = { resolvePublished: jest.fn().mockResolvedValue(template) }
+    const characterRepository = { createMaterializedCharacter: jest.fn().mockResolvedValue(created) }
     const characterIdService = { generateUniqueCharacterId: jest.fn().mockResolvedValue('char-1') }
     const diceExecutionService = {
       executeEvaluatedDiceRoll: jest.fn().mockResolvedValue({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
     }
     const sheetMaterializer = {
-      materialize: jest.fn().mockReturnValue({
-        sheet: { templateId: 'template-1', templateVersion: '1.0.0', revision: 1, values: { 'uid-dex': 55 } },
-        computedCache: { 'uid-dex-half': 25 },
-        projection: {
-          status: {},
-          parameter: { dex: { name: 'DEX', values: { base: 55 } } },
-          skill: {},
-          item: {},
-          description: {}
-        },
-        palette: []
-      })
+      validateInputValues: jest.fn().mockImplementation((_template, values) => values),
+      materialize: jest.fn().mockReturnValue(materialized)
     }
     const service = new CharacterInstantiationService(
       templateService as any,
-      characterService as any,
+      characterRepository as any,
       characterIdService as any,
       diceExecutionService as any,
       sheetMaterializer as any
     )
 
-    const result = await service.instantiate({
-      templateId: 'template-1',
-      requesterDiscordUserId: 'user-1',
-      characterName: 'Investigator',
-      discordUserId: 'user-1',
-      discordChannelId: 'channel-1'
-    })
+    return {
+      service,
+      templateService,
+      characterRepository,
+      characterIdService,
+      diceExecutionService,
+      sheetMaterializer
+    }
+  }
 
-    expect(templateService.findOne).toHaveBeenCalledWith('template-1', 'user-1')
-    expect(diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('3d6*5', 'DiceBot')
-    expect(sheetMaterializer.materialize).toHaveBeenCalledWith({
+  it('published version 解決、入力検査、roll、materialize、単一 insert の順に実行する', async () => {
+    const dependencies = createDependencies()
+
+    const result = await dependencies.service.instantiate(instantiateInput)
+
+    expect(dependencies.templateService.resolvePublished).toHaveBeenCalledWith('template-1', '1.0.0', 'user-1')
+    expect(dependencies.sheetMaterializer.validateInputValues).toHaveBeenCalledWith(template, {})
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('3d6*5', 'DiceBot')
+    expect(dependencies.sheetMaterializer.materialize).toHaveBeenCalledWith({
       template,
       sheet: {
         templateId: 'template-1',
@@ -100,19 +155,88 @@ describe('CharacterInstantiationService', () => {
         values: { 'uid-dex': 55 }
       }
     })
-    expect(characterService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        characterId: 'char-1',
-        characterName: 'Investigator',
-        gameSystemId: 'DiceBot',
-        discordUserId: 'user-1',
-        discordChannelId: 'channel-1',
-        parameter: { dex: { name: 'DEX', values: { base: 55 } } }
-      })
-    )
+    expect(dependencies.characterRepository.createMaterializedCharacter).toHaveBeenCalledTimes(1)
+    expect(dependencies.characterRepository.createMaterializedCharacter).toHaveBeenCalledWith({
+      characterId: 'char-1',
+      characterName: 'Investigator',
+      gameSystemId: 'DiceBot',
+      discordUserId: 'user-1',
+      discordChannelId: 'channel-1',
+      discordThreadId: 'thread-1',
+      sheet: materialized.sheet,
+      computedCache: materialized.computedCache,
+      palette: materialized.palette,
+      status: materialized.projection.status,
+      parameter: materialized.projection.parameter,
+      skill: materialized.projection.skill,
+      item: materialized.projection.item,
+      description: materialized.projection.description,
+      hub: { status: 'none' },
+      appliedInteractionIds: []
+    })
+
+    const resolveOrder = dependencies.templateService.resolvePublished.mock.invocationCallOrder[0]
+    const validateOrder = dependencies.sheetMaterializer.validateInputValues.mock.invocationCallOrder[0]
+    const diceOrder = dependencies.diceExecutionService.executeEvaluatedDiceRoll.mock.invocationCallOrder[0]
+    const materializeOrder = dependencies.sheetMaterializer.materialize.mock.invocationCallOrder[0]
+    const insertOrder = dependencies.characterRepository.createMaterializedCharacter.mock.invocationCallOrder[0]
+    expect(resolveOrder).toBeLessThan(validateOrder)
+    expect(validateOrder).toBeLessThan(diceOrder)
+    expect(diceOrder).toBeLessThan(materializeOrder)
+    expect(materializeOrder).toBeLessThan(insertOrder)
+
     expect(result.rollOnCreateResults).toEqual([
       { uid: 'uid-dex', notation: '3d6*5', total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
     ])
     expect(result.character).toBe(created)
+    expect(result.materialized).toBe(materialized)
+  })
+
+  it.each([
+    ['computed uid', { 'uid-dex-half': 27 }],
+    ['unknown uid', { 'uid-unknown': 10 }]
+  ])('提出された %s を roll 前に 422 で拒否し insert しない', async (_caseName, values) => {
+    const dependencies = createDependencies()
+    const realMaterializer = new SheetMaterializerService()
+    dependencies.sheetMaterializer.validateInputValues.mockImplementation((resolvedTemplate, submittedValues) =>
+      realMaterializer.validateInputValues(resolvedTemplate, submittedValues)
+    )
+
+    await expect(dependencies.service.instantiate({ ...instantiateInput, values })).rejects.toBeInstanceOf(
+      UnprocessableEntityException
+    )
+
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
+    expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
+    expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+  })
+
+  it('version/published 解決失敗時は後続処理も insert も実行しない', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolvePublished.mockRejectedValue(
+      new ConflictException('sheet template must be published at the requested version')
+    )
+
+    await expect(dependencies.service.instantiate(instantiateInput)).rejects.toBeInstanceOf(ConflictException)
+
+    expect(dependencies.sheetMaterializer.validateInputValues).not.toHaveBeenCalled()
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
+    expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+  })
+
+  it('評価または正準形投影に失敗した場合は 422 とし insert しない', async () => {
+    const dependencies = createDependencies()
+    dependencies.sheetMaterializer.materialize.mockImplementation(() => {
+      throw new TypeError('Invalid parameter: expected AttributeSection canonical form')
+    })
+
+    await expect(dependencies.service.instantiate(instantiateInput)).rejects.toBeInstanceOf(
+      UnprocessableEntityException
+    )
+
+    expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
   })
 })
