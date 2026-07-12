@@ -1,0 +1,140 @@
+import { buildValueInputSchema, clampDelta, evaluateTemplate } from '..';
+import { baseTemplate } from './test-utils';
+
+describe('parts-aware value resolution', () => {
+  const template = baseTemplate({
+    sections: [
+      {
+        id: 'main',
+        label: 'Main',
+        fields: [
+          { type: 'scalar', id: 'score', uid: 'main.score', label: 'Score', valueType: 'number', parts: true },
+          { type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', min: 0, max: 10, style: 'gauge' },
+          {
+            type: 'computed',
+            id: 'total',
+            uid: 'main.total',
+            label: 'Total',
+            resultType: 'number',
+            formula: '{main.score} + {main.hp}',
+          },
+        ],
+      },
+    ],
+  });
+
+  it('sums finite parts for scalar and track values, then clamps the track', () => {
+    const evaluated = evaluateTemplate(template, {
+      values: {
+        'main.score': { parts: { base: 5, buff: 2, temp: -1 } },
+        'main.hp': { parts: { base: 8, buff: 5 } },
+      },
+    });
+
+    expect(evaluated.values['main.score']).toEqual({ type: 'number', value: 6 });
+    expect(evaluated.values['main.hp']).toEqual({ type: 'number', value: 10 });
+    expect(evaluated.values['main.total']).toEqual({ type: 'number', value: 16 });
+  });
+
+  it('keeps accepting plain numbers', () => {
+    expect(evaluateTemplate(template, {
+      values: { 'main.score': 4, 'main.hp': 3 },
+    }).values['main.total']).toEqual({ type: 'number', value: 7 });
+  });
+
+  it.each([
+    [{ parts: { base: Number.NaN } }, 'main.score', 'parts.base'],
+    [{ parts: { base: Number.POSITIVE_INFINITY } }, 'main.hp', 'parts.base'],
+    [{ parts: { base: '5' } }, 'main.score', 'parts.base'],
+  ])('rejects invalid part values instead of coercing them to zero', (value, uid, partPath) => {
+    expect(() => evaluateTemplate(template, { values: { [uid]: value } })).toThrow(
+      `field ${uid} ${partPath} must be a finite number`,
+    );
+  });
+});
+
+describe('clampDelta', () => {
+  it('returns only the effective delta when the requested change crosses a boundary', () => {
+    expect(clampDelta(8, 5, 0, 10)).toEqual({ effectiveDelta: 2, clamped: true });
+    expect(clampDelta(2, -5, 0, 10)).toEqual({ effectiveDelta: -2, clamped: true });
+    expect(clampDelta(0, -1, undefined, 10)).toEqual({ effectiveDelta: 0, clamped: true });
+  });
+
+  it('reports an unchanged zero delta without clamping', () => {
+    expect(clampDelta(5, 0, 0, 10)).toEqual({ effectiveDelta: 0, clamped: false });
+  });
+});
+
+describe('buildValueInputSchema', () => {
+  const template = baseTemplate({
+    sections: [
+      {
+        id: 'main',
+        label: 'Main',
+        fields: [
+          { type: 'scalar', id: 'score', uid: 'uid_score', label: 'Score', valueType: 'number', parts: true },
+          { type: 'scalar', id: 'name', uid: 'uid_name', label: 'Name', valueType: 'text' },
+          { type: 'scalar', id: 'active', uid: 'uid_active', label: 'Active', valueType: 'boolean' },
+          {
+            type: 'scalar',
+            id: 'rank',
+            uid: 'uid_rank',
+            label: 'Rank',
+            valueType: 'select',
+            options: [
+              { label: 'A', value: 'a' },
+              { label: 'B', value: 'b' },
+            ],
+          },
+          { type: 'track', id: 'hp', uid: 'uid_hp', label: 'HP', max: 10, style: 'gauge' },
+          { type: 'computed', id: 'total', uid: 'uid_total', label: 'Total', resultType: 'number', formula: '1' },
+        ],
+      },
+    ],
+  });
+  const schema = buildValueInputSchema(template);
+
+  it('accepts field-matching scalar, parts, track, text, boolean, and select values', () => {
+    expect(schema.safeParse({
+      uid_score: { parts: { base: 5, buff: 2 } },
+      uid_name: 'Alice',
+      uid_active: true,
+      uid_rank: 'b',
+      uid_hp: 8,
+    }).success).toBe(true);
+  });
+
+  it.each([
+    ['uid_unknown', 1, 'field uid_unknown is not defined by the template'],
+    ['uid_total', 1, 'field uid_total is not an input field (computed)'],
+  ])('rejects unknown and computed field uids with the uid in the issue', (uid, value, message) => {
+    const result = schema.safeParse({ [uid]: value });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: [uid], message }),
+      ]));
+    }
+  });
+
+  it('rejects values that do not match the field type or select options', () => {
+    const result = schema.safeParse({ uid_name: 1, uid_active: 'true', uid_rank: 'c' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.path[0])).toEqual(
+        expect.arrayContaining(['uid_name', 'uid_active', 'uid_rank']),
+      );
+    }
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects a non-finite parts value: %s',
+    (invalid) => {
+      const result = schema.safeParse({ uid_score: { parts: { base: invalid } } });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toEqual(['uid_score', 'parts', 'base']);
+      }
+    },
+  );
+});
