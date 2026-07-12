@@ -8,6 +8,13 @@ module.exports = {
   // テストファイルのパターン
   testRegex: '.*\\.spec\\.ts$',
 
+  // 実DBを使う3本は隔離MongoDB専用configだけで実行する
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/src/domains/character/character\\.(integration|crud)\\.spec\\.ts$',
+    '/src/scripts/backfill-template-pin\\.integration\\.spec\\.ts$'
+  ],
+
   // TypeScript変換
   transform: {
     '^.+\\.(t|j)s$': [
@@ -73,7 +80,7 @@ module.exports = {
       lines: 80,
       statements: 80
     },
-    './src/utils/error-handler.ts': {
+    './src/core/http/error-handler.ts': {
       branches: 90,
       functions: 95,
       lines: 95,

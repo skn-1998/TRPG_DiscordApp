@@ -1,15 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common'
 import { ButtonInteraction, MessageFlags } from 'discord.js'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import { ButtonInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
 import { ResourceDeltaCustomId } from '../custom-id'
+import { HubRefreshWorker } from '../services/hub-refresh.worker'
 
 @Injectable()
 export class ResourceDeltaHandler extends ButtonInteractionHandler {
   constructor(
     private readonly characterService: CharacterService,
-    private readonly characterSheetOperationService: CharacterSheetOperationService
+    private readonly characterSheetOperationService: CharacterSheetOperationService,
+    @Optional() private readonly hubRefreshWorker?: HubRefreshWorker
   ) {
     super()
   }
@@ -48,6 +50,7 @@ export class ResourceDeltaHandler extends ButtonInteractionHandler {
         delta: parsed.delta,
         interaction: { id: interaction.id }
       })
+      this.hubRefreshWorker?.wake(result.character.characterId)
 
       let content: string
       if (result.noOp) {

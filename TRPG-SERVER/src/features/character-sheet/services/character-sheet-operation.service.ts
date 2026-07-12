@@ -10,6 +10,7 @@ import { clampDelta, evaluateExpression, evaluateTemplate } from '@trpg/sheet-en
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import type {
   CharacterEntity,
+  CharacterHubTransition,
   CharacterPaletteEntry,
   SaveSheetMaterializedPayload
 } from '../../../domains/character/models/character.entity'
@@ -77,6 +78,36 @@ export class CharacterSheetOperationService {
     private readonly templateService: CharacterSheetTemplateService,
     private readonly materializer: SheetMaterializerService
   ) {}
+
+  /** Discord hub 境界向けの materialized character 読み取り。legacy は明示的に対象外とする。 */
+  async getHubCharacter(characterId: string): Promise<CharacterEntity | null> {
+    const character = await this.characterRepository.findById(characterId)
+    return character !== null && resolveCharacterState(character) === 'materialized' ? character : null
+  }
+
+  /**
+   * OP-6 sweep 用の薄い query API。
+   * repository に hub worker 固有の query を持ち込まず、Phase 2 の単一プロセス運用では全件取得後に絞る。
+   */
+  async findHubRefreshCandidates(now = new Date()): Promise<CharacterEntity[]> {
+    const characters = await this.characterRepository.findAll()
+    return characters.filter((character) => {
+      if (resolveCharacterState(character) !== 'materialized' || character.hub?.status !== 'active') return false
+      const pending = character.hub.pendingRevision ?? 0
+      const applied = character.hub.appliedRevision ?? 0
+      const retryAt = character.hub.retryAt
+      return pending > applied && (retryAt === undefined || retryAt.getTime() <= now.getTime())
+    })
+  }
+
+  /** hub フィールドだけを更新する repository CAS の feature 境界。 */
+  setHubState(
+    characterId: string,
+    from: CharacterHubTransition,
+    to: CharacterHubTransition
+  ): Promise<CharacterEntity | null> {
+    return this.characterRepository.setHubState(characterId, from, to)
+  }
 
   async saveSheet(input: SaveSheetInput): Promise<SaveSheetResult> {
     this.assertSaveSheetInput(input)

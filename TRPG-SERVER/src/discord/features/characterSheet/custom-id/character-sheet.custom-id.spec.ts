@@ -1,6 +1,9 @@
 import {
   CHECK_CUSTOM_ID_RESERVED_PREFIX,
   DECLARE_CUSTOM_ID_RESERVED_PREFIX,
+  HubGroupBrowserCustomId,
+  HubGroupSelectCustomId,
+  HubPanelCustomId,
   ResourceDeltaCustomId,
   RollPaletteCustomId
 } from './character-sheet.custom-id'
@@ -9,6 +12,28 @@ describe('characterSheet customId v2', () => {
   it('予約 prefix を定数として確保する', () => {
     expect(CHECK_CUSTOM_ID_RESERVED_PREFIX).toBe('chk_')
     expect(DECLARE_CUSTOM_ID_RESERVED_PREFIX).toBe('dec_')
+  })
+
+  describe('hub customId', () => {
+    it('select/panel/browser のFactory・Parserを1-indexed pageで共有する', () => {
+      expect(HubGroupSelectCustomId.parse(HubGroupSelectCustomId.create('123'))).toEqual({ channelId: '123' })
+      expect(HubPanelCustomId.parse(HubPanelCustomId.create('123', 'gabc123', 2))).toEqual({
+        channelId: '123',
+        groupId: 'gabc123',
+        page: 2
+      })
+      expect(HubGroupBrowserCustomId.parse(HubGroupBrowserCustomId.create('123', 3))).toEqual({
+        channelId: '123',
+        page: 3
+      })
+    })
+
+    it('unsafe group id・0 page・suffixを拒否する', () => {
+      expect(() => HubPanelCustomId.create('123', '日本語 group', 1)).toThrow()
+      expect(() => HubPanelCustomId.create('123', 'g1', 0)).toThrow()
+      expect(HubPanelCustomId.parse('hub_panel_123_g1_1_suffix')).toBeNull()
+      expect(HubGroupBrowserCustomId.parse('hub_groups_123_0')).toBeNull()
+    })
   })
 
   describe('RollPaletteCustomId', () => {
