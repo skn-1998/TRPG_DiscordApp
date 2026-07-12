@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
+import { CharacterSheetDiscordFeatureModule } from '../characterSheet/character-sheet-discord-feature.module'
 import { ThreadCreationService } from './services/thread-creation.service'
 import { CharacterThreadOrchestrator } from './services/character-thread.orchestrator'
 import { CharacterDisplayService } from './services/character-display.service'
@@ -57,6 +58,7 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
 @Module({
   imports: [
     CharacterModule,
+    CharacterSheetDiscordFeatureModule,
     DiscordIntegrationModule, // DiscordIntegrationModule は characterThread を import しない＝循環なしのため forwardRef 不要（P1-B）
     InteractionRegistryModule,
     DiceServicesModule

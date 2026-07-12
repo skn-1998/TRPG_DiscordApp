@@ -14,7 +14,7 @@ import type {
   CharacterPaletteEntry,
   SaveSheetMaterializedPayload
 } from '../../../domains/character/models/character.entity'
-import { resolveCharacterState } from '../../../domains/character/models/character.entity'
+import { assertCharacterHubTransition, resolveCharacterState } from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
@@ -106,6 +106,7 @@ export class CharacterSheetOperationService {
     from: CharacterHubTransition,
     to: CharacterHubTransition
   ): Promise<CharacterEntity | null> {
+    assertCharacterHubTransition(from, to)
     return this.characterRepository.setHubState(characterId, from, to)
   }
 

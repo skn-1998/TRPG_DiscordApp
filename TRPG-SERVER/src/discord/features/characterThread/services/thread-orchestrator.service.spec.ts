@@ -93,7 +93,7 @@ describe('ThreadOrchestratorService', () => {
   })
 
   describe('handleThreadCreateRequest', () => {
-    it('正常系: スレッド作成→キャラ更新→取得→表示投稿→インタラクティブ要素投稿を順に委譲する', async () => {
+    it('legacy-unpinned: スレッド作成→キャラ更新→取得→表示投稿→インタラクティブ要素投稿を順に委譲する', async () => {
       // Arrange
       const character = buildCharacter()
       threadManager.createCharacterThread.mockResolvedValue({
@@ -131,6 +131,67 @@ describe('ThreadOrchestratorService', () => {
       expect(threadInteraction.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
       // 失敗イベントは出さない
       expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('legacy-pinned: 従来どおり表示投稿と全インタラクティブ要素投稿を委譲する', async () => {
+      // Arrange
+      const character = buildCharacter({
+        templatePin: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          pinnedBy: 'user-1'
+        }
+      })
+      threadManager.createCharacterThread.mockResolvedValue({
+        success: true,
+        threadId: 'thread-new'
+      } as never)
+      const thread = { name: 'スレッド', archived: false } as never
+      threadManager.getThreadChannel.mockResolvedValue(thread)
+
+      // Act
+      await service.handleThreadCreateRequest(buildPayload({ character }))
+
+      // Assert
+      expect(threadManager.getThreadChannel).toHaveBeenCalledWith('thread-new')
+      expect(characterEmbed.postCharacterDisplay).toHaveBeenCalledWith(thread, character, 'full')
+      expect(threadInteraction.postBasicDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(threadInteraction.postFlexibleDiceMenu).toHaveBeenCalledWith(thread, character)
+      expect(threadInteraction.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(threadInteraction.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(threadInteraction.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
+    })
+
+    it('materialized: スレッド作成とID保存後は旧表示投稿群を全てスキップする', async () => {
+      // Arrange
+      const character = buildCharacter({
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          values: {}
+        }
+      })
+      threadManager.createCharacterThread.mockResolvedValue({
+        success: true,
+        threadId: 'thread-new'
+      } as never)
+
+      // Act
+      await service.handleThreadCreateRequest(buildPayload({ character }))
+
+      // Assert
+      expect(threadManager.createCharacterThread).toHaveBeenCalled()
+      expect(characterService.update).toHaveBeenCalledWith('char-1', {
+        discordThreadId: 'thread-new'
+      })
+      expect(threadManager.getThreadChannel).not.toHaveBeenCalled()
+      expect(characterEmbed.postCharacterDisplay).not.toHaveBeenCalled()
+      expect(threadInteraction.postBasicDiceButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postFlexibleDiceMenu).not.toHaveBeenCalled()
+      expect(threadInteraction.postPresetDiceButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postSkillRollButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postAbilityRollButtons).not.toHaveBeenCalled()
     })
 
     it('スレッド作成が success:false の場合、dead な failed イベントは emit せず再スローする（E-3d）', async () => {

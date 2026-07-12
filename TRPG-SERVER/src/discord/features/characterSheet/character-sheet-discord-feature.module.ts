@@ -37,7 +37,8 @@ import { HubThreadEventListener } from './services/hub-thread-event.listener'
     HubPublicationService,
     HubRefreshWorker,
     HubThreadEventListener
-  ]
+  ],
+  exports: [HubPublicationService]
 })
 export class CharacterSheetDiscordFeatureModule implements OnModuleInit {
   constructor(

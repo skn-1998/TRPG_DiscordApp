@@ -2,6 +2,27 @@ import { validatePublishTemplate } from '..';
 import { baseTemplate, issueMessages } from './test-utils';
 
 describe('publish validation rejects unsupported v1 surface', () => {
+  it.each([
+    ['section', baseTemplate({ sections: [{ id: 'main', label: '   ', fields: [] }] })],
+    [
+      'field',
+      baseTemplate({
+        sections: [
+          {
+            id: 'main',
+            label: 'Main',
+            fields: [{ type: 'scalar', id: 'hp', uid: 'main.hp', label: '\t', valueType: 'number' }],
+          },
+        ],
+      }),
+    ],
+  ])('rejects a %s label that is empty after trim', (_target, template) => {
+    const result = validatePublishTemplate(template);
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(expect.objectContaining({ message: 'label must not be empty' }));
+  });
+
   it('rejects visibleTo other than public, when, and secret roles', () => {
     const template = baseTemplate({
       sections: [

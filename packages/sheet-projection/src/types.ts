@@ -37,6 +37,7 @@ export type ProjectionWarningCode =
   | 'group-id-normalized'
   | 'invalid-custom-id-part'
   | 'custom-id-budget-exceeded'
+  | 'empty-label-fallback'
   | 'label-truncated'
   | 'embed-truncated'
 

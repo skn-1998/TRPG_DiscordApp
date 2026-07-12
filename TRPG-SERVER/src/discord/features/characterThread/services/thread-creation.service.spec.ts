@@ -9,6 +9,7 @@ import { ThreadCreationService, CreateThreadRequest } from './thread-creation.se
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
+import { HubPublicationService } from '../../characterSheet/services/hub-publication.service'
 import { ThreadInteractionService } from './thread-interaction.service'
 import { Character } from '../../../../domains/character/models/character.model'
 
@@ -63,6 +64,10 @@ describe('ThreadCreationService (characterization)', () => {
     update: jest.fn().mockResolvedValue(undefined)
   }
 
+  const mockHubPublicationService = {
+    postHub: jest.fn().mockResolvedValue(undefined)
+  }
+
   // S-4.3: ダイス系UI の生成は ThreadInteractionService に一元化。
   // ThreadCreationService は各 post メソッドへ委譲するだけなので mock で呼び出しを観測する。
   const mockThreadInteractionService = {
@@ -102,6 +107,7 @@ describe('ThreadCreationService (characterization)', () => {
         { provide: DiscordClientService, useValue: mockDiscordClientService },
         { provide: TypedEventService, useValue: mockTypedEventService },
         { provide: CharacterService, useValue: mockCharacterService },
+        { provide: HubPublicationService, useValue: mockHubPublicationService },
         { provide: ThreadInteractionService, useValue: mockThreadInteractionService }
       ]
     }).compile()
@@ -109,6 +115,7 @@ describe('ThreadCreationService (characterization)', () => {
     service = module.get(ThreadCreationService)
     jest.clearAllMocks()
     mockCharacterService.update.mockResolvedValue(undefined)
+    mockHubPublicationService.postHub.mockResolvedValue(undefined)
     mockThreadInteractionService.postBasicDiceButtons.mockResolvedValue(undefined)
     mockThreadInteractionService.postFlexibleDiceMenu.mockResolvedValue(undefined)
     mockThreadInteractionService.postPresetDiceButtons.mockResolvedValue(undefined)
@@ -159,7 +166,7 @@ describe('ThreadCreationService (characterization)', () => {
       expect(thread.send).toHaveBeenCalled()
     })
 
-    it('basic 表示: embed を送信し、ダイス系UI を ThreadInteractionService へ委譲する', async () => {
+    it('legacy-unpinned: basic embed を送信し、ダイス系UI を ThreadInteractionService へ委譲する', async () => {
       const thread = buildMockThread()
       const channel = buildMockChannel(thread)
       const character = buildCharacter()
@@ -179,6 +186,94 @@ describe('ThreadCreationService (characterization)', () => {
       expect(mockThreadInteractionService.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
       expect(mockThreadInteractionService.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
       expect(mockThreadInteractionService.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockHubPublicationService.postHub).not.toHaveBeenCalled()
+    })
+
+    it('legacy-pinned: basic embed と全ダイス系UI を従来どおり投稿する', async () => {
+      const thread = buildMockThread()
+      const channel = buildMockChannel(thread)
+      const character = buildCharacter({
+        templatePin: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          pinnedBy: 'user-1'
+        }
+      })
+
+      jest.spyOn(service as any, 'getGuild').mockResolvedValue({ id: 'guild-1' })
+      jest.spyOn(service as any, 'getTextChannel').mockResolvedValue(channel)
+
+      await service.createCharacterThread(baseRequest, character)
+
+      expect(thread.send).toHaveBeenCalled()
+      expect(mockThreadInteractionService.postBasicDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postFlexibleDiceMenu).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockHubPublicationService.postHub).not.toHaveBeenCalled()
+    })
+
+    it('materialized: thread 作成とDB更新後は旧表示投稿群を全てスキップして success を返す', async () => {
+      const thread = buildMockThread()
+      const channel = buildMockChannel(thread)
+      const character = buildCharacter({
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          values: {}
+        }
+      })
+
+      jest.spyOn(service as any, 'getGuild').mockResolvedValue({ id: 'guild-1' })
+      jest.spyOn(service as any, 'getTextChannel').mockResolvedValue(channel)
+
+      const result = await service.createCharacterThread(baseRequest, character)
+
+      expect(result).toEqual({
+        success: true,
+        threadId: 'thread-xyz',
+        threadUrl: 'https://discord.com/channels/guild-1/channel-1/thread-xyz'
+      })
+      expect(channel.threads.create).toHaveBeenCalled()
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-123', { discordThreadId: 'thread-xyz' })
+      expect(mockHubPublicationService.postHub).toHaveBeenCalledWith('char-123', 'thread-xyz')
+      expect(mockCharacterService.update.mock.invocationCallOrder[0]).toBeLessThan(
+        mockHubPublicationService.postHub.mock.invocationCallOrder[0]
+      )
+      expect(thread.send).not.toHaveBeenCalled()
+      expect(mockThreadInteractionService.postBasicDiceButtons).not.toHaveBeenCalled()
+      expect(mockThreadInteractionService.postFlexibleDiceMenu).not.toHaveBeenCalled()
+      expect(mockThreadInteractionService.postPresetDiceButtons).not.toHaveBeenCalled()
+      expect(mockThreadInteractionService.postSkillRollButtons).not.toHaveBeenCalled()
+      expect(mockThreadInteractionService.postAbilityRollButtons).not.toHaveBeenCalled()
+    })
+
+    it('materialized: hub 投稿が失敗しても thread 作成の success を維持する', async () => {
+      const thread = buildMockThread()
+      const channel = buildMockChannel(thread)
+      const character = buildCharacter({
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          values: {}
+        }
+      })
+
+      jest.spyOn(service as any, 'getGuild').mockResolvedValue({ id: 'guild-1' })
+      jest.spyOn(service as any, 'getTextChannel').mockResolvedValue(channel)
+      mockHubPublicationService.postHub.mockRejectedValue(new Error('hub fail'))
+
+      const result = await service.createCharacterThread(baseRequest, character)
+
+      expect(mockHubPublicationService.postHub).toHaveBeenCalledWith('char-123', 'thread-xyz')
+      expect(result).toEqual({
+        success: true,
+        threadId: 'thread-xyz',
+        threadUrl: 'https://discord.com/channels/guild-1/channel-1/thread-xyz'
+      })
     })
   })
 

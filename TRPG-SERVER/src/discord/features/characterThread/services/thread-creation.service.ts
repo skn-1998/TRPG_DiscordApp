@@ -15,10 +15,11 @@
 
 import { Injectable, Logger } from '@nestjs/common'
 import { Client, Guild, TextChannel, ThreadChannel, ChannelType, ThreadAutoArchiveDuration } from 'discord.js'
-import { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import { CharacterEntity, resolveCharacterState } from '../../../../domains/character/models/character.entity'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { CharacterService } from '../../../../domains/character/character.service'
+import { HubPublicationService } from '../../characterSheet/services/hub-publication.service'
 import { ThreadInteractionService } from './thread-interaction.service'
 import {
   buildThreadName,
@@ -63,7 +64,8 @@ export class ThreadCreationService {
   constructor(
     private readonly discordClientService: DiscordClientService,
     private readonly characterService: CharacterService,
-    private readonly threadInteraction: ThreadInteractionService
+    private readonly threadInteraction: ThreadInteractionService,
+    private readonly hubPublicationService: HubPublicationService
   ) {
     this.discordClient = this.discordClientService.getClient()
     // イベントハンドラー登録は削除 - File-based handlers（EventRegistryService）で一元管理
@@ -102,7 +104,15 @@ export class ThreadCreationService {
       await this.updateCharacterChannelIds(character.characterId, thread.id, character.discordChannelId)
 
       // キャラクター情報を投稿（表示タイプに応じて処理）
-      await this.postCharacterDisplay(thread, character, request.displayType || 'basic')
+      if (resolveCharacterState(character) !== 'materialized') {
+        await this.postCharacterDisplay(thread, character, request.displayType || 'basic')
+      } else {
+        try {
+          await this.hubPublicationService.postHub(character.characterId, thread.id)
+        } catch (error) {
+          this.logger.error(`Failed to post character hub: ${character.characterId}`, error)
+        }
+      }
 
       const threadUrl = buildThreadUrl(request.guildId, request.channelId, thread.id)
 

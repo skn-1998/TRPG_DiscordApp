@@ -1,6 +1,7 @@
 import {
   GROUP_SELECT_MORE_VALUE,
   DISCORD_EMBED_TOTAL_MAX_LENGTH,
+  canonicalizeResourceDelta,
   createDiscordProjectionViewModel,
   createEphemeralPanel,
   createGroupBrowser,
@@ -103,6 +104,50 @@ describe('@trpg/sheet-projection', () => {
       ['res_123456789012345678_hp_1', 'success'],
       ['res_123456789012345678_hp_5', 'success'],
     ])
+  })
+
+  it('指数表記・-0など正準10進表現にできないdeltaは警告してactionを生成しない', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      {
+        key: 'hp',
+        kind: 'resource',
+        deltas: [-0, 1e21, 1e-7, 0.5],
+        label: 'HP',
+        group: 'resource',
+        fieldRef: { uid: 'hp' },
+      },
+    ]
+
+    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'resource' })
+
+    expect(panel.actions.map((action) => action.customId)).toEqual(['res_123456789012345678_hp_0.5'])
+    expect(panel.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid-custom-id-part',
+          path: 'palette.hp.deltas',
+        }),
+      ])
+    )
+    expect(canonicalizeResourceDelta(-0)).toBeNull()
+    expect(canonicalizeResourceDelta(1e21)).toBeNull()
+    expect(canonicalizeResourceDelta(1e-7)).toBeNull()
+  })
+
+  it('空のfield/section labelはfield uid由来の表示へfallbackする', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      { ...roll(1, '   '), label: '  ' },
+      { key: 'hp', kind: 'resource', deltas: [-1, 1], label: '', group: 'resource', fieldRef: { uid: 'main.hp' } },
+    ]
+    const result = createDiscordProjectionViewModel({
+      ...input(palette),
+      resourceValues: { 'main.hp': 10 },
+    })
+
+    expect(result.hub.pinnedButtonRows[0][0].label).toBe('uid-1')
+    expect(result.hub.groupSelect?.options[0].label).toBe('uid-1')
+    expect(result.hub.embed.fields[0].name).toBe('main.hp')
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: 'empty-label-fallback' }))
   })
 
   it('resource currentはsheet.valuesのpartsを合算し、materialized labelの値重複を除く', () => {

@@ -11,6 +11,7 @@ import {
   MaterializedCharacterEntity,
   SaveSheetMaterializedPayload
 } from '../models/character.entity'
+import { assertCharacterHubTransition } from '../models/character.entity'
 import { CharacterSummaryDto } from '../dto/character-summary.dto'
 import { AttributeSection, isAttributeSection } from '../../../core/types/attribute.types'
 import { normalizePersistedCharacterAttributes } from '../mappers/character-attribute.mapper'
@@ -70,23 +71,42 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     }
   }
 
+  private prepareLegacyWrite(data: Partial<LegacyCharacterEntity>): Partial<LegacyCharacterEntity> {
+    this.assertLegacyWrite(data)
+    const prepared: Partial<LegacyCharacterEntity> = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    )
+
+    for (const sectionName of ['status', 'parameter', 'skill', 'item', 'description'] as const) {
+      if (Object.prototype.hasOwnProperty.call(prepared, sectionName) && !isAttributeSection(prepared[sectionName])) {
+        throw new TypeError(`Invalid ${sectionName}: expected AttributeSection canonical form`)
+      }
+    }
+
+    return prepared
+  }
+
   /**
    * Mixed型の5セクションは通常updateだとMongooseが深く展開するため、pipelineでトップレベル置換する。
    * $literal は説明文やdiceが `$` で始まっても集約式として評価させないために必要。
    */
-  private buildLegacyUpdate(data: Partial<LegacyCharacterEntity>): UpdateQuery<CharacterDocument> {
+  private buildLegacyUpdate(
+    data: Partial<LegacyCharacterEntity>
+  ): UpdateQuery<CharacterDocument> | UpdateWithAggregationPipeline {
+    const prepared = this.prepareLegacyWrite(data)
     const sectionNames = ['status', 'parameter', 'skill', 'item', 'description'] as const
-    const replacesSection = sectionNames.some((sectionName) => Object.prototype.hasOwnProperty.call(data, sectionName))
-    if (!replacesSection) return { $set: data }
+    const replacesSection = sectionNames.some((sectionName) =>
+      Object.prototype.hasOwnProperty.call(prepared, sectionName)
+    )
+    if (!replacesSection) return { $set: prepared }
 
     const pipeline: UpdateWithAggregationPipeline = [
       {
-        $set: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, { $literal: value }]))
+        $set: Object.fromEntries(Object.entries(prepared).map(([key, value]) => [key, { $literal: value }]))
       }
     ]
 
-    // Mongoose実装はpipelineを処理するが、findOneAndUpdateの型overloadだけがpipelineを公開していない。
-    return pipeline as unknown as UpdateQuery<CharacterDocument>
+    return pipeline
   }
 
   /**
@@ -95,8 +115,8 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
    * @returns plain object（E-6d: repository 境界で Document を露出しない）
    */
   async create(entity: Partial<LegacyCharacterEntity>): Promise<CharacterEntity> {
-    this.assertLegacyWrite(entity)
-    const createdCharacter = new this.characterModel(entity)
+    const prepared = this.prepareLegacyWrite(entity)
+    const createdCharacter = new this.characterModel(prepared)
     const saved = await createdCharacter.save()
     return normalizePersistedCharacterAttributes(saved.toObject())
   }
@@ -174,6 +194,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
   ): Promise<CharacterEntity | null> {
     characterHubSchema.parse(from)
     characterHubSchema.parse(to)
+    assertCharacterHubTransition(from, to)
     const filter = Object.fromEntries(
       Object.entries(from)
         .filter(([, value]) => value !== undefined)
@@ -263,7 +284,6 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
    * @param updateData 更新するデータ
    */
   async update(id: string, updateData: Partial<LegacyCharacterEntity>): Promise<CharacterEntity | null> {
-    this.assertLegacyWrite(updateData)
     const update = this.buildLegacyUpdate(updateData)
     return this.normalizeCharacter(
       await this.characterModel.findOneAndUpdate({ characterId: id }, update, { new: true }).lean().exec()
@@ -278,7 +298,6 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     discordUserId: string,
     updateData: Partial<LegacyCharacterEntity>
   ): Promise<CharacterEntity | null> {
-    this.assertLegacyWrite(updateData)
     const update = this.buildLegacyUpdate(updateData)
     const character = await this.characterModel
       .findOneAndUpdate({ characterId: id, discordUserId }, update, { new: true })
@@ -296,7 +315,6 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     channelId: string,
     updateData: Partial<LegacyCharacterEntity>
   ): Promise<CharacterEntity | null> {
-    this.assertLegacyWrite(updateData)
     const update = this.buildLegacyUpdate(updateData)
     const character = await this.characterModel
       .findOneAndUpdate({ discordChannelId: channelId }, update, { new: true })

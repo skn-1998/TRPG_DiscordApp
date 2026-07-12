@@ -95,17 +95,27 @@ export class HubRefreshWorker implements OnApplicationBootstrap, OnModuleDestroy
       }
       try {
         await this.gateway.edit(hub.threadId, hub.messageId, payload)
-        const updated = await this.operations.setHubState(
-          characterId,
-          { status: 'active', messageId: hub.messageId, appliedRevision: hub.appliedRevision },
-          { status: 'active', appliedRevision: revision, retryAt: new Date(0) }
-        )
-        if (updated === null) return
-        this.retryAttempts.delete(characterId)
       } catch (error) {
         await this.handleDiscordFailure(character, revision, payload, error)
         return
       }
+
+      let updated: CharacterEntity | null
+      try {
+        updated = await this.operations.setHubState(
+          characterId,
+          { status: 'active', messageId: hub.messageId, appliedRevision: hub.appliedRevision },
+          { status: 'active', appliedRevision: revision, retryAt: new Date(0) }
+        )
+      } catch (error) {
+        this.logger.error(`Hub refresh edit succeeded but appliedRevision persistence failed: ${characterId}`, error)
+        return
+      }
+      if (updated === null) {
+        this.logger.error(`Hub refresh edit succeeded but appliedRevision CAS did not match: ${characterId}`)
+        return
+      }
+      this.retryAttempts.delete(characterId)
     }
   }
 

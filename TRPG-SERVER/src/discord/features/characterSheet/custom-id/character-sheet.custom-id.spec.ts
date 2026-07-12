@@ -1,4 +1,11 @@
 import {
+  createDiscordProjectionViewModel,
+  createEphemeralPanel,
+  createGroupBrowser,
+  type DiscordButtonModel,
+  type ProjectionPaletteEntry
+} from '@trpg/sheet-projection'
+import {
   CHECK_CUSTOM_ID_RESERVED_PREFIX,
   DECLARE_CUSTOM_ID_RESERVED_PREFIX,
   HubGroupBrowserCustomId,
@@ -110,7 +117,70 @@ describe('characterSheet customId v2', () => {
     it('Factory は非有限値や指数表記になる値を生成しない', () => {
       expect(() => ResourceDeltaCustomId.create('123', 'hp', Number.NaN)).toThrow()
       expect(() => ResourceDeltaCustomId.create('123', 'hp', Number.POSITIVE_INFINITY)).toThrow()
+      expect(() => ResourceDeltaCustomId.create('123', 'hp', -0)).toThrow()
       expect(() => ResourceDeltaCustomId.create('123', 'hp', 1e21)).toThrow()
+      expect(() => ResourceDeltaCustomId.create('123', 'hp', 1e-7)).toThrow()
     })
+  })
+
+  it('projection が生成した全customIdをserver parserでround-tripできる', () => {
+    const channelId = '123456789012345678'
+    const resource: ProjectionPaletteEntry = {
+      key: 'hp',
+      kind: 'resource',
+      deltas: [-1, 1],
+      label: 'HP',
+      group: 'skills',
+      fieldRef: { uid: 'main.hp' }
+    }
+    const rolls: ProjectionPaletteEntry[] = Array.from({ length: 25 }, (_, index) => ({
+      key: `r${index}`,
+      kind: 'roll' as const,
+      notation: '1d100',
+      label: `Roll ${index}`,
+      group: index < 20 ? 'skills' : `g${index}`,
+      fieldRef: { uid: `main.r${index}` }
+    }))
+    const palette = [resource, ...rolls]
+    const hub = createDiscordProjectionViewModel({
+      characterName: 'Alice',
+      templateVersion: '1',
+      channelId,
+      palette
+    })
+    const panel = createEphemeralPanel({ channelId, palette, groupId: 'skills', page: 1 })
+    const browserPalette: ProjectionPaletteEntry[] = Array.from({ length: 25 }, (_, index) => ({
+      key: `b${index}`,
+      kind: 'roll' as const,
+      notation: '1d6',
+      label: `Browser ${index}`,
+      group: `g${index}`,
+      fieldRef: { uid: `browser.b${index}` }
+    }))
+    const browser = createGroupBrowser({ channelId, palette: browserPalette, page: 1 })
+    const navigationButtons = [panel.page.previous, panel.page.next, browser.page.previous, browser.page.next].filter(
+      (button): button is DiscordButtonModel => button !== undefined
+    )
+    const customIds = [
+      ...hub.hub.pinnedButtonRows.flat().map((button) => button.customId),
+      ...(hub.hub.groupSelect ? [hub.hub.groupSelect.menuCustomId] : []),
+      ...panel.actions.map((button) => button.customId),
+      ...navigationButtons.map((button) => button.customId),
+      browser.menuCustomId
+    ]
+
+    expect(customIds.length).toBeGreaterThan(0)
+    for (const customId of customIds) {
+      const parsed = customId.startsWith('roll_')
+        ? RollPaletteCustomId.parse(customId)
+        : customId.startsWith('res_')
+          ? ResourceDeltaCustomId.parse(customId)
+          : customId.startsWith('hub_panel_')
+            ? HubPanelCustomId.parse(customId)
+            : customId.startsWith('hub_groups_')
+              ? HubGroupBrowserCustomId.parse(customId)
+              : HubGroupSelectCustomId.parse(customId)
+      expect(parsed).not.toBeNull()
+    }
   })
 })
