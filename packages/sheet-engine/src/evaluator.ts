@@ -538,6 +538,9 @@ function resolveNumberValue(fieldUid: string, value: unknown): number {
       throw new Error(`field ${fieldUid} parts.${part} must be a finite number`);
     }
     total += partValue;
+    if (!Number.isFinite(total)) {
+      throw new Error(`field ${fieldUid} parts sum must be finite`);
+    }
   }
   return total;
 }

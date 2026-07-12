@@ -62,6 +62,7 @@ describe('clampDelta', () => {
 
   it('reports an unchanged zero delta without clamping', () => {
     expect(clampDelta(5, 0, 0, 10)).toEqual({ effectiveDelta: 0, clamped: false });
+    expect(clampDelta(0.2, 0.1, 0, 1).clamped).toBe(false);
   });
 });
 
@@ -73,6 +74,7 @@ describe('buildValueInputSchema', () => {
         label: 'Main',
         fields: [
           { type: 'scalar', id: 'score', uid: 'uid_score', label: 'Score', valueType: 'number', parts: true },
+          { type: 'scalar', id: 'plain', uid: 'uid_plain', label: 'Plain', valueType: 'number' },
           { type: 'scalar', id: 'name', uid: 'uid_name', label: 'Name', valueType: 'text' },
           { type: 'scalar', id: 'active', uid: 'uid_active', label: 'Active', valueType: 'boolean' },
           {
@@ -97,6 +99,7 @@ describe('buildValueInputSchema', () => {
   it('accepts field-matching scalar, parts, track, text, boolean, and select values', () => {
     expect(schema.safeParse({
       uid_score: { parts: { base: 5, buff: 2 } },
+      uid_plain: 3,
       uid_name: 'Alice',
       uid_active: true,
       uid_rank: 'b',
@@ -124,6 +127,16 @@ describe('buildValueInputSchema', () => {
       expect(result.error.issues.map((issue) => issue.path[0])).toEqual(
         expect.arrayContaining(['uid_name', 'uid_active', 'uid_rank']),
       );
+    }
+  });
+
+  it('rejects parts when the field definition does not enable them', () => {
+    const result = schema.safeParse({ uid_plain: { parts: { base: 1 } } });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: ['uid_plain', 'parts'], message: 'field uid_plain does not allow parts' }),
+      ]));
     }
   });
 

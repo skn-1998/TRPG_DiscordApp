@@ -9,10 +9,11 @@ export function clampDelta(
   min: number = 0,
   max: number,
 ): ClampDeltaResult {
-  const next = Math.min(max, Math.max(min, current + delta));
+  const requested = current + delta;
+  const next = Math.min(max, Math.max(min, requested));
   const effectiveDelta = next - current;
   return {
     effectiveDelta,
-    clamped: effectiveDelta !== delta,
+    clamped: next !== requested,
   };
 }

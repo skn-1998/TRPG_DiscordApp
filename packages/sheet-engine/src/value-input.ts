@@ -11,8 +11,6 @@ const finiteNumberSchema = z.number().refine(Number.isFinite, 'must be a finite 
 const partsValueSchema = z.strictObject({
   parts: z.record(z.string(), finiteNumberSchema),
 });
-const numberValueSchema = z.union([finiteNumberSchema, partsValueSchema]);
-
 export function buildValueInputSchema(
   template: SheetTemplate,
 ): z.ZodType<Record<string, SheetValueInput>> {
@@ -35,7 +33,16 @@ export function buildValueInputSchema(
         continue;
       }
 
-      const schema = inputSchemaFor(field);
+      if (isPartsValue(value) && !allowsParts(field)) {
+        context.addIssue({
+          code: 'custom',
+          path: [uid, 'parts'],
+          message: `field ${uid} does not allow parts`,
+        });
+        continue;
+      }
+
+      const schema = inputSchemaFor(field, value);
       if (!schema) {
         context.addIssue({
           code: 'custom',
@@ -60,15 +67,15 @@ export function buildValueInputSchema(
   }) as z.ZodType<Record<string, SheetValueInput>>;
 }
 
-function inputSchemaFor(field: SheetField): z.ZodType<SheetValueInput> | undefined {
+function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValueInput> | undefined {
   if (field.type === 'track') {
-    return numberValueSchema;
+    return isPartsValue(value) ? partsValueSchema : finiteNumberSchema;
   }
   if (field.type !== 'scalar') {
     return undefined;
   }
   if (field.valueType === 'number') {
-    return numberValueSchema;
+    return isPartsValue(value) ? partsValueSchema : finiteNumberSchema;
   }
   if (field.valueType === 'boolean') {
     return z.boolean();
@@ -78,4 +85,13 @@ function inputSchemaFor(field: SheetField): z.ZodType<SheetValueInput> | undefin
     return z.string().refine((value) => options.has(value), 'must be one of the field option values');
   }
   return z.string();
+}
+
+function allowsParts(field: SheetField): boolean {
+  return field.type === 'track'
+    || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true);
+}
+
+function isPartsValue(value: unknown): value is { parts: unknown } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'parts' in value;
 }
