@@ -117,6 +117,37 @@ describe('CharacterSheetTemplateService', () => {
     await expect(service.findOne('missing', 'user-1')).rejects.toBeInstanceOf(NotFoundException)
   })
 
+  it('resolvePublished は所有者の published テンプレートを version 一致時のみ返す', async () => {
+    const published = { ...template, status: 'published' as const, version: '1.0.0' }
+    repository.findById.mockResolvedValue(published)
+
+    await expect(service.resolvePublished('template-1', '1.0.0', 'user-1')).resolves.toBe(published)
+    expect(repository.findById).toHaveBeenCalledWith('template-1')
+  })
+
+  it('resolvePublished は存在しないテンプレートを 404 にする', async () => {
+    repository.findById.mockResolvedValue(null)
+
+    await expect(service.resolvePublished('missing', '1.0.0', 'user-1')).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('resolvePublished は所有者不一致を 403 にする', async () => {
+    repository.findById.mockResolvedValue({ ...template, status: 'published', version: '1.0.0' })
+
+    await expect(service.resolvePublished('template-1', '1.0.0', 'other-user')).rejects.toBeInstanceOf(
+      ForbiddenException
+    )
+  })
+
+  it.each([
+    ['draft', '1.0.0'],
+    ['published', '0.9.0']
+  ] as const)('resolvePublished は status=%s / version=%s を 409 にする', async (status, version) => {
+    repository.findById.mockResolvedValue({ ...template, status, version: '1.0.0' })
+
+    await expect(service.resolvePublished('template-1', version, 'user-1')).rejects.toBeInstanceOf(ConflictException)
+  })
+
   it('draft autosave は draftRevision 不一致を 409 にする', async () => {
     repository.findById.mockResolvedValue(template)
 

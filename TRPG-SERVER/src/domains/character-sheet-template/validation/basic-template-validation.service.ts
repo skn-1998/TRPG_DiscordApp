@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { CharacterSheetTemplateEntity, SheetTemplateSection } from '../models/character-sheet-template.entity'
+import { collectProjectionKeyErrors } from './projection-key-validation'
 import { TemplateValidationPort } from './template-validation.port'
 
 interface FieldLike {
@@ -49,6 +50,7 @@ export class BasicTemplateValidationService implements TemplateValidationPort {
 
   validateForPublish(template: CharacterSheetTemplateEntity): void {
     const errors = this.collectCommonErrors(template)
+    errors.push(...collectProjectionKeyErrors(template))
     const fields = this.collectFields(template.sections)
 
     for (const field of fields) {

@@ -1,6 +1,7 @@
-import { IsOptional, IsString, IsNotEmpty, IsNumber, IsBoolean, ValidateNested } from 'class-validator'
-import { Type, Transform } from 'class-transformer'
+import { IsOptional, IsString, IsNotEmpty, IsNumber, IsBoolean, Validate } from 'class-validator'
+import { Transform } from 'class-transformer'
 import { DiscordDto, ValidationUtils } from '../../../core/dto/base.dto'
+import { AttributeNumberPartsConstraint, AttributeSectionConstraint } from './attribute-value.validator'
 
 /**
  * AttributeValue用DTO
@@ -16,11 +17,16 @@ export class AttributeValueDto {
   index?: number
 
   @IsOptional()
+  @Validate(AttributeNumberPartsConstraint)
   values?: Record<string, number> = {}
 
   @IsOptional()
   @IsString()
   description?: string
+
+  @IsOptional()
+  @IsString()
+  dice?: string
 
   @IsOptional()
   @IsBoolean()
@@ -49,28 +55,23 @@ export class CreateCharacterDto extends DiscordDto {
   readonly gameSystemId: string
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => AttributeValueDto)
+  @Validate(AttributeSectionConstraint)
   readonly status?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => AttributeValueDto)
+  @Validate(AttributeSectionConstraint)
   readonly parameter?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => AttributeValueDto)
+  @Validate(AttributeSectionConstraint)
   readonly skill?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => AttributeValueDto)
+  @Validate(AttributeSectionConstraint)
   readonly item?: Record<string, AttributeValueDto>
 
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => AttributeValueDto)
+  @Validate(AttributeSectionConstraint)
   readonly description?: Record<string, AttributeValueDto>
 }
 
@@ -103,18 +104,23 @@ export class CharacterInputDto {
   readonly gameSystemId?: string
 
   @IsOptional()
+  @Validate(AttributeSectionConstraint)
   readonly status?: Record<string, AttributeValueDto>
 
   @IsOptional()
+  @Validate(AttributeSectionConstraint)
   readonly parameter?: Record<string, AttributeValueDto>
 
   @IsOptional()
+  @Validate(AttributeSectionConstraint)
   readonly skill?: Record<string, AttributeValueDto>
 
   @IsOptional()
+  @Validate(AttributeSectionConstraint)
   readonly item?: Record<string, AttributeValueDto>
 
   @IsOptional()
+  @Validate(AttributeSectionConstraint)
   readonly description?: Record<string, AttributeValueDto>
 }
 

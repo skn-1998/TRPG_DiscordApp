@@ -80,6 +80,228 @@ describe('CharacterRepository', () => {
       expect(toObject).toHaveBeenCalledTimes(1)
       expect(result).toBe(plain)
     })
+
+    it('legacy create は materialized/metadata フィールドを受け付けない', async () => {
+      await expect(
+        repository.create({
+          characterId: 'c1',
+          sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: {} }
+        } as any)
+      ).rejects.toThrow('Legacy write cannot update sheet')
+
+      expect(model).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('materialized-write', () => {
+    const projection = {
+      status: { HP: { values: { base: 10, buff: 2, temp: -1, other: 3 } } },
+      parameter: {},
+      skill: {},
+      item: {},
+      description: {}
+    }
+
+    it('createMaterializedCharacter は全 materialized 要素を1回の insert で保存する', async () => {
+      const entity = {
+        characterId: 'c1',
+        characterName: 'Alice',
+        gameSystemId: 'coc7',
+        discordUserId: 'u1',
+        discordChannelId: 'ch1',
+        ...projection,
+        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: { hp: 10 } },
+        computedCache: { hpHalf: 5 },
+        palette: [],
+        hub: { status: 'none' as const },
+        appliedInteractionIds: []
+      }
+      const toObject = jest.fn().mockReturnValue(entity)
+      const save = jest.fn().mockResolvedValue({ ...entity, toObject })
+      model.mockImplementation((arg: unknown) => ({ ...(arg as object), save }))
+
+      const result = await repository.createMaterializedCharacter(entity)
+
+      expect(model).toHaveBeenCalledTimes(1)
+      expect(model).toHaveBeenCalledWith(entity)
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(result).toBe(entity)
+    })
+
+    it('saveSheetMaterialized は revision CAS 条件・単一 $set・$inc で更新し pin を書かない', async () => {
+      const updated = {
+        characterId: 'c1',
+        ...projection,
+        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 4, values: { hp: 12 } }
+      }
+      const query = createQuery(updated)
+      model.findOneAndUpdate.mockReturnValue(query)
+      const appliedInteractionIds = Array.from({ length: 21 }, (_, index) => `i${index}`)
+
+      const result = await repository.saveSheetMaterialized(
+        'c1',
+        {
+          values: { hp: 12 },
+          computedCache: { hpHalf: 6 },
+          palette: [],
+          ...projection,
+          pendingRevision: 4,
+          appliedInteractionIds
+        },
+        3
+      )
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1', 'sheet.revision': 3 },
+        {
+          $set: {
+            'sheet.values': { hp: 12 },
+            computedCache: { hpHalf: 6 },
+            palette: [],
+            status: projection.status,
+            parameter: projection.parameter,
+            skill: projection.skill,
+            item: projection.item,
+            description: projection.description,
+            'hub.pendingRevision': 4,
+            appliedInteractionIds: appliedInteractionIds.slice(-20)
+          },
+          $inc: { 'sheet.revision': 1 }
+        },
+        { new: true }
+      )
+      expect(result).toBe(updated)
+    })
+
+    it('saveSheetMaterialized は0件更新を競合として null で返す', async () => {
+      model.findOneAndUpdate.mockReturnValue(createQuery(null))
+
+      const result = await repository.saveSheetMaterialized(
+        'c1',
+        {
+          values: {},
+          computedCache: {},
+          palette: [],
+          ...projection,
+          pendingRevision: 2,
+          appliedInteractionIds: []
+        },
+        1
+      )
+
+      expect(result).toBeNull()
+    })
+
+    it('saveSheetMaterialized は非正準投影なら DB を更新しない', async () => {
+      await expect(
+        repository.saveSheetMaterialized(
+          'c1',
+          {
+            values: {},
+            computedCache: {},
+            palette: [],
+            ...projection,
+            status: { HP: { values: { base: 10 }, display: 10 } } as any,
+            pendingRevision: 2,
+            appliedInteractionIds: []
+          },
+          1
+        )
+      ).rejects.toThrow()
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('saveSheetMaterialized は pendingRevision が次 revision でなければ DB を更新しない', async () => {
+      await expect(
+        repository.saveSheetMaterialized(
+          'c1',
+          {
+            values: {},
+            computedCache: {},
+            palette: [],
+            ...projection,
+            pendingRevision: 99,
+            appliedInteractionIds: []
+          },
+          1
+        )
+      ).rejects.toThrow('pendingRevision must equal expectedRevision + 1')
+
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('metadata-write', () => {
+    it('setTemplatePin は sheet と templatePin が無い場合だけ pin を確立する', async () => {
+      const pin = { templateId: 'legacy-coc', templateVersion: '1.0.0', pinnedBy: 'backfill-2026-07-12' }
+      const updated = { characterId: 'c1', templatePin: pin }
+      model.findOneAndUpdate.mockReturnValue(createQuery(updated))
+
+      const result = await repository.setTemplatePin('c1', pin)
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1', sheet: { $exists: false }, templatePin: { $exists: false } },
+        { $set: { templatePin: pin } },
+        { new: true }
+      )
+      expect(result).toBe(updated)
+    })
+
+    it('setTemplatePin は条件不成立を null で返し既存 pin を上書きしない', async () => {
+      model.findOneAndUpdate.mockReturnValue(createQuery(null))
+
+      await expect(
+        repository.setTemplatePin('c1', {
+          templateId: 'legacy-coc',
+          templateVersion: '1.0.0',
+          pinnedBy: 'backfill'
+        })
+      ).resolves.toBeNull()
+    })
+
+    it('setTemplatePin は不正な pin を DB 更新前に拒否する', async () => {
+      await expect(
+        repository.setTemplatePin('c1', {
+          templateId: '',
+          templateVersion: '1.0.0',
+          pinnedBy: 'backfill'
+        })
+      ).rejects.toThrow()
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('setHubState は from の hub 条件で CAS し to の hub フィールドだけを更新する', async () => {
+      const updated = { characterId: 'c1', hub: { status: 'active', opId: 'op-1', messageId: 'm1' } }
+      model.findOneAndUpdate.mockReturnValue(createQuery(updated))
+
+      const result = await repository.setHubState(
+        'c1',
+        { status: 'publishing', opId: 'op-1' },
+        { status: 'active', messageId: 'm1', appliedRevision: 3 }
+      )
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1', 'hub.status': 'publishing', 'hub.opId': 'op-1' },
+        {
+          $set: {
+            'hub.status': 'active',
+            'hub.messageId': 'm1',
+            'hub.appliedRevision': 3
+          }
+        },
+        { new: true }
+      )
+      expect(result).toBe(updated)
+    })
+
+    it('setHubState は不正な hub 遷移を DB 更新前に拒否する', async () => {
+      await expect(
+        repository.setHubState('c1', { status: 'none' }, { status: 'active', pendingRevision: Number.NaN })
+      ).rejects.toThrow()
+
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
+    })
   })
 
   describe('findById', () => {
@@ -105,6 +327,65 @@ describe('CharacterRepository', () => {
       const result = await repository.findById('missing')
 
       expect(result).toBeNull()
+    })
+
+    it('永続化済みlegacy属性をrepository境界で正準形へ変換する', async () => {
+      const doc = {
+        characterId: 'c1',
+        status: {
+          HP: { name: 'HP', index: null, values: { base: 10 }, description: null, dice: null },
+          MP: 5
+        }
+      }
+      model.findOne.mockReturnValue(createQuery(doc))
+
+      const result = await repository.findById('c1')
+
+      expect(result?.status).toEqual({
+        HP: { name: 'HP', values: { base: 10 } },
+        MP: { values: { base: 5 } }
+      })
+      expect(doc.status.HP.index).toBeNull()
+    })
+  })
+
+  describe('owner-qualified operations', () => {
+    it('findByIdForOwner はcharacterIdとdiscordUserIdの両方を検索条件にする', async () => {
+      const doc = { characterId: 'c1', discordUserId: 'owner-1' }
+      const query = createQuery(doc)
+      model.findOne.mockReturnValue(query)
+
+      const result = await repository.findByIdForOwner('c1', 'owner-1')
+
+      expect(model.findOne).toHaveBeenCalledWith({ characterId: 'c1', discordUserId: 'owner-1' })
+      expect(query.lean).toHaveBeenCalledTimes(1)
+      expect(result).toBe(doc)
+    })
+
+    it('updateForOwner は所有者条件を含む単一クエリで更新する', async () => {
+      const updated = { characterId: 'c1', discordUserId: 'owner-1', characterName: 'updated' }
+      const query = createQuery(updated)
+      model.findOneAndUpdate.mockReturnValue(query)
+
+      const result = await repository.updateForOwner('c1', 'owner-1', { characterName: 'updated' })
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1', discordUserId: 'owner-1' },
+        { $set: { characterName: 'updated' } },
+        { new: true }
+      )
+      expect(result).toBe(updated)
+    })
+
+    it('removeForOwner は所有者条件を含む単一クエリで削除する', async () => {
+      const deleted = { characterId: 'c1', discordUserId: 'owner-1' }
+      const query = createQuery(deleted)
+      model.findOneAndDelete.mockReturnValue(query)
+
+      const result = await repository.removeForOwner('c1', 'owner-1')
+
+      expect(model.findOneAndDelete).toHaveBeenCalledWith({ characterId: 'c1', discordUserId: 'owner-1' })
+      expect(result).toBe(deleted)
     })
   })
 
@@ -136,7 +417,7 @@ describe('CharacterRepository', () => {
       expect(model.findOne).toHaveBeenCalledWith({ discordChannelId: 'ch1' })
       // S-1: status/skill/parameter/gameSystemId を含む（スレッド内ロールの key 再解決の前提）。
       expect(query.select).toHaveBeenCalledWith(
-        'characterId characterName discordChannelId attributes primaryAttributes status skill parameter gameSystemId createdAt updatedAt'
+        'characterId characterName discordChannelId attributes primaryAttributes status skill parameter gameSystemId palette discordUserId hub.status createdAt updatedAt'
       )
       expect(result).toBe(doc)
     })
@@ -188,8 +469,16 @@ describe('CharacterRepository', () => {
 
       const result = await repository.update('c1', updateData)
 
-      expect(model.findOneAndUpdate).toHaveBeenCalledWith({ characterId: 'c1' }, updateData, { new: true })
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith({ characterId: 'c1' }, { $set: updateData }, { new: true })
       expect(result).toBe(updated)
+    })
+
+    it('legacy update は materialized/metadata フィールドを受け付けない', async () => {
+      await expect(repository.update('c1', { hub: { status: 'none' } } as any)).rejects.toThrow(
+        'Legacy write cannot update hub'
+      )
+
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
     })
   })
 
@@ -202,7 +491,11 @@ describe('CharacterRepository', () => {
 
       const result = await repository.updateByChannelId('ch1', updateData)
 
-      expect(model.findOneAndUpdate).toHaveBeenCalledWith({ discordChannelId: 'ch1' }, updateData, { new: true })
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { discordChannelId: 'ch1' },
+        { $set: updateData },
+        { new: true }
+      )
       expect(result).toBe(updated)
     })
   })
@@ -212,13 +505,24 @@ describe('CharacterRepository', () => {
       const updated = { characterId: 'c1' }
       const query = createQuery(updated)
       model.findOneAndUpdate.mockReturnValue(query)
-      const data = { HP: 10 }
+      const data = { HP: { values: { base: 10 } } }
 
       const result = await repository.updateField('c1', 'status', data)
 
-      // update() 経由なので findOneAndUpdate が { status: data } で呼ばれる
-      expect(model.findOneAndUpdate).toHaveBeenCalledWith({ characterId: 'c1' }, { status: data }, { new: true })
+      // Mixed配下を深くmergeさせず、status全体を原子的に置換するpipelineを使う。
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1' },
+        [{ $set: { status: { $literal: data } } }],
+        { new: true }
+      )
       expect(result).toBe(updated)
+    })
+
+    it('非正準形を永続化しない', async () => {
+      const invalid = { HP: 10 } as unknown as Parameters<CharacterRepository['updateField']>[2]
+
+      await expect(repository.updateField('c1', 'status', invalid)).rejects.toThrow(/AttributeSection/)
+      expect(model.findOneAndUpdate).not.toHaveBeenCalled()
     })
   })
 
@@ -227,11 +531,15 @@ describe('CharacterRepository', () => {
       const updated = { characterId: 'c1' }
       const query = createQuery(updated)
       model.findOneAndUpdate.mockReturnValue(query)
-      const data = { 回避: 50 }
+      const data = { 回避: { values: { base: 50 } } }
 
       const result = await repository.updateFieldByChannelId('ch1', 'skill', data)
 
-      expect(model.findOneAndUpdate).toHaveBeenCalledWith({ discordChannelId: 'ch1' }, { skill: data }, { new: true })
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { discordChannelId: 'ch1' },
+        [{ $set: { skill: { $literal: data } } }],
+        { new: true }
+      )
       expect(result).toBe(updated)
     })
   })
@@ -263,17 +571,48 @@ describe('CharacterRepository', () => {
   })
 
   describe('findUserCharacterSummaries', () => {
-    it('discordUserId で find し必要フィールドのみ select/lean する', async () => {
-      const summaries = [{ characterId: 'c1', characterName: 'Alice', gameSystemId: 'coc' }]
+    it('必要フィールドのみ select し materialized version を優先して summary へ写す', async () => {
+      const summaries = [
+        {
+          characterId: 'c1',
+          characterName: 'Alice',
+          gameSystemId: 'coc',
+          sheet: { templateVersion: '2.0.0' },
+          templatePin: { templateVersion: '1.0.0' },
+          hub: { status: 'error' }
+        },
+        {
+          characterId: 'c2',
+          characterName: 'Bob',
+          gameSystemId: 'coc',
+          templatePin: { templateVersion: '1.0.0' }
+        }
+      ]
       const query = createQuery(summaries)
       model.find.mockReturnValue(query)
 
       const result = await repository.findUserCharacterSummaries('u1')
 
       expect(model.find).toHaveBeenCalledWith({ discordUserId: 'u1' })
-      expect(query.select).toHaveBeenCalledWith('characterId characterName gameSystemId -_id')
+      expect(query.select).toHaveBeenCalledWith(
+        'characterId characterName gameSystemId sheet.templateVersion templatePin.templateVersion hub.status -_id'
+      )
       expect(query.lean).toHaveBeenCalledTimes(1)
-      expect(result).toBe(summaries)
+      expect(result).toEqual([
+        {
+          characterId: 'c1',
+          characterName: 'Alice',
+          gameSystemId: 'coc',
+          templateVersion: '2.0.0',
+          hub: { status: 'error' }
+        },
+        {
+          characterId: 'c2',
+          characterName: 'Bob',
+          gameSystemId: 'coc',
+          templateVersion: '1.0.0'
+        }
+      ])
     })
   })
 

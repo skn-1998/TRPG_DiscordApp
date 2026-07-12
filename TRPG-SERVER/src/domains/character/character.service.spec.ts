@@ -38,13 +38,16 @@ describe('CharacterService', () => {
       create: jest.fn(),
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByIdForOwner: jest.fn(),
       findByName: jest.fn(),
       findByChannelId: jest.fn(),
       update: jest.fn(),
+      updateForOwner: jest.fn(),
       updateByChannelId: jest.fn(),
       updateField: jest.fn(),
       updateFieldByChannelId: jest.fn(),
       remove: jest.fn(),
+      removeForOwner: jest.fn(),
       removeByChannelId: jest.fn(),
       findUserCharacterSummaries: jest.fn()
     }
@@ -101,6 +104,45 @@ describe('CharacterService', () => {
         })
       )
       expect(result).toEqual(mockCharacter)
+    })
+
+    it('AttributeValue の values と dice を欠落させず repository へ渡す', async () => {
+      characterRepository.create.mockResolvedValue(mockCharacter)
+      const skill = {
+        目星: {
+          name: '目星',
+          values: { base: 25, growth: 15 },
+          dice: '1d100<=40',
+          description: '手掛かりを見つける'
+        }
+      }
+
+      await service.create({ ...createDto, skill })
+
+      expect(characterRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skill: {
+            目星: {
+              name: '目星',
+              values: { base: 25, growth: 15 },
+              dice: '1d100<=40',
+              description: '手掛かりを見つける',
+              index: undefined,
+              isVisible: undefined
+            }
+          }
+        })
+      )
+    })
+
+    it('プリミティブ属性を空の AttributeValue へ暗黙変換しない', async () => {
+      const invalid = {
+        ...createDto,
+        parameter: { STR: 50 }
+      } as unknown as CharacterInputDto
+
+      await expect(service.create(invalid)).rejects.toThrow(/AttributeSection/)
+      expect(characterRepository.create).not.toHaveBeenCalled()
     })
 
     it('should not emit any event on create (creation event handled by dedicated handler)', async () => {
@@ -194,21 +236,30 @@ describe('CharacterService', () => {
     it('should update field via repository and not emit any event', async () => {
       // Given
       characterRepository.updateField.mockResolvedValue(mockCharacter)
+      const status = { HP: { values: { base: 100 } } }
 
       // When
-      await service.updateField('test-id', 'status', { HP: 100 })
+      await service.updateField('test-id', 'status', status)
 
       // Then - DB 操作のみ。過去形デッドイベントは廃止済みで emit しない
-      expect(characterRepository.updateField).toHaveBeenCalledWith('test-id', 'status', { HP: 100 })
+      expect(characterRepository.updateField).toHaveBeenCalledWith('test-id', 'status', status)
       expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('非正準形をrepositoryへ渡さない', async () => {
+      const invalid = { HP: 100 } as unknown as Parameters<CharacterService['updateField']>[2]
+
+      await expect(service.updateField('test-id', 'status', invalid)).rejects.toThrow(/AttributeSection/)
+      expect(characterRepository.updateField).not.toHaveBeenCalled()
     })
 
     it('should not emit when character is not found', async () => {
       // Given
       characterRepository.updateField.mockResolvedValue(null)
+      const status = { HP: { values: { base: 100 } } }
 
       // When
-      const result = await service.updateField('missing-id', 'status', { HP: 100 })
+      const result = await service.updateField('missing-id', 'status', status)
 
       // Then
       expect(typedEventService.emit).not.toHaveBeenCalled()
@@ -220,23 +271,32 @@ describe('CharacterService', () => {
     it('should update field by channelId via repository and not emit any event', async () => {
       // Given
       characterRepository.updateFieldByChannelId.mockResolvedValue(mockCharacter)
+      const parameter = { STR: { values: { base: 15 } } }
 
       // When
-      await service.updateFieldByChannelId('test-channel', 'parameter', { STR: 15 })
+      await service.updateFieldByChannelId('test-channel', 'parameter', parameter)
 
       // Then - DB 操作のみ。過去形デッドイベントは廃止済みで emit しない
-      expect(characterRepository.updateFieldByChannelId).toHaveBeenCalledWith('test-channel', 'parameter', {
-        STR: 15
-      })
+      expect(characterRepository.updateFieldByChannelId).toHaveBeenCalledWith('test-channel', 'parameter', parameter)
       expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('非正準形をrepositoryへ渡さない', async () => {
+      const invalid = { STR: 15 } as unknown as Parameters<CharacterService['updateFieldByChannelId']>[2]
+
+      await expect(service.updateFieldByChannelId('test-channel', 'parameter', invalid)).rejects.toThrow(
+        /AttributeSection/
+      )
+      expect(characterRepository.updateFieldByChannelId).not.toHaveBeenCalled()
     })
 
     it('should not emit when character is not found', async () => {
       // Given
       characterRepository.updateFieldByChannelId.mockResolvedValue(null)
+      const parameter = { STR: { values: { base: 15 } } }
 
       // When
-      const result = await service.updateFieldByChannelId('missing-channel', 'parameter', { STR: 15 })
+      const result = await service.updateFieldByChannelId('missing-channel', 'parameter', parameter)
 
       // Then
       expect(typedEventService.emit).not.toHaveBeenCalled()
@@ -270,6 +330,64 @@ describe('CharacterService', () => {
       // Then
       expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(result).toBeNull()
+    })
+  })
+
+  describe('owner-qualified HTTP operations', () => {
+    it('findOneForOwner は所有者条件付きrepository操作へ委譲する', async () => {
+      characterRepository.findByIdForOwner.mockResolvedValue(mockCharacter)
+
+      const result = await service.findOneForOwner('test-id', 'test-user')
+
+      expect(characterRepository.findByIdForOwner).toHaveBeenCalledWith('test-id', 'test-user')
+      expect(result).toBe(mockCharacter)
+    })
+
+    it('updateForOwner は所有者条件付きrepository操作へ変換後データを渡す', async () => {
+      characterRepository.updateForOwner.mockResolvedValue(mockCharacter)
+
+      const result = await service.updateForOwner('test-id', 'test-user', { characterName: 'Updated' })
+
+      expect(characterRepository.updateForOwner).toHaveBeenCalledWith('test-id', 'test-user', {
+        characterName: 'Updated'
+      })
+      expect(result).toBe(mockCharacter)
+    })
+
+    it('updateForOwner は AttributeValue の dice を保持する', async () => {
+      characterRepository.updateForOwner.mockResolvedValue(mockCharacter)
+
+      await service.updateForOwner('test-id', 'test-user', {
+        skill: {
+          聞き耳: {
+            values: { base: 20, growth: 10 },
+            dice: '1d100<=30'
+          }
+        }
+      })
+
+      expect(characterRepository.updateForOwner).toHaveBeenCalledWith('test-id', 'test-user', {
+        skill: {
+          聞き耳: {
+            name: undefined,
+            index: undefined,
+            values: { base: 20, growth: 10 },
+            description: undefined,
+            dice: '1d100<=30',
+            isVisible: undefined
+          }
+        }
+      })
+    })
+
+    it('removeForOwner は所有者条件付きrepository操作だけを呼ぶ', async () => {
+      characterRepository.removeForOwner.mockResolvedValue(mockCharacter)
+
+      const result = await service.removeForOwner('test-id', 'test-user')
+
+      expect(characterRepository.removeForOwner).toHaveBeenCalledWith('test-id', 'test-user')
+      expect(characterRepository.remove).not.toHaveBeenCalled()
+      expect(result).toBe(mockCharacter)
     })
   })
 

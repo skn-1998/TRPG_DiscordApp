@@ -68,6 +68,23 @@ export class CharacterSheetTemplateService {
     return template
   }
 
+  async resolvePublished(
+    templateId: string,
+    version: string,
+    ownerDiscordUserId: string
+  ): Promise<CharacterSheetTemplateEntity> {
+    const template = await this.findExisting(templateId)
+    this.assertOwner(template, ownerDiscordUserId)
+
+    // Phase 2 は templateId ごとに単一バージョンのみを保持する。
+    // 複数バージョン共存は Phase 4 の repository/schema 変更で扱う。
+    if (template.status !== 'published' || template.version !== version) {
+      throw new ConflictException('sheet template must be published at the requested version')
+    }
+
+    return template
+  }
+
   async update(
     templateId: string,
     dto: UpdateCharacterSheetTemplateDto,

@@ -165,9 +165,10 @@ export class CharacterController {
   @ApiResponse({ status: 404, description: 'キャラクターが見つかりません' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async findOne(@Param() params: CharacterIdParamDto): Promise<CharacterEntity> {
+  async findOne(@Param() params: CharacterIdParamDto, @Req() req: Request): Promise<CharacterEntity> {
+    const user = this.extractAuthenticatedUser(req)
     const { id } = params
-    const character = await this.characterService.findOne(id)
+    const character = await this.characterService.findOneForOwner(id, user.discordUserId)
     if (!character) {
       throw new CharacterNotFoundException('キャラクター')
     }
@@ -192,10 +193,12 @@ export class CharacterController {
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
   async update(
     @Param() params: CharacterIdParamDto,
-    @Body() updateCharacterDto: UpdateCharacterDto
+    @Body() updateCharacterDto: UpdateCharacterDto,
+    @Req() req: Request
   ): Promise<CharacterEntity> {
+    const user = this.extractAuthenticatedUser(req)
     const { id } = params
-    const character = await this.characterService.update(id, updateCharacterDto)
+    const character = await this.characterService.updateForOwner(id, user.discordUserId, updateCharacterDto)
     if (!character) {
       throw new CharacterNotFoundException('キャラクター')
     }
@@ -219,9 +222,13 @@ export class CharacterController {
   @ApiResponse({ status: 404, description: 'キャラクターが見つかりません' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async remove(@Param() params: CharacterIdParamDto): Promise<{ message: string; characterId: string }> {
+  async remove(
+    @Param() params: CharacterIdParamDto,
+    @Req() req: Request
+  ): Promise<{ message: string; characterId: string }> {
+    const user = this.extractAuthenticatedUser(req)
     const { id } = params
-    const deletedCharacter = await this.characterService.remove(id)
+    const deletedCharacter = await this.characterService.removeForOwner(id, user.discordUserId)
     if (!deletedCharacter) {
       throw new CharacterNotFoundException('キャラクター')
     }

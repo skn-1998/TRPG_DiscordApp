@@ -8,7 +8,7 @@ import { CharacterEntity } from './models/character.entity'
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
-import { AttributeValue, AttributeSection } from '../../core/types/attribute.types'
+import { AttributeValue, AttributeSection, isAttributeSection } from '../../core/types/attribute.types'
 
 /**
  * キャラクターサービス
@@ -27,6 +27,7 @@ export class CharacterService {
       index: dto.index,
       values: dto.values || {},
       description: dto.description,
+      dice: dto.dice,
       isVisible: dto.isVisible
     }
   }
@@ -34,8 +35,14 @@ export class CharacterService {
   /**
    * DTO セクションを AttributeSection に変換
    */
-  private convertDtoSectionToAttributeSection(dtoSection?: Record<string, AttributeValueDto>): AttributeSection {
+  private convertDtoSectionToAttributeSection(
+    dtoSection: Record<string, AttributeValueDto> | undefined,
+    sectionName: string
+  ): AttributeSection {
     if (!dtoSection) return {}
+    if (!isAttributeSection(dtoSection)) {
+      throw new TypeError(`Invalid ${sectionName}: expected AttributeSection canonical form`)
+    }
 
     const section: AttributeSection = {}
     for (const [key, value] of Object.entries(dtoSection)) {
@@ -54,11 +61,13 @@ export class CharacterService {
     if (dto.gameSystemId !== undefined) converted.gameSystemId = dto.gameSystemId
     if (dto.discordChannelId !== undefined) converted.discordChannelId = dto.discordChannelId
     if (dto.discordThreadId !== undefined) converted.discordThreadId = dto.discordThreadId
-    if (dto.status !== undefined) converted.status = this.convertDtoSectionToAttributeSection(dto.status)
-    if (dto.skill !== undefined) converted.skill = this.convertDtoSectionToAttributeSection(dto.skill)
-    if (dto.parameter !== undefined) converted.parameter = this.convertDtoSectionToAttributeSection(dto.parameter)
-    if (dto.item !== undefined) converted.item = this.convertDtoSectionToAttributeSection(dto.item)
-    if (dto.description !== undefined) converted.description = this.convertDtoSectionToAttributeSection(dto.description)
+    if (dto.status !== undefined) converted.status = this.convertDtoSectionToAttributeSection(dto.status, 'status')
+    if (dto.skill !== undefined) converted.skill = this.convertDtoSectionToAttributeSection(dto.skill, 'skill')
+    if (dto.parameter !== undefined)
+      converted.parameter = this.convertDtoSectionToAttributeSection(dto.parameter, 'parameter')
+    if (dto.item !== undefined) converted.item = this.convertDtoSectionToAttributeSection(dto.item, 'item')
+    if (dto.description !== undefined)
+      converted.description = this.convertDtoSectionToAttributeSection(dto.description, 'description')
 
     return converted
   }
@@ -91,11 +100,11 @@ export class CharacterService {
       characterName,
       discordUserId,
       discordChannelId,
-      status: this.convertDtoSectionToAttributeSection(createCharacterDto.status),
-      skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill),
-      parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter),
-      item: this.convertDtoSectionToAttributeSection(createCharacterDto.item),
-      description: this.convertDtoSectionToAttributeSection(createCharacterDto.description)
+      status: this.convertDtoSectionToAttributeSection(createCharacterDto.status, 'status'),
+      skill: this.convertDtoSectionToAttributeSection(createCharacterDto.skill, 'skill'),
+      parameter: this.convertDtoSectionToAttributeSection(createCharacterDto.parameter, 'parameter'),
+      item: this.convertDtoSectionToAttributeSection(createCharacterDto.item, 'item'),
+      description: this.convertDtoSectionToAttributeSection(createCharacterDto.description, 'description')
     }
 
     const createdCharacter = await this.characterRepository.create(character)
@@ -121,6 +130,13 @@ export class CharacterService {
    */
   async findOne(id: string): Promise<CharacterEntity | null> {
     return this.characterRepository.findById(id)
+  }
+
+  /**
+   * 認証済み所有者のキャラクターだけを取得する（HTTP公開操作用）
+   */
+  async findOneForOwner(id: string, discordUserId: string): Promise<CharacterEntity | null> {
+    return this.characterRepository.findByIdForOwner(id, discordUserId)
   }
 
   /**
@@ -157,6 +173,24 @@ export class CharacterService {
   }
 
   /**
+   * 認証済み所有者のキャラクターだけを更新する（HTTP公開操作用）
+   */
+  async updateForOwner(
+    id: string,
+    discordUserId: string,
+    updateCharacterDto: UpdateCharacterDto
+  ): Promise<CharacterEntity | null> {
+    const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
+    const updatedCharacter = await this.characterRepository.updateForOwner(id, discordUserId, convertedDto)
+
+    if (updatedCharacter) {
+      await this.updateDiscordEmbed(updatedCharacter)
+    }
+
+    return updatedCharacter
+  }
+
+  /**
    * チャンネルIDでキャラクターを更新する（単純化済み）
    * @param channelId DiscordチャンネルID
    * @param updateCharacterDto 更新データ
@@ -179,7 +213,10 @@ export class CharacterService {
    * @param field 更新するフィールド
    * @param data 更新するデータ
    */
-  async updateField(id: string, field: UpdatePrimary, data: Record<string, unknown>): Promise<CharacterEntity | null> {
+  async updateField(id: string, field: UpdatePrimary, data: AttributeSection): Promise<CharacterEntity | null> {
+    if (!isAttributeSection(data)) {
+      throw new TypeError(`Invalid ${field}: expected AttributeSection canonical form`)
+    }
     const updatedCharacter = await this.characterRepository.updateField(id, field, data)
 
     if (updatedCharacter) {
@@ -198,8 +235,11 @@ export class CharacterService {
   async updateFieldByChannelId(
     channelId: string,
     field: UpdatePrimary,
-    data: Record<string, unknown>
+    data: AttributeSection
   ): Promise<CharacterEntity | null> {
+    if (!isAttributeSection(data)) {
+      throw new TypeError(`Invalid ${field}: expected AttributeSection canonical form`)
+    }
     const updatedCharacter = await this.characterRepository.updateFieldByChannelId(channelId, field, data)
 
     if (updatedCharacter) {
@@ -219,6 +259,14 @@ export class CharacterService {
     const deletedCharacter = await this.characterRepository.remove(id)
 
     return deletedCharacter
+  }
+
+  /**
+   * 認証済み所有者のキャラクターだけを削除する（HTTP公開操作用）
+   */
+  async removeForOwner(id: string, discordUserId: string): Promise<CharacterEntity | null> {
+    this.logger.log(`Deleting character for owner: ${id}`)
+    return this.characterRepository.removeForOwner(id, discordUserId)
   }
 
   /**

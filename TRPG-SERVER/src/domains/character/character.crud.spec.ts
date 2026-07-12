@@ -8,21 +8,18 @@ import { CharacterInputDto } from './dto/create-character.dto'
 import { UserService } from '../user/user.service'
 import { AppConfigService } from '../../config/config.service'
 import { TypedEventService } from '../../core/events/typed-event.service'
+import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
 
 /**
  * Character Simple CRUD Test
- * MongoDB Atlas を使用してシンプルなCRUD操作を検証
+ * Testcontainersの使い捨てMongoDBを使用してシンプルなCRUD操作を検証
  */
 describe('Character Simple CRUD Test', () => {
   let module: TestingModule
   let characterService: CharacterService
   let characterRepository: CharacterRepository
 
-  // テスト用のMongoDB URI (MongoDB Atlas with test database)
-  const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
-  const mongoUri = baseUri.includes('mongodb+srv://')
-    ? baseUri.replace('/?', '/trpg_crud_test_db?')
-    : 'mongodb://localhost:27017/trpg_crud_test_db'
+  const mongoUri = requireIsolatedMongoUri()
 
   // モックサービス
   const mockUserService = {
@@ -80,13 +77,9 @@ describe('Character Simple CRUD Test', () => {
    * テスト用データベースクリア
    */
   async function clearTestDatabase(): Promise<void> {
-    try {
-      const characters = await characterRepository.findAll()
-      for (const char of characters) {
-        await characterRepository.remove(char.characterId)
-      }
-    } catch (error) {
-      // エラーは無視（初回実行時等）
+    const characters = await characterRepository.findAll()
+    for (const char of characters) {
+      await characterRepository.remove(char.characterId)
     }
   }
 
@@ -106,6 +99,7 @@ describe('Character Simple CRUD Test', () => {
           index: 1,
           values: { base: 50, other: 0 },
           description: 'ヒットポイント',
+          dice: '1d6',
           isVisible: true
         },
         MP: {
@@ -172,6 +166,7 @@ describe('Character Simple CRUD Test', () => {
       expect(saved!.status).toBeDefined()
       expect((saved!.status as any).HP.values.base).toBe(50)
       expect((saved!.status as any).HP.values.other).toBe(0)
+      expect((saved!.status as any).HP.dice).toBe('1d6')
       expect((saved!.status as any).MP.values.base).toBe(25)
       expect((saved!.status as any).MP.values.other).toBe(5)
 
@@ -263,6 +258,7 @@ describe('Character Simple CRUD Test', () => {
             index: 1,
             values: { base: 40, damage: -10, other: 5 },
             description: 'ヒットポイント（更新）',
+            dice: '1d6+1',
             isVisible: true
           },
           SAN: {
@@ -292,6 +288,7 @@ describe('Character Simple CRUD Test', () => {
       expect((saved!.status as any).HP.values.damage).toBe(-10)
       expect((saved!.status as any).HP.values.other).toBe(5)
       expect((saved!.status as any).HP.description).toBe('ヒットポイント（更新）')
+      expect((saved!.status as any).HP.dice).toBe('1d6+1')
 
       // 新規追加属性の確認
       expect((saved!.status as any).SAN.values.base).toBe(60)
