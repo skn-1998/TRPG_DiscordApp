@@ -56,6 +56,39 @@ describe('HubPublicationService', () => {
     expect(gateway.send).not.toHaveBeenCalled()
   })
 
+  it('T-21: 同時実行の2つのpostHubが両方noneを読んでも、送信は勝者の1回だけ', async () => {
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    let casArrivals = 0
+    let releaseCas!: () => void
+    const casBarrier = new Promise<void>((resolve) => (releaseCas = resolve))
+    operations.setHubState.mockImplementation(async (_id: string, from: { status: string }) => {
+      if (from.status === 'none') {
+        casArrivals += 1
+        const winner = casArrivals === 1
+        await casBarrier
+        return winner ? character('publishing') : null
+      }
+      return character('active')
+    })
+    gateway.send.mockResolvedValue({ id: 'message-1' })
+
+    const first = service.postHub('char-1', 'thread-1')
+    const second = service.postHub('char-1', 'thread-1')
+    for (let attempt = 0; attempt < 20 && casArrivals < 2; attempt += 1) {
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+    expect(casArrivals).toBe(2)
+    releaseCas()
+    await Promise.all([first, second])
+
+    expect(gateway.send).toHaveBeenCalledTimes(1)
+    expect(operations.setHubState).toHaveBeenLastCalledWith(
+      'char-1',
+      expect.objectContaining({ status: 'publishing' }),
+      expect.objectContaining({ status: 'active', messageId: 'message-1' })
+    )
+  })
+
   it('T-7: 不確定失敗はerrorへ遷移し自動再投稿しない', async () => {
     const none = character('none')
     const publishing = character('publishing')

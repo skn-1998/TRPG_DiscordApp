@@ -181,6 +181,8 @@ export class HubRefreshWorker implements OnApplicationBootstrap, OnModuleDestroy
   private async backoff(character: CharacterEntity): Promise<void> {
     const attempts = (this.retryAttempts.get(character.characterId) ?? 0) + 1
     if (attempts > MAX_RATE_LIMIT_ATTEMPTS) {
+      // error 遷移で今回のサイクルは終わり。手動復旧後の 429 に再試行予算を残す。
+      this.retryAttempts.delete(character.characterId)
       await this.markError(character, 'RATE_LIMIT_EXHAUSTED', new Error('Discord 429 retry budget exhausted'))
       return
     }

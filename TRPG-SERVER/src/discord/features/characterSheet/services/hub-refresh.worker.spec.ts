@@ -140,6 +140,66 @@ describe('HubRefreshWorker', () => {
     )
   })
 
+  it('T-9c: backoff timer発火で再試行し、成功で完了する', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] })
+    try {
+      // 再取得された doc は backoff CAS 済みの実状態形状（retryAt あり）。timer 発火時刻＝retryAt 境界で gate が開くことも固定する。
+      const retryReady = activeCharacter(2, 2, 1)
+      retryReady.hub = { ...retryReady.hub!, retryAt: new Date(Date.now() + 1_000) }
+      operations.getHubCharacter
+        .mockResolvedValueOnce(activeCharacter(2, 2, 1))
+        .mockResolvedValueOnce(retryReady)
+        .mockResolvedValue(activeCharacter(2, 2, 2))
+      gateway.edit
+        .mockRejectedValueOnce(Object.assign(new Error('rate limited'), { status: 429 }))
+        .mockResolvedValueOnce(undefined)
+      operations.setHubState.mockResolvedValue(activeCharacter(2, 2, 2))
+
+      worker.wake('char-1')
+      await waitForIdle(worker)
+      expect(gateway.edit).toHaveBeenCalledTimes(1)
+
+      jest.advanceTimersByTime(1_000)
+      await waitForIdle(worker)
+
+      expect(gateway.edit).toHaveBeenCalledTimes(2)
+      expect(operations.setHubState).toHaveBeenLastCalledWith(
+        'char-1',
+        expect.objectContaining({ status: 'active' }),
+        expect.objectContaining({ status: 'active', appliedRevision: 2 })
+      )
+      expect((worker as unknown as { retryAttempts: Map<string, number> }).retryAttempts.size).toBe(0)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('T-9c: 429が上限(5回)を超えるとRATE_LIMIT_EXHAUSTEDのerrorへ遷移しtimerも残らない', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] })
+    try {
+      operations.getHubCharacter.mockResolvedValue(activeCharacter(2, 2, 1))
+      gateway.edit.mockRejectedValue(Object.assign(new Error('rate limited'), { status: 429 }))
+      operations.setHubState.mockResolvedValue(activeCharacter(2, 2, 1))
+
+      worker.wake('char-1')
+      await waitForIdle(worker)
+      for (let round = 0; round < 5; round += 1) {
+        jest.advanceTimersByTime(60_000)
+        await waitForIdle(worker)
+      }
+
+      expect(gateway.edit).toHaveBeenCalledTimes(6)
+      expect(operations.setHubState).toHaveBeenLastCalledWith('char-1', expect.objectContaining({ status: 'active' }), {
+        status: 'error',
+        errorCode: 'RATE_LIMIT_EXHAUSTED'
+      })
+      expect((worker as unknown as { retryTimers: Map<string, unknown> }).retryTimers.size).toBe(0)
+      expect((worker as unknown as { retryAttempts: Map<string, number> }).retryAttempts.size).toBe(0)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('Discord edit成功後のappliedRevision永続化失敗はerror遷移せず次sweepへ残す', async () => {
     operations.getHubCharacter.mockResolvedValue(activeCharacter(2, 2, 1))
     gateway.edit.mockResolvedValue(undefined)
