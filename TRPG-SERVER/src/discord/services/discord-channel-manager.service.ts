@@ -8,10 +8,37 @@ import {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ChannelType,
-  OverwriteResolvable
+  ChannelType
 } from 'discord.js'
 import { MessageManagerService, ChannelCacheService, ChannelCreatorService } from './channel'
+import type {
+  DiscordChannelCreationOptions,
+  DiscordGuildChannelType,
+  DiscordGuildChannelTypeName,
+  DiscordSendMessageOptions
+} from '../interfaces/discord-operation-options.interface'
+
+type DiscordSdkChannelCreationOptions = Omit<DiscordChannelCreationOptions, 'type'> & {
+  type?: DiscordGuildChannelType
+}
+
+const GUILD_CHANNEL_TYPE_NAMES: ReadonlySet<DiscordGuildChannelTypeName> = new Set([
+  'text',
+  'voice',
+  'category',
+  'news',
+  'stage',
+  'forum'
+])
+
+const GUILD_CHANNEL_TYPES: ReadonlySet<DiscordGuildChannelType> = new Set([
+  ChannelType.GuildText,
+  ChannelType.GuildVoice,
+  ChannelType.GuildCategory,
+  ChannelType.GuildAnnouncement,
+  ChannelType.GuildStageVoice,
+  ChannelType.GuildForum
+])
 
 /**
  * Discord チャンネル管理オーケストレーターサービス
@@ -56,11 +83,7 @@ export class DiscordChannelManagerService {
     client: Client,
     channelId: string,
     content: string,
-    options?: {
-      embeds?: EmbedBuilder[]
-      components?: ActionRowBuilder<ButtonBuilder>[]
-      files?: any[]
-    }
+    options?: DiscordSendMessageOptions
   ): Promise<Message | null> {
     try {
       return await this.messageManager.sendMessage(client, channelId, content, options)
@@ -139,14 +162,39 @@ export class DiscordChannelManagerService {
     client: Client,
     guildId: string,
     name: string,
-    options?: {
-      type?: ChannelType
-      parent?: string
-      topic?: string
-      permissions?: OverwriteResolvable[]
-    }
+    options?: DiscordChannelCreationOptions
   ): Promise<TextChannel | NewsChannel | null> {
-    return this.channelCreator.createChannel(client, guildId, name, options)
+    let sdkOptions: DiscordSdkChannelCreationOptions | undefined
+
+    if (options) {
+      const { type, ...rest } = options
+      let sdkType: DiscordGuildChannelType | undefined
+
+      if (typeof type === 'string' && !GUILD_CHANNEL_TYPE_NAMES.has(type)) {
+        throw new Error(`Unsupported guild channel type: ${type}`)
+      }
+
+      if (typeof type === 'number' && !GUILD_CHANNEL_TYPES.has(type)) {
+        throw new Error(`Unsupported guild channel type: ${type}`)
+      }
+
+      if (typeof type === 'string') {
+        const convertedType = this.channelCreator.convertChannelType(type)
+        if (!GUILD_CHANNEL_TYPES.has(convertedType as DiscordGuildChannelType)) {
+          throw new Error(`Unsupported guild channel type: ${type}`)
+        }
+        sdkType = convertedType as DiscordGuildChannelType
+      } else {
+        sdkType = type
+      }
+
+      sdkOptions = {
+        ...rest,
+        type: sdkType
+      }
+    }
+
+    return this.channelCreator.createChannel(client, guildId, name, sdkOptions)
   }
 
   /**

@@ -14,6 +14,7 @@ jest.mock('../../../utils/createCategory', () => ({ createCategory: jest.fn() })
 jest.mock('../utils/search.util', () => ({ convertSearchText: jest.fn() }))
 
 import { SelectGameSystemOrchestrator } from './select-game-system.orchestrator'
+import { MessageFlags, PermissionsBitField } from 'discord.js'
 import { getCategory } from '../../../utils/getCategory'
 import { createCategory } from '../../../utils/createCategory'
 import { convertSearchText } from '../utils/search.util'
@@ -93,10 +94,22 @@ describe('SelectGameSystemOrchestrator', () => {
       gamesystem?: string
       channelName?: string | null
       guildChannelsCreate?: jest.Mock
+      baseHasManageChannels?: boolean
+      interactionHasManageChannels?: boolean
+      userId?: string
+      guildOwnerId?: string
     }) => {
       const channelsCreate = overrides.guildChannelsCreate ?? jest.fn()
-      const guild = { channels: { create: channelsCreate } }
+      const basePermissionsHas = jest.fn().mockReturnValue(overrides.baseHasManageChannels ?? true)
+      const member = { permissions: { has: basePermissionsHas } }
+      const membersFetch = jest.fn().mockResolvedValue(member)
+      const guild = {
+        ownerId: overrides.guildOwnerId,
+        channels: { create: channelsCreate },
+        members: { fetch: membersFetch }
+      }
       const reply = jest.fn()
+      const memberPermissionsHas = jest.fn().mockReturnValue(overrides.interactionHasManageChannels ?? true)
       const getString = jest.fn((key: string, _required?: boolean) => {
         if (key === 'gamesystem') return overrides.gamesystem
         if (key === 'channel-name') return overrides.channelName ?? null
@@ -106,9 +119,19 @@ describe('SelectGameSystemOrchestrator', () => {
         isChatInputCommand: jest.fn().mockReturnValue(overrides.isChatInputCommand ?? true),
         options: { getString },
         reply,
-        guild
+        guild,
+        user: { id: overrides.userId ?? 'user-1' },
+        memberPermissions: { has: memberPermissionsHas }
       } as any
-      return { interaction, reply, channelsCreate, guild }
+      return {
+        interaction,
+        reply,
+        channelsCreate,
+        guild,
+        membersFetch,
+        basePermissionsHas,
+        memberPermissionsHas
+      }
     }
 
     it('chatInputCommandでない場合は何もせず即returnする', async () => {
@@ -124,6 +147,73 @@ describe('SelectGameSystemOrchestrator', () => {
 
       // Assert
       expect(reply).not.toHaveBeenCalled()
+    })
+
+    it('チャンネル上では ManageChannels があっても基底権限が無ければ作成処理へ到達しない', async () => {
+      // Arrange
+      const { interaction, reply, channelsCreate, membersFetch, basePermissionsHas, memberPermissionsHas } =
+        buildInteraction({
+          gamesystem: 'cthulhu',
+          baseHasManageChannels: false,
+          interactionHasManageChannels: true
+        })
+
+      // Act
+      await orchestrator.execute(interaction)
+
+      // Assert
+      expect(membersFetch).toHaveBeenCalledWith('user-1')
+      expect(basePermissionsHas).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+      expect(memberPermissionsHas).not.toHaveBeenCalled()
+      expect(reply).toHaveBeenCalledWith({
+        content: 'このコマンドを実行するにはチャンネル管理権限が必要です',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(mockedGetCategory).not.toHaveBeenCalled()
+      expect(mockedCreateCategory).not.toHaveBeenCalled()
+      expect(channelsCreate).not.toHaveBeenCalled()
+    })
+
+    it('Administrator の基底権限があればチャンネルを作成できる', async () => {
+      // Arrange
+      mockedGetCategory.mockReturnValue({ id: 'cat-1' } as any)
+      const send = jest.fn().mockResolvedValue({ pin: jest.fn() })
+      const channelsCreate = jest.fn().mockResolvedValue({ send })
+      const { interaction, membersFetch, basePermissionsHas } = buildInteraction({
+        gamesystem: 'cthulhu',
+        baseHasManageChannels: true,
+        guildChannelsCreate: channelsCreate
+      })
+
+      // Act
+      await orchestrator.execute(interaction)
+
+      // Assert
+      expect(membersFetch).toHaveBeenCalledWith('user-1')
+      expect(basePermissionsHas).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+      expect(channelsCreate).toHaveBeenCalledTimes(1)
+    })
+
+    it('ギルドオーナーの全基底権限があればチャンネルを作成できる', async () => {
+      // Arrange
+      mockedGetCategory.mockReturnValue({ id: 'cat-1' } as any)
+      const send = jest.fn().mockResolvedValue({ pin: jest.fn() })
+      const channelsCreate = jest.fn().mockResolvedValue({ send })
+      const { interaction, membersFetch, basePermissionsHas } = buildInteraction({
+        gamesystem: 'cthulhu',
+        baseHasManageChannels: true,
+        guildChannelsCreate: channelsCreate,
+        userId: 'owner-1',
+        guildOwnerId: 'owner-1'
+      })
+
+      // Act
+      await orchestrator.execute(interaction)
+
+      // Assert
+      expect(membersFetch).toHaveBeenCalledWith('owner-1')
+      expect(basePermissionsHas).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+      expect(channelsCreate).toHaveBeenCalledTimes(1)
     })
 
     it('指定ゲームシステムがリストに無い場合はエラーメッセージでreplyする', async () => {

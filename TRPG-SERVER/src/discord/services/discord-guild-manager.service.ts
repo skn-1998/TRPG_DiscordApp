@@ -3,6 +3,7 @@ import { Client, Guild, GuildChannel, ChannelType, TextChannel, PermissionsBitFi
 import { SendMessageDto } from '../dto/send-message.dto'
 import { CreateChannelDto } from '../dto/create-channel.dto'
 import { ErrorHandler } from '../../core/http/error-handler'
+import { GUILD_CATEGORY_TYPE } from '../interfaces/guild-channel-type.constant'
 
 /**
  * Discord Guild（サーバー）管理サービス
@@ -227,7 +228,7 @@ export class DiscordGuildManagerService {
           .map((channel) => ({
             id: channel.id,
             name: channel.name,
-            type: ChannelType[channel.type]
+            type: channel.type === ChannelType.GuildCategory ? GUILD_CATEGORY_TYPE : ChannelType[channel.type]
           }))
       }
     } catch (error) {
@@ -408,5 +409,32 @@ export class DiscordGuildManagerService {
       this.logger.error(`Error verifying guild access: ${guildId} for user ${discordUserId}`, error)
       return { hasAccess: false, reason: 'Error verifying access' }
     }
+  }
+
+  /**
+   * ギルドのチャンネル管理権限検証
+   *
+   * Discord API例外は上位の既存認可境界で処理するため、ここでは権限なしへ変換しない。
+   */
+  async verifyGuildManagePermission(
+    client: Client,
+    guildId: string,
+    discordUserId: string
+  ): Promise<{ hasPermission: boolean; reason?: string }> {
+    const guild = await client.guilds.fetch(guildId)
+    if (!guild) {
+      return { hasPermission: false, reason: 'Guild not found' }
+    }
+
+    const member = await guild.members.fetch(discordUserId)
+    if (!member) {
+      return { hasPermission: false, reason: 'User is not a member of the guild' }
+    }
+
+    if (!member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+      return { hasPermission: false, reason: 'User lacks permission to manage channels' }
+    }
+
+    return { hasPermission: true }
   }
 }

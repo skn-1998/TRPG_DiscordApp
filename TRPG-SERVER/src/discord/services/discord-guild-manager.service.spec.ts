@@ -1,12 +1,20 @@
 import { Test } from '@nestjs/testing'
 
 // --- discord.js モックのローカル上書き ---
-// グローバル jest-setup.ts の discord.js モックは ChannelType に PublicThread しか持たず、
-// PermissionsBitField も未定義のため、本サービスのテストでは実 enum 値を再現したモックに差し替える。
+// グローバル jest-setup.ts の discord.js モックは ChannelType の数値逆引きを再現しないため、
+// 本サービスのテストでは enum 名を返す供給形式まで再現したモックに差し替える。
 // 本体（discord-guild-manager.service.ts）が import する ChannelType / PermissionsBitField と
 // 同一参照になるようにここで定義し、convertChannelType / 権限判定を本物の値で検証できるようにする。
 jest.mock('discord.js', () => ({
   ChannelType: {
+    0: 'GuildText',
+    2: 'GuildVoice',
+    4: 'GuildCategory',
+    5: 'GuildAnnouncement',
+    13: 'GuildStageVoice',
+    14: 'GuildDirectory',
+    15: 'GuildForum',
+    16: 'GuildMedia',
     GuildText: 0,
     GuildVoice: 2,
     GuildCategory: 4,
@@ -37,6 +45,7 @@ import { ChannelType, PermissionsBitField } from 'discord.js'
 import { DiscordGuildManagerService } from './discord-guild-manager.service'
 import { AppConfigService } from '../../config/config.service'
 import { ErrorHandler } from '../../core/http/error-handler'
+import { GUILD_CATEGORY_TYPE } from '../interfaces/guild-channel-type.constant'
 
 const handleErrorMock = ErrorHandler.handleError as jest.Mock
 
@@ -331,6 +340,12 @@ describe('DiscordGuildManagerService', () => {
   })
 
   describe('getGuildInfo', () => {
+    it('Discord.js の GuildCategory 逆引き名は共有カテゴリ型契約と一致する', () => {
+      const actualChannelType = jest.requireActual<typeof import('discord.js')>('discord.js').ChannelType
+
+      expect(actualChannelType[actualChannelType.GuildCategory]).toBe(GUILD_CATEGORY_TYPE)
+    })
+
     it('guild が無い場合は throw し ErrorHandler を呼ぶ', async () => {
       // Arrange
       const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(null) } })
@@ -647,6 +662,50 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert
       expect(result).toEqual({ hasAccess: false, reason: 'Error verifying access' })
+    })
+  })
+
+  describe('verifyGuildManagePermission', () => {
+    it('ManageChannels 権限があれば hasPermission:true', async () => {
+      // Arrange
+      const has = jest.fn().mockReturnValue(true)
+      const member = { permissions: { has } }
+      const guild = { members: { fetch: jest.fn().mockResolvedValue(member) } }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      // Act
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1')
+
+      // Assert
+      expect(result).toEqual({ hasPermission: true })
+      expect(has).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+    })
+
+    it('ManageChannels 権限が無ければ hasPermission:false', async () => {
+      // Arrange
+      const has = jest.fn().mockReturnValue(false)
+      const member = { permissions: { has } }
+      const guild = { members: { fetch: jest.fn().mockResolvedValue(member) } }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      // Act
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1')
+
+      // Assert
+      expect(result).toEqual({
+        hasPermission: false,
+        reason: 'User lacks permission to manage channels'
+      })
+      expect(has).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+    })
+
+    it('Discord API例外は権限なしへ変換せず上位へ伝播する', async () => {
+      // Arrange
+      const failure = new Error('boom')
+      const client = makeClient({ guilds: { fetch: jest.fn().mockRejectedValue(failure) } })
+
+      // Act & Assert
+      await expect(service.verifyGuildManagePermission(client, 'g1', 'u1')).rejects.toBe(failure)
     })
   })
 })

@@ -25,7 +25,13 @@ describe('DiscordFacadeService', () => {
   let guildManager: jest.Mocked<
     Pick<
       DiscordGuildManagerService,
-      'initialize' | 'isInitialized' | 'verifyChannelAccess' | 'verifyGuildAccess' | 'getGuildInfo' | 'cleanup'
+      | 'initialize'
+      | 'isInitialized'
+      | 'verifyChannelAccess'
+      | 'verifyGuildAccess'
+      | 'verifyGuildManagePermission'
+      | 'getGuildInfo'
+      | 'cleanup'
     >
   >
   let channelManager: jest.Mocked<
@@ -58,6 +64,7 @@ describe('DiscordFacadeService', () => {
       isInitialized: jest.fn().mockReturnValue(false),
       verifyChannelAccess: jest.fn(),
       verifyGuildAccess: jest.fn(),
+      verifyGuildManagePermission: jest.fn(),
       getGuildInfo: jest.fn(),
       cleanup: jest.fn().mockResolvedValue(undefined)
     }
@@ -211,6 +218,31 @@ describe('DiscordFacadeService', () => {
     })
   })
 
+  describe('verifyGuildManagePermission', () => {
+    it('guildManager.verifyGuildManagePermission の hasPermission を返し end(true) を呼ぶ', async () => {
+      // Arrange
+      guildManager.verifyGuildManagePermission.mockResolvedValue({ hasPermission: true })
+
+      // Act
+      const result = await service.verifyGuildManagePermission('g1', 'user1')
+
+      // Assert
+      expect(result).toBe(true)
+      expect(guildManager.verifyGuildManagePermission).toHaveBeenCalledWith(clientStub, 'g1', 'user1')
+      expect(metricsEnd).toHaveBeenCalledWith(true)
+    })
+
+    it('例外時は end(false) を呼びエラーを再スローする', async () => {
+      // Arrange
+      const failure = new Error('boom')
+      guildManager.verifyGuildManagePermission.mockRejectedValue(failure)
+
+      // Act / Assert
+      await expect(service.verifyGuildManagePermission('g1', 'user1')).rejects.toBe(failure)
+      expect(metricsEnd).toHaveBeenCalledWith(false)
+    })
+  })
+
   describe('getChannelInfo', () => {
     it('channelManager.getChannelInfo が null なら null を返し end(true) を呼ぶ', async () => {
       // Arrange
@@ -300,7 +332,7 @@ describe('DiscordFacadeService', () => {
   })
 
   describe('sendMessage', () => {
-    it('channelManager.sendMessage に委譲し結果を返して end(true) を呼ぶ', async () => {
+    it('SDK Message を messageId を持つ成功結果へ変換して end(true) を呼ぶ', async () => {
       // Arrange
       const sent = { id: 'msg1' }
       channelManager.sendMessage.mockResolvedValue(sent as any)
@@ -310,9 +342,21 @@ describe('DiscordFacadeService', () => {
       const result = await service.sendMessage('ch1', 'hello', options)
 
       // Assert
-      expect(result).toBe(sent)
+      expect(result).toEqual({ success: true, messageId: 'msg1' })
       expect(channelManager.sendMessage).toHaveBeenCalledWith(clientStub, 'ch1', 'hello', options)
       expect(metricsEnd).toHaveBeenCalledWith(true)
+    })
+
+    it('channelManager が null を返した場合は失敗結果へ変換して end(false) を呼ぶ', async () => {
+      // Arrange
+      channelManager.sendMessage.mockResolvedValue(null)
+
+      // Act
+      const result = await service.sendMessage('ch1', 'hello')
+
+      // Assert
+      expect(result).toEqual({ success: false, error: 'メッセージ送信に失敗しました' })
+      expect(metricsEnd).toHaveBeenCalledWith(false)
     })
 
     it('例外時は end(false) を呼びエラーを再スローする', async () => {
@@ -327,7 +371,7 @@ describe('DiscordFacadeService', () => {
   })
 
   describe('createChannel', () => {
-    it('channelManager.createChannel に委譲し結果を返して end(true) を呼ぶ', async () => {
+    it('SDK Channel を channelId を持つ成功結果へ変換して end(true) を呼ぶ', async () => {
       // Arrange
       const created = { id: 'ch-new' }
       channelManager.createChannel.mockResolvedValue(created as any)
@@ -337,9 +381,21 @@ describe('DiscordFacadeService', () => {
       const result = await service.createChannel('g1', 'new-ch', options)
 
       // Assert
-      expect(result).toBe(created)
+      expect(result).toEqual({ success: true, channelId: 'ch-new' })
       expect(channelManager.createChannel).toHaveBeenCalledWith(clientStub, 'g1', 'new-ch', options)
       expect(metricsEnd).toHaveBeenCalledWith(true)
+    })
+
+    it('channelManager が null を返した場合は失敗結果へ変換して end(false) を呼ぶ', async () => {
+      // Arrange
+      channelManager.createChannel.mockResolvedValue(null)
+
+      // Act
+      const result = await service.createChannel('g1', 'new-ch')
+
+      // Assert
+      expect(result).toEqual({ success: false, error: 'チャンネル作成に失敗しました' })
+      expect(metricsEnd).toHaveBeenCalledWith(false)
     })
 
     it('例外時は end(false) を呼びエラーを再スローする', async () => {

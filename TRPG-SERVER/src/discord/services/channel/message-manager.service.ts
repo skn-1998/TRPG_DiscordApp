@@ -10,6 +10,7 @@ import {
   ButtonBuilder
 } from 'discord.js'
 import { ErrorHandler } from '../../../core/http/error-handler'
+import type { DiscordSendMessageOptions } from '../../interfaces/discord-operation-options.interface'
 
 /**
  * メッセージ管理サービス
@@ -34,12 +35,7 @@ export class MessageManagerService {
     client: Client,
     channelId: string,
     content: string,
-    options?: {
-      embeds?: EmbedBuilder[]
-      components?: ActionRowBuilder<ButtonBuilder>[]
-      files?: any[]
-      ephemeral?: boolean
-    }
+    options?: DiscordSendMessageOptions
   ): Promise<Message> {
     try {
       const channel = await client.channels.fetch(channelId)
