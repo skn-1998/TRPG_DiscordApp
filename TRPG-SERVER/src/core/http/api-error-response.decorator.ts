@@ -7,8 +7,10 @@ import { SetMetadata } from '@nestjs/common'
  * ApiResponseUtil.error(res, error, status, label) として返す」という粗い形だった。
  * その「固定 status + 固定 label」を宣言的に保持するためのメタデータ。
  *
- * HttpExceptionFilter は、ハンドラから throw された例外が status / label を
- * 明示的に運ぶ ApiError でない場合に、このメタデータを fallback として適用する。
+ * Nest の例外フィルタ経路では ExecutionContextHost の handler が常に null のため、
+ * @ApiErrorResponse メタは本番では参照されない。非 HttpException は常に
+ * 500 / 'エラーが発生しました' の既定になり、メタ参照コードは handler が渡る host
+ * （テスト等）向けの後方互換として意図的に残置している。
  */
 export interface ApiErrorResponseMeta {
   /** ApiResponseUtil.error の第3引数 status に相当（変換前のエンドポイント固定値） */
@@ -19,5 +21,8 @@ export interface ApiErrorResponseMeta {
 
 export const API_ERROR_RESPONSE_KEY = 'response:apiError'
 
+/**
+ * @deprecated 本番の例外フィルタ経路では handler=null のため一切適用されない。新規使用禁止。既存は段階的に撤去する。
+ */
 export const ApiErrorResponse = (status: number, label: string): MethodDecorator =>
   SetMetadata(API_ERROR_RESPONSE_KEY, { status, label } satisfies ApiErrorResponseMeta)

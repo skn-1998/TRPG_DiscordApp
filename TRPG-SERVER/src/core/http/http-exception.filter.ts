@@ -1,10 +1,19 @@
-import { ArgumentsHost, Catch, ExceptionFilter, ExecutionContext, HttpStatus, Injectable } from '@nestjs/common'
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+  Injectable
+} from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { ErrorResponse } from '../dto/api-response.dto'
 import { API_ERROR_RESPONSE_KEY, ApiErrorResponseMeta } from './api-error-response.decorator'
 import { ApiError } from './api-error'
+import { getHttpExceptionMessage } from './http-exception-message'
 import { AppConfigService } from '../../config/config.service'
 
 /**
@@ -17,12 +26,19 @@ import { AppConfigService } from '../../config/config.service'
  *  1. ApiError の場合（個別分岐で明示的に status/label を指定していた箇所、例: 404 not found）
  *     → status = ApiError.status, label = ApiError.label, error = ApiError.errorPayload
  *       これは変換前の ApiResponseUtil.error(res, errorPayload, status, label) と一致。
- *  2. それ以外（素の Error 等 = 変換前の catch ブロック相当）
- *     → ハンドラの @ApiErrorResponse(status, label) メタを fallback として適用。
+ *  2. それ以外の HttpException
+ *     → status = HttpException.getStatus(), label = 既定値, error = HttpException の response/message。
+ *  3. 非 HttpException（素の Error 等 = 変換前の catch ブロック相当）
+ *     → handler が渡る host（テスト等）では @ApiErrorResponse(status, label) メタを fallback として適用。
  *       error = thrownError.message。これは変換前の
  *       ApiResponseUtil.error(res, error, status, label) と一致。
- *  3. メタも無い場合（理論上は対象 controller では発生しない）
+ *  4. handler またはメタが無い場合
  *     → ApiResponseUtil.error の既定値（status=500, label='エラーが発生しました'）にフォールバック。
+ *
+ * Nest の例外フィルタ経路では ExecutionContextHost の handler が常に null のため、
+ * @ApiErrorResponse メタは本番では参照されず、非 HttpException は常に
+ * 500 / 'エラーが発生しました' の既定になる。メタ参照コードは handler が渡る host
+ * （テスト等）向けの後方互換として意図的に残置する。
  *
  * errorMessage / stack の扱いは ApiResponseUtil.error と同一。
  */
@@ -57,6 +73,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
         undefined,
         undefined,
         stack,
+        requestId,
+        includeStack
+      )
+      res.status(exception.getStatus()).json(response)
+      return
+    }
+
+    if (exception instanceof HttpException) {
+      const response = new ErrorResponse(
+        getHttpExceptionMessage(exception),
+        'エラーが発生しました',
+        undefined,
+        undefined,
+        exception.stack,
         requestId,
         includeStack
       )
