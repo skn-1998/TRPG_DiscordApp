@@ -30,8 +30,7 @@
     "clean:build": "npm run clean && npm run build",
     "check:circular": "madge --circular --extensions ts --ts-config tsconfig.json ./src",
     "check:deps": "madge --image deps-graph.svg --extensions ts --ts-config tsconfig.json ./src",
-    "analyze:deps": "madge --warning --extensions ts --ts-config tsconfig.json ./src",
-    "refactor:large-files:analyze": "ts-node --transpile-only scripts/refactor/analyze-large-files.ts"
+    "analyze:deps": "madge --warning --extensions ts --ts-config tsconfig.json ./src"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
@@ -46,7 +45,6 @@
     "@nestjs/platform-express": "^11.1.27",
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.4.5",
-    "@trpg/api-contract": "workspace:*",
     "@trpg/sheet-engine": "workspace:*",
     "@trpg/sheet-projection": "workspace:*",
     "axios": "^1.7.2",
@@ -110,7 +108,6 @@
     "testcontainers": "^11.14.0",
     "ts-jest": "^29.1.0",
     "ts-loader": "^9.4.3",
-    "ts-morph": "28.0.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.4.5",
