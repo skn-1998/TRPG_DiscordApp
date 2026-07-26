@@ -14,6 +14,8 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing'
+import { HttpException, Logger } from '@nestjs/common'
+import { MessageFlags } from 'discord.js'
 import { CharacterSectionEditorService } from './character-section-editor.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
@@ -32,6 +34,7 @@ describe('CharacterSectionEditorService', () => {
     createSectionedEmbeds: jest.Mock
   }
   let modalSessionManager: { createSession: jest.Mock }
+  let warnSpy: jest.SpyInstance
 
   const buildCharacter = (overrides: Record<string, unknown> = {}) => ({
     characterId: 'abc123', // 短いID (<=8) -> 直接 customId
@@ -53,8 +56,7 @@ describe('CharacterSectionEditorService', () => {
   }
 
   /**
-   * interaction モック。deferUpdate が呼ばれたら deferred=true に遷移させ、
-   * sendErrorMessage の editReply/reply 分岐を現挙動どおり再現する。
+   * interaction モック。Discord の応答メソッドに合わせて deferred / replied を遷移させる。
    */
   const buildInteraction = (customId: string, values: string[] = []): AnyInteraction => {
     const interaction: AnyInteraction = {
@@ -64,18 +66,29 @@ describe('CharacterSectionEditorService', () => {
       deferred: false,
       replied: false,
       message: { embeds: [{ title: 'original-embed' }] },
-      editReply: jest.fn().mockResolvedValue(undefined),
-      reply: jest.fn().mockResolvedValue(undefined),
       showModal: jest.fn().mockResolvedValue(undefined)
     }
     interaction.deferUpdate = jest.fn().mockImplementation(() => {
       interaction.deferred = true
       return Promise.resolve(undefined)
     })
+    interaction.editReply = jest.fn().mockImplementation(() => {
+      interaction.replied = true
+      return Promise.resolve(undefined)
+    })
+    interaction.reply = jest.fn().mockImplementation(() => {
+      interaction.replied = true
+      return Promise.resolve(undefined)
+    })
+    interaction.followUp = jest.fn().mockImplementation(() => {
+      interaction.replied = true
+      return Promise.resolve(undefined)
+    })
     return interaction
   }
 
   beforeEach(async () => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
     characterService = { findOne: jest.fn() }
     // 注入されない前提だが、旧イベント RPC（emit + waitForEvent）へ戻った場合に検知できるよう残置（E-2b 回帰ガード）
     typedEventService = { emit: jest.fn(), waitForEvent: jest.fn() }
@@ -96,7 +109,6 @@ describe('CharacterSectionEditorService', () => {
     }).compile()
 
     service = module.get(CharacterSectionEditorService)
-    jest.spyOn(ErrorHandler, 'handleServiceError').mockImplementation(() => undefined as never)
   })
 
   afterEach(() => jest.restoreAllMocks())
@@ -137,35 +149,41 @@ describe('CharacterSectionEditorService', () => {
   })
 
   describe('characterId 抽出失敗 (characterization)', () => {
-    it('抽出できない customId はエラーメッセージを editReply する (defer 済み)', async () => {
+    it('抽出できない customId はエラーメッセージを followUp する (deferUpdate 済み)', async () => {
       const interaction = buildInteraction('totally-unknown-id', ['x'])
 
       await service.execute(interaction as never)
 
       expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
-      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: 'キャラクター情報の取得に失敗しました。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.showModal).not.toHaveBeenCalled()
     })
   })
 
   describe('character 取得失敗 (characterization)', () => {
-    it('キャラクターが見つからない場合は editReply でエラー', async () => {
+    it('キャラクターが見つからない場合は followUp でエラー', async () => {
       mockCharacterNotFound()
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
       await service.execute(interaction as never)
 
-      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.showModal).not.toHaveBeenCalled()
     })
 
-    it('findOne が reject しても catch→null 契約で editReply エラーになる', async () => {
+    it('findOne が reject しても catch→null 契約で followUp エラーになる', async () => {
       characterService.findOne.mockRejectedValue(new Error('DB error'))
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
       await service.execute(interaction as never)
 
-      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.showModal).not.toHaveBeenCalled()
     })
   })
@@ -234,14 +252,15 @@ describe('CharacterSectionEditorService', () => {
       })
     })
 
-    it('createFieldSelectMenu が falsy なら editReply でエラー (showModal せず)', async () => {
+    it('createFieldSelectMenu が falsy なら followUp でエラー (showModal せず)', async () => {
       mockCharacterFound(buildCharacter())
       embedManager.createFieldSelectMenu.mockReturnValue(undefined)
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
       await service.execute(interaction as never)
 
-      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.showModal).not.toHaveBeenCalled()
     })
   })
@@ -281,22 +300,88 @@ describe('CharacterSectionEditorService', () => {
   })
 
   describe('例外処理 (characterization)', () => {
-    it('処理中の例外は ErrorHandler 経由でログしエラーメッセージを返す', async () => {
+    it('deferUpdate 済みでは ephemeral followUp してから元例外を ErrorHandler へ渡す', async () => {
+      const originalError = new Error('boom')
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
       mockCharacterFound(buildCharacter())
       embedManager.createFieldSelectMenu.mockImplementation(() => {
-        throw new Error('boom')
+        throw originalError
       })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
 
-      expect(ErrorHandler.handleServiceError).toHaveBeenCalledWith(
-        expect.any(Error),
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
         { customId: 'character-edit-section-abc123', userId: 'user-1' },
         'CharacterSectionEditorService'
       )
-      // defer 済みのため最後の応答は editReply
-      expect(interaction.editReply).toHaveBeenCalled()
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect((interaction.followUp as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        handleServiceError.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('未応答のフィールド操作ではエラー通知に reply を使う', async () => {
+      mockCharacterFound(buildCharacter())
+      const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
+      ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
+
+      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
+
+      expect(interaction.reply).toHaveBeenCalledTimes(1)
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.followUp).not.toHaveBeenCalled()
+    })
+
+    it('応答済みのフィールド操作ではエラー通知に followUp を使う', async () => {
+      mockCharacterFound(buildCharacter())
+      const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
+      interaction.replied = true
+      ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
+
+      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
+
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.reply).not.toHaveBeenCalled()
+    })
+
+    it('エラー通知自体が失敗しても元の HttpException を伝播する', async () => {
+      const originalError = new HttpException('original section failure', 409)
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      mockCharacterFound(buildCharacter())
+      embedManager.createFieldSelectMenu.mockImplementation(() => {
+        throw originalError
+      })
+      const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+      const notificationError = new Error('notification failed')
+      ;(interaction.followUp as jest.Mock).mockRejectedValue(notificationError)
+
+      await expect(service.execute(interaction as never)).rejects.toBe(originalError)
+
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith('Failed to send character section editor error response', notificationError)
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
+        { customId: 'character-edit-section-abc123', userId: 'user-1' },
+        'CharacterSectionEditorService'
+      )
+      expect((interaction.followUp as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        handleServiceError.mock.invocationCallOrder[0]
+      )
     })
   })
 })

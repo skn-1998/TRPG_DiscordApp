@@ -6,14 +6,16 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { ModalSubmitInteraction, EmbedBuilder, TextChannel, Message, Collection, MessageFlags } from 'discord.js'
+import { ModalSubmitInteraction, TextChannel, Message, MessageFlags } from 'discord.js'
 import { CharacterEntity, resolveCharacterState } from '../../../../domains/character/models/character.entity'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EVENT_NAMES } from '../../../../events/contracts'
 import { ErrorHandler } from '../../../../core/http/error-handler'
+import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
+import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
 import {
   FieldData,
@@ -37,7 +39,8 @@ export class CharacterModalHandlerService {
     private readonly characterService: CharacterService,
     private readonly typedEventService: TypedEventService,
     private readonly embedManager: CharacterEmbedManagerService,
-    private readonly modalSessionManager: ModalSessionManagerService
+    private readonly modalSessionManager: ModalSessionManagerService,
+    private readonly messageUpdater: CharacterEditMessageUpdaterService
   ) {}
 
   /**
@@ -59,6 +62,12 @@ export class CharacterModalHandlerService {
       this.logger.debug('Processing character edit modal')
       await this.handleCharacterEdit(interaction)
     } catch (error) {
+      try {
+        await this.sendErrorResponse(interaction, 'エラーが発生しました。もう一度お試しください。')
+      } catch (notificationError) {
+        this.logger.warn('Failed to send character modal error response', notificationError)
+      }
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -67,8 +76,6 @@ export class CharacterModalHandlerService {
         },
         'CharacterModalHandlerService'
       )
-
-      await this.sendErrorResponse(interaction, 'エラーが発生しました。もう一度お試しください。')
     }
   }
 
@@ -164,13 +171,13 @@ export class CharacterModalHandlerService {
       const updatedCharacter = await this.getCharacter(character.characterId)
       if (updatedCharacter) {
         this.logger.log(`Successfully retrieved updated character data, updating embed for: ${character.characterId}`)
-        await this.updateExistingCharacterEditEmbed(updatedCharacter, interaction)
+        await this.messageUpdater.updateExistingCharacterEditEmbed(updatedCharacter, interaction)
       } else {
         this.logger.warn(
           `Failed to get updated character for embed update: ${character.characterId}, using original data`
         )
         // フォールバック: 元のキャラクター情報でEmbed更新
-        await this.updateExistingCharacterEditEmbed(character, interaction)
+        await this.messageUpdater.updateExistingCharacterEditEmbed(character, interaction)
       }
 
       // セクション編集のEmbedとメニューをクリア
@@ -362,12 +369,7 @@ export class CharacterModalHandlerService {
    * エラーレスポンスを送信
    */
   private async sendErrorResponse(interaction: ModalSubmitInteraction, message: string): Promise<void> {
-    const embed = new EmbedBuilder().setTitle('❌ エラー').setDescription(message).setColor('#e74c3c').setTimestamp()
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: []
-    })
+    await respondEphemeralError(interaction, message)
   }
 
   /**
@@ -392,112 +394,6 @@ export class CharacterModalHandlerService {
       this.logger.error('Failed to extract character creation data', error)
       return null
     }
-  }
-
-  /**
-   * 既存のcharacterEditEmbedを更新
-   */
-  private async updateExistingCharacterEditEmbed(
-    character: CharacterEntity,
-    interaction: ModalSubmitInteraction
-  ): Promise<void> {
-    try {
-      if (!interaction.channel || !('messages' in interaction.channel)) {
-        this.logger.warn('Channel does not support message fetching')
-        return
-      }
-
-      const textChannel = interaction.channel as TextChannel
-
-      // 最近の50メッセージを取得してcharacterEditEmbedを探す
-      const messages = await textChannel.messages.fetch({ limit: 50 })
-      const characterEditMessage = this.findCharacterEditMessage(messages, character.characterId)
-
-      if (characterEditMessage) {
-        // 既存メッセージを更新（更新メッセージなし）
-        const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
-
-        await characterEditMessage.edit({
-          embeds,
-          components
-        })
-
-        this.logger.log(`Updated existing characterEdit embed for character: ${character.characterId}`)
-      } else {
-        // 既存メッセージが見つからない場合は新規送信（更新メッセージなし）
-        this.logger.warn(
-          `No existing characterEdit message found for character: ${character.characterId}, sending new message`
-        )
-
-        const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
-        await textChannel.send({
-          embeds,
-          components
-        })
-      }
-    } catch (error) {
-      this.logger.error('Failed to update existing characterEdit embed', error)
-
-      // フォールバック: 新しいメッセージを送信（更新メッセージなし）
-      try {
-        if (interaction.channel && 'send' in interaction.channel) {
-          const { embeds, components } = await this.embedManager.createSectionedEmbeds(character)
-          await (interaction.channel as TextChannel).send({
-            embeds,
-            components
-          })
-        }
-      } catch (fallbackError) {
-        this.logger.error('Fallback message sending also failed', fallbackError)
-      }
-    }
-  }
-
-  /**
-   * CharacterEditメッセージを検索
-   */
-  private findCharacterEditMessage(messages: Collection<string, Message>, characterId: string): Message | null {
-    for (const message of messages.values()) {
-      // ボット自身のメッセージのみを対象
-      if (!message.author.bot) continue
-
-      // キャラクター編集関連のボタンやセレクトメニューがあるかチェック
-      type ComponentLike = { type?: number; customId?: string }
-      type ActionRowLike = { components?: ComponentLike[] }
-      const actionRows: ActionRowLike[] = (message.components ?? []) as ActionRowLike[]
-
-      const hasCharacterComponents = actionRows.some((row) => {
-        const components: ComponentLike[] = row.components ?? []
-        return components.some((component) => {
-          const customId = component.customId ?? ''
-          return (
-            // ボタン (type = 2)
-            (component.type === 2 &&
-              (customId.includes(`character-refresh-${characterId}`) ||
-                customId.includes(`character-compact-view-${characterId}`))) ||
-            // セレクトメニュー (type = 3)
-            (component.type === 3 &&
-              (customId.includes(`character-section-select-${characterId}`) ||
-                customId.includes(`character-edit-section-${characterId}`) ||
-                customId.includes(`character-field-edit-`) ||
-                customId.includes(`character-field-add-`)))
-          )
-        })
-      })
-
-      // Embedの内容もチェック（キャラクター名が含まれているか）
-      const hasCharacterEmbed = message.embeds.some((embed) => {
-        const title = embed.title ?? ''
-        const description = embed.description ?? ''
-        return title.includes('キャラクター情報') || description.includes('キャラクター')
-      })
-
-      if (hasCharacterComponents || hasCharacterEmbed) {
-        return message
-      }
-    }
-
-    return null
   }
 
   /**

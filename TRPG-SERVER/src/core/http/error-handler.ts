@@ -1,6 +1,7 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
 import { Response } from 'express'
 import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction, MessageFlags } from 'discord.js'
+import { respondEphemeralError } from '../../discord/utils/interaction-error-response.util'
 
 /**
  * エラーレスポンスの型定義
@@ -225,18 +226,7 @@ export class ErrorHandler {
     const userMessage = customMessage || '⚠️ エラーが発生しました。もう一度お試しください。'
 
     try {
-      // インタラクションの応答方法を判定
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({
-          content: userMessage,
-          flags: MessageFlags.Ephemeral
-        })
-      } else {
-        await interaction.reply({
-          content: userMessage,
-          flags: MessageFlags.Ephemeral
-        })
-      }
+      await respondEphemeralError(interaction, userMessage)
     } catch (replyError) {
       // 応答に失敗した場合もログに記録
       this.logger.error('Discord エラー応答に失敗', {

@@ -12,13 +12,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  EmbedBuilder,
-  StringSelectMenuBuilder,
-  MessageFlags
+  StringSelectMenuBuilder
 } from 'discord.js'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorHandler } from '../../../../core/http/error-handler'
+import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
 import {
@@ -98,6 +97,12 @@ export class CharacterSectionEditorService {
         }
       }
     } catch (error) {
+      try {
+        await this.sendErrorMessage(interaction, 'エラーが発生しました。もう一度お試しください。')
+      } catch (notificationError) {
+        this.logger.warn('Failed to send character section editor error response', notificationError)
+      }
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -106,8 +111,6 @@ export class CharacterSectionEditorService {
         },
         'CharacterSectionEditorService'
       )
-
-      await this.sendErrorMessage(interaction, 'エラーが発生しました。もう一度お試しください。')
     }
   }
 
@@ -327,18 +330,8 @@ export class CharacterSectionEditorService {
    * エラーメッセージを送信
    */
   private async sendErrorMessage(interaction: StringSelectMenuInteraction, message: string): Promise<void> {
-    const embed = new EmbedBuilder().setTitle('❌ エラー').setDescription(message).setColor('#e74c3c')
-
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({
-        embeds: [embed],
-        components: []
-      })
-    } else {
-      await interaction.reply({
-        embeds: [embed],
-        flags: MessageFlags.Ephemeral
-      })
-    }
+    // NOTE: 規約例外 - deferUpdate 後の editReply は公開キャラシートをエラー表示で置換し、
+    // components も失わせるため、本人だけに届く followUp で元メッセージを保護する。
+    await respondEphemeralError(interaction, message, { deferredStrategy: 'followUp' })
   }
 }

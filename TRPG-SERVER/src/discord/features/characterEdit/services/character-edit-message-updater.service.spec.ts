@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
+import { HttpException, Logger } from '@nestjs/common'
 import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { Character } from '../../../../domains/character/models/character.model'
@@ -8,26 +9,21 @@ import { ErrorHandler } from '../../../../core/http/error-handler'
  * Characterization tests for CharacterEditMessageUpdaterService.
  *
  * 目的: refresh ボタン押下時の「既存 characterEdit メッセージ探索 → 編集 / 新規送信フォールバック」の
- * 現挙動を固定する安全網。副作用の境界（embedManager・ErrorHandler・interaction.channel）のみモックし、
+ * 現挙動を固定する安全網。副作用の境界（embedManager・interaction.channel）のみモックし、
  * メッセージ判定は実 util（messageHasCharacterEditButtons）をそのまま使う。
  */
-
-// ErrorHandler.handleServiceError は実装が常に throw する。
-// fallback 経路（catch 後の再送信）を検証するため、副作用の境界としてスタブ化する。
-jest.mock('../../../../core/http/error-handler', () => ({
-  ErrorHandler: {
-    handleServiceError: jest.fn()
-  }
-}))
 
 describe('CharacterEditMessageUpdaterService', () => {
   let service: CharacterEditMessageUpdaterService
   let module: TestingModule
   let embedManager: jest.Mocked<Pick<CharacterEmbedManagerService, 'createSectionedEmbeds'>>
+  let warnSpy: jest.SpyInstance
 
   const SECTIONED = { embeds: ['embed-stub'], components: ['component-stub'] } as any
 
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
     embedManager = { createSectionedEmbeds: jest.fn().mockResolvedValue(SECTIONED) }
 
     module = await Test.createTestingModule({
@@ -40,6 +36,7 @@ describe('CharacterEditMessageUpdaterService', () => {
 
   afterEach(async () => {
     await module.close()
+    jest.restoreAllMocks()
   })
 
   /** テスト対象に渡す最小限の Character スタブ */
@@ -90,7 +87,12 @@ describe('CharacterEditMessageUpdaterService', () => {
     return {
       interaction: {
         channel,
-        user: { id: 'user-1' }
+        user: { id: 'user-1' },
+        replied: false,
+        deferred: true,
+        reply: jest.fn().mockResolvedValue(undefined),
+        editReply: jest.fn().mockResolvedValue(undefined),
+        followUp: jest.fn().mockResolvedValue(undefined)
       } as any,
       send,
       fetch
@@ -157,47 +159,74 @@ describe('CharacterEditMessageUpdaterService', () => {
         components: SECTIONED.components
       })
       expect(nonMatching.edit).not.toHaveBeenCalled()
+      expect(interaction.reply).not.toHaveBeenCalled()
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.followUp).not.toHaveBeenCalled()
     })
 
-    it('本体tryで例外が発生したらErrorHandlerを呼び、fallbackでchannel.sendを実行する', async () => {
+    it('本体tryで例外が発生したらfallback送信後にErrorHandlerから再スローする', async () => {
       // Arrange: fetch を失敗させて本体 try を例外にする
       const character = buildCharacter()
-      const fetchImpl = jest.fn().mockRejectedValue(new Error('fetch failed'))
+      const originalError = new Error('fetch failed')
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const fetchImpl = jest.fn().mockRejectedValue(originalError)
       const { interaction, send } = buildInteraction({ fetchImpl })
 
-      // Act
-      await service.updateExistingCharacterEditEmbed(character, interaction)
+      // Act & Assert
+      await expect(service.updateExistingCharacterEditEmbed(character, interaction)).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
 
-      // Assert: ErrorHandler 経由後、fallback の send が実行される
-      expect(ErrorHandler.handleServiceError).toHaveBeenCalledTimes(1)
       expect(send).toHaveBeenCalledWith({
         content: '🔄 テストキャラの情報を更新しました',
         embeds: SECTIONED.embeds,
         components: SECTIONED.components
       })
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
+        { characterId: 'char-1', userId: 'user-1' },
+        'EnhancedCharacterEditService.updateExistingCharacterEditEmbed'
+      )
+      expect(send.mock.invocationCallOrder[0]).toBeLessThan(handleServiceError.mock.invocationCallOrder[0])
+      expect(interaction.reply).not.toHaveBeenCalled()
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.followUp).not.toHaveBeenCalled()
     })
 
-    it('本体例外時にchannelへsendが無ければfallback送信をしない', async () => {
+    it('本体例外時にchannelへsendが無くてもErrorHandlerから再スローする', async () => {
       // Arrange: fetch 失敗 かつ channel に send 無し
       const character = buildCharacter()
       const fetchImpl = jest.fn().mockRejectedValue(new Error('fetch failed'))
       const { interaction } = buildInteraction({ fetchImpl, hasSend: false })
 
-      // Act & Assert: 例外を握りつぶし（再スローしない）、ErrorHandler は呼ばれる
-      await expect(service.updateExistingCharacterEditEmbed(character, interaction)).resolves.toBeUndefined()
-      expect(ErrorHandler.handleServiceError).toHaveBeenCalledTimes(1)
+      // Act & Assert
+      await expect(service.updateExistingCharacterEditEmbed(character, interaction)).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
     })
 
-    it('fallbackのsendも例外なら再スローせずvoidで解決する', async () => {
+    it('fallback送信も失敗しても元の HttpException を伝播する', async () => {
       // Arrange: fetch も fallback send も失敗させる
       const character = buildCharacter()
-      const fetchImpl = jest.fn().mockRejectedValue(new Error('fetch failed'))
-      const sendImpl = jest.fn().mockRejectedValue(new Error('send failed'))
+      const originalError = new HttpException('original update failure', 409)
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const fetchImpl = jest.fn().mockRejectedValue(originalError)
+      const fallbackError = new Error('send failed')
+      const sendImpl = jest.fn().mockRejectedValue(fallbackError)
       const { interaction } = buildInteraction({ fetchImpl, sendImpl })
 
-      // Act & Assert: fallback も失敗するが例外は外に漏れない
-      await expect(service.updateExistingCharacterEditEmbed(character, interaction)).resolves.toBeUndefined()
-      expect(ErrorHandler.handleServiceError).toHaveBeenCalledTimes(1)
+      // Act & Assert
+      await expect(service.updateExistingCharacterEditEmbed(character, interaction)).rejects.toBe(originalError)
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
+        { characterId: 'char-1', userId: 'user-1' },
+        'EnhancedCharacterEditService.updateExistingCharacterEditEmbed'
+      )
+      expect(sendImpl.mock.invocationCallOrder[0]).toBeLessThan(handleServiceError.mock.invocationCallOrder[0])
+      expect(warnSpy).toHaveBeenCalledWith('Fallback message sending also failed', fallbackError)
+      expect(interaction.reply).not.toHaveBeenCalled()
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.followUp).not.toHaveBeenCalled()
     })
   })
 })

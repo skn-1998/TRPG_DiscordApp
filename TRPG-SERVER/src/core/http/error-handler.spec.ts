@@ -1,6 +1,6 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
 import { Response } from 'express'
-import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction } from 'discord.js'
+import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction, MessageFlags } from 'discord.js'
 import { ErrorHandler, BackgroundTaskErrorHandler, ErrorContext } from './error-handler'
 
 // Logger のモック
@@ -40,6 +40,7 @@ describe('ErrorHandler', () => {
       replied: false,
       deferred: false,
       reply: jest.fn(),
+      editReply: jest.fn(),
       followUp: jest.fn(),
       id: 'test-interaction-id'
     }
@@ -147,6 +148,83 @@ describe('ErrorHandler', () => {
       expect(() => {
         ErrorHandler.handleServiceError(genericError, mockContext, 'TestService')
       }).toThrow('サービス処理中にエラーが発生しました')
+    })
+  })
+
+  describe('handleDiscordError', () => {
+    const mockContext: ErrorContext = {
+      action: 'test-discord-action'
+    }
+
+    it('未応答 interaction には ephemeral reply を送る', async () => {
+      await ErrorHandler.handleDiscordError(
+        new Error('discord failure'),
+        mockInteraction as ButtonInteraction,
+        mockContext,
+        'user message'
+      )
+
+      expect(mockInteraction.reply).toHaveBeenCalledWith({
+        content: 'user message',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(mockInteraction.editReply).not.toHaveBeenCalled()
+      expect(mockInteraction.followUp).not.toHaveBeenCalled()
+    })
+
+    it('deferred interaction では editReply で placeholder を解消する', async () => {
+      mockInteraction.deferred = true
+
+      await ErrorHandler.handleDiscordError(
+        new Error('discord failure'),
+        mockInteraction as ModalSubmitInteraction,
+        mockContext,
+        'user message'
+      )
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({ content: 'user message' })
+      expect(mockInteraction.reply).not.toHaveBeenCalled()
+      expect(mockInteraction.followUp).not.toHaveBeenCalled()
+    })
+
+    it('replied interaction には ephemeral followUp を送る', async () => {
+      mockInteraction.replied = true
+      mockInteraction.deferred = true
+
+      await ErrorHandler.handleDiscordError(
+        new Error('discord failure'),
+        mockInteraction as SelectMenuInteraction,
+        mockContext,
+        'user message'
+      )
+
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: 'user message',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(mockInteraction.reply).not.toHaveBeenCalled()
+      expect(mockInteraction.editReply).not.toHaveBeenCalled()
+    })
+
+    it('通知失敗をログに残し、呼び出し元へ再スローしない', async () => {
+      const notificationError = new Error('reply failed')
+      mockInteraction.reply.mockRejectedValue(notificationError)
+
+      await expect(
+        ErrorHandler.handleDiscordError(
+          new Error('discord failure'),
+          mockInteraction as ButtonInteraction,
+          mockContext,
+          'user message'
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockLogger.error).toHaveBeenCalledWith('Discord エラー応答に失敗', {
+        originalError: 'discord failure',
+        replyError: 'reply failed',
+        interactionId: 'test-interaction-id',
+        userId: 'test-user-id'
+      })
     })
   })
 
