@@ -62,6 +62,10 @@ export class JwtTokenService {
       this.logger.debug('JWT検証成功')
       return jwt
     } catch (error) {
+      if (this.isJwtVerificationError(error)) {
+        throw new UnauthorizedException('トークンが無効です')
+      }
+
       ErrorHandler.handleServiceError(
         error,
         {
@@ -74,5 +78,14 @@ export class JwtTokenService {
       // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
       throw new UnauthorizedException('トークンが無効です')
     }
+  }
+
+  private isJwtVerificationError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false
+    }
+
+    // jsonwebtoken が Error.name で公開する既知の検証失敗だけを認証失敗にし、予期しない基盤障害と分離する。
+    return ['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)
   }
 }
