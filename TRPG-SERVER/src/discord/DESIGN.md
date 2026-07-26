@@ -159,8 +159,37 @@ FeatureModule が `InteractionsModule` から Registry を import し、自身�
 旧調査メモ `docs/history/DISCORD_SERVICES_ANALYSIS.md` の「Phase 1 で廃止・`TypedEventService` で完全代替可能」は**事実誤認のため撤回**する。実コード（`discord-facade.service.ts`）にイベント発行（`emitEvent` 等）は存在せず、ファサードの実責務は次の 3 つ:
 
 1. **起動オーケストレーション** `initializeDiscord()` — `main.ts` から起動時に一度呼ばれ、client/interactions/commands/guildManager/channelManager の `Promise.all` 初期化（旧 `TypedEventEmitter` の client アタッチは E-4c（2026-07-07）で空クラスごと撤去）、Discord Client 初期化、初期化メトリクスを束ねる。
-2. **REST `DiscordController` の裏付け** — `verifyChannelAccess` / `verifyGuildAccess` / `sendMessage` / `createChannel` / `getGuildInfo` / `getChannelInfo`。各操作を `PerformanceOrchestratorService` の監視でラップして専門サービスへ委譲。
+2. **REST `DiscordController` の裏付け** — `verifyChannelAccess` / `verifyGuildAccess` / `verifyGuildManagePermission` / `sendMessage` / `createChannel` / `getGuildInfo` / `getChannelInfo`。各操作を `PerformanceOrchestratorService` の監視でラップして専門サービスへ委譲。
 3. **ヘルス・統計の集約** — `getHealthStatus` / `getPerformanceStats`（performance dashboard 経路）。
+
+#### REST操作の契約（2026-07-12）
+
+**問題**: `sendMessage` / `createChannel` で、専門serviceのDiscord SDKオブジェクトをfacadeがそのまま返す一方、controllerは `{ success, messageId/channelId, error }` を前提としていた。この不一致により、Discord操作が成功してもHTTP応答の `success` が欠落した。また、HTTPで受理した単数 `embed`、16進文字列の色、文字列のチャンネル種別がSDK境界まで正規化されていなかった。
+
+**事前条件**:
+
+- メッセージ送信には `content`、単数 `embed`、複数 `embeds` のいずれかが必要で、利用者は対象チャンネルへのアクセス権を持つ。
+- Embed色は `0..0xFFFFFF` の整数、または `#RRGGBB` 形式とし、後者はDTO境界で整数へ変換する。
+- `create-channel` はguild channelだけを作る。親テキストチャンネルが必要な `thread` は400で拒否し、通常テキストチャンネルへ暗黙変換しない。
+- チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必要とする。呼び出しチャンネル限定の overwrite による付与は、ギルド全体のチャンネル作成を許可しない。
+
+**成功時の事後条件**:
+
+- facadeはSDK `Message` / `Channel` を外部へ返さず、`{ success: true, messageId }` または `{ success: true, channelId }` を返す。
+- 単数 `embed` と複数 `embeds` はcontrollerで一つの配列へ正規化する。
+- 文字列のチャンネル種別はchannel managerでDiscord `ChannelType` へ変換してからSDK実装へ渡す。文字列・数値ともguild channelの許可集合外はSDK呼出前に拒否する。
+
+**失敗時の事後条件**:
+
+- 専門serviceが `null` またはIDを持たない値を返した場合、facadeは必ず `{ success: false, error }` を返し、失敗メトリクスを記録する。
+- 専門serviceが例外を投げた場合、facadeは失敗メトリクスを記録して再送出し、controllerがHTTP例外へ変換する。
+- 失敗応答に成功IDは存在せず、成功応答に `error` は存在しない。
+
+**不変条件**:
+
+- controllerおよびfrontendはDiscord SDKオブジェクトの構造を判定しない。
+- 入出力契約は `interfaces/discord-operation-{options,result}.interface.ts` に置き、facade・manager・SDK実装で共有する。
+- SDK型への変換はSDK直前のmanager境界に閉じ込め、HTTP DTOへ逆流させない。
 
 これらは `TypedEventService`（疎結合な domain イベント）とは責務が異なり、置換できない。`§4.2 目標フロー` 図に facade が現れないのは、あの図が **interaction ルーティング専用**（Discord.js Event → dispatcher → registry → handlers）だからであって、除外＝廃止意図ではない。bootstrap と REST 裏付けは別レイヤーの関心事である。
 
@@ -331,7 +360,7 @@ export const DicePageCustomId = {
 
 - [ ] `DiscordFacadeService` を `discord/core/` へ移動（§4.1 To-Be 配置）
 - [ ] `main.ts` の `app.get(DiscordService).initializeDiscord()` を `DiscordFacadeService` 直注入/直 get へ置換
-- [ ] `discord.controller.ts` の `DiscordService` 注入を `DiscordFacadeService` 直注入へ置換（`verifyGuildManagePermission`/`getBotStatus` 等ラッパー固有メソッドは facade メソッド or controller 内ロジックへ移管）
+- [x] `discord.controller.ts` の `DiscordService` 注入を `DiscordFacadeService` 直注入へ置換済み（`verifyGuildManagePermission` / `getBotStatus` 等の利用経路も移管済み）
 - [ ] 上記 2 経路の置換後に `DiscordService` deprecated を削除（module の providers/exports からも除去）
 - [ ] `events/contracts/index.ts` の `'discord-facade'` 残存リテラルを棚卸し
 - [x] レガシー global event bus 等 legacy events 削除（B-2 T2c, 2026-05-31）
@@ -347,7 +376,7 @@ export const DicePageCustomId = {
 | customId Factory / Parser | pure unit                  | `features/diceRoll/custom-id/*.spec.ts`                |
 | pagination state / cache  | unit                       | `features/diceRoll/pagination/*.spec.ts`               |
 | CharacterProvider (port)  | unit（mock）               | `features/diceRoll/ports/*.spec.ts`                    |
-| Handler ↔ pattern 一致   | integration-ish            | `handlers.integration.spec.ts`（feature 単位に分割可） |
+| Handler ↔ pattern 一致    | integration-ish            | `handlers.integration.spec.ts`（feature 単位に分割可） |
 | Registry route            | mocked interaction         | `features/diceRoll/handlers/*.spec.ts`                 |
 | `/dice-result` 経路       | mocked Discord interaction | commands or feature commands                           |
 
