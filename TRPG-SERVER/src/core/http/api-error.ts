@@ -5,7 +5,7 @@ import { HttpException } from '@nestjs/common'
  *
  * 変換前に「同一ハンドラ内で catch とは別の status / label を直接指定して
  * ApiResponseUtil.error(res, error, status, label) を返していた分岐」
- * （例: getUser / findOne の 404）を再現するために使う。
+ * （例: findOne / update の 404）を再現するために使う。
  *
  * HttpExceptionFilter はこの例外を最優先で扱い、
  * - HTTP status     = status

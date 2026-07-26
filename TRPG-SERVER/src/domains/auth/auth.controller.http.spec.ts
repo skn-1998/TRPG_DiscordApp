@@ -9,14 +9,16 @@ import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
 import { CookieService } from '../../core/http/cookie.service'
 import { CryptoService } from '../../core/shared/services/crypto.service'
 import { HttpClientService } from '../../core/shared/services/http.service'
+import { UserController } from '../user/user.controller'
 import { UserService } from '../user/user.service'
 import { AuthController } from './auth.controller'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { AuthService } from './services/auth.service'
 import { JwtTokenService } from './token/jwt-token.service'
 
 /**
- * AuthController の実 HTTP 経路を検証する。
- * 実 AuthService・JwtTokenService・filter・interceptor を通し、Discord 外部 HTTP 境界だけをモックする。
+ * 認証関連の実 HTTP 経路を検証する。
+ * 実 AuthService・JwtTokenService・guard・filter・interceptor を通し、Discord 外部 HTTP 境界だけをモックする。
  */
 describe('AuthController HTTP integration', () => {
   const jwtSecret = 'auth-controller-http-spec-secret'
@@ -32,7 +34,7 @@ describe('AuthController HTTP integration', () => {
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [AuthController],
+      controllers: [AuthController, UserController],
       providers: [
         AuthService,
         { provide: UserService, useValue: userService },
@@ -59,6 +61,7 @@ describe('AuthController HTTP integration', () => {
         { provide: JwtService, useValue: new JwtService({ secret: jwtSecret }) },
         CookieService,
         JwtTokenService,
+        JwtAuthGuard,
         HttpExceptionFilter,
         ResponseInterceptor
       ]
@@ -77,6 +80,40 @@ describe('AuthController HTTP integration', () => {
 
   afterAll(async () => {
     await app.close()
+  })
+
+  it('/users は JWT 欠落を実 guard/filter 経路で 401 にする', async () => {
+    const response = await request(app.getHttpServer()).get('/users').expect(401)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: '認証ヘッダーまたはクッキーが必要です'
+      })
+    )
+    expect(userService.findOne).not.toHaveBeenCalled()
+  })
+
+  it('/users は別 secret で署名した JWT を実 guard/filter 経路で 401 にする', async () => {
+    const token = new JwtService({ secret: 'different-auth-controller-http-spec-secret' }).sign({
+      username: 'different-secret-user',
+      discordUserId: 'different-secret-user-id'
+    })
+
+    const response = await request(app.getHttpServer())
+      .get('/users')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: '無効な認証トークンです'
+      })
+    )
+    expect(userService.findOne).not.toHaveBeenCalled()
   })
 
   it('/auth/validate-token は無効 JWT を実 service/filter 経路で 401 に分類する', async () => {
