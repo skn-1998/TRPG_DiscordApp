@@ -5,6 +5,7 @@ import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
+import { isErrorWithCode } from '../../../../shared/utils/error-helpers'
 
 // ============================================================================
 // Main Orchestrator Service
@@ -59,6 +60,15 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
       }
 
       // 2. キャラクター作成イベント発火 (イベント駆動アーキテクチャ)
+      // channelCreate は create() の Promise 解決前に同期 emit されるが、本照合は listener の audit fetch 等の await 後に実行される。
+      // controller 側の mark は create() 解決直後のマイクロタスクで完了するため、照合時点での登録が保証される（EV: S7-a round2 レビュー）。
+      if (this.channelDetectionService.isBotManagedChannel(detectionResult.context.channel.id)) {
+        this.logger.log(
+          `Bot管理チャンネルのため自動キャラクター作成イベントをスキップ: ${detectionResult.context.channel.id}`
+        )
+        return
+      }
+
       this.logger.log('キャラクター作成イベントを発火します')
 
       await this.typedEventService.emit(EVENT_NAMES.CHARACTER_CREATION_REQUESTED, {
@@ -85,6 +95,12 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
 
       this.logger.log('キャラクター作成イベントを発火しました。後続処理はイベントハンドラーで実行されます。')
     } catch (error) {
+      // CharacterCreationCoreService の CharacterCreationBusinessError が code を保持したままここまで伝播する。
+      if (isErrorWithCode(error) && error.code === 'CHARACTER_ALREADY_EXISTS') {
+        this.logger.warn('同一チャンネルのキャラクターは既に存在するため、自動作成を終了します')
+        return
+      }
+
       this.logger.error('チャンネル作成処理で予期しないエラーが発生:', error)
     }
   }

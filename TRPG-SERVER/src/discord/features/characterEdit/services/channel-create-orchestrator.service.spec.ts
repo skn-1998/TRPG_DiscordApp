@@ -25,7 +25,8 @@ describe('ChannelCreateOrchestratorService', () => {
   } as unknown as TextChannel
 
   const mockChannelDetectionService = {
-    detectCharacterChannel: jest.fn()
+    detectCharacterChannel: jest.fn(),
+    isBotManagedChannel: jest.fn()
   }
 
   const mockCharacterCreationService = {
@@ -96,6 +97,7 @@ describe('ChannelCreateOrchestratorService', () => {
 
     // Reset mocks
     jest.clearAllMocks()
+    mockChannelDetectionService.isBotManagedChannel.mockReturnValue(false)
 
     // Reset mock implementations
     mockDiscordClientService.getClient.mockReturnValue({
@@ -228,6 +230,53 @@ describe('ChannelCreateOrchestratorService', () => {
       await service.execute(mockTextChannel)
 
       expect(loggerSpy).toHaveBeenCalledWith('チャンネル作成処理で予期しないエラーが発生:', expect.any(Error))
+    })
+
+    it('suppression登録済みのチャンネルではキャラクター作成イベントを発火しない', async () => {
+      const mockDetectionResult = {
+        success: true,
+        shouldCreateCharacter: true,
+        context: {
+          channel: mockTextChannel,
+          categoryId: 'test-category-id',
+          creatorId: 'test-user-id'
+        }
+      }
+      mockChannelDetectionService.detectCharacterChannel.mockResolvedValue(mockDetectionResult)
+      mockChannelDetectionService.isBotManagedChannel.mockReturnValue(true)
+      const loggerSpy = jest.spyOn(Logger.prototype, 'log')
+
+      await service.execute(mockTextChannel)
+
+      expect(mockChannelDetectionService.isBotManagedChannel).toHaveBeenCalledWith('test-channel-id')
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
+      expect(loggerSpy).toHaveBeenCalledWith(
+        'Bot管理チャンネルのため自動キャラクター作成イベントをスキップ: test-channel-id'
+      )
+    })
+
+    it('should log CHARACTER_ALREADY_EXISTS as a warning', async () => {
+      const mockDetectionResult = {
+        success: true,
+        shouldCreateCharacter: true,
+        context: {
+          channel: mockTextChannel,
+          categoryId: 'test-category-id',
+          creatorId: 'test-user-id'
+        }
+      }
+      const alreadyExistsError = Object.assign(new Error('Character already exists'), {
+        code: 'CHARACTER_ALREADY_EXISTS'
+      })
+      mockChannelDetectionService.detectCharacterChannel.mockResolvedValue(mockDetectionResult)
+      mockTypedEventService.emit.mockRejectedValue(alreadyExistsError)
+      const loggerWarnSpy = jest.spyOn(Logger.prototype, 'warn')
+      const loggerErrorSpy = jest.spyOn(Logger.prototype, 'error')
+
+      await service.execute(mockTextChannel)
+
+      expect(loggerWarnSpy).toHaveBeenCalledWith('同一チャンネルのキャラクターは既に存在するため、自動作成を終了します')
+      expect(loggerErrorSpy).not.toHaveBeenCalledWith('チャンネル作成処理で予期しないエラーが発生:', alreadyExistsError)
     })
 
     it('should handle missing context gracefully', async () => {

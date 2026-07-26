@@ -5,9 +5,11 @@ import { DiscordFacadeService } from './discord-facade.service'
 import { CharacterService } from '../domains/character/character.service'
 import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
 import { CreateChannelType } from './dto/create-channel.dto'
+import { CharacterEmbedManagerService } from './features/characterEdit/services/character-embed-manager.service'
+import { ChannelDetectionService } from './features/characterEdit/services/channel-detection.service'
 
 // DiscordController の責務は HTTP の受付・認可確認・入力検証・委譲・エラー変換。
-// 副作用境界（DiscordFacadeService / CharacterService）はモックし、各エンドポイントが
+// 副作用境界（DiscordFacadeService / CharacterService / CharacterEmbedManagerService）はモックし、各エンドポイントが
 // 「正しく委譲して結果を返すか」「分岐ごとに正しい例外へ変換するか」を検証する。
 // ビジネスロジックは持たないため、内部実装ではなく公開挙動だけを見る。
 type DiscordFacadeServiceMock = {
@@ -27,9 +29,19 @@ type CharacterServiceMock = {
   updateForOwner: jest.Mock
 }
 
+type CharacterEmbedManagerServiceMock = {
+  createSectionedEmbeds: jest.Mock
+}
+
+type ChannelDetectionServiceMock = {
+  markBotManagedChannel: jest.Mock
+}
+
 describe('DiscordController', () => {
   let discordFacade: DiscordFacadeServiceMock
   let characterService: CharacterServiceMock
+  let characterEmbedManager: CharacterEmbedManagerServiceMock
+  let channelDetectionService: ChannelDetectionServiceMock
   let controller: DiscordController
 
   // req.user.discordUserId だけを参照するため、最小の認証済みリクエストを渡す
@@ -51,6 +63,12 @@ describe('DiscordController', () => {
       findOneForOwner: jest.fn(),
       updateForOwner: jest.fn()
     }
+    characterEmbedManager = {
+      createSectionedEmbeds: jest.fn()
+    }
+    channelDetectionService = {
+      markBotManagedChannel: jest.fn()
+    }
 
     // ログ出力はテスト出力を汚すだけなので抑制する（挙動には影響しない）
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
@@ -60,7 +78,9 @@ describe('DiscordController', () => {
       controllers: [DiscordController],
       providers: [
         { provide: DiscordFacadeService, useValue: discordFacade },
-        { provide: CharacterService, useValue: characterService }
+        { provide: CharacterService, useValue: characterService },
+        { provide: CharacterEmbedManagerService, useValue: characterEmbedManager },
+        { provide: ChannelDetectionService, useValue: channelDetectionService }
       ]
     })
       // JwtAuthGuard は JwtTokenService 等に依存するため、認可は別テストの責務として無効化する
@@ -452,18 +472,25 @@ describe('DiscordController', () => {
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
-    it('成功時はチャンネル作成・キャラクター更新を行い、自動処理メッセージを返す', async () => {
+    it('成功時は既存部品でEmbedを投稿し、実際のmessageIdを返す', async () => {
       // Arrange
-      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Hero Name!' })
+      const character = { characterId: 'char-1', characterName: 'Hero Name!' }
+      const updatedCharacter = { ...character, discordChannelId: 'new-ch' }
+      const embeds = [{ title: 'Hero Name!' }]
+      const components = [{ type: 1 }]
+      characterService.findOneForOwner.mockResolvedValue(character)
       discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
+      characterService.updateForOwner.mockResolvedValue(updatedCharacter)
+      characterEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds, components })
+      discordFacade.sendMessage.mockResolvedValue({ success: true, messageId: 'message-1' })
 
       // Act
       const result = await controller.postCharacter(dto, req)
 
       // Assert: 戻り値
-      expect(result).toEqual({ success: true, messageId: 'auto-handled-by-file-based-handlers' })
+      expect(result).toEqual({ success: true, messageId: 'message-1' })
 
       // Assert: チャンネル作成は名前を正規化しカテゴリ配下に作る
       expect(discordFacade.createChannel).toHaveBeenCalledWith('g1', 'hero-name', {
@@ -475,6 +502,36 @@ describe('DiscordController', () => {
       // Assert: 作成したチャンネルIDでキャラクターを更新する
       expect(characterService.updateForOwner).toHaveBeenCalledWith('char-1', 'duser-1', {
         discordChannelId: 'new-ch'
+      })
+      expect(channelDetectionService.markBotManagedChannel).toHaveBeenCalledWith('new-ch')
+      expect(channelDetectionService.markBotManagedChannel.mock.invocationCallOrder[0]).toBeLessThan(
+        characterService.updateForOwner.mock.invocationCallOrder[0]
+      )
+
+      // Assert: 完了イベントを経由せず、既存のEmbed/componentsを作成チャンネルへ直接投稿する
+      expect(characterEmbedManager.createSectionedEmbeds).toHaveBeenCalledWith(updatedCharacter)
+      expect(discordFacade.sendMessage).toHaveBeenCalledWith('new-ch', '', {
+        embeds,
+        components
+      })
+    })
+
+    it('Embed投稿が失敗した場合は成功応答を返さず500を投げる', async () => {
+      const character = { characterId: 'char-1', characterName: 'Alice' }
+      const updatedCharacter = { ...character, discordChannelId: 'new-ch' }
+      characterService.findOneForOwner.mockResolvedValue(character)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
+      discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
+      characterService.updateForOwner.mockResolvedValue(updatedCharacter)
+      characterEmbedManager.createSectionedEmbeds.mockResolvedValue({
+        embeds: [{ title: 'Alice' }],
+        components: []
+      })
+      discordFacade.sendMessage.mockResolvedValue({ success: false, error: '投稿失敗' })
+
+      await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
+        status: HttpStatus.INTERNAL_SERVER_ERROR
       })
     })
 

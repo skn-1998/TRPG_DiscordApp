@@ -51,6 +51,41 @@ describe('ChannelDetectionService', () => {
     await module.close()
   })
 
+  describe('Bot管理チャンネルのsuppression', () => {
+    beforeEach(() => {
+      jest.useFakeTimers()
+    })
+
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
+    it('登録したchannelIdを60秒後に自動クリーンアップする', () => {
+      service.markBotManagedChannel('bot-managed-channel')
+
+      expect(service.isBotManagedChannel('bot-managed-channel')).toBe(true)
+
+      jest.advanceTimersByTime(59_999)
+      expect(service.isBotManagedChannel('bot-managed-channel')).toBe(true)
+
+      jest.advanceTimersByTime(1)
+      expect(service.isBotManagedChannel('bot-managed-channel')).toBe(false)
+    })
+
+    it('同じchannelIdを再登録するとTTLを更新する', () => {
+      service.markBotManagedChannel('bot-managed-channel')
+      jest.advanceTimersByTime(30_000)
+
+      service.markBotManagedChannel('bot-managed-channel')
+      jest.advanceTimersByTime(30_000)
+
+      expect(service.isBotManagedChannel('bot-managed-channel')).toBe(true)
+
+      jest.advanceTimersByTime(30_000)
+      expect(service.isBotManagedChannel('bot-managed-channel')).toBe(false)
+    })
+  })
+
   describe('detectCharacterChannel', () => {
     it('should detect character channel correctly', async () => {
       // 実 discord.js の fetchAuditLogs().entries は Collection で .find() を持つ。
