@@ -1,5 +1,4 @@
 import { IsBoolean, IsOptional, IsString, IsNumber, IsArray } from 'class-validator'
-import type { SuccessEnvelope, ErrorEnvelope } from '@trpg/api-contract'
 
 /**
  * API レスポンス基底クラス
@@ -29,11 +28,8 @@ export abstract class BaseApiResponse {
 
 /**
  * 成功レスポンス
- * @trpg/api-contract の封筒型を implements しており、直列化形の乖離はコンパイルエラーになる（S5c で機械固定）
  */
-export class SuccessResponse<T = any> extends BaseApiResponse implements SuccessEnvelope<T> {
-  override readonly success: true
-
+export class SuccessResponse<T = any> extends BaseApiResponse {
   readonly data: T
 
   @IsOptional()
@@ -54,11 +50,8 @@ export class SuccessResponse<T = any> extends BaseApiResponse implements Success
 
 /**
  * エラーレスポンス
- * @trpg/api-contract の封筒型を implements しており、直列化形の乖離はコンパイルエラーになる（S5c で機械固定）
  */
-export class ErrorResponse extends BaseApiResponse implements ErrorEnvelope {
-  override readonly success: false
-
+export class ErrorResponse extends BaseApiResponse {
   @IsString()
   readonly error: string
 
