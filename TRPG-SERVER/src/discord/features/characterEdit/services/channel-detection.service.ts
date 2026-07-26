@@ -3,6 +3,8 @@ import { AuditLogEvent, TextChannel } from 'discord.js'
 import { getChannelIdByName } from '../../../utils/searchChannelID'
 import { AppConfigService } from 'src/config/config.service'
 
+const BOT_MANAGED_CHANNEL_SUPPRESSION_TTL_MS = 60_000
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -27,8 +29,27 @@ export interface ChannelCreationResult {
 @Injectable()
 export class ChannelDetectionService {
   private readonly logger = new Logger(ChannelDetectionService.name)
+  private readonly botManagedChannelCleanupTimers = new Map<string, NodeJS.Timeout>()
 
   constructor(private readonly appConfigService: AppConfigService) {}
+
+  markBotManagedChannel(channelId: string): void {
+    const previousCleanupTimer = this.botManagedChannelCleanupTimers.get(channelId)
+    if (previousCleanupTimer) {
+      clearTimeout(previousCleanupTimer)
+    }
+
+    const cleanupTimer = setTimeout(() => {
+      this.botManagedChannelCleanupTimers.delete(channelId)
+    }, BOT_MANAGED_CHANNEL_SUPPRESSION_TTL_MS)
+    cleanupTimer.unref()
+
+    this.botManagedChannelCleanupTimers.set(channelId, cleanupTimer)
+  }
+
+  isBotManagedChannel(channelId: string): boolean {
+    return this.botManagedChannelCleanupTimers.has(channelId)
+  }
 
   /**
    * チャンネルがキャラクター作成対象かどうかを判定

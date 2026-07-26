@@ -12,6 +12,14 @@ import { Test } from '@nestjs/testing'
 import { ChannelType, Events } from 'discord.js'
 import type { NonThreadGuildBasedChannel, TextChannel } from 'discord.js'
 import { DiscordClientService } from '../../../services/discord-client.service'
+import { DiscordController } from '../../../discord.controller'
+import type { DiscordFacadeService } from '../../../discord-facade.service'
+import type { CharacterService } from '../../../../domains/character/character.service'
+import type { AppConfigService } from '../../../../config/config.service'
+import type { TypedEventService } from '../../../../core/events/typed-event.service'
+import type { CharacterEmbedManagerService } from './character-embed-manager.service'
+import type { CharacterNotificationService } from './character-notification.service'
+import { ChannelDetectionService } from './channel-detection.service'
 import { ChannelCreateOrchestratorService } from './channel-create-orchestrator.service'
 import { CharacterEditChannelCreateListenerService } from './character-edit-channel-create-listener.service'
 
@@ -113,6 +121,184 @@ describe('CharacterEditChannelCreateListenerService', () => {
       // Act & Assert: 例外が外に漏れないこと
       await expect(handler(textChannel)).resolves.toBeUndefined()
       expect(channelCreateOrchestratorService.execute).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('postCharacterとの順序制御結合', () => {
+    it('createChannelのresolve前にlistenerが開始してもsuppressionによりキャラクターと副作用を重複させない', async () => {
+      const channelId = 'bot-managed-channel'
+      const storedCharacters = [
+        {
+          characterId: 'char-1',
+          characterName: 'Hero',
+          discordChannelId: undefined as string | undefined
+        }
+      ]
+      const completionEvent = jest.fn()
+      const secondEmbed = jest.fn()
+      const threadCreationRequest = jest.fn()
+      const typedEventService = {
+        emit: jest.fn(async () => {
+          storedCharacters.push({
+            characterId: 'auto-created-character',
+            characterName: 'hero',
+            discordChannelId: channelId
+          })
+          completionEvent()
+          secondEmbed()
+          threadCreationRequest()
+        })
+      }
+      const characterCategory = {
+        id: 'character-category',
+        name: 'character-category-name'
+      }
+      const fetchAuditLogs = jest.fn().mockRejectedValue(new Error('Audit log unavailable'))
+      const createdChannel = {
+        type: ChannelType.GuildText,
+        id: channelId,
+        name: 'hero',
+        parentId: characterCategory.id,
+        guild: {
+          channels: {
+            cache: {
+              find: (predicate: (channel: typeof characterCategory) => boolean) => [characterCategory].find(predicate)
+            }
+          },
+          fetchAuditLogs
+        }
+      } as unknown as NonThreadGuildBasedChannel
+      const channelDetectionService = new ChannelDetectionService({
+        get: jest.fn().mockReturnValue(characterCategory.name)
+      } as unknown as AppConfigService)
+
+      const orchestrator = new ChannelCreateOrchestratorService(
+        channelDetectionService,
+        { notifyCharacterCreation: jest.fn() } as unknown as CharacterNotificationService,
+        typedEventService as unknown as TypedEventService,
+        { getClient: jest.fn() } as unknown as DiscordClientService
+      )
+      let registeredHandler: ((channel: NonThreadGuildBasedChannel) => Promise<void>) | undefined
+      const listener = new CharacterEditChannelCreateListenerService(
+        {
+          on: jest.fn((_eventName: string, handler: unknown) => {
+            registeredHandler = handler as (channel: NonThreadGuildBasedChannel) => Promise<void>
+          })
+        } as unknown as DiscordClientService,
+        orchestrator
+      )
+      listener.onModuleInit()
+
+      let listenerPromise: Promise<void> | undefined
+      const discordFacade = {
+        verifyGuildManagePermission: jest.fn().mockResolvedValue(true),
+        getGuildInfo: jest.fn().mockResolvedValue({
+          channels: [{ id: 'character-category', name: 'character', type: 'GuildCategory' }]
+        }),
+        createChannel: jest.fn(
+          () =>
+            new Promise<{ success: true; channelId: string }>((resolve) => {
+              if (!registeredHandler) {
+                throw new Error('ChannelCreate listener is not registered')
+              }
+
+              listenerPromise = registeredHandler(createdChannel)
+              expect(fetchAuditLogs).toHaveBeenCalledTimes(1)
+              resolve({ success: true, channelId })
+            })
+        ),
+        sendMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'message-1' })
+      }
+      const characterService = {
+        findOneForOwner: jest.fn().mockImplementation(async () => storedCharacters[0]),
+        updateForOwner: jest
+          .fn()
+          .mockImplementation(async (_characterId: string, _ownerId: string, update: { discordChannelId: string }) => {
+            Object.assign(storedCharacters[0], update)
+            return { ...storedCharacters[0] }
+          })
+      }
+      const characterEmbedManager = {
+        createSectionedEmbeds: jest.fn().mockResolvedValue({
+          embeds: [{ title: 'Hero' }],
+          components: []
+        })
+      }
+      const controller = new DiscordController(
+        discordFacade as unknown as DiscordFacadeService,
+        characterService as unknown as CharacterService,
+        characterEmbedManager as unknown as CharacterEmbedManagerService,
+        channelDetectionService
+      )
+
+      const result = await controller.postCharacter({ characterId: 'char-1', guildId: 'guild-1' }, {
+        user: { discordUserId: 'owner-1', id: 'user-1', username: 'owner' }
+      } as any)
+      await listenerPromise
+
+      expect(result).toEqual({ success: true, messageId: 'message-1' })
+      expect(storedCharacters.filter((character) => character.discordChannelId === channelId)).toHaveLength(1)
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+      expect(completionEvent).not.toHaveBeenCalled()
+      expect(characterEmbedManager.createSectionedEmbeds).toHaveBeenCalledTimes(1)
+      expect(secondEmbed).not.toHaveBeenCalled()
+      expect(threadCreationRequest).not.toHaveBeenCalled()
+    })
+
+    it('suppression未登録の手動作成チャンネルは従来どおり自動作成する', async () => {
+      const manualChannel = {
+        type: ChannelType.GuildText,
+        id: 'manual-channel',
+        name: 'manual-character'
+      } as unknown as NonThreadGuildBasedChannel
+      const storedCharacters: Array<{ discordChannelId: string }> = []
+      const typedEventService = {
+        emit: jest.fn(async (_eventName: string, payload: { createData: { discordChannelId: string } }) => {
+          storedCharacters.push({ discordChannelId: payload.createData.discordChannelId })
+        })
+      }
+      const channelDetectionService = new ChannelDetectionService({
+        get: jest.fn()
+      } as unknown as AppConfigService)
+      jest.spyOn(channelDetectionService, 'detectCharacterChannel').mockImplementation(async (channel) => {
+        await Promise.resolve()
+        return {
+          success: true,
+          shouldCreateCharacter: true,
+          context: {
+            channel,
+            categoryId: 'character-category',
+            creatorId: 'manual-user'
+          }
+        }
+      })
+      const orchestrator = new ChannelCreateOrchestratorService(
+        channelDetectionService,
+        { notifyCharacterCreation: jest.fn() } as unknown as CharacterNotificationService,
+        typedEventService as unknown as TypedEventService,
+        { getClient: jest.fn() } as unknown as DiscordClientService
+      )
+      let registeredHandler: ((channel: NonThreadGuildBasedChannel) => Promise<void>) | undefined
+      const listener = new CharacterEditChannelCreateListenerService(
+        {
+          on: jest.fn((_eventName: string, handler: unknown) => {
+            registeredHandler = handler as (channel: NonThreadGuildBasedChannel) => Promise<void>
+          })
+        } as unknown as DiscordClientService,
+        orchestrator
+      )
+      listener.onModuleInit()
+
+      await registeredHandler!(manualChannel)
+
+      expect(channelDetectionService.isBotManagedChannel('manual-channel')).toBe(false)
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'character.creation.requested',
+        expect.objectContaining({
+          createData: expect.objectContaining({ discordChannelId: 'manual-channel' })
+        })
+      )
+      expect(storedCharacters).toEqual([{ discordChannelId: 'manual-channel' }])
     })
   })
 })

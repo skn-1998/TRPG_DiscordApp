@@ -25,6 +25,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { SendMessageDto } from './dto/send-message.dto'
 import { CreateChannelDto, CreateChannelType } from './dto/create-channel.dto'
 import { PostCharacterDto } from './dto/post-character.dto'
+import { CharacterEmbedManagerService } from './features/characterEdit/services/character-embed-manager.service'
+import { ChannelDetectionService } from './features/characterEdit/services/channel-detection.service'
 
 // 認証されたリクエストの型定義
 interface AuthenticatedRequest extends Request {
@@ -54,7 +56,9 @@ export class DiscordController {
 
   constructor(
     private readonly discordFacade: DiscordFacadeService,
-    private readonly characterService: CharacterService
+    private readonly characterService: CharacterService,
+    private readonly characterEmbedManager: CharacterEmbedManagerService,
+    private readonly channelDetectionService: ChannelDetectionService
   ) {}
 
   /**
@@ -384,20 +388,34 @@ export class DiscordController {
         throw new HttpException(createChannelResult.error, HttpStatus.INTERNAL_SERVER_ERROR)
       }
 
+      this.channelDetectionService.markBotManagedChannel(createChannelResult.channelId)
+
       // 作成したチャンネルIDを await して永続化（完了・エラーを成功応答前に保証）
-      await this.characterService.updateForOwner(postCharacterDto.characterId, req.user.discordUserId, {
-        discordChannelId: createChannelResult.channelId
+      const updatedCharacter = await this.characterService.updateForOwner(
+        postCharacterDto.characterId,
+        req.user.discordUserId,
+        {
+          discordChannelId: createChannelResult.channelId
+        }
+      )
+      if (!updatedCharacter) {
+        throw new NotFoundException('指定されたキャラクターが見つかりません')
+      }
+
+      // 完了イベントはスレッド作成等も連鎖するため使わず、既存の表示部品をこのHTTPフロー内で直接投稿する。
+      const { embeds, components } = await this.characterEmbedManager.createSectionedEmbeds(updatedCharacter)
+      const sendMessageResult = await this.discordFacade.sendMessage(createChannelResult.channelId, '', {
+        embeds,
+        components
       })
-
-      const targetChannel = { id: createChannelResult.channelId }
-
-      // 🚨 REMOVED: 冗長なキャラクターEmbed直接作成を削除
-      // File-based Event Handlersがcharacter.creation.completedイベントを自動処理するため不要
+      if (!sendMessageResult.success) {
+        throw new HttpException(sendMessageResult.error, HttpStatus.INTERNAL_SERVER_ERROR)
+      }
 
       this.logger.log(
-        `キャラクター投稿完了: channelId=${targetChannel.id}（File-based Event Handlers経由で自動Embed作成）`
+        `キャラクター投稿完了: channelId=${createChannelResult.channelId}, messageId=${sendMessageResult.messageId}`
       )
-      return { success: true, messageId: 'auto-handled-by-file-based-handlers' }
+      return { success: true, messageId: sendMessageResult.messageId }
     } catch (error) {
       this.logger.error(`キャラクター投稿エラー: ${(error as Error).message}`, (error as Error).stack)
 

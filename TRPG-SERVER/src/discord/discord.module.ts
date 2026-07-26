@@ -20,6 +20,7 @@ import { PerformanceDashboardController } from './controllers/performance-dashbo
 import { DiscordIntegrationModule } from './application/discord-integration.module'
 import { CharacterModule } from '../domains/character/character.module'
 import { DiscordEventHandlersModule } from './events/discord-event-handlers.module'
+import { CharacterEditModule } from './features/characterEdit/character-edit.module'
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DiscordEventHandlersModule } from './events/discord-event-handlers.modu
     CommandsModule,
     AuthModule,
     CharacterModule, // DiscordControllerでCharacterServiceが必要
+    CharacterEditModule, // DiscordControllerで既存のCharacter Embed生成部品を再利用する
     DiscordIntegrationModule, // DiscordIntegrationServiceとその依存関係
     DiscordEventHandlersModule // Discord UI を更新する完了系イベントハンドラー（events 層から移設）
   ],
