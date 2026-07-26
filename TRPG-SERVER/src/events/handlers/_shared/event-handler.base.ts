@@ -207,14 +207,40 @@ export abstract class EventHandler<TEvent = any> {
         `⏳ Scheduling retry for ${this.getEventName()} in ${retryDelay}ms (attempt ${(context.retryCount || 0) + 1}/${maxRetries})`
       )
 
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- リトライは setTimeout による意図的な fire-and-forget（execute 内でエラー処理する）
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- リトライは setTimeout による意図的な fire-and-forget。終端エラーはコールバック内の try/catch で処理し、絶対に reject させない（EV-3）
       setTimeout(async () => {
         const retryContext = {
           ...context,
           retryCount: (context.retryCount || 0) + 1,
           retryReason: error.message
         }
-        await this.execute(event, retryContext)
+        try {
+          await this.execute(event, retryContext)
+        } catch (retryError) {
+          const terminalError = retryError as Error
+          try {
+            try {
+              this.logger.error(`🚨 Retry failed permanently for ${this.getEventName()}`, {
+                eventName: this.getEventName(),
+                correlationId: retryContext.correlationId,
+                error: terminalError.message,
+                stack: terminalError.stack,
+                retryCount: retryContext.retryCount
+              })
+            } catch {
+              // 終端ログの失敗で DLQ 試行を止めない
+            }
+
+            try {
+              await this.moveToDeadLetterQueue(event, retryContext, terminalError)
+            } catch {
+              // DLQ の失敗はタイマーコールバック外へ reject させない
+            }
+          } catch {
+            // 最終ガード。ここで何をしても throw し得るため意図的に空にする（EV-3: タイマー内の reject は誰も受けられず
+            // unhandled rejection でプロセスが死ぬ）。logger 失敗時も DLQ は試行される。両方の失敗のみ無音を許容
+          }
+        }
       }, retryDelay)
     } else {
       this.logger.error(`🚨 Max retries exceeded for ${this.getEventName()}, moving to dead letter queue`)
