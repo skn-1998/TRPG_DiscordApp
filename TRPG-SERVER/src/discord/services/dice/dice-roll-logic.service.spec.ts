@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { ChannelType, type ButtonInteraction } from 'discord.js'
 import { DiceRollLogicService } from './dice-roll-logic.service'
@@ -18,8 +19,8 @@ const mockedDice = dice as jest.MockedFunction<typeof dice>
 
 /**
  * DiceRollLogicService はダイス核ロジック。
- * - cleanDiceExpression / determineSuccessLevel は内部 private だが、validateDiceExpression と
- *   handleSkillRoll の公開 API 経由で挙動を網羅する。
+ * - 比較記法と成功レベルは validateDiceExpression / executeCustomDiceRoll / handleSkillRoll の
+ *   公開 API 経由で挙動を網羅する。
  * - 副作用の境界(DiceRollService.createText / CharacterService.findByChannelId / dice())はモックする。
  * - interaction は @discord-test-utils ファクトリを使い、user.id 参照のみ利用する。
  * - かつて存在した実行完了/失敗イベントの emit は購読者ゼロの dead emit として撤去済み（E-3b・2026-07-07）。
@@ -60,6 +61,7 @@ describe('DiceRollLogicService', () => {
   })
 
   afterEach(() => {
+    jest.restoreAllMocks()
     jest.clearAllMocks()
   })
 
@@ -70,6 +72,29 @@ describe('DiceRollLogicService', () => {
 
     it('修飾子付きダイス式(2d6+3)は有効', () => {
       expect(service.validateDiceExpression('2d6+3')).toEqual({ isValid: true })
+    })
+
+    it('末尾比較付きダイス式(1d100<=70)は有効', () => {
+      expect(service.validateDiceExpression('1d100<=70')).toEqual({ isValid: true })
+    })
+
+    it.each(['1d100<=70.5', '1d100<=9007199254740991', '1d100>=-9007199254740991'])(
+      '小数または安全整数境界の目標値 %s は有効',
+      (expression) => {
+        expect(service.validateDiceExpression(expression)).toEqual({ isValid: true })
+      }
+    )
+
+    it.each([
+      '1d100<=9007199254740991.1',
+      '1d100>=-9007199254740991.1',
+      '1d100<=9007199254740992',
+      '1d100>=-9007199254740992'
+    ])('安全整数境界を超える目標値 %s は元メッセージで拒否する', (expression) => {
+      expect(service.validateDiceExpression(expression)).toEqual({
+        isValid: false,
+        error: `未対応のダイス記法です: ${expression}`
+      })
     })
 
     it('面数 d0 は無効', () => {
@@ -84,11 +109,18 @@ describe('DiceRollLogicService', () => {
       expect(result.error).toBe('ダイスの面数が無効です')
     })
 
-    it('クリーンアップ後に空文字となる入力は解析失敗エラーになる', () => {
-      // 危険文字が除去され空文字になると cleanDiceExpression が throw し、catch で解析失敗を返す
-      const result = service.validateDiceExpression('@@@')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toBe('ダイス式の解析に失敗しました')
+    it.each(['1d100<70', '@@@'])('未対応記法 %s は元のエラーメッセージを保つ', (expression) => {
+      expect(service.validateDiceExpression(expression)).toEqual({
+        isValid: false,
+        error: `未対応のダイス記法です: ${expression}`
+      })
+    })
+
+    it('空入力の解析失敗は汎用エラーへ変換する', () => {
+      expect(service.validateDiceExpression('   ')).toEqual({
+        isValid: false,
+        error: 'ダイス式の解析に失敗しました'
+      })
     })
 
     it('大文字や空白を含んでも正規化して有効と判定する', () => {
@@ -297,30 +329,71 @@ describe('DiceRollLogicService', () => {
       expect(result.reason).toBe('目星(50)')
     })
 
-    it('出目がスキル値/5以下ならクリティカル成功を判定する', async () => {
-      // Arrange: skillValue=50 → criticalSuccess=floor(50/5)=10、出目=10 → クリティカル成功
-      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 10', [[10]]))
+    it.each([
+      ['出目1', 1, 'クリティカル成功'],
+      ['技能値/5境界', 10, 'エクストリーム成功'],
+      ['技能値/5境界の直後', 11, 'ハード成功'],
+      ['技能値/2境界', 25, 'ハード成功'],
+      ['技能値/2境界の直後', 26, 'レギュラー成功']
+    ])('%sを正しい成功レベルへ分類する', async (_caseName, roll, expectedLevel) => {
+      mockedDice.mockResolvedValue(diceResult(`(1D100) ＞ ${roll}`, [[roll]]))
       characterService.findByChannelId.mockResolvedValue(buildCharacter())
       diceRollService.createText.mockResolvedValue({} as any)
 
-      // Act
       const result = await service.handleSkillRoll(interaction(), 'ch-1', '回避', 50)
 
-      // Assert
+      expect(result.skillSuccess).toBe(true)
+      expect(result.successLevel).toBe(expectedLevel)
+    })
+
+    it('技能値1・出目1はクリティカル成功にする', async () => {
+      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 1', [[1]]))
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      diceRollService.createText.mockResolvedValue({} as any)
+
+      const result = await service.handleSkillRoll(interaction(), 'ch-1', '幸運', 1)
+
+      expect(result.skillSuccess).toBe(true)
       expect(result.successLevel).toBe('クリティカル成功')
     })
 
-    it('出目がスキル値/2以下(かつ/5超)ならハード成功を判定する', async () => {
-      // Arrange: skillValue=50 → hardSuccess=floor(50/2)=25、出目=20 → ハード成功
-      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 20', [[20]]))
+    it.each([0, -1])('技能値 %i は出目1でも最優先で失敗にし、details と結論を一致させる', async (skillValue) => {
+      mockedDice.mockResolvedValue(diceResult('(1D100) ＞ 1', [[1]]))
       characterService.findByChannelId.mockResolvedValue(buildCharacter())
       diceRollService.createText.mockResolvedValue({} as any)
 
-      // Act
-      const result = await service.handleSkillRoll(interaction(), 'ch-1', '聞き耳', 50)
+      const result = await service.handleSkillRoll(interaction(), 'ch-1', '未修得技能', skillValue)
 
-      // Assert
-      expect(result.successLevel).toBe('ハード成功')
+      const expectedDetails = `(1D100) ＞ 1 ≤ ${skillValue} → 失敗 (失敗)`
+      expect(result.skillSuccess).toBe(false)
+      expect(result.successLevel).toBe('失敗')
+      expect(result.details).toBe(expectedDetails)
+      expect(diceRollService.createText).toHaveBeenCalledWith(
+        expect.objectContaining({ resultDetails: expectedDetails })
+      )
+    })
+
+    it.each([
+      ['技能値49・出目95', 49, 95, '失敗'],
+      ['技能値49・出目96', 49, 96, 'ファンブル'],
+      ['技能値49・出目100', 49, 100, 'ファンブル'],
+      ['技能値50・出目95', 50, 95, '失敗'],
+      ['技能値50・出目96', 50, 96, '失敗'],
+      ['技能値50・出目100', 50, 100, 'ファンブル']
+    ])('%sをファンブル境界どおり分類して履歴へ保存する', async (_caseName, skillValue, roll, expectedLevel) => {
+      mockedDice.mockResolvedValue(diceResult(`(1D100) ＞ ${roll}`, [[roll]]))
+      characterService.findByChannelId.mockResolvedValue(buildCharacter())
+      diceRollService.createText.mockResolvedValue({} as any)
+
+      const result = await service.handleSkillRoll(interaction(), 'ch-1', '回避', skillValue)
+
+      const expectedDetails = `(1D100) ＞ ${roll} ≤ ${skillValue} → 失敗 (${expectedLevel})`
+      expect(result.skillSuccess).toBe(false)
+      expect(result.successLevel).toBe(expectedLevel)
+      expect(result.details).toBe(expectedDetails)
+      expect(diceRollService.createText).toHaveBeenCalledWith(
+        expect.objectContaining({ resultDetails: expectedDetails })
+      )
     })
 
     it('キャラクターが見つからない場合は characterName を Unknown とし gameSystem は coc7 になる', async () => {
@@ -402,6 +475,128 @@ describe('DiceRollLogicService', () => {
       expect(result.isCustomRoll).toBe(true)
       expect(result.diceType).toBe('2d6')
       expect(diceRollService.createText).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('palette 用カスタムロールの実行・履歴分離', () => {
+    it('executeCustomDiceRoll はロール結果だけを返し履歴保存を行わない', async () => {
+      mockedDice.mockResolvedValue(diceResult('(2D6) ＞ 7', [[3], [4]]))
+
+      const result = await service.executeCustomDiceRoll('2d6', '攻撃', '探索者')
+
+      expect(result).toMatchObject({
+        success: true,
+        total: 7,
+        details: '(2D6) ＞ 7',
+        diceType: '2d6',
+        reason: '攻撃',
+        characterName: '探索者',
+        isCustomRoll: true
+      })
+      expect(diceRollService.createText).not.toHaveBeenCalled()
+      expect(characterService.findByChannelId).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { roll: 42, outcome: '成功' },
+      { roll: 85, outcome: '失敗' }
+    ])('末尾比較付き palette ロールの出目 $roll を $outcome として返す', async ({ roll, outcome }) => {
+      mockedDice.mockResolvedValue(diceResult(`(1D100) ＞ ${roll}`, [[roll]]))
+
+      const result = await service.executeCustomDiceRoll('1d100<=70', 'DEX(70)', '探索者')
+
+      expect(result).toMatchObject({
+        success: true,
+        total: roll,
+        details: `(1D100) ＞ ${roll} ≤ 70 → ${outcome}`,
+        diceType: '1d100<=70'
+      })
+      expect(mockedDice).toHaveBeenCalledWith('1d100', undefined)
+    })
+
+    it.each([
+      {
+        expression: '2d6+3>=10',
+        rollExpression: '2d6+3',
+        text: '(2D6+3) ＞ 7[3,4]+3 ＞ 10',
+        rands: [[3], [4]],
+        legacyTotal: 7,
+        details: '(2D6+3) ＞ 7[3,4]+3 ＞ 10 ≥ 10 → 成功'
+      },
+      {
+        expression: '(1d6+2)*2<=10',
+        rollExpression: '(1d6+2)*2',
+        text: '((1D6+2)*2) ＞ (3[3]+2)*2 ＞ 10',
+        rands: [[3]],
+        legacyTotal: 3,
+        details: '((1D6+2)*2) ＞ (3[3]+2)*2 ＞ 10 ≤ 10 → 成功'
+      },
+      {
+        expression: '3d6*5>=50',
+        rollExpression: '3d6*5',
+        text: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55',
+        rands: [[2], [4], [5]],
+        legacyTotal: 11,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55 ≥ 50 → 成功'
+      }
+    ])(
+      '$expression は legacy total を保ち、評価済み最終値で比較した結果を返す',
+      async ({ expression, rollExpression, text, rands, legacyTotal, details }) => {
+        mockedDice.mockResolvedValue(diceResult(text, rands))
+
+        const result = await service.executeCustomDiceRoll(expression, '判定', '探索者')
+
+        expect(mockedDice).toHaveBeenCalledWith(rollExpression, undefined)
+        expect(result).toMatchObject({
+          success: true,
+          total: legacyTotal,
+          details,
+          diceType: expression
+        })
+      }
+    )
+
+    it('未対応の palette 記法は元の式を含む失敗結果を返す', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation()
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation()
+
+      const result = await service.executeCustomDiceRoll('1d100<70', 'DEX(70)', '探索者')
+
+      expect(result).toMatchObject({
+        success: false,
+        error: '未対応のダイス記法です: 1d100<70',
+        diceType: '1d100<70'
+      })
+      expect(mockedDice).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith('Unsupported dice notation: 1d100<70')
+      expect(warnSpy).toHaveBeenCalledWith('Custom dice roll rejected: 未対応のダイス記法です: 1d100<70')
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    it('saveCustomDiceRollHistory は履歴保存失敗を呼び出し側へ送出する', async () => {
+      const interaction = createMockButtonInteraction()
+      const result = {
+        success: true,
+        total: 7,
+        details: '(2D6) ＞ 7',
+        diceType: '2d6',
+        reason: '攻撃',
+        characterName: '探索者',
+        isCustomRoll: true
+      }
+      diceRollService.createText.mockRejectedValue(new Error('history unavailable'))
+
+      await expect(service.saveCustomDiceRollHistory(interaction, 'ch-1', result, 'coc7')).rejects.toThrow(
+        'history unavailable'
+      )
+      expect(diceRollService.createText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'ch-1',
+          diceExpression: '2d6',
+          characterName: '探索者',
+          gameSystem: 'coc7'
+        })
+      )
     })
   })
 })

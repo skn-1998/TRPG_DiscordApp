@@ -44,7 +44,10 @@ export class RollPaletteHandler extends ButtonInteractionHandler {
       )
 
       if (!result.success) {
-        await interaction.followUp({ content: '❌ ロールに失敗しました。', flags: MessageFlags.Ephemeral })
+        await interaction.followUp({
+          content: `❌ ダイスロールに失敗しました: ${result.error || '不明なエラー'}`,
+          flags: MessageFlags.Ephemeral
+        })
         return
       }
 
