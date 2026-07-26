@@ -95,6 +95,28 @@ describe('RollPaletteHandler', () => {
     expect(interaction.followUp).not.toHaveBeenCalled()
   })
 
+  it('ロール失敗時は result.error を ephemeral メッセージへ表示する', async () => {
+    characterService.findByChannelId.mockResolvedValue({
+      palette: [{ key: 'atk1', kind: 'roll', notation: '1d100<70', label: 'DEX(70)' }]
+    })
+    diceRollLogicService.executeCustomDiceRoll.mockResolvedValue({
+      success: false,
+      error: '未対応のダイス記法です: 1d100<70',
+      diceType: '1d100<70',
+      reason: 'DEX(70)',
+      isCustomRoll: true
+    })
+
+    await handler.execute(interaction)
+
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: '❌ ダイスロールに失敗しました: 未対応のダイス記法です: 1d100<70',
+      flags: MessageFlags.Ephemeral
+    })
+    expect(diceRollLogicService.saveCustomDiceRollHistory).not.toHaveBeenCalled()
+    expect(parentSend).not.toHaveBeenCalled()
+  })
+
   it('key 不明はロールせず ephemeral で該当エントリなしを返す', async () => {
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner', palette: [] })
 
