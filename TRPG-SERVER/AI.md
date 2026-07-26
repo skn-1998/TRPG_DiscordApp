@@ -77,9 +77,14 @@
 - **[AI.development.md](./AI.development.md)** - 開発環境・運用・パフォーマンス・セキュリティ
 - **[AI.domain.md](./AI.domain.md)** - ドメイン駆動設計・ドメイン責務
 - **[AI.character.md](./AI.character.md)** - キャラクター型定義（AttributeValue 等）
+- **HTTP レスポンス封筒の正典は `packages/api-contract`**。`src/core/dto/api-response.dto.ts` の
+  `SuccessResponse` / `ErrorResponse` は契約 interface を `implements` しており、
+  封筒フィールドを片側だけ変えると build が落ちる。運用手順は `trpg-remix-app/AI.md` の
+  「サーバ⇄フロント型契約体制」節が正本。
 
 **機能棚卸し・レビュー（現状スナップショット）**
 
+- **[docs/reviews/full-review-2026-07-26.md](./docs/reviews/full-review-2026-07-26.md)** - 4観点全体レビュー（正しさ・認知負荷・変更容易性・負債優先度）。1層9レビュアー＋2層敵対的検証で Must 16件を確定、着手順を Decision Artifact で提示（2026-07-26 時点の最新レビュー正本）
 - **[docs/reviews/feature-inventory-2026-06-05.md](./docs/reviews/feature-inventory-2026-06-05.md)** - 実コード根拠の機能棚卸し（Web API / Discord command / interaction registry / feature / events・config・core）と、実装待ち・保留・未配線・ドキュメントずれの一覧（2026-06-05 時点）
 - **[docs/reviews/document-inventory-review-2026-06-05.md](./docs/reviews/document-inventory-review-2026-06-05.md)** - Markdown ドキュメント整理レビュー（Active / Historical / cleanup 候補の分類）
 - **[docs/reviews/project-issues-report-2026-06-05.md](./docs/reviews/project-issues-report-2026-06-05.md)** - モノレポ全体の問題点・リスク・未完了作業を実ファイル根拠付きで優先度分類したレビュー報告

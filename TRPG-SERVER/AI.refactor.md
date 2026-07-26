@@ -5,6 +5,315 @@
 
 ---
 
+## 2026-07-26 レビュー起点の修正キャンペーン開始（S0/S1/S6 完了・未コミット）
+
+full-review-2026-07-26.md の着手順に沿い、Fable 指揮・Codex 実装・Opus5＋Codex 両輪レビューの小粒度ループで修正を開始した。
+
+- **S0（TI-1）**: `.gitignore` へ `.env.test` 追加＋`git rm --cached` で追跡解除（ローカル残存・ignore 確認済み）。**Atlas ローテーションはユーザー側未実施**
+- **S1（DM-1）**: `GET /auth/:userId/User` にメソッド単位 JwtAuthGuard＋self-only（不一致は不在と同一 404・findOne 未呼び出し）＋`toUserOutput` 経由化。フロント利用ゼロを確認済み
+- **S6 前倒し（DM-3/DM-4）**: 両例外フィルタに「その他の HttpException → getStatus() 尊重」分岐を追加（401/400 の 500 化解消）。`getHttpExceptionMessage` は `core/http/http-exception-message.ts` に一本化（number 対応込み）。spec の捏造 `getHandler` を production 同等（handler=null）へ是正。`@ApiErrorResponse` メタは本番到達不能である事実を JSDoc 明記（削除は WIP 着地後）
+- 検証: 全スイート **210 suites / 2683 tests 全通過**（基準 209/2676 から新規 HTTP spec +1 suite）・循環ゼロ・build 成功。レビュー3ラウンド（round1 needs-fix → round2 両輪 pass → round3 磨き）の証跡は `review-results/dm1-auth-guard/review-20260726-*.md`
+- 本スライスの変更ファイル（pathspec コミット用）: `.gitignore`（TRPG-SERVER）/ `.env.test` 追跡解除 / `src/domains/auth/auth.controller.ts`・同 spec・`auth.controller.http.spec.ts`（新規）/ `src/core/http/http-exception.filter.ts`・同 spec・`http-exception-message.ts`（新規）・`api-error-response.decorator.ts`（JSDoc）/ `src/domains/character/character-http.exception.ts`・同 spec
+- deferred: `@ApiErrorResponse` 完全削除／`GET /auth/:userId/User` 削除検討（`GET /users` と機能重複・ユーザー判断）／user.controller.spec の handler=null 是正伝播（WIP 着地時）
+- 次: S2（SP-1 Docker 配線＋TI-2 dist 前提解消）→ S3（EV-3）→ 俯瞰レビュー#1
+
+### S2 完了追記（同日）
+
+- **S2（SP-1/TI-2）完了**: Dockerfile 全ステージへ sheet-projection 配線＋「manifest COPY=lockfile 全 importer / install・build・dist=消費側のみ」の規則を両 Dockerfile にコメント明文化（api-contract の manifest COPY 含む）。pnpm フィルタで同期点を削減（install は `--filter trpg-server...` に包含、`ensure:workspace-dist` は `--filter "trpg-server^..." run build` で列挙レス化）。build/test 系全入口に ensure チェーン配線。両パッケージ tsconfig を incremental 化＋テスト出力除外。prod compose への volume 追加はレビューで撤去（dev と実体名衝突＋そもそも不要）
+- 検証: dist 削除→build チェーン成功／再削除→全スイート **210 suites・2695 tests 緑**（+12 は並行作業分）・dist に spec 混入ゼロ・循環ゼロ・compose config dev/prod 成功。証跡 `review-results/sp1-deploy-wiring/`
+- 変更ファイル（pathspec 用）: `TRPG-SERVER/Dockerfile` / `trpg-remix-app/Dockerfile`（manifest COPY のみ）/ ルート `package.json`（build:projection 等）/ `TRPG-SERVER/package.json`（scripts）/ `packages/sheet-engine/tsconfig.json` / `packages/sheet-projection/tsconfig.json`（docker-compose.prod.yml は最終的に無変更）
+- **コミット注意（俯瞰#1 で訂正）**: Dockerfile の api-contract 関連 COPY は、**未追跡の `packages/api-contract/` 一式＋lockfile と同一（または後）のコミット**でなければならない。lockfile だけ同時でも、パッケージ本体が未追跡のままだと COPY 先が存在せずクローン先でコンテナビルド不能（SP-1 再発）。手元の docker build では検出できない
+- deferred: docker build 実測（Docker Desktop 起動不可のため保留中）。api-contract の dist spec 混入は並行キャンペーン側で解消済み（申し送り撤回）
+
+### S3 完了追記（同日・俯瞰#1 台帳修正）
+
+- **S3（EV-3）完了**: `event-handler.base.ts` のリトライタイマー内を三層構造（外側 try=execute / 内側 try=終端 logger→DLQ / 理由コメント付き最終ガード）で保護し、unhandled rejection によるプロセス死を封鎖。eslint-disable 理由文更新。spec はコールバック直接捕捉の注入テスト2本（DLQ reject・終端 logger throw）で resolve を明示検証
+- レビュー: round1 = Opus pass / Codex needs-fix（catch 内後処理の throw 残存）→ round2 で完全封鎖し close。証跡 `review-results/ev3-retry-rejection/`
+- 変更ファイル（pathspec 用）: `src/events/handlers/_shared/event-handler.base.ts`・同 `spec.ts`
+- deferred: EV-4/EV-5/EV-16・CL-6 はイベント基盤設計スライスへ
+
+### 俯瞰レビュー#1 完了（同日）
+
+S0〜S3＋前倒し S6 の累積 changeset を Opus5/Codex の両輪で俯瞰検証（どちらも needs-fix → 反映ラウンドで close）。
+
+- **S6b（Codex high 起因）**: フィルタ修正で露出した発生源の誤分類を修正。JWT 検証失敗
+  （JsonWebTokenError/TokenExpiredError/NotBeforeError/ヘッダ不正）= 401、Discord OAuth code 交換の 4xx = 400、
+  基盤障害のみ 500。`/auth/validate-token`・`/auth/login` の実 HTTP spec 追加。auth.controller の
+  死んだ `@ApiErrorResponse` 5 件全撤去＋デコレータを @deprecated 化（user.controller 側は WIP 着地後）
+- **磨き**: event-handler の終端 logger/DLQ を独立 try 化（logger 失敗でも DLQ 試行）・dev CMD を `^...` に統一・
+  front Dockerfile の冗長 filter 除去・http-exception-message.ts に JSDoc
+- 追加変更ファイル（pathspec 用）: `src/domains/auth/token/jwt-token.service.ts`・同 spec /
+  `src/domains/auth/services/auth.service.ts`・同 spec（既出: auth.controller 3点・event-handler 2点・core/http 2点・両 Dockerfile）
+- 検証: 全量 **210 suites / 2699 tests 緑**・循環ゼロ・compose config 成功（Codex 実測＋Fable 独立再実行）
+- 俯瞰の成果: ①合成で露出した深部問題（発生源誤分類）②記録の罠（未追跡パッケージ COPY のコミット順）
+  ③新イディオムの反例残置 — いずれも小レビュー単体では検出不能だった。詳細は `review-results/checkpoint-1/`（ローカル）
+- 継続 deferred: docker build 実測 / user.controller.spec の handler=null 伝播（WIP 着地時）/
+  character 401 封筒 2 形の統一・ErrorResponse 組み立て 12 行重複（低優先）
+
+### S4 完了追記（同日）
+
+- **S4（DM-2/DC-6）完了**: ダイス式の比較演算子黙殺を撤廃（`1d100<=30`→`1d10030` 化けの解消）。
+  末尾比較 `A<=N`/`A>=N` を最小サポート（判定は BCDice text の評価済み最終値・legacy total の意味論は維持）、
+  その他未対応記法は明示エラー（`UnsupportedDiceNotationError` export・roll-palette handler でもユーザーへ表示）。
+  DC-6 は CoC7 正規判定へ（出目1=クリティカル/96-100・100=ファンブル/5分の1・2分の1段階。技能値<1 は最優先失敗）。
+  目標値は小数受理＋文字列段階の BigInt 安全整数境界検査。バグ挙動を固定していた spec 群を是正
+- レビュー: 3ラウンド（両輪 needs-fix → Opus pass＋Codex high 1 → micro 反映で close）。
+  証跡 `review-results/dice-correctness/`（ローカル）
+- 変更ファイル（pathspec 用）: `src/domains/dice-roll/services/dice-execution.service.ts`・同 spec /
+  `src/discord/services/dice/dice-roll-logic.service.ts`・同 spec /
+  `src/discord/features/characterSheet/handlers/roll-palette.handler.ts`・同 spec
+- **コミット注意**: dice-roll-logic には PH-6b 由来の palette メソッド（executeCustomDiceRoll 等）が同居しており、
+  これは**壊れた HEAD の修復**（HEAD の roll-palette.handler が未コミットメソッドを呼んでいる）。
+  palette 系変更と同梱でコミットしないと HEAD 非型検査状態が続く
+- deferred: BCDice ネイティブ比較への委譲は M4 bcdice adapter の領分 / performance-dashboard spec の
+  高負荷時フレーク（チップ発行済み）
+
+### S5 完了追記（同日）
+
+- **S5（DC-1/DC-3）完了**: post-character のカテゴリ判定を供給実形式 `'GuildCategory'` へ修正（常時404解消・
+  矛盾モック是正で「修正前実装なら fail」を保証）。`GUILD_CATEGORY_TYPE` 共有定数＋discord.js 実 enum との境界テストで
+  再発防止。create-channel / post-character に ManageChannels 実検査（Administrator/オーナー暗黙包含は
+  discord.js 実装で確認済み）。レビューで発覚した**スラッシュコマンド create-dice-channel の同型バイパス**も封鎖
+  （default_member_permissions＋実行時 memberPermissions 検査＋falsifier spec）
+- 変更ファイル（pathspec 用）: `src/discord/discord.controller.ts`・同 spec / `src/discord/discord-facade.service.ts`・
+  同 spec / `src/discord/services/discord-guild-manager.service.ts`・同 spec /
+  `src/discord/commands/commands-components/select-game-system.service.ts`・同 spec /
+  `src/discord/features/gameSystem/services/select-game-system.orchestrator.ts`・同 spec /
+  `src/discord/interfaces/guild-channel-type.constant.ts`（新規）
+  ※controller/facade は Controller層完全化 WIP と同居（hunk 分離要）
+- **挙動変更の周知**: post-character / create-channel / create-dice-channel は ManageChannels 保持者専用になった
+  （従来は 404 or 無認可）。一般プレイヤーへ開くかはプロダクト判断待ち
+- deferred → S7 候補（タスク登録済み）: DC-5 permissionOverwrites 検査・parent カテゴリ overwrite 考慮・
+  verify 系命名整理・DC-15 拒否理由の観測性
+- 証跡: `review-results/discord-authz/`（ローカル）
+
+### 俯瞰レビュー#2 完了（同日・第2群前半の締め）
+
+S4/S5 累積を両輪で俯瞰（Opus pass / Codex needs-fix→反映で close）。実測: 全 210 suites / 2757 tests 緑・循環ゼロ。
+
+- **反映済み**: スラッシュコマンド認可を GuildMember **基底権限**へ（`interaction.memberPermissions` は
+  チャンネル overwrite 適用後のため、チャンネル限定付与でギルド全体作成が通る穴があった）。
+  verifyGuildManagePermission の DC-15 前倒し（権限不足=403 / 基盤例外=500 の分離）。
+  DESIGN.md・AI.discord.md へ ManageChannels 要件と facade 責務を追従
+- **新規タスク**: S7-a=M1 post-character 開通先の契約未検証（リスナー競合・Embed 不投稿・応答文言の虚偽）/
+  M2 ダイス記法3方言（dice-calculation.service.ts:165 に黙殺＋return 1 の値捏造が残存）＋M3 判定粒度統一＋
+  フレーク予防（B-1/B-4）
+- **コミット計画の正本**: `review-results/checkpoint-2/review-20260726-checkpoint-2.md`（ローカル）の C-1〜C-10。
+  要点: S4 は palette メソッド同梱必須（HEAD 型検査不能の修復）・S5 は WIP REST 契約と hunk 混在のため
+  WIP 先行コミor同梱・lockfile を含むコミットは packages/api-contract 一式同梱必須・
+  **docs/reviews/full-review-2026-07-26.md（未追跡）を必ず追跡に含める**
+- 台帳補正: S5 の select-game-system.service.spec.ts は**新規ファイル**（既存記録の明記漏れを訂正）
+- **最優先の提言（Opus）**: 次スライスより先にコミット確定を。HEAD 型検査不能のまま8スライス分が未コミット＝
+  最大のリスク集中点
+
+### 証跡の所在について（俯瞰#1 追記）
+
+`review-results/` はルート .gitignore によりローカル限定（codex-delegate 運用の設計どおり）。リポジトリに残る監査結論の正本は `docs/reviews/full-review-2026-07-26.md` と本ファイルの各エントリであり、`review-results/` への参照はローカル作業時のみ有効。
+
+## 2026-07-26 全体レビュー実施（4観点・2層検証・コード変更なし）
+
+TRPG-SERVER 全体（src 326 ファイル＋packages/sheet-projection＋test 基盤）を正しさ・認知負荷・変更容易性・負債の4観点でレビューした。1層＝読み取り専用レビュアー9体、2層＝Must 級所見への敵対的検証7体。報告の正本は **[docs/reviews/full-review-2026-07-26.md](./docs/reviews/full-review-2026-07-26.md)**。
+
+- 実測ゲート: build 成功 / check:circular 循環ゼロ / 209 suites・2676 tests 全通過（ただし誤モック・未カバーで緑のままの実バグを多数検出。緑＝正しさの証明ではない）
+- 検証済み Must 16件。最上位: `.env.test` の Atlas 資格情報コミット（TI-1）／`GET /auth/:userId/User` 無認証で OAuth トークン露出（DM-1）／sheet-projection の Docker 未配線＝デプロイ不能（SP-1）／イベントリトライの unhandled rejection でプロセス停止（EV-3）／`1d100<=30` が `1d10030` に化ける（DM-2）
+- 着手順（同報告 §4 Decision Artifact）: 第0群=機密・認可即応 → 第1群=デプロイ成立（SP-1/TI-2） → 第2群=確定バグ修正 → 第3群=APP_PIPE/APP_FILTER 段階導入（500 化クラスの根絶） → 第4群=契約一本化（PaletteEntry 4重定義、Phase 3 v3.1 前）・customId Factory/Parser 統一・characterThread 一本化（S3 前） → 第5群=死蔵一掃
+- 修正は未実施（レビューのみ）。着手時は挙動保存分に特性化テストを先行させること
+- 第3層検証（2026-07-26 追記）: ユーザー指示により Codex CLI（gpt-5.6-sol・xhigh・read-only）で独立再検証を実施。round1 = **pass**（23判定すべて維持、medium 訂正2件〔CE-3 影響範囲の限定・CT-1 到達経路の訂正→DC-30 下流確定（キャラ作成完了イベント経由の自動スレッド作成は機能していない）〕を報告書へ反映済み）。清書: `review-results/full-review-verify/review-20260726-full-review-verify-round1.md`
+
+## 2026-07-26 large-file 静的解析ツールの導入（portable-skills 適応の補完・未コミット）
+
+Playwright E2E プロジェクト（`\\LAPTOP-UBRLUPJM\e2e-playwright`）から `scripts/refactor/analyze-large-files.ts` を移植した。ts-morph でファイル行数・関数様宣言の行数を計測し、閾値超過（file 800行 / function 200行）を advisory warning として JSON レポートに出す。`refactoring-rules` / `large-file-refactor-review-loop` スキルが、リファクタ計画・レビュー前の静的解析としてこのコマンドを参照する。
+
+- コマンド: `pnpm run refactor:large-files:analyze -- --out .tmp/refactor/large-files.json`（`--include` で対象 glob を絞れる。`--out` は `.tmp/` 配下限定）
+- 実行系: 元は Node 22 の `--experimental-strip-types` だが、この環境は Node 20.17 のため `ts-node --transpile-only` に載せ替えた
+- 依存追加: `ts-morph@28.0.0`（devDependencies。元プロジェクトと同版。既存の madge とは役割が別 — madge は依存・循環、本ツールはサイズ）
+- 適応: 対象 glob を `src/**/*.ts` + `test/**/*.ts`、除外を `.tmp/.temp/coverage/dist/logs/node_modules/outputs` に変更。`scripts/` は tsconfig の include 外なので build / lint / madge の対象に入らない
+- 検証: 561 ファイル解析・69 警告（上位は大型 spec の describe）。導入後も `pnpm run build` 成功・`check:circular` は「No circular dependency found!」
+- 警告はブロッカーではなく分割候補の発見用（ブロッカーは従来どおり check:circular の循環ゼロのみ）
+- 見送り: 元プロジェクトの `analyze-dependencies.ts`（レイヤリング違反・未使用 export 検査）は madge 系と役割が重複するため移植しない。必要になったら同じ場所から取得できる
+
+## 2026-07-12 変更容易性改善単位7・Character実DB統合テストの隔離（未コミット）
+
+`character.integration.spec.ts` と `character.crud.spec.ts` を通常Jestから分離し、実行ごとに使い捨てMongoDBを起動する専用契約へ変更した。
+
+### 問題
+
+- 通常Jestのsetupは `.env` の `MONGODB_URI` を保持できたため、unit testから共有Atlas DBへ接続し得た。
+- 実DBspecが通常の `*.spec.ts` 収集対象に含まれ、共有DB名、並列実行、接続失敗時のfallback/skipによって結果が環境へ依存していた。
+- AttributeValueの正準形はmockだけで検証され、Mongoose `Mixed` の保存・更新挙動とBSON変換後の形を保証できていなかった。
+
+### 改善後の契約
+
+- **事前条件**: 通常テストはhostの外部URIを必ずlocalhost用URIで上書きする。実DBspecは専用Jest configからだけ起動し、Docker CLIが作った `127.0.0.1` の動的port、run ID付きDB名、専用provider markerがすべて一致しなければ開始しない。残留state/lockがある並行・異常終了状態も黙って上書きしない。
+- **成功時事後条件**: 専用コマンドは対象2 suiteだけを直列実行し、新規AttributeValueの `values/dice` とlegacy fixtureのread→正規化→update→正準形保存を実MongoDBで確認する。終了時は起動したcontainer、state、lockを残さない。
+- **失敗時事後条件**: state欠落、不正URI、外部host、run ID不一致、MongoDB未起動、Docker削除失敗はテスト失敗として可視化する。共有DBへのfallback、接続不能時のskip、cleanup errorの握りつぶしを行わない。
+- **不変条件**: 通常Jestは実DB2 suiteを収集せず、専用configはその2 suite以外を収集しない。各runは固有DB名を持つ。legacy CharacterService経路の5セクション更新はMongoose `Mixed` のdeep mergeに依存せず、repositoryがaggregation pipelineの `$literal` でセクション全体を原子的に置換する。省略プロパティは `undefined` をBSONへ渡さず、保存後に `null` を発生させない。
+
+### 実装と判断
+
+- `jest.integration.config.js` と `test:integration` を追加し、通常 `jest.config.js` では対象2 specを除外した。
+- `test/testcontainers/` の専用setup/teardownがDocker CLIで `mongo:7` を起動し、`mongosh` のping後に接続stateを渡す。Node Testcontainersの `GenericContainer` も試行したが、このWindows Docker環境ではcontainer取得前に停止したため、同じ使い捨て境界を明示的に制御できるDocker CLIへ限定した。
+- 実DBREDで、通常の `$set` が既存 `Mixed` 配下をdeep mergeすること、`undefined` のoptional keyがBSONで `null` になることを確認した。repositoryのセクション更新をpipeline置換へ変更し、CharacterServiceは定義済みoptional keyだけを組み立てるよう修正した。
+
+### 検証
+
+- 通常Jestの `--listTests` に実DB2 specが含まれず、専用configの `--listTests` はその2 specだけ。
+- 隔離境界spec: 2 suites / 5 tests成功。外部Atlas、marker付き外部MongoDB、run ID不一致を拒否。
+- `test:integration`: 2 suites / 19 tests成功。新規 `values/dice` 往復とlegacy正準化・書戻しを実MongoDBで確認。
+- 終了後: 対象MongoDB container 0、`.runtime-state.json` なし、`.runtime-state.lock` なし。
+- `typecheck:test` 成功。全体gateとFableレビューは本節の追跡で確定する。
+
+### Fable初回レビュー後の追跡
+
+- 初回結果: **`Approved with follow-up`**。契約による設計、interfaceと実装の分離、ドメインモデル完全性はいずれもPass。
+- Medium: CharacterServiceはundefined除去と正準形検証を行うが、repositoryの直接 `create/update/updateForOwner/updateByChannelId` は禁止フィールドしか検証していなかった。repository境界へ `prepareLegacyWrite` を追加し、全undefined entryを除去して、存在する5セクションを `isAttributeSection` で再検証する二重防御へ変更した。
+- Low: 残留lockを生の `EEXIST` ではなく手動確認手順付きの契約エラーへ変換。setup途中のcontainer削除失敗はcontainer ID付きで可視化。lockはroot `.gitignore` で既に無視済みだったが、局所 `test/testcontainers/.gitignore` にも明記した。
+- Follow-up: pipeline更新後の `updatedAt` を実MongoDBのraw BSONで検証し、一覧順序の時刻契約も固定した。
+- 追跡検証: repository 1 suite / 43 tests、実DB 2 suites / 19 tests、`typecheck:test` 成功。終了後のcontainer/state/lock残留0。
+- Fable追跡結果: **`Approved`**。初回Medium/Low/follow-upはすべて解消し、3観点はいずれもPass。情報Lowとして残った「属性内の明示的 `undefined` はguardを通る」点も、`isAttributeValue` が存在する全propertyのundefinedを拒否する契約へ狭め、関連7 suites / 172 testsと実DB19 testsで回帰なしを確認した。
+- Fable最終確認: **`Approved`**、必須指摘0、3観点Pass。空 `AttributeValue {}` とoptional key省略が有効であることも、提案された境界assertで明示的に固定した。
+
+### 最終全体gate
+
+- 改善単位7の最終対象: core/repository 2 suites / 81 tests、実DB 2 suites / 19 tests、対象lint 0、container/state/lock残留0、`git diff --check` 成功。
+- 通常Jestは作業ツリーの並行変更前に198 suites / 2,567 tests全件成功。最終再実行時は追加された改善単位1のcompile error 1 suiteだけが失敗し、**199 suites / 2,588 testsは成功**した。失敗は `src/scripts/backfill-template-pin.spec.ts:36` の `character is possibly undefined`。
+- 現在の `typecheck:test` は上記に加え、`src/discord/features/characterSheet/handlers/roll-palette.handler.ts:43` の `string | undefined` を `string` へ渡す型エラーで停止。buildは後者1件で停止する。
+- `lint:check` は0 errors / 92 warnings。`check:circular` は525 files / 4 warnings / 循環0。
+- 失敗2ファイルはいずれもユーザーが担当する改善単位1の並行差分で、本改善単位2〜7では変更していない。lockfileも変更していない。
+
+### 次にやること
+
+最終Fable確認後、通常Jest全件とbuild/lint/circularを再実行して改善単位2〜7を閉じる。
+
+---
+
+## 2026-07-12 変更容易性改善単位6・AttributeValue正準形（未コミット）
+
+`status / parameter / skill / item / description` の5セクションを、型定義、HTTP DTO、イベント契約、作成コア、CharacterService、Discord編集で同じ `AttributeSection` として扱うよう統一した。
+
+### 問題
+
+- `core/types/attribute.types.ts` は `dice?: string` を持つ一方、`AttributeValueDto` と `CharacterService` の変換が `dice` を落としていた。create/updateの成功後にロール記法だけ消失する事後条件違反だった。
+- 辞書型へ付けた `@Type(() => AttributeValueDto)` が辞書全体を単一DTOへ変換し、更新時に `HP` 等のキーを失い得た。
+- 作成コアは `Record<string, any>` のプリミティブ能力値を検証した後、`CharacterService` は同じ値を `AttributeValueDto` として読み、空の `values` へ暗黙変換していた。
+- Discord編集は省略可能な `index / description / dice` を `null` で保存し、宣言型と永続化値を不一致にしていた。
+
+### 改善後の契約
+
+- **事前条件**: 各セクションはプレーンオブジェクトで、各属性は `name / index / values / description / dice / isVisible` だけを持つ。`values` の全要素は有限数。`dice` は存在する場合は文字列。プリミティブ、配列、`null`、未知キーは受理しない。
+- **成功時事後条件**: create/updateはセクションの辞書キー、`values` の全part、`dice` を欠落させずrepositoryへ渡す。CoC/D&D/SW2.5の必須能力値は `values` の合算値を検証する。Discord編集は未指定プロパティを保存しない。
+- **失敗時事後条件**: HTTP DTOは400、作成コアは `CharacterCreationValidationError`、直接service入力は明示的な `TypeError` とし、不正値を空属性へ変換せずrepositoryを呼ばない。
+- **不変条件**: 実行時判定の正本は `isAttributeNumberParts / isAttributeValue / isAttributeSection`。HTTP DTO、`CharacterCreationData`、`CharacterCreationCoreInput`、`CharacterEntity` は同じ `AttributeSection` に収束する。ダイス構文はゲームシステムごとに異なるため、この境界では文字列性だけを保証し、実行境界の責務を奪わない。
+
+### 検証
+
+- RED確認: DTOの不正形5件とDiscordの旧null形2件が失敗し、service/coreは`dice`未定義・旧プリミティブfixtureで2件の型エラーになった。
+- focused: core type guard、DTO、CharacterService、作成コア、Discord純関数の5 suites / 114 tests成功。
+- 拡張確認: event handler、Discord modal service、Character controllerの3 suites / 60 tests成功。
+- `typecheck:test`、build成功。DB実体でのcreate/read/update往復は、改善単位7の隔離MongoDBで2 suites / 19 tests成功を確認した。
+
+### Fable初回レビュー後の追跡
+
+- 初回結果: `Changes requested`。必須指摘は、旧Discord編集が保存した `index / description / dice: null` を含む別属性が同一セクションに残ると、read-merge-write全体が正準形検証で失敗する回帰。
+- 対応: `normalizePersistedAttributeSection / normalizePersistedCharacterAttributes` をdomain mapperへ追加し、repositoryのCharacterEntity読出・作成・更新・削除結果だけに適用。既知legacyのnull除去、有限数プリミティブ、文字列プリミティブ、`name/value`形を情報保持して変換する。未知キーや不正型は黙って捨てず例外。外部DTO/event入力は従来どおり厳格拒否する。
+- 中指摘: `updateField / updateFieldByChannelId` に `AttributeSection` 型とservice/repository二重ガードを追加し、プリミティブ素通しspecを正準形へ反転。
+- 低指摘: Discord数値入力を `parseFloat + isNaN` から `Number + Number.isFinite` へ変更し、部分文字列・Infinityを格納しない。domain版Validation/Business errorは `error.name` でも明示的に非リトライ化し、陳腐化コメントを更新。
+- 追跡RED: mapper不存在、legacy読出未変換、部分更新2経路、非有限入力3件、domain error再試行2件を確認。修正後5 suites / 115 tests成功、`typecheck:test`、build、対象lint 0 errors。
+- 改善単位7のDB統合テストへ、新規 `values/dice` 往復に加えて、legacy fixtureのread→正規化→Discord相当updateを追加した。
+
+### 次にやること
+
+改善単位7で、通常Jestからの共有Atlas接続を禁止し、隔離DBでAttributeValueの永続化往復まで完了した。結果と契約は本ファイル冒頭の改善単位7を正とする。
+
+---
+
+## 2026-07-12 変更容易性改善単位5・User / Character認可契約（未コミット）
+
+UserとCharacterのHTTP操作を、認証主体と永続化queryが切れない所有者限定契約へ変更した。詳細契約の正本は `AI.domain.md` の「2026-07-12 User / Character HTTP認可契約」。
+
+- Character: `findByIdForOwner` / `updateForOwner` / `removeForOwner` をrepositoryへ追加し、`characterId + discordUserId` の単一queryで取得・更新・削除。serviceにHTTP用owner-qualified APIを追加し、controllerの個別3操作だけを接続。対象不在と非所有者は同じ404。
+- User: controller全体へ `JwtAuthGuard` とstrict `ValidationPipe` を適用。path IDとJWT主体の一致を必須化し、本人以外はDB操作前に404。
+- User入力: HTTP専用 `CreateUserProfileDto` / `UpdateUserProfileDto` は `name/avatarHash` だけ。controllerでも許可項目を再構成し、token・characterIds・bodyの所有者IDをserviceへ渡さない。
+- User出力: pure presenterで `UserOutputDto` へ写像し、OAuth token4項目を常に除外。token更新は既存 `AuthService -> UserService` 内部経路を維持。
+- 権限正本: Character accessは `Character.discordUserId` のみ。legacy `User.characterIds` の変更はCharacterアクセスを付与しない。
+
+検証: 変更前6 suites / 102 tests。repository owner API不存在3件とUser認可/非漏えい6件をRED確認。Fable初回レビューは対象diff内の重大指摘なしの `Approved with follow-up`。横断監査で発見した `/discord/post-character` のID単独取得・更新を追加RED後にowner-qualified化し、複合Param DTO、Character guard metadata、User出力schemaも追従。最終9 suites / 157 tests成功、`typecheck:test` 成功。Fable追跡レビューは全HTTP controllerの横断検索を含め **`Approved`**。
+
+### 次にやること
+
+改善単位6として、AttributeValueの正準形を定め、`dice` を含むcreate/update/readの情報保存契約を実装する。
+
+---
+
+## 2026-07-12 変更容易性改善単位4・Discord REST操作契約の統一（未コミット）
+
+`DiscordController -> DiscordFacadeService -> DiscordChannelManagerService -> Discord SDK` の入出力契約を、SDKオブジェクトとHTTP結果が混在しない形へ統一した。
+
+### 問題
+
+- facadeがSDK `Message` / `Channel` を返し、controllerは `{ success, messageId/channelId, error }` を期待していたため、成功応答の型と実値が不一致だった。
+- facadeの操作オプションが `any` で、controllerからSDK実装まで型保証が途切れていた。
+- 単数 `embed` が検証後に捨てられ、frontendが送る `#RRGGBB` 色はDTOで拒否されていた。
+- `type: 'text'` 等をDiscord `ChannelType` へ変換せずSDKへ渡し、`thread` は未知値フォールバックでテキストチャンネルになり得た。
+
+### 改善後の契約
+
+- **事前条件**: 送信内容またはEmbedがあり、アクセス権がある。Embed色は整数または `#RRGGBB`。通常チャンネル作成で `thread` は指定できない。
+- **成功時事後条件**: facadeは判別可能unionの成功結果を返し、成功結果には対応するIDが必ずある。Embedとチャンネル種別はSDK呼出前に正規化済みである。
+- **失敗時事後条件**: SDK側の `null` / ID欠落は `success: false` と失敗メトリクスへ変換する。例外は失敗記録後に再送出する。
+- **不変条件**: SDKオブジェクトはfacadeより外へ出ない。成功と失敗のフィールドは同時に成立しない。操作契約は `discord/interfaces` に置き、実装クラスから分離する。
+
+### 検証
+
+- RED確認: SDK値をそのまま返す4ケース、文字列ChannelType未変換、単数Embed欠落、16進文字列色拒否、threadの暗黙処理を各specで確認してから実装。
+- focused: 4 suites / 88 tests成功。
+- `typecheck:test` 成功、build成功、`check:circular` 496 files / 3 warnings / 循環0。
+- `lint:check` は0 errors。今回増やした未使用importを除去し、既存86 warningsを維持する。
+- Fable初回レビューは `Approved with follow-up`。空要求は元から400だったため指摘の前提を訂正し、実際に不足していた「複数embedsのみ」の許可を修正。追跡レビューも重大指摘なしの `Approved with follow-up`。残った低指摘の色受理境界と数値thread型も追加実装・specで解消した。
+- 別追跡: managerが握ったSDK例外の失敗理由分類と、DTOに残る未使用 `ephemeral` は、この結果契約を破らない既存課題として後続へ送る。
+
+### 次にやること
+
+改善単位5として、User/Characterの取得・更新・削除における所有者判定をcharacterization-firstで固定し、公開境界の認可不変条件を揃える。
+
+---
+
+## 2026-07-12 変更容易性改善単位3・未処理Promise rejectionの可視化（未コミット）
+
+`test/utils/jest-setup.ts` から、Jest Circusの `unhandledRejection` listenerを全削除して空handlerへ置換していた処理を削除した。本番コードは変更していない。
+
+- 安全網: リモートDBへ接続する `character.integration.spec.ts` / `character.crud.spec.ts` だけを除いた同一集合を変更前後で比較。
+- 変更前: 186 suites / 2,433 tests成功。
+- 変更後: 186 suites / 2,433 tests成功。追加で露出した未処理rejectionは0件。
+- 補助検証: `typecheck:test`、build成功、`check:circular` 493 files/3 warnings/循環0、process-level抑制の残存0。
+- Claude CLIレビュー: **Approved**。削除前はJest Circusが先に登録したerror listenerをsetup後に消しており、削除によって既定のfailure reportingが復元されることを依存実装まで確認。
+- 残存risk: 除外2 suiteは改善単位7のリモートDB隔離後に再実行する。将来の非決定的なsuite failureは未待機Promiseを第一候補として扱う。
+
+### 次にやること
+
+改善単位4として、Discord channel/message操作のSDK戻り値、facade結果、HTTP response DTOの契約をcharacterization-firstで一つに揃える。frontendが利用中のchannel作成経路を優先し、広いDiscord service整理は混ぜない。
+
+---
+
+## 2026-07-12 変更容易性改善単位2・検証処理の修復（未コミット）
+
+変更容易性・設計負債レビューの安全な改善単位2を実施。本番動作は変更せず、検査コマンドの契約を「既定は読取専用、変更は明示コマンドだけ、aliasを本番同様に解決、テスト補助コードも型検査」へ揃えた。
+
+- `lint` を `lint:check` へ委譲し、`lint:fix` だけが `--fix` を持つ構成へ変更。
+- `typecheck:test` を追加し、成果物を書かないよう `--incremental false` を指定。`tsconfig.spec.json` の `@*` aliasesをJestと整合。
+- `check:circular`、`check:deps`、`analyze:deps` を `--ts-config tsconfig.json` へ統一。
+- Jestのerror-handler個別coverage閾値は数値を緩和せず、旧 `src/utils` から現 `src/core/http` へpathだけを追従。
+- 新ゲートで露出した23 errorsを解消。参照ゼロの旧test factory/helper 2ファイルは低リスクdead codeとして削除し、test authの古いCookieService import 2箇所を現pathへ更新。
+- Lint唯一のerrorは既存listener specのenum/string比較だけだったため、文字列化してテスト意図を維持。
+
+検証: `typecheck:test` 0 errors、`lint:check` 0 errors/86 warnings、対象spec 4 tests成功、build成功、`check:circular` 493 files/3 warnings/循環0、Jest `--showConfig` でcoverage path追従を確認。全Jest/coverageはリモートDB分離前のため未実行。通常pnpmは既存workspace/lockfile差分による `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` で停止するため、検証時のみ一時的に `--config.verify-deps-before-run=false` を使用し、lockfileは変更していない。
+
+### 次にやること
+
+改善単位3として `test/utils/jest-setup.ts` の空の `unhandledRejection` handlerを独立して外し、focused testで露出する未待機promiseを分類する。広範な失敗が出た場合は本番コード変更へ進まず、原因別の小単位へ再分割する。
+
+---
+
 ## 2026-07-07 C 系列 全 slice 完了 ＝ **両計画書（C-1〜C-10・E-1〜E-6）完遂**
 
 Wave 並列（A: C-4/C-5/C-7/C-3b′ を Workflow 4並列 → B: C-9 単独 → C: C-10）で C 系列を完遂。
@@ -789,7 +1098,7 @@ S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・s
 
 ### S-4.3 完了（2026-06-04・dual-path 収束・behavior-changing／nestjs-best-practices 委譲・司令塔裏取り＋start:dev 実機確認）
 
-ユーザー確定レイアウト=**基本ダイス(dice*generic*)＋フレキシブル＋プリセット＋スキル(skill*)＋能力(ability*)**（基本行は残し dice*generic* で修復・custom は flexible メニュー）。
+ユーザー確定レイアウト=_*基本ダイス(dice*generic*)＋フレキシブル＋プリセット＋スキル(skill*)＋能力(ability_)**（基本行は残し dice*generic* で修復・custom は flexible メニュー）。
 
 - **ThreadInteractionService**（単一生成元）に public `postBasicDiceButtons`（`dice_generic_{1d100/1d6/2d6}_{discordChannelId}` の3ボタン行）と `postAbilityRollButtons`（`postSkillRollButtons` ミラー・`character.parameter`→`ability_{discordChannelId}_{key}`）を新設。
 - **ThreadCreationService**（select 経路）: `ThreadInteractionService` を注入し `displayCharacterInfo` の try/fallback 両方で5 post メソッドへ委譲。roll* 生成依存の private 4メソッド（postActionButtons/postSkillRollButtons/postFlexibleDiceMenu/postPresetDiceButtons）と未使用化した util import を撤去。→ \*\*select 経路の broken `roll*`/孤児 `roll\*\_` 生成を解消\*\*。
@@ -805,7 +1114,7 @@ S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・s
 
 ### S-5 dead-code インベントリ（司令塔が grep 検証・撤去対象）
 
-全 src で **roll* / character-dice* を生成する live コードは皆無**（S-4.3 後）。よって以下は全て dead（登録されるが発火しない handler 含む）:
+全 src で _*roll* / character-dice_ を生成する live コードは皆無**（S-4.3 後）。よって以下は全て dead（登録されるが発火しない handler 含む）:
 
 **A. 純粋関数/メソッド（DI 非関与・低リスク）**
 
@@ -841,7 +1150,7 @@ S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・s
 
 撤去（27 files・-4296行）: diceRoll の `DiceRollGeneral/Custom/Preset/Skill` handler ＋ `CharacterDiceOrchestratorService`＋`DiceButtonUIService`＋`DiceHistoryService`、characterThread の `CharacterDiceHandler`＋`CharacterDiceButtonsService`＋`CharacterDiceHistoryService`(+character-dice-format.util/character-dice-history.pure)。両 module の providers/onModuleInit/registry 登録、dead 専用だった `DiceRollModule`/`DiceRollPaginationModule` import も除去（`DiceServicesModule` は DiceRollLogicService が live のため維持）。handlers.integration.spec 登録数 28→23・dead routing を未登録へ更新。
 
-- 検証（司令塔再裏取り）: 残存参照ゼロ／build exit 0／check:circular **No circular**／jest **54 suites 538 緑**／**start:dev で registry 23 handler（batch 8+6+9・S-4.3 の 28 から −5）・dead handler 未登録・live handler（dice*generic*/skill*/ability*/preset-quick/flexible/modal/pagination）健在・DI エラー 0**。想定外 M（character-thread.orchestrator/thread-orchestrator/dice-roll-modal）は実変更0＝CRLF のみ＝スコープ外不接触。
+- 検証（司令塔再裏取り）: 残存参照ゼロ／build exit 0／check:circular **No circular**／jest **54 suites 538 緑**／_*start:dev で registry 23 handler（batch 8+6+9・S-4.3 の 28 から −5）・dead handler 未登録・live handler（dice*generic*/skill*/ability_/preset-quick/flexible/modal/pagination）健在・DI エラー 0**。想定外 M（character-thread.orchestrator/thread-orchestrator/dice-roll-modal）は実変更0＝CRLF のみ＝スコープ外不接触。
 - コミット手順: 事前 staged の無関係 junk と混在していたため `git reset`（作業ツリー保全）→ S-5c パスのみ stage → commit。**事前 staged 群は unstage されたが作業ツリーに完全保持**（AI.discord.md 削除等は未コミットのまま残存）。
 - live 維持: `DiceOrchestratorService`(services/dice・custom-modal)／`DicePresetService`(dead メソッド createPresetButton/handlePresetDiceRoll は残置・別 issue)／`DiceRollModalHandler`／`PresetDiceQuickRollHandler`。
 

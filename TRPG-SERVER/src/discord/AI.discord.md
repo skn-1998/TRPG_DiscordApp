@@ -28,6 +28,8 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 単数Embedと複数Embedはcontrollerで統合し、`#RRGGBB` はDTOで数値へ変換する。文字列チャンネル種別はmanagerでDiscord `ChannelType` へ変換する。`create-channel` の `thread` は通常チャンネルへ暗黙変換せず400とし、親チャンネルを持つ専用処理へ分離する。
 
+チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必須とする。呼び出しチャンネル限定の overwrite による付与は認可根拠にせず、REST の権限不足は403、Discord API・通信例外は500として分離する。
+
 ---
 
 ## 📝 最新メモ（2026-06-11）
