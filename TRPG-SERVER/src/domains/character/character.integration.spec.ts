@@ -153,6 +153,8 @@ describe('Character CRUD Integration Test', () => {
           MP: 5
         }
       })
+      const oldUpdatedAt = new Date('2000-01-01T00:00:00.000Z')
+      await characterModel.collection.updateOne({ characterId }, { $set: { updatedAt: oldUpdatedAt } })
 
       const normalized = await characterRepository.findById(characterId)
       expect(normalized?.status).toEqual({
@@ -168,11 +170,12 @@ describe('Character CRUD Integration Test', () => {
       })
       expect(updated?.status.HP.dice).toBe('1d6')
 
-      const raw = await characterModel.findOne({ characterId }).lean().exec()
+      const raw = await characterModel.collection.findOne({ characterId })
       expect(raw?.status).toEqual({
         HP: { name: 'HP', values: { base: 12 }, dice: '1d6' },
         MP: { values: { base: 5 } }
       })
+      expect(raw?.updatedAt.getTime()).toBeGreaterThan(oldUpdatedAt.getTime())
     })
 
     it('should throw when characterId is not provided', async () => {

@@ -8,6 +8,7 @@
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
 import { AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
+import { AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
 
 /**
@@ -112,12 +113,9 @@ export function buildFieldData(raw: {
 /**
  * 単一フィールドの AttributeValue を構築する（純粋）。
  */
-export interface BuiltAttributeValue {
+export interface BuiltAttributeValue extends AttributeValue {
   name: string
-  index: null
   values: Record<string, number>
-  description: string | null
-  dice: string | null
   isVisible: boolean
 }
 
@@ -145,18 +143,17 @@ export function buildAttributeValueFromForm(
   const valuesObj: Record<string, number> = {}
 
   if (formData.values && formData.values.trim() !== '') {
-    const numericValue = parseFloat(formData.values.trim())
-    if (!isNaN(numericValue)) {
+    const numericValue = Number(formData.values.trim())
+    if (Number.isFinite(numericValue)) {
       valuesObj.base = numericValue
     }
   }
 
   const attributeValue: BuiltAttributeValue = {
     name: finalName,
-    index: null,
     values: valuesObj,
-    description: formData.description || null,
-    dice: formData.dice || null,
+    ...(formData.description ? { description: formData.description } : {}),
+    ...(formData.dice ? { dice: formData.dice } : {}),
     isVisible: true
   }
 

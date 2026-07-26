@@ -13,6 +13,7 @@
  */
 
 import type { CharacterEntity } from '../../domains/character/models/character.entity'
+import type { AttributeSection } from '../../core/types/attribute.types'
 
 // ============================================================================
 // 共通サポート型
@@ -48,11 +49,11 @@ export interface CharacterCreationData {
   gameSystemId?: string
   discordChannelId?: string
   discordUserId?: string
-  status?: Record<string, any>
-  parameter?: Record<string, any>
-  skill?: Record<string, any>
-  item?: Record<string, any>
-  description?: Record<string, any>
+  status?: AttributeSection
+  parameter?: AttributeSection
+  skill?: AttributeSection
+  item?: AttributeSection
+  description?: AttributeSection
   profileImageUrl?: string
   createdAt?: Date
   updatedAt?: Date

@@ -126,9 +126,7 @@ describe('CharacterService', () => {
               name: '目星',
               values: { base: 25, growth: 15 },
               dice: '1d100<=40',
-              description: '手掛かりを見つける',
-              index: undefined,
-              isVisible: undefined
+              description: '手掛かりを見つける'
             }
           }
         })
@@ -369,12 +367,8 @@ describe('CharacterService', () => {
       expect(characterRepository.updateForOwner).toHaveBeenCalledWith('test-id', 'test-user', {
         skill: {
           聞き耳: {
-            name: undefined,
-            index: undefined,
             values: { base: 20, growth: 10 },
-            description: undefined,
-            dice: '1d100<=30',
-            isVisible: undefined
+            dice: '1d100<=30'
           }
         }
       })

@@ -69,7 +69,7 @@ export class DiscordUserIdParamDto {
 /**
  * キャラクターID用Param DTO
  */
-export class CharacterIdParamDto {
+export class UserCharacterParamDto extends DiscordUserIdParamDto {
   @IsString({ message: 'characterIdは必須です' })
   @IsNotEmpty({ message: 'characterIdは空にできません' })
   readonly characterId: string

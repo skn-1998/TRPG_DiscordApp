@@ -29,12 +29,6 @@ afterAll(() => {
 // 非同期処理のタイムアウト対策
 jest.setTimeout(10000)
 
-// 未処理のPromise rejection警告を無効化
-process.removeAllListeners('unhandledRejection')
-process.on('unhandledRejection', () => {
-  // テスト環境では警告を無視
-})
-
 // Discord.js モジュールのモック（テスト実行時のDiscord接続を防ぐ）
 jest.mock('discord.js', () => ({
   Client: jest.fn().mockImplementation(() => ({

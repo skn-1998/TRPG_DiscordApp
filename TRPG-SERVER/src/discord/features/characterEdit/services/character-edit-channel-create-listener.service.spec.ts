@@ -34,7 +34,7 @@ describe('CharacterEditChannelCreateListenerService', () => {
 
   /** discordClientService.on に登録された ChannelCreate コールバックを取り出すヘルパー */
   function getChannelCreateHandler(): (channel: NonThreadGuildBasedChannel) => Promise<void> {
-    const call = discordClientService.on.mock.calls.find((c) => c[0] === Events.ChannelCreate)
+    const call = discordClientService.on.mock.calls.find((c) => c[0] === String(Events.ChannelCreate))
     expect(call).toBeDefined()
     return call![1] as (channel: NonThreadGuildBasedChannel) => Promise<void>
   }
