@@ -72,18 +72,18 @@ export class CharacterThreadOrchestrator {
         action: 'character-thread-selection'
       }
 
-      ErrorHandler.handleServiceError(error, context, 'CharacterThreadOrchestrator')
-
       try {
         await interaction.editReply({
           content: '❌ スレッドの作成中にエラーが発生しました。しばらく時間をおいて再度お試しください。'
         })
       } catch (replyError) {
-        this.logger.error(
+        this.logger.warn(
           'Failed to send error reply:',
           replyError instanceof Error ? replyError.message : String(replyError)
         )
       }
+
+      ErrorHandler.handleServiceError(error, context, 'CharacterThreadOrchestrator')
     }
   }
 }

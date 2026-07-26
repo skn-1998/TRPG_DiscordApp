@@ -4,19 +4,42 @@
  * 分割リファクタリングの前に現挙動を固定するためのテスト。
  * 「どの依存が・どの引数で呼ばれ・どの reply/update が返るか」を現状のまま記録する。
  */
-// グローバルな discord.js モック（test/utils/jest-setup.ts）は EmbedBuilder.setTimestamp 等を
-// 持たないため、実際の discord.js を使って EmbedBuilder の挙動（.data.title 等）を検証する。
+// ephemeral 通知の flags を実際の MessageFlags 値で検証する。
 jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
 import { MessageFlags } from 'discord.js'
 import { Test, TestingModule } from '@nestjs/testing'
-import { Logger } from '@nestjs/common'
-import { createMockModalInteraction } from '@discord-test-utils'
+import { HttpException, Logger } from '@nestjs/common'
+import { createMockModalInteraction as createBaseMockModalInteraction } from '@discord-test-utils'
 import { CharacterModalHandlerService } from './character-modal-handler.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
+import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
+
+const createMockModalInteraction = (...args: Parameters<typeof createBaseMockModalInteraction>) => {
+  const interaction = createBaseMockModalInteraction(...args)
+  const state = interaction as unknown as { deferred: boolean; replied: boolean }
+  ;(interaction.deferReply as jest.Mock).mockImplementation(() => {
+    state.deferred = true
+    return Promise.resolve(undefined)
+  })
+  ;(interaction.editReply as jest.Mock).mockImplementation(() => {
+    state.replied = true
+    return Promise.resolve(undefined)
+  })
+  ;(interaction.reply as jest.Mock).mockImplementation(() => {
+    state.replied = true
+    return Promise.resolve(undefined)
+  })
+  ;(interaction.followUp as jest.Mock).mockImplementation(() => {
+    state.replied = true
+    return Promise.resolve(undefined)
+  })
+  return interaction
+}
 
 describe('CharacterModalHandlerService (characterization)', () => {
   let service: CharacterModalHandlerService
@@ -43,11 +66,17 @@ describe('CharacterModalHandlerService (characterization)', () => {
     removeSession: jest.fn()
   }
 
+  const mockMessageUpdater = {
+    updateExistingCharacterEditEmbed: jest.fn().mockResolvedValue(undefined)
+  }
+
+  let warnSpy: jest.SpyInstance
+
   beforeEach(async () => {
     // デバッグ/エラーログの抑制（挙動には影響しない）
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined)
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
 
     const moduleRef = await Test.createTestingModule({
@@ -56,7 +85,8 @@ describe('CharacterModalHandlerService (characterization)', () => {
         { provide: CharacterService, useValue: mockCharacterService },
         { provide: TypedEventService, useValue: mockTypedEventService },
         { provide: CharacterEmbedManagerService, useValue: mockEmbedManager },
-        { provide: ModalSessionManagerService, useValue: mockModalSessionManager }
+        { provide: ModalSessionManagerService, useValue: mockModalSessionManager },
+        { provide: CharacterEditMessageUpdaterService, useValue: mockMessageUpdater }
       ]
     }).compile()
 
@@ -71,6 +101,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
     await module.close()
+    jest.restoreAllMocks()
   })
 
   // ===== キャラクター作成モーダル =====
@@ -133,13 +164,8 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       expect(mockEmbedManager.createCharacter).not.toHaveBeenCalled()
       expect(interaction.editReply).toHaveBeenCalledWith({
-        embeds: [expect.any(Object)],
-        components: []
+        content: 'キャラクター作成データの取得に失敗しました。'
       })
-      // エラーEmbedのタイトル確認
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.title).toBe('❌ エラー')
-      expect(arg.embeds[0].data.description).toBe('キャラクター作成データの取得に失敗しました。')
     })
 
     it('createCharacter が null を返すとエラーレスポンス', async () => {
@@ -152,9 +178,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
       await service.handleModalSubmit(interaction)
 
       expect(mockEmbedManager.createCharacter).toHaveBeenCalled()
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.title).toBe('❌ エラー')
-      expect(arg.embeds[0].data.description).toBe('キャラクターの作成に失敗しました。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクターの作成に失敗しました。'
+      })
     })
   })
 
@@ -237,6 +263,7 @@ describe('CharacterModalHandlerService (characterization)', () => {
       // 取得は findOne 直呼び（初回＋更新後の再取得の2回）
       expect(mockCharacterService.findOne).toHaveBeenCalledTimes(2)
       expect(mockCharacterService.findOne).toHaveBeenCalledWith('char-1')
+      expect(mockMessageUpdater.updateExistingCharacterEditEmbed).toHaveBeenCalledWith(character, interaction)
 
       // 成功時は deleteReply が呼ばれる
       expect(interaction.deleteReply).toHaveBeenCalled()
@@ -252,9 +279,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.title).toBe('❌ エラー')
-      expect(arg.embeds[0].data.description).toBe('モーダル情報の解析に失敗しました。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'モーダル情報の解析に失敗しました。'
+      })
       expect(mockTypedEventService.emit).not.toHaveBeenCalled()
       expect(mockCharacterService.findOne).not.toHaveBeenCalled()
       expect(mockCharacterService.update).not.toHaveBeenCalled()
@@ -269,8 +296,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.description).toBe('フォームデータの取得に失敗しました。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'フォームデータの取得に失敗しました。'
+      })
     })
 
     it('キャラクターが見つからない場合エラーレスポンス', async () => {
@@ -285,8 +313,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.description).toBe('キャラクターが見つかりません。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクターが見つかりません。'
+      })
       // 回帰ガード: findById RPC へ戻っていないこと
       expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.findById.requested')).toBe(false)
       expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
@@ -312,12 +341,14 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.description).toBe('このキャラクターは新しいキャラクターシート側から編集してください。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'このキャラクターは新しいキャラクターシート側から編集してください。'
+      })
       expect(mockCharacterService.findOne).toHaveBeenCalledTimes(1)
       expect(mockCharacterService.update).not.toHaveBeenCalled()
       expect(mockTypedEventService.emit).not.toHaveBeenCalled()
       expect(mockEmbedManager.createSectionedEmbeds).not.toHaveBeenCalled()
+      expect(mockMessageUpdater.updateExistingCharacterEditEmbed).not.toHaveBeenCalled()
       expect(interaction.deleteReply).not.toHaveBeenCalled()
     })
 
@@ -372,8 +403,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.description).toBe('キャラクター情報の更新に失敗しました。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクター情報の更新に失敗しました。'
+      })
       // 通知連鎖の characterization: 失敗時は completed を emit しない
       expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.completed')).toBe(false)
       // 回帰ガード: update RPC へ戻っていないこと
@@ -393,8 +425,9 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       await service.handleModalSubmit(interaction)
 
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.description).toBe('キャラクター情報の更新に失敗しました。')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクター情報の更新に失敗しました。'
+      })
       expect(mockTypedEventService.emit.mock.calls.some((c) => c[0] === 'character.update.completed')).toBe(false)
     })
 
@@ -440,8 +473,97 @@ describe('CharacterModalHandlerService (characterization)', () => {
       await service.handleModalSubmit(interaction)
 
       // getCharacter 内の catch で null → 'キャラクターが見つかりません。'
-      const arg = (interaction.editReply as jest.Mock).mock.calls[0][0]
-      expect(arg.embeds[0].data.title).toBe('❌ エラー')
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクターが見つかりません。'
+      })
+    })
+
+    it('外側 catch は defer 済みのエラー通知を editReply してから元例外を ErrorHandler へ渡す', async () => {
+      const originalError = new Error('create failed')
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      mockEmbedManager.createCharacter.mockRejectedValue(originalError)
+      const interaction = createMockModalInteraction({
+        customId: 'character-create-basic-chan123-user456',
+        fields: {
+          'character-name': 'Hero',
+          'game-system': 'coc'
+        }
+      })
+
+      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。'
+      })
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
+        { customId: 'character-create-basic-chan123-user456', userId: interaction.user.id },
+        'CharacterModalHandlerService'
+      )
+      expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        handleServiceError.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('deferReply 前に失敗した未応答 interaction には reply でエラー通知する', async () => {
+      const interaction = createMockModalInteraction({
+        customId: 'character-create-basic-chan123-user456'
+      })
+      ;(interaction.deferReply as jest.Mock).mockRejectedValue(new Error('defer failed'))
+
+      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.followUp).not.toHaveBeenCalled()
+    })
+
+    it('応答済み interaction の外側 catch は followUp でエラー通知する', async () => {
+      const interaction = createMockModalInteraction({
+        customId: 'character-create-basic-chan123-user456',
+        base: { replied: true }
+      })
+      ;(interaction.deferReply as jest.Mock).mockRejectedValue(new Error('already replied'))
+
+      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.reply).not.toHaveBeenCalled()
+    })
+
+    it('外側 catch のエラー通知自体が失敗しても元の HttpException を伝播する', async () => {
+      const originalError = new HttpException('original modal failure', 409)
+      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      mockEmbedManager.createCharacter.mockRejectedValue(originalError)
+      const interaction = createMockModalInteraction({
+        customId: 'character-create-basic-chan123-user456',
+        fields: {
+          'character-name': 'Hero',
+          'game-system': 'coc'
+        }
+      })
+      const notificationError = new Error('notification failed')
+      ;(interaction.editReply as jest.Mock).mockRejectedValue(notificationError)
+
+      await expect(service.handleModalSubmit(interaction)).rejects.toBe(originalError)
+
+      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith('Failed to send character modal error response', notificationError)
+      expect(handleServiceError).toHaveBeenCalledWith(
+        originalError,
+        { customId: 'character-create-basic-chan123-user456', userId: interaction.user.id },
+        'CharacterModalHandlerService'
+      )
+      expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        handleServiceError.mock.invocationCallOrder[0]
+      )
     })
   })
 })

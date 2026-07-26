@@ -5,6 +5,7 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
 import { MessageFlags } from 'discord.js'
 import { Test, TestingModule } from '@nestjs/testing'
+import { HttpException, Logger } from '@nestjs/common'
 import {
   createMockButtonInteraction,
   createMockSelectMenuInteraction,
@@ -30,6 +31,8 @@ import { Character } from 'src/domains/character/models/character.model'
 describe('EnhancedCharacterEditService (characterization)', () => {
   let service: EnhancedCharacterEditService
   let module: TestingModule
+  let messageUpdater: CharacterEditMessageUpdaterService
+  let warnSpy: jest.SpyInstance
 
   const mockTypedEventService = {
     emit: jest.fn().mockResolvedValue(undefined),
@@ -64,6 +67,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
     }) as unknown as Character
 
   beforeEach(async () => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
     module = await Test.createTestingModule({
       providers: [
         EnhancedCharacterEditService,
@@ -80,6 +84,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
     }).compile()
 
     service = module.get(EnhancedCharacterEditService)
+    messageUpdater = module.get(CharacterEditMessageUpdaterService)
     jest.clearAllMocks()
     mockTypedEventService.emit.mockResolvedValue(undefined)
     mockSectionEditor.execute.mockResolvedValue(undefined)
@@ -88,6 +93,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
 
   afterEach(async () => {
     await module.close()
+    jest.restoreAllMocks()
   })
 
   // ==========================================================================
@@ -212,6 +218,43 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2c の回帰ガード）
       expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
       expect(mockTypedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
+    })
+
+    it('refresh の共有 embed 復旧が失敗したら ephemeral followUp 後に元例外を伝播する', async () => {
+      const originalError = new HttpException('refresh failed', 409)
+      const character = buildCharacter()
+      const interaction = createMockButtonInteraction({
+        customId: 'character-refresh-char-123'
+      })
+      mockCharacterService.findOne.mockResolvedValue(character)
+      jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
+
+      await expect(service.handleButtonInteraction(interaction)).rejects.toBe(originalError)
+
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: 'エラーが発生しました。もう一度お試しください。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
+      expect(interaction.reply).not.toHaveBeenCalled()
+      expect(interaction.editReply).not.toHaveBeenCalled()
+    })
+
+    it('refresh の最終 followUp も失敗したら warn し元例外を伝播する', async () => {
+      const originalError = new HttpException('refresh failed', 409)
+      const notificationError = new Error('followUp failed')
+      const character = buildCharacter()
+      const interaction = createMockButtonInteraction({
+        customId: 'character-refresh-char-123'
+      })
+      mockCharacterService.findOne.mockResolvedValue(character)
+      jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
+      ;(interaction.followUp as jest.Mock).mockRejectedValue(notificationError)
+
+      await expect(service.handleButtonInteraction(interaction)).rejects.toBe(originalError)
+
+      expect(warnSpy).toHaveBeenCalledWith('Failed to send final character refresh error response', notificationError)
+      expect(interaction.followUp).toHaveBeenCalledTimes(1)
     })
 
     it('character-compact-view- で deferReply し editReply で開発中メッセージを返す', async () => {
