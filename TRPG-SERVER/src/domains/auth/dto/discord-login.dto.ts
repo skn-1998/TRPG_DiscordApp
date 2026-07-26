@@ -51,12 +51,3 @@ export class ValidateTokenHeaderDto {
   @Matches(/^Bearer\s.+$/, { message: 'AuthorizationヘッダーはBearerトークン形式で指定してください' })
   readonly Authorization: string
 }
-
-/**
- * :userId/User用パラメータDTO
- */
-export class GetUserParamDto {
-  @IsString({ message: 'userIdは必須です' })
-  @IsNotEmpty({ message: 'userIdは空にできません' })
-  readonly userId: string
-}

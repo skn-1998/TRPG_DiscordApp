@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { Request, Response } from 'express'
+import { Response } from 'express'
 import {
   HttpStatus,
   BadRequestException,
@@ -8,45 +8,24 @@ import {
   CallHandler,
   ArgumentsHost
 } from '@nestjs/common'
-import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
 import { lastValueFrom, of } from 'rxjs'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
-import { UserService } from '../user/user.service'
-import { DiscordLoginDto, ValidateTokenHeaderDto, GetUserParamDto } from './dto/discord-login.dto'
+import { DiscordLoginDto, ValidateTokenHeaderDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
-import { User } from '../user/models/user.model'
 import { CookieService } from '../../core/http/cookie.service'
-import { ResponseInterceptor, HttpExceptionFilter, RESPONSE_MESSAGE_KEY, ApiError } from '../../core/http'
+import { ResponseInterceptor, HttpExceptionFilter, RESPONSE_MESSAGE_KEY } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
-import { JwtAuthGuard } from './guards/jwt-auth.guard'
-
-// Express の Request.user は src/types/express/index.d.ts で
-// `user?: JwtTokenPayload` として拡張されている。テストではこれに準拠する。
-type RequestWithUser = Request & { user: JwtTokenPayload }
 
 describe('AuthController', () => {
   let controller: AuthController
   let authService: jest.Mocked<AuthService>
-  let userService: jest.Mocked<UserService>
   const configValues: Record<string, string> = {
     'app.environment': 'development',
     'app.frontendUrl': 'http://localhost:3000'
-  }
-
-  // テストデータ
-  const mockUser: User = {
-    discordUserId: 'test-discord-id',
-    name: 'Test User',
-    avatarHash: 'test-avatar-hash',
-    characterIds: [],
-    discordAccessToken: 'test-access-token',
-    discordRefreshToken: 'test-refresh-token',
-    discordTokenExpiresAt: new Date('2024-12-31T23:59:59Z'),
-    discordTokenScope: 'identify guilds'
   }
 
   const mockDiscordProfile: DiscordUserProfile = {
@@ -79,11 +58,6 @@ describe('AuthController', () => {
       ip: '127.0.0.1',
       connection: { remoteAddress: '127.0.0.1' }
     }) as any
-
-  const mockAuthenticatedRequest = (discordUserId = mockJwtPayload.discordUserId): RequestWithUser =>
-    ({
-      user: { ...mockJwtPayload, discordUserId }
-    }) as RequestWithUser
 
   const mockResponse = () =>
     ({
@@ -157,16 +131,6 @@ describe('AuthController', () => {
       getUserInfo: jest.fn()
     }
 
-    const userServiceMock = {
-      findOne: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-      findAll: jest.fn(),
-      addCharacterId: jest.fn(),
-      removeCharacterId: jest.fn()
-    }
-
     configValues['app.environment'] = 'development'
     configValues['app.frontendUrl'] = 'http://localhost:3000'
 
@@ -178,20 +142,15 @@ describe('AuthController', () => {
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authServiceMock },
-        { provide: UserService, useValue: userServiceMock },
         { provide: AppConfigService, useValue: appConfigServiceMock },
         // CookieService は res を操作するだけの副作用境界。外部依存が無いため
         // モックせず実体を登録し、res.cookie / res.clearCookie の呼び出しを検証する。
         CookieService
       ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
-      .compile()
+    }).compile()
 
     controller = module.get<AuthController>(AuthController)
     authService = module.get(AuthService)
-    userService = module.get(UserService)
   })
 
   describe('基本機能', () => {
@@ -205,7 +164,6 @@ describe('AuthController', () => {
       expect(controller.validateToken).toBeDefined()
       expect(controller.login).toBeDefined()
       expect(controller.logout).toBeDefined()
-      expect(controller.getUser).toBeDefined()
     })
   })
 
@@ -420,102 +378,6 @@ describe('AuthController', () => {
       const { status, body } = filterError(err)
       expect(status).toBe(500)
       expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'Cookie clear failed' }))
-    })
-  })
-
-  describe('GET /auth/:userId/User', () => {
-    it('uses JwtAuthGuard on this method only', () => {
-      const guards = Reflect.getMetadata(GUARDS_METADATA, AuthController.prototype.getUser) as unknown[]
-
-      expect(guards).toContain(JwtAuthGuard)
-      expect(Reflect.getMetadata(GUARDS_METADATA, AuthController)).toBeUndefined()
-    })
-
-    it('gets only public user fields; envelope equals ApiResponseUtil.success', async () => {
-      const params: GetUserParamDto = { userId: 'test-discord-id' }
-      userService.findOne.mockResolvedValue(mockUser)
-
-      const data = await controller.getUser(params, mockAuthenticatedRequest())
-
-      expect(userService.findOne).toHaveBeenCalledWith('test-discord-id')
-      expect(data).toEqual({
-        user: {
-          discordUserId: mockUser.discordUserId,
-          name: mockUser.name,
-          avatarHash: mockUser.avatarHash,
-          characterIds: mockUser.characterIds
-        }
-      })
-      expect(data.user).not.toHaveProperty('discordAccessToken')
-      expect(data.user).not.toHaveProperty('discordRefreshToken')
-      expect(data.user).not.toHaveProperty('discordTokenExpiresAt')
-      expect(data.user).not.toHaveProperty('discordTokenScope')
-
-      const envelope = await wrapSuccess('getUser', data)
-      expect(envelope).toEqual(
-        expect.objectContaining({
-          success: true,
-          message: '成功',
-          data: expect.objectContaining({ user: data.user })
-        })
-      )
-    })
-
-    it('returns the same 404 for a different authenticated user without querying UserService', async () => {
-      const params: GetUserParamDto = { userId: 'test-discord-id' }
-
-      let thrown: unknown
-      try {
-        await controller.getUser(params, mockAuthenticatedRequest('another-discord-id'))
-      } catch (e) {
-        thrown = e
-      }
-
-      expect(userService.findOne).not.toHaveBeenCalled()
-      const { status, body } = filterError(thrown)
-      expect(status).toBe(404)
-      expect(body).toEqual(
-        expect.objectContaining({
-          success: false,
-          error: `ユーザーID ${params.userId} が見つかりません`
-        })
-      )
-    })
-
-    it('handles user not found; filter yields 404 with "が見つかりません"', async () => {
-      const params: GetUserParamDto = { userId: 'non-existent-user' }
-      userService.findOne.mockResolvedValue(null)
-
-      let thrown: unknown
-      try {
-        await controller.getUser(params, mockAuthenticatedRequest(params.userId))
-      } catch (e) {
-        thrown = e
-      }
-      expect(thrown).toBeInstanceOf(ApiError)
-
-      const { status, body } = filterError(thrown)
-      expect(status).toBe(404)
-      expect(body).toEqual(
-        expect.objectContaining({ success: false, error: expect.stringContaining('が見つかりません') })
-      )
-
-      // 変換前 ApiResponseUtil.error(res, '...が見つかりません', 404) と一致
-      const ref = mockResponse()
-      ApiResponseUtil.error(ref, `ユーザーID ${params.userId} が見つかりません`, 404)
-      expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
-    })
-
-    it('handles database error; filter yields the default 500 envelope', async () => {
-      const params: GetUserParamDto = { userId: 'test-discord-id' }
-      const err = new Error('Database error')
-      userService.findOne.mockRejectedValue(err)
-
-      await expect(controller.getUser(params, mockAuthenticatedRequest())).rejects.toBe(err)
-
-      const { status, body } = filterError(err)
-      expect(status).toBe(500)
-      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'Database error' }))
     })
   })
 
