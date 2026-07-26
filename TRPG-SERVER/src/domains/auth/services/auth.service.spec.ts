@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { JwtService } from '@nestjs/jwt'
-import { UnauthorizedException, HttpException } from '@nestjs/common'
+import { BadRequestException, UnauthorizedException } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { JwtTokenService } from '../token/jwt-token.service'
 import { UserService } from '../../user/user.service'
@@ -40,6 +40,15 @@ describe('AuthService', () => {
     username: 'Test User',
     discordUserId: 'test-discord-id'
   }
+
+  const createDiscordHttpError = (status: number, code: string): Error =>
+    Object.assign(new Error(`Request failed with status code ${status}`), {
+      isAxiosError: true,
+      response: {
+        status,
+        data: { error: code }
+      }
+    })
 
   beforeEach(async () => {
     // JwtService モック
@@ -147,13 +156,13 @@ describe('AuthService', () => {
       await expect(service.validateToken('InvalidToken')).rejects.toThrow(UnauthorizedException)
     })
 
-    it('should throw HttpException for invalid JWT token', async () => {
+    it('should throw UnauthorizedException for invalid JWT token', async () => {
       const mockToken = 'invalid-jwt-token'
       jwtService.verify.mockImplementation(() => {
-        throw new Error('Invalid token')
+        throw Object.assign(new Error('invalid signature'), { name: 'JsonWebTokenError' })
       })
 
-      await expect(service.validateToken(`Bearer ${mockToken}`)).rejects.toThrow(HttpException)
+      await expect(service.validateToken(`Bearer ${mockToken}`)).rejects.toThrow(UnauthorizedException)
     })
   })
 
@@ -199,13 +208,13 @@ describe('AuthService', () => {
       expect(jwtService.verify).toHaveBeenCalledWith(mockToken)
     })
 
-    it('should throw HttpException for invalid JWT token', async () => {
+    it('should throw UnauthorizedException for invalid JWT token', async () => {
       const mockToken = 'invalid-jwt-token'
       jwtService.verify.mockImplementation(() => {
-        throw new Error('Invalid token')
+        throw Object.assign(new Error('jwt malformed'), { name: 'JsonWebTokenError' })
       })
 
-      await expect(service.parseJwt(mockToken)).rejects.toThrow(HttpException)
+      await expect(service.parseJwt(mockToken)).rejects.toThrow(UnauthorizedException)
     })
   })
 
@@ -295,11 +304,22 @@ describe('AuthService', () => {
       expect(result).toEqual(mockAuthResponse)
     })
 
-    it('should handle authentication errors', async () => {
-      const mockCode = 'invalid-code'
-      httpService.post.mockReturnValue(throwError(() => new Error('Auth failed')) as any)
+    it('should classify an invalid or expired Discord code response as 400', async () => {
+      httpService.post.mockReturnValue(throwError(() => createDiscordHttpError(400, 'invalid_grant')) as any)
 
-      await expect(service.authenticate(mockCode)).rejects.toThrow()
+      await expect(service.authenticate('invalid-code')).rejects.toBeInstanceOf(BadRequestException)
+    })
+
+    it('should preserve Discord 5xx as 500', async () => {
+      httpService.post.mockReturnValue(throwError(() => createDiscordHttpError(503, 'server_error')) as any)
+
+      await expect(service.authenticate('valid-code')).rejects.toMatchObject({ status: 500 })
+    })
+
+    it('should preserve network failures as 500', async () => {
+      httpService.post.mockReturnValue(throwError(() => new Error('ECONNRESET')) as any)
+
+      await expect(service.authenticate('valid-code')).rejects.toMatchObject({ status: 500 })
     })
   })
 

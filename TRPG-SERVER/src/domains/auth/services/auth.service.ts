@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { firstValueFrom, lastValueFrom } from 'rxjs'
 import { URLSearchParams } from 'url'
@@ -326,10 +326,26 @@ export class AuthService {
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         this.logger.error(`Discord認証エラー: ${error.message}, レスポンス: ${JSON.stringify(error.response.data)}`)
+        const status = error.response.status
+        const isDiscordClientError = status >= 400 && status < 500
+        if (isDiscordClientError) {
+          throw new BadRequestException('認証コードが無効または期限切れです')
+        }
       } else {
         this.logger.error(`Discord認証エラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       }
-      throw new Error(`認証に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`)
+
+      ErrorHandler.handleServiceError(
+        error,
+        {
+          action: 'discord-oauth-code-exchange',
+          additionalData: { hasCode: !!code }
+        },
+        'AuthService'
+      )
+
+      // ErrorHandler.handleServiceError は Error をスローするため、ここには到達しない
+      throw error
     }
   }
 }

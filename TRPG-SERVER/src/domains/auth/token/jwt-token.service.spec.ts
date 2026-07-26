@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { JwtService } from '@nestjs/jwt'
-import { UnauthorizedException, HttpException } from '@nestjs/common'
+import { UnauthorizedException } from '@nestjs/common'
 import { JwtTokenService } from './jwt-token.service'
 import { JwtTokenPayload } from '../models/auth.token.model'
 
@@ -18,6 +18,9 @@ describe('JwtTokenService', () => {
     username: 'Test User',
     discordUserId: 'test-discord-id'
   }
+
+  const createJwtVerificationError = (name: string, message: string): Error =>
+    Object.assign(new Error(message), { name })
 
   beforeEach(async () => {
     const jwtServiceMock = {
@@ -62,13 +65,21 @@ describe('JwtTokenService', () => {
       await expect(service.validateToken('InvalidToken')).rejects.toThrow(UnauthorizedException)
     })
 
-    it('should throw HttpException for invalid JWT token', async () => {
+    it('should throw UnauthorizedException for invalid JWT token', async () => {
       const mockToken = 'invalid-jwt-token'
       jwtService.verify.mockImplementation(() => {
-        throw new Error('Invalid token')
+        throw createJwtVerificationError('JsonWebTokenError', 'invalid signature')
       })
 
-      await expect(service.validateToken(`Bearer ${mockToken}`)).rejects.toThrow(HttpException)
+      await expect(service.validateToken(`Bearer ${mockToken}`)).rejects.toThrow(UnauthorizedException)
+    })
+
+    it('should throw UnauthorizedException for expired JWT token', async () => {
+      jwtService.verify.mockImplementation(() => {
+        throw createJwtVerificationError('TokenExpiredError', 'jwt expired')
+      })
+
+      await expect(service.validateToken('Bearer expired-jwt-token')).rejects.toThrow(UnauthorizedException)
     })
   })
 
@@ -83,13 +94,21 @@ describe('JwtTokenService', () => {
       expect(jwtService.verify).toHaveBeenCalledWith(mockToken)
     })
 
-    it('should throw HttpException for invalid JWT token', async () => {
+    it('should throw UnauthorizedException for malformed JWT token', async () => {
       const mockToken = 'invalid-jwt-token'
       jwtService.verify.mockImplementation(() => {
-        throw new Error('Invalid token')
+        throw createJwtVerificationError('JsonWebTokenError', 'jwt malformed')
       })
 
-      await expect(service.parseJwt(mockToken)).rejects.toThrow(HttpException)
+      await expect(service.parseJwt(mockToken)).rejects.toThrow(UnauthorizedException)
+    })
+
+    it('should preserve unexpected JWT infrastructure failures as 500', async () => {
+      jwtService.verify.mockImplementation(() => {
+        throw new Error('crypto configuration unavailable')
+      })
+
+      await expect(service.parseJwt('well-formed-jwt-token')).rejects.toMatchObject({ status: 500 })
     })
   })
 })
