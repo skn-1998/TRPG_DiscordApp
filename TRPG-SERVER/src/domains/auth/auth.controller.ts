@@ -11,28 +11,18 @@ import {
   HttpCode,
   HttpStatus,
   Headers,
-  Param,
   Logger,
   BadRequestException
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { Request as ExpressRequest, Response } from 'express'
 import { AuthService } from './services/auth.service'
-import { UserService } from '../user/user.service'
 import { User } from '../user/models/user.model'
-import {
-  DiscordLoginDto,
-  ValidateTokenHeaderDto,
-  TokenValidationOutputDto,
-  GetUserParamDto
-} from './dto/discord-login.dto'
+import { DiscordLoginDto, ValidateTokenHeaderDto, TokenValidationOutputDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { CookieService } from '../../core/http/cookie.service'
-import { ResponseInterceptor, HttpExceptionFilter, ApiError, SkipResponseWrapper } from '../../core/http'
+import { ResponseInterceptor, HttpExceptionFilter, SkipResponseWrapper } from '../../core/http'
 import { AppConfigService } from '../../config/config.service'
-import { JwtAuthGuard } from './guards/jwt-auth.guard'
-import { UserOutputDto } from '../user/dto/update-user.dto'
-import { toUserOutput } from '../user/presenters/user-output.presenter'
 
 // Express型の拡張を使用（src/types/express/index.d.tsで定義）
 
@@ -53,7 +43,6 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
-    private readonly userService: UserService,
     private readonly appConfigService: AppConfigService,
     private readonly cookieService: CookieService // DI追加
   ) {}
@@ -192,29 +181,5 @@ export class AuthController {
       this.logger.error(`ログアウトエラー: ${error instanceof Error ? error.message : '不明なエラー'}`)
       throw error
     }
-  }
-
-  /**
-   * ユーザー情報取得エンドポイント
-   * @param params userIdパラメータ
-   */
-  @Get(':userId/User')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  async getUser(@Param() params: GetUserParamDto, @Req() req: ExpressRequest): Promise<{ user: UserOutputDto }> {
-    const { userId } = params
-    // 本人不一致は対象不在と応答を完全一致させる（404・同一メッセージ）。分岐が対象の存在に依存しない構造を保つ。
-    // 将来他人参照を許す拡張時にも応答差分を作らないための不変条件で、不一致時に findOne を呼ばないのも意図的。
-    // 即時応答の差で漏れるのは本人自身の存在だけで、他人の :userId は対象の存在にかかわらず常に即 404 となる。
-    if (req.user?.discordUserId !== userId) {
-      throw new ApiError(404, 'エラーが発生しました', `ユーザーID ${userId} が見つかりません`)
-    }
-    const userInfo = await this.userService.findOne(userId)
-    if (!userInfo) {
-      // 変換前: ApiResponseUtil.error(res, `ユーザーID ${userId} が見つかりません`, 404)
-      // → status=404, label はデフォルト 'エラーが発生しました', error=渡した文字列
-      throw new ApiError(404, 'エラーが発生しました', `ユーザーID ${userId} が見つかりません`)
-    }
-    return { user: toUserOutput(userInfo) }
   }
 }
