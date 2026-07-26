@@ -40,7 +40,7 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
 
     // 文字列長検証
     validateStringLength(event.createData.characterName, 'characterName', 1, 100)
-    // descriptionはRecord<string, any>型なので文字列検証はスキップ
+    // descriptionはAttributeSection型なので文字列長検証は行わない
 
     // Discord ID検証（存在する場合）
     if (event.createData.discordChannelId) {
@@ -170,7 +170,12 @@ export class CharacterCreationRequestedHandler extends EventHandler<CharacterCre
    */
   protected override isRetryableError(error: Error): boolean {
     // ビジネスロジックエラーはリトライしない
-    if (error instanceof BusinessLogicError || error instanceof ValidationError) {
+    if (
+      error instanceof BusinessLogicError ||
+      error instanceof ValidationError ||
+      error.name === 'BusinessLogicError' ||
+      error.name === 'ValidationError'
+    ) {
       return false
     }
 

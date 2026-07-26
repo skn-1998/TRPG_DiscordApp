@@ -12,19 +12,20 @@ import {
   UseFilters,
   HttpCode,
   HttpStatus,
-  Headers,
-  Req
+  Req,
+  UsePipes,
+  ValidationPipe
 } from '@nestjs/common'
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger'
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
 import { UserService } from './user.service'
-import { CreateUserDto, DiscordUserIdParamDto, CharacterIdParamDto } from './dto/create-user.dto'
-import { UpdateUserDto } from './dto/update-user.dto'
-import { User } from './models/user.model'
+import { DiscordUserIdParamDto, UserCharacterParamDto } from './dto/create-user.dto'
+import { UserOutputDto } from './dto/update-user.dto'
+import { CreateUserProfileDto, UpdateUserProfileDto } from './dto/user-profile.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
 import { ResponseInterceptor, HttpExceptionFilter, ApiErrorResponse, ApiError } from '../../core/http'
+import { toUserOutput } from './presenters/user-output.presenter'
 
 interface RequestWithUser extends Request {
   user: JwtTokenPayload
@@ -37,54 +38,69 @@ interface RequestWithUser extends Request {
  * ApiError(404, 'エラーが発生しました', '...') を throw して再現する。
  */
 @ApiTags('users')
+@ApiBearerAuth()
 @Controller('users')
+@UseGuards(JwtAuthGuard)
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
 @UseInterceptors(ResponseInterceptor)
 @UseFilters(HttpExceptionFilter)
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly jwtTokenService: JwtTokenService
-  ) {}
+  constructor(private readonly userService: UserService) {}
+
+  private extractAuthenticatedDiscordUserId(req: RequestWithUser): string {
+    const discordUserId = req.user?.discordUserId
+    if (!discordUserId) {
+      throw new ApiError(401, 'エラーが発生しました', '認証トークンがありません')
+    }
+    return discordUserId
+  }
+
+  private assertSelf(requestedDiscordUserId: string, authenticatedDiscordUserId: string): void {
+    if (requestedDiscordUserId !== authenticatedDiscordUserId) {
+      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+    }
+  }
 
   @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, description: 'The user has been successfully created.', type: User })
+  @ApiResponse({ status: 200, description: 'The user has been successfully created.', type: UserOutputDto })
   @ApiErrorResponse(500, 'ユーザー作成に失敗しました')
-  async create(@Body() createUserDto: CreateUserDto): Promise<User> {
-    return this.userService.create(createUserDto)
+  async create(@Body() profile: CreateUserProfileDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
+    const discordUserId = this.extractAuthenticatedDiscordUserId(req)
+    const user = await this.userService.create({
+      discordUserId,
+      name: profile.name,
+      avatarHash: profile.avatarHash,
+      characterIds: []
+    })
+    return toUserOutput(user)
   }
 
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get a user by Discord ID' })
-  @ApiResponse({ status: 200, description: 'Return the user.', type: User })
+  @ApiResponse({ status: 200, description: 'Return the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @UseGuards(JwtAuthGuard)
   @ApiErrorResponse(500, 'ユーザー取得に失敗しました')
-  async findOne(@Headers('Authorization') authorization: string): Promise<User> {
-    const token = await this.jwtTokenService.validateToken(authorization)
-    const user = await this.userService.findByDiscordId(token.discordUserId)
+  async findOne(@Req() req: RequestWithUser): Promise<UserOutputDto> {
+    const discordUserId = this.extractAuthenticatedDiscordUserId(req)
+    const user = await this.userService.findByDiscordId(discordUserId)
     if (!user) {
       // 変換前: ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
       throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
     }
-    return user
+    return toUserOutput(user)
   }
 
   @Get('discord/guilds')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get user Discord guilds' })
   @ApiResponse({ status: 200, description: 'Return the user Discord guilds.' })
   @ApiErrorResponse(500, 'Discord Guild一覧取得に失敗しました')
   async getDiscordGuilds(@Req() req: RequestWithUser): Promise<{ guilds: unknown[]; count: number; message: string }> {
-    const user = req.user
-    if (!user || !user.discordUserId) {
-      // 変換前: ApiResponseUtil.error(res, '認証トークンがありません', 401)
-      throw new ApiError(401, 'エラーが発生しました', '認証トークンがありません')
-    }
-    const guilds = await this.userService.getUserDiscordGuilds(user.discordUserId)
+    const discordUserId = this.extractAuthenticatedDiscordUserId(req)
+    const guilds = await this.userService.getUserDiscordGuilds(discordUserId)
     return {
       guilds,
       count: guilds.length,
@@ -95,60 +111,76 @@ export class UserController {
   @Put(':discordUserId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update a user' })
-  @ApiResponse({ status: 200, description: 'The user has been successfully updated.', type: User })
+  @ApiResponse({ status: 200, description: 'The user has been successfully updated.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiErrorResponse(500, 'ユーザー更新に失敗しました')
-  async update(@Param() params: DiscordUserIdParamDto, @Body() updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    @Param() params: DiscordUserIdParamDto,
+    @Body() updateUserDto: UpdateUserProfileDto,
+    @Req() req: RequestWithUser
+  ): Promise<UserOutputDto> {
     const { discordUserId } = params
-    const user = await this.userService.update(discordUserId, updateUserDto)
+    const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
+    this.assertSelf(discordUserId, authenticatedDiscordUserId)
+    const profileUpdate: UpdateUserProfileDto = {
+      ...(updateUserDto.name !== undefined ? { name: updateUserDto.name } : {}),
+      ...(updateUserDto.avatarHash !== undefined ? { avatarHash: updateUserDto.avatarHash } : {})
+    }
+    const user = await this.userService.update(discordUserId, profileUpdate)
     if (!user) {
       throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
     }
-    return user
+    return toUserOutput(user)
   }
 
   @Patch(':discordUserId/characters/:characterId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Add a character to a user' })
-  @ApiResponse({ status: 200, description: 'The character has been added to the user.', type: User })
+  @ApiResponse({ status: 200, description: 'The character has been added to the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiErrorResponse(500, 'キャラクター追加に失敗しました')
-  async addCharacter(@Param() params: DiscordUserIdParamDto & CharacterIdParamDto): Promise<User> {
+  async addCharacter(@Param() params: UserCharacterParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId, characterId } = params
+    const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
+    this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.addCharacterId(discordUserId, characterId)
     if (!user) {
       throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
     }
-    return user
+    return toUserOutput(user)
   }
 
   @Delete(':discordUserId/characters/:characterId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove a character from a user' })
-  @ApiResponse({ status: 200, description: 'The character has been removed from the user.', type: User })
+  @ApiResponse({ status: 200, description: 'The character has been removed from the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiErrorResponse(500, 'キャラクター削除に失敗しました')
-  async removeCharacter(@Param() params: DiscordUserIdParamDto & CharacterIdParamDto): Promise<User> {
+  async removeCharacter(@Param() params: UserCharacterParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId, characterId } = params
+    const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
+    this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.removeCharacterId(discordUserId, characterId)
     if (!user) {
       throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
     }
-    return user
+    return toUserOutput(user)
   }
 
   @Delete(':discordUserId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a user' })
-  @ApiResponse({ status: 200, description: 'The user has been successfully deleted.', type: User })
+  @ApiResponse({ status: 200, description: 'The user has been successfully deleted.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiErrorResponse(500, 'ユーザー削除に失敗しました')
-  async remove(@Param() params: DiscordUserIdParamDto): Promise<User> {
+  async remove(@Param() params: DiscordUserIdParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId } = params
+    const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
+    this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.remove(discordUserId)
     if (!user) {
       throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
     }
-    return user
+    return toUserOutput(user)
   }
 }

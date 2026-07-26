@@ -101,7 +101,6 @@ describe('character-modal-handler.util', () => {
       expect(actualFieldKey).toBe('hp')
       expect(attributeValue).toEqual({
         name: 'HP',
-        index: null,
         values: { base: 20 },
         description: 'desc',
         dice: '1d6',
@@ -114,8 +113,9 @@ describe('character-modal-handler.util', () => {
       expect(actualFieldKey).toBe('hp')
       expect(attributeValue.name).toBe('hp')
       expect(attributeValue.values).toEqual({ base: 5 })
-      expect(attributeValue.description).toBeNull()
-      expect(attributeValue.dice).toBeNull()
+      expect(attributeValue.description).toBeUndefined()
+      expect(attributeValue.dice).toBeUndefined()
+      expect(attributeValue).not.toHaveProperty('index')
     })
 
     it('add_new + name あり: actualFieldKey=name', () => {
@@ -138,15 +138,17 @@ describe('character-modal-handler.util', () => {
       const { attributeValue } = buildAttributeValueFromForm('hp', { name: 'HP', values: 'abc' }, 0)
       expect(attributeValue.values).toEqual({})
     })
+
+    it.each(['30abc', 'Infinity', '1e999'])('有限数でないvalues=%sはbaseへ格納しない', (values) => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { name: 'HP', values }, 0)
+      expect(attributeValue.values).toEqual({})
+    })
   })
 
   describe('isValidAttributeValue', () => {
     const base: BuiltAttributeValue = {
       name: 'HP',
-      index: null,
       values: {},
-      description: null,
-      dice: null,
       isVisible: true
     }
 

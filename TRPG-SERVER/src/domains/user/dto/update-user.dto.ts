@@ -13,9 +13,7 @@ export class UserOutputDto {
   readonly discordUserId: string
   readonly name: string
   readonly avatarHash?: string
-  readonly characterIds?: string[]
-  readonly createdAt?: Date
-  readonly updatedAt?: Date
+  readonly characterIds: string[]
 }
 
 /**

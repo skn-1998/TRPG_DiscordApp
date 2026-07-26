@@ -56,6 +56,7 @@ export const isAttributeNumberParts = (value: unknown): value is AttributeNumber
 export const isAttributeValue = (value: unknown): value is AttributeValue => {
   if (!isRecord(value)) return false
   if (Object.keys(value).some((key) => !ATTRIBUTE_VALUE_KEYS.has(key))) return false
+  if (Object.values(value).some((property) => property === undefined)) return false
 
   return (
     (value.name === undefined || typeof value.name === 'string') &&

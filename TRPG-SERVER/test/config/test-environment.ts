@@ -56,10 +56,8 @@ export function setupTestEnvironment() {
   process.env.DISCORD_APPLICATIONID = testEnvironment.auth.discord.clientId
   process.env.DISCORD_SECRET = testEnvironment.auth.discord.clientSecret
 
-  // MongoDB Atlas URI を優先（すでに設定されている場合は上書きしない）
-  if (!process.env.MONGODB_URI) {
-    process.env.MONGODB_URI = testEnvironment.database.mongo.uri
-  }
+  // 通常テストでは.envの外部URIを継承しない。実DBテストは専用setupがこの後に上書きする。
+  process.env.MONGODB_URI = testEnvironment.database.mongo.uri
 
   process.env.DISCORD_TOKEN_ENCRYPTION_KEY = 'test-encryption-key-32-characters-long'
 

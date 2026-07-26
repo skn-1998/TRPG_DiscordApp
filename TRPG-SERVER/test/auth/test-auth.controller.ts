@@ -4,7 +4,7 @@ import { Response } from 'express'
 import { AuthService } from '../../src/domains/auth/services/auth.service'
 import { UserService } from '../../src/domains/user/user.service'
 import { User } from '../../src/domains/user/models/user.model'
-import { CookieService } from '../../src/utils/cookie.service'
+import { CookieService } from '../../src/core/http/cookie.service'
 import { ApiResponseUtil } from '../../src/utils/api-response.util'
 
 interface TestLoginDto {

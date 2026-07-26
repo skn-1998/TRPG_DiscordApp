@@ -1,6 +1,10 @@
 import { Test } from '@nestjs/testing'
 import { CharacterCreationRequestedHandler } from './character.creation.requested'
-import { CharacterCreationCoreService } from '../../domains/character/services/character-creation-core.service'
+import {
+  CharacterCreationBusinessError,
+  CharacterCreationCoreService,
+  CharacterCreationValidationError
+} from '../../domains/character/services/character-creation-core.service'
 import { ValidationError, BusinessLogicError } from './_shared/event-handler.base'
 import { CharacterCreationRequestedEvent } from '../contracts/unified-event-contracts'
 
@@ -117,7 +121,7 @@ describe('CharacterCreationRequestedHandler', () => {
 
     it('description が指定されていれば createData ごと creationCore に渡す', async () => {
       // Arrange
-      const description = { note: 'メモ' }
+      const description = { note: { description: 'メモ' } }
       const event = buildEvent({ createData: { ...baseCreateData(), description } })
 
       // Act
@@ -255,6 +259,20 @@ describe('CharacterCreationRequestedHandler', () => {
 
     it('ValidationError はリトライ不可', () => {
       const result = (handler as any).isRetryableError(new ValidationError('x'))
+      expect(result).toBe(false)
+    })
+
+    it('domain版ValidationErrorは本文にTimeoutErrorがあってもリトライ不可', () => {
+      const result = (handler as any).isRetryableError(
+        new CharacterCreationValidationError('TimeoutError in invalid parameter')
+      )
+      expect(result).toBe(false)
+    })
+
+    it('domain版BusinessLogicErrorは本文にNetworkErrorがあってもリトライ不可', () => {
+      const result = (handler as any).isRetryableError(
+        new CharacterCreationBusinessError('NetworkError but not retryable')
+      )
       expect(result).toBe(false)
     })
 

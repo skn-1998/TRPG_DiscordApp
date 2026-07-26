@@ -6,6 +6,16 @@
     "types": ["jest", "node"],
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
+      "@app/*": ["./src/*"],
+      "@config/*": ["./src/config/*"],
+      "@domains/*": ["./src/domains/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@discord/*": ["./src/discord/*"],
+      "@events/*": ["./src/events/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@middleware/*": ["./src/middleware/*"],
       "@discord-test-utils": ["./test/discord-test-utils/index.ts"],
       "@discord-test-utils/*": ["./test/discord-test-utils/*"],
       // src を baseUrl とした本体コードの import 解決（tsconfig.json と同等）

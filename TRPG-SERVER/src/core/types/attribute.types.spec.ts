@@ -12,6 +12,11 @@ import {
 
 describe('attribute.types', () => {
   describe('AttributeValue 実行時契約', () => {
+    it('空AttributeValueとoptional keyの省略を正準形として受理する', () => {
+      expect(isAttributeValue({})).toBe(true)
+      expect(isAttributeSection({ HP: {} })).toBe(true)
+    })
+
     it('有限数だけの values と dice を持つ正準形を受理する', () => {
       const value = {
         name: '目星',
@@ -32,6 +37,7 @@ describe('attribute.types', () => {
       ['配列 values', { STR: { values: [50] } }],
       ['数値 dice', { STR: { values: { base: 50 }, dice: 100 } }],
       ['null プロパティ', { STR: { values: {}, description: null } }],
+      ['明示的 undefined プロパティ', { STR: { values: {}, dice: undefined } }],
       ['未知プロパティ', { STR: { value: 50 } }],
       ['非プレーンオブジェクト', { STR: new Date() }]
     ])('%s を正準形として受理しない', (_label, section) => {

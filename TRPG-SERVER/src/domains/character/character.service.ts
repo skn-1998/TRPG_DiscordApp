@@ -23,12 +23,12 @@ export class CharacterService {
    */
   private convertDtoToAttributeValue(dto: AttributeValueDto): AttributeValue {
     return {
-      name: dto.name,
-      index: dto.index,
-      values: dto.values || {},
-      description: dto.description,
-      dice: dto.dice,
-      isVisible: dto.isVisible
+      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.index !== undefined ? { index: dto.index } : {}),
+      values: { ...(dto.values ?? {}) },
+      ...(dto.description !== undefined ? { description: dto.description } : {}),
+      ...(dto.dice !== undefined ? { dice: dto.dice } : {}),
+      ...(dto.isVisible !== undefined ? { isVisible: dto.isVisible } : {})
     }
   }
 

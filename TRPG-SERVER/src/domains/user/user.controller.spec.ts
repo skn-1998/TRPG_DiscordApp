@@ -5,12 +5,13 @@ import { Response } from 'express'
 import { lastValueFrom, of } from 'rxjs'
 import { UserController } from './user.controller'
 import { UserService } from './user.service'
-import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { ResponseInterceptor, HttpExceptionFilter, ApiError } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
+import { GUARDS_METADATA } from '@nestjs/common/constants'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 
 describe('UserController', () => {
   let controller: UserController
@@ -21,6 +22,18 @@ describe('UserController', () => {
     name: 'Test User',
     characterIds: []
   }
+
+  const privateUser = {
+    ...mockUser,
+    discordAccessToken: 'encrypted-access',
+    discordRefreshToken: 'encrypted-refresh',
+    discordTokenExpiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    discordTokenScope: 'identify guilds'
+  }
+
+  const mockRequest = (discordUserId = 'discord123') => ({
+    user: { discordUserId, username: 'testuser' }
+  })
 
   const mockUserService = {
     create: jest.fn(),
@@ -98,6 +111,17 @@ describe('UserController', () => {
     )
   }
 
+  const expectNotFound = async (action: () => Promise<unknown>): Promise<void> => {
+    let thrown: unknown
+    try {
+      await action()
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(ApiError)
+    expect((thrown as ApiError).getStatus()).toBe(404)
+  }
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -117,17 +141,27 @@ describe('UserController', () => {
     expect(controller).toBeDefined()
   })
 
+  it('controller全体がJwtAuthGuardで保護される', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, UserController) as unknown[]
+
+    expect(guards).toContain(JwtAuthGuard)
+  })
+
   describe('create', () => {
     it('should create a user', async () => {
-      const createUserDto: CreateUserDto = {
-        discordUserId: 'discord123',
+      const createUserDto = {
         name: 'Test User'
       }
       mockUserService.create.mockResolvedValue(mockUser)
 
-      const data = await controller.create(createUserDto)
+      const data = await controller.create(createUserDto, mockRequest() as any)
 
-      expect(service.create).toHaveBeenCalledWith(createUserDto)
+      expect(service.create).toHaveBeenCalledWith({
+        discordUserId: 'discord123',
+        name: 'Test User',
+        avatarHash: undefined,
+        characterIds: []
+      })
       expect(data).toEqual(mockUser)
       await expectSuccessEnvelope('create', data)
     })
@@ -137,9 +171,8 @@ describe('UserController', () => {
     it('should return a user resolved from the authorization token', async () => {
       mockUserService.findByDiscordId.mockResolvedValue(mockUser)
 
-      const data = await controller.findOne('Bearer valid-token')
+      const data = await controller.findOne(mockRequest() as any)
 
-      expect(mockJwtTokenService.validateToken).toHaveBeenCalledWith('Bearer valid-token')
       expect(service.findByDiscordId).toHaveBeenCalledWith('discord123')
       expect(data).toEqual(mockUser)
       await expectSuccessEnvelope('findOne', data)
@@ -150,7 +183,7 @@ describe('UserController', () => {
 
       let thrown: unknown
       try {
-        await controller.findOne('Bearer valid-token')
+        await controller.findOne(mockRequest() as any)
       } catch (e) {
         thrown = e
       }
@@ -173,7 +206,7 @@ describe('UserController', () => {
       const updatedUser = { ...mockUser, name: 'Updated Name' }
       mockUserService.update.mockResolvedValue(updatedUser)
 
-      const data = await controller.update({ discordUserId: 'discord123' }, updateUserDto)
+      const data = await controller.update({ discordUserId: 'discord123' }, updateUserDto, mockRequest() as any)
 
       expect(service.update).toHaveBeenCalledWith('discord123', updateUserDto)
       expect(data).toEqual(updatedUser)
@@ -186,7 +219,10 @@ describe('UserController', () => {
       const updatedUser = { ...mockUser, characterIds: ['character123'] }
       mockUserService.addCharacterId.mockResolvedValue(updatedUser)
 
-      const data = await controller.addCharacter({ discordUserId: 'discord123', characterId: 'character123' })
+      const data = await controller.addCharacter(
+        { discordUserId: 'discord123', characterId: 'character123' },
+        mockRequest() as any
+      )
 
       expect(service.addCharacterId).toHaveBeenCalledWith('discord123', 'character123')
       expect(data).toEqual(updatedUser)
@@ -199,7 +235,10 @@ describe('UserController', () => {
       const updatedUser = { ...mockUser, characterIds: [] }
       mockUserService.removeCharacterId.mockResolvedValue(updatedUser)
 
-      const data = await controller.removeCharacter({ discordUserId: 'discord123', characterId: 'character123' })
+      const data = await controller.removeCharacter(
+        { discordUserId: 'discord123', characterId: 'character123' },
+        mockRequest() as any
+      )
 
       expect(service.removeCharacterId).toHaveBeenCalledWith('discord123', 'character123')
       expect(data).toEqual(updatedUser)
@@ -211,11 +250,98 @@ describe('UserController', () => {
     it('should remove a user', async () => {
       mockUserService.remove.mockResolvedValue(mockUser)
 
-      const data = await controller.remove({ discordUserId: 'discord123' })
+      const data = await controller.remove({ discordUserId: 'discord123' }, mockRequest() as any)
 
       expect(service.remove).toHaveBeenCalledWith('discord123')
       expect(data).toEqual(mockUser)
       await expectSuccessEnvelope('remove', data)
+    })
+  })
+
+  describe('認証・所有権・出力契約', () => {
+    it('認証主体が無い場合は401で停止しserviceを呼ばない', async () => {
+      let thrown: unknown
+      try {
+        await controller.findOne({ user: null } as any)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ApiError)
+      expect((thrown as ApiError).getStatus()).toBe(401)
+      expect(service.findByDiscordId).not.toHaveBeenCalled()
+    })
+
+    it('create は認証主体のIDと公開プロフィール項目だけをserviceへ渡す', async () => {
+      mockUserService.create.mockResolvedValue(privateUser)
+      const body = {
+        discordUserId: 'victim',
+        name: 'Test User',
+        avatarHash: 'avatar',
+        characterIds: ['foreign-character'],
+        discordAccessToken: 'client-supplied-token'
+      }
+
+      const data = await (controller as any).create(body, mockRequest())
+
+      expect(service.create).toHaveBeenCalledWith({
+        discordUserId: 'discord123',
+        name: 'Test User',
+        avatarHash: 'avatar',
+        characterIds: []
+      })
+      expect(data).toEqual({
+        discordUserId: 'discord123',
+        name: 'Test User',
+        characterIds: []
+      })
+    })
+
+    it('findOne は認証主体だけを取得しtoken項目を返さない', async () => {
+      mockUserService.findByDiscordId.mockResolvedValue(privateUser)
+
+      const data = await (controller as any).findOne(mockRequest())
+
+      expect(service.findByDiscordId).toHaveBeenCalledWith('discord123')
+      expect(data).toEqual({
+        discordUserId: 'discord123',
+        name: 'Test User',
+        characterIds: []
+      })
+      expect(data).not.toHaveProperty('discordAccessToken')
+      expect(data).not.toHaveProperty('discordRefreshToken')
+    })
+
+    it('update は認証主体と異なるpathのユーザーを404で拒否し永続化しない', async () => {
+      mockUserService.update.mockResolvedValue(privateUser)
+
+      await expectNotFound(() =>
+        (controller as any).update({ discordUserId: 'victim' }, { name: 'Changed' }, mockRequest())
+      )
+      expect(service.update).not.toHaveBeenCalled()
+    })
+
+    it('update は公開プロフィール項目だけをserviceへ渡す', async () => {
+      mockUserService.update.mockResolvedValue(privateUser)
+
+      await (controller as any).update(
+        { discordUserId: 'discord123' },
+        { name: 'Changed', discordAccessToken: 'client-supplied-token', characterIds: ['foreign'] },
+        mockRequest()
+      )
+
+      expect(service.update).toHaveBeenCalledWith('discord123', {
+        name: 'Changed'
+      })
+    })
+
+    it.each([
+      ['addCharacter', 'addCharacterId', { discordUserId: 'victim', characterId: 'c1' }],
+      ['removeCharacter', 'removeCharacterId', { discordUserId: 'victim', characterId: 'c1' }],
+      ['remove', 'remove', { discordUserId: 'victim' }]
+    ] as const)('%s は認証主体と異なるpathを拒否する', async (method, serviceMethod, params) => {
+      await expectNotFound(() => (controller[method] as any)(params, mockRequest()))
+      expect(service[serviceMethod]).not.toHaveBeenCalled()
     })
   })
 })

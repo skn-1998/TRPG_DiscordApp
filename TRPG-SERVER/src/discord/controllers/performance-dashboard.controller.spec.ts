@@ -18,6 +18,16 @@ describe('PerformanceDashboardController', () => {
   let orchestrator: OrchestratorMock
   let appConfig: { get: jest.Mock }
   let controller: PerformanceDashboardController
+  let memoryUsageSpy: jest.SpyInstance
+
+  const mb = 1024 * 1024
+  const buildMemoryUsage = (heapUsedMB: number): NodeJS.MemoryUsage => ({
+    rss: 0,
+    heapTotal: 2000 * mb,
+    heapUsed: heapUsedMB * mb,
+    external: 0,
+    arrayBuffers: 0
+  })
 
   // getPerformanceSummary が返す代表的なサマリ
   const buildSummary = () => ({
@@ -29,11 +39,15 @@ describe('PerformanceDashboardController', () => {
     },
     trends: { hourly: [], daily: [] },
     health: { status: 'healthy', issues: [], metrics: { avgResponseTime: 100, errorRate: 0.1, activeAlerts: 0 } },
-    memory: process.memoryUsage(),
+    memory: buildMemoryUsage(100),
     uptime: 123
   })
 
   beforeEach(async () => {
+    // getHealthStatus は実プロセスの heapUsed を 800MB/1200MB 閾値と比較する。
+    // 全量実行時はワーカーのヒープが閾値を跨いでフレークするため、常に固定値にする
+    memoryUsageSpy = jest.spyOn(process, 'memoryUsage').mockReturnValue(buildMemoryUsage(100))
+
     orchestrator = {
       getPerformanceSummary: jest.fn().mockReturnValue(buildSummary()),
       getSystemHealth: jest.fn().mockReturnValue({
@@ -106,14 +120,7 @@ describe('PerformanceDashboardController', () => {
 
     it('ヒープ使用量が 800MB 超のとき warning に昇格し issue を追加する', async () => {
       // Arrange: process.memoryUsage を 900MB heapUsed に固定
-      const mb = 1024 * 1024
-      jest.spyOn(process, 'memoryUsage').mockReturnValue({
-        rss: 0,
-        heapTotal: 1000 * mb,
-        heapUsed: 900 * mb,
-        external: 0,
-        arrayBuffers: 0
-      } as NodeJS.MemoryUsage)
+      memoryUsageSpy.mockReturnValue(buildMemoryUsage(900))
 
       // Act
       const result = await controller.getHealthStatus()
@@ -125,14 +132,7 @@ describe('PerformanceDashboardController', () => {
 
     it('ヒープ使用量が 1200MB 超のとき critical になる', async () => {
       // Arrange
-      const mb = 1024 * 1024
-      jest.spyOn(process, 'memoryUsage').mockReturnValue({
-        rss: 0,
-        heapTotal: 2000 * mb,
-        heapUsed: 1300 * mb,
-        external: 0,
-        arrayBuffers: 0
-      } as NodeJS.MemoryUsage)
+      memoryUsageSpy.mockReturnValue(buildMemoryUsage(1300))
 
       // Act
       const result = await controller.getHealthStatus()
