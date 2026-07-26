@@ -123,6 +123,100 @@ describe('EventHandler（抽象基底クラス）', () => {
       jest.useRealTimers()
     })
 
+    it('再試行が非リトライエラーで失敗しても拒否を漏らさずデッドレターへ移動する', async () => {
+      // Arrange
+      jest.useFakeTimers()
+      const event = { type: 'test.event' }
+      const retryableError = new Error('socket ECONNRESET')
+      const terminalError = new BusinessLogicError('CHARACTER_ALREADY_EXISTS')
+      handler.handleMock.mockRejectedValueOnce(retryableError).mockRejectedValueOnce(terminalError)
+      const moveToDeadLetterQueueSpy = jest.spyOn(handler as any, 'moveToDeadLetterQueue')
+      const loggerErrorSpy = (handler as any).logger.error as jest.Mock
+
+      // Act
+      await handler.execute(event)
+      await jest.advanceTimersByTimeAsync(1000)
+
+      // Assert
+      expect(handler.handleMock).toHaveBeenCalledTimes(2)
+      expect(moveToDeadLetterQueueSpy).toHaveBeenCalledWith(
+        event,
+        expect.objectContaining({
+          retryCount: 1,
+          retryReason: retryableError.message
+        }),
+        terminalError
+      )
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '🚨 Retry failed permanently for test.event',
+        expect.objectContaining({
+          eventName: 'test.event',
+          error: terminalError.message,
+          retryCount: 1
+        })
+      )
+
+      jest.useRealTimers()
+    })
+
+    it('リトライ終端時のデッドレター移動が拒否してもタイマーコールバックは解決する', async () => {
+      // Arrange
+      const event = { type: 'test.event' }
+      const retryableError = new Error('socket ECONNRESET')
+      const terminalError = new BusinessLogicError('CHARACTER_ALREADY_EXISTS')
+      let retryCallback: (() => Promise<void>) | undefined
+      jest.spyOn(global, 'setTimeout').mockImplementation(((callback: () => Promise<void>) => {
+        retryCallback = callback
+        return {} as ReturnType<typeof setTimeout>
+      }) as typeof setTimeout)
+      handler.handleMock.mockRejectedValueOnce(retryableError).mockRejectedValueOnce(terminalError)
+      const moveToDeadLetterQueueSpy = jest
+        .spyOn(handler as any, 'moveToDeadLetterQueue')
+        .mockRejectedValue(new Error('dead letter queue failed'))
+
+      await handler.execute(event)
+      expect(retryCallback).toBeDefined()
+
+      // Act & Assert
+      await expect(retryCallback!()).resolves.toBeUndefined()
+      expect(moveToDeadLetterQueueSpy).toHaveBeenCalledWith(
+        event,
+        expect.objectContaining({ retryCount: 1, retryReason: retryableError.message }),
+        terminalError
+      )
+    })
+
+    it('リトライ終端ログが throw してもタイマーコールバックは解決する', async () => {
+      // Arrange
+      const event = { type: 'test.event' }
+      const retryableError = new Error('socket ECONNRESET')
+      const terminalError = new BusinessLogicError('CHARACTER_ALREADY_EXISTS')
+      let retryCallback: (() => Promise<void>) | undefined
+      jest.spyOn(global, 'setTimeout').mockImplementation(((callback: () => Promise<void>) => {
+        retryCallback = callback
+        return {} as ReturnType<typeof setTimeout>
+      }) as typeof setTimeout)
+      handler.handleMock.mockRejectedValueOnce(retryableError).mockRejectedValueOnce(terminalError)
+      const moveToDeadLetterQueueSpy = jest.spyOn(handler as any, 'moveToDeadLetterQueue')
+      const loggerErrorSpy = (handler as any).logger.error as jest.Mock
+      loggerErrorSpy.mockImplementation((message: string) => {
+        if (message === '🚨 Retry failed permanently for test.event') {
+          throw new Error('terminal logger failed')
+        }
+      })
+
+      await handler.execute(event)
+      expect(retryCallback).toBeDefined()
+
+      // Act & Assert
+      await expect(retryCallback!()).resolves.toBeUndefined()
+      expect(moveToDeadLetterQueueSpy).toHaveBeenCalledWith(
+        event,
+        expect.objectContaining({ retryCount: 1, retryReason: retryableError.message }),
+        terminalError
+      )
+    })
+
     it('最大リトライ回数を超えるとデッドレターへ移動し再 execute しない', async () => {
       // Arrange
       jest.useFakeTimers()
