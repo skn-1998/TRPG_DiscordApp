@@ -1,4 +1,4 @@
-import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common'
+import { ArgumentsHost, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
 import { Response } from 'express'
 import {
   CharacterHttpExceptionFilter,
@@ -30,7 +30,8 @@ describe('CharacterHttpExceptionFilter', () => {
     host = {
       switchToHttp: () => ({
         getResponse: () => res as unknown as Response
-      })
+      }),
+      getHandler: () => null
     } as unknown as ArgumentsHost
   })
 
@@ -60,6 +61,81 @@ describe('CharacterHttpExceptionFilter', () => {
       const payload = lastJson()
       expect(payload.errorCode).toBe('NOT_FOUND_ERROR')
       expect(payload.error).toBe('キャラクターが見つかりません')
+    })
+
+    it('その他の UnauthorizedException は 401 と例外メッセージを維持する', () => {
+      filter.catch(new UnauthorizedException('無効な認証トークンです'), host)
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
+      expect(lastJson()).toEqual(
+        expect.objectContaining({
+          success: false,
+          message: 'エラーが発生しました',
+          error: '無効な認証トークンです'
+        })
+      )
+    })
+
+    it('その他の BadRequestException は 400 と object response の message を維持する', () => {
+      filter.catch(new BadRequestException('入力値が不正です'), host)
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST)
+      expect(lastJson()).toEqual(
+        expect.objectContaining({
+          success: false,
+          message: 'エラーが発生しました',
+          error: '入力値が不正です'
+        })
+      )
+    })
+
+    it.each([
+      {
+        caseName: '文字列 response',
+        exception: new HttpException('plain-string', HttpStatus.CONFLICT),
+        expectedStatus: HttpStatus.CONFLICT,
+        expectedError: 'plain-string'
+      },
+      {
+        caseName: '配列 message',
+        exception: new BadRequestException(['a', 'b']),
+        expectedStatus: HttpStatus.BAD_REQUEST,
+        expectedError: 'a, b'
+      },
+      {
+        caseName: '数値 message',
+        exception: new HttpException({ message: 123 }, HttpStatus.BAD_REQUEST),
+        expectedStatus: HttpStatus.BAD_REQUEST,
+        expectedError: '123'
+      }
+    ])(
+      '$caseName は status=$expectedStatus・error=$expectedError に整形する',
+      ({ exception, expectedStatus, expectedError }) => {
+        filter.catch(exception, host)
+
+        expect(res.status).toHaveBeenCalledWith(expectedStatus)
+        expect(lastJson().error).toBe(expectedError)
+      }
+    )
+
+    it.each([
+      { environment: 'development', expectedStack: true },
+      { environment: 'test', expectedStack: false }
+    ])('app.environment=$environment の stack 有無を反映する', ({ environment, expectedStack }) => {
+      const configService = {
+        get: (path: string) => (path === 'app.environment' ? environment : undefined)
+      } as unknown as import('../../config/config.service').AppConfigService
+      const environmentFilter = new CharacterHttpExceptionFilter(configService)
+      const exception = new HttpException('stack-target', HttpStatus.CONFLICT)
+
+      environmentFilter.catch(exception, host)
+
+      const payload = lastJson()
+      if (expectedStack) {
+        expect(payload.stack).toBe(exception.stack)
+      } else {
+        expect(payload.stack).toBeUndefined()
+      }
     })
 
     it('素の Error は 500・INTERNAL_SERVER_ERROR で message を抽出する', () => {

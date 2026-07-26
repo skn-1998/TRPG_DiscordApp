@@ -7,6 +7,7 @@ import {
   InternalServerErrorResponse,
   NotFoundErrorResponse
 } from '../../core/dto/api-response.dto'
+import { getHttpExceptionMessage } from '../../core/http/http-exception-message'
 import { AppConfigService } from '../../config/config.service'
 
 /**
@@ -25,7 +26,8 @@ import { AppConfigService } from '../../config/config.service'
  *   （変換前 ApiResponseUtil.authenticationError(res, message) と一致）
  * - CharacterNotFoundException      → 404 / NotFoundErrorResponse
  *   （変換前 ApiResponseUtil.notFoundError(res, resource) と一致）
- * - それ以外（素の Error 等）        → 500 / InternalServerErrorResponse
+ * - その他の HttpException          → getStatus() / ErrorResponse
+ * - 非 HttpException（素の Error 等） → 500 / InternalServerErrorResponse
  *   （変換前 ApiResponseUtil.internalServerError(res, error) と一致）
  *
  * グローバル登録はせず、character.controller の @UseFilters でのみ適用する。
@@ -53,6 +55,20 @@ export class CharacterHttpExceptionFilter implements ExceptionFilter {
       // 変換前: ApiResponseUtil.notFoundError(res, resource)
       const response = new NotFoundErrorResponse(exception.resource, requestId)
       res.status(HttpStatus.NOT_FOUND).json(response)
+      return
+    }
+
+    if (exception instanceof HttpException) {
+      const response = new ErrorResponse(
+        getHttpExceptionMessage(exception),
+        'エラーが発生しました',
+        undefined,
+        undefined,
+        exception.stack,
+        requestId,
+        includeStack
+      )
+      res.status(exception.getStatus()).json(response)
       return
     }
 

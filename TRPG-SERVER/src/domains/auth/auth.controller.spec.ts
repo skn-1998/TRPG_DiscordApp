@@ -1,6 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { Request, Response } from 'express'
-import { HttpStatus, BadRequestException, ExecutionContext, CallHandler, ArgumentsHost } from '@nestjs/common'
+import {
+  HttpStatus,
+  BadRequestException,
+  UnauthorizedException,
+  ExecutionContext,
+  CallHandler,
+  ArgumentsHost
+} from '@nestjs/common'
+import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
 import { lastValueFrom, of } from 'rxjs'
 import { AuthController } from './auth.controller'
@@ -11,16 +19,10 @@ import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
 import { User } from '../user/models/user.model'
 import { CookieService } from '../../core/http/cookie.service'
-import {
-  ResponseInterceptor,
-  HttpExceptionFilter,
-  RESPONSE_MESSAGE_KEY,
-  API_ERROR_RESPONSE_KEY,
-  ApiError,
-  ApiErrorResponseMeta
-} from '../../core/http'
+import { ResponseInterceptor, HttpExceptionFilter, RESPONSE_MESSAGE_KEY, ApiError } from '../../core/http'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
 
 // Express の Request.user は src/types/express/index.d.ts で
 // `user?: JwtTokenPayload` として拡張されている。テストではこれに準拠する。
@@ -78,6 +80,11 @@ describe('AuthController', () => {
       connection: { remoteAddress: '127.0.0.1' }
     }) as any
 
+  const mockAuthenticatedRequest = (discordUserId = mockJwtPayload.discordUserId): RequestWithUser =>
+    ({
+      user: { ...mockJwtPayload, discordUserId }
+    }) as RequestWithUser
+
   const mockResponse = () =>
     ({
       cookie: jest.fn(),
@@ -96,11 +103,9 @@ describe('AuthController', () => {
 
   const reflector = new Reflector()
 
-  /** メソッド名から @ResponseMessage / @ApiErrorResponse メタを実機同様に読む */
+  /** メソッド名から @ResponseMessage メタを実機同様に読む */
   const readMessage = (method: keyof AuthController): string =>
     reflector.get<string>(RESPONSE_MESSAGE_KEY, controller[method] as any) ?? '成功'
-  const readErrorMeta = (method: keyof AuthController): ApiErrorResponseMeta | undefined =>
-    reflector.get<ApiErrorResponseMeta>(API_ERROR_RESPONSE_KEY, controller[method] as any)
 
   /** ハンドラの戻り値を ResponseInterceptor に通して最終 envelope を得る */
   const wrapSuccess = async (method: keyof AuthController, data: unknown): Promise<any> => {
@@ -111,7 +116,7 @@ describe('AuthController', () => {
   }
 
   /** ハンドラから throw された例外を HttpExceptionFilter に通して最終 envelope/status を得る */
-  const filterError = (method: keyof AuthController, error: unknown): { status: number; body: any } => {
+  const filterError = (error: unknown): { status: number; body: any } => {
     // P1-C: filter は AppConfigService から dev 判定（includeStack）を得る。
     // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
     const mockAppConfig = {
@@ -131,7 +136,7 @@ describe('AuthController', () => {
     } as unknown as Response
     const host = {
       switchToHttp: () => ({ getResponse: () => res, getRequest: () => ({}) }),
-      getHandler: () => controller[method]
+      getHandler: () => null
     } as unknown as ArgumentsHost
     filter.catch(error, host)
     return { status: captured.status!, body: captured.body }
@@ -179,7 +184,10 @@ describe('AuthController', () => {
         // モックせず実体を登録し、res.cookie / res.clearCookie の呼び出しを検証する。
         CookieService
       ]
-    }).compile()
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile()
 
     controller = module.get<AuthController>(AuthController)
     authService = module.get(AuthService)
@@ -224,26 +232,29 @@ describe('AuthController', () => {
       expect(res.redirect).toHaveBeenCalled()
     })
 
-    it('should throw on missing profile (filter integrates to 401/Discord認証コールバックに失敗しました)', async () => {
+    it('should throw on missing profile; filter preserves BadRequestException as 400', async () => {
       const req = { ...mockRequest(), user: null }
       const res = mockResponse()
 
-      // 変換後: profile 不在は例外を throw（filter が 401 整形）。res は触らない。
+      // 変換後: profile 不在は例外を throw（filter が 400 整形）。res は触らない。
       await expect(controller.discordLoginCallback(req, res)).rejects.toBeInstanceOf(BadRequestException)
       expect(res.cookie).not.toHaveBeenCalled()
       expect(res.redirect).not.toHaveBeenCalled()
 
-      // filter を通すと変換前の ApiResponseUtil.error(res, error, 401, label) と一致
       let thrown: unknown
       try {
         await controller.discordLoginCallback(req, res)
       } catch (e) {
         thrown = e
       }
-      const { status, body } = filterError('discordLoginCallback', thrown)
-      expect(status).toBe(401)
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(400)
       expect(body).toEqual(
-        expect.objectContaining({ success: false, message: 'Discord認証コールバックに失敗しました' })
+        expect.objectContaining({
+          success: false,
+          message: 'エラーが発生しました',
+          error: 'プロファイル情報が取得できませんでした'
+        })
       )
     })
 
@@ -292,33 +303,30 @@ describe('AuthController', () => {
       expect(readMessage('validateToken')).toBe('成功')
     })
 
-    it('throws on invalid token; filter yields 401/トークン検証に失敗しました', async () => {
+    it('preserves invalid-token UnauthorizedException as 401', async () => {
       const headers: ValidateTokenHeaderDto = { Authorization: 'Bearer invalid-token' }
-      const err = new Error('Invalid token')
+      const err = new UnauthorizedException('トークンが無効です')
       authService.validateToken.mockRejectedValue(err)
 
       await expect(controller.validateToken(headers)).rejects.toBe(err)
 
-      const { status, body } = filterError('validateToken', err)
+      const { status, body } = filterError(err)
       expect(status).toBe(401)
-      expect(body).toEqual(
-        expect.objectContaining({ message: 'トークン検証に失敗しました', error: expect.any(String) })
-      )
+      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'トークンが無効です' }))
 
-      // 変換前の ApiResponseUtil.error と完全一致（requestId/timestamp 除く）
       const ref = mockResponse()
-      ApiResponseUtil.error(ref, err, 401, 'トークン検証に失敗しました')
+      ApiResponseUtil.error(ref, err, 401)
       expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
     })
 
     it('delegates empty authorization header to AuthService (DTO validation is by pipes)', async () => {
       const headers = { Authorization: '' } as any
-      const err = new Error('認証ヘッダーが無効または欠落しています')
+      const err = new UnauthorizedException('認証ヘッダーが無効または欠落しています')
       authService.validateToken.mockRejectedValue(err)
 
       await expect(controller.validateToken(headers)).rejects.toBe(err)
       expect(authService.validateToken).toHaveBeenCalledWith('')
-      expect(filterError('validateToken', err).status).toBe(401)
+      expect(filterError(err).status).toBe(401)
     })
   })
 
@@ -366,15 +374,15 @@ describe('AuthController', () => {
       expect(authService.authenticate).not.toHaveBeenCalled()
     })
 
-    it('handles authentication error; filter yields 401', async () => {
+    it('preserves invalid-code BadRequestException as 400', async () => {
       const loginDto: DiscordLoginDto = { code: 'invalid-code' }
       const req = mockRequest()
       const res = mockResponse()
-      const err = new Error('Authentication failed')
+      const err = new BadRequestException('認証コードが無効または期限切れです')
       authService.authenticate.mockRejectedValue(err)
 
       await expect(controller.login(loginDto, req, res)).rejects.toBe(err)
-      expect(filterError('login', err).status).toBe(401)
+      expect(filterError(err).status).toBe(400)
     })
   })
 
@@ -399,7 +407,7 @@ describe('AuthController', () => {
       )
     })
 
-    it('handles logout error; filter yields 500/ログアウトに失敗しました', async () => {
+    it('handles logout error; filter yields the default 500 envelope', async () => {
       const req = mockRequest()
       const res = mockResponse()
       const err = new Error('Cookie clear failed')
@@ -409,30 +417,67 @@ describe('AuthController', () => {
 
       await expect(controller.logout(req, res)).rejects.toBe(err)
 
-      const { status, body } = filterError('logout', err)
+      const { status, body } = filterError(err)
       expect(status).toBe(500)
-      expect(body).toEqual(
-        expect.objectContaining({ message: 'ログアウトに失敗しました', error: 'Cookie clear failed' })
-      )
+      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'Cookie clear failed' }))
     })
   })
 
   describe('GET /auth/:userId/User', () => {
-    it('gets user successfully; envelope equals ApiResponseUtil.success', async () => {
+    it('uses JwtAuthGuard on this method only', () => {
+      const guards = Reflect.getMetadata(GUARDS_METADATA, AuthController.prototype.getUser) as unknown[]
+
+      expect(guards).toContain(JwtAuthGuard)
+      expect(Reflect.getMetadata(GUARDS_METADATA, AuthController)).toBeUndefined()
+    })
+
+    it('gets only public user fields; envelope equals ApiResponseUtil.success', async () => {
       const params: GetUserParamDto = { userId: 'test-discord-id' }
       userService.findOne.mockResolvedValue(mockUser)
 
-      const data = await controller.getUser(params)
+      const data = await controller.getUser(params, mockAuthenticatedRequest())
 
       expect(userService.findOne).toHaveBeenCalledWith('test-discord-id')
-      expect(data).toEqual({ user: mockUser })
+      expect(data).toEqual({
+        user: {
+          discordUserId: mockUser.discordUserId,
+          name: mockUser.name,
+          avatarHash: mockUser.avatarHash,
+          characterIds: mockUser.characterIds
+        }
+      })
+      expect(data.user).not.toHaveProperty('discordAccessToken')
+      expect(data.user).not.toHaveProperty('discordRefreshToken')
+      expect(data.user).not.toHaveProperty('discordTokenExpiresAt')
+      expect(data.user).not.toHaveProperty('discordTokenScope')
 
       const envelope = await wrapSuccess('getUser', data)
       expect(envelope).toEqual(
         expect.objectContaining({
           success: true,
           message: '成功',
-          data: expect.objectContaining({ user: mockUser })
+          data: expect.objectContaining({ user: data.user })
+        })
+      )
+    })
+
+    it('returns the same 404 for a different authenticated user without querying UserService', async () => {
+      const params: GetUserParamDto = { userId: 'test-discord-id' }
+
+      let thrown: unknown
+      try {
+        await controller.getUser(params, mockAuthenticatedRequest('another-discord-id'))
+      } catch (e) {
+        thrown = e
+      }
+
+      expect(userService.findOne).not.toHaveBeenCalled()
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(404)
+      expect(body).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: `ユーザーID ${params.userId} が見つかりません`
         })
       )
     })
@@ -443,13 +488,13 @@ describe('AuthController', () => {
 
       let thrown: unknown
       try {
-        await controller.getUser(params)
+        await controller.getUser(params, mockAuthenticatedRequest(params.userId))
       } catch (e) {
         thrown = e
       }
       expect(thrown).toBeInstanceOf(ApiError)
 
-      const { status, body } = filterError('getUser', thrown)
+      const { status, body } = filterError(thrown)
       expect(status).toBe(404)
       expect(body).toEqual(
         expect.objectContaining({ success: false, error: expect.stringContaining('が見つかりません') })
@@ -461,47 +506,29 @@ describe('AuthController', () => {
       expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
     })
 
-    it('handles database error; filter yields 500/ユーザー情報の取得に失敗しました', async () => {
+    it('handles database error; filter yields the default 500 envelope', async () => {
       const params: GetUserParamDto = { userId: 'test-discord-id' }
       const err = new Error('Database error')
       userService.findOne.mockRejectedValue(err)
 
-      await expect(controller.getUser(params)).rejects.toBe(err)
+      await expect(controller.getUser(params, mockAuthenticatedRequest())).rejects.toBe(err)
 
-      const { status, body } = filterError('getUser', err)
+      const { status, body } = filterError(err)
       expect(status).toBe(500)
-      expect(body).toEqual(
-        expect.objectContaining({ message: 'ユーザー情報の取得に失敗しました', error: expect.any(String) })
-      )
-    })
-
-    it('delegates empty userId to UserService (DTO validation is by pipes) → 404', async () => {
-      const params = { userId: '' } as any
-      userService.findOne.mockResolvedValue(null)
-
-      let thrown: unknown
-      try {
-        await controller.getUser(params)
-      } catch (e) {
-        thrown = e
-      }
-      expect(userService.findOne).toHaveBeenCalledWith('')
-      expect(filterError('getUser', thrown).status).toBe(404)
+      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'Database error' }))
     })
   })
 
   describe('エラーハンドリング統合テスト', () => {
-    it('validate-token service error → 401/トークン検証に失敗しました', async () => {
+    it('validate-token UnauthorizedException → 401 envelope', async () => {
       const headers: ValidateTokenHeaderDto = { Authorization: 'Bearer invalid-token' }
-      const err = new Error('Service error')
+      const err = new UnauthorizedException('トークンが無効です')
       authService.validateToken.mockRejectedValue(err)
 
       await expect(controller.validateToken(headers)).rejects.toBe(err)
-      const { status, body } = filterError('validateToken', err)
+      const { status, body } = filterError(err)
       expect(status).toBe(401)
-      expect(body).toEqual(
-        expect.objectContaining({ message: 'トークン検証に失敗しました', error: expect.any(String) })
-      )
+      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'トークンが無効です' }))
     })
 
     it('login malformed request throws and does not call authenticate', async () => {

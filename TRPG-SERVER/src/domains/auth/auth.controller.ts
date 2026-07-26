@@ -28,14 +28,11 @@ import {
 } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { CookieService } from '../../core/http/cookie.service'
-import {
-  ResponseInterceptor,
-  HttpExceptionFilter,
-  ApiErrorResponse,
-  ApiError,
-  SkipResponseWrapper
-} from '../../core/http'
+import { ResponseInterceptor, HttpExceptionFilter, ApiError, SkipResponseWrapper } from '../../core/http'
 import { AppConfigService } from '../../config/config.service'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
+import { UserOutputDto } from '../user/dto/update-user.dto'
+import { toUserOutput } from '../user/presenters/user-output.presenter'
 
 // Express型の拡張を使用（src/types/express/index.d.tsで定義）
 
@@ -46,7 +43,7 @@ import { AppConfigService } from '../../config/config.service'
  * エラーハンドリングは HttpExceptionFilter（@UseFilters）、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 各ハンドラはデータを return（成功）/ 例外を throw（異常）するだけにし、
- * status / message / error label は @HttpCode / @ResponseMessage / @ApiErrorResponse で宣言的に保持する。
+ * 成功 status は @HttpCode、失敗 status / message は発生源の HttpException で保持する。
  */
 @Controller('auth')
 @UseInterceptors(ResponseInterceptor)
@@ -80,7 +77,6 @@ export class AuthController {
   @Get('discord/callback')
   @UseGuards(AuthGuard('discord'))
   @SkipResponseWrapper()
-  @ApiErrorResponse(401, 'Discord認証コールバックに失敗しました')
   async discordLoginCallback(@Req() req: ExpressRequest, @Res({ passthrough: true }) res: Response): Promise<void> {
     const profile = req.user as unknown as DiscordUserProfile
     if (!profile) {
@@ -113,10 +109,10 @@ export class AuthController {
    */
   @Get('validate-token')
   @HttpCode(HttpStatus.OK)
-  @ApiErrorResponse(401, 'トークン検証に失敗しました')
   async validateToken(@Headers() headers: ValidateTokenHeaderDto): Promise<TokenValidationOutputDto> {
-    const { Authorization } = headers
-    const payload = await this.authService.validateToken(Authorization)
+    const authorization =
+      headers.Authorization ?? (headers as ValidateTokenHeaderDto & { authorization?: string }).authorization
+    const payload = await this.authService.validateToken(authorization)
     // レスポンスDTOで型付け
     const output: TokenValidationOutputDto = {
       username: payload.username,
@@ -134,7 +130,6 @@ export class AuthController {
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiErrorResponse(401, 'ログインに失敗しました')
   async login(
     @Body() loginDto: DiscordLoginDto,
     @Req() _req: ExpressRequest,
@@ -187,7 +182,6 @@ export class AuthController {
    */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiErrorResponse(500, 'ログアウトに失敗しました')
   async logout(@Req() _req: ExpressRequest, @Res({ passthrough: true }) res: Response): Promise<{ message: string }> {
     try {
       // クッキー削除をCookieServiceに委譲
@@ -205,16 +199,22 @@ export class AuthController {
    * @param params userIdパラメータ
    */
   @Get(':userId/User')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiErrorResponse(500, 'ユーザー情報の取得に失敗しました')
-  async getUser(@Param() params: GetUserParamDto): Promise<{ user: User }> {
+  async getUser(@Param() params: GetUserParamDto, @Req() req: ExpressRequest): Promise<{ user: UserOutputDto }> {
     const { userId } = params
+    // 本人不一致は対象不在と応答を完全一致させる（404・同一メッセージ）。分岐が対象の存在に依存しない構造を保つ。
+    // 将来他人参照を許す拡張時にも応答差分を作らないための不変条件で、不一致時に findOne を呼ばないのも意図的。
+    // 即時応答の差で漏れるのは本人自身の存在だけで、他人の :userId は対象の存在にかかわらず常に即 404 となる。
+    if (req.user?.discordUserId !== userId) {
+      throw new ApiError(404, 'エラーが発生しました', `ユーザーID ${userId} が見つかりません`)
+    }
     const userInfo = await this.userService.findOne(userId)
     if (!userInfo) {
       // 変換前: ApiResponseUtil.error(res, `ユーザーID ${userId} が見つかりません`, 404)
       // → status=404, label はデフォルト 'エラーが発生しました', error=渡した文字列
       throw new ApiError(404, 'エラーが発生しました', `ユーザーID ${userId} が見つかりません`)
     }
-    return { user: userInfo }
+    return { user: toUserOutput(userInfo) }
   }
 }
