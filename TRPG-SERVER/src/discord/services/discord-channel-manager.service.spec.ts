@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing'
+import { ChannelType } from 'discord.js'
 import { DiscordChannelManagerService } from './discord-channel-manager.service'
 import { AppConfigService } from '../../config/config.service'
 import { MessageManagerService, ChannelCacheService, ChannelCreatorService } from './channel'
@@ -14,7 +15,7 @@ describe('DiscordChannelManagerService', () => {
   let messageManager: jest.Mocked<Pick<MessageManagerService, 'sendMessage' | 'editMessage' | 'deleteMessages'>>
   let channelCache: jest.Mocked<Pick<ChannelCacheService, 'getChannel' | 'getCacheStats' | 'performMaintenance'>>
   let channelCreator: jest.Mocked<
-    Pick<ChannelCreatorService, 'checkChannelPermissions' | 'getChannelInfo' | 'createChannel'>
+    Pick<ChannelCreatorService, 'checkChannelPermissions' | 'getChannelInfo' | 'createChannel' | 'convertChannelType'>
   >
 
   const client = {} as never
@@ -37,7 +38,8 @@ describe('DiscordChannelManagerService', () => {
     channelCreator = {
       checkChannelPermissions: jest.fn(),
       getChannelInfo: jest.fn(),
-      createChannel: jest.fn()
+      createChannel: jest.fn(),
+      convertChannelType: jest.fn()
     }
 
     const moduleRef = await Test.createTestingModule({
@@ -127,6 +129,58 @@ describe('DiscordChannelManagerService', () => {
       // Assert
       expect(result).toBe(created)
       expect(channelCreator.createChannel).toHaveBeenCalledWith(client, 'g1', 'name', undefined)
+    })
+
+    it('文字列のチャンネル種別は Discord ChannelType へ変換して委譲する', async () => {
+      const created = { id: 'new-channel' }
+      channelCreator.convertChannelType.mockReturnValue(ChannelType.GuildText)
+      channelCreator.createChannel.mockResolvedValue(created as never)
+
+      const result = await service.createChannel(client, 'g1', 'name', {
+        type: 'text'
+      })
+
+      expect(result).toBe(created)
+      expect(channelCreator.convertChannelType).toHaveBeenCalledWith('text')
+      expect(channelCreator.createChannel).toHaveBeenCalledWith(client, 'g1', 'name', {
+        type: ChannelType.GuildText
+      })
+    })
+
+    it('Discord ChannelType は変換せずそのまま委譲する', async () => {
+      const created = { id: 'voice-channel' }
+      channelCreator.createChannel.mockResolvedValue(created as never)
+
+      const result = await service.createChannel(client, 'g1', 'voice', {
+        type: ChannelType.GuildVoice
+      })
+
+      expect(result).toBe(created)
+      expect(channelCreator.convertChannelType).not.toHaveBeenCalled()
+      expect(channelCreator.createChannel).toHaveBeenCalledWith(client, 'g1', 'voice', {
+        type: ChannelType.GuildVoice
+      })
+    })
+
+    it('未知の文字列種別はテキストへ暗黙変換せず拒否する', async () => {
+      await expect(
+        service.createChannel(client, 'g1', 'invalid', {
+          type: 'thread' as never
+        })
+      ).rejects.toThrow('Unsupported guild channel type: thread')
+
+      expect(channelCreator.convertChannelType).not.toHaveBeenCalled()
+      expect(channelCreator.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('スレッド用の数値ChannelTypeはguild channel作成として扱わず拒否する', async () => {
+      await expect(
+        service.createChannel(client, 'g1', 'thread', {
+          type: ChannelType.PublicThread as never
+        })
+      ).rejects.toThrow(`Unsupported guild channel type: ${ChannelType.PublicThread}`)
+
+      expect(channelCreator.createChannel).not.toHaveBeenCalled()
     })
 
     it('deleteMessages は messageManager.deleteMessages に委譲する', async () => {

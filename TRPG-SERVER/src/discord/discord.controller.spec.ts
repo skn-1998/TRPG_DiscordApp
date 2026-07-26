@@ -13,6 +13,7 @@ import { CreateChannelType } from './dto/create-channel.dto'
 type DiscordFacadeServiceMock = {
   verifyChannelAccess: jest.Mock
   verifyGuildAccess: jest.Mock
+  verifyGuildManagePermission: jest.Mock
   sendMessage: jest.Mock
   createChannel: jest.Mock
   getHealthStatus: jest.Mock
@@ -22,8 +23,8 @@ type DiscordFacadeServiceMock = {
 }
 
 type CharacterServiceMock = {
-  findOne: jest.Mock
-  update: jest.Mock
+  findOneForOwner: jest.Mock
+  updateForOwner: jest.Mock
 }
 
 describe('DiscordController', () => {
@@ -38,6 +39,7 @@ describe('DiscordController', () => {
     discordFacade = {
       verifyChannelAccess: jest.fn(),
       verifyGuildAccess: jest.fn(),
+      verifyGuildManagePermission: jest.fn(),
       sendMessage: jest.fn(),
       createChannel: jest.fn(),
       getHealthStatus: jest.fn(),
@@ -46,8 +48,8 @@ describe('DiscordController', () => {
       getChannelInfo: jest.fn()
     }
     characterService = {
-      findOne: jest.fn(),
-      update: jest.fn()
+      findOneForOwner: jest.fn(),
+      updateForOwner: jest.fn()
     }
 
     // ログ出力はテスト出力を汚すだけなので抑制する（挙動には影響しない）
@@ -74,7 +76,7 @@ describe('DiscordController', () => {
   })
 
   describe('sendMessage', () => {
-    it('content も embed も無い場合は BadRequestException を投げる', async () => {
+    it('content・embed・embeds がすべて無い場合は BadRequestException を投げる', async () => {
       // Arrange
       const dto = { channelId: 'c1' } as any
 
@@ -111,6 +113,50 @@ describe('DiscordController', () => {
       expect(discordFacade.sendMessage).toHaveBeenCalledWith('c1', 'hi', { embeds: undefined, components: undefined })
     })
 
+    it('単数の embed は embeds に正規化して委譲する', async () => {
+      const embed = { title: 'character', color: 0x0099ff }
+      const dto = { channelId: 'c1', embed } as any
+      const expected = { success: true, messageId: 'm1' }
+      discordFacade.verifyChannelAccess.mockResolvedValue(true)
+      discordFacade.sendMessage.mockResolvedValue(expected)
+
+      const result = await controller.sendMessage(dto, req)
+
+      expect(result).toBe(expected)
+      expect(discordFacade.sendMessage).toHaveBeenCalledWith('c1', '', {
+        embeds: [embed],
+        components: undefined
+      })
+    })
+
+    it('複数の embeds だけでも送信できる', async () => {
+      const embeds = [{ title: 'first' }, { title: 'second' }]
+      const dto = { channelId: 'c1', embeds } as any
+      discordFacade.verifyChannelAccess.mockResolvedValue(true)
+      discordFacade.sendMessage.mockResolvedValue({ success: true, messageId: 'm1' })
+
+      await expect(controller.sendMessage(dto, req)).resolves.toEqual({ success: true, messageId: 'm1' })
+      expect(discordFacade.sendMessage).toHaveBeenCalledWith('c1', '', {
+        embeds,
+        components: undefined
+      })
+    })
+
+    it('単数 embed と複数 embeds の併用時は単数を先頭にして統合する', async () => {
+      const embed = { title: 'single' }
+      const embeds = [{ title: 'array' }]
+      const dto = { channelId: 'c1', embed, embeds } as any
+      discordFacade.verifyChannelAccess.mockResolvedValue(true)
+      discordFacade.sendMessage.mockResolvedValue({ success: true, messageId: 'm1' })
+
+      await controller.sendMessage(dto, req)
+
+      expect(discordFacade.sendMessage).toHaveBeenCalledWith('c1', '', {
+        embeds: [embed, ...embeds],
+        components: undefined
+      })
+    })
+
     it('想定外のエラーは 500 の HttpException にラップする', async () => {
       // Arrange
       const dto = { channelId: 'c1', content: 'hi' } as any
@@ -136,23 +182,35 @@ describe('DiscordController', () => {
   })
 
   describe('createChannel', () => {
-    it('ギルド管理権限が無い場合は 403 の HttpException を投げる', async () => {
-      // Arrange
-      const dto = { guildId: 'g1', name: 'ch' } as any
-      discordFacade.verifyGuildAccess.mockResolvedValue(false)
+    it('thread は通常チャンネル作成として扱わず 400 を返す', async () => {
+      const dto = { guildId: 'g1', name: 'thread', type: CreateChannelType.THREAD } as any
 
-      // Act & Assert
-      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      await expect(controller.createChannel(dto, req)).rejects.toBeInstanceOf(BadRequestException)
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
-    it('権限検証が例外を投げた場合も 403 を返す（旧ラッパーのエラー握りつぶし挙動を維持）', async () => {
+    it('ギルド管理権限が無い場合は 403 の HttpException を投げる', async () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
-      discordFacade.verifyGuildAccess.mockRejectedValue(new Error('boom'))
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(false)
 
       // Act & Assert
       await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('権限検査の基盤障害は認可拒否へ変換せず 500 を返す', async () => {
+      // Arrange
+      const dto = { guildId: 'g1', name: 'ch' } as any
+      discordFacade.verifyGuildManagePermission.mockRejectedValue(new Error('boom'))
+
+      // Act & Assert
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({
+        status: HttpStatus.INTERNAL_SERVER_ERROR
+      })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
@@ -160,7 +218,7 @@ describe('DiscordController', () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
       const expected = { success: true, channelId: 'c1' }
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.createChannel.mockResolvedValue(expected)
 
       // Act
@@ -179,7 +237,7 @@ describe('DiscordController', () => {
     it('想定外のエラーは 500 の HttpException にラップする', async () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.createChannel.mockRejectedValue(new Error('boom'))
 
       // Act & Assert
@@ -338,40 +396,55 @@ describe('DiscordController', () => {
   describe('postCharacter', () => {
     const dto = { characterId: 'char-1', guildId: 'g1' } as any
 
-    // キャラクターカテゴリ（type==='4' かつ名前に character を含む）を 1 つ持つギルド情報
+    // getGuildInfo() の実形式である GuildCategory を持つギルド情報
     const guildInfoWithCategory = {
       id: 'g1',
       name: 'Guild',
       memberCount: 5,
-      channels: [{ id: 'cat-1', name: 'Character', type: '4' }]
+      channels: [{ id: 'cat-1', name: 'Character', type: 'GuildCategory' }]
     }
 
     it('キャラクターが見つからない場合は NotFoundException を投げる', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue(null)
+      characterService.findOneForOwner.mockResolvedValue(null)
 
       // Act & Assert
       await expect(controller.postCharacter(dto, req)).rejects.toBeInstanceOf(NotFoundException)
-      expect(discordFacade.verifyGuildAccess).not.toHaveBeenCalled()
+      expect(characterService.findOneForOwner).toHaveBeenCalledWith('char-1', 'duser-1')
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
     })
 
-    it('ギルドアクセス権限が無い場合は 403 の HttpException を投げる', async () => {
+    it('ManageChannels 権限が無い場合は 403 の HttpException を投げる', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildAccess.mockResolvedValue(false)
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(false)
 
       // Act & Assert
       await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('管理権限検査の基盤障害は認可拒否へ変換せず 500 を返す', async () => {
+      // Arrange
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockRejectedValue(new Error('boom'))
+
+      // Act & Assert
+      await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
+        status: HttpStatus.INTERNAL_SERVER_ERROR
+      })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
     it('キャラクターカテゴリが見つからない場合は NotFoundException を投げる', async () => {
-      // Arrange（type が '4' でないため対象外）
-      characterService.findOne.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      // Arrange（実供給形式のテキストチャンネルは対象外）
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.getGuildInfo.mockResolvedValue({
         ...guildInfoWithCategory,
-        channels: [{ id: 'txt-1', name: 'character-talk', type: '0' }]
+        channels: [{ id: 'txt-1', name: 'character-talk', type: 'GuildText' }]
       })
 
       // Act & Assert
@@ -381,8 +454,8 @@ describe('DiscordController', () => {
 
     it('成功時はチャンネル作成・キャラクター更新を行い、自動処理メッセージを返す', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue({ characterName: 'Hero Name!' })
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Hero Name!' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
 
@@ -400,13 +473,15 @@ describe('DiscordController', () => {
       })
 
       // Assert: 作成したチャンネルIDでキャラクターを更新する
-      expect(characterService.update).toHaveBeenCalledWith('char-1', { discordChannelId: 'new-ch' })
+      expect(characterService.updateForOwner).toHaveBeenCalledWith('char-1', 'duser-1', {
+        discordChannelId: 'new-ch'
+      })
     })
 
     it('チャンネル作成が失敗した場合は 500 の HttpException を投げる', async () => {
       // Arrange
-      characterService.findOne.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: false, error: '作成失敗' })
 
@@ -415,22 +490,24 @@ describe('DiscordController', () => {
         status: HttpStatus.INTERNAL_SERVER_ERROR
       })
       // チャンネル作成失敗時は discordChannelId を永続化しない（undefined 書き込みによるデータ破損を防ぐ）
-      expect(characterService.update).not.toHaveBeenCalled()
+      expect(characterService.updateForOwner).not.toHaveBeenCalled()
     })
 
     it('キャラクター更新が失敗した場合は 500 を投げる（永続化を await し成功応答前にエラーを伝播）', async () => {
       // Arrange: チャンネル作成は成功するが DB 更新が失敗する
-      characterService.findOne.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildAccess.mockResolvedValue(true)
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
-      characterService.update.mockRejectedValue(new Error('DB 更新失敗'))
+      characterService.updateForOwner.mockRejectedValue(new Error('DB 更新失敗'))
 
       // Act & Assert
       await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
         status: HttpStatus.INTERNAL_SERVER_ERROR
       })
-      expect(characterService.update).toHaveBeenCalledWith('char-1', { discordChannelId: 'new-ch' })
+      expect(characterService.updateForOwner).toHaveBeenCalledWith('char-1', 'duser-1', {
+        discordChannelId: 'new-ch'
+      })
     })
   })
 })

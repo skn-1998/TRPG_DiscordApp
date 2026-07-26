@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { discordCommandType } from 'src/discord/discord.type'
-import { CommandInteraction, SlashCommandBuilder, AutocompleteInteraction } from 'discord.js'
+import { CommandInteraction, SlashCommandBuilder, AutocompleteInteraction, PermissionsBitField } from 'discord.js'
 import { SelectGameSystemOrchestrator } from 'src/discord/features/gameSystem'
 import { selectGameSystemConfig } from 'src/discord/commands/commands.list'
 import { BaseCommandService } from '../base-command.service'
@@ -19,6 +19,7 @@ export class SelectGameSystemService extends BaseCommandService implements disco
   public data = new SlashCommandBuilder()
     .setName(selectGameSystemConfig.name)
     .setDescription(selectGameSystemConfig.description)
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
     .addStringOption((option) =>
       option
         .setName('gamesystem')

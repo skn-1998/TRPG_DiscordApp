@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { AutocompleteInteraction, CommandInteraction } from 'discord.js'
+import { AutocompleteInteraction, CommandInteraction, MessageFlags, PermissionsBitField } from 'discord.js'
 import Fuse from 'fuse.js'
 import { loadJsonFile } from '../../../utils/loadJsonFile'
 import { getCategory } from '../../../utils/getCategory'
@@ -39,6 +39,15 @@ export class SelectGameSystemOrchestrator {
 
   async execute(interaction: CommandInteraction): Promise<void> {
     if (!interaction.isChatInputCommand()) return
+    const member = await interaction.guild!.members.fetch(interaction.user.id)
+    if (!member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+      await interaction.reply({
+        content: 'このコマンドを実行するにはチャンネル管理権限が必要です',
+        flags: MessageFlags.Ephemeral
+      })
+      return
+    }
+
     const inputGameSystem = interaction.options.getString('gamesystem', true)
     const gameSystem = gameSystemList.find((e) => e.ID === inputGameSystem || e.NAME === inputGameSystem)
     if (!gameSystem) {

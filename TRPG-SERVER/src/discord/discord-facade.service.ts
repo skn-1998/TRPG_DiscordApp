@@ -6,6 +6,14 @@ import { DiscordGuildManagerService } from './services/discord-guild-manager.ser
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
 import { PerformanceOrchestratorService } from './services/monitoring/performance-orchestrator.service'
 import { CommandsService } from './commands/commands.service'
+import type {
+  DiscordCreateChannelResult,
+  DiscordSendMessageResult
+} from './interfaces/discord-operation-result.interface'
+import type {
+  DiscordChannelCreationOptions,
+  DiscordSendMessageOptions
+} from './interfaces/discord-operation-options.interface'
 
 /**
  * Discord統合ファサードサービス
@@ -114,6 +122,22 @@ export class DiscordFacadeService {
   }
 
   /**
+   * ギルドのチャンネル管理権限確認
+   * GuildManagerサービスに委譲
+   */
+  async verifyGuildManagePermission(guildId: string, discordUserId: string): Promise<boolean> {
+    const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.verifyGuildManagePermission', 'GET')
+    try {
+      const result = await this.guildManager.verifyGuildManagePermission(this.client, guildId, discordUserId)
+      metrics.end(true)
+      return result.hasPermission
+    } catch (error) {
+      metrics.end(false)
+      throw error
+    }
+  }
+
+  /**
    * チャンネル情報取得
    * ChannelManagerサービスに委譲
    */
@@ -176,12 +200,22 @@ export class DiscordFacadeService {
    * メッセージ送信
    * ChannelManagerサービスに委譲
    */
-  async sendMessage(channelId: string, content: string, options?: any): Promise<any> {
+  async sendMessage(
+    channelId: string,
+    content: string,
+    options?: DiscordSendMessageOptions
+  ): Promise<DiscordSendMessageResult> {
     const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.sendMessage', 'POST')
     try {
       const result = await this.channelManager.sendMessage(this.client, channelId, content, options)
+
+      if (!result?.id) {
+        metrics.end(false)
+        return { success: false, error: 'メッセージ送信に失敗しました' }
+      }
+
       metrics.end(true)
-      return result
+      return { success: true, messageId: result.id }
     } catch (error) {
       metrics.end(false)
       throw error
@@ -192,12 +226,22 @@ export class DiscordFacadeService {
    * チャンネル作成
    * ChannelManagerサービスに委譲
    */
-  async createChannel(guildId: string, name: string, options?: any): Promise<any> {
+  async createChannel(
+    guildId: string,
+    name: string,
+    options?: DiscordChannelCreationOptions
+  ): Promise<DiscordCreateChannelResult> {
     const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.createChannel', 'POST')
     try {
       const result = await this.channelManager.createChannel(this.client, guildId, name, options)
+
+      if (!result?.id) {
+        metrics.end(false)
+        return { success: false, error: 'チャンネル作成に失敗しました' }
+      }
+
       metrics.end(true)
-      return result
+      return { success: true, channelId: result.id }
     } catch (error) {
       metrics.end(false)
       throw error
