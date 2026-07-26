@@ -121,7 +121,9 @@ export function buildChannelCreateOptions(name: string, options?: CreateChannelO
     channelOptions.topic = options.topic
   }
 
-  if (options?.permissions) {
+  // Why: permissionOverwrites に [] を明示すると「overwrite 無し」の指定になり、無指定時の
+  // 既定（親カテゴリと権限同期）と挙動が変わる。[] は「無指定=カテゴリ同期」へ正規化して omit する。
+  if (options?.permissions && options.permissions.length > 0) {
     channelOptions.permissionOverwrites = options.permissions
   }
 
@@ -188,6 +190,8 @@ export function buildCategoryCreateOptions(
     categoryOptions.position = options.position
   }
 
+  // NOTE: buildChannelCreateOptions の length>0 判定と非対称（ここは [] でも permissionOverwrites: [] を付ける）。
+  // production 呼出ゼロのため現挙動を保持している。揃える場合は spec と同時に変更すること。
   if (options?.permissions) {
     categoryOptions.permissionOverwrites = options.permissions
   }

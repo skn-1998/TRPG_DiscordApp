@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Client } from 'discord.js'
+import type { PermissionsString } from 'discord.js'
 import { DiscordClientService } from './services/discord-client.service'
 import { DiscordInteractionHandlerService } from './services/discord-interaction-handler.service'
 import { DiscordGuildManagerService } from './services/discord-guild-manager.service'
+import type { GuildManagePermissionCheckResult } from './services/discord-guild-manager.service'
 import { DiscordChannelManagerService } from './services/discord-channel-manager.service'
 import { PerformanceOrchestratorService } from './services/monitoring/performance-orchestrator.service'
 import { CommandsService } from './commands/commands.service'
@@ -14,6 +16,8 @@ import type {
   DiscordChannelCreationOptions,
   DiscordSendMessageOptions
 } from './interfaces/discord-operation-options.interface'
+
+export type { GuildManagePermissionCheckResult }
 
 /**
  * Discord統合ファサードサービス
@@ -124,13 +128,30 @@ export class DiscordFacadeService {
   /**
    * ギルドのチャンネル管理権限確認
    * GuildManagerサービスに委譲
+   *
+   * 拒否分類（permission-denied / parent-not-found / parent-not-category）を boolean へ潰さず
+   * そのまま返す。controller が 400 / 403 / 500 への写像を担う。
+   *
+   * requestedOverwritePermissionKeys は guild-manager の契約（undefined=非空 overwrite なし /
+   * 配列=非空 overwrite あり・ManageRoles＋caller-holds を追加要求）をそのまま透過する。
    */
-  async verifyGuildManagePermission(guildId: string, discordUserId: string): Promise<boolean> {
+  async verifyGuildManagePermission(
+    guildId: string,
+    discordUserId: string,
+    parentId?: string,
+    requestedOverwritePermissionKeys?: readonly PermissionsString[]
+  ): Promise<GuildManagePermissionCheckResult> {
     const metrics = this.performanceOrchestrator.startDiscordApiMonitoring('discord.verifyGuildManagePermission', 'GET')
     try {
-      const result = await this.guildManager.verifyGuildManagePermission(this.client, guildId, discordUserId)
+      const result = await this.guildManager.verifyGuildManagePermission(
+        this.client,
+        guildId,
+        discordUserId,
+        parentId,
+        requestedOverwritePermissionKeys
+      )
       metrics.end(true)
-      return result.hasPermission
+      return result
     } catch (error) {
       metrics.end(false)
       throw error

@@ -172,6 +172,7 @@ FeatureModule が `InteractionsModule` から Registry を import し、自身�
 - Embed色は `0..0xFFFFFF` の整数、または `#RRGGBB` 形式とし、後者はDTO境界で整数へ変換する。
 - `create-channel` はguild channelだけを作る。親テキストチャンネルが必要な `thread` は400で拒否し、通常テキストチャンネルへ暗黙変換しない。
 - チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必要とする。呼び出しチャンネル限定の overwrite による付与は、ギルド全体のチャンネル作成を許可しない。
+- `create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と、overwrite で指定した各権限（allow/deny の全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠）。判定は parent 指定時はカテゴリ実効権限、なしは guild 基底権限で行い、不足は既存の permission-denied と同じ 403 に分類する。`permissions: []` は overwrite 無指定扱いのままとする。
 
 **成功時の事後条件**:
 

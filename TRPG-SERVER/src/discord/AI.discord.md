@@ -28,7 +28,7 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 単数Embedと複数Embedはcontrollerで統合し、`#RRGGBB` はDTOで数値へ変換する。文字列チャンネル種別はmanagerでDiscord `ChannelType` へ変換する。`create-channel` の `thread` は通常チャンネルへ暗黙変換せず400とし、親チャンネルを持つ専用処理へ分離する。
 
-チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必須とする。呼び出しチャンネル限定の overwrite による付与は認可根拠にせず、REST の権限不足は403、Discord API・通信例外は500として分離する。
+チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必須とする。呼び出しチャンネル限定の overwrite による付与は認可根拠にせず、REST の権限不足は403、Discord API・通信例外は500として分離する。`create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と overwrite で指定した各権限（allow/deny 全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠。parent 指定時はカテゴリ実効権限で判定し、`permissions: []` は overwrite 無指定扱い）。controller の権限検査の成功述語は `result?.hasPermission === true` のみの fail-closed。
 
 ---
 
