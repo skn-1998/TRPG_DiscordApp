@@ -219,7 +219,7 @@ describe('DiscordFacadeService', () => {
   })
 
   describe('verifyGuildManagePermission', () => {
-    it('guildManager.verifyGuildManagePermission の hasPermission を返し end(true) を呼ぶ', async () => {
+    it('guildManager.verifyGuildManagePermission の結果を boolean へ潰さず返し end(true) を呼ぶ', async () => {
       // Arrange
       guildManager.verifyGuildManagePermission.mockResolvedValue({ hasPermission: true })
 
@@ -227,9 +227,53 @@ describe('DiscordFacadeService', () => {
       const result = await service.verifyGuildManagePermission('g1', 'user1')
 
       // Assert
-      expect(result).toBe(true)
-      expect(guildManager.verifyGuildManagePermission).toHaveBeenCalledWith(clientStub, 'g1', 'user1')
+      expect(result).toEqual({ hasPermission: true })
+      expect(guildManager.verifyGuildManagePermission).toHaveBeenCalledWith(
+        clientStub,
+        'g1',
+        'user1',
+        undefined,
+        undefined
+      )
       expect(metricsEnd).toHaveBeenCalledWith(true)
+    })
+
+    it('parentId を guildManager へ委譲し、拒否分類をそのまま返す', async () => {
+      // controller が 400/403 へ写像できるよう denial を保ったまま返すことを固定する
+      const denied = {
+        hasPermission: false as const,
+        denial: 'parent-not-found' as const,
+        reason: 'Parent category not found'
+      }
+      guildManager.verifyGuildManagePermission.mockResolvedValue(denied)
+
+      const result = await service.verifyGuildManagePermission('g1', 'user1', 'parent1')
+
+      expect(result).toBe(denied)
+      expect(guildManager.verifyGuildManagePermission).toHaveBeenCalledWith(
+        clientStub,
+        'g1',
+        'user1',
+        'parent1',
+        undefined
+      )
+      expect(metricsEnd).toHaveBeenCalledWith(true)
+    })
+
+    it('requestedOverwritePermissionKeys（非空 overwrite の要求キー）を guildManager へそのまま透過する', async () => {
+      guildManager.verifyGuildManagePermission.mockResolvedValue({ hasPermission: true })
+      const requestedKeys = ['ManageMessages', 'ViewChannel'] as const
+
+      const result = await service.verifyGuildManagePermission('g1', 'user1', 'parent1', requestedKeys)
+
+      expect(result).toEqual({ hasPermission: true })
+      expect(guildManager.verifyGuildManagePermission).toHaveBeenCalledWith(
+        clientStub,
+        'g1',
+        'user1',
+        'parent1',
+        requestedKeys
+      )
     })
 
     it('例外時は end(false) を呼びエラーを再スローする', async () => {

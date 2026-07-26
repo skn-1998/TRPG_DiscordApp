@@ -1,10 +1,19 @@
 import { Test } from '@nestjs/testing'
-import { HttpException, HttpStatus, BadRequestException, NotFoundException, Logger } from '@nestjs/common'
-import { DiscordController } from './discord.controller'
+import {
+  HttpException,
+  HttpStatus,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+  ValidationPipe
+} from '@nestjs/common'
+import { PIPES_METADATA } from '@nestjs/common/constants'
+import { validate } from 'class-validator'
+import { DiscordController, DISCORD_VALIDATION_PIPE_OPTIONS } from './discord.controller'
 import { DiscordFacadeService } from './discord-facade.service'
 import { CharacterService } from '../domains/character/character.service'
 import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
-import { CreateChannelType } from './dto/create-channel.dto'
+import { CreateChannelDto, CreateChannelType } from './dto/create-channel.dto'
 import { CharacterEmbedManagerService } from './features/characterEdit/services/character-embed-manager.service'
 import { ChannelDetectionService } from './features/characterEdit/services/channel-detection.service'
 
@@ -43,9 +52,19 @@ describe('DiscordController', () => {
   let characterEmbedManager: CharacterEmbedManagerServiceMock
   let channelDetectionService: ChannelDetectionServiceMock
   let controller: DiscordController
+  let warnSpy: jest.SpyInstance
+  let errorSpy: jest.SpyInstance
 
   // req.user.discordUserId だけを参照するため、最小の認証済みリクエストを渡す
   const req = { user: { discordUserId: 'duser-1', id: 'u1', username: 'tester' } } as any
+
+  // facade.verifyGuildManagePermission の判別可能な結果（boolean へ潰さない契約）
+  const permissionGranted = { hasPermission: true } as const
+  const permissionDenied = {
+    hasPermission: false,
+    denial: 'permission-denied',
+    reason: 'User lacks permission to manage channels'
+  } as const
 
   beforeEach(async () => {
     discordFacade = {
@@ -70,9 +89,10 @@ describe('DiscordController', () => {
       markBotManagedChannel: jest.fn()
     }
 
-    // ログ出力はテスト出力を汚すだけなので抑制する（挙動には影響しない）
+    // ログ出力はテスト出力を汚すだけなので抑制する（warn/error はログ方針の検証にも使う）
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
 
     const moduleRef = await Test.createTestingModule({
       controllers: [DiscordController],
@@ -202,6 +222,42 @@ describe('DiscordController', () => {
   })
 
   describe('createChannel', () => {
+    it('class-level ValidationPipe が共有定数 DISCORD_VALIDATION_PIPE_OPTIONS の設定で適用されている', () => {
+      // HTTP 経路での実効性（pipe が実際に 400 を返すこと）は DTO/validator spec 側で固定している。
+      // ここでは「spec が検証した設定」と「実際に適用される設定」が同一ソースであることを固定する。
+      const pipes = Reflect.getMetadata(PIPES_METADATA, DiscordController) as unknown[] | undefined
+      const validationPipe = pipes?.find((pipe) => pipe instanceof ValidationPipe) as
+        { validatorOptions: Record<string, unknown>; isTransformEnabled: boolean } | undefined
+
+      expect(validationPipe).toBeDefined()
+      // ValidationPipe は constructor で transform を isTransformEnabled へ、残りを validatorOptions へ振り分ける
+      expect(validationPipe?.isTransformEnabled).toBe(DISCORD_VALIDATION_PIPE_OPTIONS.transform)
+      expect(validationPipe?.validatorOptions).toMatchObject({
+        whitelist: DISCORD_VALIDATION_PIPE_OPTIONS.whitelist
+      })
+    })
+
+    it('DTO デコレータも共有検証を使い null の permissions を拒否する', async () => {
+      const dto = Object.assign(new CreateChannelDto(), {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: null
+      })
+
+      const errors = await validate(dto)
+
+      expect(errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            property: 'permissions',
+            constraints: expect.objectContaining({
+              isValidChannelPermissionOverwrites: expect.stringContaining('permissions は配列で指定してください')
+            })
+          })
+        ])
+      )
+    })
+
     it('thread は通常チャンネル作成として扱わず 400 を返す', async () => {
       const dto = { guildId: 'g1', name: 'thread', type: CreateChannelType.THREAD } as any
 
@@ -210,18 +266,89 @@ describe('DiscordController', () => {
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
-    it('ギルド管理権限が無い場合は 403 の HttpException を投げる', async () => {
+    it('ギルド管理権限が無い場合は 403 の HttpException を投げ warn で記録する', async () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(false)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionDenied)
 
       // Act & Assert
       await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
-      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, undefined)
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+      // 既知の拒否（4xx）は warn で記録し error 扱いしない
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('チャンネル作成拒否'))
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    // fail-closed: 成功述語は result?.hasPermission === true のみ。契約外の戻り値は全て 403 へ倒す
+    it.each([
+      ['旧 boolean 契約の true', true],
+      ['boolean false', false],
+      ['undefined', undefined],
+      ['空オブジェクト', {}]
+    ])('権限検査が契約外の %s を返した場合は 403 とし createChannel を呼ばない', async (_label, verifyResult) => {
+      const dto = { guildId: 'g1', name: 'ch' } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(verifyResult)
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
-    it('権限検査の基盤障害は認可拒否へ変換せず 500 を返す', async () => {
+    it('parent カテゴリで ManageChannels が拒否された場合は 403 を返す', async () => {
+      const dto = { guildId: 'g1', name: 'ch', parentId: '123456789012345678' } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue({
+        hasPermission: false,
+        denial: 'permission-denied',
+        reason: 'User lacks permission to manage channels in parent category'
+      })
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith(
+        'g1',
+        'duser-1',
+        '123456789012345678',
+        undefined
+      )
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('parent が見つからない分類は 400 を返す', async () => {
+      const dto = { guildId: 'g1', name: 'ch', parentId: '123456789012345678' } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue({
+        hasPermission: false,
+        denial: 'parent-not-found',
+        reason: 'Parent category not found'
+      })
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('チャンネル作成拒否: status=400, reason=指定された親カテゴリが見つかりません')
+      )
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
+
+    it('parent がカテゴリでない分類は 400 を返す', async () => {
+      const dto = { guildId: 'g1', name: 'ch', parentId: '123456789012345678' } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue({
+        hasPermission: false,
+        denial: 'parent-not-category',
+        reason: 'Parent channel is not a category'
+      })
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('parentId が Snowflake 形式でない場合は権限検査前に 400 で拒否する', async () => {
+      const dto = { guildId: 'g1', name: 'ch', parentId: 'not-a-snowflake' } as any
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('権限検査の基盤障害は認可拒否へ変換せず 500 を返し error で記録する', async () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
       discordFacade.verifyGuildManagePermission.mockRejectedValue(new Error('boom'))
@@ -230,7 +357,145 @@ describe('DiscordController', () => {
       await expect(controller.createChannel(dto, req)).rejects.toMatchObject({
         status: HttpStatus.INTERNAL_SERVER_ERROR
       })
-      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, undefined)
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+      // 予期しない基盤障害は warn ではなく error で記録する
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('チャンネル作成エラー'), expect.anything())
+    })
+
+    it('許可済みの permission overwrite はそのまま作成処理へ渡す', async () => {
+      const permissions = [
+        {
+          id: '123456789012345678',
+          allow: ['ViewChannel', 'SendMessages'],
+          deny: ['CreatePublicThreads']
+        }
+      ]
+      const dto = { guildId: 'g1', name: 'ch', permissions } as any
+      const expected = { success: true, channelId: 'c1' }
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
+      discordFacade.createChannel.mockResolvedValue(expected)
+
+      const result = await controller.createChannel(dto, req)
+
+      expect(result).toBe(expected)
+      expect(discordFacade.createChannel).toHaveBeenCalledWith('g1', 'ch', {
+        type: undefined,
+        parent: undefined,
+        topic: undefined,
+        permissions
+      })
+    })
+
+    it('非空 overwrite は allow/deny 全キーの和集合（重複除去）を権限検査へ渡す', async () => {
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [
+          { id: '123456789012345678', allow: ['ViewChannel', 'SendMessages'], deny: ['CreatePublicThreads'] },
+          { id: '876543210987654321', deny: ['SendMessages'] } // allow 側と重複するキー
+        ]
+      } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
+      discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'c1' })
+
+      await controller.createChannel(dto, req)
+
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, [
+        'ViewChannel',
+        'SendMessages',
+        'CreatePublicThreads'
+      ])
+    })
+
+    it('permissions が空配列なら overwrite 無指定扱いで要求キーを渡さない', async () => {
+      const dto = { guildId: 'g1', name: 'ch', permissions: [] } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
+      discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'c1' })
+
+      await controller.createChannel(dto, req)
+
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, undefined)
+    })
+
+    it('falsifier: 非空 overwrite の caller-holds 拒否（ManageRoles 不足等）は 403 とし createChannel を呼ばない', async () => {
+      // deny キーはグローバル discord.js モックの Flags に実在するものを使う（whitelist は Flags から導出されるため）
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [{ id: '123456789012345678', deny: ['ManageThreads'] }]
+      } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue({
+        hasPermission: false,
+        denial: 'permission-denied',
+        reason: 'User lacks permission to manage roles'
+      })
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, [
+        'ManageThreads'
+      ])
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it("overwrite の type: 'role' / 'member' は OverwriteType の実値へ正規化して渡す", async () => {
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [
+          { id: '123456789012345678', type: 'role', deny: ['SendMessages'] },
+          { id: '876543210987654321', type: 'member', allow: ['ViewChannel'] }
+        ]
+      } as any
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
+      discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'c1' })
+
+      await controller.createChannel(dto, req)
+
+      expect(discordFacade.createChannel).toHaveBeenCalledWith('g1', 'ch', {
+        type: undefined,
+        parent: undefined,
+        topic: undefined,
+        permissions: [
+          { id: '123456789012345678', type: 0, deny: ['SendMessages'] },
+          { id: '876543210987654321', type: 1, allow: ['ViewChannel'] }
+        ]
+      })
+    })
+
+    it('overwrite の type が不正な場合は 400 で拒否する', async () => {
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [{ id: '123456789012345678', type: 'user' }]
+      } as any
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('管理系権限が permission overwrite に含まれる場合は 400 で拒否する', async () => {
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [{ id: '123456789012345678', allow: ['ViewChannel', 'ManageChannels'] }]
+      } as any
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    it('permission overwrite の id が Snowflake 形式でない場合は 400 で拒否する', async () => {
+      const dto = {
+        guildId: 'g1',
+        name: 'ch',
+        permissions: [{ id: 'not-a-snowflake', allow: ['ViewChannel'] }]
+      } as any
+
+      await expect(controller.createChannel(dto, req)).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST })
+      expect(discordFacade.verifyGuildManagePermission).not.toHaveBeenCalled()
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
@@ -238,7 +503,7 @@ describe('DiscordController', () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
       const expected = { success: true, channelId: 'c1' }
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.createChannel.mockResolvedValue(expected)
 
       // Act
@@ -257,7 +522,7 @@ describe('DiscordController', () => {
     it('想定外のエラーは 500 の HttpException にラップする', async () => {
       // Arrange
       const dto = { guildId: 'g1', name: 'ch' } as any
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.createChannel.mockRejectedValue(new Error('boom'))
 
       // Act & Assert
@@ -437,31 +702,65 @@ describe('DiscordController', () => {
     it('ManageChannels 権限が無い場合は 403 の HttpException を投げる', async () => {
       // Arrange
       characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(false)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionDenied)
 
       // Act & Assert
       await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
-      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, undefined)
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
+    })
+
+    // fail-closed: createChannel と同じく、契約外の権限検査結果では後続副作用へ進まない
+    it.each([
+      ['旧 boolean 契約の true', true],
+      ['boolean false', false],
+      ['undefined', undefined],
+      ['空オブジェクト', {}]
+    ])('権限検査が契約外の %s を返した場合は 403 とし後続副作用を実行しない', async (_label, verifyResult) => {
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(verifyResult)
+
+      await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+      expect(characterService.updateForOwner).not.toHaveBeenCalled()
+      expect(discordFacade.sendMessage).not.toHaveBeenCalled()
+    })
+
+    it('targetCategory 特定後のカテゴリ権限検査が拒否された場合は 403 を返し createChannel を呼ばない', async () => {
+      // Arrange: 基底権限は許可、カテゴリ overwrite で拒否
+      characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
+      discordFacade.verifyGuildManagePermission.mockResolvedValueOnce(permissionGranted).mockResolvedValueOnce({
+        hasPermission: false,
+        denial: 'permission-denied',
+        reason: 'User lacks permission to manage channels in parent category'
+      })
+      discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
+
+      // Act & Assert
+      await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({ status: HttpStatus.FORBIDDEN })
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenNthCalledWith(2, 'g1', 'duser-1', 'cat-1', undefined)
+      expect(discordFacade.createChannel).not.toHaveBeenCalled()
+      expect(characterService.updateForOwner).not.toHaveBeenCalled()
     })
 
     it('管理権限検査の基盤障害は認可拒否へ変換せず 500 を返す', async () => {
       // Arrange
       characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
       discordFacade.verifyGuildManagePermission.mockRejectedValue(new Error('boom'))
+      // （基底検査で throw するため getGuildInfo 以降には到達しない）
 
       // Act & Assert
       await expect(controller.postCharacter(dto, req)).rejects.toMatchObject({
         status: HttpStatus.INTERNAL_SERVER_ERROR
       })
-      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1')
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenCalledWith('g1', 'duser-1', undefined, undefined)
       expect(discordFacade.createChannel).not.toHaveBeenCalled()
     })
 
     it('キャラクターカテゴリが見つからない場合は NotFoundException を投げる', async () => {
       // Arrange（実供給形式のテキストチャンネルは対象外）
       characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.getGuildInfo.mockResolvedValue({
         ...guildInfoWithCategory,
         channels: [{ id: 'txt-1', name: 'character-talk', type: 'GuildText' }]
@@ -479,7 +778,7 @@ describe('DiscordController', () => {
       const embeds = [{ title: 'Hero Name!' }]
       const components = [{ type: 1 }]
       characterService.findOneForOwner.mockResolvedValue(character)
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
       characterService.updateForOwner.mockResolvedValue(updatedCharacter)
@@ -491,6 +790,16 @@ describe('DiscordController', () => {
 
       // Assert: 戻り値
       expect(result).toEqual({ success: true, messageId: 'message-1' })
+
+      // Assert: 基底権限に加え、targetCategory 特定後にカテゴリ overwrite でも権限を検査する
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenNthCalledWith(
+        1,
+        'g1',
+        'duser-1',
+        undefined,
+        undefined
+      )
+      expect(discordFacade.verifyGuildManagePermission).toHaveBeenNthCalledWith(2, 'g1', 'duser-1', 'cat-1', undefined)
 
       // Assert: チャンネル作成は名前を正規化しカテゴリ配下に作る
       expect(discordFacade.createChannel).toHaveBeenCalledWith('g1', 'hero-name', {
@@ -520,7 +829,7 @@ describe('DiscordController', () => {
       const character = { characterId: 'char-1', characterName: 'Alice' }
       const updatedCharacter = { ...character, discordChannelId: 'new-ch' }
       characterService.findOneForOwner.mockResolvedValue(character)
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
       characterService.updateForOwner.mockResolvedValue(updatedCharacter)
@@ -538,7 +847,7 @@ describe('DiscordController', () => {
     it('チャンネル作成が失敗した場合は 500 の HttpException を投げる', async () => {
       // Arrange
       characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: false, error: '作成失敗' })
 
@@ -553,7 +862,7 @@ describe('DiscordController', () => {
     it('キャラクター更新が失敗した場合は 500 を投げる（永続化を await し成功応答前にエラーを伝播）', async () => {
       // Arrange: チャンネル作成は成功するが DB 更新が失敗する
       characterService.findOneForOwner.mockResolvedValue({ characterName: 'Alice' })
-      discordFacade.verifyGuildManagePermission.mockResolvedValue(true)
+      discordFacade.verifyGuildManagePermission.mockResolvedValue(permissionGranted)
       discordFacade.getGuildInfo.mockResolvedValue(guildInfoWithCategory)
       discordFacade.createChannel.mockResolvedValue({ success: true, channelId: 'new-ch' })
       characterService.updateForOwner.mockRejectedValue(new Error('DB 更新失敗'))

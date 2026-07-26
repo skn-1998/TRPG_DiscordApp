@@ -143,6 +143,14 @@ describe('channel-creator.pure', () => {
       expect(opts.permissionOverwrites).toEqual([{ id: 'x' }])
     })
 
+    it('permissions: [] は「無指定=カテゴリ同期」へ正規化し permissionOverwrites を付与しない', () => {
+      // [] を明示すると「overwrite 無し」の指定になり親カテゴリとの権限同期が外れるため、
+      // 無指定と同じ扱い（omit）へ正規化する
+      const opts = buildChannelCreateOptions('c', { parent: 'parent-id', permissions: [] })
+
+      expect(opts).not.toHaveProperty('permissionOverwrites')
+    })
+
     it('position / nsfw / rateLimitPerUser は undefined でなければ付与する（0/false も含む）', () => {
       // Act
       const opts = buildChannelCreateOptions('c', {

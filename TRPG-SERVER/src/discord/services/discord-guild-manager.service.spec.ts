@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 
 // --- discord.js モックのローカル上書き ---
@@ -27,8 +28,18 @@ jest.mock('discord.js', () => ({
   PermissionsBitField: {
     Flags: {
       ManageChannels: 16n,
+      ManageRoles: 268435456n,
+      ManageMessages: 8192n,
       ViewChannel: 1024n
     }
+  },
+  // parent 検査の not-found 分類（Unknown Channel / GuildChannelUnowned）検証用。
+  // 実 discord.js のエラーコード enum と同じ値を提供する。
+  RESTJSONErrorCodes: {
+    UnknownChannel: 10003
+  },
+  DiscordjsErrorCodes: {
+    GuildChannelUnowned: 'GuildChannelUnowned'
   }
 }))
 
@@ -569,6 +580,7 @@ describe('DiscordGuildManagerService', () => {
 
     it('ViewChannel 権限が無い場合は reason:User lacks permission to view channel', async () => {
       // Arrange
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
       const member = {}
       const guild = { members: { fetch: jest.fn().mockResolvedValue(member) } }
       const channel = {
@@ -583,6 +595,7 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert
       expect(result).toEqual({ hasAccess: false, reason: 'User lacks permission to view channel' })
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('reason=User lacks permission to view channel'))
     })
 
     it('ViewChannel 権限があれば hasAccess:true', async () => {
@@ -607,6 +620,7 @@ describe('DiscordGuildManagerService', () => {
 
     it('例外発生時は hasAccess:false / reason:Error verifying access', async () => {
       // Arrange
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
       const client = makeClient({ channels: { fetch: jest.fn().mockRejectedValue(new Error('boom')) } })
 
       // Act
@@ -614,6 +628,7 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert
       expect(result).toEqual({ hasAccess: false, reason: 'Error verifying access' })
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('reason=Discord API error: boom'))
     })
   })
 
@@ -631,6 +646,7 @@ describe('DiscordGuildManagerService', () => {
 
     it('member が無い場合は reason:User is not a member of the guild', async () => {
       // Arrange
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
       const guild = { members: { fetch: jest.fn().mockResolvedValue(null) } }
       const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
 
@@ -639,6 +655,7 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert
       expect(result).toEqual({ hasAccess: false, reason: 'User is not a member of the guild' })
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('reason=User is not a member of the guild'))
     })
 
     it('guild と member が揃えば hasAccess:true', async () => {
@@ -655,6 +672,7 @@ describe('DiscordGuildManagerService', () => {
 
     it('例外発生時は hasAccess:false / reason:Error verifying access', async () => {
       // Arrange
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
       const client = makeClient({ guilds: { fetch: jest.fn().mockRejectedValue(new Error('boom')) } })
 
       // Act
@@ -662,6 +680,7 @@ describe('DiscordGuildManagerService', () => {
 
       // Assert
       expect(result).toEqual({ hasAccess: false, reason: 'Error verifying access' })
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('reason=Discord API error: boom'))
     })
   })
 
@@ -681,7 +700,7 @@ describe('DiscordGuildManagerService', () => {
       expect(has).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
     })
 
-    it('ManageChannels 権限が無ければ hasPermission:false', async () => {
+    it('ManageChannels 権限が無ければ permission-denied として拒否する', async () => {
       // Arrange
       const has = jest.fn().mockReturnValue(false)
       const member = { permissions: { has } }
@@ -694,18 +713,340 @@ describe('DiscordGuildManagerService', () => {
       // Assert
       expect(result).toEqual({
         hasPermission: false,
+        denial: 'permission-denied',
         reason: 'User lacks permission to manage channels'
       })
       expect(has).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
     })
 
+    it('guild が無ければ permission-denied として拒否する', async () => {
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(null) } })
+
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1')
+
+      expect(result).toEqual({
+        hasPermission: false,
+        denial: 'permission-denied',
+        reason: 'Guild not found'
+      })
+    })
+
+    it('parent カテゴリの overwrite で ManageChannels が拒否されれば permission-denied として拒否する', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+      const baseHas = jest.fn().mockReturnValue(true)
+      const parentHas = jest.fn().mockReturnValue(false)
+      const member = { permissions: { has: baseHas } }
+      const parent = {
+        type: ChannelType.GuildCategory,
+        permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+      }
+      const guild = {
+        members: { fetch: jest.fn().mockResolvedValue(member) },
+        channels: { fetch: jest.fn().mockResolvedValue(parent) }
+      }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')
+
+      expect(result).toEqual({
+        hasPermission: false,
+        denial: 'permission-denied',
+        reason: 'User lacks permission to manage channels in parent category'
+      })
+      expect(baseHas).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+      expect(parent.permissionsFor).toHaveBeenCalledWith(member)
+      expect(parentHas).toHaveBeenCalledWith(PermissionsBitField.Flags.ManageChannels)
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('reason=User lacks permission to manage channels in parent category')
+      )
+    })
+
+    it('parent がカテゴリ以外なら parent-not-category として拒否する', async () => {
+      const member = { permissions: { has: jest.fn().mockReturnValue(true) } }
+      const parent = { type: ChannelType.GuildText, permissionsFor: jest.fn() }
+      const guild = {
+        members: { fetch: jest.fn().mockResolvedValue(member) },
+        channels: { fetch: jest.fn().mockResolvedValue(parent) }
+      }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')
+
+      expect(result).toEqual({
+        hasPermission: false,
+        denial: 'parent-not-category',
+        reason: 'Parent channel is not a category'
+      })
+      expect(parent.permissionsFor).not.toHaveBeenCalled()
+    })
+
+    // 実 discord.js の guild.channels.fetch は不在時に null を返さず throw するため、
+    // not-found 分類は throw されたエラーコードで検証する
+    it.each([
+      ['DiscordAPIError の Unknown Channel (10003)', Object.assign(new Error('Unknown Channel'), { code: 10003 })],
+      [
+        'GuildChannelUnowned（他 guild のチャンネル）',
+        Object.assign(new Error('channel not owned'), { code: 'GuildChannelUnowned' })
+      ]
+    ])('parent fetch が %s を throw したら parent-not-found として拒否する', async (_label, thrown) => {
+      const member = { permissions: { has: jest.fn().mockReturnValue(true) } }
+      const guild = {
+        members: { fetch: jest.fn().mockResolvedValue(member) },
+        channels: { fetch: jest.fn().mockRejectedValue(thrown) }
+      }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')
+
+      expect(result).toEqual({
+        hasPermission: false,
+        denial: 'parent-not-found',
+        reason: 'Parent category not found'
+      })
+    })
+
+    it('parentId 未指定時は Unknown Channel コードでも基盤障害として伝播する', async () => {
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+      const failure = Object.assign(new Error('Unknown Channel'), { code: 10003 })
+      const client = makeClient({ guilds: { fetch: jest.fn().mockRejectedValue(failure) } })
+
+      await expect(service.verifyGuildManagePermission(client, 'g1', 'u1')).rejects.toBe(failure)
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('reason=Discord API error: Unknown Channel'))
+    })
+
+    it('parent 以外（guilds.fetch）が Unknown Channel コードで throw しても parent-not-found へ誤分類せず伝播する', async () => {
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+      const failure = Object.assign(new Error('Unknown Channel'), { code: 10003 })
+      const client = makeClient({ guilds: { fetch: jest.fn().mockRejectedValue(failure) } })
+
+      await expect(service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')).rejects.toBe(failure)
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('reason=Discord API error: Unknown Channel'))
+    })
+
+    it('parent 以外（members.fetch）が GuildChannelUnowned コードで throw しても parent-not-found へ誤分類せず伝播する', async () => {
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+      const failure = Object.assign(new Error('channel not owned'), { code: 'GuildChannelUnowned' })
+      const guild = {
+        members: { fetch: jest.fn().mockRejectedValue(failure) },
+        channels: { fetch: jest.fn() }
+      }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      await expect(service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')).rejects.toBe(failure)
+      expect(guild.channels.fetch).not.toHaveBeenCalled()
+    })
+
+    it('基底権限と parent カテゴリ権限の両方があれば hasPermission:true', async () => {
+      const baseHas = jest.fn().mockReturnValue(true)
+      const parentHas = jest.fn().mockReturnValue(true)
+      const member = { permissions: { has: baseHas } }
+      const parent = {
+        type: ChannelType.GuildCategory,
+        permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+      }
+      const guild = {
+        members: { fetch: jest.fn().mockResolvedValue(member) },
+        channels: { fetch: jest.fn().mockResolvedValue(parent) }
+      }
+      const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+      const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1')
+
+      expect(result).toEqual({ hasPermission: true })
+    })
+
     it('Discord API例外は権限なしへ変換せず上位へ伝播する', async () => {
       // Arrange
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
       const failure = new Error('boom')
       const client = makeClient({ guilds: { fetch: jest.fn().mockRejectedValue(failure) } })
 
       // Act & Assert
       await expect(service.verifyGuildManagePermission(client, 'g1', 'u1')).rejects.toBe(failure)
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('reason=Discord API error: boom'))
+    })
+
+    // --- 非空 overwrite の caller-holds 検証（requestedOverwritePermissionKeys 第5引数） ---
+    // 契約: undefined=非空 overwrite なし（従来要求のみ）/ 配列（空含む）=ManageRoles＋各キー保持を追加要求
+    describe('非空 overwrite の caller-holds 検証', () => {
+      const FLAGS = PermissionsBitField.Flags
+
+      /** 指定 bigint フラグだけを保持する member スタブ（has は単一引数＝checkAdmin 既定を検証可能） */
+      const makeMemberWithFlags = (...granted: bigint[]) => ({
+        permissions: { has: jest.fn((flag: bigint) => granted.includes(flag)) }
+      })
+
+      const makeClientWithMember = (member: unknown) => {
+        const guild = { members: { fetch: jest.fn().mockResolvedValue(member) } }
+        return makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+      }
+
+      it('requestedKeys 未指定（undefined）なら ManageRoles 無しでも従来どおり許可する', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1')
+
+        expect(result).toEqual({ hasPermission: true })
+      })
+
+      it('falsifier: ManageChannels のみの呼出者は deny:[ManageMessages] 要求で permission-denied（ManageRoles 不足）', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+        const member = makeMemberWithFlags(FLAGS.ManageChannels)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, ['ManageMessages'])
+
+        expect(result).toEqual({
+          hasPermission: false,
+          denial: 'permission-denied',
+          reason: 'User lacks permission to manage roles'
+        })
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('reason=User lacks permission to manage roles'))
+      })
+
+      it('空配列（キー無しの非空 overwrite）でも ManageRoles を要求する', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, [])
+
+        expect(result).toMatchObject({ hasPermission: false, denial: 'permission-denied' })
+      })
+
+      it('ManageRoles はあるが要求キーを保持しない場合は、不足キー名を warn に出して permission-denied', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, ['ManageMessages'])
+
+        expect(result).toEqual({
+          hasPermission: false,
+          denial: 'permission-denied',
+          reason: 'User lacks requested overwrite permissions: ManageMessages'
+        })
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('ManageMessages'))
+      })
+
+      it('falsifier: ManageRoles＋ManageMessages を保持していれば成功する（has は checkAdmin 既定のまま呼ぶ）', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles, FLAGS.ManageMessages)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, ['ManageMessages'])
+
+        expect(result).toEqual({ hasPermission: true })
+        // Administrator の暗黙包含を有効に保つため、checkAdmin=false を渡していないこと（単一引数）を固定する
+        expect(member.permissions.has).toHaveBeenCalledWith(FLAGS.ManageMessages)
+      })
+
+      it('falsifier: Administrator（PermissionsBitField.has の暗黙包含で常に true）はすべて成功する', async () => {
+        const member = { permissions: { has: jest.fn().mockReturnValue(true) } }
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, [
+          'ManageMessages',
+          'ViewChannel'
+        ])
+
+        expect(result).toEqual({ hasPermission: true })
+      })
+
+      it('重複キーは除去して判定する（同一キーの has 呼び出しは1回）', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles, FLAGS.ManageMessages)
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, [
+          'ManageMessages',
+          'ManageMessages'
+        ])
+
+        expect(result).toEqual({ hasPermission: true })
+        const manageMessagesCalls = (member.permissions.has as jest.Mock).mock.calls.filter(
+          ([flag]) => flag === FLAGS.ManageMessages
+        )
+        expect(manageMessagesCalls).toHaveLength(1)
+      })
+
+      it('Flags に無い未知キーは fail-closed で拒否し、raw 値を reason/warn へ出さない', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+        const member = { permissions: { has: jest.fn().mockReturnValue(true) } }
+        const client = makeClientWithMember(member)
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', undefined, [
+          'TotallyUnknownKey' as never
+        ])
+
+        expect(result).toMatchObject({ hasPermission: false, denial: 'permission-denied' })
+        expect(JSON.stringify(result)).not.toContain('TotallyUnknownKey')
+        for (const [message] of warn.mock.calls) {
+          expect(String(message)).not.toContain('TotallyUnknownKey')
+        }
+      })
+
+      it('parent 指定時はカテゴリ実効権限でも ManageRoles を要求する', async () => {
+        // 基底は ManageChannels＋ManageRoles を保持、カテゴリ実効では ManageRoles が拒否される
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles, FLAGS.ManageMessages)
+        const parentHas = jest.fn((flag: bigint) => flag === FLAGS.ManageChannels)
+        const parent = {
+          type: ChannelType.GuildCategory,
+          permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+        }
+        const guild = {
+          members: { fetch: jest.fn().mockResolvedValue(member) },
+          channels: { fetch: jest.fn().mockResolvedValue(parent) }
+        }
+        const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1', ['ManageMessages'])
+
+        expect(result).toEqual({
+          hasPermission: false,
+          denial: 'permission-denied',
+          reason: 'User lacks permission to manage roles in parent category'
+        })
+      })
+
+      it('parent 指定時の要求キー保持はカテゴリ実効権限で判定する（基底保持でも実効不足なら拒否）', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles, FLAGS.ManageMessages)
+        const parentHas = jest.fn((flag: bigint) => flag === FLAGS.ManageChannels || flag === FLAGS.ManageRoles)
+        const parent = {
+          type: ChannelType.GuildCategory,
+          permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+        }
+        const guild = {
+          members: { fetch: jest.fn().mockResolvedValue(member) },
+          channels: { fetch: jest.fn().mockResolvedValue(parent) }
+        }
+        const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1', ['ManageMessages'])
+
+        expect(result).toEqual({
+          hasPermission: false,
+          denial: 'permission-denied',
+          reason: 'User lacks requested overwrite permissions: ManageMessages'
+        })
+        expect(parentHas).toHaveBeenCalledWith(FLAGS.ManageMessages)
+      })
+
+      it('parent 指定時にカテゴリ実効で全要求を満たせば成功する', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles)
+        const parentHas = jest.fn().mockReturnValue(true)
+        const parent = {
+          type: ChannelType.GuildCategory,
+          permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+        }
+        const guild = {
+          members: { fetch: jest.fn().mockResolvedValue(member) },
+          channels: { fetch: jest.fn().mockResolvedValue(parent) }
+        }
+        const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1', ['ManageMessages'])
+
+        expect(result).toEqual({ hasPermission: true })
+      })
     })
   })
 })

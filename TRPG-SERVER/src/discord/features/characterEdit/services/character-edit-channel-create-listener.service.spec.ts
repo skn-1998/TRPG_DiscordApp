@@ -191,7 +191,7 @@ describe('CharacterEditChannelCreateListenerService', () => {
 
       let listenerPromise: Promise<void> | undefined
       const discordFacade = {
-        verifyGuildManagePermission: jest.fn().mockResolvedValue(true),
+        verifyGuildManagePermission: jest.fn().mockResolvedValue({ hasPermission: true }),
         getGuildInfo: jest.fn().mockResolvedValue({
           channels: [{ id: 'character-category', name: 'character', type: 'GuildCategory' }]
         }),

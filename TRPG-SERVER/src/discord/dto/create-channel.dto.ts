@@ -1,5 +1,13 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max } from 'class-validator'
 import { ApiProperty } from '@nestjs/swagger'
+import {
+  ALLOWED_CHANNEL_PERMISSION_ALLOW_KEYS,
+  ALLOWED_CHANNEL_PERMISSION_DENY_KEYS,
+  CHANNEL_PERMISSION_OVERWRITE_TYPES,
+  IsDiscordSnowflake,
+  IsValidChannelPermissionOverwrites
+} from './channel-permission-overwrite.validator'
+import type { CreateChannelPermissionOverwrite } from './channel-permission-overwrite.validator'
 
 export enum CreateChannelType {
   TEXT = 'text',
@@ -35,7 +43,7 @@ export class CreateChannelDto {
 
   @ApiProperty({ description: '親カテゴリーID', required: false })
   @IsOptional()
-  @IsString({ message: '親カテゴリーIDは文字列で入力してください' })
+  @IsDiscordSnowflake({ message: '親カテゴリーIDは17〜19桁のDiscord Snowflake文字列で指定してください' })
   readonly parentId?: string
 
   @ApiProperty({ description: 'チャンネルの位置', required: false })
@@ -55,7 +63,22 @@ export class CreateChannelDto {
   @Max(21600, { message: '低速モードは21600秒以下で入力してください' }) // 6時間
   readonly rateLimitPerUser?: number
 
-  @ApiProperty({ description: 'チャンネル権限設定', required: false })
-  @IsOptional()
-  readonly permissions?: any[]
+  @ApiProperty({
+    description: 'チャンネル権限設定',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: { type: 'string', description: '対象ユーザーまたはロールのDiscord Snowflake' },
+        // enum は validator の許可キー定数から生成する（単一ソース）。allow と deny は非対称。
+        allow: { type: 'array', items: { type: 'string', enum: [...ALLOWED_CHANNEL_PERMISSION_ALLOW_KEYS] } },
+        deny: { type: 'array', items: { type: 'string', enum: [...ALLOWED_CHANNEL_PERMISSION_DENY_KEYS] } },
+        type: { type: 'string', enum: [...CHANNEL_PERMISSION_OVERWRITE_TYPES] }
+      }
+    }
+  })
+  @IsValidChannelPermissionOverwrites()
+  readonly permissions?: CreateChannelPermissionOverwrite[]
 }

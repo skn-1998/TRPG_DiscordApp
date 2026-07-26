@@ -1,6 +1,8 @@
+import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import { SendMessageDto } from './send-message.dto'
+import { DISCORD_VALIDATION_PIPE_OPTIONS } from '../discord.controller'
 
 describe('SendMessageDto', () => {
   it('16進文字列のEmbed色をDiscord用の数値へ正規化する', async () => {
@@ -42,5 +44,49 @@ describe('SendMessageDto', () => {
 
     expect(errors).toHaveLength(0)
     expect(dto.embed?.color).toBe(color)
+  })
+
+  // HTTP 経路相当: DiscordController と同一の共有定数で生成した実 ValidationPipe（whitelist: true）を
+  // 通しても、宣言済みの Embed パーツ（footer/image/thumbnail/author/url/timestamp）が剥がされず保持される
+  describe('実 ValidationPipe 境界（DISCORD_VALIDATION_PIPE_OPTIONS）', () => {
+    const pipe = new ValidationPipe(DISCORD_VALIDATION_PIPE_OPTIONS)
+
+    it('footer 付き embed が通過し、各パーツが保持される', async () => {
+      const payload = {
+        channelId: 'channel-1',
+        embed: {
+          title: 'character',
+          url: 'https://example.com/character/1',
+          timestamp: '2026-07-27T00:00:00.000Z',
+          footer: { text: 'via TRPG Bot', iconUrl: 'https://example.com/icon.png' },
+          image: { url: 'https://example.com/image.png' },
+          thumbnail: { url: 'https://example.com/thumb.png' },
+          author: { name: 'GM', url: 'https://example.com/gm', iconUrl: 'https://example.com/gm.png' }
+        }
+      }
+
+      const result = await pipe.transform(payload, { type: 'body', metatype: SendMessageDto })
+
+      expect(result.embed).toEqual(payload.embed)
+    })
+
+    it('footer.text が欠落した embed は BadRequestException で拒否される', async () => {
+      const payload = {
+        channelId: 'channel-1',
+        embed: { title: 'character', footer: { iconUrl: 'https://example.com/icon.png' } }
+      }
+
+      await expect(pipe.transform(payload, { type: 'body', metatype: SendMessageDto })).rejects.toBeInstanceOf(
+        BadRequestException
+      )
+    })
+
+    it('ISO 8601 でない timestamp は BadRequestException で拒否される', async () => {
+      const payload = { channelId: 'channel-1', embed: { title: 'character', timestamp: 'yesterday' } }
+
+      await expect(pipe.transform(payload, { type: 'body', metatype: SendMessageDto })).rejects.toBeInstanceOf(
+        BadRequestException
+      )
+    })
   })
 })
