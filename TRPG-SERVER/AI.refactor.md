@@ -1098,7 +1098,7 @@ S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・s
 
 ### S-4.3 完了（2026-06-04・dual-path 収束・behavior-changing／nestjs-best-practices 委譲・司令塔裏取り＋start:dev 実機確認）
 
-ユーザー確定レイアウト=_*基本ダイス(dice*generic*)＋フレキシブル＋プリセット＋スキル(skill*)＋能力(ability_)**（基本行は残し dice*generic* で修復・custom は flexible メニュー）。
+ユーザー確定レイアウト=_*基本ダイス(dice*generic\*)＋フレキシブル＋プリセット＋スキル(skill\*)＋能力(ability_)**（基本行は残し dice*generic* で修復・custom は flexible メニュー）。
 
 - **ThreadInteractionService**（単一生成元）に public `postBasicDiceButtons`（`dice_generic_{1d100/1d6/2d6}_{discordChannelId}` の3ボタン行）と `postAbilityRollButtons`（`postSkillRollButtons` ミラー・`character.parameter`→`ability_{discordChannelId}_{key}`）を新設。
 - **ThreadCreationService**（select 経路）: `ThreadInteractionService` を注入し `displayCharacterInfo` の try/fallback 両方で5 post メソッドへ委譲。roll* 生成依存の private 4メソッド（postActionButtons/postSkillRollButtons/postFlexibleDiceMenu/postPresetDiceButtons）と未使用化した util import を撤去。→ \*\*select 経路の broken `roll*`/孤児 `roll\*\_` 生成を解消\*\*。
@@ -1150,7 +1150,7 @@ S-1/S-2/S-3 完了。S-4 は behavior-changing（スレッド内→親投稿・s
 
 撤去（27 files・-4296行）: diceRoll の `DiceRollGeneral/Custom/Preset/Skill` handler ＋ `CharacterDiceOrchestratorService`＋`DiceButtonUIService`＋`DiceHistoryService`、characterThread の `CharacterDiceHandler`＋`CharacterDiceButtonsService`＋`CharacterDiceHistoryService`(+character-dice-format.util/character-dice-history.pure)。両 module の providers/onModuleInit/registry 登録、dead 専用だった `DiceRollModule`/`DiceRollPaginationModule` import も除去（`DiceServicesModule` は DiceRollLogicService が live のため維持）。handlers.integration.spec 登録数 28→23・dead routing を未登録へ更新。
 
-- 検証（司令塔再裏取り）: 残存参照ゼロ／build exit 0／check:circular **No circular**／jest **54 suites 538 緑**／_*start:dev で registry 23 handler（batch 8+6+9・S-4.3 の 28 から −5）・dead handler 未登録・live handler（dice*generic*/skill*/ability_/preset-quick/flexible/modal/pagination）健在・DI エラー 0**。想定外 M（character-thread.orchestrator/thread-orchestrator/dice-roll-modal）は実変更0＝CRLF のみ＝スコープ外不接触。
+- 検証（司令塔再裏取り）: 残存参照ゼロ／build exit 0／check:circular **No circular**／jest **54 suites 538 緑**／_*start:dev で registry 23 handler（batch 8+6+9・S-4.3 の 28 から −5）・dead handler 未登録・live handler（dice*generic\*/skill\*/ability_/preset-quick/flexible/modal/pagination）健在・DI エラー 0**。想定外 M（character-thread.orchestrator/thread-orchestrator/dice-roll-modal）は実変更0＝CRLF のみ＝スコープ外不接触。
 - コミット手順: 事前 staged の無関係 junk と混在していたため `git reset`（作業ツリー保全）→ S-5c パスのみ stage → commit。**事前 staged 群は unstage されたが作業ツリーに完全保持**（AI.discord.md 削除等は未コミットのまま残存）。
 - live 維持: `DiceOrchestratorService`(services/dice・custom-modal)／`DicePresetService`(dead メソッド createPresetButton/handlePresetDiceRoll は残置・別 issue)／`DiceRollModalHandler`／`PresetDiceQuickRollHandler`。
 
