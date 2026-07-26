@@ -2,7 +2,9 @@
 	"packageManager": "pnpm@10.12.1",
 	"scripts": {
 		"build:engine": "pnpm --filter @trpg/sheet-engine build",
-		"test:engine": "pnpm --filter @trpg/sheet-engine test"
+		"build:projection": "pnpm --filter @trpg/sheet-projection build",
+		"test:engine": "pnpm --filter @trpg/sheet-engine test",
+		"test:projection": "pnpm --filter @trpg/sheet-projection test"
 	},
 	"devDependencies": {
 		"@types/mocha": "^10.0.10"

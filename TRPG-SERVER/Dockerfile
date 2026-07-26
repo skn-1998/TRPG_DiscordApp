@@ -10,16 +10,18 @@ RUN npm install -g pnpm@10.12.1
 # workspace root を作業ディレクトリにする
 WORKDIR /usr/src/app
 
-# パッケージ定義ファイルをコピー（依存関係キャッシュのため先にコピー）
+# manifest COPY は lockfile の全 importer に必要（frozen-lockfile 検証のため）。
+# install filter / build / dist COPY は実際に消費するパッケージのみ。
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
 COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
+COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
 
 # 開発ステージ
 FROM base AS development
 # 開発用の依存関係をインストール
-RUN pnpm install --frozen-lockfile --filter trpg-server... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --filter trpg-server...
 
 # アプリケーションコードをコピー
 COPY . .
@@ -31,28 +33,29 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# engine をビルドしてから開発モードで起動
-CMD ["sh", "-c", "pnpm --filter @trpg/sheet-engine build && pnpm --filter trpg-server run start:dev"]
+# workspace 依存をビルドしてから開発モードで起動
+CMD ["sh", "-c", "pnpm --filter \"trpg-server^...\" run build && pnpm --filter trpg-server run start:dev"]
 
 # 本番ビルドステージ
 FROM base AS build
 # 全ての依存関係をインストール
-RUN pnpm install --frozen-lockfile --filter trpg-server... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --filter trpg-server...
 
 # アプリケーションコードをコピー
 COPY . .
 
 # TypeScriptをビルド
-RUN pnpm --filter @trpg/sheet-engine build && pnpm --filter trpg-server run build
+RUN pnpm --filter trpg-server... run build
 
 # 本番ステージ
 FROM base AS production
 # 本番用依存関係のみインストール
-RUN pnpm install --frozen-lockfile --prod --filter trpg-server... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --prod --filter trpg-server...
 
 # ビルド済みアプリケーションをコピー
 COPY --from=build /usr/src/app/TRPG-SERVER/dist ./TRPG-SERVER/dist
 COPY --from=build /usr/src/app/packages/sheet-engine/dist ./packages/sheet-engine/dist
+COPY --from=build /usr/src/app/packages/sheet-projection/dist ./packages/sheet-projection/dist
 
 # ポートをExpose
 EXPOSE 3000

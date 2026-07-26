@@ -10,16 +10,18 @@ RUN npm install -g pnpm@10.12.1
 # workspace root を作業ディレクトリにする
 WORKDIR /usr/src/app
 
-# パッケージ定義ファイルをコピー（依存関係キャッシュのため先にコピー）
+# manifest COPY は lockfile の全 importer に必要（frozen-lockfile 検証のため）。
+# install filter / build / dist COPY は実際に消費するパッケージのみ。
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
 COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
+COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
 
 # 開発ステージ
 FROM base AS development
 # 開発用の依存関係をインストール
-RUN pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --filter trpg-remix-app...
 
 # アプリケーションコードをコピー
 COPY . .
@@ -31,13 +33,13 @@ RUN echo '#!/bin/sh' > /start-remix.sh && \
     echo '# node_modulesが空の場合のみインストール' >> /start-remix.sh && \
     echo 'if [ ! -d "trpg-remix-app/node_modules/@remix-run" ] || [ ! -d "packages/sheet-engine/node_modules/zod" ]; then' >> /start-remix.sh && \
     echo '  echo "依存関係をインストール中..."' >> /start-remix.sh && \
-    echo '  pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...' >> /start-remix.sh && \
+    echo '  pnpm install --frozen-lockfile --filter trpg-remix-app...' >> /start-remix.sh && \
     echo 'else' >> /start-remix.sh && \
     echo '  echo "依存関係は既にインストール済みです"' >> /start-remix.sh && \
     echo 'fi' >> /start-remix.sh && \
     echo '' >> /start-remix.sh && \
     echo 'echo "Sheet engine をビルド中..."' >> /start-remix.sh && \
-    echo 'pnpm --filter @trpg/sheet-engine build' >> /start-remix.sh && \
+    echo 'pnpm --filter "trpg-remix-app^..." build' >> /start-remix.sh && \
     echo '' >> /start-remix.sh && \
     echo '# Viteキャッシュをクリア' >> /start-remix.sh && \
     echo 'echo "Viteキャッシュをクリア中..."' >> /start-remix.sh && \
@@ -60,7 +62,7 @@ CMD ["/start-remix.sh"]
 # 本番ビルドステージ
 FROM base AS build
 # 全ての依存関係をインストール
-RUN pnpm install --frozen-lockfile --filter trpg-remix-app... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --filter trpg-remix-app...
 
 # アプリケーションコードをコピー
 COPY . .
@@ -71,7 +73,7 @@ RUN pnpm --filter @trpg/sheet-engine build && pnpm --filter trpg-remix-app run b
 # 本番ステージ
 FROM base AS production
 # 本番用依存関係のみインストール
-RUN pnpm install --frozen-lockfile --prod --filter trpg-remix-app... --filter @trpg/sheet-engine...
+RUN pnpm install --frozen-lockfile --prod --filter trpg-remix-app...
 
 # ビルド済みアプリケーションをコピー
 COPY --from=build /usr/src/app/trpg-remix-app/build ./trpg-remix-app/build
