@@ -15,6 +15,7 @@ import {
 } from 'test/utils/character-http-contract'
 import { AppConfigService } from '../../config/config.service'
 import { ResponseInterceptor } from '../../core/http'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterHttpExceptionFilter } from './character-http.exception'
 import { CharacterController } from './character.controller'
@@ -30,8 +31,12 @@ describe('CharacterController HTTP payload contract', () => {
     discordUserId: 'character-http-user-id'
   }
   const characterService = {
+    create: jest.fn(),
+    findHavingAll: jest.fn(),
     findOneForOwner: jest.fn(),
-    findUserCharacterSummaries: jest.fn()
+    findUserCharacterSummaries: jest.fn(),
+    updateForOwner: jest.fn(),
+    removeForOwner: jest.fn()
   }
 
   let app: INestApplication
@@ -48,7 +53,8 @@ describe('CharacterController HTTP payload contract', () => {
           }
         },
         CharacterHttpExceptionFilter,
-        ResponseInterceptor
+        ResponseInterceptor,
+        APP_VALIDATION_PIPE_PROVIDER
       ]
     })
       .overrideGuard(JwtAuthGuard)
@@ -66,12 +72,167 @@ describe('CharacterController HTTP payload contract', () => {
   })
 
   beforeEach(() => {
+    characterService.create.mockReset()
+    characterService.findHavingAll.mockReset()
     characterService.findOneForOwner.mockReset()
     characterService.findUserCharacterSummaries.mockReset()
+    characterService.updateForOwner.mockReset()
+    characterService.removeForOwner.mockReset()
   })
 
   afterAll(async () => {
     await app.close()
+  })
+
+  const createCharacterFixture = (overrides: JsonObject = {}): JsonObject => ({
+    _id: new Types.ObjectId('507f1f77bcf86cd799439020'),
+    __v: 1,
+    characterId: 'character-http-fixture',
+    characterName: 'HTTP Fixture Character',
+    gameSystemId: 'coc7',
+    discordUserId: authenticatedUser.discordUserId,
+    discordChannelId: 'http-fixture-channel',
+    status: {
+      HP: { name: 'HP', index: 1, values: { base: 12, other: -2 }, isVisible: true }
+    },
+    createdAt: new Date('2026-07-10T01:02:03.004Z'),
+    updatedAt: new Date('2026-07-11T02:03:04.005Z'),
+    ...overrides
+  })
+
+  const expectEntityWireData = (data: JsonObject): void => {
+    expectOnlyCharacterRuntimeKeys(data)
+    expectAllRequiredCharacterRuntimeKeys(data)
+    expectIsoDateString(data.createdAt)
+    expectIsoDateString(data.updatedAt)
+    expectCharacterEntitySchemaWireData(data)
+  }
+
+  it('POST /character は 201・meta なしの封筒で作成済み entity wire を返す', async () => {
+    const createdCharacter = createCharacterFixture({
+      characterId: 'character-http-created',
+      characterName: 'HTTP Created Character'
+    })
+    characterService.create.mockResolvedValueOnce(createdCharacter)
+
+    const response = await request(app.getHttpServer())
+      .post('/character')
+      .send({
+        characterId: 'character-http-created',
+        characterName: 'HTTP Created Character',
+        gameSystemId: 'coc7',
+        discordChannelId: 'http-fixture-channel',
+        status: createdCharacter.status
+      })
+      .expect(201)
+    const body = response.body as JsonObject
+    const data = body.data as JsonObject
+
+    expectSuccessEnvelope(body, 'キャラクターを作成しました')
+    expect(body).not.toHaveProperty('meta')
+    expectEntityWireData(data)
+    expect(characterService.create).toHaveBeenCalledWith({
+      characterId: 'character-http-created',
+      characterName: 'HTTP Created Character',
+      gameSystemId: 'coc7',
+      discordChannelId: 'http-fixture-channel',
+      status: createdCharacter.status,
+      discordUserId: authenticatedUser.discordUserId
+    })
+  })
+
+  it('POST /character は ValidationPipe で文字列でない characterId を 400 にする', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/character')
+      .send({
+        characterId: 999,
+        characterName: 'N',
+        gameSystemId: 'coc7'
+      })
+      .expect(400)
+
+    expect(response.body.error).toBe('キャラクターIDは文字列である必要があります')
+    expect(characterService.create).not.toHaveBeenCalled()
+  })
+
+  it('GET /character は二重ラップせず entity wire 配列と実件数に一致する meta を返す', async () => {
+    const characters = [
+      createCharacterFixture({
+        _id: new Types.ObjectId('507f1f77bcf86cd799439021'),
+        characterId: 'character-http-list-1'
+      }),
+      createCharacterFixture({
+        _id: new Types.ObjectId('507f1f77bcf86cd799439022'),
+        characterId: 'character-http-list-2'
+      })
+    ]
+    characterService.findHavingAll.mockResolvedValueOnce(characters)
+
+    const response = await request(app.getHttpServer()).get('/character').expect(200)
+    const body = response.body as JsonObject
+    const data = body.data as JsonObject[]
+
+    expectSuccessEnvelope(body, 'キャラクター一覧を取得しました', ['meta'])
+    expect(body.meta).toEqual({
+      total: characters.length,
+      page: 1,
+      limit: characters.length,
+      hasNext: false,
+      hasPrev: false
+    })
+    expect(Array.isArray(data)).toBe(true)
+    expect((body.data as { data?: unknown }).data).toBeUndefined()
+    expect(data).toHaveLength(characters.length)
+    for (const character of data) {
+      expectEntityWireData(character)
+    }
+    expect(characterService.findHavingAll).toHaveBeenCalledWith(authenticatedUser.discordUserId)
+  })
+
+  it('PUT /character/:id は 200・meta なしの封筒で更新済み entity wire を返す', async () => {
+    const updatedCharacter = createCharacterFixture({
+      characterId: 'character-http-updated',
+      characterName: 'HTTP Updated Character',
+      updatedAt: new Date('2026-07-12T03:04:05.006Z')
+    })
+    characterService.updateForOwner.mockResolvedValueOnce(updatedCharacter)
+
+    const response = await request(app.getHttpServer())
+      .put('/character/character-http-updated')
+      .send({ characterName: 'HTTP Updated Character' })
+      .expect(200)
+    const body = response.body as JsonObject
+    const data = body.data as JsonObject
+
+    expectSuccessEnvelope(body, 'キャラクターを更新しました')
+    expect(body).not.toHaveProperty('meta')
+    expectEntityWireData(data)
+    expect(characterService.updateForOwner).toHaveBeenCalledWith(
+      'character-http-updated',
+      authenticatedUser.discordUserId,
+      { characterName: 'HTTP Updated Character' }
+    )
+  })
+
+  it('DELETE /character/:id は 200・meta なしで封筒 message と削除結果 message を別フィールドに保持する', async () => {
+    const characterId = 'character-http-deleted'
+    characterService.removeForOwner.mockResolvedValueOnce({ characterId })
+
+    const response = await request(app.getHttpServer()).delete(`/character/${characterId}`).expect(200)
+    const body = response.body as JsonObject
+    const data = body.data as JsonObject
+    const expectedDeleteResult = {
+      message: 'キャラクターを削除しました',
+      characterId
+    }
+
+    expectSuccessEnvelope(body, 'キャラクターを削除しました')
+    expect(body).not.toHaveProperty('meta')
+    expect(Object.keys(data).sort()).toEqual(Object.keys(expectedDeleteResult).sort())
+    expect(body.message).toBe('キャラクターを削除しました')
+    expect(data.message).toBe('キャラクターを削除しました')
+    expect(data.characterId).toBe(characterId)
+    expect(characterService.removeForOwner).toHaveBeenCalledWith(characterId, authenticatedUser.discordUserId)
   })
 
   it('GET /character/:id は完全な実 payload を wire 許可キーと ISO 日時で返す', async () => {
