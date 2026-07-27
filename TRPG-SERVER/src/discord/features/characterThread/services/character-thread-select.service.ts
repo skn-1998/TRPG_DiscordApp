@@ -15,6 +15,10 @@ import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { EVENT_NAMES } from 'src/events/contracts'
 import { CharacterService } from 'src/domains/character/character.service'
+import {
+  CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE,
+  isMaterializedWithoutChannel
+} from './character-channel-binding.util'
 
 @Injectable()
 export class CharacterThreadSelectService implements discordSelectMenuType {
@@ -300,6 +304,17 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       if (character.discordUserId !== interaction.user.id) {
         await interaction.editReply({
           content: '❌ 他のユーザーのキャラクターは使用できません。',
+          components: []
+        })
+        return
+      }
+
+      // 同じ述語の3適用点（L1）: ユーザーへ拒否理由を返す。
+      if (isMaterializedWithoutChannel(character)) {
+        // AI.discord.md の通知規則では新規コードは respondEphemeralError を使うが、ここは components: [] で
+        // セレクトメニューを剥がす必要があり util では表現できないため直接 editReply する。
+        await interaction.editReply({
+          content: CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE,
           components: []
         })
         return

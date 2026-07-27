@@ -29,6 +29,11 @@ export class HubPublicationService {
   async postHub(characterId: string, threadId: string): Promise<void> {
     const character = await this.operations.getHubCharacter(characterId)
     if (character === null || character.sheet === undefined || character.hub?.status !== 'none') return
+    // 未紐付けsentinelは空文字列とし、非空の不正snowflakeは拒否せずprojection warningで可視化する。
+    if (!character.discordChannelId) {
+      this.logger.warn(`Hub post skipped because discordChannelId is not linked: ${characterId}`)
+      return
+    }
 
     const opId = randomUUID()
     const publishing = await this.operations.setHubState(
@@ -44,7 +49,25 @@ export class HubPublicationService {
 
     let payload: ReturnType<HubDiscordViewBuilder['buildHubMessage']>
     try {
-      payload = this.viewBuilder.buildHubMessage(this.projection.create(publishing))
+      const projection = this.projection.create(publishing)
+      if (projection.warnings.length > 0) {
+        // code@path（path 無しは code）を重複排除キーとし、先頭10件と残ユニーク数を表示する。
+        const uniqueWarningKeys: string[] = []
+        const seenWarningKeys = new Set<string>()
+        for (const warning of projection.warnings) {
+          const warningKey = warning.path === undefined ? warning.code : `${warning.code}@${warning.path}`
+          if (seenWarningKeys.has(warningKey)) continue
+          seenWarningKeys.add(warningKey)
+          uniqueWarningKeys.push(warningKey)
+        }
+        const rendered = uniqueWarningKeys.slice(0, 10).join(' | ')
+        const remaining = Math.max(0, uniqueWarningKeys.length - 10)
+        const suffix = remaining > 0 ? ` (+${remaining} more unique keys)` : ''
+        this.logger.warn(
+          `Hub projection warnings for ${characterId} (${projection.warnings.length} warnings / ${uniqueWarningKeys.length} unique keys): ${rendered}${suffix}`
+        )
+      }
+      payload = this.viewBuilder.buildHubMessage(projection)
     } catch (error) {
       this.logger.error(`Hub projection failed before Discord send: ${characterId}`, error)
       await this.operations.setHubState(characterId, { status: 'publishing', opId }, { status: 'none' })

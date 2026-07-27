@@ -20,6 +20,10 @@ import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
 import { DiscordClientService } from '../../../services/discord-client.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { HubPublicationService } from '../../characterSheet/services/hub-publication.service'
+import {
+  CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE,
+  isMaterializedWithoutChannel
+} from './character-channel-binding.util'
 import { ThreadInteractionService } from './thread-interaction.service'
 import {
   buildThreadName,
@@ -78,6 +82,18 @@ export class ThreadCreationService {
   async createCharacterThread(request: CreateThreadRequest, character: CharacterEntity): Promise<CreateThreadResult> {
     this.logger.log(`Creating thread for character: ${request.characterName}`)
 
+    // 同じ述語の3適用点（L3）: 直接サービス経路を止める。
+    if (isMaterializedWithoutChannel(character)) {
+      this.logger.warn(
+        `Thread creation rejected: character ${character.characterId} is materialized but discordChannelId is not linked`
+      )
+      return {
+        success: false,
+        error: CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE
+      }
+    }
+
+    const characterState = resolveCharacterState(character)
     try {
       // ギルドを取得
       const guild = await this.getGuild(request.guildId)
@@ -104,7 +120,7 @@ export class ThreadCreationService {
       await this.updateCharacterChannelIds(character.characterId, thread.id, character.discordChannelId)
 
       // キャラクター情報を投稿（表示タイプに応じて処理）
-      if (resolveCharacterState(character) !== 'materialized') {
+      if (characterState !== 'materialized') {
         await this.postCharacterDisplay(thread, character, request.displayType || 'basic')
       } else {
         try {

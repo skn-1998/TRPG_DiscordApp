@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import type { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import type { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import type { HubDiscordGateway } from '../adapters/hub-discord.gateway'
@@ -31,6 +32,7 @@ describe('HubPublicationService', () => {
   let gateway: { send: jest.Mock }
   let worker: { wake: jest.Mock }
   let service: HubPublicationService
+  let warnSpy: jest.SpyInstance
 
   beforeEach(() => {
     operations = { getHubCharacter: jest.fn(), setHubState: jest.fn() }
@@ -45,6 +47,94 @@ describe('HubPublicationService', () => {
       gateway as unknown as HubDiscordGateway
     )
     service.connectRefreshWorker(worker as unknown as HubRefreshWorker)
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  it('未紐付けのmaterializedキャラはCASとDiscord投稿を行わず、理由を警告する', async () => {
+    operations.getHubCharacter.mockResolvedValue({ ...character('none'), discordChannelId: '' })
+
+    await service.postHub('char-1', 'thread-1')
+
+    expect(operations.setHubState).not.toHaveBeenCalled()
+    expect(projection.create).not.toHaveBeenCalled()
+    expect(gateway.send).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith('Hub post skipped because discordChannelId is not linked: char-1')
+  })
+
+  it('projection warningをcode@path一覧で警告し、Discord投稿は継続する', async () => {
+    const projectedHub = {
+      hub: {},
+      warnings: [
+        { code: 'invalid-custom-id-part', message: 'invalid channel', path: 'channelId' },
+        { code: 'custom-id-budget-exceeded', message: 'too long', path: 'palette[0]' }
+      ]
+    }
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState.mockResolvedValueOnce(character('publishing')).mockResolvedValueOnce(character('active'))
+    projection.create.mockReturnValue(projectedHub)
+    gateway.send.mockResolvedValue({ id: 'message-1' })
+
+    await service.postHub('char-1', 'thread-1')
+
+    // path があるものは code@path で描画する
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Hub projection warnings for char-1 (2 warnings / 2 unique keys): invalid-custom-id-part@channelId | custom-id-budget-exceeded@palette[0]'
+    )
+    expect(builder.buildHubMessage).toHaveBeenCalledWith(projectedHub)
+    expect(gateway.send).toHaveBeenCalledWith('thread-1', { embeds: [] })
+  })
+
+  it('warningをcode@pathで重複排除し、同一codeでもpath違いは両方表示して投稿を継続する', async () => {
+    const projectedHub = {
+      hub: {},
+      warnings: [
+        { code: 'invalid-custom-id-part', message: 'a', path: 'first' },
+        { code: 'invalid-custom-id-part', message: 'b', path: 'second' },
+        { code: 'invalid-custom-id-part', message: 'duplicate', path: 'first' },
+        { code: 'label-truncated', message: 'c' }
+      ]
+    }
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState.mockResolvedValueOnce(character('publishing')).mockResolvedValueOnce(character('active'))
+    projection.create.mockReturnValue(projectedHub)
+    gateway.send.mockResolvedValue({ id: 'message-1' })
+
+    await service.postHub('char-1', 'thread-1')
+
+    // code@path が同じ first は1回にまとめ、path が異なる second は残す。
+    // label-truncated は path 無しなので code 単独。総数(4)は重複込み。
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Hub projection warnings for char-1 (4 warnings / 3 unique keys): invalid-custom-id-part@first | invalid-custom-id-part@second | label-truncated'
+    )
+    expect(gateway.send).toHaveBeenCalledWith('thread-1', { embeds: [] })
+  })
+
+  it('同一codeでpathが12通りある場合は先頭10件のみ表示し残ユニーク数を付記し、投稿は継続する', async () => {
+    const warnings = Array.from({ length: 12 }, (_, i) => ({
+      code: 'invalid-custom-id-part',
+      message: 'm',
+      path: `palette[${i}]`
+    }))
+    const projectedHub = { hub: {}, warnings }
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState.mockResolvedValueOnce(character('publishing')).mockResolvedValueOnce(character('active'))
+    projection.create.mockReturnValue(projectedHub)
+    gateway.send.mockResolvedValue({ id: 'message-1' })
+
+    await service.postHub('char-1', 'thread-1')
+
+    const expectedKeys = warnings
+      .slice(0, 10)
+      .map((warning) => `${warning.code}@${warning.path}`)
+      .join(' | ')
+    expect(warnSpy).toHaveBeenCalledWith(
+      `Hub projection warnings for char-1 (12 warnings / 12 unique keys): ${expectedKeys} (+2 more unique keys)`
+    )
+    expect(gateway.send).toHaveBeenCalledWith('thread-1', { embeds: [] })
   })
 
   it('T-21: none→publishing CAS競合ではDiscord投稿を行わない', async () => {

@@ -10,6 +10,7 @@ import { DiscordClientService } from '../../../services/discord-client.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { HubPublicationService } from '../../characterSheet/services/hub-publication.service'
+import { CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE } from './character-channel-binding.util'
 import { ThreadInteractionService } from './thread-interaction.service'
 import { Character } from '../../../../domains/character/models/character.model'
 
@@ -274,6 +275,64 @@ describe('ThreadCreationService (characterization)', () => {
         threadId: 'thread-xyz',
         threadUrl: 'https://discord.com/channels/guild-1/channel-1/thread-xyz'
       })
+    })
+
+    it('materialized: discordChannelId未紐付けならthread作成前にユーザー向けエラーを返す', async () => {
+      const thread = buildMockThread()
+      const channel = buildMockChannel(thread)
+      const character = buildCharacter({
+        discordChannelId: '',
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          values: {}
+        }
+      })
+      const getGuildSpy = jest.spyOn(service as any, 'getGuild').mockResolvedValue({ id: 'guild-1' })
+      const getTextChannelSpy = jest.spyOn(service as any, 'getTextChannel').mockResolvedValue(channel)
+      const warnSpy = jest.spyOn((service as any).logger, 'warn')
+
+      const result = await service.createCharacterThread(baseRequest, character)
+
+      expect(result).toEqual({
+        success: false,
+        error: CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE
+      })
+      expect(getGuildSpy).not.toHaveBeenCalled()
+      expect(getTextChannelSpy).not.toHaveBeenCalled()
+      expect(channel.threads.create).not.toHaveBeenCalled()
+      expect(mockCharacterService.update).not.toHaveBeenCalled()
+      expect(mockHubPublicationService.postHub).not.toHaveBeenCalled()
+      // K: 拒否パスは characterId と未紐付け理由(discordChannelId)を含む警告を1本出す
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('char-123'))
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('discordChannelId'))
+    })
+
+    it('legacy+discordChannelId空: 未 materialized なので guard を通過し、thread 作成と表示投稿を継続する', async () => {
+      // E: guard 条件の materialized 部分が外れると legacy+空 が誤って弾かれるため、
+      // legacy(sheet なし)+空 discordChannelId で thread.send / ThreadInteractionService への委譲が
+      // 継続することを固定する（HubPublicationService は呼ばれない）。
+      const thread = buildMockThread()
+      const channel = buildMockChannel(thread)
+      const character = buildCharacter({ discordChannelId: '' })
+
+      jest.spyOn(service as any, 'getGuild').mockResolvedValue({ id: 'guild-1' })
+      jest.spyOn(service as any, 'getTextChannel').mockResolvedValue(channel)
+
+      const result = await service.createCharacterThread(baseRequest, character)
+
+      expect(result.success).toBe(true)
+      expect(channel.threads.create).toHaveBeenCalled()
+      // 観測可能な表示投稿: basic embed 送信 + ダイス系UI 委譲
+      expect(thread.send).toHaveBeenCalled()
+      expect(mockThreadInteractionService.postBasicDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postFlexibleDiceMenu).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postPresetDiceButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postSkillRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockThreadInteractionService.postAbilityRollButtons).toHaveBeenCalledWith(thread, character)
+      expect(mockHubPublicationService.postHub).not.toHaveBeenCalled()
     })
   })
 
