@@ -97,7 +97,7 @@ describe('character-modal-handler.util', () => {
         'hp',
         { name: 'HP', values: '20', description: 'desc', dice: '1d6' },
         12345
-      )
+      )!
       expect(actualFieldKey).toBe('hp')
       expect(attributeValue).toEqual({
         name: 'HP',
@@ -108,8 +108,105 @@ describe('character-modal-handler.util', () => {
       })
     })
 
+    it('既存フィールド: 非base part・index・isVisibleを維持し、合算値からbaseを再計算する', () => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { values: '20' }, 0, {
+        name: 'HP',
+        index: 3,
+        values: { base: 10, other: 5, growth: 2 },
+        description: 'old description',
+        dice: '1d6',
+        isVisible: false
+      })!
+
+      expect(attributeValue).toEqual({
+        name: 'HP',
+        index: 3,
+        values: { other: 5, growth: 2, base: 13 },
+        isVisible: false
+      })
+    })
+
+    it('既存フィールド: フォームのname・description・diceを優先する', () => {
+      const { attributeValue } = buildAttributeValueFromForm(
+        'hp',
+        { name: 'Hit Point', values: '20', description: 'new description', dice: '2d6' },
+        0,
+        {
+          name: 'HP',
+          values: { base: 10, other: 5 },
+          description: 'old description',
+          dice: '1d6'
+        }
+      )!
+
+      expect(attributeValue).toEqual({
+        name: 'Hit Point',
+        values: { other: 5, base: 15 },
+        description: 'new description',
+        dice: '2d6',
+        isVisible: true
+      })
+    })
+
+    it('既存フィールド: 合算値を保つためbaseの負数を許容する', () => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { values: '20' }, 0, {
+        values: { base: 10, other: 25 }
+      })!
+
+      expect(attributeValue.values).toEqual({ other: 25, base: -5 })
+    })
+
+    it('既存フィールド: 有限のゼロ入力でも合算値が0になるようbaseを再計算する', () => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { values: '0' }, 0, {
+        values: { base: 10, other: 5 }
+      })!
+
+      expect(attributeValue.values).toEqual({ other: 5, base: -5 })
+    })
+
+    it('既存フィールド: 非数値partを合算せず有限のbaseを構築する', () => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { values: '20' }, 0, {
+        values: { base: 10, broken: 'x' as unknown as number }
+      })!
+
+      expect(attributeValue.values.base).toBe(20)
+      expect(Number.isFinite(attributeValue.values.base)).toBe(true)
+    })
+
+    it('既存フィールド: 数値欄が空なら非base partを含むvalues全体をクリアする', () => {
+      const { attributeValue } = buildAttributeValueFromForm('hp', { values: '   ' }, 0, {
+        name: 'HP',
+        index: 3,
+        values: { base: 10, other: 5, growth: 2 },
+        isVisible: false
+      })!
+
+      expect(attributeValue).toEqual({
+        name: 'HP',
+        index: 3,
+        values: {},
+        isVisible: false
+      })
+    })
+
+    it('既存フィールド: valuesを持たないAttributeValueでも数値を編集できる', () => {
+      const result = buildAttributeValueFromForm('hp', { values: '20' }, 0, {
+        name: 'HP',
+        description: 'legacy description'
+      })
+
+      expect(result).toEqual({
+        actualFieldKey: 'hp',
+        attributeValue: {
+          name: 'HP',
+          values: { base: 20 },
+          isVisible: true
+        }
+      })
+    })
+
     it('name 無し: finalName=fieldKey', () => {
-      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm('hp', { values: '5' }, 0)
+      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm('hp', { values: '5' }, 0)!
       expect(actualFieldKey).toBe('hp')
       expect(attributeValue.name).toBe('hp')
       expect(attributeValue.values).toEqual({ base: 5 })
@@ -123,25 +220,46 @@ describe('character-modal-handler.util', () => {
         'add_new',
         { name: '筋力', values: '3' },
         999
-      )
+      )!
       expect(actualFieldKey).toBe('筋力')
       expect(attributeValue.name).toBe('筋力')
     })
 
+    it('add_new は既存値を渡されても従来どおり新規値だけで構築する', () => {
+      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm(
+        'add_new',
+        { name: '筋力', values: '3' },
+        999,
+        {
+          name: '既存名',
+          index: 8,
+          values: { base: 10, other: 5 },
+          isVisible: false
+        }
+      )!
+
+      expect(actualFieldKey).toBe('筋力')
+      expect(attributeValue).toEqual({
+        name: '筋力',
+        values: { base: 3 },
+        isVisible: true
+      })
+    })
+
     it('add_new + name 無し: actualFieldKey=new_{now}', () => {
-      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm('add_new', { values: '3' }, 777)
+      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm('add_new', { values: '3' }, 777)!
       expect(actualFieldKey).toBe('new_777')
       expect(attributeValue.name).toBe('new_777')
     })
 
-    it('values が数値でない場合 base はセットされない', () => {
-      const { attributeValue } = buildAttributeValueFromForm('hp', { name: 'HP', values: 'abc' }, 0)
-      expect(attributeValue.values).toEqual({})
+    it('既存フィールド: 非数値入力では既存partを残した構築結果を返さない', () => {
+      expect(
+        buildAttributeValueFromForm('hp', { name: 'HP', values: 'abc' }, 0, { values: { base: 10, other: 5 } })
+      ).toBeNull()
     })
 
-    it.each(['30abc', 'Infinity', '1e999'])('有限数でないvalues=%sはbaseへ格納しない', (values) => {
-      const { attributeValue } = buildAttributeValueFromForm('hp', { name: 'HP', values }, 0)
-      expect(attributeValue.values).toEqual({})
+    it.each(['30abc', '20 HP', '２０', 'Infinity', '1e999'])('有限数でないvalues=%sは構築失敗にする', (values) => {
+      expect(buildAttributeValueFromForm('hp', { name: 'HP', values }, 0)).toBeNull()
     })
   })
 
