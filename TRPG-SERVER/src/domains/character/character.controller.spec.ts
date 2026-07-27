@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { ExecutionContext, CallHandler, ArgumentsHost } from '@nestjs/common'
+import { ArgumentsHost, CallHandler, ConflictException, ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { Response } from 'express'
 import { lastValueFrom, of } from 'rxjs'
@@ -82,8 +82,7 @@ describe('CharacterController', () => {
   const mockCharacterSummary: CharacterSummaryDto = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
-    gameSystemId: 'test-system',
-    discordChannelId: ''
+    gameSystemId: 'test-system'
   }
 
   const mockUpdateCharacterDto: UpdateCharacterDto = {
@@ -475,6 +474,24 @@ describe('CharacterController', () => {
       expect(stripVolatile(body)).toEqual(
         stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
       )
+    })
+
+    it('materialized characterのセクション書き込み拒否を409で返す', async () => {
+      const conflict = new ConflictException(
+        'materialized character sections must be updated via PUT /character/:id/sheet'
+      )
+      characterService.updateForOwner.mockRejectedValue(conflict)
+
+      let thrown: unknown
+      try {
+        await controller.update({ id: 'test-character-001' }, mockUpdateCharacterDto, mockRequest())
+      } catch (error) {
+        thrown = error
+      }
+
+      const { status, body } = filterError(thrown)
+      expect(status).toBe(409)
+      expect(body.error).toContain('PUT /character/:id/sheet')
     })
 
     it('Serviceのupdateエラー時は500を返す', async () => {

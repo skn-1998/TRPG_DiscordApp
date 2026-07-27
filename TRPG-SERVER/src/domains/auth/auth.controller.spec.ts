@@ -346,7 +346,12 @@ describe('AuthController', () => {
             message: '認証成功',
             discordUserId: mockDiscordProfile.id,
             userName: mockDiscordProfile.username,
-            token: 'test-jwt-token'
+            token: 'test-jwt-token',
+            user: expect.objectContaining({
+              id: mockDiscordProfile.id,
+              username: mockDiscordProfile.username,
+              avatar: mockDiscordProfile.avatar
+            })
           })
         })
       )
