@@ -234,7 +234,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
   async findByName(name: string): Promise<CharacterEntity | null> {
     const character = await this.characterModel
       .findOne({ characterName: name })
-      .select('characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt')
+      .select('characterId characterName gameSystemId discordUserId discordChannelId status createdAt updatedAt')
       .lean()
       .exec()
     return this.normalizeCharacter(character)

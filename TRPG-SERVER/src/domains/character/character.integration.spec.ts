@@ -18,6 +18,7 @@ import {
 import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
 import { AppConfigService } from '../../config/config.service'
 import { ResponseInterceptor } from '../../core/http'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
 import { TypedEventService } from '../../core/events/typed-event.service'
@@ -76,6 +77,7 @@ describe('Character CRUD Integration Test', () => {
         TypedEventService,
         CharacterHttpExceptionFilter,
         ResponseInterceptor,
+        APP_VALIDATION_PIPE_PROVIDER,
         {
           provide: 'TYPED_EVENT_EMITTER',
           useFactory: () =>
@@ -260,6 +262,14 @@ describe('Character CRUD Integration Test', () => {
 
     it('repository の実 projection は character runtime 契約の許可キーだけを必須キー込みで返す', async () => {
       const projected = await characterRepository.findByChannelId(testCharacter.discordChannelId)
+
+      expect(projected).not.toBeNull()
+      expectOnlyCharacterRuntimeKeys(projected! as unknown as JsonObject)
+      expectAllRequiredCharacterRuntimeKeys(projected! as unknown as JsonObject)
+    })
+
+    it('findByName の実 projection は character runtime 契約の許可キーだけを必須キー込みで返す', async () => {
+      const projected = await characterRepository.findByName(testCharacter.characterName)
 
       expect(projected).not.toBeNull()
       expectOnlyCharacterRuntimeKeys(projected! as unknown as JsonObject)
