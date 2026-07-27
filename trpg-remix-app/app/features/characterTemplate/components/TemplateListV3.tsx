@@ -212,6 +212,7 @@ export function TemplateListV3({ summaries, error, actionError }: TemplateListV3
                 value={characterName}
                 onChange={(event) => setCharacterName(event.currentTarget.value)}
                 required
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- 既存 UX の意図的維持（S3c で lint ゲート化のため既存挙動を変えずに抑制）
                 autoFocus
               />
               {actionError && (

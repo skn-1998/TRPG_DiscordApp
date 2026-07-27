@@ -17,21 +17,15 @@ export async function loginLoader({ request }: LoaderFunctionArgs) {
 
       const userInfo = await loginOrRegisterUser(code)
 
-      // 統合型定義システムでは、成功時はuserInfo.success === trueでuserInfo.authが存在
-      if (!userInfo.success) {
-        console.error('❌ 認証失敗:', userInfo.message)
-        throw new Error('Authentication failed')
-      }
-
-      if (isUndefined(userInfo.auth.token)) {
+      if (isUndefined(userInfo.token)) {
         console.error('❌ JWTトークンが存在しません')
         throw new Error('jwtToken is not Exist')
       }
 
-      console.log('✅ 認証成功 - ユーザー:', userInfo.auth.userName)
+      console.log('✅ 認証成功 - ユーザー:', userInfo.userName)
       console.log('🍪 フロントエンド側でcookieを設定します')
 
-      const cookieHeader = saveJwtTokenService(userInfo.auth.token)
+      const cookieHeader = saveJwtTokenService(userInfo.token)
       return redirect('/user', {
         status: 301,
         headers: {

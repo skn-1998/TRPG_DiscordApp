@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
-import { LoaderFunctionArgs, redirect, TypedResponse } from '@remix-run/node'
-import { apiClient, withJwt } from '../../../lib/api-client'
-import { createApiHandler, ApiResponseUtil } from '../../../lib/api-response.util'
-import { DiscordUserProfile, LoginRequest, LoginResponse } from '../../../types'
+import type { SuccessEnvelope } from '@trpg/api-contract'
+import { apiClient } from '../../../lib/api-client'
+import { ApiResponseUtil } from '../../../lib/api-response.util'
+import type { LoginData, LoginRequest, LoginResponse } from '../../../types'
 import { CustomError } from '../../../utils/customError'
 import { configService } from '../../../config'
 import cookie from 'cookie'
@@ -12,9 +12,6 @@ interface CookieHeader {
   'Content-Type': string
   'Set-Cookie': string
 }
-
-// 認証用のAPIハンドラーを作成
-const authHandler = createApiHandler('auth')
 
 // Discord OAuth認証URLを生成
 export function generateDiscordAuthUrl(): string {
@@ -41,19 +38,20 @@ export function generateDiscordAuthUrl(): string {
 // ユーザーログイン/登録
 export async function loginOrRegisterUser(code: string): Promise<LoginResponse> {
   try {
-    const response = await apiClient.postDomain('/auth/login', 'auth', { code } as LoginRequest)
+    const response = await apiClient.post<SuccessEnvelope<LoginData>>('/auth/login', { code } as LoginRequest)
+    const envelope = response.data
 
-    // 統合型定義システムを使用してレスポンスを処理
-    const authData = authHandler.handleSuccess(response)
+    // 失敗応答は HTTP 4xx/5xx + ErrorEnvelope で返り axios reject（catch 節）に入る。2xx は常に SuccessEnvelope（http-exception.filter が全経路で status を明示するため）
+    const loginData = envelope.data
 
     console.log('🔐 ログイン成功:', {
-      success: response.data.success,
-      message: authData.message,
-      userName: authData.userName,
-      discordUserId: authData.discordUserId
+      success: envelope.success,
+      message: loginData.message,
+      userName: loginData.userName,
+      discordUserId: loginData.discordUserId
     })
 
-    return response.data
+    return loginData
   } catch (err: unknown) {
     // 統合エラーハンドリング
     const errorMessage = ApiResponseUtil.handleError(err)
@@ -76,42 +74,6 @@ export function getJwtFromRequest(request: Request): string | null {
   if (!jwtCookie) return null
   const jwt = jwtCookie.split('=')[1]
   return jwt
-}
-
-export interface userData {
-  _id: string
-  discordUserId: string
-  name: string
-  characterIds: string[]
-  createdAt: string
-  updatedAt: string
-  __v: number
-}
-
-// JWT検証
-export async function validateJwt({ request }: LoaderFunctionArgs): Promise<TypedResponse<never> | userData | null> {
-  const jwt = getJwtFromRequest(request)
-
-  if (!jwt) return redirect('/login')
-
-  const verifyUrl = '/users'
-
-  try {
-    console.log('before verify')
-    const response = await apiClient.get(verifyUrl, withJwt(jwt))
-    console.log('after verify')
-
-    if (!response.data) {
-      return redirect('/login')
-    }
-
-    console.log(response.data)
-    return response.data
-  } catch (err: unknown) {
-    console.log('verify catch error')
-    console.error(CustomError(err))
-    return redirect('/login')
-  }
 }
 
 // JWTをCookieに保存

@@ -2,6 +2,8 @@
  * キャラクター関連の型定義
  */
 
+import type { CharacterWire } from '@trpg/api-contract'
+
 /**
  * キャラクター属性の型定義
  */
@@ -14,89 +16,9 @@ export type CharacterAttribute = {
  */
 export type UpdatePrimary = 'status' | 'parameter' | 'skill'
 
-/**
- * キャラクターインターface
- */
-export interface Character {
-  /**
-   * キャラクターID（MongoDBの_idフィールド）
-   */
-  _id?: string
+export type Character = CharacterWire
 
-  /**
-   * キャラクターID（ユニーク）
-   */
-  characterId: string
-
-  /**
-   * キャラクター名
-   */
-  characterName: string
-
-  /**
-   * ゲームシステムID
-   */
-  gameSystemId: string
-
-  /**
-   * DiscordユーザーID
-   */
-  discordUserId: string
-
-  /**
-   * DiscordチャンネルID
-   */
-  discordChannelId: string
-
-  /**
-   * ステータス
-   */
-  status: Record<string, CharacterAttribute> | Record<string, unknown>
-
-  /**
-   * スキル
-   */
-  skill?: Record<string, CharacterAttribute> | Record<string, unknown>
-
-  /**
-   * パラメーター
-   */
-  parameter?: Record<string, CharacterAttribute> | Record<string, unknown>
-
-  /**
-   * アイテム
-   */
-  item?: Record<string, CharacterAttribute> | Record<string, unknown>
-
-  /**
-   * 説明・備考
-   */
-  description?: Record<string, CharacterAttribute> | Record<string, unknown>
-
-  /**
-   * 作成日時
-   */
-  createdAt?: Date
-
-  /**
-   * 更新日時
-   */
-  updatedAt?: Date
-}
-
-/**
- * キャラクター作成DTO
- */
-export interface CreateCharacterDto {
-  characterId: string
-  discordUserId: string
-  discordChannelId: string
-  characterName: string
-  gameSystemId: string
-  status?: CharacterAttribute
-  parameter?: CharacterAttribute
-  skill?: CharacterAttribute
-}
+// 作成リクエスト型は S5/S6 で server CharacterInputDto の wire 化として別途定義する。
 
 /**
  * キャラクター作成入力DTO（部分的に入力可能）

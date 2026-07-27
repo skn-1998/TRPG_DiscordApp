@@ -1,5 +1,9 @@
 # APIレスポンス処理共通関数（統合型定義版）
 
+> 本機構は S6a で撤去済み。正典パターンは @trpg/api-contract の SuccessEnvelope<T> 直読み（封筒適用コントローラのみ）。
+> `handleError` は ErrorEnvelope の `error`（実詳細）を `message`（ラベル）より優先して返します。
+> 以下の本文は撤去済み機構の履歴資料（2026-07 S6a 撤去）。現行仕様は `handleError` / `isErrorEnvelope` のみ。
+
 ## 概要
 
 `api-client.ts`と`api-response.util.ts`を統合した型安全なAPIレスポンス処理システムです。

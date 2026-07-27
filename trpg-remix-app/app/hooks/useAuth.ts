@@ -1,16 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useRouteLoaderData } from '@remix-run/react'
+import type { UserProfileWire } from '@trpg/api-contract'
 
-export interface User {
-  _id: string
-  discordUserId: string
-  name: string
-  characterIds: string[]
-  createdAt: string
-  updatedAt: string
-  __v: number
-  avatarHash?: string
-}
+export type User = UserProfileWire
 
 export interface AuthState {
   isLoggedIn: boolean
