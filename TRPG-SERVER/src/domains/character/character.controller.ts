@@ -14,9 +14,7 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
-  UnauthorizedException,
-  ValidationPipe,
-  UsePipes
+  UnauthorizedException
 } from '@nestjs/common'
 import { Request } from 'express'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger'
@@ -75,7 +73,6 @@ interface CharacterInstantiationUseCase {
 @ApiTags('キャラクター管理')
 @Controller('character')
 @ApiBearerAuth()
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @UseInterceptors(ResponseInterceptor)
 @UseFilters(CharacterHttpExceptionFilter)
 export class CharacterController {
@@ -271,7 +268,6 @@ export class CharacterController {
 @Controller('character')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class CharacterSheetController {
   constructor(
     private readonly characterService: CharacterService,

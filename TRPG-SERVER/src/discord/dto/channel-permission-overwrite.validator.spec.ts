@@ -8,8 +8,7 @@
 // deny 側の広い権限（Connect / Speak / ManageWebhooks 等）を検証できないため、
 // このファイル限定で実 discord.js と同じ bigint 値のキーを持つモックへ差し替える。
 // 本体（validator）も同じモック参照を読むため、deny 許可キーはこの Flags から導出される。
-// ChannelType は、共有 pipe 定数の import 経由（discord.controller → facade → channel-manager）で
-// モジュールロード時に参照されるため、実 discord.js と同じ値で提供する。
+// ChannelType も CreateChannelDto が参照するため、実 discord.js と同じ値で提供する。
 jest.mock('discord.js', () => ({
   ChannelType: {
     GuildText: 0,
@@ -45,6 +44,7 @@ jest.mock('discord.js', () => ({
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { validate } from 'class-validator'
 import { PermissionsBitField } from 'discord.js'
+import { APP_VALIDATION_PIPE_OPTIONS } from '../../core/http/validation-pipe.provider'
 import {
   ALLOWED_CHANNEL_PERMISSION_ALLOW_KEYS,
   ALLOWED_CHANNEL_PERMISSION_DENY_KEYS,
@@ -55,12 +55,11 @@ import {
 } from './channel-permission-overwrite.validator'
 import type { CreateChannelPermissionOverwrite } from './channel-permission-overwrite.validator'
 import { CreateChannelDto } from './create-channel.dto'
-import { DISCORD_VALIDATION_PIPE_OPTIONS } from '../discord.controller'
 
 const SNOWFLAKE = '123456789012345678'
 
-// DiscordController の @UsePipes と同一の共有定数で HTTP 経路の検証を再現する
-const pipe = new ValidationPipe(DISCORD_VALIDATION_PIPE_OPTIONS)
+// AppModule の APP_PIPE と同一の共有設定で HTTP 経路の検証を再現する
+const pipe = new ValidationPipe(APP_VALIDATION_PIPE_OPTIONS)
 
 const buildDto = (overrides: Record<string, unknown>): CreateChannelDto =>
   Object.assign(new CreateChannelDto(), { guildId: 'g1', name: 'ch', ...overrides })

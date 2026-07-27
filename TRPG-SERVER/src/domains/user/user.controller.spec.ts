@@ -272,6 +272,7 @@ describe('UserController', () => {
       expect(service.findByDiscordId).not.toHaveBeenCalled()
     })
 
+    // 第3群-a の create 明示再構成の単独因果はこの test が担う。削除・簡略化時は auth.controller.http.spec.ts のコメントも更新すること。
     it('create は認証主体のIDと公開プロフィール項目だけをserviceへ渡す', async () => {
       mockUserService.create.mockResolvedValue(privateUser)
       const body = {
@@ -321,6 +322,7 @@ describe('UserController', () => {
       expect(service.update).not.toHaveBeenCalled()
     })
 
+    // 第3群-a の update 明示再構成の単独因果はこの test が担う。削除・簡略化時は auth.controller.http.spec.ts のコメントも更新すること。
     it('update は公開プロフィール項目だけをserviceへ渡す', async () => {
       mockUserService.update.mockResolvedValue(privateUser)
 

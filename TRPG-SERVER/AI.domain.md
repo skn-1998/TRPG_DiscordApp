@@ -15,6 +15,76 @@
 
 ---
 
+## 2026-07-12 User / Character HTTP認可契約
+
+### 問題
+
+- Userの書込みrouteが未認証で、path/bodyの `discordUserId` をそのまま更新対象に使用していた。
+- Userの入力DTOと永続モデルがOAuth token項目を共有し、HTTP入力からtoken・characterIdsを上書きできた。
+- User永続モデルをそのまま返すため、暗号化済みtokenもHTTP応答へ出る可能性があった。
+- Characterの個別取得・更新・削除は認証済みでも `characterId` だけで検索し、認証主体と所有者を結び付けていなかった。
+
+### User HTTP契約
+
+**事前条件**:
+
+- 全User HTTP操作に有効なJWTがあり、認証主体に `discordUserId` がある。
+- pathに `discordUserId` がある操作は、認証主体のIDと一致する。
+- create/update bodyは公開プロフィール項目 `name` / `avatarHash` だけを含む。token、所有者ID、characterIdsはHTTP入力にできない。
+
+**正常時事後条件**:
+
+- 認証主体本人のUserだけを作成・取得・更新・削除する。
+- 応答は `UserOutputDto` に写像し、`discordUserId`、`name`、任意の `avatarHash`、`characterIds` だけを返す。
+- OAuth tokenの作成・更新は `AuthService -> UserService` の内部provisioning経路だけが所有する。
+
+**失敗時事後条件**:
+
+- 未認証は401、pathと認証主体の不一致は対象不在と同じ404で停止し、repositoryを変更しない。
+- 管理対象外のbody項目は APP_PIPE の `whitelist` で**除去する**（400 にはしない。第3群-a で
+  `forbidNonWhitelisted` を廃し全 controller を APP_PIPE 一本に統一したため）。
+  mass assignment の遮断は、この strip に加えて controller が service へ渡す項目を明示再構成することで担保する。
+
+**不変条件**:
+
+- request body/pathのIDは権限根拠にせず、JWTの `discordUserId` を唯一のHTTP主体とする。
+- OAuth access/refresh token、期限、scopeはUser HTTP応答へ含めない。
+- `User.characterIds` は互換用の関連一覧であり、Characterへのアクセス権を付与しない。
+
+### Character HTTP契約
+
+**事前条件**:
+
+- 個別取得・更新・削除には、認証済み `discordUserId` と `characterId` の両方がある。
+- 現行業務には共有・委任アクセスがないため、`Character.discordUserId` と認証主体が一致する。
+
+**正常時事後条件**:
+
+- repositoryの同一queryへ `characterId` と `discordUserId` の両方を含め、所有Characterだけを取得・更新・削除する。
+- 更新・削除は事前取得と変更を分けず、owner-qualifiedな単一MongoDB操作として実行する。
+
+**失敗時事後条件**:
+
+- 未認証は401でrepositoryを呼ばない。
+- 対象不在と非所有者はいずれもowner-qualified queryが `null` を返し、外部へ同じ404を返す。状態は変更しない。
+
+**不変条件**:
+
+- HTTP公開操作は `findOneForOwner` / `updateForOwner` / `removeForOwner` だけを使う。`/character` だけでなく `/discord/post-character` も同じ契約へ接続する。
+- ID単独の既存repository/service操作は、Discord event等の別の信頼境界向けであり、HTTP controllerから呼ばない。
+- Character権限の正本は `Character.discordUserId` であり、`User.characterIds` の有無では判定しない。
+
+### 受入検証
+
+- 変更前ベースライン: 6 suites / 102 tests成功。
+- owner-qualified repository操作3件の不存在をREDで確認後、Character 3 suites / 73 tests成功。
+- Userの主体ID強制、token入出力遮断、他人path拒否の6件をREDで確認後、User関連5 suitesを拡張。
+- Fable初回レビューは対象diff内の重大指摘なし、`Approved with follow-up`。契約を横断適用して発見した `/discord/post-character` のID単独操作をRED確認後にowner-qualified化し、複合Param DTO・Character guard metadata・Swagger出力型も修正。
+- Fable追跡レビューは **`Approved`**。全HTTP controllerを横断検索し、CharacterのID単独取得・更新・削除へ到達する公開経路が残っていないことを確認。
+- 最終focused: 9 suites / 157 tests成功。`typecheck:test` 成功。
+
+---
+
 ## 🎯 **実装完了状況**
 
 ### **✅ Phase 1 完了: 基盤構築**

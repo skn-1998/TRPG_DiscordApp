@@ -7,6 +7,7 @@ import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
 import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
 import { CookieService } from '../../core/http/cookie.service'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { CryptoService } from '../../core/shared/services/crypto.service'
 import { HttpClientService } from '../../core/shared/services/http.service'
 import { UserController } from '../user/user.controller'
@@ -20,10 +21,11 @@ import { JwtTokenService } from './token/jwt-token.service'
  * 認証関連の実 HTTP 経路を検証する。
  * 実 AuthService・JwtTokenService・guard・filter・interceptor を通し、Discord 外部 HTTP 境界だけをモックする。
  */
-describe('UserController GET /users JwtAuthGuard HTTP integration', () => {
+describe('AuthController / UserController HTTP integration', () => {
   const jwtSecret = 'auth-controller-http-spec-secret'
   const userService = {
-    findOne: jest.fn()
+    findOne: jest.fn(),
+    create: jest.fn()
   }
   const httpService = {
     post: jest.fn(),
@@ -63,7 +65,8 @@ describe('UserController GET /users JwtAuthGuard HTTP integration', () => {
         JwtTokenService,
         JwtAuthGuard,
         HttpExceptionFilter,
-        ResponseInterceptor
+        ResponseInterceptor,
+        APP_VALIDATION_PIPE_PROVIDER
       ]
     }).compile()
 
@@ -74,6 +77,7 @@ describe('UserController GET /users JwtAuthGuard HTTP integration', () => {
 
   beforeEach(() => {
     userService.findOne.mockReset()
+    userService.create.mockReset()
     httpService.post.mockReset()
     httpService.get.mockReset()
   })
@@ -141,6 +145,41 @@ describe('UserController GET /users JwtAuthGuard HTTP integration', () => {
         error: '認証ヘッダーが無効または欠落しています'
       })
     )
+  })
+
+  it('/auth/login は APP_PIPE により code 必須欠落を handler 実行前に 400 にする', async () => {
+    const response = await request(app.getHttpServer()).post('/auth/login').send({}).expect(400)
+
+    expect(response.body.error).toContain('認証コードは必須です')
+    expect(httpService.post).not.toHaveBeenCalled()
+  })
+
+  // この HTTP 経路は APP_PIPE の strip と controller の明示再構成をまとめて固定する二重防御テスト。
+  // 明示再構成の単独因果は user.controller.spec.ts の create/update 直接呼び出し spec、
+  // whitelist の単独因果は character-sheet-http-validation.spec.ts の nested strip spec が担う。
+  it('/users の POST は未知フィールドを service へ到達させない（APP_PIPE の strip と controller の明示再構成の二重防御）', async () => {
+    const token = new JwtService({ secret: jwtSecret }).sign({
+      username: 'strict-user',
+      discordUserId: 'strict-user-id'
+    })
+    userService.create.mockResolvedValueOnce({
+      discordUserId: 'strict-user-id',
+      name: 'Strict User',
+      characterIds: []
+    })
+
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Strict User', unexpected: 'must be stripped' })
+      .expect(200)
+
+    expect(userService.create).toHaveBeenCalledWith({
+      discordUserId: 'strict-user-id',
+      name: 'Strict User',
+      avatarHash: undefined,
+      characterIds: []
+    })
   })
 
   it('/auth/login は Discord が無効 code を 4xx で拒否した場合に 400 を返す', async () => {

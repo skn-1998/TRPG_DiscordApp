@@ -11,9 +11,10 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { lastValueFrom, of } from 'rxjs'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
-import { DiscordLoginDto, ValidateTokenHeaderDto } from './dto/discord-login.dto'
+import { DiscordLoginDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
 import { CookieService } from '../../core/http/cookie.service'
@@ -237,10 +238,9 @@ describe('AuthController', () => {
 
   describe('GET /auth/validate-token', () => {
     it('returns payload, wrapped envelope equals ApiResponseUtil.success (200/成功)', async () => {
-      const headers: ValidateTokenHeaderDto = { Authorization: 'Bearer valid-token' }
       authService.validateToken.mockResolvedValue(mockJwtPayload)
 
-      const output = await controller.validateToken(headers)
+      const output = await controller.validateToken('Bearer valid-token')
 
       expect(authService.validateToken).toHaveBeenCalledWith('Bearer valid-token')
       expect(output).toEqual(
@@ -263,11 +263,10 @@ describe('AuthController', () => {
     })
 
     it('preserves invalid-token UnauthorizedException as 401', async () => {
-      const headers: ValidateTokenHeaderDto = { Authorization: 'Bearer invalid-token' }
       const err = new UnauthorizedException('トークンが無効です')
       authService.validateToken.mockRejectedValue(err)
 
-      await expect(controller.validateToken(headers)).rejects.toBe(err)
+      await expect(controller.validateToken('Bearer invalid-token')).rejects.toBe(err)
 
       const { status, body } = filterError(err)
       expect(status).toBe(401)
@@ -278,12 +277,11 @@ describe('AuthController', () => {
       expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
     })
 
-    it('delegates empty authorization header to AuthService (DTO validation is by pipes)', async () => {
-      const headers = { Authorization: '' } as any
+    it('delegates missing authorization header to AuthService for 401 classification', async () => {
       const err = new UnauthorizedException('認証ヘッダーが無効または欠落しています')
       authService.validateToken.mockRejectedValue(err)
 
-      await expect(controller.validateToken(headers)).rejects.toBe(err)
+      await expect(controller.validateToken(undefined)).rejects.toBe(err)
       expect(authService.validateToken).toHaveBeenCalledWith('')
       expect(filterError(err).status).toBe(401)
     })
@@ -301,7 +299,8 @@ describe('AuthController', () => {
           },
           CookieService,
           HttpExceptionFilter,
-          ResponseInterceptor
+          ResponseInterceptor,
+          APP_VALIDATION_PIPE_PROVIDER
         ]
       }).compile()
       const app = httpModule.createNestApplication()
@@ -417,11 +416,10 @@ describe('AuthController', () => {
 
   describe('エラーハンドリング統合テスト', () => {
     it('validate-token UnauthorizedException → 401 envelope', async () => {
-      const headers: ValidateTokenHeaderDto = { Authorization: 'Bearer invalid-token' }
       const err = new UnauthorizedException('トークンが無効です')
       authService.validateToken.mockRejectedValue(err)
 
-      await expect(controller.validateToken(headers)).rejects.toBe(err)
+      await expect(controller.validateToken('Bearer invalid-token')).rejects.toBe(err)
       const { status, body } = filterError(err)
       expect(status).toBe(401)
       expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'トークンが無効です' }))

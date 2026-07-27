@@ -1,16 +1,21 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
+import { APP_VALIDATION_PIPE_OPTIONS } from '../../../core/http/validation-pipe.provider'
 import { UserCharacterParamDto } from './create-user.dto'
 import { CreateUserProfileDto, UpdateUserProfileDto } from './user-profile.dto'
 
 describe('User profile HTTP DTO', () => {
-  const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })
+  const pipe = new ValidationPipe(APP_VALIDATION_PIPE_OPTIONS)
 
   it.each(['discordUserId', 'characterIds', 'discordAccessToken', 'discordRefreshToken'])(
-    'createで管理対象外の%sを拒否する',
+    'createで管理対象外の%sを除去する',
     async (field) => {
-      await expect(
-        pipe.transform({ name: 'User', [field]: 'client-controlled' }, { type: 'body', metatype: CreateUserProfileDto })
-      ).rejects.toBeInstanceOf(BadRequestException)
+      const result = await pipe.transform(
+        { name: 'User', [field]: 'client-controlled' },
+        { type: 'body', metatype: CreateUserProfileDto }
+      )
+
+      expect(result).not.toHaveProperty(field)
+      expect(result.name).toBe('User')
     }
   )
 

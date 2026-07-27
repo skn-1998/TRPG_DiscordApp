@@ -1,9 +1,10 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
+import { APP_VALIDATION_PIPE_OPTIONS } from '../../../core/http/validation-pipe.provider'
 import { CharacterInputDto } from './create-character.dto'
 import { UpdateCharacterDto } from './update-character.dto'
 
 describe('Character AttributeValue HTTP DTO', () => {
-  const pipe = new ValidationPipe({ transform: true, whitelist: true })
+  const pipe = new ValidationPipe(APP_VALIDATION_PIPE_OPTIONS)
 
   it('CharacterInputDto は values と dice を保持する', async () => {
     const result = await pipe.transform(
