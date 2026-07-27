@@ -7,6 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { ThreadChannel } from 'discord.js'
 import { ThreadInteractionService } from './thread-interaction.service'
 import { Character } from '../../../../domains/character/models/character.model'
+import { resolveSkillRoll } from './skill-roll.util'
 
 /**
  * Unit tests for ThreadInteractionService.
@@ -248,6 +249,21 @@ describe('ThreadInteractionService', () => {
       expect(buttons[0].label).toBe('回避 (40)')
     })
 
+    it('複数partの合算値をボタンラベルとロール目標値で共有する', async () => {
+      const thread = buildMockThread()
+      const character = buildCharacter({
+        skill: {
+          listen: { name: '聞き耳', values: { base: 50, other: 20 } }
+        }
+      })
+
+      await service.postSkillRollButtons(thread, character)
+
+      const buttons = collectButtons((thread.send as jest.Mock).mock.calls[0][0])
+      expect(buttons[0].label).toBe('聞き耳 (70)')
+      expect(resolveSkillRoll(character, 'listen')?.skillValue).toBe(70)
+    })
+
     it('name が無いスキルは skillKey をラベルに使う', async () => {
       const thread = buildMockThread()
       const character = buildCharacter({
@@ -435,16 +451,20 @@ describe('ThreadInteractionService', () => {
       return collectButtons((thread.send as jest.Mock).mock.calls[0][0])[0].label
     }
 
-    it('values.level を優先して採用する', async () => {
-      expect(await labelFor({ name: 'A', values: { level: 70, value: 10 } })).toBe('A (70)')
+    it('values.level と values.value をともに合算する', async () => {
+      expect(await labelFor({ name: 'A', values: { level: 70, value: 10 } })).toBe('A (80)')
     })
 
-    it('values.level が無ければ values.value を採用する', async () => {
+    it('values.value 単独を維持する', async () => {
       expect(await labelFor({ name: 'A', values: { value: 55 } })).toBe('A (55)')
     })
 
-    it('values.value も無ければ values.base を採用する', async () => {
+    it('values.base 単独を維持する', async () => {
       expect(await labelFor({ name: 'A', values: { base: 30 } })).toBe('A (30)')
+    })
+
+    it('values が空なら合算値の括弧を表示しない', async () => {
+      expect(await labelFor({ name: 'A', values: {} })).toBe('A')
     })
 
     it('数値スキルはその値をレベルにする', async () => {

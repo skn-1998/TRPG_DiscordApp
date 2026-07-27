@@ -394,7 +394,7 @@ describe('CharacterSheetOperationService', () => {
         hub: { status: 'error', errorCode: 'PROJECTION_FAILED' }
       })
 
-      await service.markHubRefreshError('character-1', 'PROJECTION_FAILED')
+      await expect(service.markHubRefreshError('character-1', 'PROJECTION_FAILED')).resolves.toBe('marked')
 
       expect(repository.setHubState).toHaveBeenCalledWith(
         'character-1',
@@ -415,9 +415,24 @@ describe('CharacterSheetOperationService', () => {
         }
       })
 
-      await expect(service.markHubRefreshError('character-1', 'PROJECTION_FAILED')).resolves.toBeNull()
+      await expect(service.markHubRefreshError('character-1', 'PROJECTION_FAILED')).resolves.toBe('not-applicable')
 
       expect(repository.setHubState).not.toHaveBeenCalled()
+    })
+
+    it('error遷移のCASが一致しなければcas-failedを返す', async () => {
+      current = makeCharacter({
+        hub: {
+          status: 'active',
+          messageId: 'message-1',
+          threadId: 'thread-1',
+          pendingRevision: 2,
+          appliedRevision: 1
+        }
+      })
+      repository.setHubState.mockResolvedValue(null)
+
+      await expect(service.markHubRefreshError('character-1', 'PROJECTION_FAILED')).resolves.toBe('cas-failed')
     })
 
     it.each([

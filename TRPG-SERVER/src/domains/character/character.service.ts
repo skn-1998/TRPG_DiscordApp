@@ -1,14 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { ConflictException, Injectable, Logger } from '@nestjs/common'
 import { CharacterRepository } from './repositories/character.repository'
 import { CharacterInputDto, AttributeValueDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
 import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { UpdatePrimary } from './models/character.model'
-import { CharacterEntity } from './models/character.entity'
+import { CharacterEntity, resolveCharacterState } from './models/character.entity'
 // UserService依存削除 - Character Service単一責任原則の強化
 // AppConfigService依存削除 - EventDriven分岐を削除し単純化
 // DiscordIntegrationService依存を完全削除 - イベント駆動アーキテクチャに移行
 import { AttributeValue, AttributeSection, isAttributeSection } from '../../core/types/attribute.types'
+
+const MATERIALIZED_SECTION_WRITE_MESSAGE =
+  'materialized character sections must be updated via PUT /character/:id/sheet'
+const PROJECTED_SECTION_KEYS = ['status', 'skill', 'parameter', 'item', 'description'] as const
 
 /**
  * キャラクターサービス
@@ -70,6 +74,28 @@ export class CharacterService {
       converted.description = this.convertDtoSectionToAttributeSection(dto.description, 'description')
 
     return converted
+  }
+
+  /**
+   * materialized character の5セクションは sheet.values の派生投影なので、legacy CRUD 経路からは更新しない。
+   */
+  private assertProjectedSectionsWritable(character: CharacterEntity | null | undefined): void {
+    if (character && resolveCharacterState(character) === 'materialized') {
+      throw new ConflictException(MATERIALIZED_SECTION_WRITE_MESSAGE)
+    }
+  }
+
+  private hasProjectedSectionUpdate(dto: UpdateCharacterDto): boolean {
+    return PROJECTED_SECTION_KEYS.some((section) => dto[section] !== undefined)
+  }
+
+  private async assertProjectedSectionsWritableByChannelId(channelId: string): Promise<void> {
+    const projectedCharacter = await this.characterRepository.findByChannelId(channelId)
+    if (!projectedCharacter) return
+
+    // findByChannelId はロール用projectionで sheet を含まないため、状態判定だけ完全なentityで行う。
+    const character = await this.characterRepository.findById(projectedCharacter.characterId)
+    this.assertProjectedSectionsWritable(character)
   }
 
   constructor(
@@ -162,6 +188,9 @@ export class CharacterService {
    * @param updateCharacterDto 更新データ
    */
   async update(id: string, updateCharacterDto: UpdateCharacterDto): Promise<CharacterEntity | null> {
+    if (this.hasProjectedSectionUpdate(updateCharacterDto)) {
+      this.assertProjectedSectionsWritable(await this.characterRepository.findById(id))
+    }
     const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
     const updatedCharacter = await this.characterRepository.update(id, convertedDto)
 
@@ -180,6 +209,9 @@ export class CharacterService {
     discordUserId: string,
     updateCharacterDto: UpdateCharacterDto
   ): Promise<CharacterEntity | null> {
+    if (this.hasProjectedSectionUpdate(updateCharacterDto)) {
+      this.assertProjectedSectionsWritable(await this.characterRepository.findByIdForOwner(id, discordUserId))
+    }
     const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
     const updatedCharacter = await this.characterRepository.updateForOwner(id, discordUserId, convertedDto)
 
@@ -197,6 +229,9 @@ export class CharacterService {
    */
   async updateByChannelId(channelId: string, updateCharacterDto: UpdateCharacterDto): Promise<CharacterEntity | null> {
     this.logger.log(`Updating character by channelId: ${channelId}`)
+    if (this.hasProjectedSectionUpdate(updateCharacterDto)) {
+      await this.assertProjectedSectionsWritableByChannelId(channelId)
+    }
     const convertedDto = this.convertUpdateDtoToCharacter(updateCharacterDto)
     const updatedCharacter = await this.characterRepository.updateByChannelId(channelId, convertedDto)
 
@@ -217,6 +252,7 @@ export class CharacterService {
     if (!isAttributeSection(data)) {
       throw new TypeError(`Invalid ${field}: expected AttributeSection canonical form`)
     }
+    this.assertProjectedSectionsWritable(await this.characterRepository.findById(id))
     const updatedCharacter = await this.characterRepository.updateField(id, field, data)
 
     if (updatedCharacter) {
@@ -240,6 +276,7 @@ export class CharacterService {
     if (!isAttributeSection(data)) {
       throw new TypeError(`Invalid ${field}: expected AttributeSection canonical form`)
     }
+    await this.assertProjectedSectionsWritableByChannelId(channelId)
     const updatedCharacter = await this.characterRepository.updateFieldByChannelId(channelId, field, data)
 
     if (updatedCharacter) {

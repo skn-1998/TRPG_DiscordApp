@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import { ConflictException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
@@ -31,6 +32,16 @@ describe('CharacterService', () => {
     status: {},
     skill: {},
     parameter: {}
+  }
+
+  const materializedCharacter: Character = {
+    ...mockCharacter,
+    sheet: {
+      templateId: 'template-1',
+      templateVersion: '1.0.0',
+      revision: 1,
+      values: {}
+    }
   }
 
   beforeEach(async () => {
@@ -228,6 +239,15 @@ describe('CharacterService', () => {
       // Then
       expect(result).toBeNull()
     })
+
+    it('materialized characterのセクション置換をrepository更新前に拒否する', async () => {
+      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+
+      await expect(service.updateByChannelId('test-channel', { status: {} })).rejects.toThrow(ConflictException)
+
+      expect(characterRepository.updateByChannelId).not.toHaveBeenCalled()
+    })
   })
 
   describe('updateField', () => {
@@ -262,6 +282,14 @@ describe('CharacterService', () => {
       // Then
       expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(result).toBeNull()
+    })
+
+    it('materialized characterのフィールド置換をrepository更新前に拒否する', async () => {
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+
+      await expect(service.updateField('test-id', 'status', {})).rejects.toThrow(ConflictException)
+
+      expect(characterRepository.updateField).not.toHaveBeenCalled()
     })
   })
 
@@ -300,6 +328,15 @@ describe('CharacterService', () => {
       expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(result).toBeNull()
     })
+
+    it('materialized characterのchannel指定フィールド置換をrepository更新前に拒否する', async () => {
+      characterRepository.findByChannelId.mockResolvedValue(mockCharacter)
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+
+      await expect(service.updateFieldByChannelId('test-channel', 'parameter', {})).rejects.toThrow(ConflictException)
+
+      expect(characterRepository.updateFieldByChannelId).not.toHaveBeenCalled()
+    })
   })
 
   describe('update', () => {
@@ -328,6 +365,32 @@ describe('CharacterService', () => {
       // Then
       expect(typedEventService.emit).not.toHaveBeenCalled()
       expect(result).toBeNull()
+    })
+
+    it('materialized characterのセクション置換をrepository更新前に拒否する', async () => {
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+
+      await expect(service.update('test-id', { item: {} })).rejects.toThrow(ConflictException)
+
+      expect(characterRepository.update).not.toHaveBeenCalled()
+    })
+
+    it('materialized characterのdiscordThreadIdだけの更新を通す', async () => {
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+      characterRepository.update.mockResolvedValue(materializedCharacter)
+
+      await expect(service.update('id', { discordThreadId: 't' })).resolves.toBe(materializedCharacter)
+
+      expect(characterRepository.update).toHaveBeenCalledWith('id', { discordThreadId: 't' })
+    })
+
+    it('materialized characterのdiscordChannelIdだけの更新を通す', async () => {
+      characterRepository.findById.mockResolvedValue(materializedCharacter)
+      characterRepository.update.mockResolvedValue(materializedCharacter)
+
+      await expect(service.update('id', { discordChannelId: 'c' })).resolves.toBe(materializedCharacter)
+
+      expect(characterRepository.update).toHaveBeenCalledWith('id', { discordChannelId: 'c' })
     })
   })
 
@@ -372,6 +435,26 @@ describe('CharacterService', () => {
           }
         }
       })
+    })
+
+    it('updateForOwner は materialized characterのRESTセクション書き込みを409で拒否する', async () => {
+      characterRepository.findByIdForOwner.mockResolvedValue(materializedCharacter)
+
+      await expect(service.updateForOwner('test-id', 'test-user', { description: {} })).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('PUT /character/:id/sheet')
+      })
+
+      expect(characterRepository.updateForOwner).not.toHaveBeenCalled()
+    })
+
+    it('updateForOwner は legacy characterのセクション書き込みを従来どおり通す', async () => {
+      characterRepository.findByIdForOwner.mockResolvedValue(mockCharacter)
+      characterRepository.updateForOwner.mockResolvedValue(mockCharacter)
+
+      await expect(service.updateForOwner('test-id', 'test-user', { status: {} })).resolves.toBe(mockCharacter)
+
+      expect(characterRepository.updateForOwner).toHaveBeenCalledWith('test-id', 'test-user', { status: {} })
     })
 
     it('removeForOwner は所有者条件付きrepository操作だけを呼ぶ', async () => {

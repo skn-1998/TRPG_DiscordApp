@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { CHARACTER_HUB_ERROR_CODES, type CharacterEntity } from '../../../../domains/character/models/character.entity'
 import {
   CharacterSheetOperationService,
+  type MarkHubRefreshErrorResult,
   resolveHubPreparationErrorCode
 } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import { HubDiscordGateway } from '../adapters/hub-discord.gateway'
@@ -257,17 +258,27 @@ export class HubRefreshWorker implements OnApplicationBootstrap, OnModuleDestroy
     }
   }
 
+  // entity を持たない read 失敗経路のみ3値で判定する。詳細は markHubRefreshError を参照。
   private async markErrorByCharacterId(characterId: string, errorCode: string, error: unknown): Promise<void> {
-    this.logger.error(`Hub refresh entered error state: ${characterId} (${errorCode})`, error)
-    let updated: CharacterEntity | null
+    let result: MarkHubRefreshErrorResult
     try {
-      updated = await this.operations.markHubRefreshError(characterId, errorCode)
+      result = await this.operations.markHubRefreshError(characterId, errorCode)
     } catch (writeError) {
       this.quarantine(characterId, `terminal state write rejected: ${errorCode}`, writeError)
       return
     }
-    if (updated === null) {
-      this.quarantine(characterId, `terminal state CAS did not match: ${errorCode}`)
+
+    switch (result) {
+      case 'marked':
+        this.logger.error(`Hub refresh entered error state: ${characterId} (${errorCode})`, error)
+        return
+      case 'not-applicable': {
+        const cause = error instanceof Error ? error.message : String(error)
+        this.logger.warn(`Hub refresh error state not applicable: ${characterId} (${errorCode}); cause=${cause}`)
+        return
+      }
+      case 'cas-failed':
+        this.quarantine(characterId, `terminal state CAS did not match: ${errorCode}`, error)
     }
   }
 
