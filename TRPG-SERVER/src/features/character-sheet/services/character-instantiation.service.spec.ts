@@ -80,6 +80,48 @@ describe('CharacterInstantiationService', () => {
     ]
   }
 
+  const trackCreationTemplate = (
+    max: number | { formula: string },
+    includeLimit = false
+  ): CharacterSheetTemplateEntity => ({
+    ...template,
+    sections: [
+      ...(includeLimit
+        ? [
+            {
+              id: 'parameter',
+              label: 'Parameter',
+              fields: [
+                {
+                  id: 'limit',
+                  uid: 'uid-limit',
+                  label: 'Limit',
+                  type: 'scalar' as const,
+                  valueType: 'number' as const
+                }
+              ]
+            }
+          ]
+        : []),
+      {
+        id: 'status',
+        label: 'Status',
+        fields: [
+          {
+            id: 'hp',
+            uid: 'uid-hp',
+            label: 'HP',
+            type: 'track',
+            min: 0,
+            max,
+            style: 'gauge',
+            role: { kind: 'resource', deltas: [-1, 1] }
+          }
+        ]
+      }
+    ]
+  })
+
   const created: CharacterEntity = {
     characterId: 'char-1',
     characterName: 'Investigator',
@@ -207,6 +249,67 @@ describe('CharacterInstantiationService', () => {
     )
 
     expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
+    expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
+    expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+  })
+
+  it('rollOnCreate付きtrackのdice結果が範囲外なら422にして後続処理を実行しない', async () => {
+    const dependencies = createDependencies()
+    const rollOnCreateTrackTemplate: CharacterSheetTemplateEntity = {
+      ...trackCreationTemplate(10),
+      sections: [
+        {
+          id: 'status',
+          label: 'Status',
+          fields: [
+            {
+              id: 'hp',
+              uid: 'uid-hp',
+              label: 'HP',
+              type: 'track',
+              min: 0,
+              max: 10,
+              style: 'gauge',
+              notation: '1d20',
+              rollOnCreate: true,
+              role: { kind: 'resource', deltas: [-1, 1] }
+            }
+          ]
+        }
+      ]
+    }
+    dependencies.templateService.resolvePublished.mockResolvedValue(rollOnCreateTrackTemplate)
+    dependencies.diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue({
+      total: 15,
+      details: '(1D20) ＞ 15'
+    })
+
+    await expect(dependencies.service.instantiate(instantiateInput)).rejects.toBeInstanceOf(
+      UnprocessableEntityException
+    )
+
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('1d20', 'DiceBot')
+    expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
+    expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['数値max × 素の数値', trackCreationTemplate(10), { 'uid-hp': 999 }],
+    [
+      'formula max × parts合計',
+      trackCreationTemplate({ formula: '{parameter.limit}' }, true),
+      { 'uid-limit': 10, 'uid-hp': { parts: { base: 999, other: 0 } } }
+    ]
+  ])('新規作成の範囲外trackを422にしてinsertしない: %s', async (_caseName, resolvedTemplate, values) => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolvePublished.mockResolvedValue(resolvedTemplate)
+
+    await expect(dependencies.service.instantiate({ ...instantiateInput, values })).rejects.toBeInstanceOf(
+      UnprocessableEntityException
+    )
+
     expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
     expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
     expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()

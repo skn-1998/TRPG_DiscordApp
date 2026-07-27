@@ -37,6 +37,11 @@ export type CharacterPaletteEntry =
 
 export type CharacterHubStatus = 'none' | 'publishing' | 'active' | 'error'
 
+export const CHARACTER_HUB_ERROR_CODES = {
+  PROJECTION_FAILED: 'PROJECTION_FAILED',
+  TEMPLATE_UNRESOLVABLE: 'TEMPLATE_UNRESOLVABLE'
+} as const
+
 export interface CharacterHub {
   status: CharacterHubStatus
   opId?: string

@@ -5,6 +5,7 @@ import type { MaterializedCharacterEntity } from '../../../domains/character/mod
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
+import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
   InstantiateCharacterInput,
@@ -12,6 +13,7 @@ import {
   RollOnCreateResult
 } from '../types/character-sheet.types'
 import { SheetMaterializerService } from './sheet-materializer.service'
+import { TrackRangePolicy } from './track-range.policy'
 
 @Injectable()
 export class CharacterInstantiationService {
@@ -31,6 +33,7 @@ export class CharacterInstantiationService {
     )
     const submittedValues = this.sheetMaterializer.validateInputValues(template, input.values ?? {})
     const { values, rollOnCreateResults } = await this.applyRollOnCreate(template, submittedValues)
+    new TrackRangePolicy(toEngineTemplate(template)).assertCreationValuesWithinBounds(values)
     const materialized = this.materializeOrThrow(template, values)
     const characterId = await this.characterIdService.generateUniqueCharacterId()
     const entity: MaterializedCharacterEntity = {

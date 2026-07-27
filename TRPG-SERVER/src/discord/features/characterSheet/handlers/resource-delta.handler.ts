@@ -1,10 +1,13 @@
 import { ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common'
+import { EPSILON } from '@trpg/sheet-engine'
 import { ButtonInteraction, MessageFlags } from 'discord.js'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import { ButtonInteractionHandler } from '../../../interactions/handlers/base/interaction-handler.base'
 import { ResourceDeltaCustomId } from '../custom-id'
 import { HubRefreshWorker } from '../services/hub-refresh.worker'
+
+const EFFECTIVE_DELTA_DECIMAL_PLACES = Math.max(0, Math.ceil(-Math.log10(EPSILON)))
 
 @Injectable()
 export class ResourceDeltaHandler extends ButtonInteractionHandler {
@@ -55,11 +58,21 @@ export class ResourceDeltaHandler extends ButtonInteractionHandler {
       let content: string
       if (result.noOp) {
         content = '✅ この操作は処理済みです。'
-      } else if (result.clamped) {
-        content = parsed.delta >= 0 ? 'ℹ️ 上限です。' : 'ℹ️ 下限です。'
       } else {
-        const sign = result.effectiveDelta >= 0 ? '+' : ''
-        content = `✅ リソースを ${sign}${result.effectiveDelta} 更新しました。`
+        const effectiveValueDelta = result.afterEffectiveValue - result.beforeEffectiveValue
+        if (Math.abs(effectiveValueDelta) <= EPSILON) {
+          if (result.atBound === 'max') {
+            content = 'ℹ️ 上限です。'
+          } else if (result.atBound === 'min') {
+            content = 'ℹ️ 下限です。'
+          } else {
+            content = 'ℹ️ これ以上変化しません。'
+          }
+        } else {
+          const displayDelta = Number(effectiveValueDelta.toFixed(EFFECTIVE_DELTA_DECIMAL_PLACES))
+          const sign = displayDelta >= 0 ? '+' : ''
+          content = `✅ リソースを ${sign}${displayDelta} 更新しました。`
+        }
       }
       await interaction.followUp({ content, flags: MessageFlags.Ephemeral })
     } catch (error) {

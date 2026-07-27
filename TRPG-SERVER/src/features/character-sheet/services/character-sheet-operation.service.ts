@@ -1,12 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException
 } from '@nestjs/common'
-import { clampDelta, evaluateExpression, evaluateTemplate } from '@trpg/sheet-engine'
+import { clampDelta, EPSILON, evaluateTemplate } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import type {
   CharacterEntity,
@@ -14,12 +15,18 @@ import type {
   CharacterPaletteEntry,
   SaveSheetMaterializedPayload
 } from '../../../domains/character/models/character.entity'
-import { assertCharacterHubTransition, resolveCharacterState } from '../../../domains/character/models/character.entity'
+import {
+  assertCharacterHubTransition,
+  CHARACTER_HUB_ERROR_CODES,
+  resolveCharacterState
+} from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { SheetMaterializerService } from './sheet-materializer.service'
+import { isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
+import { TrackRangePolicy } from './track-range.policy'
 
 const MAX_SAVE_ATTEMPTS = 5
 const SAVE_RETRY_BUDGET_MS = 2_000
@@ -55,13 +62,50 @@ export interface SaveSheetResult {
   appliedChanges: number
 }
 
-export interface ApplyResourceDeltaResult {
+interface ApplyResourceDeltaResultBase {
   character: CharacterEntity
   revision: number
-  noOp: boolean
   requestedDelta: number
+  /** clampDelta が raw parts.other へ適用した量。表示上の変化量は前後実効値の差を使う。 */
   effectiveDelta: number
   clamped: boolean
+}
+
+export type ApplyResourceDeltaResult =
+  | (ApplyResourceDeltaResultBase & {
+      /** 既存の冪等性short-circuitを保つため、実効値は再評価しない。 */
+      noOp: true
+      beforeEffectiveValue: null
+      afterEffectiveValue: null
+      atBound: null
+    })
+  | (ApplyResourceDeltaResultBase & {
+      noOp: false
+      beforeEffectiveValue: number
+      afterEffectiveValue: number
+      atBound: 'min' | 'max' | null
+    })
+
+export interface HubProjectionCharacter extends CharacterEntity {
+  /** 投稿先未確定のpollでは省略し、hub投影直前のsnapshotにだけ付与する非永続値。 */
+  resolvedResourceValues?: Readonly<Record<string, number>>
+}
+
+export class HubProjectionPreparationError extends Error {
+  constructor(readonly projectionCause: unknown) {
+    super('hub projection preparation failed')
+    this.name = HubProjectionPreparationError.name
+  }
+}
+
+export function resolveHubPreparationErrorCode(error: unknown): string | undefined {
+  if (error instanceof HubProjectionPreparationError) {
+    return CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
+  }
+  if (error instanceof ConflictException || error instanceof NotFoundException || error instanceof ForbiddenException) {
+    return CHARACTER_HUB_ERROR_CODES.TEMPLATE_UNRESOLVABLE
+  }
+  return undefined
 }
 
 interface MergeConflictPayload {
@@ -80,9 +124,15 @@ export class CharacterSheetOperationService {
   ) {}
 
   /** Discord hub 境界向けの materialized character 読み取り。legacy は明示的に対象外とする。 */
-  async getHubCharacter(characterId: string): Promise<CharacterEntity | null> {
+  async getHubCharacter(characterId: string): Promise<HubProjectionCharacter | null> {
     const character = await this.characterRepository.findById(characterId)
-    return character !== null && resolveCharacterState(character) === 'materialized' ? character : null
+    if (character === null || resolveCharacterState(character) !== 'materialized') return null
+    // none は publication CAS 後に解決し、決定的失敗を publishing->error として記録できるようにする。
+    if (character.hub?.status === 'none' || (!character.discordThreadId && !character.hub?.threadId)) {
+      return character
+    }
+
+    return this.resolveHubProjectionCharacter(character)
   }
 
   /**
@@ -105,9 +155,28 @@ export class CharacterSheetOperationService {
     characterId: string,
     from: CharacterHubTransition,
     to: CharacterHubTransition
-  ): Promise<CharacterEntity | null> {
+  ): Promise<HubProjectionCharacter | null> {
     assertCharacterHubTransition(from, to)
-    return this.characterRepository.setHubState(characterId, from, to)
+    const updated = this.characterRepository.setHubState(characterId, from, to)
+    if (to.status !== 'publishing') return updated
+    return updated.then(async (character) => {
+      if (character === null) return null
+      return this.resolveHubProjectionCharacter(character)
+    })
+  }
+
+  /**
+   * hub 読み取り中に失敗した worker が、characterId だけで active hub を error へ遷移させる。
+   * その時点の最新 active 世代だけを対象とし、失敗直前に読もうとした世代を狙い撃ちはしない。
+   */
+  async markHubRefreshError(characterId: string, errorCode: string): Promise<CharacterEntity | null> {
+    const character = await this.getPendingActiveHub(characterId)
+    if (character === null) return null
+    return this.setHubState(
+      characterId,
+      { status: 'active', messageId: character.hub!.messageId },
+      { status: 'error', errorCode }
+    )
   }
 
   async saveSheet(input: SaveSheetInput): Promise<SaveSheetResult> {
@@ -126,15 +195,15 @@ export class CharacterSheetOperationService {
         const field = this.assertWritablePath(template, change.path)
         const currentValue = this.readPathValue(values, change.path)
 
-        if (this.valuesEqual(change.newValue, change.baseValue)) {
+        if (sheetValuesEqual(change.newValue, change.baseValue)) {
           continue
         }
-        if (this.valuesEqual(currentValue, change.baseValue)) {
+        if (sheetValuesEqual(currentValue, change.baseValue)) {
           this.writePathValue(values, change.path, change.newValue, field)
           appliedChanges += 1
           continue
         }
-        if (this.valuesEqual(currentValue, change.newValue)) {
+        if (sheetValuesEqual(currentValue, change.newValue)) {
           continue
         }
         conflicts.push({
@@ -157,10 +226,24 @@ export class CharacterSheetOperationService {
         }
       }
 
-      const materialized = this.materializeOrThrow(template, current, values)
+      const engineTemplate = toEngineTemplate(template)
+      const trackRangePolicy = new TrackRangePolicy(engineTemplate)
+      trackRangePolicy.assertNoWorsenedTrackValues(sheet.values, values)
+      const evaluated = this.evaluateTemplateOrThrow(engineTemplate, values)
+      const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
+        sheet.values,
+        values,
+        evaluated
+      )
+      const materialized = this.materializeOrThrow(template, current, materializationValues)
+      const savePayload = this.toSavePayload(
+        { ...materialized, sheet: { ...materialized.sheet, values } },
+        sheet.revision + 1,
+        current.appliedInteractionIds ?? []
+      )
       const saved = await this.characterRepository.saveSheetMaterialized(
         current.characterId,
-        this.toSavePayload(materialized, sheet.revision + 1, current.appliedInteractionIds ?? []),
+        savePayload,
         sheet.revision
       )
 
@@ -200,12 +283,16 @@ export class CharacterSheetOperationService {
           noOp: true,
           requestedDelta: input.delta,
           effectiveDelta: 0,
-          clamped: false
+          clamped: false,
+          beforeEffectiveValue: null,
+          afterEffectiveValue: null,
+          atBound: null
         }
       }
 
       const paletteEntry = this.findResourcePaletteEntry(current.palette ?? [], input.paletteKey)
       const engineTemplate = toEngineTemplate(template)
+      const trackRangePolicy = new TrackRangePolicy(engineTemplate)
       const field = this.findTopLevelField(engineTemplate, paletteEntry.fieldRef.uid)
       this.assertResourceField(field)
 
@@ -215,18 +302,48 @@ export class CharacterSheetOperationService {
         throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
       }
 
-      const bounds = this.resolveResourceBounds(engineTemplate, field, sheet.values)
-      const clamped = clampDelta(Number(currentValue.value), input.delta, bounds.min, bounds.max)
+      const bounds = trackRangePolicy.resolveBounds(field, sheet.values)
+      const beforeEffectiveValue = trackRangePolicy.resolveEffectiveValue(
+        field,
+        sheet.values[field.uid],
+        Number(currentValue.value),
+        bounds
+      )
+      const clamped = clampDelta(beforeEffectiveValue, input.delta, bounds.min, bounds.max)
       const values = { ...sheet.values }
       if (clamped.effectiveDelta !== 0) {
         this.addToOtherPart(values, field.uid, Number(currentValue.value), clamped.effectiveDelta)
       }
 
-      const materialized = this.materializeOrThrow(template, current, values)
+      const afterEvaluation = this.evaluateTemplateOrThrow(engineTemplate, values)
+      const afterValue = afterEvaluation.values[field.uid]
+      if (afterValue?.type !== 'number' || !Number.isFinite(afterValue.value)) {
+        throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
+      }
+      const afterBounds = trackRangePolicy.resolveBounds(field, values)
+      const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(
+        field,
+        values[field.uid],
+        Number(afterValue.value),
+        afterBounds
+      )
+      const atBound = this.resolveAtBound(afterEffectiveValue, afterBounds)
+      trackRangePolicy.assertNoWorsenedTrackValues(sheet.values, values)
       const appliedInteractionIds = [...(current.appliedInteractionIds ?? []), input.interaction.id].slice(-20)
+      const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
+        sheet.values,
+        values,
+        afterEvaluation
+      )
+      const materialized = this.materializeOrThrow(template, current, materializationValues)
+      const savePayload = this.toSavePayload(
+        { ...materialized, sheet: { ...materialized.sheet, values } },
+        sheet.revision + 1,
+        appliedInteractionIds
+      )
       const saved = await this.characterRepository.saveSheetMaterialized(
         current.characterId,
-        this.toSavePayload(materialized, sheet.revision + 1, appliedInteractionIds),
+        savePayload,
         sheet.revision
       )
 
@@ -237,7 +354,10 @@ export class CharacterSheetOperationService {
           noOp: false,
           requestedDelta: input.delta,
           effectiveDelta: clamped.effectiveDelta,
-          clamped: clamped.clamped
+          clamped: clamped.clamped,
+          beforeEffectiveValue,
+          afterEffectiveValue,
+          atBound
         }
       }
 
@@ -259,6 +379,15 @@ export class CharacterSheetOperationService {
     return character
   }
 
+  private async getPendingActiveHub(characterId: string): Promise<CharacterEntity | null> {
+    const character = await this.characterRepository.findById(characterId)
+    if (character?.hub?.status !== 'active' || !character.hub.messageId) return null
+    const pendingRevision = character.hub.pendingRevision ?? 0
+    const appliedRevision = character.hub.appliedRevision ?? 0
+    if (pendingRevision <= appliedRevision) return null
+    return character
+  }
+
   private async resolvePinnedTemplate(character: CharacterEntity): Promise<CharacterSheetTemplateEntity> {
     const sheet = this.requireSheet(character)
     return this.templateService.resolvePublished(sheet.templateId, sheet.templateVersion, character.discordUserId)
@@ -269,6 +398,56 @@ export class CharacterSheetOperationService {
       throw new ConflictException('character is not materialized')
     }
     return character.sheet
+  }
+
+  private async resolveHubProjectionCharacter(character: CharacterEntity): Promise<HubProjectionCharacter> {
+    const template = toEngineTemplate(await this.resolvePinnedTemplate(character))
+    return this.attachResolvedResourceValues(character, template)
+  }
+
+  private attachResolvedResourceValues(character: CharacterEntity, template: SheetTemplate): HubProjectionCharacter {
+    try {
+      const values = this.requireSheet(character).values
+      const evaluated = this.evaluateTemplateOrThrow(template, values)
+      const trackRangePolicy = new TrackRangePolicy(template)
+      const resolvedResourceValues: Record<string, number> = {}
+      const resourceLabelsByUid = new Map<string, string>()
+
+      for (const section of template.sections) {
+        for (const field of section.fields) {
+          if (!isResourceField(field)) continue
+
+          const evaluatedValue = evaluated.values[field.uid]
+          if (evaluatedValue?.type !== 'number' || !Number.isFinite(evaluatedValue.value)) {
+            throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
+          }
+          const bounds = trackRangePolicy.resolveBounds(field, values)
+          resolvedResourceValues[field.uid] = trackRangePolicy.resolveEffectiveValue(
+            field,
+            values[field.uid],
+            Number(evaluatedValue.value),
+            bounds
+          )
+          resourceLabelsByUid.set(field.uid, field.label)
+        }
+      }
+
+      const projectionPalette = character.palette?.map((entry) => {
+        if (entry.kind !== 'resource') return entry
+        const fieldLabel = resourceLabelsByUid.get(entry.fieldRef.uid)
+        const effectiveValue = resolvedResourceValues[entry.fieldRef.uid]
+        if (fieldLabel === undefined || effectiveValue === undefined) return entry
+        return { ...entry, label: `${fieldLabel} (${effectiveValue})` }
+      })
+
+      return {
+        ...character,
+        ...(projectionPalette === undefined ? {} : { palette: projectionPalette }),
+        resolvedResourceValues
+      }
+    } catch (error) {
+      throw new HubProjectionPreparationError(error)
+    }
   }
 
   private assertWritablePath(template: CharacterSheetTemplateEntity, path: CharacterSheetValuePath): SheetField {
@@ -294,7 +473,7 @@ export class CharacterSheetOperationService {
   }
 
   private assertResourceField(field: SheetField): asserts field is Extract<SheetField, { type: 'track' | 'scalar' }> {
-    if (field.role?.kind !== 'resource' || !this.allowsParts(field)) {
+    if (!isResourceField(field)) {
       throw new UnprocessableEntityException(`field ${field.uid} is not a parts-aware number resource`)
     }
   }
@@ -307,7 +486,7 @@ export class CharacterSheetOperationService {
     if (path.partsKey === undefined) return values[path.fieldUid]
     const raw = values[path.fieldUid]
     if (path.partsKey === 'base' && typeof raw === 'number') return raw
-    if (!this.isPartsValue(raw)) return undefined
+    if (!isPartsValue(raw)) return undefined
     return Object.prototype.hasOwnProperty.call(raw.parts, path.partsKey) ? raw.parts[path.partsKey] : undefined
   }
 
@@ -323,7 +502,7 @@ export class CharacterSheetOperationService {
     }
 
     const current = values[path.fieldUid]
-    const parts: Record<string, number> = this.isPartsValue(current)
+    const parts: Record<string, number> = isPartsValue(current)
       ? { ...current.parts }
       : { base: typeof current === 'number' && Number.isFinite(current) ? current : 0 }
     parts[path.partsKey] = newValue as number
@@ -341,7 +520,7 @@ export class CharacterSheetOperationService {
     effectiveDelta: number
   ): void {
     const raw = values[fieldUid]
-    const parts: Record<string, number> = this.isPartsValue(raw)
+    const parts: Record<string, number> = isPartsValue(raw)
       ? { ...raw.parts }
       : { base: typeof raw === 'number' && Number.isFinite(raw) ? raw : evaluatedCurrent }
     const other = parts.other ?? 0
@@ -352,41 +531,11 @@ export class CharacterSheetOperationService {
     values[fieldUid] = { parts }
   }
 
-  private resolveResourceBounds(
-    template: SheetTemplate,
-    field: Extract<SheetField, { type: 'track' | 'scalar' }>,
-    values: Record<string, unknown>
-  ): { min: number; max: number } {
-    if (field.type === 'scalar') {
-      return { min: Number.NEGATIVE_INFINITY, max: Number.POSITIVE_INFINITY }
-    }
-
-    const max =
-      typeof field.max === 'number'
-        ? field.max
-        : this.evaluateBoundExpression(template, field.max.formula, values, field.uid)
-    return { min: field.min ?? 0, max }
-  }
-
-  private evaluateBoundExpression(
-    template: SheetTemplate,
-    formula: string,
-    values: Record<string, unknown>,
-    fieldUid: string
-  ): number {
-    try {
-      const result = evaluateExpression(template, formula, { values })
-      if (result.type !== 'number' || !Number.isFinite(result.value)) {
-        throw new Error('formula did not produce a finite number')
-      }
-      return Number(result.value)
-    } catch (error) {
-      throw new UnprocessableEntityException({
-        message: `resource max evaluation failed for ${fieldUid}`,
-        fieldUid,
-        detail: this.errorMessage(error)
-      })
-    }
+  private resolveAtBound(value: number, bounds: { min: number; max: number }): 'min' | 'max' | null {
+    if (bounds.min === bounds.max) return null
+    if (Math.abs(value - bounds.max) <= EPSILON) return 'max'
+    if (Math.abs(value - bounds.min) <= EPSILON) return 'min'
+    return null
   }
 
   private findResourcePaletteEntry(
@@ -459,24 +608,6 @@ export class CharacterSheetOperationService {
     }
   }
 
-  private valuesEqual(left: unknown, right: unknown): boolean {
-    if (Object.is(left, right)) return true
-    if (typeof left !== typeof right || left === null || right === null) return false
-    if (Array.isArray(left) || Array.isArray(right)) {
-      if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
-      return left.every((value, index) => this.valuesEqual(value, right[index]))
-    }
-    if (typeof left !== 'object' || typeof right !== 'object') return false
-    const leftRecord = left as Record<string, unknown>
-    const rightRecord = right as Record<string, unknown>
-    const leftKeys = Object.keys(leftRecord).sort()
-    const rightKeys = Object.keys(rightRecord).sort()
-    return (
-      leftKeys.length === rightKeys.length &&
-      leftKeys.every((key, index) => key === rightKeys[index] && this.valuesEqual(leftRecord[key], rightRecord[key]))
-    )
-  }
-
   private assertRetryAvailable(characterId: string, attempt: number, startedAt: number): void {
     if (attempt >= MAX_SAVE_ATTEMPTS || Date.now() - startedAt >= SAVE_RETRY_BUDGET_MS) {
       throw this.retryConflict(characterId)
@@ -512,18 +643,6 @@ export class CharacterSheetOperationService {
     if (input.interaction.id.length === 0) {
       throw new BadRequestException('interaction.id is required')
     }
-  }
-
-  private isPartsValue(value: unknown): value is { parts: Record<string, number> } {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      !Array.isArray(value) &&
-      'parts' in value &&
-      typeof (value as { parts?: unknown }).parts === 'object' &&
-      (value as { parts?: unknown }).parts !== null &&
-      !Array.isArray((value as { parts?: unknown }).parts)
-    )
   }
 
   private errorMessage(error: unknown): string {

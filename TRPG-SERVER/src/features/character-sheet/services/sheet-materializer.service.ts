@@ -10,6 +10,7 @@ import {
   MaterializedCharacterSheet,
   PaletteEntry
 } from '../types/character-sheet.types'
+import { isPartsValue, isResourceField } from './sheet-values.util'
 
 interface MaterializationIssue {
   fieldUid?: string
@@ -170,7 +171,7 @@ export class SheetMaterializerService {
           return
         }
 
-        if (field.role?.kind === 'resource' && this.isResourceField(field)) {
+        if (isResourceField(field)) {
           entries.push({
             key: this.allocatePaletteKey(field, existingPalette, usedKeys),
             fieldRef: { uid: field.uid },
@@ -213,7 +214,7 @@ export class SheetMaterializerService {
     if (value.type === 'number') {
       return {
         ...common,
-        values: this.isPartsValue(rawValue) ? { ...rawValue.parts } : { base: Number(value.value) }
+        values: isPartsValue(rawValue) ? { ...rawValue.parts } : { base: Number(value.value) }
       }
     }
 
@@ -336,22 +337,6 @@ export class SheetMaterializerService {
 
   private isProjectionField(field: SheetField): boolean {
     return field.type === 'scalar' || field.type === 'computed' || field.type === 'track' || field.type === 'roll'
-  }
-
-  private isResourceField(field: SheetField): boolean {
-    return field.type === 'track' || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true)
-  }
-
-  private isPartsValue(value: unknown): value is { parts: Record<string, number> } {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      !Array.isArray(value) &&
-      'parts' in value &&
-      typeof value.parts === 'object' &&
-      value.parts !== null &&
-      !Array.isArray(value.parts)
-    )
   }
 
   private extractFieldUid(message: string): string | undefined {

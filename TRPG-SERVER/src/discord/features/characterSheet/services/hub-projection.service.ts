@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common'
 import { createDiscordProjectionViewModel, type DiscordProjectionViewModel } from '@trpg/sheet-projection'
-import type { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import type { HubProjectionCharacter } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 
 @Injectable()
 export class HubProjectionService {
-  create(character: CharacterEntity): DiscordProjectionViewModel {
+  create(character: HubProjectionCharacter): DiscordProjectionViewModel {
     if (character.sheet === undefined) {
       throw new Error('hub projection requires a materialized character')
+    }
+    if (character.resolvedResourceValues === undefined) {
+      throw new Error('hub projection requires resolved resource values')
     }
 
     return createDiscordProjectionViewModel({
@@ -14,7 +17,7 @@ export class HubProjectionService {
       templateVersion: character.sheet.templateVersion,
       channelId: character.discordChannelId,
       palette: character.palette ?? [],
-      resourceValues: character.sheet.values,
+      resourceValues: character.resolvedResourceValues,
       opId: character.hub?.opId
     })
   }
