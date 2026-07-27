@@ -477,6 +477,25 @@ const character = characterHandler.handleSuccess(response)
    （`exactOptionalPropertyTypes:false` のため）。なお null/undefined union の片側追加は、親
    `tsconfig.json` が明示する `strictNullChecks:true` により捕捉される。
 
+   **①の補足（S7d 調査 2026-07-27・実経路は存在しないと判定）**
+
+   `sheet.values` の JSON 安全性を実際に担保しているのは**型でもスキーマでもなく
+   `SheetMaterializerService`**（`buildValueInputSchema` が全キーをテンプレートフィールドへ
+   対応付け、number/track は `finiteNumberSchema`、text/select は string、boolean は boolean を要求し、
+   Map/Set/Date/undefined/オブジェクト/配列を拒否する）。永続化 zod の `z.unknown()` と
+   作成 DTO の `IsObject` は**単独では何も保証しない**ので、そちらを根拠にしないこと。
+
+   本番の書き込み経路は3系統（作成 API / Web シート編集 / Discord resource delta）で、
+   いずれも materializer を経て `CharacterRepository.createMaterializedCharacter`（呼び出し元1箇所）
+   または `saveSheetMaterialized`（同2箇所）に到達する。この**単一書き込み境界を維持すること**が
+   安全性の条件であり、新しい writer を足すときも必ず materializer を通す。
+
+   **再評価のトリガー**: repository を直接呼ぶ writer の追加／外部データの import／
+   `values` を書き換える migration／複合値を持つフィールド型の追加。
+   （なお危険値が直接 DB 更新等で混入した場合、HTTP 境界に防御は無く、BigInt は 500、
+   その他は静かな値化けになる。壊れたレコードは次回保存時に materializer が全体を再検査するため
+   自己修復されず保存不能になる。）
+
    **S7c で固定**
 
    ④projection された部分オブジェクトが CharacterEntity を騙るケースは、検証済み経路を
