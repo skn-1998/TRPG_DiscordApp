@@ -4,6 +4,7 @@ import { CharacterThreadSelectService } from './character-thread-select.service'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
+import { CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE } from './character-channel-binding.util'
 
 // キャラクタースレッド選択メニューのルーター。
 // execute は isStringSelectMenu ガード → customId による分岐振り分け（legacy/create/enhanced/flexible-dice）
@@ -216,6 +217,86 @@ describe('CharacterThreadSelectService', () => {
           displayType: 'enhanced',
           source: 'character-thread-select'
         })
+      )
+    })
+
+    it('materialized かつ discordChannelId 未紐付けは defer・所有者通過後に拒否リテラルで応答し、進捗表示も emit もしない', async () => {
+      // Arrange: 所有者一致・sheet あり(materialized)・discordChannelId 空(未紐付け)
+      const interaction = buildInteraction()
+      const ownerId = interaction.user.id
+      characterService.findOne.mockResolvedValue({
+        characterName: 'Hero',
+        discordUserId: ownerId,
+        discordChannelId: '',
+        sheet: { templateId: 'tpl', templateVersion: '1', revision: 1, values: {} }
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert: defer → 所有者通過 → 拒否リテラル（components:[]）で応答して打ち切る
+      expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE,
+        components: []
+      })
+      // 進捗表示は出さない・emit しない
+      expect(interaction.editReply).not.toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('作成中') })
+      )
+      expect(typedEventService.emit).not.toHaveBeenCalled()
+    })
+
+    it('materialized かつ discordChannelId 紐付け済みは作成中表示後にスレッド作成イベントを emit する', async () => {
+      // Arrange: 所有者一致・sheet あり(materialized)・discordChannelId 非空
+      const interaction = buildInteraction()
+      const ownerId = interaction.user.id
+      characterService.findOne.mockResolvedValue({
+        characterName: 'Hero',
+        discordUserId: ownerId,
+        discordChannelId: 'channel-linked',
+        sheet: { templateId: 'tpl', templateVersion: '1', revision: 1, values: {} }
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert: materialized でも紐付け済みなら進捗表示 → emit まで進む
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('作成中') })
+      )
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.thread.create.requested',
+        expect.objectContaining({ character: expect.objectContaining({ characterName: 'Hero' }) })
+      )
+      expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        typedEventService.emit.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('legacy かつ discordChannelId 未紐付けは従来どおり進捗表示 → emit する', async () => {
+      // Arrange: 所有者一致・sheet なし(legacy)・discordChannelId 空
+      const interaction = buildInteraction()
+      const ownerId = interaction.user.id
+      characterService.findOne.mockResolvedValue({
+        characterName: 'Hero',
+        discordUserId: ownerId,
+        discordChannelId: ''
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert: legacy は未紐付けでもガードに掛からず従来フロー（進捗表示 → emit）
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('作成中') })
+      )
+      expect(typedEventService.emit).toHaveBeenCalledWith(
+        'discord.thread.create.requested',
+        expect.objectContaining({ character: expect.objectContaining({ characterName: 'Hero' }) })
+      )
+      expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        typedEventService.emit.mock.invocationCallOrder[0]
       )
     })
 

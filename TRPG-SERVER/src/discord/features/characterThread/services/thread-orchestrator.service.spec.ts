@@ -163,8 +163,9 @@ describe('ThreadOrchestratorService', () => {
     })
 
     it('materialized: スレッド作成とID保存後は旧表示投稿群を全てスキップする', async () => {
-      // Arrange
+      // Arrange: 紐付け済み(discordChannelId あり)の materialized はバックストップを通過して作成フローへ進む
       const character = buildCharacter({
+        discordChannelId: 'channel-1',
         sheet: {
           templateId: 'template-1',
           templateVersion: '1.0.0',
@@ -192,6 +193,52 @@ describe('ThreadOrchestratorService', () => {
       expect(threadInteraction.postPresetDiceButtons).not.toHaveBeenCalled()
       expect(threadInteraction.postSkillRollButtons).not.toHaveBeenCalled()
       expect(threadInteraction.postAbilityRollButtons).not.toHaveBeenCalled()
+    })
+
+    it('materialized かつ discordChannelId 未紐付けは警告し、manager 作成/update/表示投稿を一切呼ばない', async () => {
+      // Arrange: sheet あり(materialized)・discordChannelId 空(未紐付け)
+      const warnSpy = jest.spyOn((service as unknown as { logger: { warn: (msg: string) => void } }).logger, 'warn')
+      const character = buildCharacter({
+        discordChannelId: '',
+        sheet: { templateId: 'tpl', templateVersion: '1', revision: 1, values: {} }
+      })
+
+      // Act
+      await service.handleThreadCreateRequest(buildPayload({ character }))
+
+      // Assert: 最終副作用境界のバックストップが manager 呼び出し前に打ち切る
+      expect(threadManager.createCharacterThread).not.toHaveBeenCalled()
+      expect(characterService.update).not.toHaveBeenCalled()
+      expect(threadManager.getThreadChannel).not.toHaveBeenCalled()
+      expect(characterEmbed.postCharacterDisplay).not.toHaveBeenCalled()
+      expect(threadInteraction.postBasicDiceButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postFlexibleDiceMenu).not.toHaveBeenCalled()
+      expect(threadInteraction.postPresetDiceButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postSkillRollButtons).not.toHaveBeenCalled()
+      expect(threadInteraction.postAbilityRollButtons).not.toHaveBeenCalled()
+      // 警告は characterId と未紐付け理由(discordChannelId)を含む
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('char-1'))
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('discordChannelId'))
+    })
+
+    it('legacy かつ discordChannelId 未紐付けは従来どおりスレッド作成フローを実行する', async () => {
+      // Arrange: sheet なし(legacy)・discordChannelId 空 → ガード対象外
+      const character = buildCharacter({ discordChannelId: '' })
+      threadManager.createCharacterThread.mockResolvedValue({
+        success: true,
+        threadId: 'thread-new'
+      } as never)
+      const thread = { name: 'スレッド', archived: false } as never
+      threadManager.getThreadChannel.mockResolvedValue(thread)
+
+      // Act
+      await service.handleThreadCreateRequest(buildPayload({ character }))
+
+      // Assert: 従来どおり作成 → 更新 → 表示投稿
+      expect(threadManager.createCharacterThread).toHaveBeenCalled()
+      expect(characterService.update).toHaveBeenCalledWith('char-1', { discordThreadId: 'thread-new' })
+      expect(characterEmbed.postCharacterDisplay).toHaveBeenCalledWith(thread, character, 'full')
     })
 
     it('スレッド作成が success:false の場合、dead な failed イベントは emit せず再スローする（E-3d）', async () => {

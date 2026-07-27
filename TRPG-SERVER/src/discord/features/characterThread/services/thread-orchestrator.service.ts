@@ -3,6 +3,7 @@ import { CharacterEntity, resolveCharacterState } from '../../../../domains/char
 import { CharacterService } from '../../../../domains/character/character.service'
 import { EventPayload } from '../../../../events/contracts'
 
+import { isMaterializedWithoutChannel } from './character-channel-binding.util'
 import { ThreadManagerService, CreateThreadRequest } from './thread-manager.service'
 import { CharacterEmbedService } from './character-embed.service'
 import { ThreadInteractionService } from './thread-interaction.service'
@@ -44,6 +45,17 @@ export class ThreadOrchestratorService {
         guildId,
         creatorId,
         displayType
+      }
+
+      // 同じ述語の3適用点（L2）: event 経路の副作用直前で止める。
+      if (isMaterializedWithoutChannel(character)) {
+        this.logger.warn(
+          `Thread creation skipped: character ${character.characterId} is materialized but discordChannelId is not linked`
+        )
+        // この return が発火した場合、同じ discord.thread.create.requested を購読する
+        // HubThreadEventListener は 30 秒 poll のうえ Hub remains none… を error 出力する
+        // （現状は producer 2つとも上流でガード済みのため到達不能）。
+        return
       }
 
       // 1. スレッド作成
