@@ -1,0 +1,119 @@
+name: Verify
+
+'on':
+  push:
+    branches:
+      - main
+      - develop
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API contract
+        run: pnpm --filter @trpg/api-contract --fail-if-no-match run build
+
+      - name: Test API contract
+        run: pnpm --filter @trpg/api-contract --fail-if-no-match run test
+
+      - name: Test sheet engine
+        run: pnpm --filter @trpg/sheet-engine --fail-if-no-match run test
+
+      - name: Test sheet projection
+        run: pnpm --filter @trpg/sheet-projection --fail-if-no-match run test
+
+      - name: Build server
+        run: pnpm --filter trpg-server --fail-if-no-match run build
+
+      - name: Typecheck server tests
+        run: pnpm --filter trpg-server --fail-if-no-match run typecheck:test
+
+      # focused 実行では compile/DI エラーで suite 自体が未実行になり「緑」を誤認するため、全 suite を回す。
+      - name: Test all server suites
+        run: pnpm --filter trpg-server --fail-if-no-match run test
+
+      - name: Check circular dependencies
+        run: pnpm --filter trpg-server --fail-if-no-match run check:circular
+
+      - name: Typecheck frontend
+        run: pnpm --filter trpg-remix-app --fail-if-no-match run typecheck
+
+      - name: Lint frontend
+        run: pnpm --filter trpg-remix-app --fail-if-no-match run lint
+
+      - name: Test frontend
+        run: pnpm --filter trpg-remix-app --fail-if-no-match run test
+
+      - name: Build frontend
+        run: pnpm --filter trpg-remix-app --fail-if-no-match run build
+
+  lint-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # 既存 error 6件（jest/no-conditional-expect 等）が残るため赤くなる。
+    # branch protection の required checks には含めないこと。6件を解消したら required へ昇格させる。
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint server
+        run: pnpm --filter trpg-server --fail-if-no-match run lint:check
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run server integration tests
+        run: pnpm --filter trpg-server --fail-if-no-match run test:integration
