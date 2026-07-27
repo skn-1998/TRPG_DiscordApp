@@ -1,7 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { getModelToken } from '@nestjs/mongoose'
+import { characterEntitySchema } from '@trpg/api-contract'
 import { CharacterRepository } from './character.repository'
 import { CHARACTER_MODEL, Character } from '../models/character.model'
+
+const requiredCharacterEntityKeys = Object.entries(characterEntitySchema.shape)
+  .filter(([, fieldSchema]) => !fieldSchema.safeParse(undefined).success)
+  .map(([key]) => key)
+
+const expectProjectionToContainRequiredCharacterEntityKeys = (select: jest.Mock): void => {
+  const [projection] = select.mock.calls[0] as [string]
+  const selectedKeys = new Set(projection.split(/\s+/))
+  const missingRequiredKeys = requiredCharacterEntityKeys.filter((key) => !selectedKeys.has(key))
+
+  expect(missingRequiredKeys).toEqual([])
+}
 
 /**
  * CharacterRepository の単体テスト
@@ -413,16 +426,24 @@ describe('CharacterRepository', () => {
   })
 
   describe('findByName', () => {
-    it('characterName 条件で findOne し select 指定して結果を返す', async () => {
-      const doc = { characterId: 'c1', characterName: 'Alice' }
+    it('CharacterEntity の必須フィールドをすべて含む projection で検索する', async () => {
+      const doc = {
+        characterId: 'c1',
+        characterName: 'Alice',
+        gameSystemId: 'coc7',
+        discordUserId: 'user-1',
+        discordChannelId: 'channel-1',
+        status: {}
+      }
       const query = createQuery(doc)
       model.findOne.mockReturnValue(query)
 
       const result = await repository.findByName('Alice')
 
       expect(model.findOne).toHaveBeenCalledWith({ characterName: 'Alice' })
+      expectProjectionToContainRequiredCharacterEntityKeys(query.select)
       expect(query.select).toHaveBeenCalledWith(
-        'characterId characterName discordChannelId attributes primaryAttributes createdAt updatedAt'
+        'characterId characterName gameSystemId discordUserId discordChannelId status createdAt updatedAt'
       )
       expect(query.lean).toHaveBeenCalledTimes(1)
       expect(result).toBe(doc)
@@ -430,7 +451,7 @@ describe('CharacterRepository', () => {
   })
 
   describe('findByChannelId', () => {
-    it('discordChannelId 条件で findOne し select 指定して結果を返す', async () => {
+    it('discordChannelId 条件で findOne し必須フィールドを含む projection の結果を返す', async () => {
       const doc = { characterId: 'c1' }
       const query = createQuery(doc)
       model.findOne.mockReturnValue(query)
@@ -439,6 +460,7 @@ describe('CharacterRepository', () => {
 
       expect(model.findOne).toHaveBeenCalledWith({ discordChannelId: 'ch1' })
       // S-1: status/skill/parameter/gameSystemId を含む（スレッド内ロールの key 再解決の前提）。
+      expectProjectionToContainRequiredCharacterEntityKeys(query.select)
       expect(query.select).toHaveBeenCalledWith(
         'characterId characterName discordChannelId attributes primaryAttributes status skill parameter gameSystemId palette discordUserId hub.status createdAt updatedAt'
       )
