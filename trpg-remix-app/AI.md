@@ -204,7 +204,6 @@ lib/
 ├── api-response.util.ts    # 統合レスポンス処理ユーティリティ
 ├── gameSystem.ts           # ゲームシステム管理
 └── hooks/                  # 共通カスタムフック
-    ├── useAuth.ts          # 認証フック
     ├── useCharacters.ts    # キャラクター管理フック
     └── useCharacterSummaries.ts # キャラクター概要フック
 ```
@@ -213,10 +212,8 @@ lib/
 
 ```
 types/
-├── api.ts              # 統合API型定義（新規追加）
 ├── auth.ts             # 認証関連型定義
 ├── character.ts        # キャラクター関連型定義
-├── dice-roll.ts        # ダイスロール関連型定義
 └── index.ts            # 共通型定義エクスポート
 ```
 
@@ -315,6 +312,8 @@ Login → Discord OAuth → JWT Token → Cookie Storage → API Authorization
 
 ### 4. **統合型定義フロー**
 
+> ※履歴資料（S6a で撤去済み）
+
 ```
 API Request → postDomain/getDomain → Type-Safe Response → createApiHandler → Type Guard → Safe Data Access
 ```
@@ -341,6 +340,8 @@ API Request → postDomain/getDomain → Type-Safe Response → createApiHandler
 
 ### 4. **統合型定義パターン**
 
+> ※履歴資料（S6a で撤去済み）
+
 - 型安全なAPIレスポンス処理
 - ドメインベースの型定義
 - コンパイル時エラー検出
@@ -355,6 +356,8 @@ API Request → postDomain/getDomain → Type-Safe Response → createApiHandler
 ## API通信アーキテクチャ
 
 ### 1. **統合型定義システム**
+
+> 本機構は S6a で撤去済み。正典パターンは @trpg/api-contract の SuccessEnvelope<T> 直読み（封筒適用コントローラのみ）。
 
 ```typescript
 // 型安全なAPIクライアント（新しい実装）
@@ -396,6 +399,8 @@ console.error('❌ ログインエラー:', errorMessage)
 
 ### 5. **ドメインベースレスポンス処理**
 
+> ※履歴資料（S6a で撤去済み）
+
 ```typescript
 // ドメイン指定でAPIハンドラーを作成
 const authHandler = createApiHandler('auth')
@@ -405,6 +410,158 @@ const characterHandler = createApiHandler('character')
 const authData = authHandler.handleSuccess(response)
 const character = characterHandler.handleSuccess(response)
 ```
+
+## サーバ⇄フロント型契約体制（@trpg/api-contract）
+
+> 2026-07-26 導入。旧「統合型定義システム（DomainDataMap）」は S6a で全廃済み。
+> 上の履歴資料ブロックは読み替え用に残しているだけで、新規コードでは使わない。
+
+### この体制が保証すること / しないこと
+
+- **保証する**: HTTP 封筒(success/message/timestamp/requestId/data/meta)の形と、
+  payload 型宣言の server→契約 固定（**auth login・user profile・guilds・character**）。
+  server の `SuccessResponse` / `ErrorResponse` が契約 interface を `implements` しているため、
+  封筒フィールドを片側だけ変えると **server の build が TS2420 で落ちる**。
+  auth login・user profile・guilds は server 戻り型が契約を参照するため、契約の必須キー追加・
+  型変更・削除で server build が落ちる。S5a2 で固定・反証済み。
+  **character payload は型宣言レベルの橋（`character-wire.contract.spec.ts`）で固定**し、
+  entity/wire のトップレベルのキー集合・値型・意図的な optional 差分と、summary の型宣言同値を
+  assert する。さらに `character.controller.http.spec.ts` が実 HTTP body のトップレベルキーを
+  `characterEntitySchema.shape` から runtime 導出して照合し、Date の ISO 直列化、legacy section 欠損、
+  summary payload と meta を通常 Jest suite で固定する。
+  delete は契約側で wire 単体の required/optional を固定し、controller が契約型を直接宣言する。
+  controller 戻り型は原則 entity 型のままだが、`remove()` は例外として wire を直接返す。
+- **保証しない**: opaque な入れ子値、通常ゲート外の部分 projection、
+  **endpoint↔wire の対応**（`apiClient` ジェネリクスは無検証）・**request 書込面**
+  （response wire の保証対象外 — 規律とレビュー）。character の正確な射程は下記手順4に記載する。
+
+### 封筒が適用される面 / 適用されない面
+
+| 面                                                                               | 封筒     | 読み方               |
+| -------------------------------------------------------------------------------- | -------- | -------------------- |
+| `/auth/*`（`/auth/discord` と `/auth/discord/callback` を除く）                  | あり     | `response.data.data` |
+| `/users/*`（`/users/discord/guilds` を含む）                                     | あり     | `response.data.data` |
+| `/character`・`/character/:id`・`/character/summaries` (CharacterController)     | あり     | `response.data.data` |
+| `/character/from-template`・`/character/:id/sheet` (CharacterSheetController)    | **なし** | `response.data`      |
+| `/sheet-templates/*`・`/discord/*`・`/commands/*`・`/interactions/*`・`/`（app） | **なし** | `response.data`      |
+
+- `/character` プレフィックスは封筒面と非封筒面が**同居**している。エンドポイント単位で確認すること。
+- 非封筒面のエラーは Nest 既定形（`statusCode` / `message` / `error`）で、`ErrorEnvelope` では表現できない。
+  `ApiResponseUtil.handleError` と `CustomError` は両形を扱えるように書いてある（`isErrorEnvelope` で判別）。
+
+### 手順1: server のスキーマ／レスポンス形を変えたとき
+
+1. 封筒フィールドを変えた場合 → `packages/api-contract/src/common/api-response.ts` を**同時に**直す。
+   直さなければ `pnpm --filter trpg-server build` が落ちるので、忘れることはできない。
+2. character 面の payload の形を変えた場合 →
+   `packages/api-contract/src/character/character.wire.ts` を**手で**追随させる。
+   型宣言の乖離は `character-wire.contract.spec.ts` が検出する（`pnpm run check:contract-stack`）。
+   wire にキーを足したら `characterEntitySchema` にも足す（片側だけだとキー集合 assert が落ちる）。
+   auth login・user profile・guilds は server build が不一致を検出する。
+3. 永続化 zod スキーマ（`character.zod.ts` / `character-sheet-template.zod.ts`）を変えた場合 →
+   契約パッケージが正本。server 側 `src/domains/**/schemas/*.zod.ts` は re-export の薄皮なので触らない。
+4. 検証: `pnpm run check:contract-stack`。
+   server build は spec を除外するため、character の型レベル橋を単独では評価しない。
+   `check:contract-stack` が閉じるのは、封筒フィールド形（`implements`）、封筒 runtime 生成
+   （interceptor/filter spec）、front の型/lint/公開面、character の型宣言レベルの橋、
+   CharacterController の実 HTTP payload（schema 由来の許可キー、Date の ISO 化、summary/meta）。
+   payload 型と server 実装の同値は auth login・user profile・guilds を S5a2 で機械固定済み。
+   character は型宣言レベルの drift（トップレベルのキー集合・値型・意図的 optional 差分）に加え、
+   実 HTTP payload の代表経路を固定する。
+
+   **未固定**
+
+   ①`sheet.values` の中身（opaque な `Record<string, unknown>`。BigInt/Map/Set/
+   Infinity 等は型もスキーマも通り JSON 直列化で壊れる）②入れ子型（hub/sheet/palette/attribute）への
+   optional フィールド追加 ③optional property への明示的 `undefined` 追加
+   （`exactOptionalPropertyTypes:false` のため）。なお null/undefined union の片側追加は、親
+   `tsconfig.json` が明示する `strictNullChecks:true` により捕捉される。
+
+   **S7c で固定**
+
+   ④projection された部分オブジェクトが CharacterEntity を騙るケースは、検証済み経路を
+   `CharacterRepository.findByChannelId()` と `findByIdForOwner()` に限定する。
+   `character.integration.spec.ts` が実 Mongo で、前者の repository projection と、後者を使う HTTP payload の
+   許可キー集合・必須キー集合を検証する。`test:integration`（Docker 必須）だけで走り、
+   `check:contract-stack` には含まれない。legacy 行で欠損を許す必須キーは、lean 経路で default 補完されない
+   `status` と wire optional の `discordChannelId` だけに限定する。
+   ⑤legacy 行の default 欠損は section を持たない代表ケースが HTTP 200 かつ欠損キーのままになることを固定済み。
+   ⑥HTTP payload は次の二層で固定する。
+   - **通常ゲート**: `character.controller.http.spec.ts` が代表 payload（service mock）の封筒・キー集合・値型・
+     Date→ISO 直列化・ルート解決を検査する。
+   - **Docker integration**: `character.integration.spec.ts` が実 CharacterService→実 repository→実 Mongo→
+     実 interceptor を通した実 payload に同じ検査を行い、summary mapper の全要素と条件付き省略も検査する。
+     このほか `apiClient` ジェネリクスの無検証アサーション層は、型を書き間違えても通る。
+     封筒適用の解除（`@UseInterceptors` の削除等）は S5a2 で固定済み。
+
+### CI とローカルゲートの役割分担
+
+- `.github/workflows/verify.yml` の CI は、契約 package の build/test、server の build/typecheck・
+  **全 Jest suite**・循環依存検査、`@trpg/sheet-engine` / `@trpg/sheet-projection` の test、
+  front の typecheck/lint/test/build に加え、
+  Docker を使う server integration test をブロッキングで実行する。
+- ローカルの `pnpm run check:contract-stack` は、契約関連の変更を高速に確認するための focused gate。
+  server 全 suite と Docker integration は CI が担う。
+- `check:contract-stack` は server lint を含まない。CI の `lint-server` job は既存 error 6件が
+  残る間は赤くなるため、**branch protection の required checks には含めない**。
+  6件を解消したら required check へ昇格させる。
+
+### 手順2: front で新しい wire 型を使いたいとき
+
+1. `packages/api-contract/src/character/character.wire.ts` 等に型を追加し、`src/index.ts` から `export type` する。
+   入れ子 wire 型を新設したら `character.wire.spec.ts` の AnyKeys 列にも足す。
+2. `packages/api-contract/src/index.spec.ts` の**型シンボルリスト（現在33名）**に名前を追加する（追加しないとテストが落ちる。これは仕様）。
+3. `trpg-remix-app/eslint.config.js` の `allowImportNames`（現在17名）に名前を追加する。
+   追加しなければ front から import した瞬間に lint error になる。これも仕様。
+4. front では必ず `import type { ... } from '@trpg/api-contract'` と書く。
+
+### 禁止事項
+
+- **front から zod スキーマ（`characterEntitySchema` 等・値15名）を import しない**。
+  `z.date()` は Date インスタンスを、`.strict()` は実行時に存在する `_id` を拒否するため、
+  ブラウザで `.parse()` すると**出荷後にしか出ない実行時事故**になる。
+  root からの値 import は eslint allowlist が、deep import は eslint patterns と `package.json`
+  の `exports` が防ぐ（役割分担）。これらを「通すため」に緩めないこと。
+- **front から契約の「値」を import しない**（現在ゼロ）。値を import した瞬間に
+  `trpg-remix-app/Dockerfile` の runtime ステージへの dist COPY が同時に必要になる（現在は入っていない）。
+  型だけなら不要、という前提でイメージが組まれている。
+- `@trpg/api-contract/dist/...` のような deep import をしない（`exports` が `.` のみ）。
+- 封筒面で `response.data` を直接返さない。`response.data.data` が正しい。
+  逆に非封筒面で `response.data.data` と書くと `undefined` になる。
+- 旧 `postDomain` / `getDomain` / `createApiHandler` / `DomainDataMap` は存在しない。
+  古いコード例やドキュメントを見つけたら履歴資料として扱うこと。
+
+### 既知の穴（触るときに踏むもの）
+
+- `app/features/discord/api/discord.service.ts` の `getDiscordServers()` は
+  封筒面 `/users/discord/guilds` を素データとして読んでいたが、**修復済み（S6b）**
+  （封筒深度は固定済み・payload 型は S5a で接続済み・server 側は S5a2 で機械固定済み）。
+  `characterCard` の Discord サーバー選択が常に失敗する問題を解消。
+- `app/utils/auth-guards.ts` は `/users` を無型で叩き、封筒オブジェクトをそのまま `user` として返す
+  （`checkAuth`・現消費ゼロ）。
+  この経路はスキーマ変更を永久に検出しない。
+- `app/utils/corsApiWithJwt.ts` は任意エンドポイントを無型で叩く。
+  現消費はモックルート1件だけで、戻り値は未使用。
+- `CharacterRepository.findByName()` は projection が必須キー `gameSystemId` / `discordUserId` / `status` を
+  欠く部分オブジェクトを `CharacterEntity` として返す未是正の実例。S7e で対応予定。
+- `packages/` に lint 設定がなく、`@trpg/api-contract` は未 lint。build/test と消費側の型検査だけでは、
+  契約 package 内の lint 違反を検出できない。
+- `@trpg/sheet-engine`（6 suites）/ `@trpg/sheet-projection`（1 suite）の test は
+  S8 round 2 で CI のブロッキングゲートへ追加済み。
+- Prettier の整形チェックは CI・ローカルゲートのどこにもない。`eslint-config-prettier` が
+  整形ルールを off にし、`eslint-plugin-prettier` は ESLint 設定へ未登録のため、lint でも検出しない。
+- `TRPG-SERVER/Dockerfile` / `trpg-remix-app/Dockerfile` は CI で一度も build されず、
+  キャンペーンで変更済みの Dockerfile もデプロイ時まで検証されない。
+- server の `coverageThreshold` は通常の `pnpm test` に `--coverage` を渡していないため実効しない。
+- root `packageManager` は `pnpm@10.12.1` のため、`minimumReleaseAge`（10.16+）と
+  `blockExoticSubdeps` / `pmOnFail` / `registries`（11.0+）は実効化されていない。
+  `onlyBuiltDependencies` / `strictDepBuilds` / `verifyDepsBeforeRun` は有効。別スライスで対応予定。
+- Next.js 検討記録の「CI に `pnpm -r typecheck` を追加」は未実施。
+  `packages/*` に `typecheck` script がなく、現状のままでは実行不能。
+- CI 導入により全 suite、sheet package test、Docker integration は共有ゲートになった。一方、
+  server lint は既存 error 6件の間は赤い optional check で、契約 package は未 lint のまま。
+
+---
 
 ## 設定管理
 
@@ -1141,6 +1298,8 @@ if (process.env.NODE_ENV === 'development') {
 
 #### ✅ 5. **統合型定義システムの実装** `[完了: 2025-01-27]`
 
+> ※履歴資料（S6a で撤去済み）
+
 ```typescript
 // ✅ COMPLETED: api-client.tsとapi-response.util.tsの統合型定義システム
 // 問題: response.data.dataのような型安全性のないAPIレスポンス処理
@@ -1235,3 +1394,41 @@ const decipher = crypto.createDecipheriv(this.ALGORITHM, key, iv)
 Test Suites: 1 passed, 1 total
 Tests:       13 passed, 13 total
 ```
+
+---
+
+## 📌 フレームワーク移行検討記録
+
+### Next.js 移行検討 `[検討: 2026-07-26 / 結論: 保留]`
+
+**実測スコープ**: app/ 10,713行・実質12ルート（mock系約9は除外可）・loader/action 22箇所。セッションAPI・defer・clientLoader は未使用、JWT は cookie ヘッダー手動パースのため移行難所は少ない。フロントのテストは spec 1本のみ（挙動固定の安全網なし）。
+
+**見積もり（Claude 実施前提）**:
+
+- 最新化込み（Next 15/16 + React 19 + Mantine 7.17+/8）: 4〜6 作業セッション
+- 据え置き（React 18 のまま）: 3〜5 セッション。ただし App Router + React 18 は Next 14 系（保守モード）に縛られる
+- 代替案: React Router v7 への移行なら 0.5〜1 セッション（import 差し替え中心・資産温存）
+
+**移行目的（確定済み）**: Discord 連携強化ロードマップ
+① Discord Activity（iframe 内 SPA・別パッケージ想定・token 認証）
+② TRPG シナリオの執筆・公開機能（公開ページ＝OGP/ISR で Next が有利）
+③ シナリオ画像のワンボタン Discord 共有（OGP リンク展開＋TRPG-SERVER bot 投稿の併用）
+
+**判断**: 公開ページ構想により Next 移行の技術的正当性は成立するが、現時点では**保留**。
+
+**再開トリガー**: シナリオ公開機能の実装着手前が決断ポイント（Remix 上に作ると移行対象が膨らみ、今の見積もりが無効になる）。
+
+**保留中の設計ガード（移行コストを増やさないため）**:
+
+- Remix 固有 API（useLoaderData 等）は route 層で受け、feature コンポーネントへは props で渡す（現構造を維持）
+- 共有ロジックは `@trpg/sheet-engine` 方式で workspace パッケージへ寄せる
+- UI コンポーネントは client-portable に保つ（将来の Activity SPA から再利用するため）
+
+### 追記: NestJS↔フロント型共有体制のレビュー `[判定: 2026-07-26]`
+
+cognitive-load-review（モード B）で方式比較を実施。結論:
+
+- **Go（縮小付き）**: `@trpg/api-contract` workspace パッケージ新設。手書き TS 型を単一ソース化し、character / sheet-template 系は既存 `*.zod.ts` スキーマを契約側へ移設して `z.infer` で型供給。server DTO は `implements` / zod 由来で契約に固定。CI に `pnpm -r typecheck` を追加
+- **No-Go（trigger 付き）**: OpenAPI 生成（消費者がフロント1つの現状では生成パイプラインの負荷を回収できない。外部消費者・多言語クライアント出現で再評価）、tRPC / ts-rest（REST 全面再構築で NestJS idiom と衝突）
+- 実測根拠: server dto 16回/6ヶ月変更に対し front app/types 追従 **0回**・`DomainDataMap` は 3/4 ドメインが `any`（型検査が空洞化）
+- **実施タイミングは Next 移行後ではなく移行前**（フレームワーク中立で捨て作業ゼロ・移行時の全 fetch 書き換えに対する唯一のコンパイル時安全網・工数 1〜2 セッション）
