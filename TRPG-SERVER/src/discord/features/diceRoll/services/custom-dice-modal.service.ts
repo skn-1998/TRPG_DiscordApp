@@ -96,9 +96,7 @@ export class CustomDiceModalService implements discordModalType {
             reason: comment || undefined
           })
 
-          const resultEmoji = isParameterBased
-            ? this.diceOrchestratorService.getResultEmoji(calculationResult.diceResult, rollResult)
-            : this.diceOrchestratorService.getBasicResultEmoji(calculationResult.diceResult, rollResult)
+          const resultEmoji = this.diceOrchestratorService.getResultEmoji(calculationResult.diceResult)
 
           // 結果メッセージを構築
           const rollType = isParameterBased ? '柔軟ダイスロール' : 'カスタムダイスロール'
@@ -114,8 +112,8 @@ export class CustomDiceModalService implements discordModalType {
           if (comment) {
             resultMessage = `【${comment}】\n${resultMessage}`
           }
-          resultMessage += `**計算式**: ${calculationResult.description}\n`
-          resultMessage += `**結果**: エラーが発生しました`
+          resultMessage += `**計算式**: ${diceCommand}\n`
+          resultMessage += `**結果**: ${calculationResult.description}`
         }
 
         // character-threadの場合は親チャンネルのみに送信
@@ -269,14 +267,15 @@ export class CustomDiceModalService implements discordModalType {
       return defaultValue
     }
 
-    // +や-記号を含む場合の処理
-    const cleaned = input.trim().replace(/^\+/, '')
-    const parsed = parseFloat(cleaned)
-
-    if (isNaN(parsed) || !isFinite(parsed)) {
-      return defaultValue
+    const normalizedInput = input.trim()
+    if (!/^[+-]?\d+$/.test(normalizedInput)) {
+      throw new Error(`乗数・修正値は整数で入力してください: ${input}`)
     }
 
+    const parsed = Number(normalizedInput)
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`乗数・修正値は有限の整数で入力してください: ${input}`)
+    }
     return parsed
   }
 }

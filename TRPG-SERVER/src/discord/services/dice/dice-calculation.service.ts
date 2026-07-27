@@ -3,6 +3,7 @@ import { ChannelType, TextChannel } from 'discord.js'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
 import { AttributeValue, getDisplayNumber } from 'src/core/types/attribute.types'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
+import { UnsupportedDiceNotationError } from 'src/domains/dice-roll/services/dice-execution.service'
 import { evaluateArithmetic } from '../../../shared/utils/arithmetic-evaluator.util'
 
 /**
@@ -17,6 +18,9 @@ export interface DiceCalculationResult {
   description: string
   characterName: string
 }
+
+// BCDice が一度に生成する乱数件数を兄弟入口で統一し、算術式からの負荷制限迂回を防ぐ。
+export const MAX_DICE_COUNT = 100
 
 @Injectable()
 export class DiceCalculationService {
@@ -48,6 +52,12 @@ export class DiceCalculationService {
       // 乗数と修正値を適用
       const targetValue = calculationResult.value * multiplier + modifier
 
+      if (!Number.isInteger(targetValue) || targetValue <= 0 || targetValue > MAX_DICE_COUNT) {
+        throw new UnsupportedDiceNotationError(
+          `ダイス個数として使えない値です: ${targetValue}（上限: ${MAX_DICE_COUNT}）`
+        )
+      }
+
       let description = calculationResult.description
       if (multiplier !== 1) {
         description += ` × ${multiplier}`
@@ -61,6 +71,14 @@ export class DiceCalculationService {
       // ダイスロール実行
       const diceResult = await dice(`${targetValue}b10`)
 
+      if (!diceResult) {
+        return {
+          success: false,
+          description: `ダイスロール実行失敗: ${targetValue}b10`,
+          characterName
+        }
+      }
+
       return {
         success: true,
         targetValue,
@@ -69,10 +87,14 @@ export class DiceCalculationService {
         characterName
       }
     } catch (error) {
-      this.logger.error('計算エラー:', error)
+      if (error instanceof UnsupportedDiceNotationError) {
+        this.logger.warn(`Dice formula rejected: ${error.message}`)
+      } else {
+        this.logger.error('計算エラー:', error)
+      }
       return {
         success: false,
-        description: `計算エラー: ${formula}`,
+        description: error instanceof UnsupportedDiceNotationError ? error.message : `計算エラー: ${formula}`,
         characterName
       }
     }
@@ -82,21 +104,10 @@ export class DiceCalculationService {
    * 計算式を解析してキャラクター値を適用
    */
   private parseFormula(formula: string, character?: CharacterEntity): { value: number; description: string } {
-    // 基本的な数値の場合
-    const numericValue = parseInt(formula)
-    if (!isNaN(numericValue)) {
-      return { value: numericValue, description: formula }
-    }
-
-    // キャラクターパラメータの場合
-    if (character) {
-      const substitution = this.substituteCharacterValues(formula, character)
-      const value = this.evaluateFormula(substitution.formula)
-      return { value, description: substitution.description }
-    }
-
-    // デフォルト値
-    return { value: 1, description: formula }
+    const substitution = this.substituteCharacterValues(formula, character)
+    const normalizedFormula = this.normalizeArithmeticOperators(substitution.formula)
+    const value = this.evaluateFormula(normalizedFormula, formula)
+    return { value, description: substitution.description }
   }
 
   /**
@@ -104,7 +115,7 @@ export class DiceCalculationService {
    */
   private substituteCharacterValues(
     formula: string,
-    character: CharacterEntity
+    character?: CharacterEntity
   ): { formula: string; description: string; characterUsed: boolean } {
     let processedFormula = formula
     let description = formula
@@ -133,21 +144,19 @@ export class DiceCalculationService {
       mp: 'MP',
 
       // 技能
-      dodge: 'dodge'
+      dodge: '回避'
     }
 
     for (const [key, param] of Object.entries(parameterMappings)) {
       const regex = new RegExp(`\\b${key}\\b`, 'gi')
       if (processedFormula.match(regex)) {
-        let value = 0
-
-        if (param === 'dodge') {
-          value = this.extractNumericValue(character.skill?.dodge) || 0
-        } else {
-          value = this.extractNumericValue(character.parameter?.[param]) || 0
+        const candidateNames = [key, param]
+        const value = character ? this.resolveCharacterValue(character, candidateNames) : undefined
+        if (value === undefined) {
+          throw new UnsupportedDiceNotationError(`キャラクターに ${param} が見つかりません`)
         }
 
-        processedFormula = processedFormula.replace(regex, value.toString())
+        processedFormula = processedFormula.replace(regex, `(${value})`)
         description = description.replace(regex, `${param}(${value})`)
         characterUsed = true
       }
@@ -157,32 +166,44 @@ export class DiceCalculationService {
   }
 
   /**
-   * 数式の評価
+   * 全角の乗除算記号を、評価器が受け取る演算子へ正規化する。
+   * `×` は入力例で案内されている。`÷` は対称性のため同時に受け入れる。
    */
-  private evaluateFormula(formula: string): number {
+  private normalizeArithmeticOperators(formula: string): string {
+    return formula.replace(/×/g, '*').replace(/÷/g, '/')
+  }
+
+  /**
+   * 許可された文字だけで構成された数式を評価する。
+   * 未対応文字は削除せず、元の入力を示す UnsupportedDiceNotationError として拒否する。
+   * ダイス記法用の DiceOrchestratorService.validateDiceNotation とは別入口の別検証で、`2d6` はここでは拒否する。
+   */
+  private evaluateFormula(formula: string, sourceFormula: string): number {
+    if (!formula.trim() || !/^[0-9+\-*/().\s]+$/.test(formula)) {
+      throw new UnsupportedDiceNotationError(`未対応のダイス記法です: ${sourceFormula}`)
+    }
+
     try {
-      // 安全な数式評価（基本的な演算のみ・Function/eval 不使用）
-      const sanitized = formula.replace(/[^0-9+\-*/().\s]/g, '')
-      return evaluateArithmetic(sanitized)
-    } catch (error) {
-      this.logger.error('数式評価エラー:', error)
-      return 1
+      return evaluateArithmetic(formula)
+    } catch {
+      throw new UnsupportedDiceNotationError(`未対応のダイス記法です: ${sourceFormula}`)
     }
   }
 
   /**
-   * 結果の絵文字取得
+   * BCDice の判定フラグだけを結果絵文字へ変換する。
+   *
+   * 現行の2入口はいずれも BCDice の判定フラグを立てないため、実質 🎲 固定である。
+   * executeBasicNotation の validateDiceNotation は `NdM±K` のみを許可し、
+   * calculateAndRoll は `Nb10` のバラバラダイスを実行する。
+   * 成功/失敗表示を復活させるには validateDiceNotation の緩和が前提となる。
    */
-  getResultEmoji(diceResult: any, rollResult: number): string {
-    if (!diceResult || !diceResult.rands) return '🎲'
-
-    const diceCount = diceResult.rands.length
-    const successCount = diceResult.rands.filter((roll: number[]) => roll[0] <= rollResult).length
-
-    if (successCount === 0) return '💥' // ファンブル
-    if (successCount === diceCount) return '✨' // 大成功
-    if (successCount >= diceCount * 0.8) return '🎯' // 成功
-    return '🎲' // 通常
+  getResultEmoji(diceResult: any): string {
+    if (diceResult?.critical) return '🌟'
+    if (diceResult?.fumble) return '💥'
+    if (diceResult?.success) return '✅'
+    if (diceResult?.failure) return '❌'
+    return '🎲'
   }
 
   /**
@@ -202,8 +223,45 @@ export class DiceCalculationService {
   /**
    * AttributeValueから数値を抽出
    */
-  private extractNumericValue(value: AttributeValue | undefined): number {
-    if (!value) return 0
+  private extractNumericValue(value: AttributeValue | undefined): number | undefined {
+    if (!value?.values || Object.keys(value.values).length === 0) return undefined
     return getDisplayNumber(value)
+  }
+
+  /**
+   * parameter → status → skill の順で、表記揺れを正規化してキャラクター値を解決する。
+   */
+  private resolveCharacterValue(character: CharacterEntity, candidateNames: readonly string[]): number | undefined {
+    const normalizedCandidates = new Set(
+      candidateNames.map((candidateName) => this.normalizeCharacterKey(candidateName))
+    )
+    const sections = [character.parameter, character.status, character.skill]
+
+    for (const section of sections) {
+      // 旧キャラは保存キー(dodge)と表示名(回避)が分かれるため、キーと name の両方を照合する。
+      const matchedAttribute = Object.entries(section ?? {}).find(([key, attribute]) => {
+        const normalizedAttributeName = this.normalizeCharacterKey(attribute.name ?? '')
+        return (
+          normalizedCandidates.has(this.normalizeCharacterKey(key)) ||
+          (normalizedAttributeName.length > 0 && normalizedCandidates.has(normalizedAttributeName))
+        )
+      })?.[1]
+      const value = this.extractNumericValue(matchedAttribute)
+      if (value !== undefined) {
+        return value
+      }
+    }
+
+    return undefined
+  }
+
+  /**
+   * 大文字小文字・全半角・空白・記号の違いをキャラクターキーの照合から除外する。
+   */
+  private normalizeCharacterKey(key: string): string {
+    return key
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[\s\p{P}\p{S}]/gu, '')
   }
 }

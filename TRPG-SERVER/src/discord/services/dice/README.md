@@ -167,7 +167,7 @@ try {
 
   if (result.success) {
     // 成功処理
-    const emoji = diceOrchestrator.getBasicResultEmoji(result.diceResult, rollValue)
+    const emoji = diceOrchestrator.getBasicResultEmoji(result.diceResult)
     await interaction.reply(`${emoji} 結果: ${rollValue}`)
   } else {
     // 失敗処理

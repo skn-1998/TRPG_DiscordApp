@@ -12,15 +12,17 @@ const mockedDice = dice as jest.MockedFunction<typeof dice>
 /** values.base に数値を持つ最小の AttributeValue を作る */
 const attr = (value: number): AttributeValue => ({ values: { base: value } })
 
-/** parameter / skill のみを持つ最小 Character を作る */
+/** ダイス計算で参照する属性セクションだけを持つ最小 Character を作る */
 const makeCharacter = (overrides: {
   characterName?: string
   parameter?: Record<string, AttributeValue>
+  status?: Record<string, AttributeValue>
   skill?: Record<string, AttributeValue>
 }): Character =>
   ({
     characterName: overrides.characterName,
     parameter: overrides.parameter,
+    status: overrides.status,
     skill: overrides.skill
   }) as Character
 
@@ -58,13 +60,13 @@ describe('DiceCalculationService', () => {
 
     it('乗数1・修正値0のときは説明に乗数/修正の表記を付けない', async () => {
       // Act
-      const result = await service.calculateAndRoll('15')
+      const result = await service.calculateAndRoll('50')
 
       // Assert
       expect(result.success).toBe(true)
-      expect(result.targetValue).toBe(15)
-      expect(result.description).toBe('15 = 15')
-      expect(mockedDice).toHaveBeenCalledWith('15b10')
+      expect(result.targetValue).toBe(50)
+      expect(result.description).toBe('50 = 50')
+      expect(mockedDice).toHaveBeenCalledWith('50b10')
     })
 
     it('負の修正値は符号なしで連結される（= 値表記）', async () => {
@@ -75,6 +77,56 @@ describe('DiceCalculationService', () => {
       expect(result.targetValue).toBe(16)
       expect(result.description).toBe('20 -4 = 16')
       expect(mockedDice).toHaveBeenCalledWith('16b10')
+    })
+
+    it('算術式は先頭整数へ切り詰めず、式全体を評価する', async () => {
+      // Act
+      const result = await service.calculateAndRoll('10+5')
+
+      // Assert
+      expect(result.targetValue).toBe(15)
+      expect(result.description).toBe('10+5 = 15')
+      expect(mockedDice).toHaveBeenCalledWith('15b10')
+    })
+
+    it.each([
+      ['1/0', undefined],
+      ['0/0', undefined],
+      ['STR÷2', makeCharacter({ parameter: { str: attr(25) } })],
+      ['0', undefined],
+      ['-5', undefined]
+    ])('ダイス個数として使えない値になる式 %s はロール前に拒否する', async (formula, character) => {
+      // Act
+      const result = await service.calculateAndRoll(formula, 1, 0, character)
+
+      // Assert: diceResult が無いため、呼び出し元の履歴保存条件も満たさない
+      expect(result.success).toBe(false)
+      expect(result.description).toContain('ダイス個数として使えない値')
+      expect(result.diceResult).toBeUndefined()
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
+
+    it('算術式が上限を超えるダイス個数になった場合はロール前に拒否する', async () => {
+      // Act
+      const result = await service.calculateAndRoll('9**9')
+
+      // Assert
+      expect(result.success).toBe(false)
+      expect(result.description).toContain('ダイス個数として使えない値')
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
+
+    it.each(['2d6', 'abc+1'])('未対応文字を含む式 %s は文字を削除せず拒否する', async (formula) => {
+      // Act
+      const result = await service.calculateAndRoll(formula)
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        description: `未対応のダイス記法です: ${formula}`,
+        characterName: 'プレイヤー'
+      })
+      expect(mockedDice).not.toHaveBeenCalled()
     })
 
     it('キャラクター名がある場合は characterName に反映される', async () => {
@@ -88,9 +140,9 @@ describe('DiceCalculationService', () => {
       expect(result.characterName).toBe('探索者A')
     })
 
-    it('キャラクターのパラメータ(STR)を式に代入して計算する', async () => {
+    it('小文字キーのキャラクターパラメータ(str)を STR として解決する', async () => {
       // Arrange
-      const character = makeCharacter({ characterName: 'クトゥルフ卿', parameter: { STR: attr(15) } })
+      const character = makeCharacter({ characterName: 'クトゥルフ卿', parameter: { str: attr(15) } })
 
       // Act: STR(15) * 3 = 45（修正値0）
       const result = await service.calculateAndRoll('STR', 3, 0, character)
@@ -102,6 +154,128 @@ describe('DiceCalculationService', () => {
       expect(result.description).toContain('× 3')
       expect(result.description).toContain('= 45')
       expect(mockedDice).toHaveBeenCalledWith('45b10')
+    })
+
+    it.each([
+      ['STR×2-1', 29, '29b10'],
+      ['STR÷3', 5, '5b10']
+    ])('`×` は入力例で案内され、`÷` は対称性のため受け入れる: %s', async (formula, targetValue, diceCommand) => {
+      // Arrange
+      const character = makeCharacter({ characterName: '探索者A', parameter: { str: attr(15) } })
+
+      // Act
+      const result = await service.calculateAndRoll(formula, 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(targetValue)
+      expect(mockedDice).toHaveBeenCalledWith(diceCommand)
+    })
+
+    it('status の hp / mp をセクション横断で解決する', async () => {
+      // Arrange
+      const character = makeCharacter({ status: { hp: attr(12), mp: attr(8) } })
+
+      // Act
+      const result = await service.calculateAndRoll('HP+MP', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(20)
+      expect(mockedDice).toHaveBeenCalledWith('20b10')
+    })
+
+    it.each([
+      ['キー dodge・name 無し', { dodge: { values: { base: 40 } } }],
+      ['キー dodge・name 空文字', { dodge: { name: '', values: { base: 40 } } }],
+      ['キー dodge・表示名 回避', { dodge: { name: '回避', values: { base: 40 } } }],
+      ['キー 回避', { 回避: attr(40) }]
+    ])('dodge は %s の技能属性から解決する', async (_caseName, skill) => {
+      // Arrange
+      const character = makeCharacter({ skill })
+
+      // Act
+      const result = await service.calculateAndRoll('dodge', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(40)
+      expect(mockedDice).toHaveBeenCalledWith('40b10')
+    })
+
+    it('他のマッピングでも式の別名と表示名の両方向で保存キーを解決する', async () => {
+      // Arrange: strength（式の別名）→ STR（表示名キー）、HP（表示名）→ hp（別名キー）
+      const character = makeCharacter({
+        parameter: { STR: attr(15) },
+        status: { hp: attr(12) }
+      })
+
+      // Act
+      const result = await service.calculateAndRoll('strength+HP', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(27)
+      expect(mockedDice).toHaveBeenCalledWith('27b10')
+    })
+
+    it('values を持たない dice 属性は数値として解決しない', async () => {
+      // Arrange
+      const character = makeCharacter({ status: { hp: { name: 'HP', dice: '0' } } })
+
+      // Act
+      const result = await service.calculateAndRoll('HP', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(false)
+      expect(result.description).toBe('キャラクターに HP が見つかりません')
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
+
+    it('空の values は未解決として後続セクションを探索する', async () => {
+      // Arrange
+      const character = makeCharacter({
+        parameter: { hp: { name: 'HP', values: {} } },
+        status: { hp: attr(12) }
+      })
+
+      // Act
+      const result = await service.calculateAndRoll('HP', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(12)
+      expect(mockedDice).toHaveBeenCalledWith('12b10')
+    })
+
+    it('キャラクター値が未解決なら 0 にせずロール前に拒否する', async () => {
+      // Arrange
+      const character = makeCharacter({ parameter: {}, status: {}, skill: {} })
+
+      // Act
+      const result = await service.calculateAndRoll('STR', 1, 0, character)
+
+      // Assert: diceResult が無いため、呼び出し元の履歴保存条件も満たさない
+      expect(result).toEqual({
+        success: false,
+        description: 'キャラクターに STR が見つかりません',
+        characterName: 'プレイヤー'
+      })
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
+
+    it('負のキャラクター値は括弧付きで置換し、二重マイナスを減算として評価する', async () => {
+      // Arrange
+      const character = makeCharacter({ parameter: { str: attr(-3) }, status: { hp: attr(12) } })
+
+      // Act: 12 - (-3) = 15
+      const result = await service.calculateAndRoll('HP-STR', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(true)
+      expect(result.targetValue).toBe(15)
+      expect(result.description).toBe('HP(12)-STR(-3) = 15')
+      expect(mockedDice).toHaveBeenCalledWith('15b10')
     })
 
     it('dice() が例外を投げると success:false とエラー説明を返す', async () => {
@@ -118,44 +292,78 @@ describe('DiceCalculationService', () => {
       expect(result.description).toBe('計算エラー: 10')
       expect(result.targetValue).toBeUndefined()
     })
+
+    it('dice() が null を返すと executeBasicNotation と同じく実行失敗にする', async () => {
+      // Arrange
+      mockedDice.mockResolvedValue(null as never)
+
+      // Act
+      const result = await service.calculateAndRoll('10')
+
+      // Assert
+      expect(mockedDice).toHaveBeenCalledWith('10b10')
+      expect(result).toEqual({
+        success: false,
+        description: 'ダイスロール実行失敗: 10b10',
+        characterName: 'プレイヤー'
+      })
+    })
+
+    it('サニタイズ後に空になる式は 1 にフォールバックせず明示的な失敗を返す', async () => {
+      // Arrange
+      const character = makeCharacter({ characterName: '探索者A' })
+
+      // Act
+      const result = await service.calculateAndRoll('abc', 1, 0, character)
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        description: '未対応のダイス記法です: abc',
+        characterName: '探索者A'
+      })
+      expect(result.targetValue).toBeUndefined()
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
+
+    it('構文エラーの式は失敗として呼び出し元へ返す', async () => {
+      // Arrange
+      const character = makeCharacter({ parameter: { STR: attr(15) } })
+
+      // Act
+      const result = await service.calculateAndRoll('STR +', 1, 0, character)
+
+      // Assert
+      expect(result.success).toBe(false)
+      expect(result.description).toBe('未対応のダイス記法です: STR +')
+      expect(result.targetValue).toBeUndefined()
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
   })
 
   describe('getResultEmoji', () => {
     it('diceResult が無い場合は通常絵文字を返す', () => {
-      expect(service.getResultEmoji(undefined, 50)).toBe('🎲')
-      expect(service.getResultEmoji({}, 50)).toBe('🎲')
+      expect(service.getResultEmoji(undefined)).toBe('🎲')
+      expect(service.getResultEmoji({})).toBe('🎲')
     })
 
-    it('成功数0はファンブル(💥)', () => {
-      // Arrange: 2個とも目標値(rollResult)を超える出目
-      const diceResult = { rands: [[9], [8]] }
-
-      // Act / Assert: rollResult=5 → どちらも > 5 で成功0
-      expect(service.getResultEmoji(diceResult, 5)).toBe('💥')
+    it.each([
+      [{ critical: true, success: true, rands: [[100], [100]] }, '🌟'],
+      [{ fumble: true, failure: true, rands: [[1], [1]] }, '💥'],
+      [{ success: true, rands: [[100], [100]] }, '✅'],
+      [{ failure: true, rands: [[1], [1]] }, '❌']
+    ])('BCDice の判定フラグを対応する絵文字へ変換する', (diceResult, expected) => {
+      expect(service.getResultEmoji(diceResult)).toBe(expected)
     })
 
-    it('全て成功は大成功(✨)', () => {
-      // Arrange: 2個とも目標値以下
-      const diceResult = { rands: [[1], [2]] }
-
-      // Act / Assert
-      expect(service.getResultEmoji(diceResult, 5)).toBe('✨')
+    it('BCDice の判定フラグが無い単一ダイスは出目にかかわらず🎲', () => {
+      expect(service.getResultEmoji({ rands: [[3]] })).toBe('🎲')
+      expect(service.getResultEmoji({ rands: [[98]] })).toBe('🎲')
     })
 
-    it('成功率80%以上は成功(🎯)', () => {
-      // Arrange: 5個中4個成功 = 80%
-      const diceResult = { rands: [[1], [2], [3], [4], [9]] }
-
-      // Act / Assert
-      expect(service.getResultEmoji(diceResult, 5)).toBe('🎯')
-    })
-
-    it('成功率が80%未満かつ0でも全成功でもない場合は通常(🎲)', () => {
-      // Arrange: 5個中3個成功 = 60%
-      const diceResult = { rands: [[1], [2], [3], [9], [9]] }
-
-      // Act / Assert
-      expect(service.getResultEmoji(diceResult, 5)).toBe('🎲')
+    it('BCDice の判定フラグが無い複数ダイスは出目と個数にかかわらず🎲', () => {
+      expect(service.getResultEmoji({ rands: [[9], [8]] })).toBe('🎲')
+      expect(service.getResultEmoji({ rands: [[1], [2], [3], [4], [9]] })).toBe('🎲')
     })
   })
 

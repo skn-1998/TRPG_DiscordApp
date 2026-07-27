@@ -64,10 +64,10 @@ describe('DiceOrchestratorService', () => {
       calculationService.getResultEmoji.mockReturnValue('✅')
 
       // Act
-      const result = service.getResultEmoji(diceResult, 30)
+      const result = service.getResultEmoji(diceResult)
 
       // Assert
-      expect(calculationService.getResultEmoji).toHaveBeenCalledWith(diceResult, 30)
+      expect(calculationService.getResultEmoji).toHaveBeenCalledWith(diceResult)
       expect(result).toBe('✅')
     })
   })
@@ -248,32 +248,16 @@ describe('DiceOrchestratorService', () => {
   })
 
   describe('getBasicResultEmoji', () => {
-    it('critical なら🌟を返す', () => {
-      expect(service.getBasicResultEmoji({ critical: true }, 50)).toBe('🌟')
-    })
+    it('旧 API も統一された calculationService.getResultEmoji に委譲する', () => {
+      // Arrange: result=3 でも旧マジックナンバー判定はせず、委譲先の結果を使う。
+      calculationService.getResultEmoji.mockReturnValue('🎲')
 
-    it('result<5 なら🌟を返す(critical 扱い)', () => {
-      expect(service.getBasicResultEmoji({}, 3)).toBe('🌟')
-    })
+      // Act
+      const result = service.getBasicResultEmoji({ rands: [[3]] })
 
-    it('fumble なら💥を返す', () => {
-      expect(service.getBasicResultEmoji({ fumble: true }, 50)).toBe('💥')
-    })
-
-    it('result>95 なら💥を返す(fumble 扱い)', () => {
-      expect(service.getBasicResultEmoji({}, 98)).toBe('💥')
-    })
-
-    it('success なら✅を返す', () => {
-      expect(service.getBasicResultEmoji({ success: true }, 50)).toBe('✅')
-    })
-
-    it('failure なら❌を返す', () => {
-      expect(service.getBasicResultEmoji({ failure: true }, 50)).toBe('❌')
-    })
-
-    it('いずれの条件にも該当しなければ🎲を返す', () => {
-      expect(service.getBasicResultEmoji({}, 50)).toBe('🎲')
+      // Assert
+      expect(calculationService.getResultEmoji).toHaveBeenCalledWith({ rands: [[3]] })
+      expect(result).toBe('🎲')
     })
   })
 })

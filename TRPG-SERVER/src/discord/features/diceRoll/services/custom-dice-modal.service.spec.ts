@@ -16,7 +16,6 @@ type DiceOrchestratorMock = {
   calculateAndRoll: jest.Mock
   executeBasicNotation: jest.Mock
   getResultEmoji: jest.Mock
-  getBasicResultEmoji: jest.Mock
   sendToParentChannel: jest.Mock
   sendToParentChannelBasic: jest.Mock
 }
@@ -45,8 +44,7 @@ describe('CustomDiceModalService', () => {
     diceOrchestrator = {
       calculateAndRoll: jest.fn(),
       executeBasicNotation: jest.fn().mockResolvedValue(successResult),
-      getResultEmoji: jest.fn().mockReturnValue('🎯'),
-      getBasicResultEmoji: jest.fn().mockReturnValue('🎲'),
+      getResultEmoji: jest.fn().mockReturnValue('🎲'),
       sendToParentChannel: jest.fn().mockResolvedValue(undefined),
       sendToParentChannelBasic: jest.fn().mockResolvedValue(undefined)
     }
@@ -101,7 +99,7 @@ describe('CustomDiceModalService', () => {
       diceOrchestrator.executeBasicNotation.mockResolvedValue({
         success: false,
         characterName: 'プレイヤー',
-        description: '1D100',
+        description: '無効なダイス記法: 1D100',
         diceResult: null
       })
       const interaction = createMockModalInteraction({
@@ -114,7 +112,7 @@ describe('CustomDiceModalService', () => {
 
       // Assert
       const replyArg = (interaction.reply as jest.Mock).mock.calls[0][0]
-      expect(replyArg.content).toContain('エラーが発生しました')
+      expect(replyArg.content).toContain('無効なダイス記法: 1D100')
     })
   })
 
@@ -168,6 +166,84 @@ describe('CustomDiceModalService', () => {
 
       // Assert
       expect(diceOrchestrator.calculateAndRoll).toHaveBeenCalledWith('1d100', 1, 0, undefined)
+    })
+
+    it.each(['2abc', '0.5'])('整数でない乗数 %s は計算せず既存のエラー応答経路へ渡す', async (multiplier) => {
+      // Arrange
+      const errorReporter = jest.spyOn(DiscordErrorReporter, 'handleDiscordError').mockResolvedValue(undefined)
+      const interaction = createMockModalInteraction({
+        customId: 'param-dice-modal*char-1',
+        fields: { 'dice-formula': '1d100', 'dice-comment': '', multiplier, modifier: '' }
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert
+      expect(diceOrchestrator.calculateAndRoll).not.toHaveBeenCalled()
+      expect(errorReporter).toHaveBeenCalledWith(
+        expect.any(Error),
+        interaction,
+        expect.objectContaining({ action: 'flexible-dice-modal' }),
+        'エラーが発生しました。もう一度お試しください。'
+      )
+    })
+
+    it.each(['2d6', 'abc+1'])('未対応文字を含む式 %s は理由を利用者へ返し、履歴へ保存しない', async (formula) => {
+      // Arrange
+      diceOrchestrator.calculateAndRoll.mockResolvedValue({
+        success: false,
+        characterName: 'プレイヤー',
+        description: `未対応のダイス記法です: ${formula}`
+      })
+      const interaction = createMockModalInteraction({
+        customId: 'param-dice-modal*char-1',
+        fields: { 'dice-formula': formula, 'dice-comment': '', multiplier: '', modifier: '' }
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert
+      const replyArg = (interaction.reply as jest.Mock).mock.calls[0][0]
+      expect(diceOrchestrator.calculateAndRoll).toHaveBeenCalledWith(formula, 1, 0, undefined)
+      expect(replyArg.content).toContain(`**計算式**: ${formula}`)
+      expect(replyArg.content).toContain(`**結果**: 未対応のダイス記法です: ${formula}`)
+      expect(diceRollService.createText).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('execute - BCDice 判定フラグ', () => {
+    it('custom/param の両経路で同じ BCDice 結果を同じ判定入口へ渡す', async () => {
+      // Arrange
+      diceOrchestrator.getResultEmoji.mockReturnValue('🎲')
+      const multipleDiceResult = {
+        ...successResult,
+        diceResult: { text: '(2D6) ＞ 3,4', rands: [[3], [4]] }
+      }
+      diceOrchestrator.executeBasicNotation.mockResolvedValue(multipleDiceResult)
+      diceOrchestrator.calculateAndRoll.mockResolvedValue({
+        ...multipleDiceResult,
+        targetValue: 5
+      })
+      const customInteraction = createMockModalInteraction({
+        customId: 'custom-dice-modal',
+        fields: { 'dice-command': '2d6', 'dice-comment': '' }
+      })
+      const parameterInteraction = createMockModalInteraction({
+        customId: 'param-dice-modal*char-1',
+        fields: { 'dice-formula': '5', 'dice-comment': '', multiplier: '', modifier: '' }
+      })
+
+      // Act
+      await service.execute(customInteraction)
+      await service.execute(parameterInteraction)
+
+      // Assert
+      expect(diceOrchestrator.getResultEmoji).toHaveBeenNthCalledWith(1, multipleDiceResult.diceResult)
+      expect(diceOrchestrator.getResultEmoji).toHaveBeenNthCalledWith(2, multipleDiceResult.diceResult)
+      expect((customInteraction.reply as jest.Mock).mock.calls[0][0].content).toContain('🎲')
+      expect((parameterInteraction.reply as jest.Mock).mock.calls[0][0].content).toContain('🎲')
     })
   })
 
@@ -294,7 +370,7 @@ describe('CustomDiceModalService', () => {
       diceOrchestrator.executeBasicNotation.mockResolvedValue({
         success: false,
         characterName: 'プレイヤー',
-        description: '1D100',
+        description: '無効なダイス記法: 1D100',
         diceResult: null
       })
       const interaction = createMockModalInteraction({
