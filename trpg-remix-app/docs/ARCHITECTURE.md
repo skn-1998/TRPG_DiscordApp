@@ -1,3 +1,6 @@
+> [!WARNING]
+> この文書は旧 Bulletproof React 構成を記録した履歴資料です。現行の構成・API 契約は実コードと `trpg-remix-app/AI.md` を参照してください。
+
 # 🛡️ TRPG Remix App - Bulletproof Architecture
 
 このプロジェクトは[Bulletproof React](https://github.com/alan2207/bulletproof-react)の概念に基づいて構築されています。
@@ -75,7 +78,7 @@ const character = await createCharacter(data, jwt)
 ### API通信
 
 ```typescript
-// 認証
+// 履歴上の例（loginOrRegisterUser / validateJwt は現行コードから削除済み）
 import { loginOrRegisterUser, validateJwt } from '~/features/auth'
 
 // キャラクター
