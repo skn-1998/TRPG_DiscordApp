@@ -17,6 +17,7 @@ COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
 COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
 COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
+COPY packages/api-contract/package.json ./packages/api-contract/package.json
 
 # 開発ステージ
 FROM base AS development
