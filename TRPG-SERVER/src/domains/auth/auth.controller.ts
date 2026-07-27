@@ -8,8 +8,6 @@ import {
   UseGuards,
   UseInterceptors,
   UseFilters,
-  UsePipes,
-  ValidationPipe,
   HttpCode,
   HttpStatus,
   Headers,
@@ -20,7 +18,7 @@ import { AuthGuard } from '@nestjs/passport'
 import { Request as ExpressRequest, Response } from 'express'
 import { AuthService } from './services/auth.service'
 import { User } from '../user/models/user.model'
-import { DiscordLoginDto, ValidateTokenHeaderDto, TokenValidationOutputDto } from './dto/discord-login.dto'
+import { DiscordLoginDto, TokenValidationOutputDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { CookieService } from '../../core/http/cookie.service'
 import { ResponseInterceptor, HttpExceptionFilter, SkipResponseWrapper } from '../../core/http'
@@ -96,15 +94,13 @@ export class AuthController {
 
   /**
    * トークン検証エンドポイント
-   * @param headers Authorizationヘッダー
+   * @param authorization Authorizationヘッダー
    * @returns JWTペイロード
    */
   @Get('validate-token')
   @HttpCode(HttpStatus.OK)
-  async validateToken(@Headers() headers: ValidateTokenHeaderDto): Promise<TokenValidationOutputDto> {
-    const authorization =
-      headers.Authorization ?? (headers as ValidateTokenHeaderDto & { authorization?: string }).authorization
-    const payload = await this.authService.validateToken(authorization)
+  async validateToken(@Headers('authorization') authorization?: string): Promise<TokenValidationOutputDto> {
+    const payload = await this.authService.validateToken(authorization ?? '')
     // レスポンスDTOで型付け
     const output: TokenValidationOutputDto = {
       username: payload.username,
@@ -120,10 +116,7 @@ export class AuthController {
    * @param loginDto ログイン情報
    * @param res レスポンス
    */
-  // @Headers() DTO にクラスレベルの whitelist を適用すると、Nest が小文字化した実ヘッダが strip され、
-  // validate-token が全リクエスト 400 になるため、body DTO の pipe は login のみに限定する。
   @Post('login')
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: DiscordLoginDto,

@@ -1,8 +1,8 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
+import { APP_VALIDATION_PIPE_OPTIONS } from '../../core/http/validation-pipe.provider'
 import { SendMessageDto } from './send-message.dto'
-import { DISCORD_VALIDATION_PIPE_OPTIONS } from '../discord.controller'
 
 describe('SendMessageDto', () => {
   it('16進文字列のEmbed色をDiscord用の数値へ正規化する', async () => {
@@ -46,10 +46,10 @@ describe('SendMessageDto', () => {
     expect(dto.embed?.color).toBe(color)
   })
 
-  // HTTP 経路相当: DiscordController と同一の共有定数で生成した実 ValidationPipe（whitelist: true）を
+  // HTTP 経路相当: AppModule の APP_PIPE と同一の共有設定で生成した実 ValidationPipe（whitelist: true）を
   // 通しても、宣言済みの Embed パーツ（footer/image/thumbnail/author/url/timestamp）が剥がされず保持される
-  describe('実 ValidationPipe 境界（DISCORD_VALIDATION_PIPE_OPTIONS）', () => {
-    const pipe = new ValidationPipe(DISCORD_VALIDATION_PIPE_OPTIONS)
+  describe('実 ValidationPipe 境界（APP_VALIDATION_PIPE_OPTIONS）', () => {
+    const pipe = new ValidationPipe(APP_VALIDATION_PIPE_OPTIONS)
 
     it('footer 付き embed が通過し、各パーツが保持される', async () => {
       const payload = {

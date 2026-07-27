@@ -3,8 +3,6 @@ import {
   Post,
   Body,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
   Get,
   Param,
   Req,
@@ -33,7 +31,6 @@ import {
   isDiscordSnowflake,
   toPermissionOverwriteResolvables
 } from './dto/channel-permission-overwrite.validator'
-import type { ValidationPipeOptions } from '@nestjs/common'
 import type { PermissionsString } from 'discord.js'
 import { PostCharacterDto } from './dto/post-character.dto'
 import { CharacterEmbedManagerService } from './features/characterEdit/services/character-embed-manager.service'
@@ -49,13 +46,6 @@ interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Discord REST 経路の ValidationPipe 設定の単一ソース。
- * controller の @UsePipes と各 spec（HTTP 経路相当の pipe 生成・metadata 検証）が同じ値を参照し、
- * 「spec が検証した設定」と「実際に適用される設定」のズレを防ぐ。
- */
-export const DISCORD_VALIDATION_PIPE_OPTIONS: ValidationPipeOptions = { transform: true, whitelist: true }
-
-/**
  * Discordコントローラー
  * Discord Bot操作用のHTTP APIエンドポイントを提供
  *
@@ -69,9 +59,6 @@ export const DISCORD_VALIDATION_PIPE_OPTIONS: ValidationPipeOptions = { transfor
 @ApiTags('Discord Bot')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-// DTO デコレータ検証（send-message / create-channel / post-character）を HTTP 経路で実効化する。
-// 他 controller（character 等）と同じ設定に合わせる。
-@UsePipes(new ValidationPipe(DISCORD_VALIDATION_PIPE_OPTIONS))
 export class DiscordController {
   private readonly logger = new Logger(DiscordController.name)
 

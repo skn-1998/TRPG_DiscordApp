@@ -1,15 +1,7 @@
 import { Test } from '@nestjs/testing'
-import {
-  HttpException,
-  HttpStatus,
-  BadRequestException,
-  NotFoundException,
-  Logger,
-  ValidationPipe
-} from '@nestjs/common'
-import { PIPES_METADATA } from '@nestjs/common/constants'
+import { HttpException, HttpStatus, BadRequestException, NotFoundException, Logger } from '@nestjs/common'
 import { validate } from 'class-validator'
-import { DiscordController, DISCORD_VALIDATION_PIPE_OPTIONS } from './discord.controller'
+import { DiscordController } from './discord.controller'
 import { DiscordFacadeService } from './discord-facade.service'
 import { CharacterService } from '../domains/character/character.service'
 import { JwtAuthGuard } from '../domains/auth/guards/jwt-auth.guard'
@@ -222,21 +214,6 @@ describe('DiscordController', () => {
   })
 
   describe('createChannel', () => {
-    it('class-level ValidationPipe が共有定数 DISCORD_VALIDATION_PIPE_OPTIONS の設定で適用されている', () => {
-      // HTTP 経路での実効性（pipe が実際に 400 を返すこと）は DTO/validator spec 側で固定している。
-      // ここでは「spec が検証した設定」と「実際に適用される設定」が同一ソースであることを固定する。
-      const pipes = Reflect.getMetadata(PIPES_METADATA, DiscordController) as unknown[] | undefined
-      const validationPipe = pipes?.find((pipe) => pipe instanceof ValidationPipe) as
-        { validatorOptions: Record<string, unknown>; isTransformEnabled: boolean } | undefined
-
-      expect(validationPipe).toBeDefined()
-      // ValidationPipe は constructor で transform を isTransformEnabled へ、残りを validatorOptions へ振り分ける
-      expect(validationPipe?.isTransformEnabled).toBe(DISCORD_VALIDATION_PIPE_OPTIONS.transform)
-      expect(validationPipe?.validatorOptions).toMatchObject({
-        whitelist: DISCORD_VALIDATION_PIPE_OPTIONS.whitelist
-      })
-    })
-
     it('DTO デコレータも共有検証を使い null の permissions を拒否する', async () => {
       const dto = Object.assign(new CreateChannelDto(), {
         guildId: 'g1',

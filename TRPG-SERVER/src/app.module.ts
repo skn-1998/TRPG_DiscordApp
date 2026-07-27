@@ -17,6 +17,7 @@ import { CharacterSheetDiscordFeatureModule } from './discord/features/character
 import { EventsModule } from './events/events.module'
 import { winstonConfigFactory } from './config/winston.config'
 import { AppConfigService } from './config/config.service'
+import { APP_VALIDATION_PIPE_PROVIDER } from './core/http/validation-pipe.provider'
 // AI.architecture.md Phase 3: アダプター層統合
 
 // プロトタイプモジュールは削除されました
@@ -45,7 +46,7 @@ import { AppConfigService } from './config/config.service'
     CharacterSheetDiscordFeatureModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, APP_VALIDATION_PIPE_PROVIDER],
   exports: [AppService]
 })
 export class AppModule {}

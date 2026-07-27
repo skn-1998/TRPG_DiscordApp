@@ -10,9 +10,7 @@ import {
   Put,
   Req,
   UnauthorizedException,
-  UseGuards,
-  UsePipes,
-  ValidationPipe
+  UseGuards
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Request } from 'express'
@@ -30,7 +28,6 @@ import { CharacterSheetTemplateEntity, CharacterSheetTemplateSummary } from './m
 @ApiBearerAuth()
 @Controller('sheet-templates')
 @UseGuards(JwtAuthGuard)
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class CharacterSheetTemplateController {
   constructor(private readonly service: CharacterSheetTemplateService) {}
 

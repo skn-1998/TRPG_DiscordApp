@@ -12,9 +12,7 @@ import {
   UseFilters,
   HttpCode,
   HttpStatus,
-  Req,
-  UsePipes,
-  ValidationPipe
+  Req
 } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
 import { UserService } from './user.service'
@@ -42,9 +40,9 @@ interface RequestWithUser extends Request {
 @ApiBearerAuth()
 @Controller('users')
 @UseGuards(JwtAuthGuard)
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
 @UseInterceptors(ResponseInterceptor)
 @UseFilters(HttpExceptionFilter)
+// 未知フィールドは APP_PIPE で 400 にせず strip する。再厳格化は @StrictBody() メタデータ + APP_PIPE の useClass 方式で pipe の責務として実装する。
 export class UserController {
   constructor(private readonly userService: UserService) {}
 

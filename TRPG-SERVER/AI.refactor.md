@@ -14,7 +14,7 @@ full-review-2026-07-26.md の着手順に沿い、Fable 指揮・Codex 実装・
 - **S6 前倒し（DM-3/DM-4）**: 両例外フィルタに「その他の HttpException → getStatus() 尊重」分岐を追加（401/400 の 500 化解消）。`getHttpExceptionMessage` は `core/http/http-exception-message.ts` に一本化（number 対応込み）。spec の捏造 `getHandler` を production 同等（handler=null）へ是正。`@ApiErrorResponse` メタは本番到達不能である事実を JSDoc 明記（削除は WIP 着地後）
 - 検証: 全スイート **210 suites / 2683 tests 全通過**（基準 209/2676 から新規 HTTP spec +1 suite）・循環ゼロ・build 成功。レビュー3ラウンド（round1 needs-fix → round2 両輪 pass → round3 磨き）の証跡は `review-results/dm1-auth-guard/review-20260726-*.md`
 - 本スライスの変更ファイル（pathspec コミット用）: `.gitignore`（TRPG-SERVER）/ `.env.test` 追跡解除 / `src/domains/auth/auth.controller.ts`・同 spec・`auth.controller.http.spec.ts`（新規）/ `src/core/http/http-exception.filter.ts`・同 spec・`http-exception-message.ts`（新規）・`api-error-response.decorator.ts`（JSDoc）/ `src/domains/character/character-http.exception.ts`・同 spec
-- deferred: `@ApiErrorResponse` 完全削除／`GET /auth/:userId/User` 削除検討（`GET /users` と機能重複・ユーザー判断）／user.controller.spec の handler=null 是正伝播（WIP 着地時）
+- deferred: `@ApiErrorResponse` 完全削除／~~`GET /auth/:userId/User` 削除検討~~（→ S8 で削除完了・c2a110c）／user.controller.spec の handler=null 是正伝播（WIP 着地時）
 - 次: S2（SP-1 Docker 配線＋TI-2 dist 前提解消）→ S3（EV-3）→ 俯瞰レビュー#1
 
 ### S2 完了追記（同日）
@@ -105,6 +105,524 @@ S4/S5 累積を両輪で俯瞰（Opus pass / Codex needs-fix→反映で close�
 - 台帳補正: S5 の select-game-system.service.spec.ts は**新規ファイル**（既存記録の明記漏れを訂正）
 - **最優先の提言（Opus）**: 次スライスより先にコミット確定を。HEAD 型検査不能のまま8スライス分が未コミット＝
   最大のリスク集中点
+
+### コミット確定（2026-07-27 未明・キャンペーン分＋WIP チェックポイント）
+
+分離表 C-1〜C-9 に沿って 12 コミットを確定（3a4e47f〜e9f046c）。**HEAD 単体をクリーン worktree で検証し
+211 suites / 2765 tests 全緑・build 成功**＝「クローン即動作する HEAD」が成立（従来は spec 先行コミットにより
+HEAD 単体は型検査不能／2 suite 失敗の状態だった。aecde34 での再現確認済み）。
+
+- 実行中の教訓: (1) pre-commit hook（prettier 再ステージ）はステージ済みパスのワークツリー版を採用するため、
+  部分内容コミットは「一時スワップ→コミット→復元」方式が必要（d92c78a で是正）
+  (2) pathspec コミットはワークツリー状態を用いるため staged 削除が消える（f1d1113 で是正）
+  (3) api-response.dto.ts は並行 api-contract 作業の変更で C-8c に誤同梱 → e9f046c で前版へ復元
+- コミット済みファイルの一部に prettier 整形差がワークツリー側に残る（内容はコミット版が正・無害）
+- **未コミットで残置（意図的）**: 並行 api-contract 一式（packages/api-contract・pnpm-lock・zod 移設・
+  api-response.dto の型ソース移行・Dockerfile/package.json の api-contract 行・root の contract スクリプト・front）／
+  ツール類（scripts/・.agents・.codex・portable-skills・root .gitignore）／ドキュメント WIP
+  （AI.development/domain/test・CLAUDE_HANDOFF・README・roadmap 文書ほか）
+- 残 deferred: Atlas ローテーション（ユーザー）／docker build 実測（Docker Desktop 起動後）
+
+### S8 / S7-a / S7 完了追記（2026-07-27）
+
+ユーザー決定（post-character=ManageChannels 維持・getUser=削除承認）を受けた続行分。各スライス両輪レビュー＋独立検収済み。
+
+- **S8（c2a110c/66969d0）**: GET /auth/:userId/User を削除（GET /users と完全重複・消費者ゼロ）。
+  self-only イディオムと 404 メッセージが各1種に収束。guard の実 HTTP テストは GET /users へ再ホーム
+- **S7-a（86e1f15）**: post-character の契約実態化。Embed 実投稿＋実 messageId＋虚偽応答廃止。
+  リスナー競合は**決定的 suppression**（作成直後マーク→emit 直前照合・TTL60s・マイクロタスク順序保証）で封鎖
+  — Codex の決定打「channelCreate は create() 解決前に同期 emit」により audit log 方式を棄却した経緯を清書に記録
+- **S7（1bd75e0）**: DC-5 解消＋認可モデル確定。overwrite は型付き検証（allow 6種・deny は Administrator 以外）＋
+  **caller-holds**（overwrite 指定時は ManageRoles＋各指定権限の保持を要求＝Discord ネイティブ準拠。
+  confused deputy を allow/deny 両方向で封鎖）。**DC-2 を前倒し解消**（DiscordController にクラスレベル
+  ValidationPipe。EmbedDto へ標準フィールド宣言し whitelist の無言 strip も解消）。DC-15 観測性同梱
+- 検証: 全量 **212 suites / 2889 tests 緑**・循環ゼロ。証跡 `review-results/{auth-getuser-removal,post-character-contract,discord-perms}/`
+- deferred: discordChannelId unique index / 孤児チャンネルのロールバック / カテゴリ定義2ルール /
+  create-character-thread の無認可（意図的・リソース種別が別）/ M2/M3（タスク #13）
+- 残: 第2群 CE-3→SP-3→SP-2→CE-1 → 俯瞰#3
+
+### CE-3 完了追記（2026-07-27・4c582e9）
+
+characterEdit 編集エラーの到達不能回復パス（handleServiceError=必ず throw の後に書かれた通知が dead code）を
+2ラウンドで解消。round1 は 3 サービスの「通知先行→handleServiceError 後置」再構成＋spec 実挙動化（Opus/Codex 両輪 pass）、
+round2（CE-3b）は両レビューの Should/medium 反映＝通知規則の一本化。
+
+- **通知規則の正本**: `src/discord/utils/interaction-error-response.util.ts` の `respondEphemeralError` —
+  replied→followUp(ephemeral) / deferred→editReply（既定。deferUpdate 由来で公開 embed を守る場合のみ
+  `deferredStrategy: 'followUp'`）/ 未応答→reply(ephemeral)。util は no-catch・no-log（失敗処理は呼び出し元の責務）
+- ErrorHandler.handleDiscordError も同 util へ統一（旧 deferred→followUp は placeholder 未解消の劣った規則のため置換）。
+  message-updater の channel.send は「interaction 応答でなく共有 embed の復旧」という**意図的例外**として明文化＋二重送信なしを spec 固定
+- 同型バグ2件を同時解消: refresh 経路の最終無応答（最後の砦 followUp）・character-thread.orchestrator の dead 通知
+- modal-handler の private 複製を CharacterEditMessageUpdaterService の DI 利用へ置換（provider は HEAD 既登録を検証済み）
+- 検証: 全量 **214 suites / 2912 tests 緑**・循環ゼロ（独立再実行）。証跡 `review-results/characteredit-error-paths/`
+- 俯瞰#3 への持ち越し観点: handleDiscordError が core/http にあり core→discord/utils import が発生
+  （循環はないが層方向が逆。discord 層への移設を俯瞰で判断）
+
+### 俯瞰レビュー#3（2026-07-27・e9f046c..4c582e9 の累積5コミット）
+
+Opus **needs-fix**（high 1）/ Codex **pass**（medium 4）。大域診断は「宣言した規則が支配領域の一部にしか
+適用されていない」未完形の反復（通知規則・DTO 検証・認可の3層）。清書: `review-results/overview-3/review-20260727-overview-3.md`
+
+- **確定 high（両輪一致・Fable 裏取り済み）**: `handleDiscordCommandError` が通知一本化から取り残され、
+  コンテキストメニューコマンドのエラーが完全無通知（live 経路あり）。→ OV3 スライスで討議済み処方
+  （discord 層への移設＝core→discord 層逆転の同時解消・respondEphemeralError 化・同型劣化 catch 2件も置換）
+- Codex 新所見: guild-manager の **ManageRoles 二重ゲート**（基底 AND 実効）が設計記述と乖離 →
+  裁定「意図的過剰制限として明文化＋欠落テスト」（挙動不変。緩和は一方向に安全なため将来判断）
+- Fable 実施済み（文書正本）: AI.discord.md へ suppression 契約・通知規則・認可非対称の3節 /
+  DESIGN.md の caller-holds 判定粒度を正確化 / full-review-2026-07-26.md へ解消済み Must 追記 /
+  本書の陳腐化 deferred 消し込み
+- **Docker build 実測（保留分消化）**: server 像は**クリーン HEAD で成功**。remix 像は Docker VM の
+  **OOM（vite build が SIGKILL）で失敗** — ネイティブ 13s 緑のため HEAD 内容は健全・環境問題と確定。
+  対処候補: ユーザーの Docker Desktop メモリ増枠 or Dockerfile へ NODE_OPTIONS（別スライス判断）
+- コミット分離棚卸し: キャンペーン由来の未コミット実差分ゼロ（M 表示は CRLF phantom のみ）
+- 台帳送り: F4 create-dice-channel 認可統一（中期）/ F5 components・fields any[] 無検証 /
+  characterThread handlers の raw error.message 露出方針 / character-ui.service 死蔵削除（第5群）/
+  F9 挙動ドリフト記録 / F11 spec 実装詳細結合3種 / F12 ChannelDetectionService 責務肥大＋マーク残留 /
+  suppression の構造的保証・channelId 冪等ガード
+
+### OV3 反映完了（2026-07-27・5308bfc）
+
+俯瞰#3 の所見を2ラウンドで反映。**両輪レビューとも独立に同じ high 2件へ収束**し、round2（OV3-b）で解消。
+
+- **OV3 round1**: `ErrorHandler.handleDiscord*` を discord 層（`utils/discord-error-reporter.ts`）へ移設し
+  **core/http → discord の import をゼロ化**（層逆転の解消）。`handleDiscordCommandError` の
+  `isChatInputCommand()` ガード撤去でコンテキストメニューコマンドの**完全無通知**を解消。
+  commands.service / command-manager の劣化規則も統一。suppression 順序不変条件・TTL 根拠・
+  開示ゲート意図・ManageRoles 二重ゲート理由をコメント化＋欠落テスト追加
+- **OV3-b（両輪 high 2件）**:
+  (1) `@Headers()` DTO にクラスレベル whitelist が効き、Nest が小文字化した実ヘッダを strip → **validate-token が
+  全リクエスト 400** になる退行。pipe を `@Post('login')` 限定へ。実 HTTP spec 2 ケースで 401 を固定
+  （従来 validate-token の実 HTTP spec が無く、退行が suite に映らなかった）
+  (2) interactions の最後の砦が `editReply` 既定のため、**deferUpdate 由来の公開 embed をエラー文言で破壊**
+  （OV3 前の「沈黙」を「破壊」に変えていた）。`deferredStrategy: 'followUp'` に固定
+  ＋ Opus medium: 追加 auth spec が空振り（手動ガードでも 400／`app.init()` 後の spy は非束縛）→ ボディ判別へ是正
+- 検証: 全量 **215 suites / 2921 tests 緑**・循環ゼロ・`core/http → discord` import **0件**（独立再実行）
+- **コミット分離**: auth.controller.ts / spec は並行 api-contract 変更（`LoginDataWire` import 等）が同居していたため
+  **swap-restore 方式**で OV3 分のみを合成コミット（HEAD に api-contract 依存ゼロを git grep で確認済み）
+- 証跡: `review-results/overview-3/`
+
+### SP-3 完了追記（2026-07-27・d53a16d）
+
+未紐付けキャラ（from-template 由来・`discordChannelId: ''`）の hub 無音劣化を4ラウンドで封鎖。
+**述語は1箇所・適用点は3層**という構造に収束。清書: `review-results/sp3-hub-channel-binding/review-20260727-sp3-rounds.md`
+
+- 述語の正本: `characterThread/services/character-channel-binding.util.ts` の
+  `isMaterializedWithoutChannel`（＋拒否文言定数）。適用点は
+  **L1** ユーザー可視ゲート（`handleThreadCreationSelection` の権限確認後・進捗表示と emit の前）/
+  **L2** 副作用直前（`ThreadOrchestrator` の `threadManager.createCharacterThread` 直前・warn）/
+  **L3** 別 customId 経路（`ThreadCreationService`）
+- postHub は CAS を publishing へ進める**前**に拒否。projection warnings を `code@path` で dedup し
+  先頭10件＋残数・総数/ユニーク数を併記して可視化
+- **round1 の high（両輪が割れ、Opus が正）**: ガードを `ThreadCreationService` に置いたが、
+  実運用の `/character-thread` はそこを通らず素通り。観測結果を「劣化 hub」から
+  「空スレッド＋無通知」へ**悪化**させていた。round2 で3層へ再設計し両輪 pass
+- **プロセス是正**: 到達可能性が絡むレビューでは**両レビュアに同一の探索指示**を与える
+  （round1 は Codex に「対象4ファイル」と範囲を限定したため見落とし、Opus のみ検出した）
+- **Codex 委譲の定型指示に追加**: 「他モデルへの内部委譲を行わず Codex が直接実装」
+  （実行環境が内部で Claude Fable へ再委譲し、その利用上限で中断する事象が2度発生）
+- 検証: build 成功・全量 **217 suites / 2939 tests 緑**・循環ゼロ（独立再実行）
+- deferred: `HubThreadEventListener` の30秒 poll と誤解を招く ERROR（L2 発火時のみ顕在化・現状到達不能）/
+  `hub-refresh.worker` の warnings 未消費（高頻度のため抑制設計が必要）/
+  `hub-publication` の判定は空文字のみ（非空の不正 snowflake は warnings 可視化に委ねる旨コメント済み）/
+  `CreateThreadResult.error` がユーザー向け日本語と英語診断文字列を混載 /
+  `postHub` のログ整形17行の抽出
+
+### M2/M3 完了追記（2026-07-28・6ラウンド）
+
+ダイスの**値の捏造**と**成功判定規則の分裂**を解消。証跡: `review-results/m2m3-dice-unification/`
+
+#### 除去した捏造は5層あった
+
+| 層  | 内容                                                                                               | 検出                              |
+| --- | -------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1   | `evaluateFormula` の `return 1`                                                                    | 当初の所見（S4 の方針の適用漏れ） |
+| 2   | `parseInt('10+5')` → **10** の切り詰め                                                             | Opus                              |
+| 3   | 割合規則が**恒真**（呼び出し側が合計を渡すため常に ✨）                                            | Opus                              |
+| 4   | サニタイズが**文字削除**（`2d6`→`26` / `STR×2-1`(15)→**151**）                                     | Codex                             |
+| 5   | 不正 `targetValue`（`1/0`・`0.5` 倍・`0`・負数）が `success:true` ／ キャラ値未解決時の **0 捏造** | 両輪一致                          |
+
+いずれも「入力と無関係な値を正当な結果として返す」同一クラスで、**1つ剥がすと次が露出**する構造だった。
+
+#### 判定規則は「経路」ではなく「データ」で決める形へ
+
+`custom-dice-modal.service.ts` が `isParameterBased`（customId の綴り）で
+2つの矛盾する成功規則を切り替えていた（成功個数の割合 vs `result < 5` / `> 95`）。
+**割合規則は撤去**（`targetValue` はダイス個数であり成功閾値ではなく、この入口に有効な閾値が存在しないため）。
+判定は BCDice のフラグのみとし、フラグが無ければ 🎲。
+`dice-roll-logic.service.ts` の CoC7 判定は**統合せず境界を明示**（双方向の JSDoc 相互参照）。
+
+- **撤去に実害なし**（両輪一致で確認）: 撤去前の表示は「常に✨」（恒真）か、
+  CoC 閾値を任意記法に適用する三重の誤り。`CC` 系判定は `/roll-dice` が別途表示する
+
+#### 副次的に解消したバグ
+
+キャラ値参照が `parameter['STR']` 固定だったため、**materialized データ（`parameter.str` 小文字）と
+`status.hp`/`status.mp` が常に 0** になっていた。
+`parameter → status → skill` のセクション横断＋キー正規化（NFKC・小文字化・記号除去）＋
+`AttributeValue.name` 照合で解決し、**未解決は拒否**（0 にしない）。
+
+#### 本スライスが作った問題を同スライスで回収（round6）
+
+- `dodge` の機能後退（round4 が `'回避'` キー照合のみにしたため `skill.dodge` 形式が解決不能に）
+- `values` を持たない属性（dice型/text型）が 0 で確定し後続セクションを遮蔽
+- `9**9` → **3.8億個**のダイスが BCDice へ渡る経路（round2 で切り詰めを外した結果、
+  べき乗が正しく評価されるようになり新たに到達可能に）→ `MAX_DICE_COUNT = 100` を両入口で共有
+- `parseNumberInput` の `parseFloat` 切り詰め（`'2abc'`→2）＝ round2 と同型が乗数側に残存
+- 未使用の multiplier/modifier フィールドが custom modal に残り `0.5` を案内していた → フィールドごと削除
+
+- 検証: build 成功・全量 **224 suites / 3091 tests 緑**・循環ゼロ（独立再実行）
+- 台帳送り: 正規化衝突（`S-TR` と `STR` が同じ `str` に潰れ**挿入順で先勝ち**）/
+  `dice-calculation.service.ts` の**責務過多**（254行に式評価・キャラ値解決・BCDice 実行・
+  絵文字表現・Discord 送信の5責務。捏造が5層堆積した背景）→ 第4群で分割を検討 /
+  README への受理契約追記 / セクション重複時の優先順位 spec
+
+### 第3群-a: APP_PIPE 一本化（2026-07-28・round1〜round5b）
+
+バリデーション適用が controller ごとに **4 パターンへ分裂**していた状態を APP_PIPE 1 パターンへ畳んだ。
+証跡: `review-results/g3-global-pipe-filter/`
+
+#### round1 の失敗と撤回
+
+user だけ `forbidNonWhitelisted: true`（未知 body 項目を 400）を持っていたため、
+これを保つべく **guard をバリデータに転用**する回避策を採った。
+Codex は「動作としては正しい」と pass 判定（body-parser は routing 前の middleware なので
+guard 時点で `request.body` は解析済み、guard は class→method 順で `JwtAuthGuard` の後、例外も同じ filter に届く）。
+**動作の正しさは争点ではなかった**。Opus の指摘を採用して round2 で全撤回:
+
+- スライスの目的（4→1）に対し **5つ目のより特殊なパターン**（guard をバリデータに転用）を新設していた
+- 区別要素の `forbidNonWhitelisted` が**永久に発火しない死んだ設定**になり、
+  読者が「strict はこの class pipe が担保」と誤読 →「guard は冗長」と消して 400 契約が黙って消える事故に直結
+- `new ForbidUnknownUserBodyFieldsGuard(CreateUserProfileDto)` は `@Body() profile: CreateUserProfileDto` と
+  **型の対応がコンパイラに保証されない二重宣言**
+- POST /users で class-validator が **3回**走る
+
+#### 採用した代替: 挙動変更を受け入れる
+
+user の `forbidNonWhitelisted` を**諦め**、未知フィールドは他 controller と同じく **strip**（400 → strip）。
+根拠はフロントが `/users` を **GET しか呼んでいない**こと（`root.tsx` / `utils/auth-guards.ts` /
+`features/auth/api/auth.service.ts` / `features/discord/api/discord.service.ts`）で、
+POST/PUT の実消費者はフロントにも e2e にも存在しない。
+mass assignment は controller の**明示再構成**が塞ぐ（POST は `discordUserId` を JWT から、
+PUT は `name`/`avatarHash` のみ選択構築）。
+再厳格化が必要になったら `@StrictBody()` メタデータ＋APP_PIPE の `useClass` 方式で pipe の責務として実装する旨を
+`user.controller.ts` にコメントで残した。**`AI.domain.md` の 400 契約記述も同時に更新**（更新漏れは round3 の high として検出された）。
+
+#### validate-token の header DTO 撤去と OV3-b の非再発根拠
+
+第3群-a の production 変更には `@UsePipes` 撤去と user の `forbidNonWhitelisted` 廃止だけでなく、
+`auth.controller.ts` の `@Headers() headers: ValidateTokenHeaderDto` を
+`@Headers('authorization') authorization?: string` へ変更したこと、および
+`dto/discord-login.dto.ts` から `ValidateTokenHeaderDto` class を撤去したことも含む。
+
+OV3-b で high とした validate-token の全リクエスト 400 は、現在の構成では次の三重の根拠で再発を防いでいる:
+
+- 現行 Nest v11 の `RouterExecutionContext.isPipeable`
+  （`node_modules/@nestjs/core/router/router-execution-context.js:127-135`）が pipe 対象にするのは
+  BODY / RAW_BODY / QUERY / PARAM / FILE / FILES / string で、HEADERS は含まれない
+- 現在の `validateToken` は header DTO を持たず、`@Headers('authorization')` の string 引数なので
+  検証対象の metatype 自体がない
+- `auth.controller.http.spec.ts` の validate-token 2ケースが、APP_PIPE 登録下でも
+  整形式 Bearer の無効 JWT と Authorization 欠落をどちらも 400 ではなく 401 に固定している
+
+なお、OV3-b に記録した「クラスレベル whitelist が `@Headers()` DTO の実ヘッダを strip した」という機構は、
+現行 Nest v11 の `isPipeable` 実装とは整合しない。
+当時の分析が誤っていた可能性がある。
+当時利用していた Nest 版を再検証したわけではないため過去時点までは断定しないが、少なくとも現行実装では
+HEADERS は pipe を通らない。
+
+#### 「spec が検証した設定 ≠ 実際に適用される設定」が3箇所で再発していた
+
+本スライスが撲滅対象にした欠陥そのものが、スライス内で繰り返し発生した:
+
+| 箇所                                           | 内容                                                                                                   | 検出                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `DISCORD_VALIDATION_PIPE_OPTIONS`              | 適用元が app.module へ移った後も同じ値を独立に再定義。app.module だけ変えても DTO spec は旧設定で緑    | Codex                        |
+| `user-profile.dto.spec.ts`                     | 本番に**存在しない** `forbidNonWhitelisted` で pipe を組み、実 HTTP 境界では起きない 400 を assert     | Opus                         |
+| `auth.controller.http.spec.ts` の strip テスト | 名前は「APP_PIPE により strip」だが、controller の**明示再構成**だけで成立し、`whitelist` を外しても緑 | Fable（round3 準備中に発見） |
+
+いずれも「緑だが、緑の理由が主張と違う」型。round3 で共有 options の import へ統一し、
+`user-profile.dto.spec.ts` の assert を「拒否する」から「除去する」へ変更した。
+round4 では `auth.controller.http.spec.ts` を単独因果を名乗らない
+「APP_PIPE の strip と controller の明示再構成の二重防御」へ改名した。
+明示再構成の単独因果は `user.controller.spec.ts` の POST/PUT 直接呼び出し spec、HTTP 境界での whitelist の
+単独因果は `character-sheet-http-validation.spec.ts` の nested DTO HTTP test が担う。
+この HTTP test は round5 で `non-finite-formula-save.reproduction.spec.ts` から移設し、移設元を
+「非有限式の保存失敗を再現する」責務へ戻した。両 spec と `auth.controller.http.spec.ts` には逆リンクを残している。
+
+#### whitelist はどこで固定されているか（実測）
+
+**独立スクリプトで実測**: 本番 options では4項目すべて strip、`whitelist: true` を外すと
+**4項目すべて RETAINED** になり `user-profile.dto.spec.ts` の assert が落ちる。
+→ **whitelist の strip 挙動は DTO/pipe レベルで behavioral に固定**されている。
+HTTP 境界で実際に nested unknown key が strip される behavioral な事実は
+`character-sheet-http-validation.spec.ts` が固定する。
+
+`app.module.spec.ts` が固定するのは次の **metadata / source 事実**であり、HTTP strip の behavioral test ではない:
+
+- production module graph 全体で `APP_PIPE` provider が `APP_VALIDATION_PIPE_PROVIDER` 1本だけである
+- options が `{ transform: true, whitelist: true }` と厳密一致する
+- Promise import の先にだけある `ConfigService` の factory provider が存在し、非同期走査が await されている
+- 到達可能な controller 名が **全10件で厳密一致**する（収集0件のまま否定検査が緑になる事故も防ぐ）
+- `MetadataScanner.getAllMethodNames()` で prototype chain を辿った継承 method を含め、
+  method 収集が非空かつ `AuthController.login` を含み、controller class / method の local pipe が0件である
+- `ROUTE_ARGS_METADATA` 上の対象収集が非空で、パラメータ級 pipe が0件である
+- `main.ts` のソースに `useGlobalPipes` がなく、bootstrap で第2の global pipeを登録していない
+
+`@UsePipes` を実際に剥がしたのは **6 controller**（class-level 5件、`AuthController.login` の method-level 1件）で、
+pipe 不在を検査する対象10件とは別の数である。
+検査側は `DynamicModule` の metadata 直書き系と
+`DynamicModule.module` class metadata 系の両方、その imports/controllers を解決し、循環・重複は visited set で停止する。
+`forwardRef()` の解決分岐も持つが、現 production graph は0件で、実経路・変異確認ともに未検証の防御コードである。
+
+round5 の同期走査は Promise import を扱えず不完全だった。実際に `AppConfigModule` は
+`Promise<DynamicModule>` を返す `NestConfigModule.forRoot()` を imports に持つ。
+round5b で収集を `beforeAll` 内の非同期処理へ変更し、PromiseLike 自体を visited に登録してから await し、
+解決後の module も通常どおり visited 判定・走査するようにした。local pipe とパラメータ級 pipe の検査は
+同期 `it.each` から違反 label 配列の集約 assert へ変更したため、違反時は
+`['AuthController.login']` のように対象を直接表示する。
+
+HTTP 境界の behavioral test は `character-sheet-http-validation.spec.ts` に置く。
+`PUT /character/:id/sheet` の `changes[0]` とその nested `path` に未知キーを混ぜ、
+controller が `changes: dto.changes` を素通しする経路で use case mock への到達前に両方 strip されることを固定する。
+
+`test/test-app.module.ts` にも APP_PIPE provider を追加したが、`TestAppModule` の参照元はゼロで
+`*.e2e-spec.ts` も0本のため、現状はデッドな e2e 準備コードでありテストカバレッジには含まれない。
+
+- round3 検証（Fable 独立再実行）: build 成功・全量 **225 suites / 3111 tests 緑**・madge 循環ゼロ・
+  `@UsePipes` production 残存 **0**
+- round4 検証（Codex 直接実行）: build 成功・focused **5 suites / 117 tests 緑**・
+  全量 **225 suites / 3171 tests 緑**・madge **582 files / 循環ゼロ**。
+  class-level、method-level、whitelist、APP_PIPE provider の4変異はいずれも狙った spec が赤になり、
+  production 4ファイルは開始時の SHA-256 と一致する状態へ復元した。
+- round5b 検証（Codex 直接実行）: build 成功、focused **6 suites / 55 tests 緑**、
+  全量 **226 suites / 3109 tests 緑**、madge **583 files / 循環ゼロ**。
+  round4 → round5b の **62 tests 減**は削除退行ではなく、`it.each` の66ケースを集約 assert 2本へ
+  置き換えた表現変更（-64）と同区間の追加検査を相殺した数値。
+  suite の **+1** は新規
+  `character-sheet-http-validation.spec.ts` による。
+  class-level、method-level、whitelist、APP_PIPE provider 削除、別 module の2本目 APP_PIPE、
+  parameter pipe、`main.ts` の `useGlobalPipes` の7変異は、すべて狙った test が赤になった。
+  各変異を復元後、production 6ファイルの SHA-256 は round5b 開始時と一致した。
+- a6 最終仕上げ（Codex 直接実行）: build 成功、focused **3 suites / 15 tests 緑**、
+  全量 **226 suites / 3110 tests 緑**、madge **583 files / 循環ゼロ**。
+  PromiseLike の await 削除、controller method 収集の空配列化、parameter metadata 収集の空配列化の
+  3変異はいずれも追加した assert が赤になった。
+  各変異後に `app.module.spec.ts` を復元し、
+  開始時の SHA-256 と一致することを確認した。
+  production 変更はない。
+
+#### 残る検出漏れ
+
+本検査には次の限界が残る。
+完全な収集0件は本ラウンドの非空性 assert で赤になるが、部分的な欠落までは検出しない:
+
+- `main.ts` 以外の bootstrap ファイルからの `useGlobalPipes`
+- computed property、文字列分割、別名呼び出し等で `main.ts` のソース文字列検査を回避する登録
+- module graph または metadata を runtime に後付けする処理
+- 期待名と同名の別 controller class への差し替え
+- controller 以外の gateway、resolver、microservice handler に付いた local pipe
+- Nest 側の変更で `MetadataScanner.getAllMethodNames()` が全件空を返す場合は非空性と
+  `AuthController.login` 包含 assert が検出するが、代表 method を残した部分的な欠落は検出しない
+- Nest upgrade で `ROUTE_ARGS_METADATA` の格納先が全面変更された場合は非空性 assert が検出するが、
+  旧格納先に1件以上残る段階的・部分的な変更は検出しない
+- `forwardRef()` 分岐は現 production graph に対象がなく、実経路・変異ともに未検証
+
+#### 第3群-a の作業中に発見した別件（第4群／第5群へ送る）
+
+`loadJsonFile` が **2実装あり、失敗時の意味論が正反対**:
+
+| 実装                                  | パス解決       | 失敗時                            |
+| ------------------------------------- | -------------- | --------------------------------- |
+| `src/discord/utils/file.util.ts:9`    | `path.resolve` | **throw**（型付き `<T>`）         |
+| `src/discord/utils/loadJsonFile.ts:7` | 生パス         | **握り潰して `undefined` を返す** |
+
+production の2箇所 — `src/discord/features/diceRoll/utils/channel-topic.util.ts:6` と
+`src/discord/features/gameSystem/services/select-game-system.orchestrator.ts:21` — は
+**握り潰す方**を、しかも `'src/discord/static/gameSystemList.json'` という **cwd 相対パス**で
+**module load 時**に呼んでいる。
+→ TRPG-SERVER 以外を cwd としてプロセスを起動すると `gameSystemList` が**黙って `undefined`** になり、
+消費側で原因から遠い TypeError か空リストとして現れる（本キャンペーンが繰り返し見つけている無音劣化と同型）。
+`file.util.spec.ts` は throw する方を検証しているため、握り潰す方の挙動は spec に固定されていない。
+
+第4群（重複の一本化）または第5群（死蔵一掃）で扱う。**第3群-a ではスコープを広げず記録のみ**。
+
+#### 第3群-b（APP_FILTER）の事前調査
+
+pipe と違い **filter は 3 分裂しており、うち 2 つは互いに異なる filter**:
+
+| controller                                                                                          | filter                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| AuthController / UserController                                                                     | `HttpExceptionFilter`                                                                                           |
+| CharacterController                                                                                 | `CharacterHttpExceptionFilter`（`@Catch()` 全捕捉・errorCode 付き envelope を保存するため意図的に非グローバル） |
+| **AppController / DiscordController / CharacterSheetTemplateController / CharacterSheetController** | **なし**（Nest 既定の error body）                                                                              |
+
+**グローバル化はフロント可視の変更になる**。フロントが呼ぶ 6 経路のうち
+`POST /character/from-template` は **CharacterSheetController（filter なし）**にあり、
+`PUT /character/:id/sheet` も同じ controller。
+
+ただし**壊れはしない**: フロントの `ApiResponseUtil.handleError`（`trpg-remix-app/app/lib/api-response.util.ts`）は
+両形状を処理する。envelope（`success:false` かつ `error` が string）なら `error` を、
+Nest 既定（`{statusCode, message}`）なら `message`（配列なら join）を返す。
+→ 変更の実体は「**ユーザーに出るメッセージの出所が `message` から `error` へ切り替わる**」こと。
+バリデーションエラーでは Nest 既定が個別メッセージの配列を返すのに対し envelope は単一文字列になるため、
+**メッセージの粒度が落ちる**可能性がある。第3群-b では経路ごとに新旧メッセージを実測して比較すること。
+
+`CharacterHttpExceptionFilter` は controller スコープの `@Catch()` なので、
+APP_FILTER を足しても character 経路の解決順（method → controller → global）により挙動は保存される。
+
+#### 方法論の失敗（記録）
+
+- **rc=2 の二義性**: `codex_run.sh` は「writer-lock busy」と「prompt-file 不在」を**同じ rc=2** で返す。
+  相対パスの `cat >` が cwd 外で失敗しプロンプトが生成されなかった際、
+  リトライループがそれを**ロック待ちと誤認して 11 回空回り**した。→ **プロンプト生成もパスも常に絶対パス**にする
+- **並行セッションとのファイル衝突**: 並行 api-contract セッションが
+  `character.controller.http.spec.ts` に**こちらが書こうとしていたのと同一内容**（未知キーの strip 検証）を
+  実装中だった。委譲前に他キャンペーンの `prompt-code-*.txt` を読んで許可ファイルの重なりを確認して回避した。
+  → **委譲前に稼働中キャンペーンの許可ファイル欄を確認する**
+
+### 俯瞰レビュー#4（2026-07-27・第2群完了時点）＋ OV4 反映（0d38e09）
+
+対象: `5308bfc..7c060af`（SP-3 / SP-2 / CE-1）。両輪とも **needs-fix**。
+**個別スライスでは原理的に見つからない欠陥**を3件検出し、OV4/OV4b で解消。
+清書: `review-results/overview-4/`
+
+#### 横断調査の主眼「表示は集約・保存は分解」
+
+SP-2 と CE-1 が**同じ構造の問題**だったことを受け、同型が他機能に潜んでいないかを両輪に横断調査させた。
+結果、**両輪が独立に同じ high** を検出:
+
+- **`extractSkillLevel` の規則不一致**: `values.level → value → base` の**単一 part 採用** vs
+  表示側 `getDisplayNumber` の**全 part 合算**。
+  **CE-1 が非 base part を保存で維持するようにしたため `base ≠ 合計` が恒久化し、
+  編集モーダルで「70」と表示・入力したスキルがスレッドのボタンでは「50」でロールされ結果が保存**されていた
+  （CE-1 以前は保存で `{base:70}` に潰れて偶然一致していた）
+- 調査で判明: `values.level` / `values.value` は**本番の書き手が一切生成しない**
+  （`base`/`other` のみ）。旧 `extractSkillLevel` の優先順チェーンが作った「テスト内だけの概念」だった
+
+#### Opus 単独の high 2件（Fable が実装で裏取り）
+
+- **hub quarantine の誤判定**: `markHubRefreshError` が「終端対象なし（pending ≤ applied）」と
+  「CAS 失敗」の2つの理由で `null` を返すのに worker が混同。編集成功直後の一過性失敗で
+  **hub が永久 stale・`status` は `active` のままで Web 警告にも出ない**。
+  → 3値（`marked`/`not-applicable`/`cas-failed`）へ。**これは SP-2 round9 の Fable の処方ミス**
+  （「reject と CAS null の両方」と書いて2つの null の意味を混同していた）
+- **REST `PUT /character/:id` の materialized 無防備**: Discord モーダル側にはガードがあるのに REST 側に無く、
+  5セクション置換が `sheet.values` を更新しないため**次の materialize で黙って巻き戻る**
+
+#### OV4b（合算化の副作用）
+
+OV4 の合算化により `values: {}`（REST 作成の数値なし項目・モーダル空欄で頻出）が **0 を返し
+ラベルが「メモ (0)」**になる退行が生じた。表示側は `Object.keys(values).length > 0` を条件に
+合計を出さないため**揃えたはずの規則から逆向きに外れた**。同条件へ是正。
+あわせて `cas-failed` の原因 error をログへ復活、metadata のみ更新が 409 にならない spec を追加。
+
+#### 連鎖の構造（記録）
+
+```
+CE-1（内訳を保存で維持）→ base ≠ 合計 が恒久化
+  → extractSkillLevel の単一part採用が顕在化（UI 70 / ロール 50）
+    → OV4 で合算規則へ統一 → values:{} で 0 を返す副作用 → OV4b で是正
+```
+
+**各段階が前段の正しい修正から生まれている**。単発レビューでは追跡できない連鎖であり、
+俯瞰を挟む方針がなければ CE-1 コミット時点で「UI 70・ロール 50」が残っていた。
+
+- 検証: build 成功・全量 **223 suites / 3063 tests 緑**・循環ゼロ（独立再実行）
+- 台帳送り（横断調査の副産物）: palette ラベル書式が2パッケージ3箇所に散在 /
+  契約 C-25「parts 全保持」と legacy 正規化の矛盾（契約側に例外条項が無い）/
+  連鎖 formula max（`cap → limit → hp`）/ `applyDiscordDelta` は本番呼び出し元ゼロ（第5群候補）/
+  `markHubRefreshError` の read 失敗（throw）は依然 quarantine 行き（一過性でも永久 stale）/
+  materialized ガードの TOCTOU / `AI.discord.md` に SP-2/SP-3 の規則が未記載
+
+### CE-1 完了追記（2026-07-27・2ラウンド）
+
+編集モーダル保存で `values` の内訳・`index`・`isVisible` が失われる問題を解消。**第2群の最後**。
+
+- **機序**: モーダルの数値欄は**合算値**を初期表示する（`extractFieldEditValues` → `getDisplayNumber`）のに、
+  保存側 `buildAttributeValueFromForm` は AttributeValue を**ゼロから作り直して**いた。
+  合計は不変だが内訳が消え、特に `applyDiscordDelta` が積む `other`（Discord の ±操作の履歴）が
+  **編集のたびに base へ吸収**されていた。`index`（並び順）と `isVisible`（`true` 固定）も失われていた
+- **処方**: 「作り直し」→「マージ」。不変条件は **合計 = 入力値**（`base = 入力値 − 非 base part 合計`）。
+  非 base part・`index`・`isVisible` を維持。**base が負になっても 0 でクランプしない**
+  （クランプすると合計が入力値とズレて利用者の意図に反する）
+- **round2（両輪 high）**: round1 は**新しい破壊**を持ち込んでいた — 数値欄が空/非有限のとき
+  `valuesObj` が「既存 values から base を除いた形」で初期化されるため、
+  `{other:5}` が valid と判定されて保存され **`base` だけが黙って消えた**（旧は `{}` → invalid → 拒否）。
+  **旧セマンティクスの正確な保存**へ是正: 空→`{}`（全クリア）／非有限→更新中止／有限→逆算
+  - 修正方針は両輪で割れた（Opus=既存値の完全コピー／Codex=明示的な検証失敗）。
+    Fable 裁定は**分岐ごとに旧挙動へ合わせる**形。「完全コピー」は空欄を「未編集」と解釈することになり、
+    同スライスが description/dice に与えた「空＝意図的クリア」と矛盾するため不採用
+- 検証: build 成功・全量 **221 suites / 3036 tests 緑**・循環ゼロ（独立再実行）
+- deferred: `add_new` で既存フィールド名を再入力すると同型の破壊が残る（既存キー衝突の検出が無い）/
+  セクション丸ごと置換による lost update（repository に revision/CAS が無い・pre-existing）/
+  legacy 正準化で `{description}` だけになった項目は description が prefill されず数値編集で消える
+
+### SP-2 完了追記（2026-07-27・8ラウンド）
+
+track リソースの「表示・実効値・報告」の三重乖離を解消。**8ラウンドを要したが、内訳は round1 が実装、
+round2〜6 が前ラウンドの退行修正、round7〜8 が Fable の処方ミス（契約違反）の是正**であり、
+新機能・好みの改善はゼロ。
+清書: `review-results/sp2-resource-clamp/review-20260727-sp2-rounds.md`
+
+- **方針**: evaluator の実効値を唯一の正とし、表示と報告を従わせる＋書き込み側に防波堤
+- **範囲方針の正本**: `features/character-sheet/services/track-range.policy.ts`
+  （bounds 解決・違反の**方向付き**判定・legacy 正規化・実効値解決）。
+  `sheet-values.util.ts` に `isPartsValue`/`sheetValuesEqual`/`partsTotal`/`isResourceField` を集約（3重複→1）
+- **判定規則**: 「next が範囲内」または「current と**同じ側**で違反量が非増加」のみ許可。
+  比較は**両側とも next bounds**で行う（境界縮小は evaluator/projection の正規化が吸収）
+- **hub 失敗の扱い（契約 OP-6/C-11 準拠）**: **backoff 対象は Discord 429 のみ**。
+  読み取り面の失敗は分類を問わず**初回で `active → error`**（投影準備失敗＝`PROJECTION_FAILED` /
+  テンプレート恒久却下＝`TEMPLATE_UNRESOLVABLE` / 分類外も安全側で即 error）。publication も同じ分類関数を使う
+  （round7 で導入した read-path の指数 backoff・試行上限・`active.errorCode` への marker 流用は
+  **契約違反のため round8 で全撤去**。-227行）
+- **層の是正**: `hub-projection.service.ts` の engine 直 import を解消
+  （feature 境界で解決済み実効値と投影用 palette ラベルを生成して渡す形へ）。
+  ただし `resource-delta.handler.ts:2` は共有 `EPSILON` を engine から import しており **0件ではない**
+  （定数のみ・評価ロジック非依存。完全な遮断は別途判断）
+- 検証: build 成功・全量 **221 suites / 3021 tests 緑**・循環ゼロ（独立再実行）
+
+#### 重大な学び（プロセス）
+
+1. **契約書を先に読む（本キャンペーン最大の反省）**:
+   `document/character-sheet-proposals/phase2-operation-contracts.md` の **C-11 / OP-6** が
+   「**429 のみ backoff**」「分類外→error（安全側）」「**無限リトライ禁止**」を最初から規定していた。
+   Fable は契約を参照せずに処方を出し、**3ラウンド（5→6→7）を空費**した:
+   - round5: 一過性も即 error（結果的に契約準拠だったが根拠は偶然）
+   - round6: 「Conflict/NotFound は復旧可能」と誤認して一過性へ →
+     **無限リトライを作り契約違反**（`only draft templates can be published`＝deprecate が
+     一方通行である事実を未確認だった）
+   - round7: backoff＋上限で「有限化」→ **これも契約の「429 のみ backoff」に反する**
+   - round8: 契約どおり即 error へ戻し **-227行**。機構ごと消えた
+     → **設計判断の前に、その領域の契約書を検索して読む**。レビュー所見の文言をそのまま処方に写さない
+2. **二分法で答えない**: 「一過性/決定的」の二分では round5（厳しすぎ）→ round6（緩すぎ）を往復した。
+   「有限回試して終端」という第三の形が正解だった
+3. **low でも保留しない種類がある**: 違反の方向性（`12 → -1` が「縮小」として通る）は
+   Opus が round3 で low として挙げ Fable が保留 → round4 で Codex が high として再提出。
+   **そのスライスが防ごうとしている性質そのものを迂回する所見は severity に関わらず即対応**
+4. **spec の空振りが次の見落としを生む**: round2/3 の追加 spec は修正を戻しても緑だった。
+   round4 以降**机上ミューテーションをレビュー観点に常設**し、生存ミューテーションを潰す運用にした
+
+#### deferred（次スライス優先順）
+
+1. ~~`TEMPLATE_UNRESOLVABLE` の即終端化~~ → **round8 で解消**（契約準拠により全 read 失敗が初回終端）
+2. ~~marker 永続化失敗で試行回数が進まない穴~~ → **round8 で機構ごと撤去され消滅**
+3. publication の一過性 `'none'` rollback に再駆動経路が無い
+   （worker は active のみ拾う。起動時 sweep で `none`＋threadId＋materialized を再投稿する案）
+4. **連鎖 formula max**（`cap → limit(max=cap) → hp(max=limit)` で参照先の生値が読まれる）—
+   依存順の位相解決＋循環検出が必要。publish 境界で自己参照/連鎖を禁じる案も
+5. 範囲外 legacy track の永続 projection が parts 内訳を失う
+6. `error → *` の復旧遷移が無い（SP-2 以前からの設計課題）
+7. `character-sheet-operation.service.ts`（645行）の hub read-model 分離
+8. resource ラベル書式が生成2箇所・除去1箇所に散在（パッケージ跨ぎで無防備）
+
+### 死蔵経路の発見（SP-3 レビュー副産物・2026-07-27）
+
+`character-thread-select` / `character-thread-select-with-thread` は **customId pattern・handler・分岐は存在するが、
+セレクトメニューを組み立てて送出する production 経路が存在しない**（grep 確認済み。実際に組まれているのは
+`commands-components/character-thread.service.ts:112` の `character-thread-create-select` のみ）。
+`ThreadCreationService`（`character-thread.orchestrator` 経由）はこの死蔵経路の先にあり、
+**実運用の `/character-thread` は `CharacterThreadSelectService` → イベント → `ThreadOrchestratorService` →
+`ThreadManagerService` を通る**。第5群（死蔵一掃）の対象候補。削除は未実施。
 
 ### 証跡の所在について（俯瞰#1 追記）
 
@@ -232,7 +750,8 @@ Playwright E2E プロジェクト（`\\LAPTOP-UBRLUPJM\e2e-playwright`）から 
 UserとCharacterのHTTP操作を、認証主体と永続化queryが切れない所有者限定契約へ変更した。詳細契約の正本は `AI.domain.md` の「2026-07-12 User / Character HTTP認可契約」。
 
 - Character: `findByIdForOwner` / `updateForOwner` / `removeForOwner` をrepositoryへ追加し、`characterId + discordUserId` の単一queryで取得・更新・削除。serviceにHTTP用owner-qualified APIを追加し、controllerの個別3操作だけを接続。対象不在と非所有者は同じ404。
-- User: controller全体へ `JwtAuthGuard` とstrict `ValidationPipe` を適用。path IDとJWT主体の一致を必須化し、本人以外はDB操作前に404。
+- User: controller全体へ `JwtAuthGuard` を適用。path IDとJWT主体の一致を必須化し、本人以外はDB操作前に404。
+  （当時の strict `ValidationPipe` は**第3群-a で撤去**。未知 body 項目は 400 でなく strip に変更）
 - User入力: HTTP専用 `CreateUserProfileDto` / `UpdateUserProfileDto` は `name/avatarHash` だけ。controllerでも許可項目を再構成し、token・characterIds・bodyの所有者IDをserviceへ渡さない。
 - User出力: pure presenterで `UserOutputDto` へ写像し、OAuth token4項目を常に除外。token更新は既存 `AuthService -> UserService` 内部経路を維持。
 - 権限正本: Character accessは `Character.discordUserId` のみ。legacy `User.characterIds` の変更はCharacterアクセスを付与しない。

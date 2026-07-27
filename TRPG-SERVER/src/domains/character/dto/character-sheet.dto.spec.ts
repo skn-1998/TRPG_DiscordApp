@@ -1,8 +1,9 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
+import { APP_VALIDATION_PIPE_OPTIONS } from '../../../core/http/validation-pipe.provider'
 import { SaveCharacterSheetDto } from './character-sheet.dto'
 
 describe('SaveCharacterSheetDto', () => {
-  const pipe = new ValidationPipe({ transform: true, whitelist: true })
+  const pipe = new ValidationPipe(APP_VALIDATION_PIPE_OPTIONS)
 
   const transform = (changes: unknown[]) =>
     pipe.transform({ baseRevision: 0, changes }, { type: 'body', metatype: SaveCharacterSheetDto })

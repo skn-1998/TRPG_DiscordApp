@@ -9,6 +9,7 @@ import { CharacterSheetTemplateService } from '../../../domains/character-sheet-
 import type { CharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import { JwtAuthGuard } from '../../../domains/auth/guards/jwt-auth.guard'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../../core/http/validation-pipe.provider'
 import {
   CHARACTER_INSTANTIATION_USE_CASE,
   CHARACTER_SHEET_OPERATION_USE_CASE,
@@ -199,7 +200,9 @@ describe('non-finite formula save reproduction', () => {
       providers: [
         { provide: CharacterService, useValue: characterService },
         { provide: CHARACTER_SHEET_OPERATION_USE_CASE, useValue: operationService },
-        { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } }
+        { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } },
+        // whitelist 専用 test の移設後も、production と同じ HTTP pipe 経路の忠実性を保つため登録を維持する。
+        APP_VALIDATION_PIPE_PROVIDER
       ]
     })
       .overrideGuard(JwtAuthGuard)
