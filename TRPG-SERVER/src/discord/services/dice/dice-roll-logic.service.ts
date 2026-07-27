@@ -161,7 +161,10 @@ export class DiceRollLogicService {
   }
 
   /**
-   * 成功レベルを判定（CoC7準拠）
+   * CoC7 のスキルロール専用規則で成功レベルを判定する。
+   *
+   * 出目 1 をクリティカル、技能値 50 未満では 96-100、50 以上では 100 をファンブルとして扱う。
+   * DiceCalculationService.getResultEmoji の汎用判定とは別の境界であり、他システムの判定には使用しない。
    */
   private determineSuccessLevel(roll: number, skillValue: number): string {
     if (skillValue < 1) return '失敗'

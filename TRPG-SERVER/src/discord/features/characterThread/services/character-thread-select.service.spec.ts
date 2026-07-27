@@ -1,4 +1,4 @@
-import { MessageFlags } from 'discord.js'
+import { MessageFlags, TextInputBuilder } from 'discord.js'
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadSelectService } from './character-thread-select.service'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
@@ -10,8 +10,7 @@ import { CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE } from './character-channel-
 // execute は isStringSelectMenu ガード → customId による分岐振り分け（legacy/create/enhanced/flexible-dice）
 // を行い、例外時は followUp フォールバックする。副作用境界（orchestrator・typedEventService・
 // characterService・interaction の各応答メソッド）はモックし、ルーティング・主要分岐・純 private を検証する。
-// showModal/モーダル構築は discord.js Builder を実体で組むため、構築内容の深掘りは避け
-// 「showModal が呼ばれること」までに留める（mock 地獄回避）。
+// showModal の Builder はグローバルモックを使い、送信ハンドラが読む field の customId 契約だけを検証する。
 type OrchestratorMock = { handleSelection: jest.Mock }
 type TypedEventMock = { emit: jest.Mock }
 type CharacterServiceMock = { findOne: jest.Mock }
@@ -132,6 +131,23 @@ describe('CharacterThreadSelectService', () => {
       // Assert
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
       expect(orchestrator.handleSelection).not.toHaveBeenCalled()
+    })
+
+    it('custom モーダルは送信ハンドラが読む式とコメントのフィールドだけを表示する', async () => {
+      // Arrange
+      const interaction = createMockSelectMenuInteraction({
+        customId: 'flexible-dice-param*char-9',
+        values: ['custom:formula:0']
+      })
+
+      // Act
+      await service.execute(interaction)
+
+      // Assert
+      const textInputs = (TextInputBuilder as unknown as jest.Mock).mock.results.map((result) => result.value)
+      expect(textInputs).toHaveLength(2)
+      expect(textInputs[0].setCustomId).toHaveBeenCalledWith('dice-command')
+      expect(textInputs[1].setCustomId).toHaveBeenCalledWith('dice-comment')
     })
 
     it('例外発生時は followUp でフォールバック通知する', async () => {

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ChannelType, TextChannel } from 'discord.js'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
-import { DiceCalculationService, DiceCalculationResult } from './dice-calculation.service'
+import { DiceCalculationService, DiceCalculationResult, MAX_DICE_COUNT } from './dice-calculation.service'
 import dice from 'src/domains/dice-roll/services/bcdice.util'
 
 /**
@@ -36,8 +36,8 @@ export class DiceOrchestratorService {
   /**
    * 結果絵文字取得インターフェース
    */
-  getResultEmoji(diceResult: any, rollResult: number): string {
-    return this.calculationService.getResultEmoji(diceResult, rollResult)
+  getResultEmoji(diceResult: any): string {
+    return this.calculationService.getResultEmoji(diceResult)
   }
 
   /**
@@ -114,6 +114,7 @@ export class DiceOrchestratorService {
 
   /**
    * ダイス記法の妥当性をチェック
+   * 算術式用の DiceCalculationService.evaluateFormula とは別入口の別検証で、`2d6` はここでは受け入れる。
    */
   private validateDiceNotation(notation: string): boolean {
     // 基本的なダイス記法のパターン
@@ -131,7 +132,7 @@ export class DiceOrchestratorService {
     const diceSize = parseInt(match[2], 10)
 
     // 制限値チェック（サーバー負荷対策）
-    if (numDice > 100 || diceSize > 1000 || numDice < 1 || diceSize < 1) {
+    if (numDice > MAX_DICE_COUNT || diceSize > 1000 || numDice < 1 || diceSize < 1) {
       return false
     }
 
@@ -158,24 +159,11 @@ export class DiceOrchestratorService {
     }
   }
 
+  // TODO: 第5群の死蔵一掃で削除する - 本番 import は 0 件で、現在の利用者は同 spec のみ。
   /**
-   * ダイスロール結果に応じた絵文字を取得（基本ダイス記法用）
-   * 旧 DiceNotationHandlerService.getResultEmoji の代替
+   * 旧・基本ダイス記法用 API。判定規則は統一入口へ委譲する。
    */
-  getBasicResultEmoji(
-    diceResult: { critical?: boolean; fumble?: boolean; success?: boolean; failure?: boolean },
-    result: number
-  ): string {
-    if (diceResult.critical || result < 5) {
-      return '🌟' // クリティカル
-    } else if (diceResult.fumble || result > 95) {
-      return '💥' // ファンブル
-    } else if (diceResult.success) {
-      return '✅' // 成功
-    } else if (diceResult.failure) {
-      return '❌' // 失敗
-    } else {
-      return '🎲' // 普通のロール
-    }
+  getBasicResultEmoji(diceResult: any): string {
+    return this.calculationService.getResultEmoji(diceResult)
   }
 }

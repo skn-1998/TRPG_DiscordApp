@@ -51,6 +51,7 @@ export function rollDice(diceCount: number, diceFaces: number): DiceResult {
   }
 }
 
+// TODO: 第5群の死蔵一掃で削除する - 本番 import は 0 件で、現在の利用者は同 spec のみ。
 /**
  * ダイス表記を解析する
  * @param diceNotation ダイス表記（例: 2d6）

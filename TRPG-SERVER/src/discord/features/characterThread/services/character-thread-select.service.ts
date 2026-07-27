@@ -153,7 +153,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       .setCustomId('multiplier')
       .setLabel('乗数（任意）')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('例: 2, 3, 0.5（空白の場合は1）')
+      .setPlaceholder('例: 2, 3（整数、空白の場合は1）')
       .setRequired(false)
       .setMaxLength(10)
 
@@ -204,28 +204,10 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       .setCustomId('dice-command')
       .setLabel('ダイス/計算式')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('例: 2d6+3, status*3+4, skill×2-1')
+      .setPlaceholder('例: 2d6+3, 1d20+5, 3d8')
       .setRequired(true)
       .setMinLength(1)
       .setMaxLength(50)
-
-    // 乗数入力フィールド
-    const multiplierInput = new TextInputBuilder()
-      .setCustomId('multiplier')
-      .setLabel('乗数（任意）')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('例: 2, 3, 0.5（空白の場合は1）')
-      .setRequired(false)
-      .setMaxLength(10)
-
-    // 修正値入力フィールド
-    const modifierInput = new TextInputBuilder()
-      .setCustomId('modifier')
-      .setLabel('修正値（任意）')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('例: +5, -2（空白の場合は0）')
-      .setRequired(false)
-      .setMaxLength(10)
 
     // コメント入力フィールド
     const commentInput = new TextInputBuilder()
@@ -238,12 +220,10 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
 
     // アクションロウを作成
     const formulaRow = new ActionRowBuilder<TextInputBuilder>().addComponents(formulaInput)
-    const multiplierRow = new ActionRowBuilder<TextInputBuilder>().addComponents(multiplierInput)
-    const modifierRow = new ActionRowBuilder<TextInputBuilder>().addComponents(modifierInput)
     const commentRow = new ActionRowBuilder<TextInputBuilder>().addComponents(commentInput)
 
     // モーダルにアクションロウを追加
-    modal.addComponents(formulaRow, multiplierRow, modifierRow, commentRow)
+    modal.addComponents(formulaRow, commentRow)
 
     // モーダルを表示
     await interaction.showModal(modal)
