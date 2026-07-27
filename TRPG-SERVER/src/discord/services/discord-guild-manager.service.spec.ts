@@ -984,6 +984,29 @@ describe('DiscordGuildManagerService', () => {
         }
       })
 
+      it('基底 ManageRoles 欠落時はカテゴリ実効を参照せず拒否する', async () => {
+        const member = makeMemberWithFlags(FLAGS.ManageChannels)
+        const parentHas = jest.fn((flag: bigint) => flag === FLAGS.ManageChannels || flag === FLAGS.ManageRoles)
+        const parent = {
+          type: ChannelType.GuildCategory,
+          permissionsFor: jest.fn().mockReturnValue({ has: parentHas })
+        }
+        const guild = {
+          members: { fetch: jest.fn().mockResolvedValue(member) },
+          channels: { fetch: jest.fn().mockResolvedValue(parent) }
+        }
+        const client = makeClient({ guilds: { fetch: jest.fn().mockResolvedValue(guild) } })
+
+        const result = await service.verifyGuildManagePermission(client, 'g1', 'u1', 'parent1', [])
+
+        expect(result).toEqual({
+          hasPermission: false,
+          denial: 'permission-denied',
+          reason: 'User lacks permission to manage roles'
+        })
+        expect(parent.permissionsFor).not.toHaveBeenCalled()
+      })
+
       it('parent 指定時はカテゴリ実効権限でも ManageRoles を要求する', async () => {
         // 基底は ManageChannels＋ManageRoles を保持、カテゴリ実効では ManageRoles が拒否される
         const member = makeMemberWithFlags(FLAGS.ManageChannels, FLAGS.ManageRoles, FLAGS.ManageMessages)

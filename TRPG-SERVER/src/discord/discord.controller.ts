@@ -367,7 +367,8 @@ export class DiscordController {
         throw new NotFoundException('指定されたキャラクターが見つかりません')
       }
 
-      // チャンネルを作成するため、ギルド在籍ではなく管理権限を確認する
+      // Why: 後続のカテゴリ権限検査にも包含されるが、getGuildInfo によるチャンネル一覧開示前の
+      // 開示ゲートとして意図的に残す。
       const permission = await this.verifyGuildManagePermission(postCharacterDto.guildId, req.user.discordUserId)
       this.assertGuildManagePermission(permission)
 
@@ -412,6 +413,8 @@ export class DiscordController {
         throw new HttpException(createChannelResult.error, HttpStatus.INTERNAL_SERVER_ERROR)
       }
 
+      // Invariant: createChannel の resolve からこのマークまで await を挟まない。channelCreate は
+      // create() 解決前に同期 emit されるため、この順序がマイクロタスク保証の根拠となる。
       this.channelDetectionService.markBotManagedChannel(createChannelResult.channelId)
 
       // 作成したチャンネルIDを await して永続化（完了・エラーを成功応答前に保証）

@@ -494,6 +494,8 @@ export class DiscordGuildManagerService {
         )
       }
 
+      // Why: Discord 本来はカテゴリ overwrite だけで管理を許す構成もあり得るが、ここは Bot による
+      // 代理作成のため「基底 ManageRoles AND カテゴリ ManageRoles」を要求する意図的な過剰制限。
       if (
         requestedOverwritePermissionKeys !== undefined &&
         !member.permissions.has(PermissionsBitField.Flags.ManageRoles)

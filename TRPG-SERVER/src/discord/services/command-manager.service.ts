@@ -3,6 +3,7 @@ import { REST, Routes, AutocompleteInteraction, CommandInteraction, MessageFlags
 import { DiscordCommand } from '../interfaces/discord-interaction-types.interface'
 import { CommandsService } from '../commands/commands.service'
 import { AppConfigService } from '../../config/config.service'
+import { respondEphemeralError } from '../utils/interaction-error-response.util'
 /**
  * コマンドマネージャーサービス
  * Discord Bot のコマンド管理、登録、実行を担当
@@ -82,16 +83,8 @@ export class CommandManagerService implements OnModuleInit {
         this.logger.error(error.message)
       }
 
-      const replyOptions = {
-        content: 'コマンドの実行中にエラーが発生しました。',
-        flags: MessageFlags.Ephemeral as const
-      }
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(replyOptions)
-      } else {
-        await interaction.reply(replyOptions)
-      }
+      // deferReply の可視性を引き継ぐ — 非 ephemeral defer では editReply によりエラーが公開表示になる（意図的）
+      await respondEphemeralError(interaction, 'コマンドの実行中にエラーが発生しました。')
     }
   }
 

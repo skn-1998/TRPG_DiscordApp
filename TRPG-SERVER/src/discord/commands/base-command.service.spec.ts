@@ -1,15 +1,15 @@
 import { createMockChatInputInteraction } from '@discord-test-utils'
 import type { CommandInteraction, ChatInputCommandInteraction } from 'discord.js'
 import { BaseCommandService } from './base-command.service'
-import { ErrorHandler } from '../../core/http/error-handler'
 import type { TypedEventService } from '../../core/events/typed-event.service'
+import { DiscordErrorReporter } from '../utils/discord-error-reporter'
 
 /**
  * BaseCommandService は抽象基底。共通の interaction 前後処理・存在チェック・
  * エラーハンドリング委譲を提供する。テストでは protected メソッドを公開する
  * 最小の具象サブクラスを定義して振る舞いを検証する。
  * 副作用の境界:
- *   - ErrorHandler.handleDiscordCommandError（エラー応答委譲） → jest.spyOn でモック
+ *   - DiscordErrorReporter.handleDiscordCommandError（エラー応答委譲） → jest.spyOn でモック
  *   - logger（出力） → 検証対象外（実装詳細）
  * interaction は @discord-test-utils のファクトリで生成する（手動 as any モック禁止）。
  */
@@ -58,8 +58,8 @@ describe('BaseCommandService', () => {
   })
 
   describe('handleInteractionError', () => {
-    it('ErrorHandler.handleDiscordCommandError へ error/interaction/コンテキストを委譲する', async () => {
-      const spy = jest.spyOn(ErrorHandler, 'handleDiscordCommandError').mockResolvedValue(undefined)
+    it('DiscordErrorReporter.handleDiscordCommandError へ error/interaction/コンテキストを委譲する', async () => {
+      const spy = jest.spyOn(DiscordErrorReporter, 'handleDiscordCommandError').mockResolvedValue(undefined)
       const interaction = createMockChatInputInteraction({ commandName: 'dice' })
       const error = new Error('boom')
 

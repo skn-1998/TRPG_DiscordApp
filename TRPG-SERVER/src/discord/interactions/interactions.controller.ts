@@ -1,6 +1,10 @@
+// 本 controller はルートデコレータ無しの未配線。
+// InteractionsService.routeInteraction が正本。削除はバックログ。
+
 import { Controller, Logger } from '@nestjs/common'
 import { ButtonInteraction, ModalSubmitInteraction, AnySelectMenuInteraction, MessageFlags } from 'discord.js'
 import { InteractionRegistryService } from './registry/interaction-registry.service'
+import { respondEphemeralError } from '../utils/interaction-error-response.util'
 
 /**
  * Discord Interactions Controller
@@ -55,16 +59,15 @@ export class InteractionsController {
     } catch (error) {
       this.logger.error(`インタラクション処理中にエラーが発生: ${interaction.customId}`, error)
 
-      // エラー応答（まだ応答していない場合のみ）
-      if (!interaction.replied && !interaction.deferred) {
-        try {
-          await interaction.reply({
-            content: '❌ 処理中にエラーが発生しました。',
-            flags: MessageFlags.Ephemeral
-          })
-        } catch (replyError) {
-          this.logger.error('エラー応答の送信に失敗', replyError)
-        }
+      try {
+        // components 層の deferred は deferUpdate 由来か deferReply 由来か判別不能。
+        // editReply は deferUpdate 由来の公開メッセージ（キャラシート embed 等）をエラー文言で破壊するため、
+        // 最後の砦は followUp に固定する（deferReply 由来の placeholder 残置は許容する劣化）。
+        await respondEphemeralError(interaction, '❌ 処理中にエラーが発生しました。', {
+          deferredStrategy: 'followUp'
+        })
+      } catch (replyError) {
+        this.logger.warn('エラー応答の送信に失敗', replyError)
       }
     }
   }
