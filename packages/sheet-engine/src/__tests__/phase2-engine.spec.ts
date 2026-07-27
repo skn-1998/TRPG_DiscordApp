@@ -1,4 +1,4 @@
-import { buildValueInputSchema, clampDelta, evaluateTemplate } from '..';
+import { buildValueInputSchema, clampDelta, EPSILON, evaluateTemplate } from '..';
 import { baseTemplate } from './test-utils';
 
 describe('parts-aware value resolution', () => {
@@ -138,6 +138,73 @@ describe('buildValueInputSchema', () => {
         expect.objectContaining({ path: ['uid_plain', 'parts'], message: 'field uid_plain does not allow parts' }),
       ]));
     }
+  });
+
+  it.each([
+    [{ base: 8, buff: 3 }, 'field uid_hp parts total must be between 0 and 10'],
+    [{ base: 1, damage: -2 }, 'field uid_hp parts total must be between 0 and 10'],
+  ])('rejects track parts totals outside numeric min/max: %o', (parts, message) => {
+    const result = schema.safeParse({ uid_hp: { parts } });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['uid_hp', 'parts'], message }),
+      );
+    }
+  });
+
+  it('accepts track parts totals at numeric min/max', () => {
+    expect(schema.safeParse({ uid_hp: { parts: { base: 10, buff: 0 } } }).success).toBe(true);
+    expect(schema.safeParse({ uid_hp: { parts: { base: 1, damage: -1 } } }).success).toBe(true);
+  });
+
+  it('accepts a track parts total within the shared EPSILON and rejects a larger overflow', () => {
+    const decimalSchema = buildValueInputSchema(baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'track', id: 'hp', uid: 'uid_decimal_hp', label: 'HP', min: 0, max: 0.3, style: 'gauge' },
+          ],
+        },
+      ],
+    }));
+
+    expect(decimalSchema.safeParse({
+      uid_decimal_hp: { parts: { base: 0.1, buff: 0.2 } },
+    }).success).toBe(true);
+    expect(decimalSchema.safeParse({
+      uid_decimal_hp: { parts: { base: 0.3, buff: EPSILON * 2 } },
+    }).success).toBe(false);
+  });
+
+  it('leaves formula max track totals to evaluation-aware validation', () => {
+    const formulaMaxSchema = buildValueInputSchema(baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'limit', uid: 'uid_limit', label: 'Limit', valueType: 'number' },
+            {
+              type: 'track',
+              id: 'hp',
+              uid: 'uid_formula_hp',
+              label: 'HP',
+              max: { formula: '{main.limit}' },
+              style: 'gauge',
+            },
+          ],
+        },
+      ],
+    }));
+
+    expect(formulaMaxSchema.safeParse({
+      uid_limit: 10,
+      uid_formula_hp: { parts: { base: 999 } },
+    }).success).toBe(true);
   });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(

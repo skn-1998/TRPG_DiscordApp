@@ -1,6 +1,9 @@
-import { Logger } from '@nestjs/common'
-import type { CharacterEntity } from '../../../../domains/character/models/character.entity'
-import type { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
+import { ConflictException, Logger } from '@nestjs/common'
+import { CHARACTER_HUB_ERROR_CODES, type CharacterEntity } from '../../../../domains/character/models/character.entity'
+import {
+  HubProjectionPreparationError,
+  type CharacterSheetOperationService
+} from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import type { HubDiscordGateway } from '../adapters/hub-discord.gateway'
 import type { HubDiscordViewBuilder } from '../adapters/hub-discord-view.builder'
 import type { HubProjectionService } from './hub-projection.service'
@@ -146,6 +149,58 @@ describe('HubPublicationService', () => {
     expect(gateway.send).not.toHaveBeenCalled()
   })
 
+  it('deprecated templateの解決失敗はpublishingからerrorへ遷移して再投稿を止める', async () => {
+    const resolutionError = new ConflictException('sheet template must be published at the requested version')
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState.mockRejectedValueOnce(resolutionError).mockResolvedValueOnce(character('error'))
+
+    await service.postHub('char-1', 'thread-1')
+
+    expect(operations.setHubState).toHaveBeenLastCalledWith(
+      'char-1',
+      expect.objectContaining({ status: 'publishing' }),
+      {
+        status: 'error',
+        errorCode: CHARACTER_HUB_ERROR_CODES.TEMPLATE_UNRESOLVABLE
+      }
+    )
+    expect(gateway.send).not.toHaveBeenCalled()
+  })
+
+  it('投影準備失敗はpublishingからPROJECTION_FAILEDへ遷移する', async () => {
+    const preparationError = new HubProjectionPreparationError(new Error('resource evaluation failed'))
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState.mockRejectedValueOnce(preparationError).mockResolvedValueOnce(character('error'))
+
+    await service.postHub('char-1', 'thread-1')
+
+    expect(operations.setHubState).toHaveBeenLastCalledWith(
+      'char-1',
+      expect.objectContaining({ status: 'publishing' }),
+      {
+        status: 'error',
+        errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
+      }
+    )
+    expect(gateway.send).not.toHaveBeenCalled()
+  })
+
+  it('一過性のpublication準備失敗はpublishingからnoneへrollbackする', async () => {
+    operations.getHubCharacter.mockResolvedValue(character('none'))
+    operations.setHubState
+      .mockRejectedValueOnce(new Error('mongo unavailable'))
+      .mockResolvedValueOnce(character('none'))
+
+    await service.postHub('char-1', 'thread-1')
+
+    expect(operations.setHubState).toHaveBeenLastCalledWith(
+      'char-1',
+      expect.objectContaining({ status: 'publishing' }),
+      { status: 'none' }
+    )
+    expect(gateway.send).not.toHaveBeenCalled()
+  })
+
   it('T-21: 同時実行の2つのpostHubが両方noneを読んでも、送信は勝者の1回だけ', async () => {
     operations.getHubCharacter.mockResolvedValue(character('none'))
     let casArrivals = 0
@@ -197,9 +252,9 @@ describe('HubPublicationService', () => {
     expect(gateway.send).toHaveBeenCalledTimes(1)
   })
 
-  it('T-7: projection失敗は副作用開始前なのでnoneへ戻す', async () => {
+  it('T-7: projection失敗は副作用開始前にPROJECTION_FAILEDへ遷移する', async () => {
     operations.getHubCharacter.mockResolvedValue(character('none'))
-    operations.setHubState.mockResolvedValueOnce(character('publishing')).mockResolvedValueOnce(character('none'))
+    operations.setHubState.mockResolvedValueOnce(character('publishing')).mockResolvedValueOnce(character('error'))
     projection.create.mockImplementation(() => {
       throw new Error('projection failed')
     })
@@ -209,7 +264,10 @@ describe('HubPublicationService', () => {
     expect(operations.setHubState).toHaveBeenLastCalledWith(
       'char-1',
       expect.objectContaining({ status: 'publishing' }),
-      { status: 'none' }
+      {
+        status: 'error',
+        errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
+      }
     )
     expect(gateway.send).not.toHaveBeenCalled()
   })

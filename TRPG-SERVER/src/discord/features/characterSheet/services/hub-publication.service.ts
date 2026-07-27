@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
 import type { CharacterEntity } from '../../../../domains/character/models/character.entity'
-import { CharacterSheetOperationService } from '../../../../features/character-sheet/services/character-sheet-operation.service'
+import {
+  CharacterSheetOperationService,
+  HubProjectionPreparationError,
+  resolveHubPreparationErrorCode
+} from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import { HubDiscordGateway } from '../adapters/hub-discord.gateway'
 import { HubDiscordViewBuilder } from '../adapters/hub-discord-view.builder'
 import { HubProjectionService } from './hub-projection.service'
@@ -36,11 +40,17 @@ export class HubPublicationService {
     }
 
     const opId = randomUUID()
-    const publishing = await this.operations.setHubState(
-      characterId,
-      { status: 'none' },
-      { status: 'publishing', opId, threadId }
-    )
+    let publishing: Awaited<ReturnType<CharacterSheetOperationService['setHubState']>>
+    try {
+      publishing = await this.operations.setHubState(
+        characterId,
+        { status: 'none' },
+        { status: 'publishing', opId, threadId }
+      )
+    } catch (error) {
+      await this.settlePreparationFailure(characterId, opId, error)
+      return
+    }
     if (publishing === null || publishing.sheet === undefined) return
 
     // CAS 前の保存と競合しても、CAS 戻り値の最新 snapshot/revision を投稿する。
@@ -69,8 +79,7 @@ export class HubPublicationService {
       }
       payload = this.viewBuilder.buildHubMessage(projection)
     } catch (error) {
-      this.logger.error(`Hub projection failed before Discord send: ${characterId}`, error)
-      await this.operations.setHubState(characterId, { status: 'publishing', opId }, { status: 'none' })
+      await this.settlePreparationFailure(characterId, opId, new HubProjectionPreparationError(error))
       return
     }
 
@@ -103,6 +112,23 @@ export class HubPublicationService {
     }
 
     if ((active.hub?.pendingRevision ?? revision) > revision) this.refreshWorker?.wake(characterId)
+  }
+
+  private async settlePreparationFailure(characterId: string, opId: string, error: unknown): Promise<void> {
+    const errorCode = resolveHubPreparationErrorCode(error)
+    this.logger.error(
+      `Hub preparation failed before Discord send: ${characterId}${errorCode ? ` (${errorCode})` : ''}`,
+      error
+    )
+    try {
+      if (errorCode) {
+        await this.operations.setHubState(characterId, { status: 'publishing', opId }, { status: 'error', errorCode })
+        return
+      }
+      await this.operations.setHubState(characterId, { status: 'publishing', opId }, { status: 'none' })
+    } catch (casError) {
+      this.logger.error(`Failed to persist hub preparation failure state: ${characterId}`, casError)
+    }
   }
 
   private async markPostedButUntracked(characterId: string, opId: string, error: unknown): Promise<void> {

@@ -14,7 +14,7 @@ import {
 
 const DEFAULT_AST_NODE_LIMIT = 256;
 const DEFAULT_STEP_LIMIT = 10_000;
-const EPSILON = 1e-9;
+export const EPSILON = 1e-9;
 
 type RowState = {
   list: ListField;

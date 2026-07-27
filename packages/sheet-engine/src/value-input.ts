@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EPSILON } from './evaluator';
 import { SheetField, SheetTemplate } from './types';
 
 export interface PartsValueInput {
@@ -54,6 +55,7 @@ export function buildValueInputSchema(
 
       const result = schema.safeParse(value);
       if (result.success) {
+        validateTrackPartsRange(field, uid, result.data, context);
         continue;
       }
       for (const issue of result.error.issues) {
@@ -65,6 +67,45 @@ export function buildValueInputSchema(
       }
     }
   }) as z.ZodType<Record<string, SheetValueInput>>;
+}
+
+function validateTrackPartsRange(
+  field: SheetField,
+  uid: string,
+  value: SheetValueInput,
+  context: z.RefinementCtx,
+): void {
+  if (
+    field.type !== 'track'
+    || typeof field.max !== 'number'
+    || !hasOutOfRangeNumericTrackParts(field, value)
+  ) return;
+
+  const min = field.min ?? 0;
+  context.addIssue({
+    code: 'custom',
+    path: [uid, 'parts'],
+    message: `field ${uid} parts total must be between ${min} and ${field.max}`,
+  });
+}
+
+/**
+ * 数値maxを持つtrack partsが範囲外かを判定する。
+ * 数値maxは入力境界で早期検出し、永続化前にもservice層で同じ不変条件を確認する。
+ * formula maxは他フィールドを含む評価文脈が必要なため、service層が解決・検査を担う。
+ */
+function hasOutOfRangeNumericTrackParts(
+  field: SheetField,
+  value: unknown,
+): boolean {
+  if (field.type !== 'track' || typeof field.max !== 'number' || !isPartsValue(value)) return false;
+  const parts = (value as { parts: unknown }).parts;
+  if (typeof parts !== 'object' || parts === null || Array.isArray(parts)) return false;
+
+  const partValues = Object.values(parts);
+  if (partValues.some((part) => typeof part !== 'number' || !Number.isFinite(part))) return false;
+  const total = (partValues as number[]).reduce((sum, part) => sum + part, 0);
+  return (field.min ?? 0) - total > EPSILON || total - field.max > EPSILON;
 }
 
 function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValueInput> | undefined {
