@@ -72,13 +72,7 @@ describe('HubRefreshWorker', () => {
     ['ForbiddenException', new ForbiddenException('sheet template is not accessible')]
   ])('%sは初回でTEMPLATE_UNRESOLVABLEへ終端する', async (_name, resolutionError) => {
     operations.getHubCharacter.mockRejectedValue(resolutionError)
-    operations.markHubRefreshError.mockResolvedValue({
-      ...activeCharacter(2, 2, 1),
-      hub: {
-        status: 'error',
-        errorCode: CHARACTER_HUB_ERROR_CODES.TEMPLATE_UNRESOLVABLE
-      }
-    })
+    operations.markHubRefreshError.mockResolvedValue('marked')
 
     worker.wake('char-1')
     await waitForIdle(worker)
@@ -98,13 +92,7 @@ describe('HubRefreshWorker', () => {
       new UnprocessableEntityException('resource evaluation failed')
     )
     operations.getHubCharacter.mockRejectedValue(projectionError)
-    operations.markHubRefreshError.mockResolvedValue({
-      ...activeCharacter(2, 2, 1),
-      hub: {
-        status: 'error',
-        errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
-      }
-    })
+    operations.markHubRefreshError.mockResolvedValue('marked')
 
     worker.wake('char-1')
     await waitForIdle(worker)
@@ -118,13 +106,7 @@ describe('HubRefreshWorker', () => {
 
   it('分類外のread Errorは初回でPROJECTION_FAILEDへ終端する', async () => {
     operations.getHubCharacter.mockRejectedValue(new Error('mongo unavailable'))
-    operations.markHubRefreshError.mockResolvedValue({
-      ...activeCharacter(2, 2, 1),
-      hub: {
-        status: 'error',
-        errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
-      }
-    })
+    operations.markHubRefreshError.mockResolvedValue('marked')
 
     worker.wake('char-1')
     await waitForIdle(worker)
@@ -164,6 +146,26 @@ describe('HubRefreshWorker', () => {
     )
   })
 
+  it('read-pathの終端CAS失敗後は同じcharacterをquarantineする', async () => {
+    const readError = new Error('read failed')
+    operations.getHubCharacter.mockRejectedValue(readError)
+    operations.markHubRefreshError.mockResolvedValue('cas-failed')
+    const logger = (worker as unknown as { logger: { error: jest.Mock } }).logger
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    worker.wake('char-1')
+    await waitForIdle(worker)
+    worker.wake('char-1')
+    await waitForIdle(worker)
+
+    expect(operations.getHubCharacter).toHaveBeenCalledTimes(1)
+    expect((worker as unknown as { quarantinedCharacterIds: Set<string> }).quarantinedCharacterIds).toContain('char-1')
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Hub refresh quarantined: char-1 (terminal state CAS did not match'),
+      readError
+    )
+  })
+
   it('markErrorのCAS null後は同じcharacterを次sweepで再実行しない', async () => {
     operations.findHubRefreshCandidates.mockResolvedValue([activeCharacter(2, 2, 1)])
     operations.getHubCharacter.mockResolvedValue(activeCharacter(2, 2, 1))
@@ -192,10 +194,7 @@ describe('HubRefreshWorker', () => {
 
   it('終端書き込み成功時はquarantineしない', async () => {
     operations.getHubCharacter.mockRejectedValue(new Error('read failed'))
-    operations.markHubRefreshError.mockResolvedValue({
-      ...activeCharacter(2, 2, 1),
-      hub: { status: 'error', errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED }
-    })
+    operations.markHubRefreshError.mockResolvedValue('marked')
 
     worker.wake('char-1')
     await waitForIdle(worker)
@@ -205,19 +204,26 @@ describe('HubRefreshWorker', () => {
     )
   })
 
-  it('1周目成功後のeligibility確認fetch失敗もPROJECTION_FAILEDへ終端する', async () => {
+  it('1周目成功後のfetch失敗時、pending==appliedならquarantineせず次のpendingを処理する', async () => {
+    const readError = new Error('temporary fetch failure')
+    let current = activeCharacter(2, 2, 1)
     operations.getHubCharacter
-      .mockResolvedValueOnce(activeCharacter(2, 2, 1))
-      .mockRejectedValueOnce(new Error('temporary fetch failure'))
-    operations.setHubState.mockResolvedValue(activeCharacter(2, 2, 2))
-    operations.markHubRefreshError.mockResolvedValue({
-      ...activeCharacter(2, 2, 1),
-      hub: {
-        status: 'error',
-        errorCode: CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED
-      }
+      .mockImplementationOnce(async () => current)
+      .mockRejectedValueOnce(readError)
+      .mockImplementation(async () => current)
+    operations.setHubState.mockImplementation(async (_characterId, _from, to) => {
+      const revision = (to as { appliedRevision: number }).appliedRevision
+      current = activeCharacter(revision, revision, revision)
+      return current
+    })
+    operations.markHubRefreshError.mockImplementation(async () => {
+      const pendingRevision = current.hub?.pendingRevision ?? 0
+      const appliedRevision = current.hub?.appliedRevision ?? 0
+      return pendingRevision > appliedRevision ? 'marked' : 'not-applicable'
     })
     gateway.edit.mockResolvedValue(undefined)
+    const logger = (worker as unknown as { logger: { warn: jest.Mock } }).logger
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined)
 
     worker.wake('char-1')
     await waitForIdle(worker)
@@ -225,6 +231,18 @@ describe('HubRefreshWorker', () => {
     expect(gateway.edit).toHaveBeenCalledTimes(1)
     expect(operations.getHubCharacter).toHaveBeenCalledTimes(2)
     expect(operations.markHubRefreshError).toHaveBeenCalledWith('char-1', CHARACTER_HUB_ERROR_CODES.PROJECTION_FAILED)
+    expect((worker as unknown as { quarantinedCharacterIds: Set<string> }).quarantinedCharacterIds).not.toContain(
+      'char-1'
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Hub refresh error state not applicable: char-1 (PROJECTION_FAILED); cause=temporary fetch failure'
+    )
+
+    current = activeCharacter(3, 3, 2)
+    worker.wake('char-1')
+    await waitForIdle(worker)
+
+    expect(gateway.edit).toHaveBeenCalledTimes(2)
   })
 
   it('T-8: deferred edit中の2回wakeをcoalesceし、同時1・最後は最新revisionへ収束する', async () => {

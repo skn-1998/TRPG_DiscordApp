@@ -91,6 +91,8 @@ export interface HubProjectionCharacter extends CharacterEntity {
   resolvedResourceValues?: Readonly<Record<string, number>>
 }
 
+export type MarkHubRefreshErrorResult = 'marked' | 'not-applicable' | 'cas-failed'
+
 export class HubProjectionPreparationError extends Error {
   constructor(readonly projectionCause: unknown) {
     super('hub projection preparation failed')
@@ -169,14 +171,15 @@ export class CharacterSheetOperationService {
    * hub 読み取り中に失敗した worker が、characterId だけで active hub を error へ遷移させる。
    * その時点の最新 active 世代だけを対象とし、失敗直前に読もうとした世代を狙い撃ちはしない。
    */
-  async markHubRefreshError(characterId: string, errorCode: string): Promise<CharacterEntity | null> {
+  async markHubRefreshError(characterId: string, errorCode: string): Promise<MarkHubRefreshErrorResult> {
     const character = await this.getPendingActiveHub(characterId)
-    if (character === null) return null
-    return this.setHubState(
+    if (character === null) return 'not-applicable'
+    const updated = await this.setHubState(
       characterId,
       { status: 'active', messageId: character.hub!.messageId },
       { status: 'error', errorCode }
     )
+    return updated === null ? 'cas-failed' : 'marked'
   }
 
   async saveSheet(input: SaveSheetInput): Promise<SaveSheetResult> {

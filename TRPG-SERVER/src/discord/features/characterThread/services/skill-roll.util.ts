@@ -7,12 +7,14 @@
  */
 
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import { getDisplayNumber, isAttributeNumberParts, isAttributeValue } from '../../../../core/types/attribute.types'
 
 /**
  * スキル値オブジェクトからスキルレベル文字列を抽出する（純粋）。
  *
- * 現挙動を保存（旧 thread-interaction.service の private extractSkillLevel と同一）:
- * - AttributeValue（object かつ values あり）: values.level → value → base の順で採用
+ * - AttributeValue: values 内の全 number part を表示規則と同様に合算
+ * - legacy number-parts object: 読み出し境界の正規化前フォールバックとして同じ規則で合算
+ *   （character-attribute.mapper.ts は未知キーを TypeError で拒否するため、正規化済みの本番経路では到達しない）
  * - number: そのまま文字列化
  * - string: 最初の連続数字
  * - それ以外 / 解決不能: null
@@ -20,14 +22,16 @@ import { CharacterEntity } from '../../../../domains/character/models/character.
 export function extractSkillLevel(skillValue: unknown): string | null {
   if (!skillValue) return null
 
-  if (typeof skillValue === 'object' && (skillValue as { values?: unknown }).values) {
-    const values = (skillValue as { values: Record<string, unknown> }).values
-    if (values.level) return String(values.level)
-    if (values.value) return String(values.value)
-    if (values.base) return String(values.base)
-  } else if (typeof skillValue === 'number') {
+  if (isAttributeValue(skillValue) && skillValue.values !== undefined && Object.keys(skillValue.values).length > 0) {
+    return String(getDisplayNumber(skillValue))
+  }
+  if (isAttributeNumberParts(skillValue)) {
+    return String(getDisplayNumber({ values: skillValue }))
+  }
+  if (typeof skillValue === 'number') {
     return String(skillValue)
-  } else if (typeof skillValue === 'string') {
+  }
+  if (typeof skillValue === 'string') {
     const match = skillValue.match(/\d+/)
     return match ? match[0] : null
   }
