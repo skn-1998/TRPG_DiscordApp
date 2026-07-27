@@ -76,6 +76,7 @@ export const isAttributeSection = (value: unknown): value is AttributeSection =>
 
 /**
  * 表示用合算値を算出（index は対象外。values の number をすべて合算）
+ * character-modal-handler.util.ts の編集モーダル逆算は、この合算規則に依存する。
  * @param attr 属性値オブジェクト
  * @returns 合算された表示値
  */

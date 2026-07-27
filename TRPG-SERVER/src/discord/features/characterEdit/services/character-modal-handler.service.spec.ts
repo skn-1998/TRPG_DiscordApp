@@ -233,10 +233,10 @@ describe('CharacterModalHandlerService (characterization)', () => {
       // 更新は CharacterService.update の直呼び（RPC ではない）
       expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
         status: {
-          // formData.name が無いため finalName = fieldKey('hp')。
+          // formData.name が無いため既存 name を維持する。
           // 未指定の dice/index は null を保存せず、省略可能プロパティとして省く。
           hp: {
-            name: 'hp',
+            name: 'HP',
             values: { base: 20 },
             description: 'desc',
             isVisible: true
@@ -267,6 +267,151 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       // 成功時は deleteReply が呼ばれる
       expect(interaction.deleteReply).toHaveBeenCalled()
+    })
+
+    it('既存フィールドのvalues内訳・index・isVisibleを維持して合算値を更新する', async () => {
+      setupSession()
+      const characterWithParts = {
+        ...character,
+        status: {
+          hp: {
+            name: 'HP',
+            index: 2,
+            values: { base: 10, other: 5 },
+            description: 'old description',
+            dice: '1d6',
+            isVisible: false
+          }
+        }
+      }
+      mockCharacterService.findOne.mockResolvedValue(characterWithParts)
+      mockCharacterService.update.mockResolvedValue(characterWithParts)
+      mockTypedEventService.emit.mockResolvedValue(undefined)
+      mockEmbedManager.createSectionedEmbeds.mockResolvedValue({ embeds: [], components: [] })
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+      ;(interaction as unknown as { channel: unknown }).channel = {}
+
+      const promise = service.handleModalSubmit(interaction)
+      await jest.advanceTimersByTimeAsync(200)
+      await promise
+
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
+        status: {
+          hp: {
+            name: 'HP',
+            index: 2,
+            values: { other: 5, base: 15 },
+            isVisible: false
+          }
+        }
+      })
+    })
+
+    it('既存partがあるフィールドへの非数値入力では更新しない', async () => {
+      setupSession()
+      mockCharacterService.findOne.mockResolvedValue({
+        ...character,
+        status: {
+          hp: {
+            name: 'HP',
+            values: { base: 10, other: 5 }
+          }
+        }
+      })
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': 'abc' }
+      })
+
+      await service.handleModalSubmit(interaction)
+
+      expect(mockCharacterService.update).not.toHaveBeenCalled()
+      expect(mockTypedEventService.emit).not.toHaveBeenCalled()
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'キャラクター情報の更新に失敗しました。'
+      })
+    })
+
+    it('既存partがあっても数値欄が空ならvalues全体をクリアする', async () => {
+      setupSession()
+      const characterWithParts = {
+        ...character,
+        status: {
+          hp: {
+            name: 'HP',
+            values: { base: 10, other: 5 },
+            description: 'kept description'
+          }
+        }
+      }
+      mockCharacterService.findOne.mockResolvedValue(characterWithParts)
+      mockCharacterService.update.mockResolvedValue(characterWithParts)
+      mockTypedEventService.emit.mockResolvedValue(undefined)
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: {
+          'field-values': '   ',
+          'field-description': 'kept description'
+        }
+      })
+      ;(interaction as unknown as { channel: unknown }).channel = {}
+
+      const promise = service.handleModalSubmit(interaction)
+      await jest.advanceTimersByTimeAsync(200)
+      await promise
+
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
+        status: {
+          hp: {
+            name: 'HP',
+            values: {},
+            description: 'kept description',
+            isVisible: true
+          }
+        }
+      })
+    })
+
+    it('valuesを持たない既存フィールドでも数値を編集できる', async () => {
+      setupSession()
+      const characterWithoutValues = {
+        ...character,
+        status: {
+          hp: {
+            name: 'HP',
+            description: 'legacy description'
+          }
+        }
+      }
+      mockCharacterService.findOne.mockResolvedValue(characterWithoutValues)
+      mockCharacterService.update.mockResolvedValue(characterWithoutValues)
+      mockTypedEventService.emit.mockResolvedValue(undefined)
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+      ;(interaction as unknown as { channel: unknown }).channel = {}
+
+      const promise = service.handleModalSubmit(interaction)
+      await jest.advanceTimersByTimeAsync(200)
+      await promise
+
+      expect(mockCharacterService.update).toHaveBeenCalledWith('char-1', {
+        status: {
+          hp: {
+            name: 'HP',
+            values: { base: 20 },
+            isVisible: true
+          }
+        }
+      })
     })
 
     it('セッション無し(customId解析失敗)でエラーレスポンス', async () => {

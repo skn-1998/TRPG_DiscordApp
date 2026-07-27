@@ -246,7 +246,7 @@ export class CharacterSectionEditorService {
     }
     const nameRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput)
 
-    // 2. 数値 (values.base)
+    // 2. 数値（values の合算値。保存時に base へ逆算: character-modal-handler.util.ts 参照）
     const valuesInput = new TextInputBuilder()
       .setCustomId('field-values')
       .setLabel('数値')

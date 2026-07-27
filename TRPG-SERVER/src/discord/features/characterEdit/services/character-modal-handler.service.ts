@@ -13,6 +13,7 @@ import { CharacterService } from '../../../../domains/character/character.servic
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EVENT_NAMES } from '../../../../events/contracts'
 import { ErrorHandler } from '../../../../core/http/error-handler'
+import { isAttributeValue } from '../../../../core/types/attribute.types'
 import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
@@ -302,7 +303,14 @@ export class CharacterModalHandlerService {
       })
 
       // AttributeValue を構築（純関数）
-      const { actualFieldKey, attributeValue } = buildAttributeValueFromForm(fieldKey, formData, Date.now())
+      const rawExistingAttributeValue = sectionData[fieldKey]
+      const existingAttributeValue = isAttributeValue(rawExistingAttributeValue) ? rawExistingAttributeValue : undefined
+      const builtAttributeValue = buildAttributeValueFromForm(fieldKey, formData, Date.now(), existingAttributeValue)
+      if (!builtAttributeValue) {
+        this.logger.error(`Invalid numeric value for field ${fieldKey}`)
+        return false
+      }
+      const { actualFieldKey, attributeValue } = builtAttributeValue
 
       this.logger.debug(`Creating AttributeValue for ${actualFieldKey}:`, JSON.stringify(attributeValue, null, 2))
 
