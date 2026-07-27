@@ -26,6 +26,7 @@ import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
 import { ResponseInterceptor, HttpExceptionFilter, ApiErrorResponse, ApiError } from '../../core/http'
 import { toUserOutput } from './presenters/user-output.presenter'
+import type { DiscordGuildsPayloadWire, UserProfileWire } from '@trpg/api-contract'
 
 interface RequestWithUser extends Request {
   user: JwtTokenPayload
@@ -83,7 +84,7 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'Return the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiErrorResponse(500, 'ユーザー取得に失敗しました')
-  async findOne(@Req() req: RequestWithUser): Promise<UserOutputDto> {
+  async findOne(@Req() req: RequestWithUser): Promise<UserProfileWire> {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const user = await this.userService.findByDiscordId(discordUserId)
     if (!user) {
@@ -98,7 +99,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get user Discord guilds' })
   @ApiResponse({ status: 200, description: 'Return the user Discord guilds.' })
   @ApiErrorResponse(500, 'Discord Guild一覧取得に失敗しました')
-  async getDiscordGuilds(@Req() req: RequestWithUser): Promise<{ guilds: unknown[]; count: number; message: string }> {
+  async getDiscordGuilds(@Req() req: RequestWithUser): Promise<DiscordGuildsPayloadWire> {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const guilds = await this.userService.getUserDiscordGuilds(discordUserId)
     return {

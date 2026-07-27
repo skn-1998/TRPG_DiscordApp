@@ -1,14 +1,32 @@
+import { ExecutionContext, INestApplication } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { getModelToken, MongooseModule } from '@nestjs/mongoose'
 import { EventEmitterModule } from '@nestjs/event-emitter'
+import { Request } from 'express'
 import { Model } from 'mongoose'
+import request from 'supertest'
+import {
+  characterSummaryRuntimeKeys,
+  expectAllRequiredCharacterRuntimeKeys,
+  expectCharacterEntitySchemaWireData,
+  expectIsoDateString,
+  expectOnlyCharacterRuntimeKeys,
+  expectOnlyCharacterSummaryRuntimeKeys,
+  expectSuccessEnvelope,
+  JsonObject
+} from 'test/utils/character-http-contract'
+import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
+import { AppConfigService } from '../../config/config.service'
+import { ResponseInterceptor } from '../../core/http'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
 import { TypedEventService } from '../../core/events/typed-event.service'
 import { Character, CharacterDocument, CharacterSchema, CHARACTER_MODEL } from './models/character.model'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { v4 as uuidv4 } from 'uuid'
-import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { CharacterHttpExceptionFilter } from './character-http.exception'
+import { CharacterController } from './character.controller'
 
 /**
  * Character CRUD 結合テスト（実 MongoDB 使用）
@@ -27,12 +45,17 @@ import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
  */
 describe('Character CRUD Integration Test', () => {
   let module: TestingModule
+  let app: INestApplication
   let characterService: CharacterService
   let characterRepository: CharacterRepository
   let typedEventService: TypedEventService
   let characterModel: Model<CharacterDocument>
 
   const mongoUri = requireIsolatedMongoUri()
+  const authenticatedUser = {
+    username: 'character-integration-http-user',
+    discordUserId: 'character-integration-http-user-id'
+  }
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
@@ -46,10 +69,13 @@ describe('Character CRUD Integration Test', () => {
           ignoreErrors: false
         })
       ],
+      controllers: [CharacterController],
       providers: [
         CharacterService,
         CharacterRepository,
         TypedEventService,
+        CharacterHttpExceptionFilter,
+        ResponseInterceptor,
         {
           provide: 'TYPED_EVENT_EMITTER',
           useFactory: () =>
@@ -59,15 +85,32 @@ describe('Character CRUD Integration Test', () => {
               maxListeners: 10,
               ignoreErrors: false
             })
+        },
+        {
+          provide: AppConfigService,
+          useValue: {
+            get: jest.fn(() => 'test')
+          }
         }
       ]
-    }).compile()
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const req = context.switchToHttp().getRequest<Request>()
+          req.user = authenticatedUser
+          return true
+        }
+      })
+      .compile()
 
     characterService = module.get<CharacterService>(CharacterService)
     characterRepository = module.get<CharacterRepository>(CharacterRepository)
     typedEventService = module.get<TypedEventService>(TypedEventService)
     characterModel = module.get<Model<CharacterDocument>>(getModelToken(CHARACTER_MODEL))
 
+    app = module.createNestApplication()
+    await app.init()
     await clearTestDatabase()
   })
 
@@ -80,7 +123,7 @@ describe('Character CRUD Integration Test', () => {
       typedEventService.removeAllListeners('character.deleted' as any)
     }
 
-    await module.close()
+    await app.close()
   })
 
   async function clearTestDatabase(): Promise<void> {
@@ -199,7 +242,10 @@ describe('Character CRUD Integration Test', () => {
         characterName: 'Find Test Character',
         gameSystemId: 'coc',
         discordUserId: 'test-user-123',
-        discordChannelId: 'find-test-channel-456'
+        discordChannelId: 'find-test-channel-456',
+        status: {
+          HP: { name: 'HP', values: { base: 10 } }
+        }
       }
       testCharacter = await characterService.create(createData)
     })
@@ -212,9 +258,154 @@ describe('Character CRUD Integration Test', () => {
       expect(found!.characterName).toBe(testCharacter.characterName)
     })
 
+    it('repository の実 projection は character runtime 契約の許可キーだけを必須キー込みで返す', async () => {
+      const projected = await characterRepository.findByChannelId(testCharacter.discordChannelId)
+
+      expect(projected).not.toBeNull()
+      expectOnlyCharacterRuntimeKeys(projected! as unknown as JsonObject)
+      expectAllRequiredCharacterRuntimeKeys(projected! as unknown as JsonObject)
+    })
+
     it('should return null for a non-existent channel', async () => {
       const found = await characterService.findByChannelId('non-existent-channel-id')
       expect(found).toBeNull()
+    })
+  })
+
+  describe('Character HTTP Payload Contract', () => {
+    const completeCharacterId = 'character-integration-http-complete'
+    const legacySummaryCharacterId = 'character-integration-http-legacy-summary'
+    const retryAt = new Date('2026-07-03T03:04:05.006Z')
+
+    beforeEach(async () => {
+      await characterService.create({
+        characterId: completeCharacterId,
+        characterName: 'Integration HTTP Complete Character',
+        gameSystemId: 'coc7',
+        discordUserId: authenticatedUser.discordUserId,
+        discordChannelId: 'integration-http-channel',
+        discordThreadId: 'integration-http-thread',
+        status: {
+          HP: { name: 'HP', index: 1, values: { base: 12, other: -2 }, isVisible: true }
+        },
+        skill: {
+          SpotHidden: { name: '目星', values: { base: 25 }, dice: '1d100' }
+        },
+        parameter: {
+          STR: { name: 'STR', values: { base: 60 } }
+        },
+        item: {
+          Rope: { name: 'ロープ', description: '10m' }
+        },
+        description: {
+          Memo: { name: 'メモ', description: 'integration payload fixture' }
+        }
+      })
+      await characterModel.collection.updateOne(
+        { characterId: completeCharacterId },
+        {
+          $set: {
+            sheet: {
+              templateId: 'template-id',
+              templateVersion: '1.0.0',
+              revision: 3,
+              values: { hp: 10, note: 'ready' }
+            },
+            computedCache: {
+              hp: 10,
+              label: 'healthy',
+              visible: true
+            },
+            palette: [
+              {
+                key: 'spot-hidden',
+                fieldRef: { uid: 'skill-spot-hidden' },
+                label: '目星',
+                kind: 'roll',
+                notation: '1d100',
+                group: 'skills'
+              },
+              {
+                key: 'hp-delta',
+                fieldRef: { uid: 'status-hp', rowId: 'main' },
+                label: 'HP',
+                kind: 'resource',
+                deltas: [-1, 1],
+                group: 'resources'
+              }
+            ],
+            hub: {
+              status: 'active',
+              opId: 'hub-operation-id',
+              messageId: 'hub-message-id',
+              threadId: 'hub-thread-id',
+              pendingRevision: 4,
+              appliedRevision: 3,
+              retryAt,
+              errorCode: 'RETRY_PENDING'
+            },
+            appliedInteractionIds: ['interaction-1']
+          }
+        }
+      )
+
+      await characterService.create({
+        characterId: legacySummaryCharacterId,
+        characterName: 'Integration Legacy Summary Character',
+        gameSystemId: 'coc6',
+        discordUserId: authenticatedUser.discordUserId,
+        discordChannelId: 'integration-legacy-summary-channel'
+      })
+    })
+
+    it('GET /character/:id は実 service と実 Mongo の完全 payload を契約どおり返す', async () => {
+      const stored = await characterModel.collection.findOne({ characterId: completeCharacterId })
+      const response = await request(app.getHttpServer()).get(`/character/${completeCharacterId}`).expect(200)
+      const body = response.body as JsonObject
+      const data = body.data as JsonObject
+
+      expectSuccessEnvelope(body, 'キャラクターを取得しました')
+      expectOnlyCharacterRuntimeKeys(data)
+      expectAllRequiredCharacterRuntimeKeys(data)
+      expect(stored).not.toBeNull()
+      expect(data._id).toBe(stored!._id.toHexString())
+      expect(data.__v).toBe(0)
+      expectIsoDateString(data.createdAt)
+      expectIsoDateString(data.updatedAt)
+      expectIsoDateString((data.hub as JsonObject).retryAt)
+      expectCharacterEntitySchemaWireData(data)
+    })
+
+    it('GET /character/summaries は実 summary mapper の全要素と条件付き省略を契約どおり返す', async () => {
+      const response = await request(app.getHttpServer()).get('/character/summaries').expect(200)
+      const body = response.body as JsonObject
+      const data = body.data as JsonObject[]
+
+      expectSuccessEnvelope(body, 'キャラクターサマリーを取得しました', ['meta'])
+      expect(body.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 2,
+        hasNext: false,
+        hasPrev: false
+      })
+      for (const summary of data) {
+        expectOnlyCharacterSummaryRuntimeKeys(summary)
+      }
+
+      const completeSummary = data.find((summary) => summary.characterId === completeCharacterId)
+      const legacySummary = data.find((summary) => summary.characterId === legacySummaryCharacterId)
+      expect(completeSummary).toBeDefined()
+      expect(legacySummary).toBeDefined()
+      expect(Object.keys(completeSummary!).sort()).toEqual([...characterSummaryRuntimeKeys].sort())
+      expect(completeSummary).toEqual({
+        characterId: completeCharacterId,
+        characterName: 'Integration HTTP Complete Character',
+        gameSystemId: 'coc7',
+        templateVersion: '1.0.0',
+        hub: { status: 'active' }
+      })
+      expect(Object.keys(legacySummary!).sort()).toEqual(['characterId', 'characterName', 'gameSystemId'].sort())
     })
   })
 

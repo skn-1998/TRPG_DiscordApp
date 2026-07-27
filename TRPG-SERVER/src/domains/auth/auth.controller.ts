@@ -25,6 +25,7 @@ import { DiscordUserProfile } from './models/discord-user.model'
 import { CookieService } from '../../core/http/cookie.service'
 import { ResponseInterceptor, HttpExceptionFilter, SkipResponseWrapper } from '../../core/http'
 import { AppConfigService } from '../../config/config.service'
+import type { LoginDataWire } from '@trpg/api-contract'
 
 // Express型の拡張を使用（src/types/express/index.d.tsで定義）
 
@@ -128,13 +129,7 @@ export class AuthController {
     @Body() loginDto: DiscordLoginDto,
     @Req() _req: ExpressRequest,
     @Res({ passthrough: true }) res: Response
-  ): Promise<{
-    message: string
-    discordUserId: string | undefined
-    userName: string | undefined
-    token: string
-    user: { id: string; username: string; avatar: string | undefined }
-  }> {
+  ): Promise<LoginDataWire> {
     const { code } = loginDto
     if (!code) {
       throw new BadRequestException('認証コードが指定されていません')
@@ -159,12 +154,12 @@ export class AuthController {
     // 成功データを return → ResponseInterceptor が SuccessResponse でラップ
     return {
       message: '認証成功',
-      discordUserId: user.discordUserId,
-      userName: user.name,
+      discordUserId: userInfo.id,
+      userName: userInfo.username,
       token: jwt,
       user: {
-        id: user.discordUserId!,
-        username: user.name!,
+        id: userInfo.id,
+        username: userInfo.username,
         avatar: user.avatarHash
       }
     }

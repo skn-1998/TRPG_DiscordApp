@@ -19,11 +19,6 @@ export interface CharacterSummaryDto {
    */
   gameSystemId: string
 
-  /**
-   * キャラクターチャンネルID
-   */
-  discordChannelId?: string
-
   /** materialized sheet を legacy pin より優先して解決したテンプレート版 */
   templateVersion?: string
 

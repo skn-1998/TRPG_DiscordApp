@@ -20,6 +20,7 @@ import {
 } from '@nestjs/common'
 import { Request } from 'express'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger'
+import type { CharacterDeleteResultWire } from '@trpg/api-contract'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { CharacterInputDto, CharacterIdParamDto } from './dto/create-character.dto'
@@ -35,6 +36,7 @@ import {
   CharacterAuthenticationException,
   CharacterNotFoundException
 } from './character-http.exception'
+import type { CharacterSummaryDto } from './dto/character-summary.dto'
 
 export const CHARACTER_SHEET_OPERATION_USE_CASE = Symbol('CHARACTER_SHEET_OPERATION_USE_CASE')
 export const CHARACTER_INSTANTIATION_USE_CASE = Symbol('CHARACTER_INSTANTIATION_USE_CASE')
@@ -163,7 +165,7 @@ export class CharacterController {
   @ApiResponse({ status: 200, description: 'キャラクターサマリー取得成功' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async findUserCharacterSummaries(@Req() req: Request): Promise<SuccessResponse<unknown>> {
+  async findUserCharacterSummaries(@Req() req: Request): Promise<SuccessResponse<CharacterSummaryDto[]>> {
     const user = this.extractAuthenticatedUser(req)
     const summaries = await this.characterService.findUserCharacterSummaries(user.discordUserId)
 
@@ -249,10 +251,7 @@ export class CharacterController {
   @ApiResponse({ status: 404, description: 'キャラクターが見つかりません' })
   @ApiResponse({ status: 401, description: '認証エラー' })
   @ApiResponse({ status: 500, description: 'サーバーエラー' })
-  async remove(
-    @Param() params: CharacterIdParamDto,
-    @Req() req: Request
-  ): Promise<{ message: string; characterId: string }> {
+  async remove(@Param() params: CharacterIdParamDto, @Req() req: Request): Promise<CharacterDeleteResultWire> {
     const user = this.extractAuthenticatedUser(req)
     const { id } = params
     const deletedCharacter = await this.characterService.removeForOwner(id, user.discordUserId)
