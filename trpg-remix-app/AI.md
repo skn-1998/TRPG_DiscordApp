@@ -427,8 +427,10 @@ const character = characterHandler.handleSuccess(response)
   **character payload は型宣言レベルの橋（`character-wire.contract.spec.ts`）で固定**し、
   entity/wire のトップレベルのキー集合・値型・意図的な optional 差分と、summary の型宣言同値を
   assert する。さらに `character.controller.http.spec.ts` が実 HTTP body のトップレベルキーを
-  `characterEntitySchema.shape` から runtime 導出して照合し、Date の ISO 直列化、legacy section 欠損、
-  summary payload と meta を通常 Jest suite で固定する。
+  `characterEntitySchema.shape` から runtime 導出して照合し、create / findAll / findOne / update / remove /
+  summaries の HTTP status と封筒キー、create / findAll / findOne / update の Date の ISO 直列化、
+  legacy section 欠損、一覧と summary の meta、
+  findAll の二重ラップ防止、remove の封筒 message と削除結果 message を通常 Jest suite で固定する。
   delete は契約側で wire 単体の required/optional を固定し、controller が契約型を直接宣言する。
   controller 戻り型は原則 entity 型のままだが、`remove()` は例外として wire を直接返す。
 - **保証しない**: opaque な入れ子値、通常ゲート外の部分 projection、
@@ -464,10 +466,14 @@ const character = characterHandler.handleSuccess(response)
    server build は spec を除外するため、character の型レベル橋を単独では評価しない。
    `check:contract-stack` が閉じるのは、封筒フィールド形（`implements`）、封筒 runtime 生成
    （interceptor/filter spec）、front の型/lint/公開面、character の型宣言レベルの橋、
-   CharacterController の実 HTTP payload（schema 由来の許可キー、Date の ISO 化、summary/meta）。
+   通常 Jest の `character.controller.http.spec.ts` による CharacterController の実 HTTP payload
+   （create / findAll / findOne / update / remove / summaries の HTTP status と封筒、
+   schema 由来の許可キー、create / findAll / findOne / update の Date の ISO 化、
+   findAll / summary の meta、findAll の二重ラップ防止、remove の二層 message）。
    payload 型と server 実装の同値は auth login・user profile・guilds を S5a2 で機械固定済み。
    character は型宣言レベルの drift（トップレベルのキー集合・値型・意図的 optional 差分）に加え、
-   実 HTTP payload の代表経路を固定する。
+   `check:contract-stack` が実行する通常 Jest で CharacterController の全 CRUD と summaries の
+   実 HTTP payload を固定する。
 
    **未固定**
 
@@ -496,20 +502,37 @@ const character = characterHandler.handleSuccess(response)
    その他は静かな値化けになる。壊れたレコードは次回保存時に materializer が全体を再検査するため
    自己修復されず保存不能になる。）
 
-   **S7c で固定**
+   **S7c で固定・S7e で `findByName` を追加固定**
 
    ④projection された部分オブジェクトが CharacterEntity を騙るケースは、検証済み経路を
-   `CharacterRepository.findByChannelId()` と `findByIdForOwner()` に限定する。
-   `character.integration.spec.ts` が実 Mongo で、前者の repository projection と、後者を使う HTTP payload の
-   許可キー集合・必須キー集合を検証する。`test:integration`（Docker 必須）だけで走り、
-   `check:contract-stack` には含まれない。legacy 行で欠損を許す必須キーは、lean 経路で default 補完されない
-   `status` と wire optional の `discordChannelId` だけに限定する。
-   ⑤legacy 行の default 欠損は section を持たない代表ケースが HTTP 200 かつ欠損キーのままになることを固定済み。
+   `CharacterRepository.findByChannelId()` / `findByName()` と `findByIdForOwner()` に限定する。
+   `character.integration.spec.ts` が実 Mongo で、前二者の repository projection と、後者を使う HTTP payload の
+   許可キー集合・必須キー集合を検証する。S7e では `findByName()` の projection に
+   `gameSystemId` / `discordUserId` / `status` を加え、schema に存在しない
+   `attributes` / `primaryAttributes` を除去し、projection 由来で全行に発生していた必須キー欠落を解消した。
+   `test:integration`（Docker 必須）だけで走り、
+   `check:contract-stack` には含まれない。ただし、projection にキーを列挙しても、元 document に存在しないキーは
+   生成されない。document 側で欠損し得る必須キーは `status` と wire optional の `discordChannelId` である。
+   `status` 欠損は legacy 行に限らない。`CharacterService.create()` は section 未指定時に `{}` を渡すが、
+   `CharacterSchema.options.minimize = true` のため、Mongoose は保存時に空オブジェクトを除去する。
+   実測でも通常の `toObject()` では `status` が欠け、`toObject({ minimize: false })` では存在した。
+   さらに `normalizePersistedCharacterAttributes()` は `hasOwnProperty` が false の section を補完せず skip する。
+   このため S7e が解消したのは projection 由来の欠落だけであり、document 由来の必須キー欠落は残る。
+   ⑤`status` section を持たない行は、legacy か現行 create かを問わず HTTP 200 かつ欠損キーのままになり得る。
+   `character.controller.http.spec.ts` は legacy 代表行についてこの挙動を固定済み。
    ⑥HTTP payload は次の二層で固定する。
-   - **通常ゲート**: `character.controller.http.spec.ts` が代表 payload（service mock）の封筒・キー集合・値型・
-     Date→ISO 直列化・ルート解決を検査する。
-   - **Docker integration**: `character.integration.spec.ts` が実 CharacterService→実 repository→実 Mongo→
-     実 interceptor を通した実 payload に同じ検査を行い、summary mapper の全要素と条件付き省略も検査する。
+   - **通常ゲート**: `check:contract-stack` が通常 Jest の `character.controller.http.spec.ts` を実行し、
+     service mock を使う `POST /character`、`GET /character`、`GET /character/:id`、
+     `PUT /character/:id`、`DELETE /character/:id`、`GET /character/summaries` の HTTP status、
+     封筒、キー集合、値型、meta、二重ラップ防止、remove の二層 message、ルート解決を検査する。
+     Date の ISO 直列化は create / findAll / findOne / update の4経路で検査する。
+   - **Docker integration**: Docker 必須の `test:integration` が `character.integration.spec.ts` を実行し、
+     supertest の `GET /character/:id` と `GET /character/summaries` の2ルートだけを
+     実 CharacterService、実 repository、実 Mongo、実 interceptor 経由で検査する。
+     前者は HTTP 200、封筒、キー集合、値型、Date の ISO 直列化を検査し、
+     後者は HTTP 200、封筒、meta、summary mapper の全要素と条件付き省略を検査する。
+     `POST /character`、`GET /character`、`PUT /character/:id`、`DELETE /character/:id` の4ルートは、
+     service mock を使う通常ゲートだけで固定しており、Docker integration の実 HTTP 検査対象ではない。
      このほか `apiClient` ジェネリクスの無検証アサーション層は、型を書き間違えても通る。
      封筒適用の解除（`@UseInterceptors` の削除等）は S5a2 で固定済み。
 
@@ -561,8 +584,20 @@ const character = characterHandler.handleSuccess(response)
   この経路はスキーマ変更を永久に検出しない。
 - `app/utils/corsApiWithJwt.ts` は任意エンドポイントを無型で叩く。
   現消費はモックルート1件だけで、戻り値は未使用。
-- `CharacterRepository.findByName()` は projection が必須キー `gameSystemId` / `discordUserId` / `status` を
-  欠く部分オブジェクトを `CharacterEntity` として返す未是正の実例。S7e で対応予定。
+- `CharacterRepository.findByName()` は S7e で projection を全必須キーへ広げ、schema にない stale selector
+  `attributes` / `primaryAttributes` を除去した。これにより projection 由来の必須キー欠落は解消したが、
+  元 document に `status` がなければ返却値にも生成されないため、必須キー欠落そのものは残る。
+  案B（戻り型を維持して projection を広げる）を選んだ主根拠は、戻り型を狭める案では S7e の
+  許可ファイル外も変更する必要があったことであり、`CharacterService.findByName()` が entity 契約を
+  公開していることだけではない。`CharacterService.findByName()` の production 呼び出し元は0件であり、
+  repository を直接呼ぶ `CharacterIdService.isCharacterNameDuplicate()` も production 呼び出し元が0件なので、
+  `findByName` 経路は production から到達不能で、型を狭める利得も小さい。
+  document 欠損の扱いは、読み出し時正規化、data migration、現状維持の
+  製品判断を要する別タスクとする。
+- `CharacterRepository.findByChannelId()` の selector には schema にない `attributes` /
+  `primaryAttributes` が残る。履歴上 `character.model.ts` に両フィールドが存在したことはなく、
+  Mongoose の `strict: true` が書き込み時に未知キーを除去し、inclusion projection は存在しないパスを
+  無視する。このアプリが書いた document が両キーを持つことはなく、誤読を誘う以上の実害はない。
 - `packages/` に lint 設定がなく、`@trpg/api-contract` は未 lint。build/test と消費側の型検査だけでは、
   契約 package 内の lint 違反を検出できない。
 - `@trpg/sheet-engine`（6 suites）/ `@trpg/sheet-projection`（1 suite）の test は
