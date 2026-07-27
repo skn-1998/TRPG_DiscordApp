@@ -3,7 +3,7 @@ import { ModalBuilder, ModalSubmitInteraction, CacheType, ChannelType, MessageFl
 import { discordModalType } from 'src/discord/discord.type'
 import { CharacterService } from 'src/domains/character/character.service'
 import { CharacterEntity } from 'src/domains/character/models/character.entity'
-import { ErrorHandler } from 'src/core/http/error-handler'
+import { DiscordErrorReporter } from 'src/discord/utils/discord-error-reporter'
 import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
 import { DiceRollTextInputDto } from 'src/domains/dice-roll/dto/create-dice-roll-text.dto'
@@ -149,7 +149,7 @@ export class CustomDiceModalService implements discordModalType {
         await interaction.reply({ content: resultMessage })
       }
     } catch (error) {
-      await ErrorHandler.handleDiscordError(
+      await DiscordErrorReporter.handleDiscordError(
         error,
         interaction,
         {

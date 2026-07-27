@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { Response } from 'express'
+import request from 'supertest'
 import {
   HttpStatus,
   BadRequestException,
@@ -289,6 +290,34 @@ describe('AuthController', () => {
   })
 
   describe('POST /auth/login', () => {
+    it('DiscordLoginDto の code 必須欠落を pipe で handler 実行前に 400 にする', async () => {
+      const httpModule = await Test.createTestingModule({
+        controllers: [AuthController],
+        providers: [
+          { provide: AuthService, useValue: authService },
+          {
+            provide: AppConfigService,
+            useValue: { get: jest.fn((key: string) => configValues[key]) }
+          },
+          CookieService,
+          HttpExceptionFilter,
+          ResponseInterceptor
+        ]
+      }).compile()
+      const app = httpModule.createNestApplication()
+      await app.init()
+
+      try {
+        const response = await request(app.getHttpServer()).post('/auth/login').send({}).expect(HttpStatus.BAD_REQUEST)
+
+        expect(response.body.error).toContain('認証コードは必須です')
+        expect(response.body.error).not.toBe('認証コードが指定されていません')
+        expect(authService.authenticate).not.toHaveBeenCalled()
+      } finally {
+        await app.close()
+      }
+    })
+
     it('logs in with valid Discord code; envelope equals ApiResponseUtil.success', async () => {
       const loginDto: DiscordLoginDto = { code: 'valid-discord-code' }
       const req = mockRequest()

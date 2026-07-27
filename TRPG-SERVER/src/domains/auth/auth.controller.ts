@@ -8,6 +8,8 @@ import {
   UseGuards,
   UseInterceptors,
   UseFilters,
+  UsePipes,
+  ValidationPipe,
   HttpCode,
   HttpStatus,
   Headers,
@@ -117,7 +119,10 @@ export class AuthController {
    * @param loginDto ログイン情報
    * @param res レスポンス
    */
+  // @Headers() DTO にクラスレベルの whitelist を適用すると、Nest が小文字化した実ヘッダが strip され、
+  // validate-token が全リクエスト 400 になるため、body DTO の pipe は login のみに限定する。
   @Post('login')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: DiscordLoginDto,

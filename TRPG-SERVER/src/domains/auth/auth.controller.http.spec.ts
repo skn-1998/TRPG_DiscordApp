@@ -20,7 +20,7 @@ import { JwtTokenService } from './token/jwt-token.service'
  * 認証関連の実 HTTP 経路を検証する。
  * 実 AuthService・JwtTokenService・guard・filter・interceptor を通し、Discord 外部 HTTP 境界だけをモックする。
  */
-describe('AuthController HTTP integration', () => {
+describe('UserController GET /users JwtAuthGuard HTTP integration', () => {
   const jwtSecret = 'auth-controller-http-spec-secret'
   const userService = {
     findOne: jest.fn()
@@ -116,7 +116,7 @@ describe('AuthController HTTP integration', () => {
     expect(userService.findOne).not.toHaveBeenCalled()
   })
 
-  it('/auth/validate-token は無効 JWT を実 service/filter 経路で 401 に分類する', async () => {
+  it('/auth/validate-token は整形式 Bearer の無効 JWT を 400 でなく実 service/filter 経路の 401 にする', async () => {
     const response = await request(app.getHttpServer())
       .get('/auth/validate-token')
       .set('Authorization', 'Bearer invalid-jwt')
@@ -127,6 +127,18 @@ describe('AuthController HTTP integration', () => {
         success: false,
         message: 'エラーが発生しました',
         error: 'トークンが無効です'
+      })
+    )
+  })
+
+  it('/auth/validate-token は Authorization 欠落を従来どおり実 service/filter 経路の 401 にする', async () => {
+    const response = await request(app.getHttpServer()).get('/auth/validate-token').expect(401)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: '認証ヘッダーが無効または欠落しています'
       })
     )
   })

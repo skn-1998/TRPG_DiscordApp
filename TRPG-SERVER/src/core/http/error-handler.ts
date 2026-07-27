@@ -1,7 +1,5 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
 import { Response } from 'express'
-import { ButtonInteraction, ModalSubmitInteraction, SelectMenuInteraction, MessageFlags } from 'discord.js'
-import { respondEphemeralError } from '../../discord/utils/interaction-error-response.util'
 
 /**
  * エラーレスポンスの型定義
@@ -13,14 +11,6 @@ export interface ErrorResponse {
   timestamp: string
   path?: string
   statusCode?: number
-}
-
-/**
- * Discord エラーレスポンスの型定義
- */
-export interface DiscordErrorResponse {
-  content: string
-  ephemeral: boolean
 }
 
 /**
@@ -137,108 +127,6 @@ export class ErrorHandler {
   }
 
   /**
-   * Discord コマンドインタラクションエラーをハンドリング
-   * @param error エラーオブジェクト
-   * @param interaction Discordコマンドインタラクション
-   * @param context エラーコンテキスト
-   * @param customMessage カスタムエラーメッセージ
-   */
-  static async handleDiscordCommandError(
-    error: unknown,
-    interaction: import('discord.js').CommandInteraction | import('discord.js').AutocompleteInteraction,
-    context: ErrorContext,
-    customMessage?: string
-  ): Promise<void> {
-    const errorMessage = this.extractErrorMessage(error)
-
-    // ログ記録
-    this.logError(
-      error,
-      {
-        ...context,
-        discordUserId: interaction.user.id,
-        guildId: interaction.guild?.id,
-        channelId: interaction.channel?.id
-      },
-      'DISCORD_BOT'
-    )
-
-    // ユーザーフレンドリーなエラーメッセージ
-    const userMessage = customMessage || '⚠️ エラーが発生しました。もう一度お試しください。'
-
-    try {
-      // AutocompleteInteractionの場合は特別な処理
-      if (interaction.isAutocomplete()) {
-        await interaction.respond([])
-        return
-      }
-
-      // CommandInteractionの場合の処理
-      if (interaction.isChatInputCommand()) {
-        if (interaction.deferred) {
-          await interaction.editReply({
-            content: userMessage
-          })
-        } else if (!interaction.replied) {
-          await interaction.reply({
-            content: userMessage,
-            flags: MessageFlags.Ephemeral
-          })
-        }
-      }
-    } catch (replyError) {
-      // 応答に失敗した場合もログに記録
-      this.logger.error('Discord エラー応答に失敗', {
-        originalError: errorMessage,
-        replyError: this.extractErrorMessage(replyError)
-      })
-    }
-  }
-
-  /**
-   * Discord インタラクションエラーをハンドリング
-   * @param error エラーオブジェクト
-   * @param interaction Discordインタラクション
-   * @param context エラーコンテキスト
-   * @param customMessage カスタムエラーメッセージ
-   */
-  static async handleDiscordError(
-    error: unknown,
-    interaction: ButtonInteraction | ModalSubmitInteraction | SelectMenuInteraction,
-    context: ErrorContext,
-    customMessage?: string
-  ): Promise<void> {
-    const errorMessage = this.extractErrorMessage(error)
-
-    // ログ記録
-    this.logError(
-      error,
-      {
-        ...context,
-        discordUserId: interaction.user.id,
-        guildId: interaction.guild?.id,
-        channelId: interaction.channel?.id
-      },
-      'DISCORD_BOT'
-    )
-
-    // ユーザーフレンドリーなエラーメッセージ
-    const userMessage = customMessage || '⚠️ エラーが発生しました。もう一度お試しください。'
-
-    try {
-      await respondEphemeralError(interaction, userMessage)
-    } catch (replyError) {
-      // 応答に失敗した場合もログに記録
-      this.logger.error('Discord エラー応答に失敗', {
-        originalError: errorMessage,
-        replyError: this.extractErrorMessage(replyError),
-        interactionId: interaction.id,
-        userId: interaction.user.id
-      })
-    }
-  }
-
-  /**
    * サービス層エラーをハンドリング
    * @param error エラーオブジェクト
    * @param context エラーコンテキスト
@@ -279,7 +167,7 @@ export class ErrorHandler {
    * @param context エラーコンテキスト
    * @param type エラータイプ
    */
-  private static logError(error: unknown, context: ErrorContext, type: string): void {
+  static logError(error: unknown, context: ErrorContext, type: string): void {
     const errorMessage = this.extractErrorMessage(error)
     const timestamp = new Date().toISOString()
 
@@ -368,7 +256,7 @@ export class BackgroundTaskErrorHandler {
    * @param context エラーコンテキスト
    */
   static handleBackgroundError(error: unknown, taskName: string, context: ErrorContext = {}): void {
-    ErrorHandler['logError'](
+    ErrorHandler.logError(
       error,
       {
         ...context,

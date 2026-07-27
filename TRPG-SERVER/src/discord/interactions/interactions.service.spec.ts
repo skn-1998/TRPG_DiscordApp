@@ -21,6 +21,8 @@ type InteractionStub = {
   guildId: string | null
   customId: string
   reply: jest.Mock
+  editReply: jest.Mock
+  followUp: jest.Mock
 }
 
 /**
@@ -39,6 +41,8 @@ function createInteractionStub(overrides: Partial<InteractionStub> = {}): Intera
     guildId: 'guild-1',
     customId: 'some-custom-id',
     reply: jest.fn().mockResolvedValue(undefined),
+    editReply: jest.fn().mockResolvedValue(undefined),
+    followUp: jest.fn().mockResolvedValue(undefined),
     ...overrides
   }
 }
@@ -128,6 +132,28 @@ describe('InteractionsService', () => {
       // Assert
       expect(result).toBe(true)
       expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }))
+    })
+
+    it('registry が defer 後に throw したら ephemeral followUp を送り editReply しない', async () => {
+      // Arrange
+      const service = await createService()
+      const interaction = createInteractionStub()
+      registry.route.mockImplementation(async () => {
+        interaction.deferred = true
+        throw new Error('boom after defer')
+      })
+
+      // Act
+      const result = await service.handleInteraction(interaction as unknown as ButtonInteraction)
+
+      // Assert
+      expect(result).toBe(true)
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '❌ 処理中にエラーが発生しました。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect(interaction.reply).not.toHaveBeenCalled()
     })
   })
 

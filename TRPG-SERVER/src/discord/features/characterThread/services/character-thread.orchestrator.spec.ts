@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { HttpException, Logger } from '@nestjs/common'
+import { MessageFlags } from 'discord.js'
 import { createMockSelectMenuInteraction } from '@discord-test-utils'
 import { CharacterThreadOrchestrator } from './character-thread.orchestrator'
 import { ThreadCreationService } from './thread-creation.service'
@@ -161,7 +162,7 @@ describe('CharacterThreadOrchestrator', () => {
       )
     })
 
-    it('途中で例外が発生した場合、エラーリプライ後に ErrorHandler から再スローする', async () => {
+    it('update 前に例外が発生した場合、ephemeral reply 後に ErrorHandler から再スローする', async () => {
       // Arrange
       const originalError = new Error('DB失敗')
       const spy = jest.spyOn(ErrorHandler, 'handleServiceError')
@@ -178,14 +179,38 @@ describe('CharacterThreadOrchestrator', () => {
         { characterId: 'char-1', action: 'character-thread-selection' },
         'CharacterThreadOrchestrator'
       )
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('エラーが発生しました'),
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
+      expect((interaction.reply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(spy.mock.invocationCallOrder[0])
+    })
+
+    it('update 後に例外が発生した場合、作成中 placeholder を editReply で置換する', async () => {
+      // Arrange
+      const originalError = new Error('スレッド作成失敗')
+      characterService.findOne.mockResolvedValue(buildCharacter())
+      threadCreationService.createCharacterThread.mockRejectedValue(originalError)
+      const interaction = createMockSelectMenuInteraction({ values: ['char-1'] })
+      ;(interaction.update as jest.Mock).mockImplementation(async () => {
+        Object.assign(interaction, { replied: true })
+      })
+
+      // Act & Assert
+      await expect(service.handleSelection(interaction, 'char-1')).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
+
+      expect(interaction.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('エラーが発生しました')
+          content: expect.stringContaining('作成中')
         })
       )
-      expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        spy.mock.invocationCallOrder[0]
-      )
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('エラーが発生しました')
+      })
+      expect(interaction.reply).not.toHaveBeenCalled()
     })
 
     it('エラーリプライも失敗した場合は warn し元の HttpException を伝播する', async () => {
@@ -193,12 +218,12 @@ describe('CharacterThreadOrchestrator', () => {
       const replyError = new Error('reply failed')
       characterService.findOne.mockRejectedValue(originalError)
       const interaction = createMockSelectMenuInteraction({ values: ['char-1'] })
-      ;(interaction.editReply as jest.Mock).mockRejectedValue(replyError)
+      ;(interaction.reply as jest.Mock).mockRejectedValue(replyError)
 
       await expect(service.handleSelection(interaction, 'char-1')).rejects.toBe(originalError)
 
       expect(warnSpy).toHaveBeenCalledWith('Failed to send error reply:', 'reply failed')
-      expect(interaction.editReply).toHaveBeenCalledTimes(1)
+      expect(interaction.reply).toHaveBeenCalledTimes(1)
     })
   })
 })

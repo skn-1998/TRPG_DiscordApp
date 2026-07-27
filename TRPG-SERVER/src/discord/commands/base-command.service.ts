@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { CommandInteraction, AutocompleteInteraction } from 'discord.js'
-import { ErrorHandler } from '../../core/http/error-handler'
 import { TypedEventService } from '../../core/events/typed-event.service'
+import { DiscordErrorReporter } from '../utils/discord-error-reporter'
 
 @Injectable()
 export abstract class BaseCommandService {
@@ -22,7 +22,7 @@ export abstract class BaseCommandService {
     error: unknown,
     context: string
   ): Promise<void> {
-    await ErrorHandler.handleDiscordCommandError(error, interaction, {
+    await DiscordErrorReporter.handleDiscordCommandError(error, interaction, {
       action: context,
       additionalData: { commandName: interaction.commandName }
     })

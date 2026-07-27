@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel, MessageFlags } from 'discord.js'
 import { discordButtonType } from '../../discord.type'
 import { CharacterDisplayService } from './services'
-import { ErrorHandler, ErrorContext } from '../../../core/http/error-handler'
+import { ErrorContext } from '../../../core/http/error-handler'
+import { DiscordErrorReporter } from '../../utils/discord-error-reporter'
 
 @Injectable()
 export class CharacterTabButtonsService implements discordButtonType {
@@ -53,7 +54,7 @@ export class CharacterTabButtonsService implements discordButtonType {
         action: 'character-tab-display'
       }
 
-      await ErrorHandler.handleDiscordError(
+      await DiscordErrorReporter.handleDiscordError(
         error,
         interaction,
         context,

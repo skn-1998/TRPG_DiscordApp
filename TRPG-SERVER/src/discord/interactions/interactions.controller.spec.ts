@@ -16,6 +16,8 @@ function createInteractionStub(
     replied: boolean
     deferred: boolean
     reply: jest.Mock
+    editReply: jest.Mock
+    followUp: jest.Mock
   }> = {}
 ): ButtonInteraction {
   return {
@@ -25,6 +27,8 @@ function createInteractionStub(
     replied: false,
     deferred: false,
     reply: jest.fn().mockResolvedValue(undefined),
+    editReply: jest.fn().mockResolvedValue(undefined),
+    followUp: jest.fn().mockResolvedValue(undefined),
     ...overrides
   } as unknown as ButtonInteraction
 }
@@ -138,16 +142,23 @@ describe('InteractionsController', () => {
       })
     })
 
-    it('route が throw し既に応答済みならエラー応答を送らない', async () => {
+    it('route が defer 後に throw した場合、ephemeral followUp を送り editReply しない', async () => {
       // Arrange
-      const interaction = createInteractionStub({ deferred: true, replied: false })
-      // deferred=true なので catch 内の応答条件を満たさない
-      interactionRegistry.route.mockRejectedValue(new Error('boom'))
+      const interaction = createInteractionStub()
+      interactionRegistry.route.mockImplementation(async () => {
+        ;(interaction as unknown as { deferred: boolean }).deferred = true
+        throw new Error('boom after defer')
+      })
 
       // Act
       await controller.handleInteraction(interaction)
 
       // Assert
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '❌ 処理中にエラーが発生しました。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.reply).not.toHaveBeenCalled()
     })
 

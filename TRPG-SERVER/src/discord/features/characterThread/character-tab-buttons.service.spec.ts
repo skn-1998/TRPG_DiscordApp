@@ -9,6 +9,7 @@ import { createMockButtonInteraction } from '@discord-test-utils'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 import { CharacterDisplayService } from './services'
+import { DiscordErrorReporter } from '../../utils/discord-error-reporter'
 
 /**
  * CharacterTabButtonsService はボタンインタラクションを受け、スレッド内でのみ
@@ -134,10 +135,17 @@ describe('CharacterTabButtonsService', () => {
     it('処理中に例外が発生してもエラーをハンドリングして再スローしない', async () => {
       // Arrange: deferReply 後に Embed 作成で失敗
       displayService.createCharacterEmbed.mockRejectedValue(new Error('boom'))
+      const reporterSpy = jest.spyOn(DiscordErrorReporter, 'handleDiscordError').mockResolvedValue(undefined)
       const interaction = createInteraction('character-tab*channel-123*status', createThreadChannel())
 
-      // Act & Assert: ErrorHandler が応答するため例外は外に漏れない
+      // Act & Assert: reporter が応答するため例外は外に漏れない
       await expect(service.execute(interaction)).resolves.toBeUndefined()
+      expect(reporterSpy).toHaveBeenCalledWith(
+        expect.any(Error),
+        interaction,
+        expect.objectContaining({ action: 'character-tab-display' }),
+        expect.any(String)
+      )
     })
   })
 })

@@ -4,12 +4,12 @@ import { CustomDiceModalService } from './custom-dice-modal.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { DiceOrchestratorService } from 'src/discord/services/dice/dice-orchestrator.service'
 import { DiceRollService } from 'src/domains/dice-roll/dice-roll.service'
-import { ErrorHandler } from 'src/core/http/error-handler'
+import { DiscordErrorReporter } from 'src/discord/utils/discord-error-reporter'
 
 // このモーダルサービスは「customId 解析 → キャラ解決（channelId 優先 → characterId fallback）
 // → フィールド取得 → 種別分岐(custom/param) → DiceOrchestrator へ委譲 → 履歴保存（createText）
 // → 結果整形 → channel 種別で送信先を分岐」する。
-// 副作用境界（CharacterService / DiceOrchestratorService / DiceRollService / ErrorHandler）はモックし、
+// 副作用境界（CharacterService / DiceOrchestratorService / DiceRollService / DiscordErrorReporter）はモックし、
 // 純粋な分岐・整形・委譲引数を検証する。
 type CharacterServiceMock = { findOne: jest.Mock; findByChannelId: jest.Mock }
 type DiceOrchestratorMock = {
@@ -403,9 +403,9 @@ describe('CustomDiceModalService', () => {
       expect(replyArg.content).toContain('計算エラーが発生しました')
     })
 
-    it('フィールド取得など外側で例外が出たとき ErrorHandler.handleDiscordError に委譲する', async () => {
+    it('フィールド取得など外側で例外が出たとき DiscordErrorReporter.handleDiscordError に委譲する', async () => {
       // Arrange: getTextInputValue 自体を投げさせ、外側 catch を発火
-      const spy = jest.spyOn(ErrorHandler, 'handleDiscordError').mockResolvedValue(undefined)
+      const spy = jest.spyOn(DiscordErrorReporter, 'handleDiscordError').mockResolvedValue(undefined)
       const interaction = createMockModalInteraction({
         customId: 'custom-dice-modal',
         fields: { 'dice-command': '1d100', 'dice-comment': '' }

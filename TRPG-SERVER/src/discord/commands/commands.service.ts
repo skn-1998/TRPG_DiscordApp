@@ -7,6 +7,7 @@ import { RollDiceService } from './commands-components/roll-dice.service'
 import { SelectGameSystemService } from './commands-components/select-game-system.service'
 import { UserDefinedDiceService } from './commands-components/user-defined-dice.service'
 import { DiceResultService } from './commands-components/dice-result.service'
+import { respondEphemeralError } from '../utils/interaction-error-response.util'
 
 @Injectable()
 export class CommandsService {
@@ -97,16 +98,8 @@ export class CommandsService {
       }
     } catch (error) {
       this.logger.error('コマンド実行エラー:', error)
-      const replyOptions = {
-        content: 'コマンドの実行中にエラーが発生しました。',
-        flags: MessageFlags.Ephemeral as const
-      }
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(replyOptions)
-      } else {
-        await interaction.reply(replyOptions)
-      }
+      // deferReply の可視性を引き継ぐ — 非 ephemeral defer では editReply によりエラーが公開表示になる（意図的）
+      await respondEphemeralError(interaction, 'コマンドの実行中にエラーが発生しました。')
     }
   }
 

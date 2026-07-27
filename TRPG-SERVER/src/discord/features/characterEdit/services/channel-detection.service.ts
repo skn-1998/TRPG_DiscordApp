@@ -3,6 +3,8 @@ import { AuditLogEvent, TextChannel } from 'discord.js'
 import { getChannelIdByName } from '../../../utils/searchChannelID'
 import { AppConfigService } from 'src/config/config.service'
 
+// Lifecycle: 60 秒は audit log fetch 等、リスナー内 REST 往復の処理遅延を吸収する安全余裕。
+// 状態はプロセス内 Map のためマルチレプリカでは成立せず、照合は非消費型、再マークで TTL を延長する。
 const BOT_MANAGED_CHANNEL_SUPPRESSION_TTL_MS = 60_000
 
 // ============================================================================

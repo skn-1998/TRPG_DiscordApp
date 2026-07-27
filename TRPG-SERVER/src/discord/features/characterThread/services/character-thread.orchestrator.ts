@@ -3,6 +3,7 @@ import { StringSelectMenuInteraction } from 'discord.js'
 import { ThreadCreationService, CreateThreadRequest } from './thread-creation.service'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorContext, ErrorHandler } from '../../../../core/http/error-handler'
+import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 
 @Injectable()
 export class CharacterThreadOrchestrator {
@@ -73,9 +74,15 @@ export class CharacterThreadOrchestrator {
       }
 
       try {
-        await interaction.editReply({
-          content: '❌ スレッドの作成中にエラーが発生しました。しばらく時間をおいて再度お試しください。'
-        })
+        const errorMessage = '❌ スレッドの作成中にエラーが発生しました。しばらく時間をおいて再度お試しください。'
+
+        if (interaction.replied || interaction.deferred) {
+          // 意図的例外: 「🔄 作成中...」の placeholder をエラー文言で置換する。
+          // followUp では処理中表示が残るため、ここでは editReply を維持する。
+          await interaction.editReply({ content: errorMessage })
+        } else {
+          await respondEphemeralError(interaction, errorMessage)
+        }
       } catch (replyError) {
         this.logger.warn(
           'Failed to send error reply:',

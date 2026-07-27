@@ -285,7 +285,7 @@ describe('CommandManagerService', () => {
       expect(interaction.reply).not.toHaveBeenCalled()
     })
 
-    it('deferred の場合も followUp でエラーを返す', async () => {
+    it('deferred の場合は editReply で placeholder をエラーへ置換する', async () => {
       const command = createMockCommand('roll')
       ;(command.execute as jest.Mock).mockRejectedValueOnce(new Error('boom'))
       service.registerCommand(command)
@@ -295,12 +295,16 @@ describe('CommandManagerService', () => {
         replied: false,
         deferred: true,
         reply: jest.fn().mockResolvedValue(undefined),
+        editReply: jest.fn().mockResolvedValue(undefined),
         followUp: jest.fn().mockResolvedValue(undefined)
       } as any
 
       await service.handleCommandInteraction(interaction)
 
-      expect(interaction.followUp).toHaveBeenCalled()
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'コマンドの実行中にエラーが発生しました。'
+      })
+      expect(interaction.followUp).not.toHaveBeenCalled()
       expect(interaction.reply).not.toHaveBeenCalled()
     })
   })
