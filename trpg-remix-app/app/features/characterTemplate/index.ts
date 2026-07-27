@@ -1,5 +1,4 @@
 export * from './types'
-export * from './types/v3'
 export * from './api/sheetTemplateApi'
 export * from './store/templateStore'
 export * from './store/galleryStore'

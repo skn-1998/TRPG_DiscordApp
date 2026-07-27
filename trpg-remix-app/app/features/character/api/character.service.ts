@@ -1,47 +1,23 @@
+import type {
+  CharacterDeleteResultWire,
+  CharacterHubStatusWire,
+  CharacterSummaryWire,
+  CharacterWire,
+  SuccessEnvelope
+} from '@trpg/api-contract'
 import { apiClient } from '~/lib/api-client'
 import { ApiResponseUtil } from '~/lib/api-response.util'
 import { Character } from '~/types'
 import { CustomError } from '~/utils/customError'
 
 // キャラクターカード表示用の軽量データ
-export type CharacterHubStatus = 'none' | 'publishing' | 'active' | 'error'
-
-export interface CharacterSummary {
-  characterId: string
-  characterName: string
-  gameSystemId: string
-  templateVersion?: string
-  hub?: { status: CharacterHubStatus }
-}
-
-export interface MaterializedCharacter {
-  characterId: string
-  characterName: string
-  gameSystemId: string
-  discordUserId: string
-  description?: Record<string, unknown>
-  sheet?: {
-    templateId: string
-    templateVersion: string
-    revision: number
-    values: Record<string, unknown>
-  }
-}
+export type CharacterHubStatus = CharacterHubStatusWire
+export type CharacterSummary = CharacterSummaryWire
 
 export interface CharacterSheetChange {
   path: { fieldUid: string; partsKey?: string }
   baseValue: unknown
   newValue: unknown
-}
-
-interface SuccessEnvelope<T> {
-  success: true
-  data: T
-}
-
-function unwrapCharacterResponse<T>(response: { data: SuccessEnvelope<T> }): T {
-  if (!response.data.success) throw new Error('API response indicates failure')
-  return response.data.data
 }
 
 export async function createCharacterFromTemplate(input: {
@@ -55,10 +31,10 @@ export async function createCharacterFromTemplate(input: {
 }
 
 // キャラクター取得
-export async function getCharacter(characterId: string): Promise<MaterializedCharacter> {
+export async function getCharacter(characterId: string): Promise<CharacterWire> {
   try {
-    const response = await apiClient.get<SuccessEnvelope<MaterializedCharacter>>(`/character/${characterId}`)
-    return unwrapCharacterResponse(response)
+    const response = await apiClient.get<SuccessEnvelope<CharacterWire>>(`/character/${characterId}`)
+    return response.data.data
   } catch (err: unknown) {
     const errorMessage = ApiResponseUtil.handleError(err)
     console.error('❌ キャラクター取得エラー:', errorMessage)
@@ -70,7 +46,7 @@ export async function getCharacter(characterId: string): Promise<MaterializedCha
 export async function getUserCharacters(): Promise<Character[]> {
   try {
     const response = await apiClient.get<SuccessEnvelope<Character[]>>('/character')
-    return unwrapCharacterResponse(response)
+    return response.data.data
   } catch (err: unknown) {
     const errorMessage = ApiResponseUtil.handleError(err)
     console.error('❌ キャラクター一覧取得エラー:', errorMessage)
@@ -82,7 +58,7 @@ export async function getUserCharacters(): Promise<Character[]> {
 export async function getUserCharacterSummaries(): Promise<CharacterSummary[]> {
   try {
     const response = await apiClient.get<SuccessEnvelope<CharacterSummary[]>>('/character/summaries')
-    return unwrapCharacterResponse(response)
+    return response.data.data
   } catch (err: unknown) {
     const errorMessage = ApiResponseUtil.handleError(err)
     console.error('❌ キャラクターサマリー取得エラー:', errorMessage)
@@ -94,7 +70,7 @@ export async function getUserCharacterSummaries(): Promise<CharacterSummary[]> {
 export async function updateCharacter(characterId: string, characterData: Partial<Character>): Promise<Character> {
   try {
     const response = await apiClient.put<SuccessEnvelope<Character>>(`/character/${characterId}`, characterData)
-    return unwrapCharacterResponse(response)
+    return response.data.data
   } catch (err: unknown) {
     const errorMessage = ApiResponseUtil.handleError(err)
     console.error('❌ キャラクター更新エラー:', errorMessage)
@@ -103,9 +79,10 @@ export async function updateCharacter(characterId: string, characterData: Partia
 }
 
 // キャラクター削除
-export async function deleteCharacter(characterId: string): Promise<void> {
+export async function deleteCharacter(characterId: string): Promise<CharacterDeleteResultWire> {
   try {
-    await apiClient.delete(`/character/${characterId}`)
+    const response = await apiClient.delete<SuccessEnvelope<CharacterDeleteResultWire>>(`/character/${characterId}`)
+    return response.data.data
   } catch (err: unknown) {
     const errorMessage = ApiResponseUtil.handleError(err)
     console.error('❌ キャラクター削除エラー:', errorMessage)

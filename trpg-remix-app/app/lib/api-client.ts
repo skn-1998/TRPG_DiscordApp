@@ -2,7 +2,6 @@ import axios from 'axios'
 import http from 'node:http'
 import https from 'node:https'
 import { configService } from '../config'
-import { ApiClientResponse, KnownDomains, DomainDataMap } from '../types/api'
 
 // 開発環境判定
 const isDevelopment = !configService.isProduction()
@@ -239,52 +238,6 @@ class ExtendedApiClient {
 
   constructor(baseClient: ReturnType<typeof createAxiosInstance>) {
     this.baseClient = baseClient
-  }
-
-  // 型安全なGETリクエスト（ドメイン指定版）
-  async getDomain<Domain extends KnownDomains>(
-    url: string,
-    domain: Domain,
-    config?: any
-  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
-    const finalConfig = this.prepareConfig(config)
-    const response = await this.baseClient.get(url, finalConfig)
-    return response
-  }
-
-  // 型安全なPOSTリクエスト（ドメイン指定版）
-  async postDomain<Domain extends KnownDomains>(
-    url: string,
-    domain: Domain,
-    data?: any,
-    config?: any
-  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
-    const finalConfig = this.prepareConfig(config)
-    const response = await this.baseClient.post(url, data, finalConfig)
-    return response
-  }
-
-  // 型安全なPUTリクエスト（ドメイン指定版）
-  async putDomain<Domain extends KnownDomains>(
-    url: string,
-    domain: Domain,
-    data?: any,
-    config?: any
-  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
-    const finalConfig = this.prepareConfig(config)
-    const response = await this.baseClient.put(url, data, finalConfig)
-    return response
-  }
-
-  // 型安全なDELETEリクエスト（ドメイン指定版）
-  async deleteDomain<Domain extends KnownDomains>(
-    url: string,
-    domain: Domain,
-    config?: any
-  ): Promise<ApiClientResponse<DomainDataMap[Domain], Domain>> {
-    const finalConfig = this.prepareConfig(config)
-    const response = await this.baseClient.delete(url, finalConfig)
-    return response
   }
 
   // 従来のメソッド（後方互換性のため）

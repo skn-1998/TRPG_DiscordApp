@@ -15,22 +15,14 @@ import {
 } from '@mantine/core'
 import { Link } from '@remix-run/react'
 import { IconAlertTriangle, IconBrandDiscord, IconPencil } from '@tabler/icons-react'
+import type { CharacterSummaryWire } from '@trpg/api-contract'
 import { useState } from 'react'
 import { getGameSystemNameById } from '~/lib'
 import { getDiscordServers, formatGuildsForSelect, postCharacterToDiscord } from '../../discord'
 import { DiscordServerSelectOption } from '~/types'
 
-// 軽量キャラクターデータ
-interface CharacterSummary {
-  characterId: string
-  characterName: string
-  gameSystemId: string
-  templateVersion?: string
-  hub?: { status: 'none' | 'publishing' | 'active' | 'error' }
-}
-
 interface CharacterCardProps {
-  character: CharacterSummary
+  character: CharacterSummaryWire
   onClick?: () => void
 }
 
@@ -214,4 +206,4 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
   )
 }
 
-export type { CharacterSummary }
+export type { CharacterSummaryWire as CharacterSummary }

@@ -4,15 +4,11 @@
  * このファイルからすべての型定義をインポートできます
  */
 
-// ユーザー関連の型
-export type { User, CreateUserDto, UpdateUserDto } from './user'
-
 // キャラクター関連の型
 export type {
   Character,
   CharacterAttribute,
   UpdatePrimary,
-  CreateCharacterDto,
   PartialInputCharacterDto,
   UpdateCharacterDto
 } from './character'
@@ -24,51 +20,12 @@ export type {
   JwtTokenPayload,
   AuthState,
   LoginRequest,
+  LoginData,
   LoginResponse
 } from './auth'
 
-// ダイスロール関連の型
-export type {
-  DiceRollText,
-  DiceRollChannel,
-  CreateDiceRollTextDto,
-  CreateDiceRollChannelDto,
-  UpdateDiceRollTextDto,
-  UpdateDiceRollChannelDto,
-  DiceRollRequest,
-  DiceRollResponse
-} from './dice-roll'
-
 // ゲームシステム関連の型
 export type { GameSystemJSON } from './gameSystem'
-
-// 共通の型定義
-export interface ApiResponse<T = unknown> {
-  /**
-   * API実行成功フラグ
-   */
-  success: boolean
-
-  /**
-   * レスポンスデータ
-   */
-  data?: T
-
-  /**
-   * エラーメッセージ
-   */
-  error?: string
-
-  /**
-   * メッセージ
-   */
-  message?: string
-
-  /**
-   * HTTPステータスコード
-   */
-  statusCode?: number
-}
 
 /**
  * ページネーション用の型

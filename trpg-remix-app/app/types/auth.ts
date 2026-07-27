@@ -1,4 +1,4 @@
-import { DomainApiResponse } from './api'
+import type { LoginDataWire } from '@trpg/api-contract'
 
 /**
  * 認証関連の型定義
@@ -136,7 +136,6 @@ export interface LoginRequest {
   state?: string
 }
 
-/**
- * ログインレスポンス（新しいAPI型定義を使用）
- */
-export type LoginResponse = DomainApiResponse<'auth'>
+export type LoginData = LoginDataWire
+
+export type LoginResponse = LoginData

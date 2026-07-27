@@ -1,12 +1,14 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, isRouteErrorResponse, useRouteError } from '@remix-run/react'
 import { MantineProvider, ColorSchemeScript } from '@mantine/core'
 import { LoaderFunctionArgs } from '@remix-run/node'
+import type { SuccessEnvelope } from '@trpg/api-contract'
 import '@mantine/core/styles.css'
 import './styles/globals.css'
 import theme from './theme'
 import { AppLayout } from './components/Layouts'
 import { getJwtFromRequest } from './features/auth/api/auth.service'
 import { apiClient, withJwt } from './lib/api-client'
+import type { UserProfileData } from './types/user'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const jwt = getJwtFromRequest(request)
@@ -22,23 +24,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   try {
     // JWTが存在する場合のみ検証を実行
-    const response = await apiClient.get('/users', withJwt(jwt))
+    const response = await apiClient.get<SuccessEnvelope<UserProfileData>>('/users', withJwt(jwt))
+    const user = response.data.data
     console.log('🔍 Server Debug Info:', {
-      hasUser: !!response.data,
-      userInfo: response.data
+      hasUser: true,
+      userInfo: user
     })
-    if (response.data) {
-      return {
-        user: response.data,
-        isLoggedIn: true,
-        hasValidJwt: true
-      }
-    } else {
-      return {
-        user: null,
-        isLoggedIn: false,
-        hasValidJwt: false
-      }
+    return {
+      user,
+      isLoggedIn: true,
+      hasValidJwt: true
     }
   } catch (error) {
     // JWT検証に失敗した場合も認証状態をfalseで返す（リダイレクトしない）

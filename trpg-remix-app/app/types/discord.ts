@@ -1,3 +1,5 @@
+import type { DiscordGuildWire } from '@trpg/api-contract'
+
 /**
  * Discord関連の型定義
  */
@@ -5,23 +7,7 @@
 /**
  * Discordサーバー情報（/users/@me/guilds APIレスポンス形式）
  */
-export interface DiscordGuildInfo {
-  id: string
-  name: string
-  icon: string | null
-  owner: boolean
-  permissions: string
-  features: string[]
-}
-
-/**
- * Discordサーバー一覧レスポンス
- */
-export interface DiscordGuildsResponse {
-  guilds: DiscordGuildInfo[]
-  count: number
-  message?: string
-}
+export type DiscordGuildInfo = DiscordGuildWire
 
 /**
  * Select用のサーバーデータ

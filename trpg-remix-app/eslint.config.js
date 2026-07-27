@@ -99,6 +99,44 @@ export default defineConfig(
   // Typescript
   {
     files: ['**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@trpg/api-contract',
+              allowImportNames: [
+                'SuccessEnvelope',
+                'ErrorEnvelope',
+                'Envelope',
+                'LoginDataWire',
+                'CharacterAttributeSectionWire',
+                'CharacterAttributeValueWire',
+                'CharacterDeleteResultWire',
+                'CharacterHubStatusWire',
+                'CharacterHubWire',
+                'CharacterPaletteEntryWire',
+                'CharacterSheetStateWire',
+                'CharacterSummaryWire',
+                'CharacterTemplatePinWire',
+                'CharacterWire',
+                'DiscordGuildWire',
+                'DiscordGuildsPayloadWire',
+                'UserProfileWire'
+              ],
+              message: '永続化スキーマは front で使用禁止。HTTP 応答には公開済みの wire 型だけを使用する'
+            }
+          ],
+          patterns: [
+            {
+              group: ['@trpg/api-contract/*'],
+              message: '契約パッケージはルートからのみ import する'
+            }
+          ]
+        }
+      ]
+    },
     settings: {
       'import/internal-regex': '^~/',
       'import/resolver': {
