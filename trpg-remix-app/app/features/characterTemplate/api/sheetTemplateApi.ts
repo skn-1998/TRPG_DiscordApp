@@ -1,5 +1,5 @@
 import { apiClient, withJwt } from '~/lib/api-client'
-import { isErrorEnvelope } from '../../../lib/api-response.util'
+import { errorEnvelopeMessages, isErrorEnvelope } from '../../../lib/api-response.util'
 import type {
   CharacterSheetTemplateEntity,
   CharacterSheetTemplateSummary,
@@ -67,25 +67,7 @@ export function extractApiErrorMessages(error: unknown): string[] {
     const response = (error as { response?: { data?: unknown } }).response
     const data = response?.data
     if (isErrorEnvelope(data)) {
-      const issueMessages = (data.issues?.map((issue) => issue.message) ?? []).filter((message) => message.length > 0)
-      if (issueMessages.length > 0) return [...new Set(issueMessages)]
-
-      const causeMessage = data.cause?.message
-      if (
-        Array.isArray(causeMessage) &&
-        causeMessage.every((message): message is string => typeof message === 'string')
-      ) {
-        const causeMessages = causeMessage.filter((message) => message.length > 0)
-        if (causeMessages.length > 0) return causeMessages
-      }
-
-      const detailMessages = (data.details?.map((detail) => detail.message) ?? []).filter(
-        (message) => message.length > 0
-      )
-      if (detailMessages.length > 0) return [...new Set(detailMessages)]
-
-      if (data.error.length > 0) return [data.error]
-      return [data.message]
+      return errorEnvelopeMessages(data)
     }
 
     if (data && typeof data === 'object' && 'message' in data) {
