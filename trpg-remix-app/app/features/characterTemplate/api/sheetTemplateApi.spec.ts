@@ -102,6 +102,7 @@ describe('extractApiErrorMessages', () => {
             message: 'エラーが発生しました',
             timestamp: 1,
             error: '入力内容が不正です',
+            cause: { message: [''] },
             details: [{ field: 'name', message: '名前は必須です' }]
           }
         }
@@ -110,7 +111,7 @@ describe('extractApiErrorMessages', () => {
       expect(extractApiErrorMessages(error)).toEqual(['名前は必須です'])
     })
 
-    it('issues・details を優先順に結合し、完全一致する重複を除去する', () => {
+    it('issues は cause.message・details より優先し、完全一致する重複を除去する', () => {
       const error = {
         response: {
           data: {
@@ -118,13 +119,42 @@ describe('extractApiErrorMessages', () => {
             message: 'エラーが発生しました',
             timestamp: 1,
             error: '入力内容が不正です',
-            issues: [{ message: '同じ診断です' }],
-            details: [{ message: '同じ診断です' }, { message: '詳細診断です' }]
+            issues: [{ message: '同じ診断です' }, { message: '同じ診断です' }],
+            cause: { message: ['旧 body の診断です'] },
+            details: [{ message: '詳細診断です' }]
           }
         }
       }
 
-      expect(extractApiErrorMessages(error)).toEqual(['同じ診断です', '詳細診断です'])
+      expect(extractApiErrorMessages(error)).toEqual(['同じ診断です'])
+    })
+
+    it('旧 Nest 400 と新封筒 400 は同じ4要素のバリデーション診断を返す', () => {
+      const messages = ['名前は必須です', '名前は100文字以内です', 'タグは配列で指定してください', 'タグは10件以内です']
+      const legacyError = {
+        response: {
+          data: {
+            statusCode: 400,
+            message: messages,
+            error: 'Bad Request'
+          }
+        }
+      }
+      const envelopeError = {
+        response: {
+          data: {
+            success: false,
+            message: 'エラーが発生しました',
+            timestamp: 1,
+            error: '入力内容が不正です',
+            cause: { message: messages },
+            details: [{ message: 'cause.message が無い場合の詳細です' }]
+          }
+        }
+      }
+
+      expect(extractApiErrorMessages(legacyError)).toEqual(messages)
+      expect(extractApiErrorMessages(envelopeError)).toEqual(messages)
     })
 
     it('実原因・issues・details が空なら最後の砦としてラベルを返す', () => {

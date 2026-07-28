@@ -70,7 +70,7 @@ describe('TrackRangePolicy', () => {
   it('共通エラーラベルをリテラルで固定し、ErrorResponse と sheet 封筒で共有する', () => {
     expect(DEFAULT_ERROR_RESPONSE_MESSAGE).toBe('エラーが発生しました')
     expect(new ErrorResponse('入力値が不正です').message).toBe(DEFAULT_ERROR_RESPONSE_MESSAGE)
-    expect(buildSheetErrorEnvelope('入力値が不正です', []).message).toBe(DEFAULT_ERROR_RESPONSE_MESSAGE)
+    expect(buildSheetErrorEnvelope('入力値が不正です').message).toBe(DEFAULT_ERROR_RESPONSE_MESSAGE)
   })
 
   it('placeholder 会計と実値注入で固定キー集合を共有する', () => {
@@ -80,14 +80,22 @@ describe('TrackRangePolicy', () => {
     const placeholderRequestId = '00000000-0000-0000-0000-000000000000'
     const actualTimestamp = 1_753_670_800_000
     const actualRequestId = '12345678-1234-1234-1234-123456789abc'
-    const placeholderEnvelope = buildSheetErrorEnvelope(error, issues, {
-      timestamp: placeholderTimestamp,
-      requestId: placeholderRequestId
-    })
-    const actualEnvelope = buildSheetErrorEnvelope(error, issues, {
-      timestamp: actualTimestamp,
-      requestId: actualRequestId
-    })
+    const placeholderEnvelope = buildSheetErrorEnvelope(
+      error,
+      { issues },
+      {
+        timestamp: placeholderTimestamp,
+        requestId: placeholderRequestId
+      }
+    )
+    const actualEnvelope = buildSheetErrorEnvelope(
+      error,
+      { issues },
+      {
+        timestamp: actualTimestamp,
+        requestId: actualRequestId
+      }
+    )
     const expectedKeys = ['error', 'issues', 'message', 'requestId', 'success', 'timestamp']
 
     expect(Object.keys(placeholderEnvelope).sort()).toEqual(expectedKeys)

@@ -439,13 +439,13 @@ const character = characterHandler.handleSuccess(response)
 
 ### 封筒が適用される面 / 適用されない面
 
-| 面                                                                               | 封筒                        | 読み方                                                                                 |
-| -------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
-| `/auth/*`（`/auth/discord` と `/auth/discord/callback` を除く）                  | あり                        | `response.data.data`                                                                   |
-| `/users/*`（`/users/discord/guilds` を含む）                                     | あり                        | `response.data.data`                                                                   |
-| `/character`・`/character/:id`・`/character/summaries` (CharacterController)     | あり                        | `response.data.data`                                                                   |
-| `/character/from-template`・`/character/:id/sheet` (CharacterSheetController)    | **なし**（U5 で封筒化予定） | `response.data`（front は S-U5-3 の `unwrapSheetResponse` で**封筒でも生でも読める**） |
-| `/sheet-templates/*`・`/discord/*`・`/commands/*`・`/interactions/*`・`/`（app） | **なし**                    | `response.data`                                                                        |
+| 面                                                                               | 封筒                                                                                          | 読み方                                                                                         |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `/auth/*`（`/auth/discord` と `/auth/discord/callback` を除く）                  | あり                                                                                          | `response.data.data`                                                                           |
+| `/users/*`（`/users/discord/guilds` を含む）                                     | あり                                                                                          | `response.data.data`                                                                           |
+| `/character`・`/character/:id`・`/character/summaries` (CharacterController)     | あり                                                                                          | `response.data.data`                                                                           |
+| `/character/from-template`・`/character/:id/sheet` (CharacterSheetController)    | **あり**（U5-5a/5b で封筒化済み。エラーも封筒 — `error`=実原因・構造情報は `issues`/`cause`） | `response.data.data`（front は当面 `unwrapSheetResponse` の両形対応経由。S-U5-6 で封筒専用へ） |
+| `/sheet-templates/*`・`/discord/*`・`/commands/*`・`/interactions/*`・`/`（app） | **なし**                                                                                      | `response.data`                                                                                |
 
 - `/character` プレフィックスは封筒面と非封筒面が**同居**している。エンドポイント単位で確認すること。
 - 非封筒面のエラーは Nest 既定形（`statusCode` / `message` / `error`）で、`ErrorEnvelope` では表現できない。

@@ -6,13 +6,13 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { JwtAuthGuard } from '../../domains/auth/guards/jwt-auth.guard'
 import {
   CHARACTER_INSTANTIATION_USE_CASE,
   CHARACTER_SHEET_OPERATION_USE_CASE,
   CharacterSheetController
-} from './character.controller'
-import { CharacterService } from './character.service'
+} from './character-sheet.controller'
+import { CharacterService } from '../../domains/character/character.service'
 
 describe('CharacterSheetController', () => {
   let controller: CharacterSheetController

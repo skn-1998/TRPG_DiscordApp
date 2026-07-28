@@ -52,8 +52,8 @@ export const GLOBAL_INTERNAL_ERROR_MESSAGE = 'サーバー内部でエラーが�
  * 409 の conflicts[]、ValidationPipe 400 の message 配列、名前付き例外や body-parser の
  * { message, error?, statusCode } を Nest 既定の直列化のまま保存する。
  *
- * エラー形状を完全統一する旧 E 案は、フロントの extractApiErrorMessages が封筒非対応のため
- * 将来フェーズへ送る。
+ * /character prefix は controller-scoped filter で封筒へ統一済み。
+ * /sheet-templates など残る非封筒面との互換性のため、ここでは HttpException の委譲を維持する。
  *
  * 委譲判定または BaseExceptionFilter 内で accessor 等の二次例外が起きた場合は、
  * Nest 既定との一致より応答の終端を優先し、未知例外用の固定 500 封筒へフォールスルーする。

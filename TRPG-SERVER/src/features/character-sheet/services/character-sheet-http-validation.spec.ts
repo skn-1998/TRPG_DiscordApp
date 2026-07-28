@@ -14,7 +14,7 @@ import {
   CHARACTER_INSTANTIATION_USE_CASE,
   CHARACTER_SHEET_OPERATION_USE_CASE,
   CharacterSheetController
-} from '../../../domains/character/character.controller'
+} from '../character-sheet.controller'
 import { CharacterService } from '../../../domains/character/character.service'
 
 describe('CharacterSheetController HTTP validation', () => {
