@@ -5,7 +5,7 @@ FROM node:22-alpine AS base
 RUN apk add --no-cache wget curl
 
 # pnpmをグローバルにインストール
-RUN npm install -g pnpm@10.12.1
+RUN npm install -g pnpm@11.5.1
 
 # workspace root を作業ディレクトリにする
 WORKDIR /usr/src/app

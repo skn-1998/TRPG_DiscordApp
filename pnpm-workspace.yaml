@@ -55,22 +55,18 @@ minimumReleaseAgeExclude:
   - qs@6.15.2
 strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
-# 正式キーは onlyBuiltDependencies。旧 allowBuilds は意図の記録として残置。
-# allowBuilds:
-#   esbuild: true
-#   unrs-resolver: true
-#   cpu-features: true
-#   protobufjs: true
-#   ssh2: true
+# pnpm 11 では onlyBuiltDependencies / ignoredBuiltDependencies が廃止されたため allowBuilds へ統合
+# （v11.5.1 実装に workspace yaml 経路の読み手なし＝旧キーは黙って無視。放置すると build 許可が
+# 消え strictDepBuilds が install を落とすため移行必須。裏取り 2026-07-28 T19 レビュー）。
+# 値は true=build 許可 / false=明示拒否。true/false 以外の値は黙って「未決定」扱いになるので書かない。
 # @scarf/scarf はテレメトリのため意図的に許可しない（2026-07-08・C-0）
-onlyBuiltDependencies:
-  - cpu-features
-  - esbuild
-  - protobufjs
-  - ssh2
-  - unrs-resolver
-ignoredBuiltDependencies:
-  - '@scarf/scarf'
+allowBuilds:
+  '@scarf/scarf': false
+  cpu-features: true
+  esbuild: true
+  protobufjs: true
+  ssh2: true
+  unrs-resolver: true
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 10080
