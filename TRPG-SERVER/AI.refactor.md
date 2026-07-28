@@ -533,7 +533,7 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
 4. `issues[]`（`ebd23ea` の byte 予算契約）の HTTP 消費者は
    **`non-finite-formula-save.reproduction.spec.ts` 自身のみ**。フロントは読まない
 5. Discord platform の HTTP 呼び出しは存在しない（Gateway 方式）。
-   /discord/_（post-character 除く）と /discord/performance/_ は HTTP 実消費者未検出
+   `/discord/*`（post-character 除く）と `/discord/performance/*` は HTTP 実消費者未検出
 
 #### 設計裁定: D案（真に未知の例外のみ封筒化）を採用
 
@@ -621,8 +621,8 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
 - `extractApiErrorMessages`（`sheetTemplateApi.ts:64-81`）の封筒対応 —
   エラー形状の完全統一（E 方向）の前提条件
 - `corsApiWithJwt` は backend の 401/404 を body を読まず一律 500 固定文言へ潰す（フロント既存欠陥）
-- InteractionsController 完全死蔵の確証・/discord/_（post-character 除く）と
-  /discord/performance/_ の HTTP 実消費者ゼロ → 第5群の裏付け材料
+- InteractionsController 完全死蔵の確証・`/discord/*`（post-character 除く）と
+  `/discord/performance/*` の HTTP 実消費者ゼロ → 第5群の裏付け材料
 
 ### 俯瞰レビュー#4（2026-07-27・第2群完了時点）＋ OV4 反映（0d38e09）
 
