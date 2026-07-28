@@ -18,8 +18,8 @@ describe('ResponseInterceptor application', () => {
     expect(getInterceptors(CharacterController)).toContain(ResponseInterceptor)
   })
 
-  it('CharacterSheetController に ResponseInterceptor が適用されない', () => {
-    expect(getInterceptors(CharacterSheetController)).not.toContain(ResponseInterceptor)
+  it('CharacterSheetController に ResponseInterceptor が適用される', () => {
+    expect(getInterceptors(CharacterSheetController)).toContain(ResponseInterceptor)
   })
 
   it('Discord OAuth の redirect handler は封筒化をスキップする', () => {
@@ -28,7 +28,7 @@ describe('ResponseInterceptor application', () => {
   })
 
   it('封筒面 controller の SkipResponseWrapper 付与集合を固定する', () => {
-    const envelopeControllers = [AuthController, UserController, CharacterController]
+    const envelopeControllers = [AuthController, UserController, CharacterController, CharacterSheetController]
     const skippedHandlerNames = envelopeControllers
       .flatMap((controller) =>
         Object.getOwnPropertyNames(controller.prototype).filter((handlerName) => {

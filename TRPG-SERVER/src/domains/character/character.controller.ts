@@ -267,6 +267,7 @@ export class CharacterController {
 @ApiTags('キャラクターシート')
 @Controller('character')
 @ApiBearerAuth()
+@UseInterceptors(ResponseInterceptor)
 @UseGuards(JwtAuthGuard)
 export class CharacterSheetController {
   constructor(
@@ -279,6 +280,7 @@ export class CharacterSheetController {
 
   @Put(':id/sheet')
   @HttpCode(HttpStatus.OK)
+  @ResponseMessage('キャラクターシートを保存しました')
   @ApiOperation({ summary: 'materialized キャラクターシート保存' })
   @ApiParam({ name: 'id', description: 'キャラクターID' })
   @ApiResponse({ status: 200, description: '保存成功' })
@@ -304,6 +306,7 @@ export class CharacterSheetController {
 
   @Post('from-template')
   @HttpCode(HttpStatus.CREATED)
+  @ResponseMessage('キャラクターを作成しました')
   @ApiOperation({ summary: 'published テンプレートから materialized キャラクターを作成' })
   @ApiResponse({ status: 201, description: '作成成功' })
   @ApiResponse({ status: 409, description: 'publish または version の競合' })
