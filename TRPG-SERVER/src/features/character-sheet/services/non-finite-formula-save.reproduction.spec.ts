@@ -886,8 +886,8 @@ describe('non-finite formula save reproduction', () => {
 
       expect({
         status: response.status,
-        revision: response.body.revision,
-        noOp: response.body.noOp,
+        revision: response.body.data.revision,
+        noOp: response.body.data.noOp,
         repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
       }).toEqual({
         status: 200,
