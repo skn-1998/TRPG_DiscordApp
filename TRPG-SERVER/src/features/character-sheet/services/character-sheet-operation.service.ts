@@ -26,7 +26,7 @@ import { CharacterSheetTemplateService } from '../../../domains/character-sheet-
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { SheetMaterializerService } from './sheet-materializer.service'
 import { isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
-import { TrackRangePolicy } from './track-range.policy'
+import { formatNonFiniteFieldDiagnostics, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
 
 const MAX_SAVE_ATTEMPTS = 5
 const SAVE_RETRY_BUDGET_MS = 2_000
@@ -302,7 +302,17 @@ export class CharacterSheetOperationService {
       const evaluated = this.evaluateTemplateOrThrow(engineTemplate, sheet.values)
       const currentValue = evaluated.values[field.uid]
       if (currentValue?.type !== 'number' || !Number.isFinite(currentValue.value)) {
-        throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
+        const formatted = formatNonFiniteFieldDiagnostics([
+          {
+            kind: 'resource-eval',
+            fieldUid: field.uid,
+            label: field.label,
+            ...(typeof currentValue?.value === 'number'
+              ? { result: toNonFiniteNumberKind(currentValue.value) }
+              : { detail: '数値として評価されませんでした' })
+          }
+        ])
+        throw new UnprocessableEntityException(formatted)
       }
 
       const bounds = trackRangePolicy.resolveBounds(field, sheet.values)
@@ -321,7 +331,17 @@ export class CharacterSheetOperationService {
       const afterEvaluation = this.evaluateTemplateOrThrow(engineTemplate, values)
       const afterValue = afterEvaluation.values[field.uid]
       if (afterValue?.type !== 'number' || !Number.isFinite(afterValue.value)) {
-        throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
+        const formatted = formatNonFiniteFieldDiagnostics([
+          {
+            kind: 'resource-eval',
+            fieldUid: field.uid,
+            label: field.label,
+            ...(typeof afterValue?.value === 'number'
+              ? { result: toNonFiniteNumberKind(afterValue.value) }
+              : { detail: '数値として評価されませんでした' })
+          }
+        ])
+        throw new UnprocessableEntityException(formatted)
       }
       const afterBounds = trackRangePolicy.resolveBounds(field, values)
       const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(
@@ -422,7 +442,17 @@ export class CharacterSheetOperationService {
 
           const evaluatedValue = evaluated.values[field.uid]
           if (evaluatedValue?.type !== 'number' || !Number.isFinite(evaluatedValue.value)) {
-            throw new UnprocessableEntityException(`resource field ${field.uid} did not evaluate to a finite number`)
+            const formatted = formatNonFiniteFieldDiagnostics([
+              {
+                kind: 'resource-eval',
+                fieldUid: field.uid,
+                label: field.label,
+                ...(typeof evaluatedValue?.value === 'number'
+                  ? { result: toNonFiniteNumberKind(evaluatedValue.value) }
+                  : { detail: '数値として評価されませんでした' })
+              }
+            ])
+            throw new UnprocessableEntityException(formatted)
           }
           const bounds = trackRangePolicy.resolveBounds(field, values)
           resolvedResourceValues[field.uid] = trackRangePolicy.resolveEffectiveValue(

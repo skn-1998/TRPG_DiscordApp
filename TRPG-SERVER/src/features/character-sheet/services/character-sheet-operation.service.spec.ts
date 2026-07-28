@@ -1,4 +1,5 @@
 import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
+import * as sheetEngine from '@trpg/sheet-engine'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
   type CharacterEntity,
@@ -7,8 +8,13 @@ import {
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
-import { CharacterSheetOperationService } from './character-sheet-operation.service'
+import { CharacterSheetOperationService, HubProjectionPreparationError } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
+
+jest.mock('@trpg/sheet-engine', () => {
+  const actual = jest.requireActual('@trpg/sheet-engine')
+  return { ...actual, evaluateTemplate: jest.fn(actual.evaluateTemplate) }
+})
 
 describe('CharacterSheetOperationService', () => {
   const deferred = <T>() => {
@@ -115,6 +121,41 @@ describe('CharacterSheetOperationService', () => {
   let templateService: { resolvePublished: jest.Mock }
   let materializer: { validateInputValues: jest.Mock; materialize: jest.Mock }
   let service: CharacterSheetOperationService
+
+  const evaluateTemplate =
+    jest.requireActual<typeof import('@trpg/sheet-engine')>('@trpg/sheet-engine').evaluateTemplate
+  const evaluateTemplateMock = sheetEngine.evaluateTemplate as jest.MockedFunction<typeof sheetEngine.evaluateTemplate>
+  const evaluateWithNonFiniteHp = (
+    targetTemplate: Parameters<typeof evaluateTemplate>[0],
+    options: Parameters<typeof evaluateTemplate>[1]
+  ): ReturnType<typeof evaluateTemplate> => {
+    const evaluated = evaluateTemplate(targetTemplate, options)
+    return {
+      ...evaluated,
+      values: {
+        ...evaluated.values,
+        'uid-hp': { type: 'number', value: Number.POSITIVE_INFINITY }
+      }
+    }
+  }
+
+  const expectNonFinite422Envelope = (error: unknown, fieldUid: string): void => {
+    expect(error).toBeInstanceOf(UnprocessableEntityException)
+    const exception = error as UnprocessableEntityException
+    expect(exception.getStatus()).toBe(422)
+    expect(exception.getResponse()).toEqual({
+      statusCode: 422,
+      error: 'Unprocessable Entity',
+      message: expect.stringContaining('有限な数値になりませんでした'),
+      issues: [
+        expect.objectContaining({
+          fieldUid,
+          path: [fieldUid],
+          message: expect.stringContaining('有限な数値になりませんでした')
+        })
+      ]
+    })
+  }
 
   const makeCharacter = (overrides: Partial<CharacterEntity> = {}): CharacterEntity => ({
     characterId: 'character-1',
@@ -310,6 +351,24 @@ describe('CharacterSheetOperationService', () => {
           resolvedResourceValues: expect.objectContaining({ 'uid-hp': 10 })
         })
       )
+    })
+
+    it('hub resource の非有限422原因にも会計済み封筒全体を保持する', async () => {
+      evaluateTemplateMock.mockImplementationOnce(evaluateWithNonFiniteHp)
+      current = makeCharacter({
+        discordThreadId: 'thread-1'
+      })
+      let failure: unknown
+
+      try {
+        await service.getHubCharacter('character-1')
+      } catch (error) {
+        failure = error
+      }
+      evaluateTemplateMock.mockImplementation(evaluateTemplate)
+
+      expect(failure).toBeInstanceOf(HubProjectionPreparationError)
+      expectNonFinite422Envelope((failure as HubProjectionPreparationError).projectionCause, 'uid-hp')
     })
 
     it('palette対象外のresource text scalarがあってもhub投影値の解決に成功する', async () => {
@@ -892,6 +951,48 @@ describe('CharacterSheetOperationService', () => {
   })
 
   describe('applyResourceDelta', () => {
+    it('更新前resourceの非有限422に会計済み封筒全体を渡す', async () => {
+      evaluateTemplateMock.mockImplementationOnce(evaluateWithNonFiniteHp)
+      let failure: unknown
+
+      try {
+        await service.applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: -1,
+          interaction: { id: 'interaction-non-finite-before' }
+        })
+      } catch (error) {
+        failure = error
+      }
+      evaluateTemplateMock.mockImplementation(evaluateTemplate)
+
+      expectNonFinite422Envelope(failure, 'uid-hp')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('delta適用後resourceの非有限422に会計済み封筒全体を渡す', async () => {
+      evaluateTemplateMock
+        .mockImplementationOnce((targetTemplate, options) => evaluateTemplate(targetTemplate, options))
+        .mockImplementationOnce(evaluateWithNonFiniteHp)
+      let failure: unknown
+
+      try {
+        await service.applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: -1,
+          interaction: { id: 'interaction-non-finite-after' }
+        })
+      } catch (error) {
+        failure = error
+      }
+      evaluateTemplateMock.mockImplementation(evaluateTemplate)
+
+      expectNonFinite422Envelope(failure, 'uid-hp')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
     it('minとmaxが同じ縮退trackでは境界方向を特定しない', async () => {
       templateService.resolvePublished.mockResolvedValue({
         ...template,

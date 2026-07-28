@@ -11,20 +11,16 @@ import {
   PaletteEntry
 } from '../types/character-sheet.types'
 import { isPartsValue, isResourceField } from './sheet-values.util'
+import {
+  buildBoundedNonFiniteErrorEnvelope,
+  type NonFiniteFieldDiagnostic,
+  toNonFiniteNumberKind
+} from './track-range.policy'
 
 interface MaterializationIssue {
   fieldUid?: string
   path: string[]
   message: string
-}
-
-type NonFiniteNumberKind = 'Infinity' | '-Infinity' | 'NaN'
-
-interface NonFiniteComputedValue {
-  fieldUid: string
-  label: string
-  formula: string
-  result: NonFiniteNumberKind
 }
 
 type ProjectionLastWriters = {
@@ -39,9 +35,6 @@ interface ProjectionBuildResult {
 @Injectable()
 export class SheetMaterializerService {
   private static readonly PALETTE_HARD_CAP = 512
-  // 先頭3件と式120文字で原因特定に必要な情報を残しつつ、入力件数・式長による応答増幅を止める。
-  private static readonly NON_FINITE_DETAIL_LIMIT = 3
-  private static readonly NON_FINITE_FORMULA_PREVIEW_LENGTH = 120
 
   validateInputValues(
     templateEntity: CharacterSheetTemplateEntity,
@@ -101,7 +94,7 @@ export class SheetMaterializerService {
   }
 
   private assertFiniteComputedValues(lastWriters: ProjectionLastWriters, evaluated: EvaluationResult): void {
-    const nonFiniteValues: NonFiniteComputedValue[] = []
+    const nonFiniteValues: NonFiniteFieldDiagnostic[] = []
 
     // projection に実際に残る最後の書き手だけを検査し、従来の上書き後の保存可否を維持する。
     for (const targetWriters of Object.values(lastWriters)) {
@@ -116,10 +109,11 @@ export class SheetMaterializerService {
         }
 
         nonFiniteValues.push({
+          kind: 'computed',
           fieldUid: field.uid,
           label: field.label,
           formula: field.formula,
-          result: this.toNonFiniteNumberKind(value.value)
+          result: toNonFiniteNumberKind(value.value)
         })
       }
     }
@@ -128,41 +122,7 @@ export class SheetMaterializerService {
       return
     }
 
-    const message = this.buildNonFiniteComputedMessage(nonFiniteValues)
-    this.throwUnprocessable(
-      nonFiniteValues.slice(0, SheetMaterializerService.NON_FINITE_DETAIL_LIMIT).map((value) => ({
-        fieldUid: value.fieldUid,
-        path: [value.fieldUid],
-        message: this.buildNonFiniteComputedMessage([value])
-      })),
-      message
-    )
-  }
-
-  private buildNonFiniteComputedMessage(values: NonFiniteComputedValue[]): string {
-    const displayedValues = values.slice(0, SheetMaterializerService.NON_FINITE_DETAIL_LIMIT)
-    const details = displayedValues
-      .map(
-        (value) =>
-          `フィールド: ${value.fieldUid} / ラベル: ${value.label} / 式: ${this.truncateFormula(value.formula)} / 結果: ${value.result}`
-      )
-      .join('；')
-    const omittedCount = values.length - displayedValues.length
-    const omittedSummary = omittedCount > 0 ? `；ほか ${omittedCount} 件` : ''
-
-    return `計算式の結果が有限な数値になりませんでした（${details}${omittedSummary}）。ゼロ除算などが起きていないか式を確認してください`
-  }
-
-  private truncateFormula(formula: string): string {
-    const limit = SheetMaterializerService.NON_FINITE_FORMULA_PREVIEW_LENGTH
-    return formula.length > limit ? `${formula.slice(0, limit)}…` : formula
-  }
-
-  private toNonFiniteNumberKind(value: number): NonFiniteNumberKind {
-    if (Number.isNaN(value)) {
-      return 'NaN'
-    }
-    return value === Number.NEGATIVE_INFINITY ? '-Infinity' : 'Infinity'
+    throw new UnprocessableEntityException(buildBoundedNonFiniteErrorEnvelope(nonFiniteValues))
   }
 
   private buildComputedCache(
@@ -365,6 +325,7 @@ export class SheetMaterializerService {
     const schemaValues: Record<string, unknown> = {}
     const rollValues: Record<string, unknown> = {}
     const issues: MaterializationIssue[] = []
+    const nonFiniteRollDiagnostics: NonFiniteFieldDiagnostic[] = []
 
     for (const [uid, value] of Object.entries(values)) {
       const field = fieldsByUid.get(uid)
@@ -388,6 +349,16 @@ export class SheetMaterializerService {
         if ((typeof value === 'number' && Number.isFinite(value)) || typeof value === 'string') {
           rollValues[uid] = value
         } else {
+          if (typeof value === 'number') {
+            const diagnostic: NonFiniteFieldDiagnostic = {
+              kind: 'roll',
+              fieldUid: uid,
+              label: field.label,
+              result: toNonFiniteNumberKind(value)
+            }
+            nonFiniteRollDiagnostics.push(diagnostic)
+            continue
+          }
           issues.push({
             fieldUid: uid,
             path: [uid],
@@ -410,6 +381,9 @@ export class SheetMaterializerService {
       )
     }
 
+    if (nonFiniteRollDiagnostics.length > 0) {
+      throw new UnprocessableEntityException(buildBoundedNonFiniteErrorEnvelope(nonFiniteRollDiagnostics, issues))
+    }
     if (issues.length > 0) {
       this.throwUnprocessable(issues)
     }

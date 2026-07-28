@@ -246,6 +246,73 @@ describe('TrackRangePolicy', () => {
     ).not.toThrow()
   })
 
+  it.each([
+    ['正方向', { a: Number.MAX_VALUE, b: Number.MAX_VALUE }, 'Infinity'],
+    ['負方向', { a: -Number.MAX_VALUE, b: -Number.MAX_VALUE }, '-Infinity']
+  ])('parts 合計の%sオーバーフローを共通 track-input 診断で拒否する', (_direction, parts, result) => {
+    const policy = new TrackRangePolicy(trackTemplate())
+    let failure: unknown
+
+    try {
+      policy.assertCreationValuesWithinBounds({ 'uid-hp': { parts } })
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(UnprocessableEntityException)
+    const response = (failure as UnprocessableEntityException).getResponse() as { message: string }
+    expect(response.message).toContain('トラックの入力値が有限な数値になりませんでした')
+    expect(response.message).toContain('フィールド: uid-hp')
+    expect(response.message).toContain('ラベル: HP')
+    expect(response.message).toContain('入力箇所: parts 合計')
+    expect(response.message).toContain(`結果: ${result}`)
+    expect(response.message).not.toContain('outside resolved bounds')
+  })
+
+  it.each([
+    ['正方向overflowから範囲内', { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } }, 5],
+    ['正方向overflowから同じmax側の20', { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } }, 20],
+    ['正方向overflowから同じmax側の11', { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } }, 11],
+    ['負方向overflowから同じmin側の-5', { parts: { first: -Number.MAX_VALUE, second: -Number.MAX_VALUE } }, -5]
+  ])('既存の parts 合計%sへの有限な縮小更新を許可する', (_caseName, currentValue, nextValue) => {
+    const policy = new TrackRangePolicy(trackTemplate())
+
+    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
+  })
+
+  it.each([
+    ['Infinityから範囲内', Number.POSITIVE_INFINITY, 5],
+    ['Infinityからmax側範囲外', Number.POSITIVE_INFINITY, 20],
+    ['-Infinityから範囲内', Number.NEGATIVE_INFINITY, 5],
+    ['-Infinityからmin側範囲外', Number.NEGATIVE_INFINITY, -5],
+    ['NaNから範囲内', Number.NaN, 5],
+    ['NaNからmax側範囲外', Number.NaN, 20],
+    ['NaNからmin側範囲外', Number.NaN, -5]
+  ])('既存の直接入力%sへの修復更新を許可する', (_caseName, currentValue, nextValue) => {
+    const policy = new TrackRangePolicy(trackTemplate())
+
+    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
+  })
+
+  it('有限な既存値から parts 合計 overflow への更新は引き続き拒否する', () => {
+    const policy = new TrackRangePolicy(trackTemplate())
+
+    expect(() =>
+      policy.assertNoWorsenedTrackValues(
+        { 'uid-hp': 5 },
+        { 'uid-hp': { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } } }
+      )
+    ).toThrow(UnprocessableEntityException)
+  })
+
+  it('数値でない既存 parts からの修復更新は引き続き拒否する', () => {
+    const policy = new TrackRangePolicy(trackTemplate())
+
+    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': { parts: { base: 'x' } } }, { 'uid-hp': 5 })).toThrow(
+      UnprocessableEntityException
+    )
+  })
+
   it('legacy partsはmaterialize用だけクランプし、元の入力値を保持する', () => {
     const template = trackTemplate()
     const values = { 'uid-hp': { parts: { base: 999, other: 0 } } }
@@ -256,6 +323,29 @@ describe('TrackRangePolicy', () => {
       'uid-hp': 10
     })
     expect(values).toEqual({ 'uid-hp': { parts: { base: 999, other: 0 } } })
+  })
+
+  it('legacy materialize の非有限評価も resource-eval 共通診断を使う', () => {
+    const template = trackTemplate()
+    const policy = new TrackRangePolicy(template)
+    const evaluated = {
+      ...evaluateTemplate(template, { values: { 'uid-hp': 12 } }),
+      values: { 'uid-hp': { type: 'number' as const, value: Number.POSITIVE_INFINITY } }
+    }
+    let failure: unknown
+
+    try {
+      policy.toLegacyCompatibleMaterializationValues({ 'uid-hp': 11 }, { 'uid-hp': 12 }, evaluated)
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(UnprocessableEntityException)
+    const response = (failure as UnprocessableEntityException).getResponse() as { message: string }
+    expect(response.message).toContain('リソースフィールドの計算結果が有限な数値になりませんでした')
+    expect(response.message).toContain('フィールド: uid-hp')
+    expect(response.message).toContain('ラベル: HP')
+    expect(response.message).toContain('結果: Infinity')
   })
 
   it('同じvalues snapshotの同一field boundsをメモ化する', () => {

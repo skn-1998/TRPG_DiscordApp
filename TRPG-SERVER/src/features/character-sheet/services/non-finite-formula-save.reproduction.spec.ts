@@ -137,6 +137,37 @@ describe('non-finite formula save reproduction', () => {
     )
   }
 
+  const createHttpApp = async (
+    operationService: CharacterSheetOperationService,
+    currentCharacter: CharacterEntity
+  ): Promise<INestApplication> => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [CharacterSheetController],
+      providers: [
+        {
+          provide: CharacterService,
+          useValue: { findOneForOwner: jest.fn().mockResolvedValue(currentCharacter) }
+        },
+        { provide: CHARACTER_SHEET_OPERATION_USE_CASE, useValue: operationService },
+        { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } },
+        APP_VALIDATION_PIPE_PROVIDER
+      ]
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const req = context.switchToHttp().getRequest<Request>()
+          req.user = { username: 'Alice', discordUserId: 'owner-1' }
+          return true
+        }
+      })
+      .compile()
+
+    const app: INestApplication = module.createNestApplication()
+    await app.init()
+    return app
+  }
+
   const expectNonFiniteFailure = async (
     operationService: CharacterSheetOperationService,
     input: SaveSheetInput,
@@ -484,5 +515,417 @@ describe('non-finite formula save reproduction', () => {
     )
     expect(responseBytes).toBeLessThanOrEqual(4_096)
     expect(responseBytes).toBeLessThan(templateBytes)
+  })
+
+  it.each([
+    { dimension: 'label' as const, previousResponseSize: '601KB', expectedIssueCount: 3 },
+    { dimension: 'uid' as const, previousResponseSize: '1.2MB', expectedIssueCount: 0 }
+  ])(
+    '長大 $dimension 100,000文字×20件でも修正前の $previousResponseSize 応答には戻らず実 HTTP body を4,096 bytes以下に抑える',
+    async ({ dimension, expectedIssueCount }) => {
+      const computedFieldCount = 20
+      const longLabel = 'L'.repeat(100_000)
+      const longUid = (index: number) => `${String(index).padStart(2, '0')}${'u'.repeat(99_998)}`
+      const amplifiedTemplate: CharacterSheetTemplateEntity = {
+        ...template,
+        templateId: `http-amplified-${dimension}-template`,
+        sections: [
+          {
+            ...template.sections[0],
+            fields: [
+              ...templateFields.slice(0, 2),
+              ...Array.from({ length: computedFieldCount }, (_, index) => ({
+                id: `quotient_${index}`,
+                uid: dimension === 'uid' ? longUid(index) : `uid-quotient-${index}`,
+                label: dimension === 'label' ? longLabel : `Quotient ${index}`,
+                type: 'computed' as const,
+                resultType: 'number' as const,
+                formula
+              }))
+            ]
+          }
+        ]
+      }
+      const amplifiedCharacter: CharacterEntity = {
+        ...character,
+        sheet: {
+          ...character.sheet!,
+          templateId: amplifiedTemplate.templateId,
+          values: {
+            'uid-numerator': 1,
+            'uid-denominator': 1
+          }
+        }
+      }
+      const repository = {
+        findById: jest.fn().mockResolvedValue(amplifiedCharacter),
+        saveSheetMaterialized: jest.fn()
+      }
+      const operationService = createOperationService(repository, amplifiedTemplate)
+
+      expect(validatePublishTemplate(amplifiedTemplate)).toEqual(expect.objectContaining({ ok: true, issues: [] }))
+
+      const app = await createHttpApp(operationService, amplifiedCharacter)
+      try {
+        const response = await request(app.getHttpServer())
+          .put(`/character/${amplifiedCharacter.characterId}/sheet`)
+          .send({ baseRevision: 1, changes: saveInput.changes })
+          .expect(422)
+
+        expect(Buffer.byteLength(response.text, 'utf8')).toBeLessThanOrEqual(4_096)
+        expect(response.body.message).toContain(`ほか ${computedFieldCount - 3} 件`)
+        expect(response.body.issues).toHaveLength(expectedIssueCount)
+      } finally {
+        await app.close()
+      }
+
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    }
+  )
+
+  it('長大 uid の issue は fieldUid と path を切り詰めず、実 HTTP body を4,096 bytes以下に保つ', async () => {
+    const longUid = `uid-${'u'.repeat(508)}`
+    const longUidTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      templateId: 'long-uid-preservation-template',
+      sections: [
+        {
+          ...template.sections[0],
+          fields: [
+            ...templateFields.slice(0, 2),
+            {
+              id: 'long_uid_quotient',
+              uid: longUid,
+              label: 'Long UID quotient',
+              type: 'computed',
+              resultType: 'number',
+              formula
+            }
+          ]
+        }
+      ]
+    }
+    const longUidCharacter: CharacterEntity = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        templateId: longUidTemplate.templateId
+      }
+    }
+    const repository = {
+      findById: jest.fn().mockResolvedValue(longUidCharacter),
+      saveSheetMaterialized: jest.fn()
+    }
+    const operationService = createOperationService(repository, longUidTemplate)
+
+    expect(validatePublishTemplate(longUidTemplate)).toEqual(expect.objectContaining({ ok: true, issues: [] }))
+
+    const app = await createHttpApp(operationService, longUidCharacter)
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${longUidCharacter.characterId}/sheet`)
+        .send({ baseRevision: 1, changes: saveInput.changes })
+        .expect(422)
+
+      expect(Buffer.byteLength(response.text, 'utf8')).toBeLessThanOrEqual(4_096)
+      expect(response.body.issues).toEqual([
+        expect.objectContaining({
+          fieldUid: longUid,
+          path: [longUid]
+        })
+      ])
+      expect(response.body.issues[0].fieldUid).not.toContain('…')
+      expect(response.body.issues[0].path[0]).not.toContain('…')
+    } finally {
+      await app.close()
+    }
+
+    expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+  })
+
+  it('100,000文字 track UID の max 評価失敗でも production HTTP 封筒を4,096 bytes以下に保つ', async () => {
+    const longTrackUid = 't'.repeat(100_000)
+    const trackMaxTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      templateId: 'long-track-max-template',
+      sections: [
+        {
+          ...template.sections[0],
+          fields: [
+            ...templateFields.slice(0, 2),
+            {
+              id: 'hp',
+              uid: longTrackUid,
+              label: 'HP',
+              type: 'track',
+              min: 0,
+              max: { formula },
+              style: 'gauge'
+            }
+          ]
+        }
+      ]
+    }
+    const trackMaxCharacter: CharacterEntity = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        templateId: trackMaxTemplate.templateId,
+        values: {
+          'uid-numerator': 1,
+          'uid-denominator': 0,
+          [longTrackUid]: 1
+        }
+      },
+      computedCache: {}
+    }
+    const repository = {
+      findById: jest.fn().mockResolvedValue(trackMaxCharacter),
+      saveSheetMaterialized: jest.fn()
+    }
+    const operationService = createOperationService(repository, trackMaxTemplate)
+    const app = await createHttpApp(operationService, trackMaxCharacter)
+
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${trackMaxCharacter.characterId}/sheet`)
+        .send({
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: longTrackUid }, baseValue: 1, newValue: 2 }]
+        })
+
+      expect({
+        status: response.status,
+        bodyBytesWithinBudget: Buffer.byteLength(response.text, 'utf8') <= 4_096,
+        hasTrackMaxCause: response.body.message.includes('トラック最大値の計算に失敗しました'),
+        issues: response.body.issues,
+        repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
+      }).toEqual({
+        status: 422,
+        bodyBytesWithinBudget: true,
+        hasTrackMaxCause: true,
+        issues: [],
+        repositorySaveCalls: 0
+      })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('長大な既存 issue と非有限 roll の同時発生でも production HTTP 封筒を4,096 bytes以下に保つ', async () => {
+    const unknownUid = 'u'.repeat(100_000)
+    const mixedIssueTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      templateId: 'long-existing-issue-and-roll-template',
+      sections: [
+        {
+          ...template.sections[0],
+          fields: [
+            {
+              id: 'score',
+              uid: 'uid-score',
+              label: 'Score',
+              type: 'scalar',
+              valueType: 'number'
+            },
+            {
+              id: 'roll',
+              uid: 'uid-roll',
+              label: 'Roll',
+              type: 'roll',
+              notation: '1d100'
+            }
+          ]
+        }
+      ]
+    }
+    const mixedIssueCharacter: CharacterEntity = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        templateId: mixedIssueTemplate.templateId,
+        values: {
+          'uid-score': 1,
+          [unknownUid]: 1,
+          'uid-roll': Number.POSITIVE_INFINITY
+        }
+      },
+      computedCache: {}
+    }
+    const repository = {
+      findById: jest.fn().mockResolvedValue(mixedIssueCharacter),
+      saveSheetMaterialized: jest.fn()
+    }
+    const operationService = createOperationService(repository, mixedIssueTemplate)
+    const app = await createHttpApp(operationService, mixedIssueCharacter)
+
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${mixedIssueCharacter.characterId}/sheet`)
+        .send({
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score' }, baseValue: 1, newValue: 2 }]
+        })
+
+      expect({
+        status: response.status,
+        bodyBytesWithinBudget: Buffer.byteLength(response.text, 'utf8') <= 4_096,
+        hasUnknownFieldCause: response.body.message.includes('テンプレート未定義フィールド'),
+        hasNonFiniteRollCause: response.body.message.includes('ロール結果が有限な数値になりませんでした'),
+        issues: response.body.issues,
+        repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
+      }).toEqual({
+        status: 422,
+        bodyBytesWithinBudget: true,
+        hasUnknownFieldCause: true,
+        hasNonFiniteRollCause: true,
+        issues: [
+          expect.objectContaining({
+            fieldUid: 'uid-roll',
+            path: ['uid-roll'],
+            message: expect.stringContaining('ロール結果が有限な数値になりませんでした')
+          })
+        ],
+        repositorySaveCalls: 0
+      })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('stored parts 合計 overflow から有限値 5 への修復更新を production HTTP 経路で保存する', async () => {
+    const overflowValue = {
+      parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE }
+    }
+    const trackTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      templateId: 'track-overflow-repair-template',
+      sections: [
+        {
+          id: 'status',
+          label: 'Status',
+          fields: [
+            {
+              id: 'hp',
+              uid: 'uid-hp',
+              label: 'HP',
+              type: 'track',
+              min: 0,
+              max: 10,
+              style: 'gauge'
+            }
+          ]
+        }
+      ]
+    }
+    const overflowCharacter: CharacterEntity = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        templateId: trackTemplate.templateId,
+        values: { 'uid-hp': overflowValue }
+      },
+      computedCache: {}
+    }
+    const savedCharacter: CharacterEntity = {
+      ...overflowCharacter,
+      sheet: {
+        ...overflowCharacter.sheet!,
+        revision: 2,
+        values: { 'uid-hp': 5 }
+      }
+    }
+    const repository = {
+      findById: jest.fn().mockResolvedValue(overflowCharacter),
+      saveSheetMaterialized: jest.fn().mockResolvedValue(savedCharacter)
+    }
+    const operationService = createOperationService(repository, trackTemplate)
+    const app = await createHttpApp(operationService, overflowCharacter)
+
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${overflowCharacter.characterId}/sheet`)
+        .send({
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-hp' }, baseValue: overflowValue, newValue: 5 }]
+        })
+
+      expect({
+        status: response.status,
+        revision: response.body.revision,
+        noOp: response.body.noOp,
+        repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
+      }).toEqual({
+        status: 200,
+        revision: 2,
+        noOp: false,
+        repositorySaveCalls: 1
+      })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('stored 有限値 5 から parts 合計 overflow への更新は production HTTP 経路で拒否する', async () => {
+    const overflowValue = {
+      parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE }
+    }
+    const trackTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      templateId: 'track-overflow-rejection-template',
+      sections: [
+        {
+          id: 'status',
+          label: 'Status',
+          fields: [
+            {
+              id: 'hp',
+              uid: 'uid-hp',
+              label: 'HP',
+              type: 'track',
+              min: 0,
+              max: 10,
+              style: 'gauge'
+            }
+          ]
+        }
+      ]
+    }
+    const finiteCharacter: CharacterEntity = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        templateId: trackTemplate.templateId,
+        values: { 'uid-hp': 5 }
+      },
+      computedCache: {}
+    }
+    const repository = {
+      findById: jest.fn().mockResolvedValue(finiteCharacter),
+      saveSheetMaterialized: jest.fn()
+    }
+    const operationService = createOperationService(repository, trackTemplate)
+    const app = await createHttpApp(operationService, finiteCharacter)
+
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${finiteCharacter.characterId}/sheet`)
+        .send({
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-hp' }, baseValue: 5, newValue: overflowValue }]
+        })
+
+      expect({
+        status: response.status,
+        hasTrackInputCause: response.body.message.includes('トラックの入力値が有限な数値になりませんでした'),
+        repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
+      }).toEqual({
+        status: 422,
+        hasTrackInputCause: true,
+        repositorySaveCalls: 0
+      })
+    } finally {
+      await app.close()
+    }
   })
 })
