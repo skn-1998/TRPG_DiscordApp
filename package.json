@@ -1,5 +1,5 @@
 {
-	"packageManager": "pnpm@10.12.1",
+	"packageManager": "pnpm@11.5.1",
 	"scripts": {
 		"build:contract": "pnpm --filter @trpg/api-contract build",
 		"build:engine": "pnpm --filter @trpg/sheet-engine build",

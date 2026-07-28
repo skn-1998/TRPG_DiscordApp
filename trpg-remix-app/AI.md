@@ -27,11 +27,37 @@ TRPG-Remix-Appは、テーブルトークRPG（TRPG）の管理・支援を行�
 
 ### pnpm セキュリティ運用
 
-- `pnpm-workspace.yaml` で `minimumReleaseAge: 1440`、`minimumReleaseAgeStrict: true`、`blockExoticSubdeps: true`、`trustPolicy: no-downgrade` を明示し、公開直後の依存・外部ソース由来の推移依存・信頼レベル低下を防ぐ。
-- dependency build script は `allowBuilds` で明示管理する。現在は `esbuild` と `unrs-resolver` のみ許可し、`dangerouslyAllowAllBuilds` は禁止。
-- `vite@8` の peer dependency を満たすため、`esbuild@0.28.0` を devDependency と override で固定する。
-- `verifyDepsBeforeRun: error` により、`pnpm run` 時の暗黙 install を禁止する。依存がずれている場合は `pnpm install --frozen-lockfile` で明示確認する。
-- 監査は `pnpm run audit`、署名検証は `pnpm run audit:signatures` を使う。
+- workspace の pnpm は、ルート `package.json` の `packageManager` と両 Dockerfile を `pnpm@11.5.1` に固定する。
+  GitHub Actions の `pnpm/action-setup@v6` はルートの宣言を参照する。pnpm 11.5.1 は Node >=22.13 を要求する。
+- `minimumReleaseAge: 1440`（pnpm 10.16.0 追加）と `minimumReleaseAgeStrict: true`（11.0.0 追加）は、
+  除外リストにない依存に公開後 24 時間の待機を強制する。
+  T19（2026-07-28）以前は宣言（root 10.12.1）と各経路の実行版が揃っておらず、これらの検査は
+  起動経路により効いたり効かなかったりしていた（`minimumReleaseAgeExclude` の 45 件と
+  `minimumReleaseAgeIgnoreMissingTime: true` の緩和はその期間に検査が発火した産物）。
+  T19 で root・CI・Docker の全経路が 11.5.1 に揃い、決定的に有効になった。
+  除外リストの列挙対象と、公開時刻を取得できない依存は検査対象外になる。
+- `blockExoticSubdeps: true`（pnpm 10.26.0 追加）は、推移依存が Git や直接 tarball URL などの
+  exotic source を参照する解決を原則拒否する。registry・workspace・local file・pnpm 組み込みの
+  信頼済み runtime source は例外で、ルートに明示した直接依存の外部ソースまで拒否する設定でもない。
+- `trustPolicy: no-downgrade` は pnpm 10.21.0 以降の設定であり、過去の公開版より信頼レベルが低い版を拒否する。
+  `trustPolicyIgnoreAfter: 10080` により、公開から 7 日を超えた版はこの検査対象外になる。
+  `trustLockfile: false` は pnpm 11.3.0 以降で有効になり、lockfile を無条件には信頼せず、install 時に release-age と trust policy を再検査する。
+- dependency build script は `allowBuilds`（pnpm 10.26.0 追加。pnpm 11 で
+  `onlyBuiltDependencies` / `ignoredBuiltDependencies` の移行先になった）で明示管理する。
+  `cpu-features`、`esbuild`、`protobufjs`、`ssh2`、`unrs-resolver` だけを許可し、`@scarf/scarf` は拒否する
+  （front 直依存の `esbuild` の build 許可もこの列挙が根拠）。
+  `strictDepBuilds` と `dangerouslyAllowAllBuilds` は 10.12.1 でも有効だった。
+  未登録の build script は前者により install を失敗させ、後者を `false` にして包括許可しない。
+- `verifyDepsBeforeRun: error` は pnpm 10.12.1 でも有効だった設定であり、pnpm 11 化で新たに有効になった設定ではない。
+  `pnpm run` と `pnpm exec` の前に manifest、lockfile、`node_modules` のずれを検出し、暗黙 install をせず失敗する。
+  `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` が出たら `pnpm install --frozen-lockfile` で解消する
+  （`--config.verify-deps-before-run=false` での無効化は調査時の一時手段に限る）。
+- `pmOnFail: error` と `registries.default` は pnpm 11.0.0 以降で有効になり、実行 pnpm の版ずれを失敗にし、既定 registry を明示する。
+  `resolutionMode`、`savePrefix`、`auditLevel`、`overrides` は 10.12.1 から継続して有効である。
+- 監査は `pnpm --filter trpg-remix-app run audit`、署名検証は
+  `pnpm --filter trpg-remix-app run audit:signatures` を使う（script は本 package にのみ定義。
+  後者が使う `pnpm audit signatures` サブコマンドは pnpm 11.1.0 で利用可能になった）。
+  `auditLevel: moderate` は moderate 以上を報告対象にする。
 - Vite では `vite-plugin-env-compatible` を使わず、`vite.config.mjs` の `__APP_PUBLIC_ENV__` に公開してよい値だけを渡す。`DISCORD_SECRET` は client bundle に注入しない。
 - 開発環境の TLS 証明書回避は axios の HTTPS agent に閉じ込め、`NODE_TLS_REJECT_UNAUTHORIZED=0` のようなプロセス全体の無効化は使わない。
 
@@ -439,23 +465,24 @@ const character = characterHandler.handleSuccess(response)
 
 ### 封筒が適用される面 / 適用されない面
 
-| 面                                                                               | 封筒                                                                                          | 読み方                                                                                         |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `/auth/*`（`/auth/discord` と `/auth/discord/callback` を除く）                  | あり                                                                                          | `response.data.data`                                                                           |
-| `/users/*`（`/users/discord/guilds` を含む）                                     | あり                                                                                          | `response.data.data`                                                                           |
-| `/character`・`/character/:id`・`/character/summaries` (CharacterController)     | あり                                                                                          | `response.data.data`                                                                           |
-| `/character/from-template`・`/character/:id/sheet` (CharacterSheetController)    | **あり**（U5-5a/5b で封筒化済み。エラーも封筒 — `error`=実原因・構造情報は `issues`/`cause`） | `response.data.data`（front は当面 `unwrapSheetResponse` の両形対応経由。S-U5-6 で封筒専用へ） |
-| `/sheet-templates/*`・`/discord/*`・`/commands/*`・`/interactions/*`・`/`（app） | **なし**                                                                                      | `response.data`                                                                                |
+| 面                                                                               | 封筒                                                                                          | 読み方                                                                        |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `/auth/*`（`/auth/discord` と `/auth/discord/callback` を除く）                  | あり                                                                                          | `response.data.data`                                                          |
+| `/users/*`（`/users/discord/guilds` を含む）                                     | あり                                                                                          | `response.data.data`                                                          |
+| `/character`・`/character/:id`・`/character/summaries` (CharacterController)     | あり                                                                                          | `response.data.data`                                                          |
+| `/character/from-template`・`/character/:id/sheet` (CharacterSheetController)    | **あり**（U5-5a/5b で封筒化済み。エラーも封筒 — `error`=実原因・構造情報は `issues`/`cause`） | `response.data.data`（S-U5-6 で移行用の両形対応 helper を除去済み・封筒専用） |
+| `/sheet-templates/*`・`/discord/*`・`/commands/*`・`/interactions/*`・`/`（app） | **なし**                                                                                      | `response.data`                                                               |
 
 - `/character` プレフィックスは封筒面と非封筒面が**同居**している。エンドポイント単位で確認すること。
 - 非封筒面のエラーは Nest 既定形（`statusCode` / `message` / `error`）で、`ErrorEnvelope` では表現できない。
   `ApiResponseUtil.handleError` と `CustomError` は両形を扱えるように書いてある（`isErrorEnvelope` で判別）。
-- **U5 経過（2026-07-28・S-U5-1〜4 済み・server 封筒化はこれから）**:
-  `extractApiErrorMessages` も両形対応済み（S-U5-2）。sheet 2関数（`createCharacterFromTemplate` /
-  `saveCharacterSheet`）は封筒/生の両対応で、戻り値は契約の
-  `CreateCharacterFromTemplateResultWire` / `SaveCharacterSheetResultWire`（S-U5-3）。
-  server 側の実応答は**まだ非封筒のまま**（S-U5-5a/5b で封筒化予定。5b の目標封筒形は
-  `TRPG-SERVER/.../track-range.policy.ts` の代表形定数が正本）。
+- **U5 完了（2026-07-28・コミット 717f083 → 0299113 → 3493e2c → 9eae435）**:
+  sheet 2ルート（CharacterSheetController）は server 側も成功・エラーとも封筒化済み。
+  sheet 2関数の戻り値は契約の `CreateCharacterFromTemplateResultWire` /
+  `SaveCharacterSheetResultWire`。封筒エラーメッセージの抽出は
+  `errorEnvelopeMessages`（`app/lib/api-response.util.ts`）へ1本化され、
+  エラー封筒の正本は `TRPG-SERVER/.../track-range.policy.ts` の封筒 builder
+  （byte 会計と実 HTTP body が同一 builder を共有）。
 
 ### 手順1: server のスキーマ／レスポンス形を変えたとき
 
@@ -613,9 +640,11 @@ const character = characterHandler.handleSuccess(response)
 - `TRPG-SERVER/Dockerfile` / `trpg-remix-app/Dockerfile` は CI で一度も build されず、
   キャンペーンで変更済みの Dockerfile もデプロイ時まで検証されない。
 - server の `coverageThreshold` は通常の `pnpm test` に `--coverage` を渡していないため実効しない。
-- root `packageManager` は `pnpm@10.12.1` のため、`minimumReleaseAge`（10.16+）と
-  `blockExoticSubdeps` / `pmOnFail` / `registries`（11.0+）は実効化されていない。
-  `onlyBuiltDependencies` / `strictDepBuilds` / `verifyDepsBeforeRun` は有効。別スライスで対応予定。
+- T19（2026-07-28）は宣言の統一まで（詳細は「pnpm セキュリティ運用」節）。
+  **CI / Docker は pnpm 11 でまだ一度も install していない**。cold cache での
+  `pnpm install --frozen-lockfile`（`trustLockfile: false` による lockfile 再検査と
+  `minimumReleaseAgeStrict` を含む）は初回 CI 実行が最初の実証になる。
+  Dockerfile の pnpm 11.5.1 化も、上記「CI で build されない」間隙により未検証のまま。
 - Next.js 検討記録の「CI に `pnpm -r typecheck` を追加」は未実施。
   `packages/*` に `typecheck` script がなく、現状のままでは実行不能。
 - CI 導入により全 suite、sheet package test、Docker integration は共有ゲートになった。一方、

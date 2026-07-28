@@ -41,7 +41,8 @@
 > jest 22／circular 0／start:dev DI OK（CharacterSheetModule 込み）。未コミット。**Phase 1 はこれで実装完了**
 > （残: docker compose build のユーザー実証のみ）。
 > **追記5（2026-07-08・C-0 workspace 化）**: リポジトリを pnpm workspace 化（root 単一 lockfile・
-> `@trpg/sheet-engine` を両アプリに workspace:* 接続・Docker build context ルート化・pnpm 10.12.1 固定）。
+> `@trpg/sheet-engine` を両アプリに workspace:* 接続・Docker build context ルート化・pnpm 10.12.1 固定
+> ※当時の固定。T19（2026-07-28）で 11.5.1 に更新済み。現在値は root `package.json` が正本）。
 > ネストしていたサプライチェーン設定は root `pnpm-workspace.yaml` へ統合（調整の経緯は同ファイルのコメントが正本）。
 > **副産物として front の重大な潜在バグ4層を修復**: 上限なし override が宣言レンジを破壊し、fresh install では
 > vite:dev すら起動しない状態だった（remark-mdx の ESM 注入・Remix 非対応の vite 8・@babel/runtime 8 跳ね・
