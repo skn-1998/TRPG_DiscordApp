@@ -1,10 +1,11 @@
 import type { DynamicModule, ForwardReference, Provider, Type } from '@nestjs/common'
 import { MODULE_METADATA, PIPES_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants'
 import { ConfigService } from '@nestjs/config'
-import { APP_PIPE, MetadataScanner } from '@nestjs/core'
+import { APP_FILTER, APP_PIPE, MetadataScanner } from '@nestjs/core'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { AppModule } from './app.module'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from './core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_OPTIONS, APP_VALIDATION_PIPE_PROVIDER } from './core/http/validation-pipe.provider'
 
 interface ApplicationGraph {
@@ -124,6 +125,15 @@ describe('AppModule', () => {
     expect(appPipeProviders[0]).toBe(APP_VALIDATION_PIPE_PROVIDER)
   })
 
+  it('production module graph 全体で共有 APP_FILTER provider を一意に登録する', () => {
+    const appFilterProviders = applicationGraph.providers.filter(
+      (provider) => isObject(provider) && provider.provide === APP_FILTER
+    )
+
+    expect(appFilterProviders).toHaveLength(1)
+    expect(appFilterProviders[0]).toBe(APP_GLOBAL_EXCEPTION_FILTER_PROVIDER)
+  })
+
   it('PromiseLike import を await し、非同期 DynamicModule の provider まで収集する', () => {
     // ConfigService は @nestjs/config の公開 token。同期到達する基底 ConfigModule は useExisting だが、
     // forRoot() の Promise 経路は useFactory で登録するため、この組み合わせが非同期走査の安定した証拠になる。
@@ -194,5 +204,12 @@ describe('AppModule', () => {
     const mainSource = readFileSync(join(__dirname, 'main.ts'), 'utf8')
 
     expect(mainSource).not.toContain('useGlobalPipes')
+  })
+
+  it('bootstrap は useGlobalFilters で第2の global filter を登録しない', () => {
+    // main.ts は import 時に bootstrap() を実行するため、副作用を起動しない architecture test としてソースを検査する。
+    const mainSource = readFileSync(join(__dirname, 'main.ts'), 'utf8')
+
+    expect(mainSource).not.toContain('useGlobalFilters')
   })
 })

@@ -17,6 +17,7 @@ import { CharacterSheetDiscordFeatureModule } from './discord/features/character
 import { EventsModule } from './events/events.module'
 import { winstonConfigFactory } from './config/winston.config'
 import { AppConfigService } from './config/config.service'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from './core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from './core/http/validation-pipe.provider'
 // AI.architecture.md Phase 3: アダプター層統合
 
@@ -46,7 +47,7 @@ import { APP_VALIDATION_PIPE_PROVIDER } from './core/http/validation-pipe.provid
     CharacterSheetDiscordFeatureModule
   ],
   controllers: [AppController],
-  providers: [AppService, APP_VALIDATION_PIPE_PROVIDER],
+  providers: [AppService, APP_VALIDATION_PIPE_PROVIDER, APP_GLOBAL_EXCEPTION_FILTER_PROVIDER],
   exports: [AppService]
 })
 export class AppModule {}

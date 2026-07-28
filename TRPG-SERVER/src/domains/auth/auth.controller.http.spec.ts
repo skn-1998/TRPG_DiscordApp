@@ -7,6 +7,7 @@ import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
 import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
 import { CookieService } from '../../core/http/cookie.service'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { CryptoService } from '../../core/shared/services/crypto.service'
 import { HttpClientService } from '../../core/shared/services/http.service'
@@ -66,7 +67,8 @@ describe('AuthController / UserController HTTP integration', () => {
         JwtAuthGuard,
         HttpExceptionFilter,
         ResponseInterceptor,
-        APP_VALIDATION_PIPE_PROVIDER
+        APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
       ]
     }).compile()
 
