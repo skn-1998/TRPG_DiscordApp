@@ -96,6 +96,28 @@ features
 | `events` core       | `features/*` | event 基盤が feature handler を所有してしまう         |
 | `interactions` core | `features/*` | interaction 基盤が feature handler を所有してしまう   |
 
+適用範囲と機械ゲート（Task#31・2026-07-28）:
+
+- 上表の From 4層（`src/core`・`src/domains`・`src/events`・`src/discord/interactions`）配下の
+  `.spec.ts` を除く `*.ts` に適用し、`eslint.config.mjs` の層ガード
+  （`no-restricted-imports`・error）が**静的 `import` / `export … from`** を機械的に固定する。
+  動的 `import()`・`require()` は本ルールの守備範囲外（現状 4 領域の非 spec に該当 0 件。
+  `require` は既存 no-require-imports の warn で可視化のみ）。
+  層ガードの `eslint-disable` 抑止は原則禁止 — 必要ならレビュー合意と理由コメントを必須とする
+- 導入の経緯: それまで表を守る機械ゲートが無く（`check:circular` は循環のみで層方向を見ない）、
+  U5-5b（2026-07-28）の実装途中に domains/character の controller が features の filter を
+  import する禁止辺が作業ツリーに生じ、全ゲート緑のままレビューのみが検出した
+  （コミット前に controller の features 移動で解消。本ガードがあれば lint が error にしていた）
+- **`.spec.ts` は層規約の明示的例外**。統合 spec は複数層を意図的に合成するのが役割で、
+  spec は build 対象外＝実行時依存グラフに入らないため
+  （例: `core/http/response-interceptor-application.spec.ts`、
+  `discord/interactions/handlers/handlers.integration.spec.ts`）。
+  spec 以外のテスト支援（`core/testing` 等）は対象のまま — 違反が必要になった時点で
+  ignores への追加を検討する（先回りしない）
+- legacy `src/discord`（`interactions` 以外）は表の `features/*` に含めず、当面 gate 対象外。
+  restricted 層を指す tsconfig alias を将来足す場合は、名前に `features` / `domains` を
+  含めること（層ガードは import 文字列照合であり、隠す alias はすり抜ける）
+
 ---
 
 ## 5. Module ルール
