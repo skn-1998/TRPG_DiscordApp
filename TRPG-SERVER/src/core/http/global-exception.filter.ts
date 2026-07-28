@@ -3,7 +3,7 @@ import { APP_FILTER, BaseExceptionFilter } from '@nestjs/core'
 import type { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { AppConfigService } from '../../config/config.service'
-import { ErrorResponse } from '../dto/api-response.dto'
+import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../dto/api-response.dto'
 
 const UNAVAILABLE_EXCEPTION_DIAGNOSTIC = '[diagnostic unavailable]'
 
@@ -106,7 +106,7 @@ export class GlobalExceptionFilter extends BaseExceptionFilter {
     const includeStack = this.configService.get('app.environment') === 'development'
     const response = new ErrorResponse(
       GLOBAL_INTERNAL_ERROR_MESSAGE,
-      'エラーが発生しました',
+      DEFAULT_ERROR_RESPONSE_MESSAGE,
       undefined,
       undefined,
       diagnostics.stack,

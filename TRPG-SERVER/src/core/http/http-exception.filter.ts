@@ -1,7 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Injectable } from '@nestjs/common'
 import { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { ErrorResponse } from '../dto/api-response.dto'
+import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../dto/api-response.dto'
 import { ApiError } from './api-error'
 import { getHttpExceptionMessage } from './http-exception-message'
 import { AppConfigService } from '../../config/config.service'
@@ -59,7 +59,7 @@ export class HttpExceptionFilter implements ExceptionFilter<HttpException> {
 
     const response = new ErrorResponse(
       getHttpExceptionMessage(exception),
-      'エラーが発生しました',
+      DEFAULT_ERROR_RESPONSE_MESSAGE,
       undefined,
       undefined,
       exception.stack,

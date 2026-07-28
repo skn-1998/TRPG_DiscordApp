@@ -23,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
 import { ResponseInterceptor, HttpExceptionFilter, ApiErrorResponse, ApiError } from '../../core/http'
+import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../core/dto/api-response.dto'
 import { toUserOutput } from './presenters/user-output.presenter'
 import type { DiscordGuildsPayloadWire, UserProfileWire } from '@trpg/api-contract'
 
@@ -36,7 +37,7 @@ interface RequestWithUser extends Request {
  * 全エンドポイントは success=200/'成功'。
  * @ApiErrorResponse は現在どの経路からも参照されない無効メタであり、第5群で撤去する。
  * リソース未発見（変換前の ApiResponseUtil.error(res, '...が見つかりません', 404)）は
- * ApiError(404, 'エラーが発生しました', '...') を throw して再現する。
+ * ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, '...') を throw して再現する。
  */
 @ApiTags('users')
 @ApiBearerAuth()
@@ -51,14 +52,14 @@ export class UserController {
   private extractAuthenticatedDiscordUserId(req: RequestWithUser): string {
     const discordUserId = req.user?.discordUserId
     if (!discordUserId) {
-      throw new ApiError(401, 'エラーが発生しました', '認証トークンがありません')
+      throw new ApiError(401, DEFAULT_ERROR_RESPONSE_MESSAGE, '認証トークンがありません')
     }
     return discordUserId
   }
 
   private assertSelf(requestedDiscordUserId: string, authenticatedDiscordUserId: string): void {
     if (requestedDiscordUserId !== authenticatedDiscordUserId) {
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
   }
 
@@ -89,7 +90,7 @@ export class UserController {
     const user = await this.userService.findByDiscordId(discordUserId)
     if (!user) {
       // 変換前: ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)
   }
@@ -129,7 +130,7 @@ export class UserController {
     }
     const user = await this.userService.update(discordUserId, profileUpdate)
     if (!user) {
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)
   }
@@ -146,7 +147,7 @@ export class UserController {
     this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.addCharacterId(discordUserId, characterId)
     if (!user) {
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)
   }
@@ -163,7 +164,7 @@ export class UserController {
     this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.removeCharacterId(discordUserId, characterId)
     if (!user) {
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)
   }
@@ -180,7 +181,7 @@ export class UserController {
     this.assertSelf(discordUserId, authenticatedDiscordUserId)
     const user = await this.userService.remove(discordUserId)
     if (!user) {
-      throw new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません')
+      throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)
   }
