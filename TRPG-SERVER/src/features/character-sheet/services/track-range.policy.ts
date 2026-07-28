@@ -40,31 +40,33 @@ export interface SheetErrorEnvelopeMetadata {
   requestId?: string
 }
 
-export interface SheetErrorEnvelope extends ErrorEnvelope {
-  issues: readonly NonFiniteErrorIssue[]
+export interface SheetErrorEnvelopeExtensions {
+  issues?: readonly NonFiniteErrorIssue[]
+  cause?: Readonly<Record<string, unknown>>
 }
 
 const SHEET_ERROR_ENVELOPE_TIMESTAMP_PLACEHOLDER = 1_000_000_000_000
 const SHEET_ERROR_ENVELOPE_REQUEST_ID_PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
 
 /**
- * sheet 422 が共通 HTTP filter 適用後に取る最終 wire 封筒を作る。
+ * sheet の HttpException が controller filter 適用後に取る最終 wire 封筒を作る。
  *
- * 5b の filter は実 timestamp / requestId を渡して必ずこの builder を使うこと。別実装は禁止。
+ * filter は実 timestamp / requestId と構造キャリアを渡して必ずこの builder を使うこと。別実装は禁止。
  * byte 会計時も同じ builder に固定幅 placeholder を渡し、実封筒とのキーと直列化形の乖離を防ぐ。
  */
 export function buildSheetErrorEnvelope(
   error: string,
-  issues: readonly NonFiniteErrorIssue[],
+  { issues, cause }: SheetErrorEnvelopeExtensions = {},
   { timestamp = Date.now(), requestId }: SheetErrorEnvelopeMetadata = {}
-): SheetErrorEnvelope {
+): ErrorEnvelope {
   return {
     success: false,
     message: DEFAULT_ERROR_RESPONSE_MESSAGE,
     timestamp,
     requestId,
     error,
-    issues
+    ...(issues === undefined ? {} : { issues }),
+    ...(cause === undefined ? {} : { cause })
   }
 }
 
@@ -267,10 +269,14 @@ function truncateDiagnosticText(value: string, maxCharacters: number, maxJsonLen
 }
 
 export function nonFiniteHttpBodyBytes(envelope: BoundedNonFiniteErrorEnvelope): number {
-  const wireModel = buildSheetErrorEnvelope(envelope.message, envelope.issues, {
-    timestamp: SHEET_ERROR_ENVELOPE_TIMESTAMP_PLACEHOLDER,
-    requestId: SHEET_ERROR_ENVELOPE_REQUEST_ID_PLACEHOLDER
-  })
+  const wireModel = buildSheetErrorEnvelope(
+    envelope.message,
+    { issues: envelope.issues },
+    {
+      timestamp: SHEET_ERROR_ENVELOPE_TIMESTAMP_PLACEHOLDER,
+      requestId: SHEET_ERROR_ENVELOPE_REQUEST_ID_PLACEHOLDER
+    }
+  )
   return Buffer.byteLength(JSON.stringify(wireModel), 'utf8')
 }
 

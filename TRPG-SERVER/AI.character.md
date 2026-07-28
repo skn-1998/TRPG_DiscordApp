@@ -253,16 +253,28 @@ status: {
 
 ### 応答サイズの上限
 
-builder は **実際に送信する封筒そのもの**（`{statusCode, error, message, issues}`）を組み立てて
-UTF-8 の JSON 長で会計し、**4,096 bytes** に収める。超える場合の縮退は次の順:
+builder（`buildSheetErrorEnvelope`）は **実際に送信する封筒そのもの**
+（`{success:false, message:<ラベル>, timestamp, requestId, error:<診断>, issues}`）を組み立てて
+UTF-8 の JSON 長で会計し、**4,096 bytes** に収める。U5-5b 以降、
+`CharacterSheetHttpExceptionFilter`（controller-scoped・`@Catch(HttpException)` 限定）が
+**同じ builder** で実封筒を作るため、モデルと実 HTTP body は byte 単位で一致する
+（固定診断で 678 bytes を spec が固定。filter が builder を迂回すると一致 spec が落ちる）。
+超える場合の縮退は次の順:
 
 1. message 内の各要素（label / 式 / detail / 入力箇所）を段階的に切り詰める
 2. それでも超えるなら **issue を丸ごと落とす**（保持する issue の `fieldUid` / `path` は切り詰めない。
    機械可読な参照を壊さないため）
 3. 非有限診断の issue は**常に配列の先頭**に置き、既存 issue より先に保持する
-4. 終端は入力に依存しない**定数封筒**（152 bytes）。エラー整形の内部で throw しない
-   （throw すると 422 が 500 になり診断ごと失われる。`CharacterSheetController` に filter は無く
-   グローバル filter も未登録）
+4. 終端は入力に依存しない**定数封筒**（U5-5b 後の実 wire で 238 bytes）。
+   エラー整形の内部で throw しない（throw すると 422 が 500 になり診断ごと失われる）
+
+エラー面の封筒化（U5-5b）: sheet 2ルートの HttpException は上記 filter が
+`error`=実原因・構造情報は **deny-list 方式**で `cause` へ転記
+（`message` / `statusCode` / `error` / `issues` 以外の own fields をすべて同名保存 —
+conflicts / refetchRequired / fieldUid / value / min / max / detail / 未来のキーも lossless）。
+**body 内 `statusCode` と標準 reason phrase は意図的に載せない**（HTTP status line と冗長。
+front は `error.response.status` を読む）。非 HttpException は素通しし、
+APP_FILTER の `GlobalExceptionFilter`（1206a3e）が 500 封筒化する。
 
 **この上限が塞いでいるのは非有限経路だけ**。同じ 100,000 文字 uid でも
 `throwOutOfBounds` は約 200KB、`calculateBounds` の `resolved max below min` は約 100KB を返す。
@@ -291,3 +303,14 @@ JSON で表現できるため HTTP から到達可能で、こちらは HEAD も
 - 予算の検証は **実 `CharacterSheetOperationService` / 実 `SheetMaterializerService` を通す
   supertest** で行う。formatter の出力をテスト側で例外に詰める形は**禁止**
   （その形にしていた期間、unit 全緑のまま実 HTTP に 100KB / 300KB の穴が残っていた）
+
+### 実データの非有限値（2026-07-28 実測・Task#30）
+
+Atlas 実データベース（default db = test）の全8コレクション・729 docs を読み取り専用スキャンした結果、
+保存済みの非有限数（Infinity / -Infinity / NaN）は **0 件**。
+このため「非有限な保存値を HTTP から修復する」機構（JSON-safe sentinel 等）は**実装しない**。
+書き込み経路は sheet-engine が persist 前に throw する多層防御で閉じており（S10 反証で
+repository 未到達を確認）、将来1行でも現れた場合は一度きりの DB 操作で対応する。
+なお楽観ロック境界（`character-sheet-operation.service.ts` の merge 段）は JSON が非有限値を
+表現できないため `baseValue` が null になり 409 を返す — これは HEAD からの既存挙動で、
+対象データが存在しない以上、実害はない。

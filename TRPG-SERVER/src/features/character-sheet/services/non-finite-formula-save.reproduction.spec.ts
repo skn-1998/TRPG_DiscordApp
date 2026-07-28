@@ -1,3 +1,8 @@
+/**
+ * 非有限値の保存可否・service 例外 body・sheet controller filter 適用後の最終 wire 封筒を固定する。
+ *
+ * APP_FILTER は HttpException を Nest 既定処理へ委譲するが、sheet ルートでは controller-scoped filter が先に応答する。
+ */
 import { ExecutionContext, INestApplication, UnprocessableEntityException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { validatePublishTemplate } from '@trpg/sheet-engine'
@@ -16,11 +21,15 @@ import {
   CHARACTER_INSTANTIATION_USE_CASE,
   CHARACTER_SHEET_OPERATION_USE_CASE,
   CharacterSheetController
-} from '../../../domains/character/character.controller'
+} from '../character-sheet.controller'
 import { CharacterService } from '../../../domains/character/character.service'
 import { CharacterSheetOperationService, SaveSheetInput } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
-import { type BoundedNonFiniteErrorEnvelope, nonFiniteHttpBodyBytes } from './track-range.policy'
+import {
+  type BoundedNonFiniteErrorEnvelope,
+  buildSheetErrorEnvelope,
+  nonFiniteHttpBodyBytes
+} from './track-range.policy'
 
 describe('non-finite formula save reproduction', () => {
   const formula = '{parameter.numerator} / {parameter.denominator}'
@@ -110,7 +119,7 @@ describe('non-finite formula save reproduction', () => {
     changes: [{ path: { fieldUid: 'uid-denominator' }, baseValue: 1, newValue: 0 }]
   }
 
-  const expectedFailureResponse = {
+  const expectedFailureResponse: BoundedNonFiniteErrorEnvelope = {
     statusCode: 422,
     error: 'Unprocessable Entity',
     message: infinityMessage,
@@ -258,13 +267,22 @@ describe('non-finite formula save reproduction', () => {
     const app: INestApplication = module.createNestApplication()
     await app.init()
     try {
-      // NOTE: global filter が HttpException の直列化を変えて期待 body（issues[] を含む）を壊すと本 spec が赤になる。
+      // sheet ルートでは controller-scoped filter が APP_FILTER より先に最終封筒を返す。
       const response = await request(app.getHttpServer())
         .put(`/character/${character.characterId}/sheet`)
         .send({ baseRevision: saveInput.baseRevision, changes: saveInput.changes })
         .expect(422)
 
-      expect(response.body).toEqual(expectedFailureResponse)
+      expect(response.body).toEqual(
+        buildSheetErrorEnvelope(
+          expectedFailureResponse.message,
+          { issues: expectedFailureResponse.issues },
+          {
+            timestamp: response.body.timestamp,
+            requestId: response.body.requestId
+          }
+        )
+      )
     } finally {
       await app.close()
     }
@@ -272,7 +290,7 @@ describe('non-finite formula save reproduction', () => {
     expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
   })
 
-  it('最終 wire モデルは固定 diagnostic 1 件の現行 Nest HTTP body 以上を会計する', async () => {
+  it('最終 wire モデルと実 HTTP body は固定 diagnostic 1 件で byte 長まで完全一致する', async () => {
     const repository = {
       findById: jest.fn().mockResolvedValue(character),
       saveSheetMaterialized: jest.fn()
@@ -285,10 +303,20 @@ describe('non-finite formula save reproduction', () => {
         .put(`/character/${character.characterId}/sheet`)
         .send({ baseRevision: saveInput.baseRevision, changes: saveInput.changes })
         .expect(422)
+      const modeledEnvelope = buildSheetErrorEnvelope(
+        expectedFailureResponse.message,
+        { issues: expectedFailureResponse.issues },
+        {
+          timestamp: response.body.timestamp,
+          requestId: response.body.requestId
+        }
+      )
       const actualBodyBytes = Buffer.byteLength(response.text, 'utf8')
-      const modeledBodyBytes = nonFiniteHttpBodyBytes(response.body as BoundedNonFiniteErrorEnvelope)
+      const modeledBodyBytes = nonFiniteHttpBodyBytes(expectedFailureResponse)
 
-      expect(modeledBodyBytes).toBeGreaterThanOrEqual(actualBodyBytes)
+      expect(response.body).toStrictEqual(modeledEnvelope)
+      expect(response.text).toBe(JSON.stringify(modeledEnvelope))
+      expect(actualBodyBytes).toBe(modeledBodyBytes)
       expect(actualBodyBytes).toBeLessThanOrEqual(4_096)
     } finally {
       await app.close()
@@ -607,7 +635,7 @@ describe('non-finite formula save reproduction', () => {
           .expect(422)
 
         expect(Buffer.byteLength(response.text, 'utf8')).toBeLessThanOrEqual(4_096)
-        expect(response.body.message).toContain(`ほか ${computedFieldCount - 3} 件`)
+        expect(response.body.error).toContain(`ほか ${computedFieldCount - 3} 件`)
         expect(response.body.issues).toHaveLength(expectedIssueCount)
       } finally {
         await app.close()
@@ -731,7 +759,7 @@ describe('non-finite formula save reproduction', () => {
       expect({
         status: response.status,
         bodyBytesWithinBudget: Buffer.byteLength(response.text, 'utf8') <= 4_096,
-        hasTrackMaxCause: response.body.message.includes('トラック最大値の計算に失敗しました'),
+        hasTrackMaxCause: response.body.error.includes('トラック最大値の計算に失敗しました'),
         issues: response.body.issues,
         repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
       }).toEqual({
@@ -804,8 +832,8 @@ describe('non-finite formula save reproduction', () => {
       expect({
         status: response.status,
         bodyBytesWithinBudget: Buffer.byteLength(response.text, 'utf8') <= 4_096,
-        hasUnknownFieldCause: response.body.message.includes('テンプレート未定義フィールド'),
-        hasNonFiniteRollCause: response.body.message.includes('ロール結果が有限な数値になりませんでした'),
+        hasUnknownFieldCause: response.body.error.includes('テンプレート未定義フィールド'),
+        hasNonFiniteRollCause: response.body.error.includes('ロール結果が有限な数値になりませんでした'),
         issues: response.body.issues,
         repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
       }).toEqual({
@@ -951,7 +979,7 @@ describe('non-finite formula save reproduction', () => {
 
       expect({
         status: response.status,
-        hasTrackInputCause: response.body.message.includes('トラックの入力値が有限な数値になりませんでした'),
+        hasTrackInputCause: response.body.error.includes('トラックの入力値が有限な数値になりませんでした'),
         repositorySaveCalls: repository.saveSheetMaterialized.mock.calls.length
       }).toEqual({
         status: 422,

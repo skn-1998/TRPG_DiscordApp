@@ -1,7 +1,8 @@
 import { INTERCEPTORS_METADATA } from '@nestjs/common/constants'
 import { AuthController } from '../../domains/auth/auth.controller'
-import { CharacterController, CharacterSheetController } from '../../domains/character/character.controller'
+import { CharacterController } from '../../domains/character/character.controller'
 import { UserController } from '../../domains/user/user.controller'
+import { CharacterSheetController } from '../../features/character-sheet/character-sheet.controller'
 import { ResponseInterceptor } from './response.interceptor'
 import { SKIP_RESPONSE_WRAPPER_KEY } from './skip-response-wrapper.decorator'
 
