@@ -667,6 +667,27 @@ users 面の委譲固定欠落の5件）→ 全件採用し Codex round2 → Fab
 - 既存負債の実測: `jest/no-conditional-expect` ×4（http-exception.filter.spec /
   character-http.exception.spec の dev-stack 条件分岐）は HEAD 由来 → spec 磨き候補
 
+### 第4群-b: 'エラーが発生しました' literal の定数参照化 — OV5-4（2026-07-28・完了）
+
+証跡: `review-results/g4b-default-error-message/`。着手時 HEAD = `418c6af`。
+
+HTTP 境界の production literal **10 箇所**（`http-exception.filter.ts` / `character-http.exception.ts` /
+`global-exception.filter.ts` 各1・`user.controller.ts` 7）を `DEFAULT_ERROR_RESPONSE_MESSAGE`
+参照へ機械置換（import 4 追加・JSDoc 例示 1 行）。**挙動変更ゼロ = spec 全無変更のまま
+full suite 230 suites・3192 tests 緑**が不変の証明。除外を明示: `utils/api-response.util.ts` 2箇所
+（死蔵・第5群でファイルごと削除）/ discord 層 2箇所（Discord 返信文言で別文脈）/
+spec 内 literal（wire 値固定の oracle として意図的に維持 — 定数参照化すると同語反復になる）。
+
+レビュー: Opus read-only **pass・findings 0**（置換 10/残存 out-of-scope 4 の grep 実測一致・
+domains→core/dto の依存方向は先例4ドメインと整合・core/dto に domains への逆辺なし）。
+記録のみ: `ErrorResponse` 第2引数の既定値が同定数のため filter 3 呼び出しは冗長明示
+（挙動同一。簡素化は将来スライスの余地）。
+
+工程メモ: g4a コミット時の pre-commit prettier が **index に整形前 blob を残す**事象を確認
+（spec 2 ファイルが `MM` 化。formatting-only を確認のうえ対象限定 `git restore --staged` で解消。
+以後 pathspec コミット後の検証項目に index 残渣確認を追加 — メモリ
+`trpg-server-crlf-pathspec-commit` に記録）。
+
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
