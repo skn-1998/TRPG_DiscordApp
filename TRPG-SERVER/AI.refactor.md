@@ -454,7 +454,9 @@ production の2箇所 — `src/discord/features/diceRoll/utils/channel-topic.uti
 **module load 時**に呼んでいる。
 → TRPG-SERVER 以外を cwd としてプロセスを起動すると `gameSystemList` が**黙って `undefined`** になり、
 消費側で原因から遠い TypeError か空リストとして現れる（本キャンペーンが繰り返し見つけている無音劣化と同型）。
-`file.util.spec.ts` は throw する方を検証しているため、握り潰す方の挙動は spec に固定されていない。
+**訂正（俯瞰#5 2026-07-28）**: 当初ここに「握り潰す方の挙動は spec に固定されていない」と記載したが誤り。
+`loadJsonFile.spec.ts`（2026-06-02 追加）が握り潰し挙動を固定済み。真のリスクは cwd ではなく
+**production イメージに `src/` が無い**こと（Dockerfile は dist のみ COPY）— 俯瞰#5 OV5-2 参照。
 
 第4群（重複の一本化）または第5群（死蔵一掃）で扱う。**第3群-a ではスコープを広げず記録のみ**。
 
@@ -502,7 +504,7 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
   実装中だった。委譲前に他キャンペーンの `prompt-code-*.txt` を読んで許可ファイルの重なりを確認して回避した。
   → **委譲前に稼働中キャンペーンの許可ファイル欄を確認する**
 
-### 第3群-b: APP_FILTER 段階導入（2026-07-28・進行中）
+### 第3群-b: APP_FILTER 段階導入（2026-07-28・完了 `1206a3e`＋`fd710ba`）
 
 証跡: `review-results/g3b-app-filter/`。着手時 HEAD = `ebd23ea`（第3群-a `7b9f3d9` の後に
 並行セッションが `ff3e8d6`/`93adb16`/`ebd23ea` を積んだ状態）。
@@ -611,6 +613,7 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
   D案で封筒化はされるが根本対応（service 内での分類）は別スライス
 - **F-5**: sheet 系 422 body が3系統に分裂（`{statusCode,error,message,issues[]}` /
   `{message,detail}` / `{message,fieldUid,value,min,max}`）→ 第4群の一本化候補
+  （俯瞰#5: U5-5b `3493e2c` で wire 上は sheet 封筒1形へ収束。issue 要素型3宣言・内部 carrier は残存 — OV5-6 参照）
 - **F-8**: CharacterController の 401 で guard 経由と handler 経由の errorCode 有無が食い違う
 - **N-1（b-3 レビューで追加）**: 500 の body がリポジトリ内で3系統になった
   （Nest 既定 / 新 global 封筒（errorCode なし） / CharacterHttpExceptionFilter の
@@ -620,9 +623,80 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
   張られている → 第5群
 - `extractApiErrorMessages`（`sheetTemplateApi.ts:64-81`）の封筒対応 —
   エラー形状の完全統一（E 方向）の前提条件
+  （俯瞰#5: U5 `9eae435` で封筒対応済み — **前提条件は成立**）
 - `corsApiWithJwt` は backend の 401/404 を body を読まず一律 500 固定文言へ潰す（フロント既存欠陥）
 - InteractionsController 完全死蔵の確証・`/discord/*`（post-character 除く）と
   `/discord/performance/*` の HTTP 実消費者ゼロ → 第5群の裏付け材料
+
+### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
+
+fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
+第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・
+U5 4コミット `717f083`/`0299113`/`3493e2c`/`9eae435`）。
+方式: Opus 側 = 実測4系統（エラー応答系統 / front パーサ・422 / ダイス・F-8 / util・provider 写し）
+→ cognitive-load モードA（13件）＋ changeability sweep（12件）→ severity 上位8件の adversarial 反証検証。
+Codex 側 = 独立 adversarial（verdict needs-fix・8件）。
+証跡: `review-results/overview-5/`（統合判定の全文は `integration-verdict.md`）。
+
+反証検証の総括: 8件すべて **PARTIAL**（REFUTED 0）。骨格の事実は全件 HEAD で再現したが、
+定量は過大方向の偏りが一貫（builder「3実装群」→実体2・「同時保持7」→実効4〜5・「401 3形」→2形）。
+以下は反証後の数値を正とする。
+
+#### 健全性確認（合成欠陥なし — 両輪一致）
+
+- 第3群-b GlobalExceptionFilter × U5-5b sheet filter の合成は健全: 封筒の入れ子なし・
+  requestId 二重生成なし（7生成点は分岐排他）・非 HttpException は sheet filter を素通りして global 封筒へ
+- 第3群-b の変異固定 spec 群は U5 の変更（JSDoc 2行）後も検出力維持
+- 俯瞰#4 の「UI 70/ロール 50」型の合成起因の挙動欠陥は今回は検出されなかった
+
+#### 採用所見（第4群へ。詳細は integration-verdict.md）
+
+- **OV5-1（high・両輪一致）**: 局所2 filter（`http-exception.filter.ts:97-109`・
+  `character-http.exception.ts` 分岐(4)）の `@Catch()` 全捕捉が解決順で global より先に未知例外を捕まえ、
+  **raw `error.message` を封筒 error へ露出**。auth 5・users 7・character 6 route で第3群-b の
+  「500 は内部診断を隠す」規律がすり抜ける（UserService が下流例外文を連結して再送する実経路確認済み）。
+  処方方向: `@Catch(HttpException)` へ狭め未知例外は global へ委譲
+  （N-1 の 500 3系統・HttpException 分岐の逐語コピー10行・dev 判定3コピーも同時解消）。挙動変更あり
+- **OV5-2（high 相当）**: loadJsonFile の真のリスクは cwd ではなく **production イメージに `src/` が無い**こと
+  （Dockerfile は dist のみ COPY → `gameSystemList` が本番で `undefined` の latent 欠陥）。
+  処方方向: 2呼び出し元を `file.util.ts`（throw 版）へ・静的 JSON の同梱/解決を修正・重複ファイル削除
+- **OV5-3（medium）**: 「ロール結果の親チャンネル投稿」4実装・2契約。void 契約側の custom-dice-modal は
+  送信失敗でも「送信しました」。反証検証で boolean 契約側にも 2/6 呼び出しで同型サイレント欠落を追加検出
+- **OV5-4（low・trivial）**: 'エラーが発生しました' の literal 直書きが production 11箇所
+  （`DEFAULT_ERROR_RESPONSE_MESSAGE` 定数化済み。参照置換のみで純減・両輪一致）
+- **OV5-5（medium）**: corsApiWithJwt の status/body 破棄は production 1箇所（`_nest-route.action.tsx:27`）と確定
+- **OV5-6（第4群の主設計判断）**: HTTP 40 route が封筒20/非封筒20 の半々・front 3パーサ全てに非封筒
+  fallback 残置。**E 方向の前提条件は U5 で成立済み**のため第4群で E 方向を再評価する。
+  ErrorEnvelope builder 2実装（ErrorResponse DTO 族 vs `buildSheetErrorEnvelope`）の統合当否は
+  両輪で割れた（Codex=byte 会計と結合した意図的分離 / Opus=同一契約型の真の重複）→ 単独先行せず E 設計内で裁定
+- **OV5-7（要対応・U5 起源）**: U5-5a の `character-sheet-response-contract.spec.ts` が APP_PIPE 未登録の
+  TestingModule で成功契約を検証（Fable 裏取り済み）。実 HTTP spec の配線は3通りに分裂。U5 側の設計意図確認後に処方
+
+#### 第5群への裏付け追加
+
+`ErrorHandler.handleHttpError`（spec 4本が oracle）/ `src/utils/api-response.util.ts`
+（15 assertion の oracle・台帳 2497 行に結合記録済み）/ `dice.util.parseDiceNotation`・
+`DiceOrchestrator.getBasicResultEmoji`（production 0）/ ErrorResponse サブクラス6種中3種
+（Validation/Authorization/Conflict）production 未到達
+
+#### 記録のみ
+
+413/415 等 request 層は sheet 封筒外（機構は AI.test.md と global filter JSDoc に文書化済み）/
+sheet 封筒の cause キャリアは message 以外未消費・409 の conflicts は sheet ルートで固定文言に上書きされ
+front に届かない / `services/dice/README.md` に虚偽記載（実在2ファイル未記載・存在しない型・
+削除 TODO 付きメソッドを推奨例として提示）/ F-4 存続（記録の 34 行は HEAD では 35 行）
+
+#### 統合しない判定（現状維持・両輪一致）
+
+requestId 生成7箇所（分岐排他）/ ダイス parse 3境界（扱う言語が異なる意図的分離。ただし
+Opus CH-7「受理ゲート本番2箇所並列」は Codex 判定と対立し未検証 → 第4群 CH-1 設計時に実測）/
+`APP_*` provider の spec 登録（同一定数の参照でありロジック複製ではない）
+
+#### 台帳訂正（本俯瞰で実施）
+
+第3群-b 見出し「進行中」→完了 / extractApiErrorMessages 解消の注記 / F-5 wire 収束の注記 /
+loadJsonFile「spec に固定されていない」の訂正（`loadJsonFile.spec.ts` は 2026-06-02 から実在 —
+未検証主張の台帳化4例目としてメモリ `verify-claims-before-prescribing` へ記録）
 
 ### 俯瞰レビュー#4（2026-07-27・第2群完了時点）＋ OV4 反映（0d38e09）
 
