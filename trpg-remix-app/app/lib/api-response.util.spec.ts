@@ -1,13 +1,73 @@
 import { ApiResponseUtil } from './api-response.util'
 
 describe('ApiResponseUtil.handleError', () => {
-  it('ErrorEnvelope は message より error を優先する', () => {
+  it('ErrorEnvelope は issues を優先して重複除去し、複数件をスラッシュ区切りにする', () => {
     const error = {
       response: {
         data: {
           success: false,
           message: 'Bad Request',
-          error: '入力内容が不正です'
+          error: '入力内容が不正です',
+          issues: [{ message: '名前は必須です' }, { message: '名前は必須です' }, { message: 'タグが不正です' }],
+          cause: { message: ['旧 body の診断です'] },
+          details: [{ message: '詳細診断です' }]
+        }
+      }
+    }
+
+    const result = ApiResponseUtil.handleError(error)
+
+    expect(result).toBe('名前は必須です / タグが不正です')
+  })
+
+  it('ErrorEnvelope は issues が空なら cause.message の文字列配列を優先する', () => {
+    const error = {
+      response: {
+        data: {
+          success: false,
+          message: 'Bad Request',
+          error: '入力内容が不正です',
+          issues: [],
+          cause: { message: ['名前は必須です', 'タグが不正です'] },
+          details: [{ message: '詳細診断です' }]
+        }
+      }
+    }
+
+    const result = ApiResponseUtil.handleError(error)
+
+    expect(result).toBe('名前は必須です / タグが不正です')
+  })
+
+  it('ErrorEnvelope は issues・cause.message が空なら details を優先する', () => {
+    const error = {
+      response: {
+        data: {
+          success: false,
+          message: 'Bad Request',
+          error: '入力内容が不正です',
+          issues: [],
+          cause: { message: [] },
+          details: [{ message: '名前は必須です' }, { message: '名前は必須です' }]
+        }
+      }
+    }
+
+    const result = ApiResponseUtil.handleError(error)
+
+    expect(result).toBe('名前は必須です')
+  })
+
+  it('ErrorEnvelope は構造化診断が空なら message より error を優先する', () => {
+    const error = {
+      response: {
+        data: {
+          success: false,
+          message: 'Bad Request',
+          error: '入力内容が不正です',
+          issues: [],
+          cause: { message: [] },
+          details: []
         }
       }
     }
@@ -15,6 +75,25 @@ describe('ApiResponseUtil.handleError', () => {
     const result = ApiResponseUtil.handleError(error)
 
     expect(result).toBe('入力内容が不正です')
+  })
+
+  it('ErrorEnvelope は構造化診断と error が空なら最後に message を返す', () => {
+    const error = {
+      response: {
+        data: {
+          success: false,
+          message: 'Bad Request',
+          error: '',
+          issues: [],
+          cause: { message: [] },
+          details: []
+        }
+      }
+    }
+
+    const result = ApiResponseUtil.handleError(error)
+
+    expect(result).toBe('Bad Request')
   })
 
   it('Nest 既定エラー形は message を優先する', () => {

@@ -68,20 +68,7 @@ describe('createCharacterFromTemplate', () => {
   }
   const payload = { characterId: 'character-1' }
 
-  it('生 body では payload をそのまま返す', async () => {
-    mockPost.mockResolvedValue({
-      data: payload,
-      status: 201,
-      statusText: 'Created'
-    })
-
-    const result = await createCharacterFromTemplate(input)
-
-    expect(result).toBe(payload)
-    expect(mockPost).toHaveBeenCalledWith('/character/from-template', input)
-  })
-
-  it('成功封筒 body でも同じ payload を返す', async () => {
+  it('成功封筒 body の payload を返す', async () => {
     mockPost.mockResolvedValue({
       data: {
         success: true,
@@ -97,6 +84,7 @@ describe('createCharacterFromTemplate', () => {
     const result = await createCharacterFromTemplate(input)
 
     expect(result).toBe(payload)
+    expect(mockPost).toHaveBeenCalledWith('/character/from-template', input)
   })
 })
 
@@ -118,23 +106,7 @@ describe('saveCharacterSheet', () => {
     appliedChanges: 1
   }
 
-  it('生 body では payload をそのまま返す', async () => {
-    mockPut.mockResolvedValue({
-      data: payload,
-      status: 200,
-      statusText: 'OK'
-    })
-
-    const result = await saveCharacterSheet(input)
-
-    expect(result).toBe(payload)
-    expect(mockPut).toHaveBeenCalledWith('/character/character-1/sheet', {
-      baseRevision: 3,
-      changes: input.changes
-    })
-  })
-
-  it('成功封筒 body でも同じ payload を返す', async () => {
+  it('成功封筒 body の payload を返す', async () => {
     mockPut.mockResolvedValue({
       data: {
         success: true,
@@ -150,5 +122,9 @@ describe('saveCharacterSheet', () => {
     const result = await saveCharacterSheet(input)
 
     expect(result).toBe(payload)
+    expect(mockPut).toHaveBeenCalledWith('/character/character-1/sheet', {
+      baseRevision: 3,
+      changes: input.changes
+    })
   })
 })

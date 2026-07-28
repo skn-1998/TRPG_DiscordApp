@@ -1,4 +1,4 @@
-import { isErrorEnvelope } from '../lib/api-response.util'
+import { errorEnvelopeMessages, isErrorEnvelope } from '../lib/api-response.util'
 
 export function CustomError(error: unknown | null | undefined): string {
   if (error && typeof error === 'object') {
@@ -14,7 +14,7 @@ export function CustomError(error: unknown | null | undefined): string {
       const statusText = axiosResponse?.statusText
 
       if (isErrorEnvelope(data)) {
-        return `HTTP ${status}: ${data.error}`
+        return `HTTP ${status}: ${errorEnvelopeMessages(data)[0]}`
       } else if (data && typeof data === 'object' && 'message' in data) {
         return `HTTP ${status}: ${data.message}`
       } else if (statusText) {

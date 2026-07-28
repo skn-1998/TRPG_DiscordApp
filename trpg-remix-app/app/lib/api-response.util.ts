@@ -9,6 +9,23 @@ export function isErrorEnvelope(data: unknown): data is ErrorEnvelope {
   )
 }
 
+export function errorEnvelopeMessages(data: ErrorEnvelope): string[] {
+  const issueMessages = (data.issues?.map((issue) => issue.message) ?? []).filter((message) => message.length > 0)
+  if (issueMessages.length > 0) return [...new Set(issueMessages)]
+
+  const causeMessage = data.cause?.message
+  if (Array.isArray(causeMessage) && causeMessage.every((message): message is string => typeof message === 'string')) {
+    const causeMessages = causeMessage.filter((message) => message.length > 0)
+    if (causeMessages.length > 0) return causeMessages
+  }
+
+  const detailMessages = (data.details?.map((detail) => detail.message) ?? []).filter((message) => message.length > 0)
+  if (detailMessages.length > 0) return [...new Set(detailMessages)]
+
+  if (data.error.length > 0) return [data.error]
+  return [data.message]
+}
+
 const normalizeErrorMessage = (message: unknown): string | undefined => {
   if (typeof message === 'string') {
     return message
@@ -38,15 +55,7 @@ export class ApiResponseUtil {
         const errorData = response.data
 
         if (isErrorEnvelope(errorData)) {
-          if (errorData.error) {
-            return errorData.error
-          }
-
-          if (errorData.message) {
-            return errorData.message
-          }
-
-          return 'Unknown error occurred'
+          return errorEnvelopeMessages(errorData).join(' / ')
         }
 
         if (typeof errorData === 'object') {
