@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ExecutionContext, CallHandler, ArgumentsHost } from '@nestjs/common'
+import { ExecutionContext, CallHandler, ArgumentsHost, HttpException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { Response } from 'express'
 import { lastValueFrom, of } from 'rxjs'
@@ -62,8 +62,8 @@ describe('UserController', () => {
   } as unknown as AppConfigService
 
   // 変換後: ハンドラはデータを return / 例外を throw し、
-  // ResponseInterceptor / HttpExceptionFilter が封筒化する。
-  // 以下のヘルパで実機同様に最終 envelope を再現し、変換前の
+  // ResponseInterceptor / HttpExceptionFilter（HttpException）が封筒化する。
+  // 以下のヘルパで成功値と HttpException の最終 envelope を再現し、変換前の
   // ApiResponseUtil.success/error と同形であることを検証する。
 
   const wrapSuccess = async (method: keyof UserController, data: unknown): Promise<any> => {
@@ -73,8 +73,11 @@ describe('UserController', () => {
     return lastValueFrom(interceptor.intercept(ctx, next))
   }
 
-  const filterError = (method: keyof UserController, error: unknown): { status: number; body: any } => {
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+  const filterError = (error: unknown): { status: number; body: any } => {
+    if (!(error instanceof HttpException)) {
+      throw new Error('HttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+    }
+    const filter = new HttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -87,8 +90,7 @@ describe('UserController', () => {
       }
     } as unknown as Response
     const host = {
-      switchToHttp: () => ({ getResponse: () => res, getRequest: () => ({}) }),
-      getHandler: () => controller[method]
+      switchToHttp: () => ({ getResponse: () => res, getRequest: () => ({}) })
     } as unknown as ArgumentsHost
     filter.catch(error, host)
     return { status: captured.status!, body: captured.body }
@@ -189,7 +191,7 @@ describe('UserController', () => {
       }
       expect(thrown).toBeInstanceOf(ApiError)
 
-      const { status, body } = filterError('findOne', thrown)
+      const { status, body } = filterError(thrown)
       expect(status).toBe(404)
       expect(body).toEqual(expect.objectContaining({ success: false, error: expect.any(String) }))
 

@@ -31,8 +31,10 @@ interface RequestWithUser extends Request {
 }
 
 /**
- * エラーハンドリングは HttpExceptionFilter、成功封筒化は ResponseInterceptor へ委譲。
- * 全エンドポイントは success=200/'成功'、各 error label は @ApiErrorResponse で保持する。
+ * HttpException は HttpExceptionFilter、非 HttpException は GlobalExceptionFilter、
+ * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
+ * 全エンドポイントは success=200/'成功'。
+ * @ApiErrorResponse は現在どの経路からも参照されない無効メタであり、第5群で撤去する。
  * リソース未発見（変換前の ApiResponseUtil.error(res, '...が見つかりません', 404)）は
  * ApiError(404, 'エラーが発生しました', '...') を throw して再現する。
  */

@@ -31,7 +31,7 @@ import type { LoginDataWire } from '@trpg/api-contract'
  * 認証コントローラー
  * 認証関連のエンドポイントを提供
  *
- * エラーハンドリングは HttpExceptionFilter（@UseFilters）、
+ * HttpException は HttpExceptionFilter、非 HttpException は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 各ハンドラはデータを return（成功）/ 例外を throw（異常）するだけにし、
  * 成功 status は @HttpCode、失敗 status / message は発生源の HttpException で保持する。

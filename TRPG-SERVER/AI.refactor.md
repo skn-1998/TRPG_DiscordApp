@@ -618,6 +618,8 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
 - **N-1（b-3 レビューで追加）**: 500 の body がリポジトリ内で3系統になった
   （Nest 既定 / 新 global 封筒（errorCode なし） / CharacterHttpExceptionFilter の
   InternalServerErrorResponse（errorCode: 'INTERNAL_SERVER_ERROR'））。F-5 と同種の分裂 → 第4群候補
+  （第4群-a: InternalServerErrorResponse 系統が消滅し **3→2**。残る global 封筒 / Nest 既定形の
+  統一は OV5-6 = E 方向の裁定範囲）
 - **F-6**: `@ApiErrorResponse` は本番で永久に未適用（deprecated）。user.controller 7箇所は死蔵 → 第5群
 - `ErrorHandler.handleHttpError` は production 未使用の第3のエラー形で、死蔵に 4 spec が
   張られている → 第5群
@@ -627,6 +629,43 @@ object body を `message` 抽出で平坦化し **`issues[]` が消える**。�
 - `corsApiWithJwt` は backend の 401/404 を body を読まず一律 500 固定文言へ潰す（フロント既存欠陥）
 - InteractionsController 完全死蔵の確証・`/discord/*`（post-character 除く）と
   `/discord/performance/*` の HTTP 実消費者ゼロ → 第5群の裏付け材料
+
+### 第4群-a: 局所例外フィルタの `@Catch(HttpException)` 狭小化 — OV5-1（2026-07-28・完了）
+
+証跡: `review-results/g4a-filter-narrowing/`。着手時 HEAD = `90e7b55`。
+
+**変更**: `HttpExceptionFilter`・`CharacterHttpExceptionFilter` の `@Catch()` 全捕捉を
+`@Catch(HttpException)` へ狭め、非 HttpException 分岐（raw `exception.message` を封筒へ露出）を削除。
+auth 5・users 7・character 6 の **18 route で未知例外が GlobalExceptionFilter の固定文言
+500 封筒（内部診断非開示）へ委譲**されるようになった。付随して Reflector／`@ApiErrorResponse`
+メタ読取・逐語コピー分岐・狭小化で到達不能になった末尾 `instanceof` ガードも削除（純減）。
+
+**効果の正確な範囲**（過大主張しない）:
+
+- 未知例外の 500 は全 route で global 封筒 1 形に収束。**N-1 は解消ではなく 3→2**
+  （InternalServerErrorResponse 系統が消滅。残る global 封筒 / Nest 既定形
+  — HttpException(500) が filter なし controller で返る形 — の統一は OV5-6 = E 方向の裁定範囲）
+- http-errors 形（body-parser 413 等）は従来どおり Nest 既定形（filter JSDoc に限定を明記）
+
+**変異固定**: `FILTER_CATCH_EXCEPTIONS` メタデータ検証×2（`@Catch()` へ差し戻すと `[]` になり赤化。
+catch.decorator の rest 引数書き込みまで遡って裏取り済み）＋ HTTP 委譲 spec 3本
+（`/auth/login`・`GET /character/:id`・`POST /users`。いずれも `APP_GLOBAL_EXCEPTION_FILTER_PROVIDER`
+を TestingModule に実配線し、raw message が body 全体に非含有であることまで固定）。
+
+**体制**: Codex 実装 round1 → Opus read-only 小粒度レビュー **needs-fix**
+（挙動・spec 検出力・スコープは OK。NG はコメント真実性のみ — decorator JSDoc の
+「意図的に残置」が虚偽化・user.controller の JSDoc 取り残し・JSDoc の過大主張・到達不能ガード・
+users 面の委譲固定欠落の5件）→ 全件採用し Codex round2 → Fable 独立検収
+（build / `check:circular` ゼロ / **full suite 230 suites・3192 tests 緑**）。
+
+**派生記録**:
+
+- `InternalServerErrorResponse` が production 未到達化 → **第5群リストへ追加**
+  （ErrorResponse サブクラス未到達は Validation/Authorization/Conflict と合わせ4種に）
+- `@ApiErrorResponse` は「どの経路からも参照されない無効メタ」を JSDoc・`@deprecated` に明記
+  （F-6 の撤去自体は第5群のまま）
+- 既存負債の実測: `jest/no-conditional-expect` ×4（http-exception.filter.spec /
+  character-http.exception.spec の dev-stack 条件分岐）は HEAD 由来 → spec 磨き候補
 
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
@@ -657,6 +696,7 @@ Codex 側 = 独立 adversarial（verdict needs-fix・8件）。
   「500 は内部診断を隠す」規律がすり抜ける（UserService が下流例外文を連結して再送する実経路確認済み）。
   処方方向: `@Catch(HttpException)` へ狭め未知例外は global へ委譲
   （N-1 の 500 3系統・HttpException 分岐の逐語コピー10行・dev 判定3コピーも同時解消）。挙動変更あり
+  →（**第4群-a で対応済み**。N-1 は解消ではなく 3→2 — 第4群-a 節参照）
 - **OV5-2（high 相当）**: loadJsonFile の真のリスクは cwd ではなく **production イメージに `src/` が無い**こと
   （Dockerfile は dist のみ COPY → `gameSystemList` が本番で `undefined` の latent 欠陥）。
   処方方向: 2呼び出し元を `file.util.ts`（throw 版）へ・静的 JSON の同梱/解決を修正・重複ファイル削除

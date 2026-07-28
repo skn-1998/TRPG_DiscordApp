@@ -37,7 +37,7 @@ import type { CharacterSummaryDto } from './dto/character-summary.dto'
  * キャラクター情報のCRUD操作のエンドポイントを提供する
  * （discord 系 REST 3 本は E-6b で削除済み。スレッド作成は character.creation.completed handler の正規フローが担う）
  *
- * エラーハンドリングは CharacterHttpExceptionFilter（@UseFilters）、
+ * HttpException は CharacterHttpExceptionFilter、非 HttpException は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 各ハンドラはデータを return（成功）/ 例外を throw（異常）するだけにし、
  * status は @HttpCode、success message は @ResponseMessage で宣言的に保持する。

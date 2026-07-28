@@ -3,6 +3,7 @@ import { Response } from 'express'
 import request from 'supertest'
 import {
   HttpStatus,
+  HttpException,
   BadRequestException,
   UnauthorizedException,
   ExecutionContext,
@@ -73,8 +74,8 @@ describe('AuthController', () => {
   // ===== 変換後方式（戻り値 + throw）を envelope へ変換して検証するヘルパ =====
   // 変換前: ハンドラ内で ApiResponseUtil.success/error を直接呼んでいた。
   // 変換後: ハンドラはデータを return / 例外を throw し、
-  //         ResponseInterceptor / HttpExceptionFilter が封筒化する。
-  // 以下のヘルパは「実運用と同じ interceptor/filter」を介して最終 envelope を再現し、
+  //         ResponseInterceptor / HttpExceptionFilter（HttpException）が封筒化する。
+  // 以下のヘルパは成功値と HttpException を実 interceptor/filter に通し、
   // 変換前の spec が保証していた envelope/status/message を引き続き検証する。
 
   const reflector = new Reflector()
@@ -93,12 +94,15 @@ describe('AuthController', () => {
 
   /** ハンドラから throw された例外を HttpExceptionFilter に通して最終 envelope/status を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
+    if (!(error instanceof HttpException)) {
+      throw new Error('HttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+    }
     // P1-C: filter は AppConfigService から dev 判定（includeStack）を得る。
     // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
     const mockAppConfig = {
       get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
     } as unknown as import('../../config/config.service').AppConfigService
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+    const filter = new HttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -398,7 +402,7 @@ describe('AuthController', () => {
       )
     })
 
-    it('handles logout error; filter yields the default 500 envelope', async () => {
+    it('logout の素の Error はそのまま再 throw する', async () => {
       const req = mockRequest()
       const res = mockResponse()
       const err = new Error('Cookie clear failed')
@@ -407,10 +411,6 @@ describe('AuthController', () => {
       })
 
       await expect(controller.logout(req, res)).rejects.toBe(err)
-
-      const { status, body } = filterError(err)
-      expect(status).toBe(500)
-      expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'Cookie clear failed' }))
     })
   })
 

@@ -1,12 +1,5 @@
-import {
-  ArgumentsHost,
-  BadRequestException,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-  UnauthorizedException
-} from '@nestjs/common'
-import { Reflector } from '@nestjs/core'
+import { ArgumentsHost, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
+import { FILTER_CATCH_EXCEPTIONS } from '@nestjs/common/constants'
 import { Response } from 'express'
 import { HttpExceptionFilter } from './http-exception.filter'
 import { ApiError } from './api-error'
@@ -37,11 +30,8 @@ describe('HttpExceptionFilter', () => {
       switchToHttp: () => ({
         getResponse: () => res,
         getRequest: () => ({})
-      }),
-      getHandler: () => null
-    }) as unknown as ExecutionContext as ArgumentsHost
-
-  const reflector = new Reflector()
+      })
+    }) as unknown as ArgumentsHost
 
   /** requestId / timestamp を除いた比較用オブジェクトを取り出す */
   const stripVolatile = (payload: any): Record<string, unknown> => {
@@ -49,9 +39,9 @@ describe('HttpExceptionFilter', () => {
     return rest
   }
 
-  it('UnauthorizedException は handler=null でも 401 と例外メッセージを維持する', () => {
+  it('UnauthorizedException は 401 と例外メッセージを維持する', () => {
     const { res, status, json } = createResponse()
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+    const filter = new HttpExceptionFilter(mockAppConfig)
 
     filter.catch(new UnauthorizedException('無効な認証トークンです'), createHost(res))
 
@@ -88,7 +78,7 @@ describe('HttpExceptionFilter', () => {
     '$caseName は status=$expectedStatus・error=$expectedError に整形する',
     ({ exception, expectedStatus, expectedError }) => {
       const { res, status, json } = createResponse()
-      const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+      const filter = new HttpExceptionFilter(mockAppConfig)
 
       filter.catch(exception, createHost(res))
 
@@ -105,7 +95,7 @@ describe('HttpExceptionFilter', () => {
     const configService = {
       get: (path: string) => (path === 'app.environment' ? environment : undefined)
     } as unknown as import('../../config/config.service').AppConfigService
-    const filter = new HttpExceptionFilter(reflector, configService)
+    const filter = new HttpExceptionFilter(configService)
     const exception = new HttpException('stack-target', HttpStatus.CONFLICT)
 
     filter.catch(exception, createHost(res))
@@ -118,23 +108,13 @@ describe('HttpExceptionFilter', () => {
     }
   })
 
-  it('メタ未設定の素の Error → ApiResponseUtil.error の既定 (500 / エラーが発生しました) と一致', () => {
-    const error = new Error('boom')
-    const { res, status, json } = createResponse()
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
-
-    filter.catch(error, createHost(res))
-
-    const { res: expectedRes, json: expJson } = createResponse()
-    ApiResponseUtil.error(expectedRes, error, 500)
-
-    expect(status).toHaveBeenCalledWith(500)
-    expect(stripVolatile(json.mock.calls[0][0])).toEqual(stripVolatile(expJson.mock.calls[0][0]))
+  it('HttpException のみを捕捉対象として宣言する', () => {
+    expect(Reflect.getMetadata(FILTER_CATCH_EXCEPTIONS, HttpExceptionFilter)).toEqual([HttpException])
   })
 
   it('ApiError(404, label, 文字列) → ApiResponseUtil.error(res, 文字列, 404, label) と一致', () => {
     const { res, status, json } = createResponse()
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+    const filter = new HttpExceptionFilter(mockAppConfig)
 
     filter.catch(new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません'), createHost(res))
 
@@ -147,9 +127,9 @@ describe('HttpExceptionFilter', () => {
     expect(json.mock.calls[0][0].error).toBe('ユーザーが見つかりません')
   })
 
-  it('BadRequestException は handler=null でも 400 と object response の message を維持する', () => {
+  it('BadRequestException は 400 と object response の message を維持する', () => {
     const { res, status, json } = createResponse()
-    const filter = new HttpExceptionFilter(reflector, mockAppConfig)
+    const filter = new HttpExceptionFilter(mockAppConfig)
 
     filter.catch(new BadRequestException('認証コードが指定されていません'), createHost(res))
 
