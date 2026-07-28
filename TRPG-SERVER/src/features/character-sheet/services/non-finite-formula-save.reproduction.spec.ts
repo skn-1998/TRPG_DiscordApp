@@ -20,6 +20,7 @@ import {
 import { CharacterService } from '../../../domains/character/character.service'
 import { CharacterSheetOperationService, SaveSheetInput } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
+import { type BoundedNonFiniteErrorEnvelope, nonFiniteHttpBodyBytes } from './track-range.policy'
 
 describe('non-finite formula save reproduction', () => {
   const formula = '{parameter.numerator} / {parameter.denominator}'
@@ -264,6 +265,31 @@ describe('non-finite formula save reproduction', () => {
         .expect(422)
 
       expect(response.body).toEqual(expectedFailureResponse)
+    } finally {
+      await app.close()
+    }
+
+    expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+  })
+
+  it('最終 wire モデルは固定 diagnostic 1 件の現行 Nest HTTP body 以上を会計する', async () => {
+    const repository = {
+      findById: jest.fn().mockResolvedValue(character),
+      saveSheetMaterialized: jest.fn()
+    }
+    const operationService = createOperationService(repository)
+    const app = await createHttpApp(operationService, character)
+
+    try {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${character.characterId}/sheet`)
+        .send({ baseRevision: saveInput.baseRevision, changes: saveInput.changes })
+        .expect(422)
+      const actualBodyBytes = Buffer.byteLength(response.text, 'utf8')
+      const modeledBodyBytes = nonFiniteHttpBodyBytes(response.body as BoundedNonFiniteErrorEnvelope)
+
+      expect(modeledBodyBytes).toBeGreaterThanOrEqual(actualBodyBytes)
+      expect(actualBodyBytes).toBeLessThanOrEqual(4_096)
     } finally {
       await app.close()
     }

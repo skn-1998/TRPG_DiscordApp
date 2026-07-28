@@ -8,6 +8,39 @@ interface CharacterSummary {
   id: string;
 }
 
+type IsAny<T> = 0 extends 1 & T ? true : false;
+
+type AnyKeys<T> = {
+  [Key in keyof T]-?: IsAny<T[Key]> extends true ? Key : never;
+}[keyof T];
+
+type IsExact<Actual, Expected> = IsAny<Actual> extends true
+  ? false
+  : IsAny<Expected> extends true
+    ? false
+    : [Actual] extends [Expected]
+      ? [Expected] extends [Actual]
+        ? true
+        : false
+      : false;
+
+type Assert<Condition extends true> = Condition;
+
+type ErrorEnvelopeIssue = NonNullable<ErrorEnvelope['issues']>[number];
+type ErrorEnvelopeIssueShape = Assert<
+  IsExact<
+    ErrorEnvelopeIssue,
+    {
+      fieldUid?: string;
+      path?: ReadonlyArray<string>;
+      message: string;
+    }
+  >
+>;
+type ErrorEnvelopeIssueAnyKeys = Assert<
+  IsExact<AnyKeys<ErrorEnvelopeIssue>, never>
+>;
+
 const readResponse = (response: Envelope<CharacterSummary>): string => {
   // @ts-expect-error data は success による判別後にのみアクセスできる
   void response.data;
@@ -83,6 +116,17 @@ describe('Envelope', () => {
           code: 'REQUIRED',
         },
       ],
+      issues: [
+        {
+          fieldUid: 'uid-total',
+          path: ['status', 'uid-total'],
+          message: '計算結果は有限値である必要があります',
+        },
+      ],
+      cause: {
+        characterId: 'character-2',
+        refetchRequired: true,
+      },
       stack: 'Error: validation failed',
     };
 
@@ -96,6 +140,17 @@ describe('Envelope', () => {
           code: 'REQUIRED',
         },
       ],
+      issues: [
+        {
+          fieldUid: 'uid-total',
+          path: ['status', 'uid-total'],
+          message: '計算結果は有限値である必要があります',
+        },
+      ],
+      cause: {
+        characterId: 'character-2',
+        refetchRequired: true,
+      },
       stack: 'Error: validation failed',
     });
   });

@@ -11,7 +11,9 @@ export type {
   CharacterSheetStateWire,
   CharacterSummaryWire,
   CharacterTemplatePinWire,
-  CharacterWire
+  CharacterWire,
+  CreateCharacterFromTemplateResultWire,
+  SaveCharacterSheetResultWire
 } from './character/character.wire'
 export {
   attributeSectionSchema,

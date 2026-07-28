@@ -8,7 +8,9 @@ import type {
   CharacterSheetStateWire,
   CharacterSummaryWire,
   CharacterTemplatePinWire,
-  CharacterWire
+  CharacterWire,
+  CreateCharacterFromTemplateResultWire,
+  SaveCharacterSheetResultWire
 } from './character.wire'
 
 /**
@@ -18,6 +20,20 @@ import type {
 type AnyKeys<T> = {
   [Key in keyof T]-?: 0 extends 1 & T[Key] ? Key : never
 }[keyof T]
+
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+type IsExact<Actual, Expected> = IsAny<Actual> extends true
+  ? false
+  : IsAny<Expected> extends true
+    ? false
+    : [Actual] extends [Expected]
+      ? [Expected] extends [Actual]
+        ? true
+        : false
+      : false
+
+type Assert<Condition extends true> = Condition
 
 type AssertNever<T extends never> = T
 
@@ -57,9 +73,57 @@ type MissingCharacterDeleteResultWireRequiredKeys = AssertNever<
 >
 type UnexpectedCharacterDeleteResultWireOptionalKeys = AssertNever<OptionalKeys<CharacterDeleteResultWire>>
 
+type SaveCharacterSheetResultWireRequiredKeys = Exclude<
+  keyof SaveCharacterSheetResultWire,
+  OptionalKeys<SaveCharacterSheetResultWire>
+>
+type ExpectedSaveCharacterSheetResultWireRequiredKeys = 'revision' | 'noOp' | 'appliedChanges'
+type UnexpectedSaveCharacterSheetResultWireRequiredKeys = AssertNever<
+  Exclude<SaveCharacterSheetResultWireRequiredKeys, ExpectedSaveCharacterSheetResultWireRequiredKeys>
+>
+type MissingSaveCharacterSheetResultWireRequiredKeys = AssertNever<
+  Exclude<ExpectedSaveCharacterSheetResultWireRequiredKeys, SaveCharacterSheetResultWireRequiredKeys>
+>
+type UnexpectedSaveCharacterSheetResultWireOptionalKeys = AssertNever<OptionalKeys<SaveCharacterSheetResultWire>>
+type SaveCharacterSheetResultWireShape = Assert<
+  IsExact<
+    SaveCharacterSheetResultWire,
+    {
+      revision: number
+      noOp: boolean
+      appliedChanges: number
+    }
+  >
+>
+
+type CreateCharacterFromTemplateResultWireRequiredKeys = Exclude<
+  keyof CreateCharacterFromTemplateResultWire,
+  OptionalKeys<CreateCharacterFromTemplateResultWire>
+>
+type ExpectedCreateCharacterFromTemplateResultWireRequiredKeys = 'characterId'
+type UnexpectedCreateCharacterFromTemplateResultWireRequiredKeys = AssertNever<
+  Exclude<CreateCharacterFromTemplateResultWireRequiredKeys, ExpectedCreateCharacterFromTemplateResultWireRequiredKeys>
+>
+type MissingCreateCharacterFromTemplateResultWireRequiredKeys = AssertNever<
+  Exclude<ExpectedCreateCharacterFromTemplateResultWireRequiredKeys, CreateCharacterFromTemplateResultWireRequiredKeys>
+>
+type UnexpectedCreateCharacterFromTemplateResultWireOptionalKeys = AssertNever<
+  OptionalKeys<CreateCharacterFromTemplateResultWire>
+>
+type CreateCharacterFromTemplateResultWireShape = Assert<
+  IsExact<
+    CreateCharacterFromTemplateResultWire,
+    {
+      characterId: string
+    }
+  >
+>
+
 type CharacterWireAnyKeys = AssertNever<AnyKeys<CharacterWire>>
 type CharacterSummaryWireAnyKeys = AssertNever<AnyKeys<CharacterSummaryWire>>
 type CharacterDeleteResultWireAnyKeys = AssertNever<AnyKeys<CharacterDeleteResultWire>>
+type SaveCharacterSheetResultWireAnyKeys = AssertNever<AnyKeys<SaveCharacterSheetResultWire>>
+type CreateCharacterFromTemplateResultWireAnyKeys = AssertNever<AnyKeys<CreateCharacterFromTemplateResultWire>>
 type CharacterHubWireAnyKeys = AssertNever<AnyKeys<CharacterHubWire>>
 type CharacterSheetStateWireAnyKeys = AssertNever<AnyKeys<CharacterSheetStateWire>>
 type CharacterTemplatePinWireAnyKeys = AssertNever<AnyKeys<CharacterTemplatePinWire>>

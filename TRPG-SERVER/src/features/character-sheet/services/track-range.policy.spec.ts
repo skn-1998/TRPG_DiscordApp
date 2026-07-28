@@ -1,7 +1,13 @@
 import { UnprocessableEntityException } from '@nestjs/common'
 import { evaluateTemplate } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
-import { TrackRangePolicy } from './track-range.policy'
+import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../../../core/dto/api-response.dto'
+import {
+  buildBoundedNonFiniteErrorEnvelope,
+  buildSheetErrorEnvelope,
+  nonFiniteHttpBodyBytes,
+  TrackRangePolicy
+} from './track-range.policy'
 
 describe('TrackRangePolicy', () => {
   const trackTemplate = (max: number | { formula: string } = 10): SheetTemplate => ({
@@ -59,6 +65,49 @@ describe('TrackRangePolicy', () => {
         }))
       }
     ]
+  })
+
+  it('共通エラーラベルをリテラルで固定し、ErrorResponse と sheet 封筒で共有する', () => {
+    expect(DEFAULT_ERROR_RESPONSE_MESSAGE).toBe('エラーが発生しました')
+    expect(new ErrorResponse('入力値が不正です').message).toBe(DEFAULT_ERROR_RESPONSE_MESSAGE)
+    expect(buildSheetErrorEnvelope('入力値が不正です', []).message).toBe(DEFAULT_ERROR_RESPONSE_MESSAGE)
+  })
+
+  it('placeholder 会計と実値注入で固定キー集合を共有する', () => {
+    const error = '計算式の結果が有限な数値になりませんでした'
+    const issues = [{ fieldUid: 'uid-computed', path: ['uid-computed'], message: error }]
+    const placeholderTimestamp = 1_000_000_000_000
+    const placeholderRequestId = '00000000-0000-0000-0000-000000000000'
+    const actualTimestamp = 1_753_670_800_000
+    const actualRequestId = '12345678-1234-1234-1234-123456789abc'
+    const placeholderEnvelope = buildSheetErrorEnvelope(error, issues, {
+      timestamp: placeholderTimestamp,
+      requestId: placeholderRequestId
+    })
+    const actualEnvelope = buildSheetErrorEnvelope(error, issues, {
+      timestamp: actualTimestamp,
+      requestId: actualRequestId
+    })
+    const expectedKeys = ['error', 'issues', 'message', 'requestId', 'success', 'timestamp']
+
+    expect(Object.keys(placeholderEnvelope).sort()).toEqual(expectedKeys)
+    expect(Object.keys(actualEnvelope).sort()).toEqual(Object.keys(placeholderEnvelope).sort())
+    expect(actualEnvelope.timestamp).toBe(actualTimestamp)
+    expect(actualEnvelope.requestId).toBe(actualRequestId)
+  })
+
+  it('固定 diagnostic 1 件の最終 wire モデルを 678 bytes に固定する', () => {
+    const nestBody = buildBoundedNonFiniteErrorEnvelope([
+      {
+        kind: 'computed',
+        fieldUid: 'uid-computed',
+        label: 'Computed',
+        formula: '1 / 0',
+        result: 'Infinity'
+      }
+    ])
+
+    expect(nonFiniteHttpBodyBytes(nestBody)).toBe(678)
   })
 
   it.each([

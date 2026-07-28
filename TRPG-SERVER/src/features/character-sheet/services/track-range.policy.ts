@@ -1,6 +1,8 @@
 import { UnprocessableEntityException } from '@nestjs/common'
+import type { ErrorEnvelope } from '@trpg/api-contract'
 import { EPSILON, evaluateExpression, evaluateTemplate } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
+import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../../core/dto/api-response.dto'
 import { isPartsValue, partsTotal, sheetValuesEqual } from './sheet-values.util'
 
 export interface TrackBounds {
@@ -33,6 +35,39 @@ export interface BoundedNonFiniteErrorEnvelope {
   issues: NonFiniteErrorIssue[]
 }
 
+export interface SheetErrorEnvelopeMetadata {
+  timestamp?: number
+  requestId?: string
+}
+
+export interface SheetErrorEnvelope extends ErrorEnvelope {
+  issues: readonly NonFiniteErrorIssue[]
+}
+
+const SHEET_ERROR_ENVELOPE_TIMESTAMP_PLACEHOLDER = 1_000_000_000_000
+const SHEET_ERROR_ENVELOPE_REQUEST_ID_PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * sheet 422 が共通 HTTP filter 適用後に取る最終 wire 封筒を作る。
+ *
+ * 5b の filter は実 timestamp / requestId を渡して必ずこの builder を使うこと。別実装は禁止。
+ * byte 会計時も同じ builder に固定幅 placeholder を渡し、実封筒とのキーと直列化形の乖離を防ぐ。
+ */
+export function buildSheetErrorEnvelope(
+  error: string,
+  issues: readonly NonFiniteErrorIssue[],
+  { timestamp = Date.now(), requestId }: SheetErrorEnvelopeMetadata = {}
+): SheetErrorEnvelope {
+  return {
+    success: false,
+    message: DEFAULT_ERROR_RESPONSE_MESSAGE,
+    timestamp,
+    requestId,
+    error,
+    issues
+  }
+}
+
 const NON_FINITE_DETAIL_LIMIT = 3
 const NON_FINITE_FIELD_UID_DISPLAY_CHARACTER_LIMIT = 128
 const NON_FINITE_LABEL_CHARACTER_LIMIT = 256
@@ -42,10 +77,11 @@ const NON_FINITE_INPUT_LOCATION_CHARACTER_LIMIT = 128
 const NON_FINITE_HTTP_BODY_BYTE_BUDGET = 4_096
 const NON_FINITE_COMPONENT_JSON_LENGTH_LIMITS = [1_024, 512, 256, 128, 64, 32, 16] as const
 const NON_FINITE_ISSUE_LIMITS = ['unlimited', 3, 1, 0] as const
-const MINIMAL_NON_FINITE_ERROR_ENVELOPE: BoundedNonFiniteErrorEnvelope = {
+const MINIMAL_NON_FINITE_ERROR_MESSAGE = '入力値の検証に失敗しました。入力値を確認してください'
+const MINIMAL_NON_FINITE_NEST_ERROR_BODY: BoundedNonFiniteErrorEnvelope = {
   statusCode: 422,
   error: 'Unprocessable Entity',
-  message: '入力値の検証に失敗しました。入力値を確認してください',
+  message: MINIMAL_NON_FINITE_ERROR_MESSAGE,
   issues: []
 }
 
@@ -70,7 +106,7 @@ export function toNonFiniteNumberKind(value: number): NonFiniteNumberKind {
 }
 
 /**
- * 非有限診断を含む、実際に送信する 422 封筒全体を byte 予算内で構築する。
+ * 非有限診断を含む現行 Nest 422 body を、最終 wire 形の byte 予算内で構築する。
  *
  * 非有限 issue を先頭に置き、予算超過時だけ件数単位で落とす。
  * 保持する既存 issue の fieldUid / path / message は加工しない。
@@ -113,7 +149,7 @@ export function buildBoundedNonFiniteErrorEnvelope(
     }
   }
 
-  return MINIMAL_NON_FINITE_ERROR_ENVELOPE
+  return MINIMAL_NON_FINITE_NEST_ERROR_BODY
 }
 
 // 既存 import の互換名。封筒構築の実体は上の builder 一つだけに保つ。
@@ -230,8 +266,12 @@ function truncateDiagnosticText(value: string, maxCharacters: number, maxJsonLen
   return JSON.stringify(truncated).length <= maxJsonLength ? truncated : ''
 }
 
-function nonFiniteHttpBodyBytes(envelope: BoundedNonFiniteErrorEnvelope): number {
-  return Buffer.byteLength(JSON.stringify(envelope), 'utf8')
+export function nonFiniteHttpBodyBytes(envelope: BoundedNonFiniteErrorEnvelope): number {
+  const wireModel = buildSheetErrorEnvelope(envelope.message, envelope.issues, {
+    timestamp: SHEET_ERROR_ENVELOPE_TIMESTAMP_PLACEHOLDER,
+    requestId: SHEET_ERROR_ENVELOPE_REQUEST_ID_PLACEHOLDER
+  })
+  return Buffer.byteLength(JSON.stringify(wireModel), 'utf8')
 }
 
 function formatNonFiniteFieldDetail(diagnostic: NonFiniteFieldDiagnostic, componentJsonLengthLimit: number): string {

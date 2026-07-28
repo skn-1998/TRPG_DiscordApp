@@ -3,6 +3,8 @@ import type {
   CharacterHubStatusWire,
   CharacterSummaryWire,
   CharacterWire,
+  CreateCharacterFromTemplateResultWire,
+  SaveCharacterSheetResultWire,
   SuccessEnvelope
 } from '@trpg/api-contract'
 import { apiClient } from '~/lib/api-client'
@@ -20,14 +22,25 @@ export interface CharacterSheetChange {
   newValue: unknown
 }
 
+function unwrapSheetResponse<T>(body: SuccessEnvelope<T> | T): T {
+  // 対象の生 payload は success/data キーを持たないため、この2条件で封筒と誤判別しない。
+  if (body !== null && typeof body === 'object' && 'success' in body && body.success === true && 'data' in body) {
+    return (body as SuccessEnvelope<T>).data
+  }
+
+  return body as T
+}
+
 export async function createCharacterFromTemplate(input: {
   templateId: string
   templateVersion: string
   characterName: string
   values?: Record<string, unknown>
-}): Promise<{ characterId: string }> {
-  const response = await apiClient.post<{ characterId: string }>('/character/from-template', input)
-  return response.data
+}): Promise<CreateCharacterFromTemplateResultWire> {
+  const response = await apiClient.post<
+    SuccessEnvelope<CreateCharacterFromTemplateResultWire> | CreateCharacterFromTemplateResultWire
+  >('/character/from-template', input)
+  return unwrapSheetResponse(response.data)
 }
 
 // キャラクター取得
@@ -94,10 +107,10 @@ export async function saveCharacterSheet(input: {
   characterId: string
   baseRevision: number
   changes: CharacterSheetChange[]
-}): Promise<{ revision: number; noOp: boolean; appliedChanges: number }> {
-  const response = await apiClient.put<{ revision: number; noOp: boolean; appliedChanges: number }>(
+}): Promise<SaveCharacterSheetResultWire> {
+  const response = await apiClient.put<SuccessEnvelope<SaveCharacterSheetResultWire> | SaveCharacterSheetResultWire>(
     `/character/${input.characterId}/sheet`,
     { baseRevision: input.baseRevision, changes: input.changes }
   )
-  return response.data
+  return unwrapSheetResponse(response.data)
 }

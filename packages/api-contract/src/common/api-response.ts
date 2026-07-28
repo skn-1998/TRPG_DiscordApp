@@ -45,6 +45,20 @@ export interface ErrorEnvelope {
     message: string;
     code?: string;
   }>;
+  /**
+   * 封筒適用面の拡張に備えた非有限診断キャリア。
+   * 現時点で server がこれを設定する経路は無い。
+   */
+  issues?: ReadonlyArray<{
+    fieldUid?: string;
+    path?: ReadonlyArray<string>;
+    message: string;
+  }>;
+  /**
+   * 封筒適用面の拡張に備えた構造化 cause キャリア。
+   * 現時点で server がこれを設定する経路は無い。
+   */
+  cause?: Readonly<Record<string, unknown>>;
   stack?: string;
 }
 
