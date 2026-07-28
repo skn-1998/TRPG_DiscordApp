@@ -1,7 +1,8 @@
+import * as path from 'path'
 import { Injectable } from '@nestjs/common'
 import { AutocompleteInteraction, CommandInteraction, MessageFlags, PermissionsBitField } from 'discord.js'
 import Fuse from 'fuse.js'
-import { loadJsonFile } from '../../../utils/loadJsonFile'
+import { loadJsonFile } from '../../../utils/file.util'
 import { getCategory } from '../../../utils/getCategory'
 import { createCategory } from '../../../utils/createCategory'
 import { convertSearchText } from '../utils/search.util'
@@ -18,7 +19,7 @@ const options = {
   keys: ['NAME']
 }
 
-const gameSystemList = loadJsonFile('src/discord/static/gameSystemList.json') as GameSystemJSON[]
+const gameSystemList = loadJsonFile<GameSystemJSON[]>(path.join(__dirname, '../../../static/gameSystemList.json'))
 const CATEGORY_NAME = 'ダイスロールチャンネル'
 
 @Injectable()

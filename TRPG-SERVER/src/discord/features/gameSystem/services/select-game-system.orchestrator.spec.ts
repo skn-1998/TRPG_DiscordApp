@@ -3,7 +3,8 @@ import { Test } from '@nestjs/testing'
 // --- モジュールロード時副作用の遮断 ---
 // 対象ファイル冒頭で loadJsonFile(...) が import 時に実行されるため、
 // 小さな GameSystemJSON 配列を返すようスタブ化する。
-jest.mock('../../../utils/loadJsonFile', () => ({
+jest.mock('../../../utils/file.util', () => ({
+  ...jest.requireActual('../../../utils/file.util'),
   loadJsonFile: jest.fn(() => [
     { ID: 'cthulhu', NAME: 'クトゥルフ', SORT_KEY: '', HELP_MESSAGE: 'クトゥルフのヘルプ' },
     { ID: 'sword-world', NAME: 'ソード・ワールド', SORT_KEY: '', HELP_MESSAGE: 'SWのヘルプ' }

@@ -1,6 +1,7 @@
 // loadJsonFile を固定し、実ファイル I/O を避ける。
 // gameSystemList.json の代わりに既知の ID 群を返すモックを注入する。
-jest.mock('../../../utils/loadJsonFile', () => ({
+jest.mock('../../../utils/file.util', () => ({
+  ...jest.requireActual('../../../utils/file.util'),
   loadJsonFile: jest.fn(() => [
     { ID: 'AceKillerGene', Name: 'エースキラージーン' },
     { ID: 'GardenOrder', Name: 'ガーデンオーダー' }

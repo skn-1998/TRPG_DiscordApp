@@ -688,6 +688,37 @@ domains→core/dto の依存方向は先例4ドメインと整合・core/dto に
 以後 pathspec コミット後の検証項目に index 残渣確認を追加 — メモリ
 `trpg-server-crlf-pathspec-commit` に記録）。
 
+### 第4群-c: loadJsonFile 一本化＋gameSystemList の production 解決修正 — OV5-2（2026-07-28・完了）
+
+証跡: `review-results/g4c-loadjsonfile/`。着手時 HEAD = `3e9c058`。
+
+**OV5-2 の精密化（着手前の Fable 裏取りで処方を2点訂正）**:
+
+- **Dockerfile 修正は不要だった**。`nest-cli.json` の assets 設定（`**/*.json` → dist・watchAssets）が
+  既にあり JSON は dist へ同梱済み。真の欠陥は呼び出し 2 箇所が **cwd 相対 `'src/discord/static/...'` を
+  module load 時に読む**こと（`start:prod` = `node dist/main`・production イメージに src 無し →
+  ENOENT を握り潰して `undefined` → `.find` / `new Fuse(undefined)` が利用点で不透明死）
+- throw 版の実体は `src/discord/utils/file.util.ts`（俯瞰#5 記録の「`file.util.ts`」は
+  `src/utils/` と誤読しうる曖昧引用だった）
+
+**変更**: 呼び出し 2 箇所（`channel-topic.util.ts`・`select-game-system.orchestrator.ts`）を
+throw 版 `loadJsonFile<T>` ＋ `path.join(__dirname, '../../../static/gameSystemList.json')` へ。
+握り潰し版 `loadJsonFile.ts`＋`loadJsonFile.spec.ts` を削除（10 行追加・80 行削除の純減。
+suite 230→229・tests 3192→3189 = 削除 spec の 3 ケース分と検算一致）。
+**意図した挙動変更**: 失敗契約が「握り潰して利用点で不透明死」→「module load 時 throw（boot fail-fast）」。
+
+検収: Codex は参照 2 件（本台帳 458 行・759 行の俯瞰#5 履歴記述）で**停止条件どおり停止**→
+Fable 裁定（文書履歴でありブロッカーではない）→続行。cwd 非依存実証
+（リポジトリルート cwd から dist モジュール require 成功）は Codex・Fable・レビュー Opus の3者が独立実行。
+full suite 全緑。Opus レビュー **pass**（src/dist 鏡像 4 コンテキストのパス解決実測・
+automock 間接消費者 `roll-dice.orchestrator.spec` の安全確認付き。findings は info 2 件のみ:
+`dependency-analysis.json` の旧エントリは再生成で自然解消 / AI.test.md 1371 行の
+削除済みファイル言及 → 本コミットで更新済み）。
+
+**注記**: 本台帳 458 行の俯瞰#5 訂正が引く `loadJsonFile.spec.ts` は当時の事実として存置
+（spec 自体は g4c で握り潰し版もろとも削除済み）。GameSystemJSON 型が 2 ファイルで独立宣言のままな点は
+既存事象として維持（channel-topic 側の `Name?` は実データに無いキーだが `.ID` しか読まず無害 — 記録のみ）。
+
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
