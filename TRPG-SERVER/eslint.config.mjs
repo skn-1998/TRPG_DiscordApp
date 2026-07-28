@@ -5,6 +5,9 @@ import tseslint from 'typescript-eslint'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
 import pluginJest from 'eslint-plugin-jest'
 
+const featureImportPatterns = ['**/features', '**/features/**']
+const domainImportPatterns = ['**/domains', '**/domains/**', '@domains', '@domains/**']
+
 export default defineConfig(
   {
     ignores: ['eslint.config.mjs', 'jest.config.js', 'prettier.config.js', 'webpack-hmr.config.js', 'dist/**/*', 'node_modules/**/*']
@@ -88,6 +91,80 @@ export default defineConfig(
       'no-empty': 'warn', // 意図的な空 catch 等
       '@typescript-eslint/no-namespace': 'warn', // 既存の namespace 利用
       'jest/no-conditional-expect': 'warn' // 一部 spec の実用的な条件付き expect
+    }
+  },
+  {
+    files: ['src/core/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: featureImportPatterns,
+              message: 'core から features への依存は禁止です。ARCHITECTURE.md §4 を参照してください'
+            },
+            {
+              group: domainImportPatterns,
+              message: 'core から domains への依存は禁止です。ARCHITECTURE.md §4 を参照してください'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/domains/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: featureImportPatterns,
+              message: 'domains から features への依存は禁止です。ARCHITECTURE.md §4 を参照してください'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/events/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    // features パターンだけなのは意図的な非対称。events → domains は ARCHITECTURE.md §4 の表で
+    // 許可された辺（events.module.ts が domains/character を参照）で、domains を足すと即 error になる
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: featureImportPatterns,
+              message: 'events core から features への依存は禁止です。ARCHITECTURE.md §4 を参照してください'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/discord/interactions/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: featureImportPatterns,
+              message: 'interactions core から features への依存は禁止です。ARCHITECTURE.md §4 を参照してください'
+            }
+          ]
+        }
+      ]
     }
   },
   {
