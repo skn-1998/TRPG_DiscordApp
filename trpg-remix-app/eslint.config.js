@@ -121,8 +121,10 @@ export default defineConfig(
                 'CharacterSummaryWire',
                 'CharacterTemplatePinWire',
                 'CharacterWire',
+                'CreateCharacterFromTemplateResultWire',
                 'DiscordGuildWire',
                 'DiscordGuildsPayloadWire',
+                'SaveCharacterSheetResultWire',
                 'UserProfileWire'
               ],
               message: '永続化スキーマは front で使用禁止。HTTP 応答には公開済みの wire 型だけを使用する'

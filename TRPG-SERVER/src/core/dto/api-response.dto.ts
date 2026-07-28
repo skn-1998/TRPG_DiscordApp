@@ -1,6 +1,8 @@
 import { IsBoolean, IsOptional, IsString, IsNumber, IsArray } from 'class-validator'
 import type { SuccessEnvelope, ErrorEnvelope } from '@trpg/api-contract'
 
+export const DEFAULT_ERROR_RESPONSE_MESSAGE = 'エラーが発生しました'
+
 /**
  * API レスポンス基底クラス
  * すべてのAPIレスポンスの標準形式を定義
@@ -79,7 +81,7 @@ export class ErrorResponse extends BaseApiResponse implements ErrorEnvelope {
 
   constructor(
     error: string,
-    message = 'エラーが発生しました',
+    message = DEFAULT_ERROR_RESPONSE_MESSAGE,
     errorCode?: string,
     details?: ErrorResponse['details'],
     stack?: string,

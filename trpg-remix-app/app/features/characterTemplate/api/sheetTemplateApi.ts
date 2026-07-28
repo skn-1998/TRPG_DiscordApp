@@ -1,4 +1,5 @@
 import { apiClient, withJwt } from '~/lib/api-client'
+import { isErrorEnvelope } from '../../../lib/api-response.util'
 import type {
   CharacterSheetTemplateEntity,
   CharacterSheetTemplateSummary,
@@ -65,6 +66,20 @@ export function extractApiErrorMessages(error: unknown): string[] {
   if (error && typeof error === 'object' && 'response' in error) {
     const response = (error as { response?: { data?: unknown } }).response
     const data = response?.data
+    if (isErrorEnvelope(data)) {
+      const diagnostics = [
+        ...(data.issues?.map((issue) => issue.message) ?? []),
+        ...(data.details?.map((detail) => detail.message) ?? [])
+      ].filter((message) => message.length > 0)
+      const uniqueDiagnostics = [...new Set(diagnostics)]
+
+      // issues/details（各フィールド診断）を優先する。data.error は診断の集約スーパーセット
+      // 文字列になり得るため、診断が取れたときは二重表示を避けて error を落とす。
+      if (uniqueDiagnostics.length > 0) return uniqueDiagnostics
+      if (data.error.length > 0) return [data.error]
+      return [data.message]
+    }
+
     if (data && typeof data === 'object' && 'message' in data) {
       const message = (data as { message?: unknown }).message
       if (Array.isArray(message)) return message.map(String)

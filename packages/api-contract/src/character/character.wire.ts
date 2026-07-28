@@ -110,3 +110,22 @@ export interface CharacterDeleteResultWire {
   message: string
   characterId: string
 }
+
+/**
+ * PUT /character/:id/sheet について front が消費する保証面。
+ *
+ * 実 wire には保証外の `character: CharacterEntity` が同乗している。
+ * 実 wire をこの保証面まで絞るかは別スライスで決定する。
+ */
+export interface SaveCharacterSheetResultWire {
+  revision: number
+  noOp: boolean
+  appliedChanges: number
+}
+
+/**
+ * POST /character/from-template について front が消費する保証面。
+ */
+export interface CreateCharacterFromTemplateResultWire {
+  characterId: string
+}
