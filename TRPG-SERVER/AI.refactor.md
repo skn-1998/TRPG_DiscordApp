@@ -664,8 +664,10 @@ users 面の委譲固定欠落の5件）→ 全件採用し Codex round2 → Fab
   （ErrorResponse サブクラス未到達は Validation/Authorization/Conflict と合わせ4種に）
 - `@ApiErrorResponse` は「どの経路からも参照されない無効メタ」を JSDoc・`@deprecated` に明記
   （F-6 の撤去自体は第5群のまま）
-- 既存負債の実測: `jest/no-conditional-expect` ×4（http-exception.filter.spec /
-  character-http.exception.spec の dev-stack 条件分岐）は HEAD 由来 → spec 磨き候補
+- 既存負債の実測: `jest/no-conditional-expect` ×6（http-exception.filter.spec ×2・
+  character-http.exception.spec ×2・track-range.policy.spec ×2）は HEAD 由来 → spec 磨き候補
+  （俯瞰#6 訂正: 当初「×4」は track-range.policy.spec の取りこぼし。この 6 件が
+  lint error ベースライン 6 の全量 = T31 `7ef6819` 記録と整合）
 
 ### 第4群-b: 'エラーが発生しました' literal の定数参照化 — OV5-4（2026-07-28・完了）
 
@@ -697,7 +699,10 @@ domains→core/dto の依存方向は先例4ドメインと整合・core/dto に
 - **Dockerfile 修正は不要だった**。`nest-cli.json` の assets 設定（`**/*.json` → dist・watchAssets）が
   既にあり JSON は dist へ同梱済み。真の欠陥は呼び出し 2 箇所が **cwd 相対 `'src/discord/static/...'` を
   module load 時に読む**こと（`start:prod` = `node dist/main`・production イメージに src 無し →
-  ENOENT を握り潰して `undefined` → `.find` / `new Fuse(undefined)` が利用点で不透明死）
+  ENOENT を握り潰して `undefined` → orchestrator は DI 生成時（boot）に Fuse 内部で不透明
+  TypeError・channel-topic は interaction 時の `.find` で TypeError
+  — 俯瞰#6 精密化: `new Fuse(undefined)` は実測で throw する。「利用点で不透明死」は
+  Fuse 経路では boot 時が正）
 - throw 版の実体は `src/discord/utils/file.util.ts`（俯瞰#5 記録の「`file.util.ts`」は
   `src/utils/` と誤読しうる曖昧引用だった）
 
@@ -712,12 +717,66 @@ Fable 裁定（文書履歴でありブロッカーではない）→続行。cw
 （リポジトリルート cwd から dist モジュール require 成功）は Codex・Fable・レビュー Opus の3者が独立実行。
 full suite 全緑。Opus レビュー **pass**（src/dist 鏡像 4 コンテキストのパス解決実測・
 automock 間接消費者 `roll-dice.orchestrator.spec` の安全確認付き。findings は info 2 件のみ:
-`dependency-analysis.json` の旧エントリは再生成で自然解消 / AI.test.md 1371 行の
+`dependency-analysis.json` の旧エントリ / AI.test.md 1371 行の
 削除済みファイル言及 → 本コミットで更新済み）。
+**俯瞰#6 訂正**: レビュー所見の「dependency-analysis.json は再生成で自然解消」は誤り。
+生成スクリプト参照 0・単発コミット `4164321` 由来の保守されない生成物（Fable grep 実測）→ 第5群で削除候補。
 
 **注記**: 本台帳 458 行の俯瞰#5 訂正が引く `loadJsonFile.spec.ts` は当時の事実として存置
 （spec 自体は g4c で握り潰し版もろとも削除済み）。GameSystemJSON 型が 2 ファイルで独立宣言のままな点は
 既存事象として維持（channel-topic 側の `Name?` は実データに無いキーだが `.ID` しか読まず無害 — 記録のみ）。
+
+### 俯瞰レビュー#6（2026-07-28・`90e7b55..10b1e31` の5コミット）
+
+fable-rules の3フェーズ規律。対象 = 第4群 a/b/c ＋ 並行 T19 `42f12fd`・T31 `7ef6819`。
+方式: Opus read-only 2系統（cognitive-load モードA 9件 / changeability 6件）＋
+Codex adversarial（needs-fix 3件）＋ Fable 反証実測 2 件（Fuse 実挙動・dependency-analysis 生成系）。
+証跡: `review-results/overview-6/`（統合判定は `integration-verdict.md`）。
+
+#### 健全性確認（合成欠陥なし — 3者一致）
+
+- **T31 eslint 層ガード × 第4群 import: 違反 0**（focused eslint exit 0・陽性対照 probe で検出力担保・
+  full lint 6 errors/99 warnings = T31 ベースラインと一致。g4c の discord/features は §4 どおり gate 対象外）
+- 変異固定 spec の検出力は g4b/g4c 後も維持（定数改変で最低 6 spec ファイル赤化）
+- boot fail-fast の新規失敗経路なし（jest / e2e / production の3実行系で `__dirname` 解決成立）
+- T19 との干渉なし。検算成立: N-1 3→2 / g4b literal 0 / g4c 一本化
+
+#### 採用所見
+
+- **OV6-1（medium）→ 第4群-e 候補**: 両 filter の汎用 HttpException 封筒構築 **11 行がバイト一致**・
+  生成後の全変更 4/4 が lock-step 編集。CharacterHttpExceptionFilter の固有価値は
+  401/404 errorCode 分岐 12 行のみ。処方方向: ApiError に optional errorCode を追加して
+  filter 1 本化・character filter 削除（新抽象なし・純減・挙動保存を spec 固定）。
+  定数名が埋める欄を示さない問題（CL6-4）は同スライス相乗り候補
+- **OV6-2（medium）→ 第4群-d 候補**: g4c の fail-fast は I/O・JSON 構文エラー限定で
+  **構造破損を検出しない**（`{}`/`[]`/必須キー欠落は型断言を素通り。Fable 実測:
+  `new Fuse({})` は受理し空検索へ劣化）。処方方向: load 直後の非空配列＋必須キー検証＋spec。
+  GameSystemJSON の第3宣言（select-game-system.service.ts:9・import 0 の死蔵 export）の
+  1 行削除を相乗り
+- **OV6-3（medium）→ 第5群の拘束条件**: `api-response.util.ts` 削除は検証面 6 ファイルへ伝播
+  （e2e ハーネス test/auth/test-auth.controller.ts の実行時依存・g4a 変異固定 spec の oracle 2 を含む）。
+  **ファイル削除を単独スライスにしない** — oracle を literal 直書き期待へ寄せてから削除
+
+#### 記録のみ / 現状維持
+
+- ApiError を解釈するのは HttpExceptionFilter のみ（暗黙制約・実害 0・OV6-1 実施で消滅）
+- 封筒形 500 の生成点は 4 箇所（wire 系統は 2）。**ErrorHandler.handleServiceError は死蔵ではなく
+  live 39 呼び出し**で auth route の 500 を封筒形へ流す（死蔵は handleHttpError のみ — 既知リスト訂正）
+- 資産パス決定の 2 コピー＋実 I/O が 13 suite に到達する面（CHG-2）vs 共有 loader 化は負荷増（CL6-8）
+  — **両輪が割れた** → 現状維持・静的資産の配置を動かすときに再訪
+- T31 の features パターンは doc 宣言より広く src/discord/features/** も捕捉（現状 0 件・厳しい方向の
+  ずれ）→ ARCHITECTURE.md §4 へ注記 1 文の候補のみ
+- file.util の saveJsonFile / convertToJson は production 0 → 第5群相乗り
+- dev 判定（includeStack）は **3 filter**（sheet filter は stack 非搭載の非対称。「4 filter」は誤り）
+- 同一 JSON の二重 load・二重パース（224 entries ×2）は許容・現状維持
+
+#### 反証・裁定
+
+Codex 3 件: F1 構造検証欠落 = **CONFIRMED**（Fable 実測）/ F2 dependency-analysis = **CONFIRMED**
+（生成系不在を Fable grep）/ F3 台帳旧挙動 = **PARTIALLY REFUTED**（「Fuse は undefined を受理」は
+実測で反証 — throw する。ただし「利用点で」の精密化は採用）。
+台帳訂正 4 件を本俯瞰で実施（g4a ×4→×6 / g4c dependency-analysis / g4c 旧挙動精密化 /
+OV5-1 行域注記）。
 
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
@@ -742,7 +801,7 @@ Codex 側 = 独立 adversarial（verdict needs-fix・8件）。
 
 #### 採用所見（第4群へ。詳細は integration-verdict.md）
 
-- **OV5-1（high・両輪一致）**: 局所2 filter（`http-exception.filter.ts:97-109`・
+- **OV5-1（high・両輪一致）**: 局所2 filter（`http-exception.filter.ts:97-109`（当時の行域）・
   `character-http.exception.ts` 分岐(4)）の `@Catch()` 全捕捉が解決順で global より先に未知例外を捕まえ、
   **raw `error.message` を封筒 error へ露出**。auth 5・users 7・character 6 route で第3群-b の
   「500 は内部診断を隠す」規律がすり抜ける（UserService が下流例外文を連結して再送する実経路確認済み）。
