@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { ArgumentsHost, CallHandler, ConflictException, ExecutionContext } from '@nestjs/common'
+import { ArgumentsHost, CallHandler, ConflictException, ExecutionContext, HttpException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { Response } from 'express'
 import { lastValueFrom, of } from 'rxjs'
@@ -28,11 +28,12 @@ import { GUARDS_METADATA } from '@nestjs/common/constants'
 /**
  * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
  * 例外は CharacterAuthenticationException / CharacterNotFoundException / 素の Error を throw する。
- * 封筒化は ResponseInterceptor（成功）/ CharacterHttpExceptionFilter（異常）が担う。
+ * 封筒化は ResponseInterceptor（成功）/ CharacterHttpExceptionFilter（HttpException）が担う。
  *
  * 本 spec は実機同様に interceptor / filter を通して最終 envelope を再現し、
- * 変換前の ApiResponseUtil.success / authenticationError / notFoundError / internalServerError と
+ * 変換前の ApiResponseUtil.success / authenticationError / notFoundError と
  * 同一（success/status/message/error/errorCode）であることを検証する（requestId/timestamp は除外）。
+ * 素の Error は controller が同じ値を再 throw することだけを固定し、global 配線は HTTP spec で検証する。
  */
 describe('CharacterController', () => {
   let controller: CharacterController
@@ -114,6 +115,9 @@ describe('CharacterController', () => {
 
   /** throw された例外を CharacterHttpExceptionFilter に通して { status, body } を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
+    if (!(error instanceof HttpException)) {
+      throw new Error('CharacterHttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+    }
     const filter = new CharacterHttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
@@ -266,19 +270,12 @@ describe('CharacterController', () => {
       )
     })
 
-    it('Service作成エラー時は500を返す', async () => {
+    it('Service作成の素の Error はそのまま再 throw する', async () => {
       const req: any = mockRequest()
       const error = new Error('Character creation failed')
       characterService.create.mockRejectedValue(error)
 
       await expect(controller.create(mockCharacterDto, req)).rejects.toBe(error)
-
-      // filter 経由で internalServerError と一致
-      const { status, body } = filterError(error)
-      expect(status).toBe(500)
-      expect(stripVolatile(body)).toEqual(
-        stripVolatile(refEnvelope((res) => ApiResponseUtil.internalServerError(res, error)))
-      )
     })
   })
 
@@ -321,13 +318,12 @@ describe('CharacterController', () => {
       expect(characterService.findHavingAll).not.toHaveBeenCalled()
     })
 
-    it('ServiceのfindHavingAllエラー時は500を返す', async () => {
+    it('ServiceのfindHavingAllの素の Error はそのまま再 throw する', async () => {
       const req: any = mockRequest()
       const error = new Error('Database error')
       characterService.findHavingAll.mockRejectedValue(error)
 
       await expect(controller.findAll(req)).rejects.toBe(error)
-      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -367,13 +363,12 @@ describe('CharacterController', () => {
       expect(characterService.findUserCharacterSummaries).not.toHaveBeenCalled()
     })
 
-    it('ServiceのfindUserCharacterSummariesエラー時は500を返す', async () => {
+    it('ServiceのfindUserCharacterSummariesの素の Error はそのまま再 throw する', async () => {
       const req: any = mockRequest()
       const error = new Error('Database error')
       characterService.findUserCharacterSummaries.mockRejectedValue(error)
 
       await expect(controller.findUserCharacterSummaries(req)).rejects.toBe(error)
-      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -418,14 +413,13 @@ describe('CharacterController', () => {
       )
     })
 
-    it('ServiceのfindOneエラー時は500を返す', async () => {
+    it('ServiceのfindOneの素の Error はそのまま再 throw する', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
       const req: any = mockRequest()
       characterService.findOneForOwner.mockRejectedValue(error)
 
       await expect(controller.findOne({ id: characterId }, req)).rejects.toBe(error)
-      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -494,14 +488,13 @@ describe('CharacterController', () => {
       expect(body.error).toContain('PUT /character/:id/sheet')
     })
 
-    it('Serviceのupdateエラー時は500を返す', async () => {
+    it('Serviceのupdateの素の Error はそのまま再 throw する', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
       const req: any = mockRequest()
       characterService.updateForOwner.mockRejectedValue(error)
 
       await expect(controller.update({ id: characterId }, mockUpdateCharacterDto, req)).rejects.toBe(error)
-      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -553,14 +546,13 @@ describe('CharacterController', () => {
       )
     })
 
-    it('Serviceのremoveエラー時は500を返す', async () => {
+    it('Serviceのremoveの素の Error はそのまま再 throw する', async () => {
       const characterId = 'test-character-001'
       const error = new Error('Database error')
       const req: any = mockRequest()
       characterService.removeForOwner.mockRejectedValue(error)
 
       await expect(controller.remove({ id: characterId }, req)).rejects.toBe(error)
-      expect(filterError(error).status).toBe(500)
     })
   })
 
@@ -609,7 +601,7 @@ describe('CharacterController', () => {
       }
     })
 
-    it('全メソッドでServiceエラーは500 envelope に整形される', async () => {
+    it('全メソッドで Service の素の Error をそのまま再 throw する', async () => {
       const req: any = mockRequest()
       const serviceError = new Error('Service unavailable')
 
@@ -634,8 +626,7 @@ describe('CharacterController', () => {
         } catch (e) {
           thrown = e
         }
-        // 変換前は res に 500 を書いて解決していた。変換後は throw → filter が 500 envelope へ整形
-        expect(filterError(thrown).status).toBe(500)
+        expect(thrown).toBe(serviceError)
       }
     })
   })

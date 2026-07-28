@@ -1,4 +1,5 @@
 import { ArgumentsHost, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
+import { FILTER_CATCH_EXCEPTIONS } from '@nestjs/common/constants'
 import { Response } from 'express'
 import {
   CharacterHttpExceptionFilter,
@@ -138,20 +139,8 @@ describe('CharacterHttpExceptionFilter', () => {
       }
     })
 
-    it('素の Error は 500・INTERNAL_SERVER_ERROR で message を抽出する', () => {
-      filter.catch(new Error('予期せぬ障害'), host)
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR)
-      const payload = lastJson()
-      expect(payload.errorCode).toBe('INTERNAL_SERVER_ERROR')
-      expect(payload.error).toBe('予期せぬ障害')
-    })
-
-    it('非 Error 値も 500 で String 化して error に入れる', () => {
-      filter.catch('ただの文字列', host)
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR)
-      expect(lastJson().error).toBe('ただの文字列')
+    it('HttpException のみを捕捉対象として宣言する', () => {
+      expect(Reflect.getMetadata(FILTER_CATCH_EXCEPTIONS, CharacterHttpExceptionFilter)).toEqual([HttpException])
     })
   })
 })

@@ -15,7 +15,10 @@ import {
 } from 'test/utils/character-http-contract'
 import { AppConfigService } from '../../config/config.service'
 import { ResponseInterceptor } from '../../core/http'
-import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
+import {
+  APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
+  GLOBAL_INTERNAL_ERROR_MESSAGE
+} from '../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterHttpExceptionFilter } from './character-http.exception'
@@ -23,8 +26,8 @@ import { CharacterController } from './character.controller'
 import { CharacterService } from './character.service'
 
 /**
- * CharacterController の実 HTTP 成功応答を検証する。
- * service 境界だけをモックし、guard override、実 interceptor、実 character filter を通す。
+ * CharacterController の実 HTTP 応答契約を検証する。
+ * service 境界だけをモックし、guard override、実 interceptor、実 character/global filter を通す。
  */
 describe('CharacterController HTTP payload contract', () => {
   const authenticatedUser = {
@@ -155,6 +158,27 @@ describe('CharacterController HTTP payload contract', () => {
 
     expect(response.body.error).toBe('キャラクターIDは文字列である必要があります')
     expect(characterService.create).not.toHaveBeenCalled()
+  })
+
+  it('GET /character/:id の素の Error は character filter を通過し global の固定 500 封筒になる', async () => {
+    const rawMessage = 'character-service-private-detail'
+    characterService.findOneForOwner.mockRejectedValueOnce(new Error(rawMessage))
+
+    const response = await request(app.getHttpServer()).get('/character/raw-error-character').expect(500)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: GLOBAL_INTERNAL_ERROR_MESSAGE,
+        requestId: expect.any(String)
+      })
+    )
+    expect(JSON.stringify(response.body)).not.toContain(rawMessage)
+    expect(characterService.findOneForOwner).toHaveBeenCalledWith(
+      'raw-error-character',
+      authenticatedUser.discordUserId
+    )
   })
 
   it('GET /character は二重ラップせず entity wire 配列と実件数に一致する meta を返す', async () => {

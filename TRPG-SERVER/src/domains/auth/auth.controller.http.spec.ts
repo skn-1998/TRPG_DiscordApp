@@ -2,12 +2,15 @@ import { INestApplication } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { Test, TestingModule } from '@nestjs/testing'
 import cookieParser from 'cookie-parser'
-import { throwError } from 'rxjs'
+import { of, throwError } from 'rxjs'
 import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
 import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
 import { CookieService } from '../../core/http/cookie.service'
-import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
+import {
+  APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
+  GLOBAL_INTERNAL_ERROR_MESSAGE
+} from '../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { CryptoService } from '../../core/shared/services/crypto.service'
 import { HttpClientService } from '../../core/shared/services/http.service'
@@ -209,5 +212,59 @@ describe('AuthController / UserController HTTP integration', () => {
     expect(httpService.post).toHaveBeenCalledTimes(1)
     expect(httpService.get).not.toHaveBeenCalled()
     expect(userService.findOne).not.toHaveBeenCalled()
+  })
+
+  it('/auth/login の素の Error は local filter を通過し global の固定 500 封筒になる', async () => {
+    const rawMessage = 'auth-user-info-upstream-private-detail'
+    httpService.post.mockReturnValueOnce(
+      of({
+        data: {
+          access_token: 'raw-error-access-token',
+          token_type: 'Bearer',
+          refresh_token: 'raw-error-refresh-token',
+          expires_in: 3600,
+          scope: 'identify guilds'
+        }
+      })
+    )
+    httpService.get.mockReturnValueOnce(throwError(() => new Error(rawMessage)))
+
+    const response = await request(app.getHttpServer()).post('/auth/login').send({ code: 'raw-error-code' }).expect(500)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: GLOBAL_INTERNAL_ERROR_MESSAGE,
+        requestId: expect.any(String)
+      })
+    )
+    expect(JSON.stringify(response.body)).not.toContain(rawMessage)
+    expect(userService.findOne).not.toHaveBeenCalled()
+  })
+
+  it('/users の素の Error は local filter を通過し global の固定 500 封筒になる', async () => {
+    const rawMessage = 'user-create-private-database-detail'
+    const token = new JwtService({ secret: jwtSecret }).sign({
+      username: 'raw-error-user',
+      discordUserId: 'raw-error-user-id'
+    })
+    userService.create.mockRejectedValueOnce(new Error(rawMessage))
+
+    const response = await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Raw Error User' })
+      .expect(500)
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: GLOBAL_INTERNAL_ERROR_MESSAGE,
+        requestId: expect.any(String)
+      })
+    )
+    expect(JSON.stringify(response.body)).not.toContain(rawMessage)
   })
 })
