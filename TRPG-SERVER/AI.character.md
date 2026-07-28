@@ -234,3 +234,60 @@ status: {
 3. DTO: `CreateCharacterDto`/更新 DTO に `Record<string, AttributeValueDto>` を導入
 4. ユーティリティ: `getDisplayNumber`/`applyDiscordDelta` を共通化
 5. API: サーバ計算済み `display` を応答に含める（段階導入可）
+
+## 非有限値（Infinity / NaN）の診断と応答サイズ（S9 / S10・2026-07-28）
+
+### ユーザーに届く診断
+
+シートの保存・リソース更新で値が有限数にならない場合、**原因つきの日本語 422** を返す。
+対象は computed（数式の結果）／roll／track の max 評価／track の入力値の4種で、
+文面は `buildBoundedNonFiniteErrorEnvelope`（`features/character-sheet/services/track-range.policy.ts`）が
+**唯一の生成元**。実装箇所ごとに文面がばらけるのを防ぐため、新しい非有限エラーを追加するときも
+必ずこの builder を通すこと。
+
+```
+計算式の結果が有限な数値になりませんでした
+（フィールド: uid-x / ラベル: X / 式: {a} / {b} / 結果: Infinity）。
+ゼロ除算などが起きていないか式を確認してください
+```
+
+### 応答サイズの上限
+
+builder は **実際に送信する封筒そのもの**（`{statusCode, error, message, issues}`）を組み立てて
+UTF-8 の JSON 長で会計し、**4,096 bytes** に収める。超える場合の縮退は次の順:
+
+1. message 内の各要素（label / 式 / detail / 入力箇所）を段階的に切り詰める
+2. それでも超えるなら **issue を丸ごと落とす**（保持する issue の `fieldUid` / `path` は切り詰めない。
+   機械可読な参照を壊さないため）
+3. 非有限診断の issue は**常に配列の先頭**に置き、既存 issue より先に保持する
+4. 終端は入力に依存しない**定数封筒**（152 bytes）。エラー整形の内部で throw しない
+   （throw すると 422 が 500 になり診断ごと失われる。`CharacterSheetController` に filter は無く
+   グローバル filter も未登録）
+
+**この上限が塞いでいるのは非有限経路だけ**。同じ 100,000 文字 uid でも
+`throwOutOfBounds` は約 200KB、`calculateBounds` の `resolved max below min` は約 100KB を返す。
+根本は `validatePublishTemplate`（`packages/sheet-engine/src/publish.ts`）が
+uid / label の長さを一切制限していないことで、発生源で止める対応は別タスク。
+
+### 保存可否の不変条件
+
+S9 / S10 は**診断の内容と到達性だけを変え、保存可否は HEAD から変えていない**。
+HEAD 実装を oracle にした 18値 × 18値の総当たり比較で、
+到達可能な経路の accept/reject はすべて一致することを確認済み。
+
+唯一の差は「保存済みの `Infinity` / `NaN` を有限値へ直す更新」で、サービス直接呼び出しでは
+HEAD=422 / 現行=ALLOW。ただし **HTTP からは到達しない**。JSON が Infinity / NaN を表現できず
+`baseValue` が `null` になるため、`saveSheet` の merge 段（`character-sheet-operation.service.ts:208`）で
+`sheetValuesEqual(Infinity, null) === false` となり **409 conflict が先に立つ**（HEAD も同じ）。
+したがってユーザーから見える保存可否の変化はゼロ。
+
+なお `{parts: {a: 1e308, b: 1e308}}` のように**各要素は有限だが合計が Infinity** になるケースは
+JSON で表現できるため HTTP から到達可能で、こちらは HEAD も元から修復を許可していた。
+
+### 検証の配置
+
+- 通常 Jest（Docker 不要）: `non-finite-field-diagnostics.spec.ts` /
+  `non-finite-formula-save.reproduction.spec.ts` / `track-range.policy.spec.ts`
+- 予算の検証は **実 `CharacterSheetOperationService` / 実 `SheetMaterializerService` を通す
+  supertest** で行う。formatter の出力をテスト側で例外に詰める形は**禁止**
+  （その形にしていた期間、unit 全緑のまま実 HTTP に 100KB / 300KB の穴が残っていた）
