@@ -1368,7 +1368,7 @@ handlers（25）・adapters（9）・repositories（4）・jwt-auth.guard・dice
 
 ### 🟡 黄（actionable バックログ・dead code 除く約25）
 
-- **util/core（緑寄り・着手容易）**: `utils/api-response.util.ts`（Response mock）/ `utils/cookie.service.ts` / `domains/character/character-http.exception.ts`（ExceptionFilter）/ `domains/auth/discord.strategy.ts`（validate を authService mock）/ `discord/utils/file.util.ts`・`loadJsonFile.ts`（`jest.mock('fs')`）/ `discord/utils/tableDice.ts`（`jest.mock('bcdice')`）
+- **util/core（緑寄り・着手容易）**: `utils/api-response.util.ts`（Response mock）/ `utils/cookie.service.ts` / `domains/character/character-http.exception.ts`（ExceptionFilter）/ `domains/auth/discord.strategy.ts`（validate を authService mock）/ `discord/utils/file.util.ts`（`jest.mock('fs')`。握り潰し版 `loadJsonFile.ts` は第4群-c 2026-07-28 で削除済み — spec も file.util 側に統合）/ `discord/utils/tableDice.ts`（`jest.mock('bcdice')`）
 - **dice/commands**: `discord/services/dice/dice-preset.service.ts` / `discord/commands/commands-components/dice-result.service.ts`（BaseCommandService 委譲）
 - **characterEdit**: `events/handlers/character-edit-creation.handler.ts` / `services/channel-name-sync.service.ts`（setName mock）/ `services/character-edit-event-emitter.service.ts` / `services/character-event-integration.service.ts`（現状 no-op 固定のみ）
 - **characterThread/channel**: `character-tab-buttons.service.ts` / `services/character-display-handler.service.ts` / `services/character-display.service.ts` / `services/character-embed.service.ts`（embed 構築の純ロジック優先）/ `discord/services/discord-channel-manager.service.ts`（委譲層・最易）/ `discord/services/discord-command-registration.service.ts`
