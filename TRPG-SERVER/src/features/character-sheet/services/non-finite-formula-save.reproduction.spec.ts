@@ -4,11 +4,13 @@ import { validatePublishTemplate } from '@trpg/sheet-engine'
 import type { SheetField } from '@trpg/sheet-engine'
 import { Request } from 'express'
 import request from 'supertest'
+import { AppConfigService } from '../../../config/config.service'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import type { CharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import { JwtAuthGuard } from '../../../domains/auth/guards/jwt-auth.guard'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../../core/http/validation-pipe.provider'
 import {
   CHARACTER_INSTANTIATION_USE_CASE,
@@ -150,7 +152,10 @@ describe('non-finite formula save reproduction', () => {
         },
         { provide: CHARACTER_SHEET_OPERATION_USE_CASE, useValue: operationService },
         { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } },
-        APP_VALIDATION_PIPE_PROVIDER
+        // 実 AppConfigModule を import せず、filter が読む app.environment だけを決定的にして env 依存を持ち込まない。
+        { provide: AppConfigService, useValue: { get: jest.fn().mockReturnValue('test') } },
+        APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
       ]
     })
       .overrideGuard(JwtAuthGuard)
@@ -232,8 +237,11 @@ describe('non-finite formula save reproduction', () => {
         { provide: CharacterService, useValue: characterService },
         { provide: CHARACTER_SHEET_OPERATION_USE_CASE, useValue: operationService },
         { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } },
+        // 実 AppConfigModule を import せず、filter が読む app.environment だけを決定的にして env 依存を持ち込まない。
+        { provide: AppConfigService, useValue: { get: jest.fn().mockReturnValue('test') } },
         // whitelist 専用 test の移設後も、production と同じ HTTP pipe 経路の忠実性を保つため登録を維持する。
-        APP_VALIDATION_PIPE_PROVIDER
+        APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
       ]
     })
       .overrideGuard(JwtAuthGuard)
@@ -249,7 +257,7 @@ describe('non-finite formula save reproduction', () => {
     const app: INestApplication = module.createNestApplication()
     await app.init()
     try {
-      // NOTE: 現在はグローバル APP_FILTER がなく、Nest 標準の例外 body がそのまま返る前提。追加時は本番 body と再照合する。
+      // NOTE: global filter が HttpException の直列化を変えて期待 body（issues[] を含む）を壊すと本 spec が赤になる。
       const response = await request(app.getHttpServer())
         .put(`/character/${character.characterId}/sheet`)
         .send({ baseRevision: saveInput.baseRevision, changes: saveInput.changes })

@@ -15,6 +15,7 @@ import {
 } from 'test/utils/character-http-contract'
 import { AppConfigService } from '../../config/config.service'
 import { ResponseInterceptor } from '../../core/http'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterHttpExceptionFilter } from './character-http.exception'
@@ -54,7 +55,8 @@ describe('CharacterController HTTP payload contract', () => {
         },
         CharacterHttpExceptionFilter,
         ResponseInterceptor,
-        APP_VALIDATION_PIPE_PROVIDER
+        APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
       ]
     })
       .overrideGuard(JwtAuthGuard)

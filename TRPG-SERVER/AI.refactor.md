@@ -279,7 +279,19 @@ Opus **needs-fix**（high 1）/ Codex **pass**（medium 4）。大域診断は�
 ### 第3群-a: APP_PIPE 一本化（2026-07-28・round1〜round5b）
 
 バリデーション適用が controller ごとに **4 パターンへ分裂**していた状態を APP_PIPE 1 パターンへ畳んだ。
-証跡: `review-results/g3-global-pipe-filter/`
+証跡: `review-results/g3-global-pipe-filter/` ／ **コミット: `7b9f3d9`（24ファイル）**
+
+**コミット単体の隔離実測**（作業ツリーには並行 api-contract セッションの差分が同居しているため、
+`git worktree` で `7b9f3d9` を単独チェックアウトして測定）:
+build 成功・**226 suites / 3105 tests 緑**・madge 循環ゼロ。
+作業ツリーの 3110 との差5件は、並行セッションが `character.controller.http.spec.ts` に追加した
+コミット対象外のテスト。**コミット対象外ファイルへの依存が無いことを論証ではなく実測で確認した**。
+
+**コミットから意図的に外したもの**: `character.controller.http.spec.ts` と `character.integration.spec.ts` の
+`APP_VALIDATION_PIPE_PROVIDER` 追加（各2行）。並行セッションの変更が同居しており hunk 抽出が競合するため。
+両ファイルの HEAD 版は pipe 依存ゼロ（400 assert も `ValidationPipe` 参照も無し）で、
+`character.integration.spec.ts` は `jest.config.js` の `testPathIgnorePatterns` で通常 run から除外されている。
+→ **この2行は並行セッションのコミットと一緒に入る見込み。入ったら忠実性が揃う**
 
 #### round1 の失敗と撤回
 
@@ -470,6 +482,16 @@ Nest 既定（`{statusCode, message}`）なら `message`（配列なら join）�
 `CharacterHttpExceptionFilter` は controller スコープの `@Catch()` なので、
 APP_FILTER を足しても character 経路の解決順（method → controller → global）により挙動は保存される。
 
+**追記（2026-07-28・第3群-b 着手時）**: 事前調査の後に並行セッションが `ebd23ea` を積み、
+前提が1つ変わった。sheet 系 service（`character-sheet-operation.service.ts` /
+`sheet-materializer.service.ts` / `track-range.policy.ts`）は `UnprocessableEntityException` に
+**構造化 object body**（`{statusCode: 422, error, message, issues[]}`）を渡して throw し、
+filter なしの CharacterSheetController では Nest 既定フィルタが**その object をそのまま返す**。
+`issues[]` の fieldUid / path は `ebd23ea` が byte 予算付きで「切り詰めない」と明示した契約。
+→ 現行実装のままの `HttpExceptionFilter` を APP_FILTER 化すると、`getHttpExceptionMessage` が
+object body を `message` 抽出で平坦化し **`issues[]` が消える**。第3群-b の設計は
+この封筒の保存を制約に含めること（案の比較は本節の実測調査結果を参照）。
+
 #### 方法論の失敗（記録）
 
 - **rc=2 の二義性**: `codex_run.sh` は「writer-lock busy」と「prompt-file 不在」を**同じ rc=2** で返す。
@@ -479,6 +501,128 @@ APP_FILTER を足しても character 経路の解決順（method → controller 
   `character.controller.http.spec.ts` に**こちらが書こうとしていたのと同一内容**（未知キーの strip 検証）を
   実装中だった。委譲前に他キャンペーンの `prompt-code-*.txt` を読んで許可ファイルの重なりを確認して回避した。
   → **委譲前に稼働中キャンペーンの許可ファイル欄を確認する**
+
+### 第3群-b: APP_FILTER 段階導入（2026-07-28・進行中）
+
+証跡: `review-results/g3b-app-filter/`。着手時 HEAD = `ebd23ea`（第3群-a `7b9f3d9` の後に
+並行セッションが `ff3e8d6`/`93adb16`/`ebd23ea` を積んだ状態）。
+
+#### フェーズ b-1: 実測調査（完了・read-only Opus 2本並列）
+
+事前調査（本書 第3群-a 節）の指示どおり経路ごとの新旧実測を実施。
+結果全文は `result-measure-backend.md` / `result-measure-consumers.md`。
+
+**事前調査の誤りの訂正（2件）**:
+
+- 「フロントが呼ぶ 6 経路」は**過小**。実測は 21 エンドポイント（22 呼び出し点）、
+  うち filter なし側 9（post-character / from-template / sheet 保存 / sheet-templates 6本）
+- filter なし controller の表から **PerformanceDashboardController が漏れていた**
+  （filter なしは 5: App / CharacterSheet / CharacterSheetTemplate / Discord / PerformanceDashboard）
+
+**設計を左右した実測事実**:
+
+1. Nest 11 の名前付き例外（`NotFoundException('...')` 等）は**常に object body**
+   `{message, error, statusCode}`（`HttpException.createBody`）。素の string body は
+   `new HttpException('str', n)` 直接生成のみ
+2. Discord / PerformanceDashboard は全 13 handler が try/catch で非 HttpException を
+   HttpException(500) に潰しており、**素の Error が裸の 500 になるのは実質
+   9 route のみ**（GET / ・sheet 2本・sheet-templates 6本）
+3. ユーザー可視のエラー文言を組むのは `CustomError`（封筒/Nest 既定 両対応）と
+   `extractApiErrorMessages`（**封筒非対応・`data.message` しか読まない**）。
+   `ApiResponseUtil.handleError` は全呼び出し点で console.error 止まり（ユーザー可視ゼロ）
+4. `issues[]`（`ebd23ea` の byte 予算契約）の HTTP 消費者は
+   **`non-finite-formula-save.reproduction.spec.ts` 自身のみ**。フロントは読まない
+5. Discord platform の HTTP 呼び出しは存在しない（Gateway 方式）。
+   /discord/_（post-character 除く）と /discord/performance/_ は HTTP 実消費者未検出
+
+#### 設計裁定: D案（真に未知の例外のみ封筒化）を採用
+
+- **D案**: `BaseExceptionFilter` を継承したグローバル filter を APP_FILTER 登録。
+  HttpException **と http-errors（`isHttpError`: statusCode+message を持つ例外。
+  body-parser の 413/415 等 — round4 で追加）**は `super.catch()` へ委譲
+  （Nest 既定の直列化をバイト単位で保存 = issues[] / conflicts[] / VP 配列 /
+  statusCode・error キーすべて不変。headersSent 処理・ログ抑制も Nest 実装を継承）。
+  **真に未知の非 HTTP 例外のみ** ErrorResponse 封筒 500 に変換
+- **E案（HttpExceptionFilter をそのまま APP_FILTER 化）は棄却**。理由:
+  (1) `extractApiErrorMessages` が封筒非対応のため templates/sheet 3画面のユーザー可視文言が
+  ラベル固定文字列に**全滅**する（事前調査の「壊れはしない」は誤りだった）、
+  (2) `ebd23ea` が直したばかりの 422 診断封筒（issues[]）を破壊する、
+  (3) 是正にはフロント改修＋spec 3件更新＋issues→details 写像の設計が必要で
+  小スライス統制を超える。**E 方向の完全統一は extractApiErrorMessages の封筒対応を
+  前提条件として将来フェーズへ**（本節末尾の残課題参照）
+- 500 封筒の `error` は**固定の汎用文言**とし、raw `exception.message` は載せない
+  （現行の `'Internal server error'` と同じ開示水準を保存。既存2 filter の
+  raw message 露出との不整合は認識の上で、開示拡大をこのスライスで行わない判断）。
+  サーバ側ログには例外の name/message/stack と requestId を出し観測性を保存する
+
+#### フェーズ b-2/b-3: 実装と二重レビュー（round1〜4）
+
+- round1: filter 本体＋app.module 登録＋spec ガード＋filter spec 6件。変異 M1/M2/M4/M5 は期待どおり赤。
+  M3（委譲除去）で repro spec が赤にならず Codex が停止 → **Fable の指示書が repro spec の
+  TestingModule 配線（global filter 未登録）を未検証のまま NOTE 文言を指定していた**
+  （`verify-claims-before-prescribing` の3例目としてメモリ記録済み）
+- round2: provider 追加 → AppConfigService 未提供の DI エラーで Codex が正当に停止
+  （@Global() は本番のみ・spec の個別配線には載らない）
+- round3: AppConfigService stub で解消。29件緑・M3 で repro spec 赤化・SHA-256 復元確認
+- b-3 二重レビュー: **両輪 needs-fix**（清書: run-review-round1/ と Opus 最終出力）。
+  両輪一致: headersSent ガード欠落（Opus は実測で**リクエストのハング**を確認）・
+  `String(exception)` が先に throw すると元例外の診断が消失。
+  **Opus 単独 high（H-1）**: Express エラー層（body-parser の 413/415 等）は
+  RoutesResolver.registerExceptionHandler の instance が {} のため **global filter しか通らず**、
+  固定 500 封筒化すると 4xx が 5xx に化け、@UseFilters 3 controller への大きい POST でも発生
+  （dist 実測: 200KB POST が導入前 413 → 導入後 500）。
+  Opus M-3: repro spec の createHttpApp ヘルパ経由 7 ケース（byte 予算契約の
+  「production HTTP」を名乗る群を含む。HTTP ケースはインライン側と合わせ計 8）が
+  本番配線を通っていない（round1 レビューの「13 本」は過大で、b-3 再レビューで 7 に訂正）。
+  M-4: 解決順を固定するテストがゼロ
+- **「実質 9 route のみ」の訂正**: 9 は「route handler から escape する非 HttpException」の数として
+  正しいが、APP_FILTER の実適用範囲ではない。Express エラー層は route 非依存・@UseFilters 貫通で
+  global filter だけが受ける。影響評価にこの層を含めていなかった
+- round4（修正）: isHttpError も super.catch へ委譲（413/415 をバイト単位保存・headersSent と
+  ログ抑制も Nest 実装を継承）・封筒分岐に headersSent ガード・診断抽出の安全化
+  （filter は throw しない）・createHttpApp の本番配線化・解決順テスト・
+  auth/character http spec への global provider 登録（既存 assert が不変性を機械固定）・
+  非 Error throw と 413 と headers 送信済みの回帰テスト・NOTE を観測可能な契約へ言い換え
+- **development の stack 開示について（意図的決定）**: filter なしだった 5 controller と
+  Express エラー層由来の未知例外 500 は、これまで development でも
+  `{statusCode:500, message:'Internal server error'}` 固定だった。封筒化により
+  development に限り stack が載るようになる（既存2 filter と同じ規約に揃える方向の
+  意図的な開示拡大。production は不変）
+- 既知の対象外: `npx tsc` 全体で出る test/mocks/auth.mock.ts:48 のエラーは HEAD 由来の既存
+  （worktree diff ゼロを確認済み）
+- b-3 再レビュー round2: **Opus pass**（round1 の H-1/M-1〜M-4 全解消を実測で確認。
+  独立に全量 228 suites / 3166 tests 緑・madge ゼロ・dist 反映も確認）。
+  **Codex needs-fix**（新規 Medium 1: `isHttpError` の事前判定が super.catch 内の再判定と重なり、
+  accessor-backed getter を持つ敵対的 object で Nest 既定より1回多く評価され、
+  3回目の throw で応答喪失 — 「filter は throw しない」宣言への反例）
+- round5（最終修正）: 委譲分岐全体に try/catch の**最終安全網**を張り、二次例外は封筒分岐へ
+  フォールスルー。**設計判断: 二次例外時は Nest 既定との一致より応答の終端を優先する**
+  （良性の HttpException / http-errors はバイト単位不変のまま。敵対的 accessor object のみ
+  「応答喪失 or 413」→「必ず封筒 500」に変わる = Nest 既定より厳密に頑健な方向）。
+  あわせて 413×@UseFilters controller の機械固定（両輪一致 low）・
+  意図的な非 Error throw 3行への理由付き eslint-disable（Opus L-1。受入コマンドに lint が
+  無かったため round4 で検出漏れ — 以後の受入に eslint を含める）・
+  test-app.module.ts への global filter 写し（Opus L-3・第3群-a の pipe と同じ対称性）
+
+#### 残課題（第3群-b スコープ外・実測で発見）
+
+- **F-4**: `POST /character/from-template` の `applyRollOnCreate` が try 外
+  （`character-instantiation.service.ts:34`）→ 未対応ダイス記法が診断ゼロの 500。
+  D案で封筒化はされるが根本対応（service 内での分類）は別スライス
+- **F-5**: sheet 系 422 body が3系統に分裂（`{statusCode,error,message,issues[]}` /
+  `{message,detail}` / `{message,fieldUid,value,min,max}`）→ 第4群の一本化候補
+- **F-8**: CharacterController の 401 で guard 経由と handler 経由の errorCode 有無が食い違う
+- **N-1（b-3 レビューで追加）**: 500 の body がリポジトリ内で3系統になった
+  （Nest 既定 / 新 global 封筒（errorCode なし） / CharacterHttpExceptionFilter の
+  InternalServerErrorResponse（errorCode: 'INTERNAL_SERVER_ERROR'））。F-5 と同種の分裂 → 第4群候補
+- **F-6**: `@ApiErrorResponse` は本番で永久に未適用（deprecated）。user.controller 7箇所は死蔵 → 第5群
+- `ErrorHandler.handleHttpError` は production 未使用の第3のエラー形で、死蔵に 4 spec が
+  張られている → 第5群
+- `extractApiErrorMessages`（`sheetTemplateApi.ts:64-81`）の封筒対応 —
+  エラー形状の完全統一（E 方向）の前提条件
+- `corsApiWithJwt` は backend の 401/404 を body を読まず一律 500 固定文言へ潰す（フロント既存欠陥）
+- InteractionsController 完全死蔵の確証・/discord/_（post-character 除く）と
+  /discord/performance/_ の HTTP 実消費者ゼロ → 第5群の裏付け材料
 
 ### 俯瞰レビュー#4（2026-07-27・第2群完了時点）＋ OV4 反映（0d38e09）
 

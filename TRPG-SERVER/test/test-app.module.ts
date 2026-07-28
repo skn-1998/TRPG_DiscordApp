@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { AppConfigModule } from '../src/config/config.module'
 import { CharacterModule } from '../src/domains/character/character.module'
 import { AuthModule } from '../src/domains/auth/auth.module'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../src/core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../src/core/http/validation-pipe.provider'
 import { MockModule } from './mocks/mock.module'
 import { TestAuthModule } from './auth/test-auth.module'
@@ -17,6 +18,6 @@ import { TestAuthModule } from './auth/test-auth.module'
     AuthModule,
     TestAuthModule
   ],
-  providers: [APP_VALIDATION_PIPE_PROVIDER]
+  providers: [APP_VALIDATION_PIPE_PROVIDER, APP_GLOBAL_EXCEPTION_FILTER_PROVIDER]
 })
 export class TestAppModule {}
