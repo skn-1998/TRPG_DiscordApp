@@ -3,23 +3,19 @@ import { Injectable } from '@nestjs/common'
 import { AutocompleteInteraction, CommandInteraction, MessageFlags, PermissionsBitField } from 'discord.js'
 import Fuse from 'fuse.js'
 import { loadJsonFile } from '../../../utils/file.util'
+import { parseGameSystemList, type GameSystemJSON } from '../../../utils/game-system-list.util'
 import { getCategory } from '../../../utils/getCategory'
 import { createCategory } from '../../../utils/createCategory'
 import { convertSearchText } from '../utils/search.util'
-
-export type GameSystemJSON = {
-  ID: string
-  NAME: string
-  SORT_KEY: string
-  HELP_MESSAGE: string
-}
 
 const options = {
   threshold: 0.4,
   keys: ['NAME']
 }
 
-const gameSystemList = loadJsonFile<GameSystemJSON[]>(path.join(__dirname, '../../../static/gameSystemList.json'))
+const gameSystemList = parseGameSystemList(
+  loadJsonFile<unknown>(path.join(__dirname, '../../../static/gameSystemList.json'))
+)
 const CATEGORY_NAME = 'ダイスロールチャンネル'
 
 @Injectable()

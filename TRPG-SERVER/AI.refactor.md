@@ -778,6 +778,44 @@ Codex 3 件: F1 構造検証欠落 = **CONFIRMED**（Fable 実測）/ F2 depende
 台帳訂正 4 件を本俯瞰で実施（g4a ×4→×6 / g4c dependency-analysis / g4c 旧挙動精密化 /
 OV5-1 行域注記）。
 
+### 第4群-d: gameSystemList の構造検証（boot fail-fast 拡張）— OV6-2（2026-07-29・完了）
+
+証跡: `review-results/g4d-structural-validation/`。着手時 HEAD = `0892a3d`。
+
+**変更**: 新規 `discord/utils/game-system-list.util.ts` = `GameSystemJSON` 型の正本＋純関数
+`parseGameSystemList(data: unknown)`（配列・非空・各要素の ID/NAME/SORT_KEY/HELP_MESSAGE が string を
+検証、不正は `/構造が不正/` で throw。**I/O・path 決定は持たない** — 俯瞰#6 の共有 loader 化却下を尊重し、
+`path.join(__dirname, ...)`＋`loadJsonFile<unknown>` は両サイト残置）。両 load サイトを
+`parseGameSystemList(loadJsonFile(...))` へ配線し局所型宣言 2 件を削除（channel-topic の実データと
+大小文字不一致だった死型 `Name?` も消滅）、CL6-7 相乗りで select-game-system.service.ts:9 の
+import 0 死蔵 export を 1 行削除 → **型宣言 3→1**。
+**意図した挙動変更**: 構造破損（`{}`/`[]`/キー欠落/非 string/null 要素）が module load 時 throw に
+（g4c の I/O・JSON 構文エラー限定 fail-fast を構造まで拡張。俯瞰#6 の `new Fuse({})` 空検索劣化を封鎖）。
+
+**spec**: parseGameSystemList 純関数 6 分類（round2 で `[null]` 要素を追加 — `candidate?.ID` の
+optional chaining が TypeError を防ぐ唯一のガードであるため変異固定）＋両サイトの wiring pin
+（loadJsonFile→`{}` で import が throw。「validator 呼び出し削除」変異で赤化することを Opus が
+jest-runtime 29.7.0 実装読解で検証。検証内容自体は util spec が固定 — 層分担）＋
+channel-topic fixture のスキーマ完全形化（assertion 依存の ID 値は不変）。
+round2 で pin describe に `afterAll(dontMock+resetModules)` — doMock は resetModules で消えず
+以降のテストへ漏れるため。
+
+**検収**: Codex round1+2、Fable 独立再実行 = build / check:circular（循環0）/ 対象 4 suite 36 tests /
+eslint（error 0）/ full suite **230 suites・3196 tests 全緑**。
+**実物 gameSystemList.json 224 entries の全キー string を Fable 実測**（本スライスで boot が落ちる回帰なし）。
+Opus read-only レビュー **pass**（low 2 = round2 反映済み / info 3 = 下記記録）。
+
+**記録（Opus info・スコープ外の残存事実）**:
+
+- **front に別宣言の `GameSystemJSON` が残存**（`trpg-remix-app/app/types/gameSystem.ts:1`。
+  `HELP_MESSAGE?` が **optional**・`SEARCH_KEY_KANJI`/`SEARCH_KEY_HIRAGANA` を追加保持。JSON も別コピーで
+  ID 集合 224 件は完全一致）。back は本スライスで HELP_MESSAGE を **boot 必須**へ格上げしたため、
+  JSON 再生成時に front 基準（optional）で作ると back の boot が落ちる**非対称リスク** → JSON 更新時に注意
+- back 実 JSON には第 5 のキー `PRIORITY` が存在（余剰キーは検証対象外・通過は仕様どおり）
+- channel-topic は `.ID` しか使わないが 4 キー検証へ結合（同一ファイルを orchestrator 側も検証するため
+  追加失敗面ゼロ・仕様どおりの結合）
+- tsc --noEmit の既存エラー 1 件（`test/mocks/auth.mock.ts:48` TS7053）は本スライス起因ではない既存事象
+
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・

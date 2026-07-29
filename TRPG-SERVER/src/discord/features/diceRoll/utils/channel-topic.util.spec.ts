@@ -3,8 +3,8 @@
 jest.mock('../../../utils/file.util', () => ({
   ...jest.requireActual('../../../utils/file.util'),
   loadJsonFile: jest.fn(() => [
-    { ID: 'AceKillerGene', Name: 'エースキラージーン' },
-    { ID: 'GardenOrder', Name: 'ガーデンオーダー' }
+    { ID: 'AceKillerGene', NAME: 'エースキラージーン', SORT_KEY: '', HELP_MESSAGE: '' },
+    { ID: 'GardenOrder', NAME: 'ガーデンオーダー', SORT_KEY: '', HELP_MESSAGE: '' }
   ])
 }))
 
@@ -108,5 +108,26 @@ describe('channel-topic.util', () => {
       const interaction = makeInteraction(null)
       expect(getParentChannelTopic(interaction)).toBeNull()
     })
+  })
+})
+
+describe('module load validation', () => {
+  afterAll(() => {
+    jest.dontMock('../../../utils/file.util')
+    jest.resetModules()
+  })
+
+  it('loadJsonFile が配列でない値を返す場合は module import 時に throw する', () => {
+    jest.resetModules()
+    jest.doMock('../../../utils/file.util', () => ({
+      ...jest.requireActual('../../../utils/file.util'),
+      loadJsonFile: jest.fn(() => ({}))
+    }))
+
+    expect(() => {
+      jest.isolateModules(() => {
+        jest.requireActual('./channel-topic.util')
+      })
+    }).toThrow(/構造が不正/)
   })
 })
