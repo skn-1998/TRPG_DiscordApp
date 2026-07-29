@@ -859,9 +859,11 @@ lint: touched 指摘 3 件は **HEAD 同一行の既存**（jest/no-conditional-
 
 **反証・訂正**:
 
-- Codex「full lint error 6→4 の減少は削除 spec 由来」は**誤り** — 旧 character-http.exception.spec は
-  lint clean（Opus が --stdin 対照実験で確認）。減少は並行 U1 の未コミット変更由来の可能性が高い。
-  新規指摘ゼロは3者一致
+- ~~Codex「full lint error 6→4 の減少は削除 spec 由来」は誤り~~ **← この訂正自体が誤りだった
+  （俯瞰#7 で確定・訂正の訂正）**: `git show 0892a3d` で旧 spec 135-138 行に条件付き expect の
+  if/else が実在 = **Codex の元主張が正**。Opus の --stdin 対照実験は flat config のパターン適用
+  （jest プラグインルール）が stdin では効かず「clean」に誤判定する手法欠陥だった。
+  lint 減少は g4e 帰属（メモリ verify-claims-before-prescribing 事例5）。新規指摘ゼロは3者一致のまま
 - **CL-2 訂正（指示書の理由付けの誤り）**: 「AuthenticationErrorResponse 等は他に live 消費者がいるため
   DTO を残す」は不正確 — 本スライスで**最後の runtime 消費者が消えた**（残る参照は spec oracle 5 ファイル＋
   e2e ハーネス test-auth.controller のみ）。残す正しい理由は「g4a 変異固定 spec の実行可能 oracle」。
@@ -926,6 +928,60 @@ Opus レビュー needs-fix（blocking CL-1 のみ）→ round2 反映で解消�
 - **プロセス記録**: investigation-summary の「cause.message 写像が設計必須」と指示書の
   「cause は out-of-scope」が不整合だった（設計 pivot を要旨へ反映し忘れ。実装は指示書に忠実で正・
   要旨は訂正済み）。設計 pivot 時は証跡文書も同時更新すること
+
+### 俯瞰レビュー#7（2026-07-29・`0892a3d..9765f03` の4コミット）
+
+fable-rules の3フェーズ規律。対象 = g4d / 並行 U1 / g4e / E1a。
+体制: Opus read-only 2系統（cognitive-load モードA大粒度 CL-1〜6 / changeability F-1〜5＋E1b 判定）＋
+Codex adversarial（**sandbox helper 1312 で runner 不受理 rc=66 → 仮説源扱い・採用判断は全て
+Opus/Fable 実測で裏取り**）＋ Fable 反証実測 3 件。
+証跡: `review-results/overview-7/`（統合判定は `integration-verdict.md`）。
+
+#### 健全性（合成欠陥なし）
+
+U1×E1a 干渉なし（sheet filter 先取り維持・削除ガードの到達不能を再導出）・T31 違反 0・循環 0・
+tsc 新規 0・主要 pin 全生存・新規 lock-step 対なし・U1 必須キー導出と g4d 検証は複製ではない
+（キー名重なり 0 ほか5点で明示否定）。
+
+#### 主判定
+
+1. **E1b は「等価削除」ではない（3者一致）**: ApiError 分岐 16 行完全一致 / generic 分岐は global が
+   details[] を**超過**（局所だけが持つ挙動 = 欠落ゼロ）。E1b は auth/user/character の
+   ValidationPipe 400 へ details[] を追加する**ユーザー可視の wire 拡張**で、現行 spec は検出しない。
+   → **Go with conditions**: (a) pin 13 件（http-exception.filter.spec 11＋character-http filter 2）を
+   GlobalExceptionFilter へ再ホスト（単純削除禁止） (b) /auth/login 400・character 404・auth 401 の
+   route 水準 toStrictEqual を**先に**固定してから @UseFilters 撤去・wire 拡張を宣言
+   (c) lint 期待 4→2 errors (d) **CustomError [0] 問題**（customError.ts:17 が封筒の先頭 1 件のみ表示 —
+   Fable 実測）: details 付与で複数診断が先頭 1 件へ退化 → front の join 化小スライスを E1b と対で
+2. **F-1（medium・E1a 由来の出荷済み表示退化）→ E1c 採用**: sheet-templates の '; ' join **文字列**
+   BadRequest（3 発生源）が封筒化され、front の `';'` split 分岐が死に N 項目→1 項目表示へ
+   （文言は保存・箇条書き粒度のみ退化）。処方: 発生源を配列 throw 化（5 行級）→ details[] 経路へ
+   合流・front 無改修で復帰。'; '→', ' の区切り変化は宣言。死んだ split 分岐は E2/第5群で撤去
+3. **診断キャリア 1 本化 = No-Go**（モード B: 実害 0×sheet filter 変更頻度 1×3 リポジトリ横断の
+   確定移行コスト vs 概念 5→4.5 の微減）。区切り 1 定数化のみ E2 裁定材料
+4. **CL6-4 クローズ（リネーム不要）**: GLOBAL_INTERNAL_ERROR_MESSAGE は欄 1・断言 8 で名前と用途一致
+
+#### 採用（小粒純減）
+
+- CL-5: global filter JSDoc「409 の conflicts[]」→「cause.conflicts」1 行訂正（E1b 相乗り）
+- CL-4: utils/api-response.util.ts 冒頭へ「production 参照 0・移行等価性オラクル専用」明記（E1b 相乗り）
+- CL-3 → 第5群: error-handler.ts の handleHttpError（37 行）＋契約非互換 interface ErrorResponse
+  （timestamp: string・変更頻度 11 回の最多ファイル内の偽の正解）削除・spec 4 件同時
+- Codex F4（妥当）: g4d per-key table-driven spec（NAME/SORT_KEY 単位の変異が現 spec を通る）→ 低優先 rider
+- OV7 拾い: utils/api-response.util.ts:45,129 の raw literal（g4b 置換漏れ・到達不能内）→ 第5群
+
+#### 記録のみ
+
+封筒生成点の現在値 = production 到達 7・到達不能 9・wire 系統 3（E1b で 7→5・includeStack 3→2 見込み）/
+Codex F2（details N≥3・重複 pin）は自然な導線のない仮説変異で見送り / F3: 台帳の等価主張は
+「動的値以外」で元々正確・requestId 一意性 pin は必要時 / E1b 後 extractApiErrorMessages 消費者の
+表示は 'a, b'→'a / b'（改善方向）/ ApiResponseUtil 系 7 生成点＋DTO サブクラス 6 種の参照は
+3 ファイルへ縮小（第5群の削除一体性が向上）/ headersSent は E1b でむしろ改善（global は終端保証あり）。
+
+#### 台帳訂正（本俯瞰・訂正の訂正）
+
+g4e 節の lint 帰属訂正が誤りだった件を修正（上記 g4e 節に反映済み。Codex 正・--stdin 実験の手法欠陥。
+教訓「反証実験は手法自体を検証する」をメモリ verify-claims-before-prescribing 事例5へ）。
 
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
