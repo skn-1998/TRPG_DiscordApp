@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EPSILON } from './evaluator';
+import { isPartsValue } from './parts-value';
 import { SheetField, SheetTemplate } from './types';
 
 export interface PartsValueInput {
@@ -131,8 +132,4 @@ function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValue
 function allowsParts(field: SheetField): boolean {
   return field.type === 'track'
     || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true);
-}
-
-function isPartsValue(value: unknown): value is { parts: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'parts' in value;
 }

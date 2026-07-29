@@ -195,14 +195,14 @@ export class CharacterSheetOperationService {
       let appliedChanges = 0
 
       for (const change of input.changes) {
-        const field = this.assertWritablePath(template, change.path)
+        this.assertWritablePath(template, change.path)
         const currentValue = this.readPathValue(values, change.path)
 
         if (sheetValuesEqual(change.newValue, change.baseValue)) {
           continue
         }
         if (sheetValuesEqual(currentValue, change.baseValue)) {
-          this.writePathValue(values, change.path, change.newValue, field)
+          this.writePathValue(values, change.path, change.newValue)
           appliedChanges += 1
           continue
         }
@@ -523,12 +523,7 @@ export class CharacterSheetOperationService {
     return Object.prototype.hasOwnProperty.call(raw.parts, path.partsKey) ? raw.parts[path.partsKey] : undefined
   }
 
-  private writePathValue(
-    values: Record<string, unknown>,
-    path: CharacterSheetValuePath,
-    newValue: unknown,
-    field: SheetField
-  ): void {
+  private writePathValue(values: Record<string, unknown>, path: CharacterSheetValuePath, newValue: unknown): void {
     if (path.partsKey === undefined) {
       values[path.fieldUid] = newValue
       return
@@ -540,10 +535,6 @@ export class CharacterSheetOperationService {
       : { base: typeof current === 'number' && Number.isFinite(current) ? current : 0 }
     parts[path.partsKey] = newValue as number
     values[path.fieldUid] = { parts }
-
-    if (!this.allowsParts(field)) {
-      throw new UnprocessableEntityException(`field ${path.fieldUid} does not allow parts`)
-    }
   }
 
   private addToOtherPart(

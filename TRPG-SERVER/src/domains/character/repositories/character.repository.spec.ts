@@ -1,17 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { getModelToken } from '@nestjs/mongoose'
-import { characterEntitySchema } from '@trpg/api-contract'
+import {
+  expectRequiredCharacterRuntimeKeyCount,
+  requiredCharacterRuntimeKeys
+} from 'test/utils/character-http-contract'
 import { CharacterRepository } from './character.repository'
 import { CHARACTER_MODEL, Character } from '../models/character.model'
 
-const requiredCharacterEntityKeys = Object.entries(characterEntitySchema.shape)
-  .filter(([, fieldSchema]) => !fieldSchema.safeParse(undefined).success)
-  .map(([key]) => key)
-
 const expectProjectionToContainRequiredCharacterEntityKeys = (select: jest.Mock): void => {
+  expectRequiredCharacterRuntimeKeyCount()
   const [projection] = select.mock.calls[0] as [string]
   const selectedKeys = new Set(projection.split(/\s+/))
-  const missingRequiredKeys = requiredCharacterEntityKeys.filter((key) => !selectedKeys.has(key))
+  const missingRequiredKeys = requiredCharacterRuntimeKeys.filter((key) => !selectedKeys.has(key))
 
   expect(missingRequiredKeys).toEqual([])
 }
