@@ -325,3 +325,24 @@ describe('SelectGameSystemOrchestrator', () => {
     })
   })
 })
+
+describe('module load validation', () => {
+  afterAll(() => {
+    jest.dontMock('../../../utils/file.util')
+    jest.resetModules()
+  })
+
+  it('loadJsonFile が配列でない値を返す場合は module import 時に throw する', () => {
+    jest.resetModules()
+    jest.doMock('../../../utils/file.util', () => ({
+      ...jest.requireActual('../../../utils/file.util'),
+      loadJsonFile: jest.fn(() => ({}))
+    }))
+
+    expect(() => {
+      jest.isolateModules(() => {
+        jest.requireActual('./select-game-system.orchestrator')
+      })
+    }).toThrow(/構造が不正/)
+  })
+})

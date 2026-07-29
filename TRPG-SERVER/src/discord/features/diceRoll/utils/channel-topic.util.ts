@@ -1,10 +1,11 @@
 import * as path from 'path'
 import { CommandInteraction, ChannelType } from 'discord.js'
 import { loadJsonFile } from '../../../utils/file.util'
+import { parseGameSystemList } from '../../../utils/game-system-list.util'
 
-type GameSystemJSON = { ID: string; Name?: string }
-
-const gameSystemList = loadJsonFile<GameSystemJSON[]>(path.join(__dirname, '../../../static/gameSystemList.json'))
+const gameSystemList = parseGameSystemList(
+  loadJsonFile<unknown>(path.join(__dirname, '../../../static/gameSystemList.json'))
+)
 
 export function getGameSystemIdFromTopic(topic: string | null | undefined): string | undefined {
   if (!topic) return
