@@ -3,7 +3,7 @@ import { characterEntitySchema } from '@trpg/api-contract'
 export type JsonObject = Record<string, unknown>
 
 const characterRuntimeKeys = new Set([...Object.keys(characterEntitySchema.shape), '_id', '__v'])
-const requiredCharacterRuntimeKeys: string[] = Object.entries(characterEntitySchema.shape)
+export const requiredCharacterRuntimeKeys: readonly string[] = Object.entries(characterEntitySchema.shape)
   .filter(([, fieldSchema]) => !fieldSchema.safeParse(undefined).success)
   .map(([key]) => key)
 
@@ -29,9 +29,13 @@ export const expectOnlyCharacterRuntimeKeys = (data: JsonObject): void => {
   expect(unexpectedKeys).toEqual([])
 }
 
-export const expectAllRequiredCharacterRuntimeKeys = (data: JsonObject, allowedMissingKeys: string[] = []): void => {
-  // 現 schema の必須 top-level は6キー。この sentinel で必須キー導出の fail-open を防ぐ。
+// 現 schema の必須 top-level は6キー。この sentinel で必須キー導出の fail-open を防ぐ。
+export const expectRequiredCharacterRuntimeKeyCount = (): void => {
   expect(requiredCharacterRuntimeKeys).toHaveLength(6)
+}
+
+export const expectAllRequiredCharacterRuntimeKeys = (data: JsonObject, allowedMissingKeys: string[] = []): void => {
+  expectRequiredCharacterRuntimeKeyCount()
   const allowedMissingKeySet = new Set(allowedMissingKeys)
   const missingKeys = requiredCharacterRuntimeKeys.filter(
     (key) => !allowedMissingKeySet.has(key) && !Object.prototype.hasOwnProperty.call(data, key)

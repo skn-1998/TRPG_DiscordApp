@@ -1,4 +1,5 @@
 import { AstNode, countAstNodes } from './ast';
+import { isPartsValue } from './parts-value';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, isComputedField, refKey, resolveRefPath, TemplateIndex } from './template-index';
 import {
@@ -543,8 +544,4 @@ function resolveNumberValue(fieldUid: string, value: unknown): number {
     }
   }
   return total;
-}
-
-function isPartsValue(value: unknown): value is { parts: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'parts' in value;
 }
