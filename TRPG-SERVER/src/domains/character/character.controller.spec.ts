@@ -14,13 +14,9 @@ import { CharacterSummaryDto } from './dto/character-summary.dto'
 import { Character } from './models/character.model'
 import { CharacterInputDto } from './dto/create-character.dto'
 import { Request } from 'express'
-import { ResponseInterceptor } from '../../core/http'
+import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
 import { SuccessResponse } from '../../core/dto/api-response.dto'
-import {
-  CharacterHttpExceptionFilter,
-  CharacterAuthenticationException,
-  CharacterNotFoundException
-} from './character-http.exception'
+import { CharacterAuthenticationException, CharacterNotFoundException } from './character-http.exception'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 import { GUARDS_METADATA } from '@nestjs/common/constants'
@@ -28,7 +24,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants'
 /**
  * 変換後: ハンドラはデータ（または meta 付き SuccessResponse）を return し、
  * 例外は CharacterAuthenticationException / CharacterNotFoundException / 素の Error を throw する。
- * 封筒化は ResponseInterceptor（成功）/ CharacterHttpExceptionFilter（HttpException）が担う。
+ * 封筒化は ResponseInterceptor（成功）/ HttpExceptionFilter（HttpException）が担う。
  *
  * 本 spec は実機同様に interceptor / filter を通して最終 envelope を再現し、
  * 変換前の ApiResponseUtil.success / authenticationError / notFoundError と
@@ -42,7 +38,7 @@ describe('CharacterController', () => {
 
   const reflector = new Reflector()
 
-  // P1-C: CharacterHttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
+  // P1-C: HttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
   // AppConfigModule が供給）。TestingModule と filterError の両方で AppConfigService(mock) が要る。
   const mockAppConfig = {
     get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
@@ -113,12 +109,12 @@ describe('CharacterController', () => {
     return lastValueFrom(interceptor.intercept(ctx, next))
   }
 
-  /** throw された例外を CharacterHttpExceptionFilter に通して { status, body } を得る */
+  /** throw された例外を HttpExceptionFilter に通して { status, body } を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
     if (!(error instanceof HttpException)) {
-      throw new Error('CharacterHttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+      throw new Error('HttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
     }
-    const filter = new CharacterHttpExceptionFilter(mockAppConfig)
+    const filter = new HttpExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {

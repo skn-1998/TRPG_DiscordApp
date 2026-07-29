@@ -1,28 +1,22 @@
-import { ArgumentsHost, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
-import { FILTER_CATCH_EXCEPTIONS } from '@nestjs/common/constants'
+import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common'
 import { Response } from 'express'
-import {
-  CharacterHttpExceptionFilter,
-  CharacterAuthenticationException,
-  CharacterNotFoundException
-} from './character-http.exception'
+import { HttpExceptionFilter } from '../../core/http'
+import { CharacterAuthenticationException, CharacterNotFoundException } from './character-http.exception'
 
 /**
- * CharacterHttpExceptionFilter は例外型に応じて status と Response DTO 種別を出し分ける純ロジック。
- * 副作用の境界（host.switchToHttp().getResponse()）のみモックし、status コードと
- * json ペイロードの種別（errorCode）を検証する。例外クラスは整形ロジックを直接検証する。
+ * Character の ApiError を共通 HttpExceptionFilter に通し、旧 wire 封筒との等価性を固定する。
+ * errorPayload は文字列なので、development でも JSON wire に stack が現れないことを検証する。
  */
-describe('CharacterHttpExceptionFilter', () => {
-  let filter: CharacterHttpExceptionFilter
+describe('HttpExceptionFilter × Character exceptions', () => {
+  let filter: HttpExceptionFilter
   let res: { status: jest.Mock; json: jest.Mock }
   let host: ArgumentsHost
 
   beforeEach(() => {
-    // P1-C: filter は AppConfigService から dev 判定を得る。test 環境想定で非 development。
     const mockAppConfig = {
-      get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+      get: (path: string) => (path === 'app.environment' ? 'development' : undefined)
     } as unknown as import('../../config/config.service').AppConfigService
-    filter = new CharacterHttpExceptionFilter(mockAppConfig)
+    filter = new HttpExceptionFilter(mockAppConfig)
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn()
@@ -37,110 +31,41 @@ describe('CharacterHttpExceptionFilter', () => {
   })
 
   const lastJson = () => res.json.mock.calls[0][0]
+  const lastWire = (): Record<string, unknown> => JSON.parse(JSON.stringify(lastJson()))
 
   describe('catch', () => {
-    it('CharacterAuthenticationException は 401・AUTHENTICATION_ERROR で userMessage を error に入れる', () => {
-      // Arrange
+    it('CharacterAuthenticationException は旧 401 wire とバイト等価なフィールドを返す', () => {
       const exception = new CharacterAuthenticationException('ログインが必要です')
 
-      // Act
       filter.catch(exception, host)
 
-      // Assert
       expect(res.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
-      const payload = lastJson()
-      expect(payload.errorCode).toBe('AUTHENTICATION_ERROR')
-      expect(payload.error).toBe('ログインが必要です')
+      expect(lastWire()).toEqual({
+        success: false,
+        message: '認証エラー',
+        timestamp: expect.any(Number),
+        requestId: expect.any(String),
+        error: 'ログインが必要です',
+        errorCode: 'AUTHENTICATION_ERROR'
+      })
+      expect(JSON.stringify(lastJson())).not.toContain('"stack"')
     })
 
-    it('CharacterNotFoundException は 404・NOT_FOUND_ERROR で resource を error 文に埋め込む', () => {
+    it('CharacterNotFoundException は旧 404 wire とバイト等価なフィールドを返す', () => {
       const exception = new CharacterNotFoundException('キャラクター')
 
       filter.catch(exception, host)
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND)
-      const payload = lastJson()
-      expect(payload.errorCode).toBe('NOT_FOUND_ERROR')
-      expect(payload.error).toBe('キャラクターが見つかりません')
-    })
-
-    it('その他の UnauthorizedException は 401 と例外メッセージを維持する', () => {
-      filter.catch(new UnauthorizedException('無効な認証トークンです'), host)
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
-      expect(lastJson()).toEqual(
-        expect.objectContaining({
-          success: false,
-          message: 'エラーが発生しました',
-          error: '無効な認証トークンです'
-        })
-      )
-    })
-
-    it('その他の BadRequestException は 400 と object response の message を維持する', () => {
-      filter.catch(new BadRequestException('入力値が不正です'), host)
-
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST)
-      expect(lastJson()).toEqual(
-        expect.objectContaining({
-          success: false,
-          message: 'エラーが発生しました',
-          error: '入力値が不正です'
-        })
-      )
-    })
-
-    it.each([
-      {
-        caseName: '文字列 response',
-        exception: new HttpException('plain-string', HttpStatus.CONFLICT),
-        expectedStatus: HttpStatus.CONFLICT,
-        expectedError: 'plain-string'
-      },
-      {
-        caseName: '配列 message',
-        exception: new BadRequestException(['a', 'b']),
-        expectedStatus: HttpStatus.BAD_REQUEST,
-        expectedError: 'a, b'
-      },
-      {
-        caseName: '数値 message',
-        exception: new HttpException({ message: 123 }, HttpStatus.BAD_REQUEST),
-        expectedStatus: HttpStatus.BAD_REQUEST,
-        expectedError: '123'
-      }
-    ])(
-      '$caseName は status=$expectedStatus・error=$expectedError に整形する',
-      ({ exception, expectedStatus, expectedError }) => {
-        filter.catch(exception, host)
-
-        expect(res.status).toHaveBeenCalledWith(expectedStatus)
-        expect(lastJson().error).toBe(expectedError)
-      }
-    )
-
-    it.each([
-      { environment: 'development', expectedStack: true },
-      { environment: 'test', expectedStack: false }
-    ])('app.environment=$environment の stack 有無を反映する', ({ environment, expectedStack }) => {
-      const configService = {
-        get: (path: string) => (path === 'app.environment' ? environment : undefined)
-      } as unknown as import('../../config/config.service').AppConfigService
-      const environmentFilter = new CharacterHttpExceptionFilter(configService)
-      const exception = new HttpException('stack-target', HttpStatus.CONFLICT)
-
-      environmentFilter.catch(exception, host)
-
-      const payload = lastJson()
-      if (expectedStack) {
-        expect(payload.stack).toBe(exception.stack)
-      } else {
-        expect(payload.stack).toBeUndefined()
-      }
-    })
-
-    it('HttpException のみを捕捉対象として宣言する', () => {
-      expect(Reflect.getMetadata(FILTER_CATCH_EXCEPTIONS, CharacterHttpExceptionFilter)).toEqual([HttpException])
+      expect(lastWire()).toEqual({
+        success: false,
+        message: '未発見エラー',
+        timestamp: expect.any(Number),
+        requestId: expect.any(String),
+        error: 'キャラクターが見つかりません',
+        errorCode: 'NOT_FOUND_ERROR'
+      })
+      expect(JSON.stringify(lastJson())).not.toContain('"stack"')
     })
   })
 })
@@ -153,10 +78,10 @@ describe('CharacterAuthenticationException', () => {
     expect(exception.getStatus()).toBe(HttpStatus.UNAUTHORIZED)
   })
 
-  it('userMessage を保持しメッセージ本文にも反映する', () => {
-    const exception = new CharacterAuthenticationException('認証エラー')
+  it('userMessage を保持し message は wire label を示す', () => {
+    const exception = new CharacterAuthenticationException('ログインが必要です')
 
-    expect(exception.userMessage).toBe('認証エラー')
+    expect(exception.userMessage).toBe('ログインが必要です')
     expect(exception.message).toBe('認証エラー')
   })
 })
@@ -169,10 +94,10 @@ describe('CharacterNotFoundException', () => {
     expect(exception.getStatus()).toBe(HttpStatus.NOT_FOUND)
   })
 
-  it('resource を保持し「○○が見つかりません」の形にメッセージを整形する', () => {
+  it('resource を保持し message は wire label を示す', () => {
     const exception = new CharacterNotFoundException('セッション')
 
     expect(exception.resource).toBe('セッション')
-    expect(exception.message).toBe('セッションが見つかりません')
+    expect(exception.message).toBe('未発見エラー')
   })
 })
