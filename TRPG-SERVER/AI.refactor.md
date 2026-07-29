@@ -876,6 +876,57 @@ lint: touched 指摘 3 件は **HEAD 同一行の既存**（jest/no-conditional-
 E1 = GlobalExceptionFilter の HttpException 分岐を BaseExceptionFilter 委譲から封筒化へ変更し、
 局所 filter（HttpExceptionFilter の @UseFilters 3 箇所）を撤去、http-errors は Nest 既定形委譲を維持。
 
+### E1a: GlobalExceptionFilter の HttpException 封筒化 — E 方向段階2前半（2026-07-29・完了）
+
+証跡: `review-results/e1-global-envelope/`（着手前調査は `investigation-summary.md`）。
+着手時 HEAD = `fc70075`。E1 を E1a/E1b に分割（Fable 裁定・等価性を俯瞰#7 で検証してから削除する順序）。
+
+**着手前調査の主要反証（Opus read-only）**: 「E 案は sheet-templates の 422 診断封筒を壊す」は
+前提が誤り — **422 が global に到達する HTTP route は存在しない**（sheet 422 は全て
+CharacterSheetHttpExceptionFilter 配下。global filter JSDoc の「sheet 422 を保存」は陳腐化した
+過大主張だった）。Nest 既定形を固定する spec は global spec の 4 断言のみ。
+**interactions.controller / commands.controller は route 0 本の完全死蔵と確定**
+（俯瞰#5 残課題の解消）→ 第5群削除候補。app.controller GET / は docker healthcheck 4 箇所が依存。
+
+**変更**（3 ファイルちょうど）: global の委譲条件を `isHttpError && !(instanceof HttpException)` に
+絞り（http-errors 413 等は Nest 既定形維持）、HttpException を封筒化 —
+ApiError 分岐は http-exception.filter.ts:42-59 の**逐語一致移植**（E1b 等価削除の前提・Opus 逐語比較で
+乖離ゼロ確認）、generic 分岐は ValidationPipe の `message: string[]` を**既存フィールド details[]** へ
+非損失写像（front 抽出優先順 issues→cause.message→details→error により N 行表示維持・
+cause 新設や DTO 変更なし）。未知例外 500 封筒・二次例外フォールスルー・headersSent 不変。
+**局所 filter は温存** = 挙動変化は filter なし route（sheet-templates 6・discord・
+performance-dashboard・app）のみ。JSDoc の陳腐化主張を訂正。api-contract はコメントのみ更新。
+
+**認知負荷実測（Opus モードA）**: 代表タスクのホップ 5→6・同時保持 5→6・新概念 +1（details[] の
+意味付け）— E 方向の裁定済み目的への妥当な対価と判定。委譲条件は 9 行真理値表で全ケース検証
+（ApiError は own statusCode を持たず isHttpError が falsy = 誤委譲は二重に不能）。
+
+**spec**: 封筒 4 断言を実 HTTP 経路（supertest）の toStrictEqual literal へ・422 の issues 落ちを
+意図した挙動として根拠コメント付き固定・ApiError(errorCode) の global 経路 pin 新設・
+round2（レビュー CL-1 blocking 反映）で ValidationTestDto に @IsInt 第2制約を追加し
+**details N=2 の非損失＋'`, `' join を literal 固定**（N→1 に潰す変異が緑で通る穴を閉鎖）。
+
+**検収**: Fable 独立再実行 = build / 循環0 / 対象 6 suite 61 tests＋round2 後 19 tests /
+**局所 filter 配下 4 spec は diff ゼロのまま緑**（既存封筒面の不変証明）/ full suite 230 suites・
+3192 tests 全緑（+1 = ApiError pin・検算一致）/ lint 対象 exit 0。
+Opus レビュー needs-fix（blocking CL-1 のみ）→ round2 反映で解消。
+
+**俯瞰#7 への裁定事項（レビュー CL-2・medium）**: validation 診断キャリアが
+**details[]（global）と cause.message[]（sheet filter）の二重表現**になり、join 区切りも不一致
+（core は '`, `'・sheet は '`; `'）。front の 4 段優先はしごが恒久化する構図 → キャリア 1 本化＋
+区切り統一を俯瞰#7 の明示裁定に上げる（純減方向）。
+
+**記録**:
+
+- CL-3（low）: front の新旧等価 spec fixture は cause 前提のままで E1a の実 wire（details N 件）を
+  1 件も通していない（機能等価は details 経路 spec で成立）→ E1b/front スライスで fixture を実 wire へ
+- CL-4（info）: @Res 直書きは auth の 3 箇所（全て passthrough）のみ — headersSent 経路の挙動差は
+  現状到達不能。**E1b で auth が global 配下に来る際のレビュー観点**として登録
+- CL-5（info）: 委譲条件の `!(instanceof)` ガードは現状 redundant だが構造的保証として維持
+- **プロセス記録**: investigation-summary の「cause.message 写像が設計必須」と指示書の
+  「cause は out-of-scope」が不整合だった（設計 pivot を要旨へ反映し忘れ。実装は指示書に忠実で正・
+  要旨は訂正済み）。設計 pivot 時は証跡文書も同時更新すること
+
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・

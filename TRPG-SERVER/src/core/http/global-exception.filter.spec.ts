@@ -15,16 +15,20 @@ import {
   UseFilters
 } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
-import { IsString } from 'class-validator'
+import { IsInt, IsString } from 'class-validator'
 import type { Response } from 'express'
 import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
+import { ApiError } from './api-error'
 import { APP_VALIDATION_PIPE_PROVIDER } from './validation-pipe.provider'
 import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER, GLOBAL_INTERNAL_ERROR_MESSAGE } from './global-exception.filter'
 
 class ValidationTestDto {
   @IsString()
   readonly value!: string
+
+  @IsInt()
+  readonly count!: number
 }
 
 @Controller('global-exception-filter')
@@ -47,6 +51,11 @@ class GlobalExceptionFilterTestController {
   @Get('named-exception')
   throwNamedException(): never {
     throw new NotFoundException('x not found')
+  }
+
+  @Get('api-error')
+  throwApiError(): never {
+    throw new ApiError(409, '競合エラー', 'リソースが競合しています', 'CONFLICT_ERROR')
   }
 
   @Get('unknown-error')
@@ -149,7 +158,7 @@ class ControllerFilterTestController {
 }
 
 /**
- * APP_FILTER provider 経由の実 HTTP 経路で、D 案の直列化境界を固定する。
+ * APP_FILTER provider 経由の実 HTTP 経路で、E1a の直列化境界を固定する。
  */
 describe('GlobalExceptionFilter', () => {
   const appConfigService = {
@@ -187,46 +196,73 @@ describe('GlobalExceptionFilter', () => {
     errorSpy.mockRestore()
   })
 
-  it('object body の HttpException を Nest 既定の形で返す', async () => {
+  it('object body の HttpException を封筒化し、局所 filter が保護する issues は引き継がない', async () => {
     const response = await request(app.getHttpServer()).get('/global-exception-filter/object-body').expect(422)
 
+    // 本番の sheet 422 は controller-scoped filter が捕捉するため、global に同等の発生源はない。
     expect(response.body).toStrictEqual({
-      statusCode: 422,
-      error: 'Unprocessable Entity',
-      message: 'm',
-      issues: [{ fieldUid: 'u', path: ['u'], message: 'im' }]
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'm'
     })
+    expect(response.body).not.toHaveProperty('issues')
   })
 
-  it('string body の HttpException を error キーなしで返す', async () => {
+  it('string body の HttpException を封筒化する', async () => {
     const response = await request(app.getHttpServer()).get('/global-exception-filter/string-body').expect(403)
 
     expect(response.body).toStrictEqual({
-      statusCode: 403,
-      message: '権限がありません'
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: '権限がありません'
     })
+    expect(response.body).not.toHaveProperty('errorCode')
+    expect(response.body).not.toHaveProperty('details')
+    expect(response.body).not.toHaveProperty('cause')
   })
 
-  it('名前付き HttpException を Nest 既定の形で返す', async () => {
+  it('名前付き HttpException を封筒化する', async () => {
     const response = await request(app.getHttpServer()).get('/global-exception-filter/named-exception').expect(404)
 
     expect(response.body).toStrictEqual({
-      message: 'x not found',
-      error: 'Not Found',
-      statusCode: 404
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'x not found'
     })
   })
 
-  it('実 ValidationPipe の 400 message 配列を Nest 既定の形で返す', async () => {
+  it('実 ValidationPipe の 400 message 配列を details に保存して封筒化する', async () => {
     const response = await request(app.getHttpServer())
       .post('/global-exception-filter/validation')
-      .send({ value: 123 })
+      .send({ value: 123, count: 'x' })
       .expect(400)
 
     expect(response.body).toStrictEqual({
-      statusCode: 400,
-      message: ['value must be a string'],
-      error: 'Bad Request'
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'value must be a string, count must be an integer number',
+      details: [{ message: 'value must be a string' }, { message: 'count must be an integer number' }]
+    })
+  })
+
+  it('ApiError の label・errorCode・errorPayload を保って封筒化する', async () => {
+    const response = await request(app.getHttpServer()).get('/global-exception-filter/api-error').expect(409)
+
+    expect(response.body).toStrictEqual({
+      success: false,
+      message: '競合エラー',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'リソースが競合しています',
+      errorCode: 'CONFLICT_ERROR'
     })
   })
 
