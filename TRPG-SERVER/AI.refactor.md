@@ -464,11 +464,11 @@ production の2箇所 — `src/discord/features/diceRoll/utils/channel-topic.uti
 
 pipe と違い **filter は 3 分裂しており、うち 2 つは互いに異なる filter**:
 
-| controller                                                                                          | filter                                                                                                          |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| AuthController / UserController                                                                     | `HttpExceptionFilter`                                                                                           |
-| CharacterController                                                                                 | `CharacterHttpExceptionFilter`（`@Catch()` 全捕捉・errorCode 付き envelope を保存するため意図的に非グローバル） |
-| **AppController / DiscordController / CharacterSheetTemplateController / CharacterSheetController** | **なし**（Nest 既定の error body）                                                                              |
+| controller                                                                                          | filter                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AuthController / UserController                                                                     | `HttpExceptionFilter`                                                                                                                                                          |
+| CharacterController                                                                                 | `CharacterHttpExceptionFilter`（`@Catch()` 全捕捉・errorCode 付き envelope を保存するため意図的に非グローバル。追記 2026-07-29: g4e で削除・共通 HttpExceptionFilter へ1本化） |
+| **AppController / DiscordController / CharacterSheetTemplateController / CharacterSheetController** | **なし**（Nest 既定の error body）                                                                                                                                             |
 
 **グローバル化はフロント可視の変更になる**。フロントが呼ぶ 6 経路のうち
 `POST /character/from-template` は **CharacterSheetController（filter なし）**にあり、
@@ -483,6 +483,7 @@ Nest 既定（`{statusCode, message}`）なら `message`（配列なら join）�
 
 `CharacterHttpExceptionFilter` は controller スコープの `@Catch()` なので、
 APP_FILTER を足しても character 経路の解決順（method → controller → global）により挙動は保存される。
+（追記 2026-07-29: 同 filter は g4e で削除済み — character も共通 `HttpExceptionFilter` を使用）
 
 **追記（2026-07-28・第3群-b 着手時）**: 事前調査の後に並行セッションが `ebd23ea` を積み、
 前提が1つ変わった。sheet 系 service（`character-sheet-operation.service.ts` /
@@ -815,6 +816,65 @@ Opus read-only レビュー **pass**（low 2 = round2 反映済み / info 3 = �
 - channel-topic は `.ID` しか使わないが 4 キー検証へ結合（同一ファイルを orchestrator 側も検証するため
   追加失敗面ゼロ・仕様どおりの結合）
 - tsc --noEmit の既存エラー 1 件（`test/mocks/auth.mock.ts:48` TS7053）は本スライス起因ではない既存事象
+
+### 第4群-e: HTTP filter 1 本化・CharacterHttpExceptionFilter 削除 — OV6-1・E 段階1（2026-07-29・完了）
+
+証跡: `review-results/g4e-filter-unification/`。着手時 HEAD = `cbfb3e1`。
+
+**裁定記録**: OV5-6 = **E 方向 案 A 採用**（ユーザー 2026-07-29。設計メモ =
+`review-results/ov5-6-e-direction/design-memo.md`。段階: g4e → E1 → E2）。同時に
+「**cognitive-load-review が一番大事 — 最重視**」の指示 → fable-rules・メモリへ反映し、
+本スライス以降のレビューは認知負荷実測を主レンズとする。
+
+**変更**（9 ファイル +95/−216 の純減・新抽象ゼロ）: `ApiError` に optional `errorCode`（第4引数・
+後方互換）→ HttpExceptionFilter の ApiError 分岐が errorCode を封筒へ伝播（未指定時はキー不出現のまま）→
+character の 2 例外を ApiError 継承化（401 label='認証エラー'/AUTHENTICATION_ERROR・
+404 label='未発見エラー'/NOT_FOUND_ERROR）→ バイト一致 11 行の複製元 **CharacterHttpExceptionFilter を
+削除**（−72 行・参照 0 を grep 実証）→ character.controller は `@UseFilters(HttpExceptionFilter)`
+（auth/user と同形・module 変更不要 = AppConfigModule が @Global）。
+**意図した内部変化（wire 不変）**: 例外 `.message` が userMessage → label。live 読者 0 件を
+Codex・Opus が独立 grep（catch なし・interceptor は map のみ・global enhancer 2 種のみ）。
+
+**認知負荷実測（Opus・モード A）**: 同時保持 **7→5**・概念 **9→7**（-3 +1 errorCode）・
+封筒構築複製 **2→1**・lock-step 編集義務 **2→1**（生成後 4/4 コミットが同時編集だった実害への処方）・
+ホップ ±0。errorCode という新概念 1 の負荷増を複製解消が上回る**純減**。モード B 必要性監査 Go 相当。
+
+**wire 等価（Opus が旧実装と全項目突合）**: 値・キー集合・キー順序（同一 ErrorResponse
+コンストラクタ経路で構造的同一）・stack（payload が string のため dev でも不在）・
+errorCode 未指定時の JSON.stringify undefined 脱落まで一致。旧 `ApiResponseUtil.authenticationError/
+notFoundError` を実行可能 oracle とする等価比較 spec（controller.spec 4 断言）が統一 filter 経由で
+緑 = リファクタ跨ぎの等価証明。嘘 doc 1 件も解消（旧 filter JSDoc は errorCode を渡すと
+書きながら実コードは undefined だった）。
+
+**spec**: 401/404 oracle を **JSON 全キー集合の厳密 toEqual**（literal 直書き 6 キー）へ強化・
+dev（includeStack=true）で stack 不在を**初めて機械固定**・旧 spec 断言の移管漏れゼロ
+（UnauthorizedException/BadRequest/it.each 3 形/stack matrix/FILTER_CATCH_EXCEPTIONS すべて
+http-exception.filter.spec に既存）・`@UseFilters` 剥がし変異は controller.http.spec:158 の
+実 HTTP 400 断言が検出。
+
+**検収**: Fable 独立再実行 = build / check:circular（循環0）/ 対象 5 suite 63 tests /
+REF_ZERO / full suite **230 suites・3191 tests 全緑**（自スライスの static delta −1 =
+旧 spec 9→6・filter spec +2。3196→3191 の残差 −4 は並行セッション B の未コミット U1 作業由来）。
+lint: touched 指摘 3 件は **HEAD 同一行の既存**（jest/no-conditional-expect ×2・require warning ×1）。
+
+**反証・訂正**:
+
+- Codex「full lint error 6→4 の減少は削除 spec 由来」は**誤り** — 旧 character-http.exception.spec は
+  lint clean（Opus が --stdin 対照実験で確認）。減少は並行 U1 の未コミット変更由来の可能性が高い。
+  新規指摘ゼロは3者一致
+- **CL-2 訂正（指示書の理由付けの誤り）**: 「AuthenticationErrorResponse 等は他に live 消費者がいるため
+  DTO を残す」は不正確 — 本スライスで**最後の runtime 消費者が消えた**（残る参照は spec oracle 5 ファイル＋
+  e2e ハーネス test-auth.controller のみ）。残す正しい理由は「g4a 変異固定 spec の実行可能 oracle」。
+  → 第5群の死蔵会計へ追加（OV6-3 と同じ拘束枠）
+- **CL-1（low・第5群送り）**: 401/404 の label/errorCode literal が character-http.exception.ts と
+  api-response.dto.ts の 2 ファイルに複製。drift は ApiResponseUtil 比較 oracle が機械検出するため
+  現状無害。第5群 api-response.util 削除スライスで oracle literal 化と同時に単一ソース化
+- **計測ノイズ記録**: `eslint .` は gitignore 済み `coverage/**` 残骸に 6 parsing error を出す
+  （eslint.config.mjs の ignores に coverage/** が無い）→ 第5群 or 磨きで ignores 追加候補
+
+**E1 への申し送り**: CL6-4（定数リネーム）は E1 実施時に判断（封筒生成点が global へ収束した後）。
+E1 = GlobalExceptionFilter の HttpException 分岐を BaseExceptionFilter 委譲から封筒化へ変更し、
+局所 filter（HttpExceptionFilter の @UseFilters 3 箇所）を撤去、http-errors は Nest 既定形委譲を維持。
 
 ### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
 
@@ -2986,6 +3046,8 @@ test-expansion→create-test で3点を固定（全項目テスタビリティ�
 ### auth/user との差分と最小追加
 
 character は汎用 `ApiResponseUtil.error` ではなく**専用ヘルパ**（`authenticationError`/`notFoundError`/`internalServerError`）を使っており、これらは `errorCode` と固定 `message`（'認証エラー'/'未発見エラー'/'サーバーエラー'）を持つ `ErrorResponse` サブクラスを生成していた。共通 `HttpExceptionFilter` は `errorCode` を再現できないため、character スコープ専用に最小追加した（`src/domains/character/character-http.exception.ts`）。
+**注記（2026-07-29・g4e）**: 本節の CharacterHttpExceptionFilter は第4群-e で削除され、
+ApiError の optional errorCode により共通 HttpExceptionFilter へ1本化された（wire 封筒は不変）。
 
 - **`CharacterHttpExceptionFilter`（`@Catch()`）**：`CharacterAuthenticationException`→`AuthenticationErrorResponse`(401)、`CharacterNotFoundException`→`NotFoundErrorResponse`(404)、それ以外→`InternalServerErrorResponse`(500)。いずれも core/http の DTO を再利用するため envelope は `ApiResponseUtil.authenticationError/notFoundError/internalServerError` と完全一致。
 - 成功封筒化は共通 `ResponseInterceptor`＋`@ResponseMessage`/`@HttpCode` を流用。**meta を持つ一覧系**（findAll/summaries）は interceptor が meta を落とすため、`SuccessResponse(data, message, meta, uuidv4())` を直接 return（interceptor は `instanceof SuccessResponse` を素通し）して meta を保存。

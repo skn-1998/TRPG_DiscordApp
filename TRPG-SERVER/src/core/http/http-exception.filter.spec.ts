@@ -127,6 +127,31 @@ describe('HttpExceptionFilter', () => {
     expect(json.mock.calls[0][0].error).toBe('ユーザーが見つかりません')
   })
 
+  it('errorCode 付き ApiError は ErrorResponse の wire 封筒へ errorCode を伝播する', () => {
+    const { res, json } = createResponse()
+    const filter = new HttpExceptionFilter(mockAppConfig)
+
+    filter.catch(new ApiError(401, '認証エラー', 'ログインが必要です', 'AUTHENTICATION_ERROR'), createHost(res))
+
+    expect(json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: '認証エラー',
+        error: 'ログインが必要です',
+        errorCode: 'AUTHENTICATION_ERROR'
+      })
+    )
+  })
+
+  it('errorCode なし ApiError は JSON wire に errorCode キーを追加しない', () => {
+    const { res, json } = createResponse()
+    const filter = new HttpExceptionFilter(mockAppConfig)
+
+    filter.catch(new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません'), createHost(res))
+
+    expect(JSON.stringify(json.mock.calls[0][0])).not.toContain('"errorCode"')
+  })
+
   it('BadRequestException は 400 と object response の message を維持する', () => {
     const { res, status, json } = createResponse()
     const filter = new HttpExceptionFilter(mockAppConfig)

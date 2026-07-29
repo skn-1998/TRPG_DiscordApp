@@ -14,7 +14,8 @@ import { AppConfigService } from '../../config/config.service'
  *
  * status / label の決定（変換前の挙動保存）:
  *  1. ApiError の場合（個別分岐で明示的に status/label を指定していた箇所、例: 404 not found）
- *     → status = ApiError.status, label = ApiError.label, error = ApiError.errorPayload
+ *     → status = ApiError.status, label = ApiError.label, error = ApiError.errorPayload,
+ *       errorCode = ApiError.errorCode（未指定時は wire に含めない）
  *       これは変換前の ApiResponseUtil.error(res, errorPayload, status, label) と一致。
  *  2. それ以外の HttpException
  *     → status = HttpException.getStatus(), label = 既定値, error = HttpException の response/message。
@@ -47,7 +48,7 @@ export class HttpExceptionFilter implements ExceptionFilter<HttpException> {
       const response = new ErrorResponse(
         errorMessage,
         exception.label,
-        undefined,
+        exception.errorCode,
         undefined,
         stack,
         requestId,

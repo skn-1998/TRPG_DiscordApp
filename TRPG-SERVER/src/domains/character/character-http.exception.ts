@@ -1,98 +1,32 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Injectable } from '@nestjs/common'
-import { Response } from 'express'
-import { v4 as uuidv4 } from 'uuid'
-import {
-  AuthenticationErrorResponse,
-  DEFAULT_ERROR_RESPONSE_MESSAGE,
-  ErrorResponse,
-  NotFoundErrorResponse
-} from '../../core/dto/api-response.dto'
-import { getHttpExceptionMessage } from '../../core/http/http-exception-message'
-import { AppConfigService } from '../../config/config.service'
-
-/**
- * character コントローラ専用のエラー封筒化フィルタ。
- *
- * 変換前の character.controller は汎用の ApiResponseUtil.error ではなく、
- * 専用ヘルパ（authenticationError / notFoundError / internalServerError）を使っており、
- * これらは ErrorResponse のサブクラス（errorCode・固定 message を持つ）を生成していた。
- *
- * core/http の共通 HttpExceptionFilter は汎用 ErrorResponse しか作れず、
- * errorCode・専用 message を再現できない。
- * そこで character スコープでのみ使う最小フィルタを追加し、
- * 変換前と完全一致の envelope（success/status/message/error/errorCode）を保存する。
- *
- * - CharacterAuthenticationException → 401 / AuthenticationErrorResponse
- *   （変換前 ApiResponseUtil.authenticationError(res, message) と一致）
- * - CharacterNotFoundException      → 404 / NotFoundErrorResponse
- *   （変換前 ApiResponseUtil.notFoundError(res, resource) と一致）
- * - その他の HttpException          → getStatus() / ErrorResponse
- * - 非 HttpException                 → 本フィルタでは捕捉せず GlobalExceptionFilter へ委譲
- *
- * グローバル登録はせず、character.controller の @UseFilters でのみ適用する。
- */
-@Injectable()
-@Catch(HttpException)
-export class CharacterHttpExceptionFilter implements ExceptionFilter<HttpException> {
-  constructor(private readonly configService: AppConfigService) {}
-
-  catch(exception: HttpException, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp()
-    const res = ctx.getResponse<Response>()
-    const requestId = uuidv4()
-    // P1-C: 旧 ErrorResponse(DTO) 内の dev 判定を DI 境界（本 filter）へ移管（app.environment===NODE_ENV・挙動不変）。
-    const includeStack = this.configService.get('app.environment') === 'development'
-
-    if (exception instanceof CharacterAuthenticationException) {
-      // 変換前: ApiResponseUtil.authenticationError(res, message)
-      const response = new AuthenticationErrorResponse(exception.userMessage, requestId)
-      res.status(HttpStatus.UNAUTHORIZED).json(response)
-      return
-    }
-
-    if (exception instanceof CharacterNotFoundException) {
-      // 変換前: ApiResponseUtil.notFoundError(res, resource)
-      const response = new NotFoundErrorResponse(exception.resource, requestId)
-      res.status(HttpStatus.NOT_FOUND).json(response)
-      return
-    }
-
-    const response = new ErrorResponse(
-      getHttpExceptionMessage(exception),
-      DEFAULT_ERROR_RESPONSE_MESSAGE,
-      undefined,
-      undefined,
-      exception.stack,
-      requestId,
-      includeStack
-    )
-    res.status(exception.getStatus()).json(response)
-    return
-  }
-}
+import { HttpStatus } from '@nestjs/common'
+import { ApiError } from '../../core/http'
 
 /**
  * 認証欠落（変換前の UnauthorizedException → authenticationError）を表す例外。
- * userMessage は AuthenticationErrorResponse の error フィールドへ反映される。
+ *
+ * userMessage は HttpExceptionFilter が作る ErrorResponse の error フィールドへ反映される。
+ * errorPayload は文字列なので stack は development でも undefined となり、旧 wire 封筒を維持する。
  */
-export class CharacterAuthenticationException extends HttpException {
+export class CharacterAuthenticationException extends ApiError {
   readonly userMessage: string
 
   constructor(userMessage: string) {
-    super(userMessage, HttpStatus.UNAUTHORIZED)
+    super(HttpStatus.UNAUTHORIZED, '認証エラー', userMessage, 'AUTHENTICATION_ERROR')
     this.userMessage = userMessage
   }
 }
 
 /**
  * リソース未発見（変換前の notFoundError(res, resource)）を表す例外。
- * resource は NotFoundErrorResponse の `${resource}が見つかりません` に反映される。
+ *
+ * resource から作る文字列は HttpExceptionFilter が ErrorResponse の error へ反映する。
+ * errorPayload は文字列なので stack は development でも undefined となり、旧 wire 封筒を維持する。
  */
-export class CharacterNotFoundException extends HttpException {
+export class CharacterNotFoundException extends ApiError {
   readonly resource: string
 
   constructor(resource: string) {
-    super(`${resource}が見つかりません`, HttpStatus.NOT_FOUND)
+    super(HttpStatus.NOT_FOUND, '未発見エラー', `${resource}が見つかりません`, 'NOT_FOUND_ERROR')
     this.resource = resource
   }
 }
