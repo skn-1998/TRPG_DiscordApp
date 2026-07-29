@@ -4,6 +4,8 @@ import type { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { AppConfigService } from '../../config/config.service'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../dto/api-response.dto'
+import { ApiError } from './api-error'
+import { getHttpExceptionMessage } from './http-exception-message'
 
 const UNAVAILABLE_EXCEPTION_DIAGNOSTIC = '[diagnostic unavailable]'
 
@@ -48,12 +50,13 @@ export const GLOBAL_INTERNAL_ERROR_MESSAGE = 'サーバー内部でエラーが�
 /**
  * アプリ全体の最終例外境界。
  *
- * HttpException と Express/http-errors は BaseExceptionFilter へ委譲し、sheet 422 の issues[]、
- * 409 の conflicts[]、ValidationPipe 400 の message 配列、名前付き例外や body-parser の
- * { message, error?, statusCode } を Nest 既定の直列化のまま保存する。
+ * 例外は次の3分岐で処理する。
+ * 1. Express/http-errors は BaseExceptionFilter へ委譲し、Nest 既定形を維持する。
+ * 2. HttpException は ErrorResponse 封筒へ整形し、ValidationPipe の message 配列は details[] に保持する。
+ * 3. 未知例外は内部診断を隠した固定 500 封筒へ整形する。
  *
- * /character prefix は controller-scoped filter で封筒へ統一済み。
- * /sheet-templates など残る非封筒面との互換性のため、ここでは HttpException の委譲を維持する。
+ * sheet 422 の issues[] や 409 の conflicts[] は controller-scoped filter が保護する。
+ * 局所 filter がない controller の HttpException だけが本 filter の封筒化対象になる。
  *
  * 委譲判定または BaseExceptionFilter 内で accessor 等の二次例外が起きた場合は、
  * Nest 既定との一致より応答の終端を優先し、未知例外用の固定 500 封筒へフォールスルーする。
@@ -74,8 +77,54 @@ export class GlobalExceptionFilter extends BaseExceptionFilter {
     let delegationFailureDiagnostics: ExceptionDiagnostics | undefined
 
     try {
-      if (exception instanceof HttpException || this.isHttpError(exception)) {
+      if (this.isHttpError(exception) && !(exception instanceof HttpException)) {
         super.catch(exception, host)
+        return
+      }
+
+      if (exception instanceof HttpException) {
+        const res = host.switchToHttp().getResponse<Response>()
+        const requestId = uuidv4()
+        const includeStack = this.configService.get('app.environment') === 'development'
+
+        if (exception instanceof ApiError) {
+          const payload = exception.errorPayload
+          const errorMessage = payload instanceof Error ? payload.message : String(payload)
+          const stack = payload instanceof Error ? payload.stack : undefined
+
+          const response = new ErrorResponse(
+            errorMessage,
+            exception.label,
+            exception.errorCode,
+            undefined,
+            stack,
+            requestId,
+            includeStack
+          )
+          res.status(exception.getStatus()).json(response)
+          return
+        }
+
+        const exceptionResponse = exception.getResponse()
+        const messages =
+          typeof exceptionResponse === 'object' &&
+          exceptionResponse !== null &&
+          'message' in exceptionResponse &&
+          Array.isArray(exceptionResponse.message) &&
+          exceptionResponse.message.every((message): message is string => typeof message === 'string')
+            ? exceptionResponse.message
+            : undefined
+        const details = messages?.map((message) => ({ message }))
+        const response = new ErrorResponse(
+          getHttpExceptionMessage(exception),
+          DEFAULT_ERROR_RESPONSE_MESSAGE,
+          undefined,
+          details,
+          exception.stack,
+          requestId,
+          includeStack
+        )
+        res.status(exception.getStatus()).json(response)
         return
       }
     } catch (delegationFailure) {

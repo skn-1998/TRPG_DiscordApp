@@ -1,9 +1,10 @@
 /**
  * TRPG-SERVER の SuccessResponse（src/core/dto/api-response.dto.ts）の直列化形。
  *
- * 封筒化は ResponseInterceptor 適用コントローラ（auth / user / character。
+ * 成功封筒化は ResponseInterceptor 適用コントローラ（auth / user / character。
  * features/character-sheet が所有する CharacterSheetController を含む）のみ。
- * 非適用コントローラ（character-sheet-template・discord 等）は素データを返す。
+ * 非適用コントローラ（character-sheet-template・discord 等）の成功面は素データを返す。
+ * HTTP エラーは全 route で ErrorEnvelope へ封筒化するが、Express/http-errors 起源の 413 等は除く。
  * 直列化フィールド形の正典はこの契約パッケージ。
  * server 側 SuccessResponse / ErrorResponse は constructor・既定値・runtime 生成を所有し、
  * この interface 群と同形を維持する（S5 で implements により機械固定予定）。
@@ -28,9 +29,10 @@ export interface SuccessEnvelope<T> {
  * TRPG-SERVER の ErrorResponse の直列化形。
  *
  * stack は development 環境でのみ載る。
- * CharacterSheetController の sheet ルートは専用 filter が Nest 既定エラー形をこの封筒へ写像し、
- * issues / cause に診断情報を保持する。その他の非封筒面が返す Nest 既定形
- * （statusCode / message / error）はこの型では表現しない。
+ * HttpException は全 route でこの封筒へ写像する。
+ * CharacterSheetController の sheet ルートは専用 filter が issues / cause に診断情報を保持する。
+ * Express/http-errors 起源の 413 等が返す Nest 既定形（statusCode / message / error）と
+ * ResponseInterceptor 非適用コントローラの成功面はこの型では表現しない。
  * 直列化フィールド形の正典はこの契約パッケージ。
  * server 側 SuccessResponse / ErrorResponse は constructor・既定値・runtime 生成を所有し、
  * この interface 群と同形を維持する（S5 で implements により機械固定予定）。
