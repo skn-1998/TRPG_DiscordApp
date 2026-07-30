@@ -1,6 +1,7 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common'
 import { buildValueInputSchema, evaluateTemplate, interpolateNotation } from '@trpg/sheet-engine'
 import type { EvaluationResult, RuntimeValue, SheetField, SheetSection, SheetTemplate } from '@trpg/sheet-engine'
+import { formatPaletteLabel } from '@trpg/sheet-projection'
 import { AttributeValue, isAttributeSection } from '../../../core/types/attribute.types'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
@@ -288,7 +289,7 @@ export class SheetMaterializerService {
 
   private paletteLabel(label: string, value?: RuntimeValue): string {
     if (value?.type === 'number') {
-      return `${label} (${value.value})`
+      return formatPaletteLabel(label, value.value)
     }
     return label
   }

@@ -1,5 +1,5 @@
 export * from './constants'
 export * from './custom-id'
+export * from './palette-label'
 export * from './projection'
 export * from './types'
-

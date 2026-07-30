@@ -25,6 +25,7 @@ import {
   createResourceDeltaCustomId,
   createRollPaletteCustomId,
 } from './custom-id'
+import { stripMatchingPaletteValueSuffix } from './palette-label'
 import type {
   DiscordButtonModel,
   DiscordButtonRowModel,
@@ -234,16 +235,13 @@ function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
   }
   const candidates = includedResources.map((entry) => {
     const rawValue = formatResourceValue(input.resourceValues?.[entry.fieldRef.uid])
-    const materializedSuffix = ` (${rawValue})`
     const displayLabel = labelOrFallback(
       entry.label,
       entry.fieldRef.uid || entry.key,
       `palette.${entry.key}.label`,
       warnings
     )
-    const rawName = rawValue !== '—' && displayLabel.endsWith(materializedSuffix)
-      ? displayLabel.slice(0, -materializedSuffix.length)
-      : displayLabel
+    const rawName = stripMatchingPaletteValueSuffix(displayLabel, rawValue)
     const name = truncate(rawName, DISCORD_EMBED_FIELD_NAME_MAX_LENGTH)
     const value = truncate(rawValue, DISCORD_EMBED_FIELD_VALUE_MAX_LENGTH)
     if (name !== rawName || value !== rawValue) {
