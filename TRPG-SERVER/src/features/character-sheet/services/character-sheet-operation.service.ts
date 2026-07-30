@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import { clampDelta, EPSILON, evaluateTemplate } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
+import { formatPaletteLabel } from '@trpg/sheet-projection'
 import type {
   CharacterEntity,
   CharacterHubTransition,
@@ -470,7 +471,7 @@ export class CharacterSheetOperationService {
         const fieldLabel = resourceLabelsByUid.get(entry.fieldRef.uid)
         const effectiveValue = resolvedResourceValues[entry.fieldRef.uid]
         if (fieldLabel === undefined || effectiveValue === undefined) return entry
-        return { ...entry, label: `${fieldLabel} (${effectiveValue})` }
+        return { ...entry, label: formatPaletteLabel(fieldLabel, effectiveValue) }
       })
 
       return {
