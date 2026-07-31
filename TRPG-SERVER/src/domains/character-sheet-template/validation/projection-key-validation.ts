@@ -2,6 +2,9 @@ import { CharacterSheetTemplateEntity } from '../models/character-sheet-template
 
 const LEGACY_PROJECTION_SECTION_IDS = new Set(['status', 'parameter', 'skill', 'item', 'description'])
 
+// materializer の実投影集合（SheetMaterializerService.isProjectionField()）と一致させる。乖離すると衝突が publish を通過して黙って消える
+const PROJECTED_FIELD_TYPES = new Set(['scalar', 'computed', 'track', 'roll'])
+
 type ProjectionTarget = 'status' | 'parameter' | 'skill' | 'item' | 'description'
 
 interface ProjectedField {
@@ -48,7 +51,12 @@ function collectProjectedFields(template: CharacterSheetTemplateEntity): Project
 
     const target = projectionTarget(section.id)
     for (const field of section.fields) {
-      if (!isRecord(field) || typeof field.id !== 'string' || (field.type !== 'scalar' && field.type !== 'computed')) {
+      if (
+        !isRecord(field) ||
+        typeof field.id !== 'string' ||
+        typeof field.type !== 'string' ||
+        !PROJECTED_FIELD_TYPES.has(field.type)
+      ) {
         continue
       }
 

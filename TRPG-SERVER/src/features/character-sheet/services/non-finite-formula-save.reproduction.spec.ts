@@ -625,7 +625,17 @@ describe('non-finite formula save reproduction', () => {
       }
       const operationService = createOperationService(repository, amplifiedTemplate)
 
-      expect(validatePublishTemplate(amplifiedTemplate)).toEqual(expect.objectContaining({ ok: true, issues: [] }))
+      // #28 以降 publish 境界は長大 uid を拒絶する。以降の検証は「過去に永続化された長大 uid」想定の防御層（実行時診断の応答予算）
+      const publishValidation = validatePublishTemplate(amplifiedTemplate)
+      const expectedIssueMessage =
+        dimension === 'uid' ? 'uid must be 128 characters or fewer' : 'label must be 128 characters or fewer'
+      expect(publishValidation.ok).toBe(false)
+      expect(publishValidation.issues.length).toBeGreaterThan(0)
+      expect(
+        publishValidation.issues.every(
+          (issue) => issue.message === expectedIssueMessage && issue.path.endsWith(`.${dimension}`)
+        )
+      ).toBe(true)
 
       const app = await createHttpApp(operationService, amplifiedCharacter)
       try {
@@ -680,7 +690,15 @@ describe('non-finite formula save reproduction', () => {
     }
     const operationService = createOperationService(repository, longUidTemplate)
 
-    expect(validatePublishTemplate(longUidTemplate)).toEqual(expect.objectContaining({ ok: true, issues: [] }))
+    // #28 以降 publish 境界は長大 uid を拒絶する。以降の検証は「過去に永続化された長大 uid」想定の防御層（実行時診断の応答予算）
+    const publishValidation = validatePublishTemplate(longUidTemplate)
+    expect(publishValidation.ok).toBe(false)
+    expect(publishValidation.issues.length).toBeGreaterThan(0)
+    expect(
+      publishValidation.issues.every(
+        (issue) => issue.message === 'uid must be 128 characters or fewer' && issue.path.endsWith('.uid')
+      )
+    ).toBe(true)
 
     const app = await createHttpApp(operationService, longUidCharacter)
     try {

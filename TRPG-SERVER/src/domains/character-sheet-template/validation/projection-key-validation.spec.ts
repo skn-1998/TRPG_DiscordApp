@@ -36,6 +36,72 @@ describe('collectProjectionKeyErrors', () => {
     expect(errors).toContain('duplicate projected canonical path in status: status.hp')
   })
 
+  it.each([
+    [
+      'track 同士',
+      [
+        { id: 'shared', uid: 'uid-track-1', type: 'track' },
+        { id: 'shared', uid: 'uid-track-2', type: 'track' }
+      ]
+    ],
+    [
+      'roll 同士（publish 時点では rawValues の有無を知り得ないため一律拒絶）',
+      [
+        { id: 'shared', uid: 'uid-roll-1', type: 'roll' },
+        { id: 'shared', uid: 'uid-roll-2', type: 'roll' }
+      ]
+    ],
+    [
+      'scalar と track',
+      [
+        { id: 'shared', uid: 'uid-scalar', type: 'scalar' },
+        { id: 'shared', uid: 'uid-track', type: 'track' }
+      ]
+    ]
+  ])('T-23: %s の field id 衝突を拒絶する', (_caseName, fields) => {
+    const errors = collectProjectionKeyErrors({
+      ...template,
+      sections: [{ id: 'status', fields }]
+    })
+
+    expect(errors).toContain('duplicate projected field id in status: shared')
+  })
+
+  it('T-23: scalar / computed / track / roll の canonical path 衝突をすべて検出する', () => {
+    const errors = collectProjectionKeyErrors({
+      ...template,
+      sections: [
+        { id: 'status', fields: [{ id: 'shared', uid: 'uid-scalar', type: 'scalar' }] },
+        { id: 'status', fields: [{ id: 'shared', uid: 'uid-computed', type: 'computed' }] },
+        { id: 'status', fields: [{ id: 'shared', uid: 'uid-track', type: 'track' }] },
+        { id: 'status', fields: [{ id: 'shared', uid: 'uid-roll', type: 'roll' }] }
+      ]
+    })
+
+    expect(
+      errors.filter((error) => error === 'duplicate projected canonical path in status: status.shared')
+    ).toHaveLength(3)
+  })
+
+  it('T-23: 衝突しない scalar / computed / track / roll 混在テンプレートを許可する', () => {
+    const errors = collectProjectionKeyErrors({
+      ...template,
+      sections: [
+        {
+          id: 'status',
+          fields: [
+            { id: 'scalar_value', uid: 'uid-scalar', type: 'scalar' },
+            { id: 'computed_value', uid: 'uid-computed', type: 'computed' },
+            { id: 'track_value', uid: 'uid-track', type: 'track' },
+            { id: 'roll_value', uid: 'uid-roll', type: 'roll' }
+          ]
+        }
+      ]
+    })
+
+    expect(errors).toEqual([])
+  })
+
   it('list 内 itemFields と top-level 非投影 field は検査対象外にする', () => {
     const errors = collectProjectionKeyErrors({
       ...template,
