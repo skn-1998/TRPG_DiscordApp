@@ -1,11 +1,14 @@
+import type { SheetField } from '@trpg/sheet-engine'
 import { CharacterSheetTemplateEntity } from '../models/character-sheet-template.entity'
 
+// 投影先5セクションの正本（これ以外の section id は description へ寄せる）
 const LEGACY_PROJECTION_SECTION_IDS = new Set(['status', 'parameter', 'skill', 'item', 'description'])
 
-// materializer の実投影集合（SheetMaterializerService.isProjectionField()）と一致させる。乖離すると衝突が publish を通過して黙って消える
-const PROJECTED_FIELD_TYPES = new Set(['scalar', 'computed', 'track', 'roll'])
+// 投影規則の正本。materializer もここから import する
+const PROJECTED_FIELD_TYPE_LIST: ReadonlyArray<SheetField['type']> = ['scalar', 'computed', 'track', 'roll']
+const PROJECTED_FIELD_TYPES = new Set<string>(PROJECTED_FIELD_TYPE_LIST)
 
-type ProjectionTarget = 'status' | 'parameter' | 'skill' | 'item' | 'description'
+export type ProjectionTarget = 'status' | 'parameter' | 'skill' | 'item' | 'description'
 
 interface ProjectedField {
   id: string
@@ -55,7 +58,7 @@ function collectProjectedFields(template: CharacterSheetTemplateEntity): Project
         !isRecord(field) ||
         typeof field.id !== 'string' ||
         typeof field.type !== 'string' ||
-        !PROJECTED_FIELD_TYPES.has(field.type)
+        !isProjectedFieldType(field.type)
       ) {
         continue
       }
@@ -71,7 +74,13 @@ function collectProjectedFields(template: CharacterSheetTemplateEntity): Project
   return projectedFields
 }
 
-function projectionTarget(sectionId: string): ProjectionTarget {
+/** 投影規則の正本。materializer もこれを使う（複製を作らずここを編集する） */
+export function isProjectedFieldType(type: string): boolean {
+  return PROJECTED_FIELD_TYPES.has(type)
+}
+
+/** 投影規則の正本。materializer もこれを使う（複製を作らずここを編集する） */
+export function projectionTarget(sectionId: string): ProjectionTarget {
   return LEGACY_PROJECTION_SECTION_IDS.has(sectionId) ? (sectionId as ProjectionTarget) : 'description'
 }
 
