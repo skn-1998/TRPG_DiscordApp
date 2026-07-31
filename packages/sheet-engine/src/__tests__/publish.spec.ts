@@ -150,9 +150,60 @@ describe('publish validation rejects unsupported v1 surface', () => {
     ]));
     expect(result.issues.some((issue) => issue.message.startsWith('id must match'))).toBe(true);
   });
+
+  it('truncates long duplicate uids in uniqueness issues', () => {
+    const duplicateUid = 'u'.repeat(120);
+    const uniquenessMessagePrefix = 'uid must be unique: ';
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'first', uid: duplicateUid, label: 'First', valueType: 'number' },
+            { type: 'scalar', id: 'second', uid: duplicateUid, label: 'Second', valueType: 'number' },
+          ],
+        },
+      ],
+    });
+
+    const uniquenessIssue = validatePublishTemplate(template).issues.find(
+      (issue) => issue.message.startsWith(uniquenessMessagePrefix),
+    );
+
+    expect(uniquenessIssue).toBeDefined();
+    expect(uniquenessIssue?.message.endsWith('…')).toBe(true);
+    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 98);
+    expect(uniquenessIssue?.message).not.toContain(duplicateUid);
+  });
 });
 
 describe('publish reference key uniqueness', () => {
+  it('keeps uid uniqueness issue paths untruncated for long section ids', () => {
+    const longSectionId = 's'.repeat(150);
+    const duplicateUid = 'duplicate.uid';
+    const expectedPath = `${longSectionId}.second`;
+    const template = baseTemplate({
+      sections: [
+        {
+          id: longSectionId,
+          label: 'Long section',
+          fields: [
+            { type: 'scalar', id: 'first', uid: duplicateUid, label: 'First', valueType: 'number' },
+            { type: 'scalar', id: 'second', uid: duplicateUid, label: 'Second', valueType: 'number' },
+          ],
+        },
+      ],
+    });
+
+    const uniquenessIssue = validatePublishTemplate(template).issues.find(
+      (issue) => issue.message === `uid must be unique: ${duplicateUid}`,
+    );
+
+    expect(uniquenessIssue?.path).toBe(expectedPath);
+    expect(uniquenessIssue?.path).not.toContain('…');
+  });
+
   it('rejects duplicate top-level canonical field paths', () => {
     const template = baseTemplate({
       sections: [
@@ -431,6 +482,24 @@ describe('publish function call validation', () => {
 });
 
 describe('publish validation formula and notation source typing', () => {
+  it('keeps array-valued lookup results as text during publish inference', () => {
+    const template = {
+      ...baseTemplate(),
+      tables: [{ id: 'malformed_result', rows: [[1, ['1d6']]] }],
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'computed', id: 'result', uid: 'main.result', label: 'Result', resultType: 'text', formula: 'lookup(malformed_result, 1)' },
+          ],
+        },
+      ],
+    };
+
+    expect(validatePublishTemplate(template).ok).toBe(true);
+  });
+
   it('rejects computed resultType mismatches', () => {
     const template = baseTemplate({
       sections: [

@@ -21,7 +21,6 @@ export interface TemplateIndex {
   fieldsByPath: Map<string, FieldLocator>;
   listsByUid: Map<string, FieldLocator & { field: ListField }>;
   listSubFieldsByPath: Map<string, { list: ListField; field: SheetField; path: string; listPath: string }>;
-  listSubFieldsByListUid: Map<string, Map<string, SheetField>>;
   tablesById: Map<string, SheetTemplate['tables'][number]>;
 }
 
@@ -31,7 +30,6 @@ export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
     fieldsByPath: new Map(),
     listsByUid: new Map(),
     listSubFieldsByPath: new Map(),
-    listSubFieldsByListUid: new Map(),
     tablesById: new Map(template.tables.map((table) => [table.id, table])),
   };
 
@@ -44,9 +42,7 @@ export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
 
       if (field.type === 'list') {
         index.listsByUid.set(field.uid, locator as FieldLocator & { field: ListField });
-        const subByUid = new Map<string, SheetField>();
         for (const subField of field.itemFields) {
-          subByUid.set(subField.uid, subField);
           index.listSubFieldsByPath.set(`${section.id}.${field.id}.${subField.id}`, {
             list: field,
             field: subField,
@@ -56,7 +52,6 @@ export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
           // Short list paths are normalized by UI code before save; published
           // templates only accept canonical section.list.subField paths.
         }
-        index.listSubFieldsByListUid.set(field.uid, subByUid);
       }
     }
   }
