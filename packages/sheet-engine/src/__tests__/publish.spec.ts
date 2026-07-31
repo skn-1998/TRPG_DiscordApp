@@ -152,7 +152,156 @@ describe('publish validation rejects unsupported v1 surface', () => {
   });
 });
 
+describe('publish reference key uniqueness', () => {
+  it('rejects duplicate top-level canonical field paths', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'hp', uid: 'hp-current', label: 'Current HP', valueType: 'number' },
+            { type: 'scalar', id: 'hp', uid: 'hp-maximum', label: 'Maximum HP', valueType: 'number' },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.hp',
+      message: 'canonical path must be unique: main.hp',
+    });
+  });
+
+  it('rejects duplicate canonical paths in list itemFields', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            {
+              type: 'list',
+              id: 'items',
+              uid: 'items',
+              label: 'Items',
+              itemFields: [
+                { type: 'scalar', id: 'weight', uid: 'weight-base', label: 'Base weight', valueType: 'number' },
+                { type: 'scalar', id: 'weight', uid: 'weight-total', label: 'Total weight', valueType: 'number' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.items.weight',
+      message: 'canonical path must be unique: main.items.weight',
+    });
+  });
+
+  it('rejects duplicate table ids', () => {
+    const template = baseTemplate({
+      tables: [
+        { id: 'damage', rows: [[1, '1d4']] },
+        { id: 'damage', rows: [[1, '1d6']] },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'tables.damage.id',
+      message: 'table id must be unique: damage',
+    });
+  });
+
+  it('reports duplicate table ids one character beyond the ID_PATTERN maximum', () => {
+    const overlongId = `a${'b'.repeat(32)}`;
+    const path = `tables.${overlongId}.id`;
+    const template = baseTemplate({
+      tables: [
+        { id: overlongId, rows: [[1, '1d4']] },
+        { id: overlongId, rows: [[1, '1d6']] },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues).toEqual(expect.arrayContaining([
+      { path, message: 'id must match /^[a-z][a-z0-9_]{0,31}$/' },
+      { path, message: `table id must be unique: ${overlongId}` },
+    ]));
+  });
+
+  it('truncates overlong duplicate table ids in uniqueness issues', () => {
+    const overlongId = 'a'.repeat(150);
+    const uniquenessMessagePrefix = 'table id must be unique: ';
+    const template = baseTemplate({
+      tables: [
+        { id: overlongId, rows: [[1, '1d4']] },
+        { id: overlongId, rows: [[1, '1d6']] },
+      ],
+    });
+
+    const uniquenessIssue = validatePublishTemplate(template).issues.find(
+      (issue) => issue.message.startsWith(uniquenessMessagePrefix),
+    );
+
+    expect(uniquenessIssue).toBeDefined();
+    expect(uniquenessIssue?.path.endsWith('…')).toBe(true);
+    expect(uniquenessIssue?.message.endsWith('…')).toBe(true);
+    expect(uniquenessIssue?.path.length).toBeLessThanOrEqual(98);
+    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 98);
+    expect(uniquenessIssue?.path).not.toContain(overlongId);
+    expect(uniquenessIssue?.message).not.toContain(overlongId);
+  });
+
+  it('accepts an existing valid template with unique canonical paths and table ids', () => {
+    const template = baseTemplate({
+      tables: [
+        { id: 'damage', rows: [[1, '1d4']] },
+        { id: 'healing', rows: [[1, '1d6']] },
+      ],
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'hp', uid: 'hp', label: 'HP', valueType: 'number' },
+            {
+              type: 'list',
+              id: 'items',
+              uid: 'items',
+              label: 'Items',
+              itemFields: [
+                { type: 'scalar', id: 'weight', uid: 'weight', label: 'Weight', valueType: 'number' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(true);
+  });
+});
+
 describe('publish schema uid and label length limits', () => {
+  it('rejects an empty uid without rejecting a whitespace-only uid', () => {
+    const withUid = (uid: string) => baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ type: 'scalar', id: 'value', uid, label: 'Value', valueType: 'number' }],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(withUid('')).issues).toContainEqual(
+      expect.objectContaining({ message: 'uid must not be empty' }),
+    );
+    expect(validatePublishTemplate(withUid(' ')).ok).toBe(true);
+  });
+
   it('accepts a uid at 128 characters', () => {
     const template = baseTemplate({
       sections: [
