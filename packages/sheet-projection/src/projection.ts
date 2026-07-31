@@ -3,8 +3,10 @@ import {
   DISCORD_BUTTON_LABEL_MAX_LENGTH,
   DISCORD_CHANNEL_ID_PATTERN,
   DISCORD_CUSTOM_ID_MAX_LENGTH,
+  DISCORD_EMBED_DESCRIPTION_MAX_LENGTH,
   DISCORD_EMBED_FIELD_NAME_MAX_LENGTH,
   DISCORD_EMBED_FIELD_VALUE_MAX_LENGTH,
+  DISCORD_EMBED_FOOTER_TEXT_MAX_LENGTH,
   DISCORD_EMBED_MAX_FIELDS,
   DISCORD_EMBED_TITLE_MAX_LENGTH,
   DISCORD_EMBED_TOTAL_MAX_LENGTH,
@@ -12,12 +14,15 @@ import {
   GROUP_BROWSER_PAGE_SIZE,
   GROUP_SELECT_MORE_VALUE,
   GROUP_SELECT_VISIBLE_LIMIT,
+  HUB_GROUP_ID_MAX_LENGTH,
   PALETTE_SOFT_CAP,
   PANEL_ACTIONS_PER_PAGE,
   PINNED_BUTTON_LIMIT,
   SAFE_PROJECTION_ID_PATTERN,
+  TEMPLATE_NAME_DISPLAY_MAX_LENGTH,
 } from './constants'
 import {
+  CUSTOM_ID_SAFE_TOKEN_SOURCE,
   canonicalizeResourceDelta,
   createHubGroupBrowserCustomId,
   createHubGroupSelectCustomId,
@@ -48,6 +53,8 @@ interface Result<T> {
   value: T
   warnings: ProjectionWarning[]
 }
+
+const RESOURCE_VALUE_PLACEHOLDER = '—'
 
 function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value
@@ -84,7 +91,7 @@ function validateIdPart(value: string, path: string, warnings: ProjectionWarning
   if (SAFE_PROJECTION_ID_PATTERN.test(value)) return true
   warnings.push({
     code: 'invalid-custom-id-part',
-    message: `${path} must match [a-z0-9]+; the related component was omitted`,
+    message: `${path} must match ${CUSTOM_ID_SAFE_TOKEN_SOURCE}; the related component was omitted`,
     path,
   })
   return false
@@ -145,7 +152,7 @@ function createGroupReferences(
 ): GroupReference[] {
   const sources = [...new Set(palette.map((entry) => entry.group))]
   const isReusableGroupId = (source: string): boolean =>
-    SAFE_PROJECTION_ID_PATTERN.test(source) && source.length <= 48
+    SAFE_PROJECTION_ID_PATTERN.test(source) && source.length <= HUB_GROUP_ID_MAX_LENGTH
   const reserved = new Set(sources.filter(isReusableGroupId))
   const assigned = new Map<string, string>()
   for (const source of sources.filter((candidate) => !isReusableGroupId(candidate)).sort()) {
@@ -183,10 +190,10 @@ function splitRows(buttons: readonly DiscordButtonModel[]): DiscordButtonRowMode
 }
 
 function formatResourceValue(value: unknown): string {
-  if (value === undefined || value === null) return '—'
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '—'
+  if (value === undefined || value === null) return RESOURCE_VALUE_PLACEHOLDER
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : RESOURCE_VALUE_PLACEHOLDER
   if (typeof value === 'string' || typeof value === 'boolean') return String(value)
-  if (typeof value !== 'object') return '—'
+  if (typeof value !== 'object') return RESOURCE_VALUE_PLACEHOLDER
 
   const record = value as Record<string, unknown>
   const candidate =
@@ -198,7 +205,9 @@ function formatResourceValue(value: unknown): string {
   const parts = Object.values(candidate).filter(
     (part): part is number => typeof part === 'number' && Number.isFinite(part)
   )
-  return parts.length > 0 ? String(parts.reduce((sum, part) => sum + part, 0)) : '—'
+  return parts.length > 0
+    ? String(parts.reduce((sum, part) => sum + part, 0))
+    : RESOURCE_VALUE_PLACEHOLDER
 }
 
 function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
@@ -210,11 +219,13 @@ function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
 
   let description = truncate(
     input.templateName
-      ? `${truncate(input.templateName, 200)} · v${input.templateVersion}`
+      ? `${truncate(input.templateName, TEMPLATE_NAME_DISPLAY_MAX_LENGTH)} · v${input.templateVersion}`
       : `Template v${input.templateVersion}`,
-    4096
+    DISCORD_EMBED_DESCRIPTION_MAX_LENGTH
   )
-  const footer = input.opId ? { text: truncate(`opId:${input.opId}`, 2048) } : undefined
+  const footer = input.opId
+    ? { text: truncate(`opId:${input.opId}`, DISCORD_EMBED_FOOTER_TEXT_MAX_LENGTH) }
+    : undefined
   const baseBudget = DISCORD_EMBED_TOTAL_MAX_LENGTH - title.length - (footer?.text.length ?? 0)
   if (description.length > baseBudget) {
     description = truncate(description, Math.max(0, baseBudget))

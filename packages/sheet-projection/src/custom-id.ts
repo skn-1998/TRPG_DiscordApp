@@ -5,9 +5,10 @@ export const HUB_PANEL_CUSTOM_ID_PREFIX = 'hub_panel_'
 export const HUB_GROUP_BROWSER_CUSTOM_ID_PREFIX = 'hub_groups_'
 
 export const CUSTOM_ID_CHANNEL_SOURCE = '[0-9]+'
-export const CUSTOM_ID_PALETTE_KEY_SOURCE = '[a-z0-9]+'
+export const CUSTOM_ID_SAFE_TOKEN_SOURCE = '[a-z0-9]+'
+export const CUSTOM_ID_PALETTE_KEY_SOURCE = CUSTOM_ID_SAFE_TOKEN_SOURCE
 export const CANONICAL_RESOURCE_DELTA_SOURCE = '-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?'
-export const CUSTOM_ID_GROUP_SOURCE = '[a-z0-9]+'
+export const CUSTOM_ID_GROUP_SOURCE = CUSTOM_ID_SAFE_TOKEN_SOURCE
 export const CUSTOM_ID_PAGE_SOURCE = '[1-9][0-9]*'
 
 export const CANONICAL_RESOURCE_DELTA_PATTERN = new RegExp(`^${CANONICAL_RESOURCE_DELTA_SOURCE}$`)
