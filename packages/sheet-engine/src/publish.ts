@@ -20,11 +20,17 @@ import {
 
 const DEFAULT_TABLE_ROW_LIMIT = 512;
 const DEFAULT_AST_NODE_LIMIT = 256;
+// publish 境界で診断増幅（実測 100KB〜1.2MB 応答）を発生源で止める上限。裸の z.string() に戻さないこと。
+// 根拠: エディタ生成 uid は16文字（v3Template.ts createStableUid）・canonical path 写し規約は最大98文字・応答封筒予算 4,096 bytes
+const MAX_UID_LENGTH = 128;
+const MAX_LABEL_LENGTH = 128;
 
 const ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
 const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', 'floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
-const nonBlankLabelSchema = z.string().refine((label) => label.trim().length > 0, {
+const uidSchema = z.string().max(MAX_UID_LENGTH, `uid must be ${MAX_UID_LENGTH} characters or fewer`);
+const labelSchema = z.string().max(MAX_LABEL_LENGTH, `label must be ${MAX_LABEL_LENGTH} characters or fewer`);
+const nonBlankLabelSchema = labelSchema.refine((label) => label.trim().length > 0, {
   message: 'label must not be empty',
 });
 
@@ -36,7 +42,7 @@ const roleSchema = z.discriminatedUnion('kind', [
 
 const fieldBaseSchema = {
   id: z.string(),
-  uid: z.string(),
+  uid: uidSchema,
   label: nonBlankLabelSchema,
   description: z.string().optional(),
   role: roleSchema.optional(),
@@ -46,12 +52,12 @@ const fieldBaseSchema = {
 
 const fieldSchema: z.ZodType<SheetField> = z.lazy(() =>
   z.discriminatedUnion('type', [
-    z.object({ ...fieldBaseSchema, type: z.literal('scalar'), valueType: z.enum(['number', 'text', 'boolean', 'select']), parts: z.boolean().optional(), options: z.array(z.object({ label: z.string(), value: z.string() })).optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('scalar'), valueType: z.enum(['number', 'text', 'boolean', 'select']), parts: z.boolean().optional(), options: z.array(z.object({ label: labelSchema, value: z.string() })).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('computed'), resultType: z.enum(['number', 'text', 'boolean', 'dice']), formula: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string(), rerollable: z.boolean().optional() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: z.union([z.number(), z.object({ formula: z.string() })]), style: z.enum(['gauge', 'checkboxes']), thresholds: z.array(z.object({ at: z.number(), label: z.string() })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: z.union([z.number(), z.object({ formula: z.string() })]), style: z.enum(['gauge', 'checkboxes']), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: roleSchema.optional() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(z.object({ ...fieldBaseSchema, type: z.literal('scalar'), valueType: z.enum(['number', 'text', 'boolean', 'select']), parts: z.boolean().optional(), options: z.array(z.object({ label: z.string(), value: z.string() })).optional() }).passthrough()).optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(z.object({ ...fieldBaseSchema, type: z.literal('scalar'), valueType: z.enum(['number', 'text', 'boolean', 'select']), parts: z.boolean().optional(), options: z.array(z.object({ label: labelSchema, value: z.string() })).optional() }).passthrough()).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('tag'), catalog: z.array(z.string()).optional(), allowFreeInput: z.boolean().optional() }).passthrough(),
   ]),
 );
@@ -68,7 +74,7 @@ const templateSchema: z.ZodType<SheetTemplate> = z.object({
   forkedFrom: z.object({ templateId: z.string(), version: z.string() }).optional(),
   license: z.string().optional(),
   sections: z.array(z.object({ id: z.string(), label: nonBlankLabelSchema, fields: z.array(fieldSchema), layout: z.unknown().optional() }).passthrough()),
-  tables: z.array(z.object({ id: z.string(), uid: z.string().optional(), resultType: z.enum(['number', 'text', 'boolean', 'dice']).optional(), rows: z.array(z.any()) }).passthrough()),
+  tables: z.array(z.object({ id: z.string(), uid: uidSchema.optional(), resultType: z.enum(['number', 'text', 'boolean', 'dice']).optional(), rows: z.array(z.any()) }).passthrough()),
   settings: z.object({ rounding: z.enum(['floor', 'ceil', 'round']) }),
 }).passthrough();
 

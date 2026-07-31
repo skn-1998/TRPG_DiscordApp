@@ -1,6 +1,10 @@
 import { validatePublishTemplate } from '..';
 import { baseTemplate, issueMessages } from './test-utils';
 
+declare const Buffer: {
+  byteLength(value: string, encoding: 'utf8'): number;
+};
+
 describe('publish validation rejects unsupported v1 surface', () => {
   it.each([
     ['section', baseTemplate({ sections: [{ id: 'main', label: '   ', fields: [] }] })],
@@ -114,6 +118,98 @@ describe('publish validation rejects unsupported v1 surface', () => {
       'uid must be unique: dup.uid',
     ]));
     expect(result.issues.some((issue) => issue.message.startsWith('id must match'))).toBe(true);
+  });
+});
+
+describe('publish schema uid and label length limits', () => {
+  it('accepts a uid at 128 characters', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ type: 'scalar', id: 'value', uid: 'u'.repeat(128), label: 'Value', valueType: 'number' }],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(true);
+  });
+
+  it('rejects a uid at 129 characters', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ type: 'scalar', id: 'value', uid: 'u'.repeat(129), label: 'Value', valueType: 'number' }],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(false);
+  });
+
+  it('accepts a label at 128 characters', () => {
+    const template = baseTemplate({
+      sections: [{ id: 'main', label: 'L'.repeat(128), fields: [] }],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(true);
+  });
+
+  it('rejects a label at 129 characters', () => {
+    const template = baseTemplate({
+      sections: [{ id: 'main', label: 'L'.repeat(129), fields: [] }],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(false);
+  });
+
+  it('rejects an overlong uid in nested list itemFields', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            {
+              type: 'list',
+              id: 'items',
+              uid: 'main.items',
+              label: 'Items',
+              itemFields: [
+                { type: 'scalar', id: 'value', uid: 'u'.repeat(129), label: 'Value', valueType: 'number' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(false);
+  });
+
+  it('keeps overlong uid issues bounded without echoing the input value', () => {
+    const sentinel = 'SENTINEL_DO_NOT_ECHO_';
+    const oversizedUid = sentinel + 'u'.repeat(99_979);
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ type: 'scalar', id: 'value', uid: oversizedUid, label: 'Value', valueType: 'number' }],
+        },
+      ],
+    });
+
+    const result = validatePublishTemplate(template);
+    const serializedIssues = JSON.stringify(result.issues);
+
+    expect(result.issues.length).toBeGreaterThan(0);
+    expect(serializedIssues).not.toContain(sentinel);
+    expect(Buffer.byteLength(serializedIssues, 'utf8')).toBeLessThan(2_000);
+    expect(result.issues.every((issue) => JSON.stringify(issue).length < 200)).toBe(true);
   });
 });
 
