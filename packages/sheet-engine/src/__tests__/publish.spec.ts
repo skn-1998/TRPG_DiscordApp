@@ -151,8 +151,8 @@ describe('publish validation rejects unsupported v1 surface', () => {
     expect(result.issues.some((issue) => issue.message.startsWith('id must match'))).toBe(true);
   });
 
-  it('truncates long duplicate uids in uniqueness issues', () => {
-    const duplicateUid = 'u'.repeat(120);
+  it('keeps maximum-length schema-valid duplicate uids untruncated', () => {
+    const duplicateUid = 'u'.repeat(128);
     const uniquenessMessagePrefix = 'uid must be unique: ';
     const template = baseTemplate({
       sections: [
@@ -172,9 +172,9 @@ describe('publish validation rejects unsupported v1 surface', () => {
     );
 
     expect(uniquenessIssue).toBeDefined();
-    expect(uniquenessIssue?.message.endsWith('…')).toBe(true);
-    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 98);
-    expect(uniquenessIssue?.message).not.toContain(duplicateUid);
+    expect(uniquenessIssue?.message.endsWith('…')).toBe(false);
+    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 131);
+    expect(uniquenessIssue?.message).toContain(duplicateUid);
   });
 });
 
@@ -299,8 +299,8 @@ describe('publish reference key uniqueness', () => {
     expect(uniquenessIssue).toBeDefined();
     expect(uniquenessIssue?.path.endsWith('…')).toBe(true);
     expect(uniquenessIssue?.message.endsWith('…')).toBe(true);
-    expect(uniquenessIssue?.path.length).toBeLessThanOrEqual(98);
-    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 98);
+    expect(uniquenessIssue?.path.length).toBeLessThanOrEqual(131);
+    expect(uniquenessIssue?.message.length).toBeLessThanOrEqual(uniquenessMessagePrefix.length + 131);
     expect(uniquenessIssue?.path).not.toContain(overlongId);
     expect(uniquenessIssue?.message).not.toContain(overlongId);
   });
@@ -329,6 +329,211 @@ describe('publish reference key uniqueness', () => {
           ],
         },
       ],
+    });
+
+    expect(validatePublishTemplate(template).ok).toBe(true);
+  });
+});
+
+describe('relation attr and role when validation', () => {
+  it('rejects an attr uid that duplicates a top-level field uid', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [
+          { type: 'scalar', id: 'owner_id', uid: 'shared.uid', label: 'Owner ID', valueType: 'text' },
+          {
+            type: 'relation',
+            id: 'owner',
+            uid: 'main.owner',
+            label: 'Owner',
+            attrs: [{ type: 'scalar', id: 'name', uid: 'shared.uid', label: 'Name', valueType: 'text' }],
+          },
+        ],
+      }],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.owner.name',
+      message: 'uid must be unique: shared.uid',
+    });
+  });
+
+  it('preserves the 131-character path for a duplicate uid in a list relation attr', () => {
+    const sectionId = 's'.repeat(32);
+    const listId = 'l'.repeat(32);
+    const relationId = 'r'.repeat(32);
+    const attrId = 'a'.repeat(32);
+    const duplicateUid = 'duplicate.uid';
+    const expectedPath = [sectionId, listId, relationId, attrId].join('.');
+    const template = baseTemplate({
+      sections: [{
+        id: sectionId,
+        label: 'Section',
+        fields: [{
+          type: 'list',
+          id: listId,
+          uid: duplicateUid,
+          label: 'List',
+          itemFields: [{
+            type: 'relation',
+            id: relationId,
+            uid: 'relation.uid',
+            label: 'Relation',
+            attrs: [{ type: 'scalar', id: attrId, uid: duplicateUid, label: 'Attr', valueType: 'text' }],
+          }],
+        }],
+      }],
+    });
+
+    expect(expectedPath).toHaveLength(131);
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: expectedPath,
+      message: `uid must be unique: ${duplicateUid}`,
+    });
+  });
+
+  it('rejects duplicate attr ids through canonical path uniqueness', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'relation',
+          id: 'owner',
+          uid: 'main.owner',
+          label: 'Owner',
+          attrs: [
+            { type: 'scalar', id: 'name', uid: 'owner.name.primary', label: 'Primary name', valueType: 'text' },
+            { type: 'scalar', id: 'name', uid: 'owner.name.alias', label: 'Alias', valueType: 'text' },
+          ],
+        }],
+      }],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.owner.name',
+      message: 'canonical path must be unique: main.owner.name',
+    });
+  });
+
+  it('rejects attr when', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'relation',
+          id: 'owner',
+          uid: 'main.owner',
+          label: 'Owner',
+          attrs: [{
+            type: 'scalar',
+            id: 'name',
+            uid: 'owner.name',
+            label: 'Name',
+            valueType: 'text',
+            when: '{main.enabled}',
+          }],
+        }],
+      }],
+    });
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.owner.name',
+      message: 'when is 未対応',
+    });
+  });
+
+  it('rejects attr id pattern violations and the reserved row id', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'relation',
+          id: 'owner',
+          uid: 'main.owner',
+          label: 'Owner',
+          attrs: [
+            { type: 'scalar', id: 'Bad-Id', uid: 'owner.bad', label: 'Bad', valueType: 'text' },
+            { type: 'scalar', id: 'row', uid: 'owner.row', label: 'Row', valueType: 'text' },
+          ],
+        }],
+      }],
+    });
+
+    expect(validatePublishTemplate(template).issues).toEqual(expect.arrayContaining([
+      { path: 'main.owner.Bad-Id.id', message: 'id must match /^[a-z][a-z0-9_]{0,31}$/' },
+      { path: 'main.owner.row.id', message: 'id is reserved: row' },
+    ]));
+  });
+
+  it('rejects role when with an issue distinguishable from field when', () => {
+    const template = {
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'scalar',
+          id: 'hp',
+          uid: 'main.hp',
+          label: 'HP',
+          valueType: 'number',
+          when: '{main.enabled}',
+          role: { kind: 'resource', deltas: [-1, 1], when: '{main.can_edit}' },
+        }],
+      }],
+    };
+
+    expect(validatePublishTemplate(template).issues).toEqual(expect.arrayContaining([
+      { path: 'main.hp', message: 'when is 未対応' },
+      { path: 'main.hp', message: 'role.when is 未対応' },
+    ]));
+  });
+
+  it('rejects rowRole when', () => {
+    const template = {
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'list',
+          id: 'items',
+          uid: 'main.items',
+          label: 'Items',
+          rowRole: { kind: 'resource', deltas: [-1, 1], when: '{row.enabled}' },
+          itemFields: [{ type: 'scalar', id: 'name', uid: 'items.name', label: 'Name', valueType: 'text' }],
+        }],
+      }],
+    };
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.items.rowRole',
+      message: 'role.when is 未対応',
+    });
+  });
+
+  it('accepts a relation with compliant attrs', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'relation',
+          id: 'owner',
+          uid: 'main.owner',
+          label: 'Owner',
+          targetKind: 'character',
+          attrs: [
+            { type: 'scalar', id: 'name', uid: 'owner.name', label: 'Name', valueType: 'text' },
+            { type: 'scalar', id: 'level', uid: 'owner.level', label: 'Level', valueType: 'number' },
+          ],
+        }],
+      }],
     });
 
     expect(validatePublishTemplate(template).ok).toBe(true);
