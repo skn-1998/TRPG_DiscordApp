@@ -21,13 +21,13 @@ import {
 const DEFAULT_TABLE_ROW_LIMIT = 512;
 const DEFAULT_AST_NODE_LIMIT = 256;
 // publish 境界で診断増幅（実測 100KB〜1.2MB 応答）を発生源で止める上限。裸の z.string() に戻さないこと。
-// 根拠: エディタ生成 uid は16文字（v3Template.ts createStableUid）・canonical path 写し規約は最大98文字・応答封筒予算 4,096 bytes
+// 根拠: エディタ生成 uid は最大45文字（section.id 最大32 + '_' + random 12）・canonical path 写し規約は最大98文字・応答封筒予算 4,096 bytes
 const MAX_UID_LENGTH = 128;
 const MAX_LABEL_LENGTH = 128;
 const MAX_ID_LENGTH = 32;
 const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 3 + 2;
 
-const ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
+const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', ...KNOWN_FUNCTIONS]);
 // 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
@@ -100,10 +100,9 @@ export function validatePublishTemplate(template: unknown, options: PublishValid
   const sheet = parsed.data;
   const tableRowLimit = options.tableRowLimit ?? DEFAULT_TABLE_ROW_LIMIT;
   const astNodeLimit = options.astNodeLimit ?? DEFAULT_AST_NODE_LIMIT;
-  const index = buildTemplateIndex(sheet);
-  const uids = new Map<string, string>();
-  // フロント v3Template.ts の editor uid/id 検査と、サーバ projection-key-validation.ts の投影キー正本に
-  // 意図的に重ねる多層防御。層間で乖離した場合は両ファイルを参照する。
+  const uids = new Set<string>();
+  // フロント v3Template.ts の editor uid/id 検査と重ねる多層防御。サーバ projection-key-validation.ts は
+  // canonical path ではなく投影先ごとの field id 衝突を担保する（canonical path 検査は同一関数内の field id 検査に厳密支配されるため OV8-a で削除済み）。
   const canonicalFieldPaths = new Set<string>();
   const tableIds = new Set<string>();
 
@@ -132,7 +131,7 @@ function validateField(
   field: SheetField,
   issues: PublishIssue[],
   refs: Map<string, ResolvedRef>,
-  uids: Map<string, string>,
+  uids: Set<string>,
   canonicalFieldPaths: Set<string>,
   astNodeLimit: number,
   path: string,
@@ -146,10 +145,7 @@ function validateField(
     path,
     'canonical path',
   );
-  if (uids.has(field.uid)) {
-    issues.push({ path, message: `uid must be unique: ${field.uid}` });
-  }
-  uids.set(field.uid, path);
+  validateUniqueReferenceKey(field.uid, uids, issues, path, 'uid');
 
   if (field.visibleTo && field.visibleTo !== 'public') {
     issues.push({ path, message: 'visibleTo other than public is 未対応' });
@@ -196,11 +192,12 @@ function validateUniqueReferenceKey(
   seen: Set<string>,
   issues: PublishIssue[],
   path: string,
-  keyName: 'canonical path' | 'table id',
+  keyName: 'canonical path' | 'table id' | 'uid',
 ): void {
   if (seen.has(key)) {
     issues.push({
-      path: truncateIssueInput(path),
+      // uid の issue path は HEAD 挙動保存のため従来表示を維持し、message 内の key だけを切り詰める。新しい keyName 追加時は path の切り詰め要否を判断すること。
+      path: keyName === 'uid' ? path : truncateIssueInput(path),
       message: `${keyName} must be unique: ${truncateIssueInput(key)}`,
     });
   }
@@ -535,12 +532,12 @@ function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'c
 }
 
 function inferLookupType(template: SheetTemplate, args: AstNode[]): ExpressionValueType {
-  const tableId = literalTableId(args[0]) ?? literalTableId(args[1]);
-  if (!tableId) {
-    throw new Error('lookup requires one table id argument');
-  }
-  const table = template.tables.find((candidate) => candidate.id === tableId);
+  const table = resolveLookupTable(template, args);
   if (!table) {
+    const tableId = literalTableId(args[0]) ?? literalTableId(args[1]);
+    if (!tableId) {
+      throw new Error('lookup requires one table id argument');
+    }
     throw new Error(`Unknown lookup table: ${tableId}`);
   }
   return inferLookupTableType(table);
@@ -567,20 +564,18 @@ function inferLookupTableType(table: LookupTable): ExpressionValueType {
   if (!Array.isArray(first) && 'resultType' in first && first.resultType) {
     return first.resultType;
   }
-  const result = Array.isArray(first) ? first[first.length - 1] : first.result;
-  if (typeof result === 'number') {
-    return 'number';
+  const { result } = lookupRowResult(first);
+  // isNotationFragment は非 string を String 強制するため、['1d6'] を dice と誤判定せず旧実装の text fallback を保つ。
+  // この否定条件は inferRuntimeInputType が扱う値種別の補集合を維持すること。
+  if (
+    typeof result !== 'number' &&
+    typeof result !== 'boolean' &&
+    typeof result !== 'string' &&
+    (typeof result !== 'object' || result === null || !('type' in result))
+  ) {
+    return 'text';
   }
-  if (typeof result === 'boolean') {
-    return 'boolean';
-  }
-  if (typeof result === 'string' && isNotationFragment(result)) {
-    return 'dice';
-  }
-  if (typeof result === 'object' && result !== null && 'type' in result) {
-    return result.type;
-  }
-  return 'text';
+  return inferRuntimeInputType(result);
 }
 
 function validateDiceFormulaSource(

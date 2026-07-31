@@ -17,7 +17,7 @@ describe('collectProjectionKeyErrors', () => {
     draftRevision: 1
   }
 
-  it('T-23: 同一投影先の canonical path 重複を field id 重複とは独立に報告する', () => {
+  it('T-23: 同一投影先の field id 重複を報告する', () => {
     const errors = collectProjectionKeyErrors({
       ...template,
       sections: [
@@ -33,7 +33,6 @@ describe('collectProjectionKeyErrors', () => {
     })
 
     expect(errors).toContain('duplicate projected field id in status: hp')
-    expect(errors).toContain('duplicate projected canonical path in status: status.hp')
   })
 
   it.each([
@@ -65,22 +64,6 @@ describe('collectProjectionKeyErrors', () => {
     })
 
     expect(errors).toContain('duplicate projected field id in status: shared')
-  })
-
-  it('T-23: scalar / computed / track / roll の canonical path 衝突をすべて検出する', () => {
-    const errors = collectProjectionKeyErrors({
-      ...template,
-      sections: [
-        { id: 'status', fields: [{ id: 'shared', uid: 'uid-scalar', type: 'scalar' }] },
-        { id: 'status', fields: [{ id: 'shared', uid: 'uid-computed', type: 'computed' }] },
-        { id: 'status', fields: [{ id: 'shared', uid: 'uid-track', type: 'track' }] },
-        { id: 'status', fields: [{ id: 'shared', uid: 'uid-roll', type: 'roll' }] }
-      ]
-    })
-
-    expect(
-      errors.filter((error) => error === 'duplicate projected canonical path in status: status.shared')
-    ).toHaveLength(3)
   })
 
   it('T-23: 衝突しない scalar / computed / track / roll 混在テンプレートを許可する', () => {

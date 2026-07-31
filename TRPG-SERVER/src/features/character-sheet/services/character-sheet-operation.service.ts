@@ -26,7 +26,7 @@ import type { CharacterSheetTemplateEntity } from '../../../domains/character-sh
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { SheetMaterializerService } from './sheet-materializer.service'
-import { isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
+import { allowsParts, isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
 import { formatNonFiniteFieldDiagnostics, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
 
 const MAX_SAVE_ATTEMPTS = 5
@@ -489,7 +489,7 @@ export class CharacterSheetOperationService {
     if (field.type !== 'track' && field.type !== 'scalar') {
       throw new UnprocessableEntityException(`field ${path.fieldUid} is not an input field (${field.type})`)
     }
-    if (path.partsKey !== undefined && !this.allowsParts(field)) {
+    if (path.partsKey !== undefined && !allowsParts(field)) {
       throw new UnprocessableEntityException(`field ${path.fieldUid} does not allow parts`)
     }
     if (path.partsKey !== undefined && path.partsKey.length === 0) {
@@ -510,10 +510,6 @@ export class CharacterSheetOperationService {
     if (!isResourceField(field)) {
       throw new UnprocessableEntityException(`field ${field.uid} is not a parts-aware number resource`)
     }
-  }
-
-  private allowsParts(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> {
-    return field.type === 'track' || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true)
   }
 
   private readPathValue(values: Record<string, unknown>, path: CharacterSheetValuePath): unknown {

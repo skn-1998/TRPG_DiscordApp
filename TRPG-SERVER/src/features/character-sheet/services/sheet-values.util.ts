@@ -4,13 +4,14 @@ export interface SheetPartsValue {
   parts: Record<string, number>
 }
 
+export function allowsParts(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> {
+  return field.type === 'track' || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true)
+}
+
 export function isResourceField(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> & {
   role: { kind: 'resource'; deltas: number[] }
 } {
-  return (
-    field.role?.kind === 'resource' &&
-    (field.type === 'track' || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true))
-  )
+  return field.role?.kind === 'resource' && allowsParts(field)
 }
 
 export function isPartsValue(value: unknown): value is SheetPartsValue {

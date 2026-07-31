@@ -2,17 +2,17 @@ import type { SheetField } from '@trpg/sheet-engine'
 import { CharacterSheetTemplateEntity } from '../models/character-sheet-template.entity'
 
 // 投影先5セクションの正本（これ以外の section id は description へ寄せる）
-const LEGACY_PROJECTION_SECTION_IDS = new Set(['status', 'parameter', 'skill', 'item', 'description'])
+const PROJECTION_TARGETS = ['status', 'parameter', 'skill', 'item', 'description'] as const
+const LEGACY_PROJECTION_SECTION_IDS = new Set<string>(PROJECTION_TARGETS)
 
 // 投影規則の正本。materializer もここから import する
 const PROJECTED_FIELD_TYPE_LIST: ReadonlyArray<SheetField['type']> = ['scalar', 'computed', 'track', 'roll']
 const PROJECTED_FIELD_TYPES = new Set<string>(PROJECTED_FIELD_TYPE_LIST)
 
-export type ProjectionTarget = 'status' | 'parameter' | 'skill' | 'item' | 'description'
+export type ProjectionTarget = (typeof PROJECTION_TARGETS)[number]
 
 interface ProjectedField {
   id: string
-  canonicalPath: string
   target: ProjectionTarget
 }
 
@@ -22,7 +22,6 @@ interface ProjectedField {
  */
 export function collectProjectionKeyErrors(template: CharacterSheetTemplateEntity): string[] {
   const seenFieldIds = new Map<ProjectionTarget, Set<string>>()
-  const seenCanonicalPaths = new Map<ProjectionTarget, Set<string>>()
   const errors: string[] = []
 
   for (const field of collectProjectedFields(template)) {
@@ -31,13 +30,6 @@ export function collectProjectionKeyErrors(template: CharacterSheetTemplateEntit
       errors.push(`duplicate projected field id in ${field.target}: ${field.id}`)
     } else {
       fieldIds.add(field.id)
-    }
-
-    const canonicalPaths = getOrCreateSet(seenCanonicalPaths, field.target)
-    if (canonicalPaths.has(field.canonicalPath)) {
-      errors.push(`duplicate projected canonical path in ${field.target}: ${field.canonicalPath}`)
-    } else {
-      canonicalPaths.add(field.canonicalPath)
     }
   }
 
@@ -65,7 +57,6 @@ function collectProjectedFields(template: CharacterSheetTemplateEntity): Project
 
       projectedFields.push({
         id: field.id,
-        canonicalPath: `${section.id}.${field.id}`,
         target
       })
     }
@@ -81,7 +72,11 @@ export function isProjectedFieldType(type: string): boolean {
 
 /** 投影規則の正本。materializer もこれを使う（複製を作らずここを編集する） */
 export function projectionTarget(sectionId: string): ProjectionTarget {
-  return LEGACY_PROJECTION_SECTION_IDS.has(sectionId) ? (sectionId as ProjectionTarget) : 'description'
+  return isProjectionTarget(sectionId) ? sectionId : 'description'
+}
+
+function isProjectionTarget(sectionId: string): sectionId is ProjectionTarget {
+  return LEGACY_PROJECTION_SECTION_IDS.has(sectionId)
 }
 
 function getOrCreateSet<K>(sets: Map<K, Set<string>>, key: K): Set<string> {
