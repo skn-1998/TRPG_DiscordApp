@@ -28,8 +28,11 @@ const MAX_ID_LENGTH = 32;
 const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 3 + 2;
 
 const ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
-const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', 'floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
+const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', ...KNOWN_FUNCTIONS]);
+// 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
+// inferCallType は二重発行防止の停止マーカーを投げ、catch は前段発行済みの場合だけ握る（fail closed）。
+const FUNCTION_CALL_ISSUE_ALREADY_REPORTED = new Error('function call issue already reported (internal sentinel)');
 const uidSchema = z.string()
   .min(1, 'uid must not be empty')
   .max(MAX_UID_LENGTH, `uid must be ${MAX_UID_LENGTH} characters or fewer`);
@@ -274,15 +277,21 @@ function validateFormula(
   path: string,
   parentList?: ListField,
 ): ExpressionValueType | undefined {
+  let hasReportedFunctionCallIssue = false;
   try {
     const ast = parseExpression(formula);
     if (countAstNodes(ast) > astNodeLimit) {
       issues.push({ path, message: `AST node limit exceeded: ${countAstNodes(ast)} > ${astNodeLimit}` });
     }
     collectRefs(template, ast, issues, refs, path, parentList);
+    const issueCountBeforeFunctionCallValidation = issues.length;
     validateFunctionCalls(ast, issues, path);
+    hasReportedFunctionCallIssue = issues.length > issueCountBeforeFunctionCallValidation;
     return inferExpressionType(template, ast, parentList);
   } catch (error) {
+    if (error === FUNCTION_CALL_ISSUE_ALREADY_REPORTED && hasReportedFunctionCallIssue) {
+      return undefined;
+    }
     issues.push({ path, message: error instanceof Error ? error.message : String(error) });
     return undefined;
   }
@@ -511,7 +520,9 @@ function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'c
   }
 
   if (ast.name === 'max' || ast.name === 'min') {
-    assertStaticArity(ast.name, ast.args, 2);
+    if (ast.args.length !== 2) {
+      throw FUNCTION_CALL_ISSUE_ALREADY_REPORTED;
+    }
     const left = inferExpressionType(template, ast.args[0], parentList);
     const right = inferExpressionType(template, ast.args[1], parentList);
     if (left !== 'number' || right !== 'number') {
@@ -520,7 +531,7 @@ function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'c
     return 'number';
   }
 
-  throw new Error(`Unknown function: ${ast.name}`);
+  throw FUNCTION_CALL_ISSUE_ALREADY_REPORTED;
 }
 
 function inferLookupType(template: SheetTemplate, args: AstNode[]): ExpressionValueType {

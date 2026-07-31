@@ -393,6 +393,43 @@ describe('publish schema uid and label length limits', () => {
   });
 });
 
+describe('publish function call validation', () => {
+  function formulaIssues(formula: string) {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'computed', id: 'result', uid: 'main.result', label: 'Result', resultType: 'number', formula },
+          ],
+        },
+      ],
+    });
+
+    return validatePublishTemplate(template).issues;
+  }
+
+  it('reports an unknown function exactly once', () => {
+    expect(formulaIssues('mystery(1)')).toEqual([
+      { path: 'main.result.formula', message: 'Unknown function: mystery' },
+    ]);
+  });
+
+  it('reports invalid function arity exactly once', () => {
+    expect(formulaIssues('max(1)')).toEqual([
+      { path: 'main.result.formula', message: 'max is a binary function' },
+    ]);
+  });
+
+  it('keeps independent unknown-function and arity issues in the same expression', () => {
+    expect(formulaIssues('mystery(1) + max(1)')).toEqual([
+      { path: 'main.result.formula', message: 'Unknown function: mystery' },
+      { path: 'main.result.formula', message: 'max is a binary function' },
+    ]);
+  });
+});
+
 describe('publish validation formula and notation source typing', () => {
   it('rejects computed resultType mismatches', () => {
     const template = baseTemplate({
