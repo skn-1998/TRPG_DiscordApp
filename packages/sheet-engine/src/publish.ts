@@ -22,11 +22,11 @@ import {
 const DEFAULT_TABLE_ROW_LIMIT = 512;
 const DEFAULT_AST_NODE_LIMIT = 256;
 // publish 境界で診断増幅（実測 100KB〜1.2MB 応答）を発生源で止める上限。裸の z.string() に戻さないこと。
-// 根拠: エディタ生成 uid は最大45文字（section.id 最大32 + '_' + random 12）・canonical path 写し規約は最大98文字・応答封筒予算 4,096 bytes
+// 根拠: エディタ生成 uid は最大45文字（section.id 最大32 + '_' + random 12）・canonical path 写し規約は最大131文字（4セグメント: section.list.relation.attr）・応答封筒予算 4,096 bytes
 const MAX_UID_LENGTH = 128;
 const MAX_LABEL_LENGTH = 128;
 const MAX_ID_LENGTH = 32;
-const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 3 + 2;
+const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 4 + 3;
 
 const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
@@ -104,6 +104,7 @@ export function validatePublishTemplate(template: unknown, options: PublishValid
   const uids = new Set<string>();
   // フロント v3Template.ts の editor uid/id 検査と重ねる多層防御。サーバ projection-key-validation.ts は
   // canonical path ではなく投影先ごとの field id 衝突を担保する（canonical path 検査は同一関数内の field id 検査に厳密支配されるため OV8-a で削除済み）。
+  // buildTemplateIndex で索引されず runtime 参照不能な relation attr も、親を含む canonical path で誤衝突しないため一意性集合の superset に含める。
   const canonicalFieldPaths = new Set<string>();
   const tableIds = new Set<string>();
 
@@ -169,9 +170,7 @@ function validateField(
   }
   if (field.type === 'relation') {
     for (const attr of field.attrs ?? []) {
-      if (attr.type !== 'scalar') {
-        issues.push({ path: `${path}.attrs`, message: 'relation attrs must be scalar fields' });
-      }
+      validateField(template, attr, issues, refs, uids, canonicalFieldPaths, astNodeLimit, `${path}.${attr.id}`, parentList);
     }
   }
   if (field.type === 'list') {
@@ -259,6 +258,9 @@ function validateRole(
   }
   if ('secret' in role && role.secret) {
     issues.push({ path, message: 'secret role is 未対応' });
+  }
+  if ('when' in role && role.when !== undefined) {
+    issues.push({ path, message: 'role.when is 未対応' });
   }
   if (role.kind !== 'rollable') {
     return;
