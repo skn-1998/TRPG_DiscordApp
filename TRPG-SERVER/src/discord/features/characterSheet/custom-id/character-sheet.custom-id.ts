@@ -11,14 +11,7 @@ import {
   createRollPaletteCustomId
 } from '@trpg/sheet-projection'
 
-export {
-  HUB_GROUP_BROWSER_CUSTOM_ID_PATTERN,
-  HUB_GROUP_MENU_CUSTOM_ID_PATTERN,
-  HUB_GROUP_SELECT_CUSTOM_ID_PATTERN,
-  HUB_PANEL_CUSTOM_ID_PATTERN,
-  RESOURCE_DELTA_CUSTOM_ID_PATTERN,
-  ROLL_PALETTE_CUSTOM_ID_PATTERN
-} from '@trpg/sheet-projection'
+export { HUB_GROUP_MENU_CUSTOM_ID_PATTERN } from '@trpg/sheet-projection'
 
 /** v1.x で kind:check / kind:declare に割り当てる予約 prefix。 */
 export const CHECK_CUSTOM_ID_RESERVED_PREFIX = 'chk_'

@@ -129,7 +129,7 @@ function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValue
   return z.string();
 }
 
-function allowsParts(field: SheetField): boolean {
+export function allowsParts(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> {
   return field.type === 'track'
     || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true);
 }

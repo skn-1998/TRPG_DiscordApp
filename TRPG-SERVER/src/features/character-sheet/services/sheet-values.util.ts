@@ -1,11 +1,9 @@
-import type { SheetField } from '@trpg/sheet-engine'
+import { allowsParts, type SheetField } from '@trpg/sheet-engine'
+
+export { allowsParts }
 
 export interface SheetPartsValue {
   parts: Record<string, number>
-}
-
-export function allowsParts(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> {
-  return field.type === 'track' || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true)
 }
 
 export function isResourceField(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> & {

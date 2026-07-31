@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AstNode, countAstNodes } from './ast';
+import { assertArity } from './arity';
 import { isNotationFragment } from './notation';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, refKey, resolveRefPath } from './template-index';
@@ -469,7 +470,7 @@ function inferBinaryType(
 
 function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'call' }>, parentList?: ListField): ExpressionValueType {
   if (ast.name === 'if') {
-    assertStaticArity(ast.name, ast.args, 3);
+    assertArity(ast.name, ast.args, 3);
     const condition = inferExpressionType(template, ast.args[0], parentList);
     if (condition !== 'boolean') {
       throw new Error(`if condition must be boolean, got ${condition}`);
@@ -483,7 +484,7 @@ function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'c
   }
 
   if (ast.name === 'sum' || ast.name === 'count') {
-    assertStaticArity(ast.name, ast.args, 1);
+    assertArity(ast.name, ast.args, 1);
     const refNode = ast.args[0];
     if (refNode.type !== 'ref') {
       throw new Error(`${ast.name} expects a list subfield reference`);
@@ -503,12 +504,12 @@ function inferCallType(template: SheetTemplate, ast: Extract<AstNode, { type: 'c
   }
 
   if (ast.name === 'lookup') {
-    assertStaticArity(ast.name, ast.args, 2);
+    assertArity(ast.name, ast.args, 2);
     return inferLookupType(template, ast.args);
   }
 
   if (ast.name === 'floor' || ast.name === 'ceil' || ast.name === 'round') {
-    assertStaticArity(ast.name, ast.args, 1);
+    assertArity(ast.name, ast.args, 1);
     const type = inferExpressionType(template, ast.args[0], parentList);
     if (type !== 'number') {
       throw new Error(`${ast.name} requires number, got ${type}`);
@@ -732,12 +733,6 @@ function fieldExpressionType(field: SheetField): ExpressionValueType {
     return 'dice';
   }
   return 'text';
-}
-
-function assertStaticArity(name: string, args: { length: number }, expected: number): void {
-  if (args.length !== expected) {
-    throw new Error(`${name} expects ${expected} arguments`);
-  }
 }
 
 function detectCycles(template: SheetTemplate, issues: PublishIssue[]): void {

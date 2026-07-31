@@ -13,6 +13,7 @@ import {
   type DiscordProjectionInput,
   type ProjectionPaletteEntry,
 } from '..'
+import * as customId from '../custom-id'
 
 declare const require: (path: string) => unknown
 
@@ -40,6 +41,10 @@ function input(palette: ProjectionPaletteEntry[]): DiscordProjectionInput {
 }
 
 describe('@trpg/sheet-projection', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
   it('golden fixture: inputからhub ViewModel全体を固定する', () => {
     expect(createDiscordProjectionViewModel(goldenInput)).toEqual(goldenExpected)
   })
@@ -226,5 +231,31 @@ describe('@trpg/sheet-projection', () => {
     expect(panel.warnings.map((warning) => warning.code)).toEqual(
       expect.arrayContaining(['invalid-custom-id-part', 'custom-id-budget-exceeded'])
     )
+  })
+
+  it('roll customId生成失敗の警告は既存のcodeとpathを維持する', () => {
+    jest.spyOn(customId, 'createRollPaletteCustomId').mockReturnValue(null)
+
+    const hub = createDiscordProjectionViewModel(input([roll(1)]))
+
+    expect(hub.warnings.map(({ code, path }) => ({ code, path }))).toContainEqual({
+      code: 'invalid-custom-id-part',
+      path: 'palette.r1.customId',
+    })
+  })
+
+  it('page customId生成失敗の警告は既存のcodeとpathを維持する', () => {
+    jest.spyOn(customId, 'createHubGroupBrowserCustomId').mockReturnValue(null)
+
+    const browser = createGroupBrowser({
+      channelId: input([]).channelId,
+      palette: Array.from({ length: 25 }, (_, index) => roll(index, `g${index}`)),
+      page: 1,
+    })
+
+    expect(browser.warnings.map(({ code, path }) => ({ code, path }))).toContainEqual({
+      code: 'invalid-custom-id-part',
+      path: 'group-browser-page.次へ',
+    })
   })
 })
