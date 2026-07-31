@@ -1,6 +1,9 @@
 import {
   GROUP_SELECT_MORE_VALUE,
+  DISCORD_CUSTOM_ID_MAX_LENGTH,
   DISCORD_EMBED_TOTAL_MAX_LENGTH,
+  HUB_GROUP_ID_MAX_LENGTH,
+  HUB_PANEL_CUSTOM_ID_PREFIX,
   canonicalizeResourceDelta,
   createDiscordProjectionViewModel,
   createEphemeralPanel,
@@ -91,6 +94,13 @@ describe('@trpg/sheet-projection', () => {
     expect(page1.page.next?.customId).toBe('hub_panel_123456789012345678_skills_2')
     expect(page2.actions).toHaveLength(1)
     expect(page2.page.previous?.customId).toBe('hub_panel_123456789012345678_skills_1')
+  })
+
+  it('hub panel customId予算は最大長の構成要素でもDiscord上限内に収まる', () => {
+    // 20: channelId、16: Number.MAX_SAFE_INTEGERのpage、2: 「_」区切り。
+    expect(
+      HUB_PANEL_CUSTOM_ID_PREFIX.length + 20 + 16 + 2 + HUB_GROUP_ID_MAX_LENGTH
+    ).toBeLessThanOrEqual(DISCORD_CUSTOM_ID_MAX_LENGTH)
   })
 
   it('resource entryをdeltaごとの± actionへ展開する', () => {
