@@ -43,7 +43,6 @@ import type {
   EphemeralPanelViewModel,
   GroupBrowserInput,
   GroupBrowserViewModel,
-  HubViewModel,
   PageNavigationModel,
   ProjectionPaletteEntry,
   ProjectionWarning,
@@ -111,7 +110,7 @@ function acceptCustomId(customId: string, path: string, warnings: ProjectionWarn
   if (customId.length <= DISCORD_CUSTOM_ID_MAX_LENGTH) return true
   warnings.push({
     code: 'custom-id-budget-exceeded',
-    message: `${path} exceeds the Discord 100 character customId limit; the related component was omitted`,
+    message: `${path} exceeds the Discord ${DISCORD_CUSTOM_ID_MAX_LENGTH} character customId limit; the related component was omitted`,
     path,
   })
   return false
@@ -121,7 +120,7 @@ function acceptGeneratedCustomId(
   customId: string | null,
   path: string,
   warnings: ProjectionWarning[]
-): boolean {
+): customId is string {
   if (customId !== null) return acceptCustomId(customId, path, warnings)
   warnings.push({
     code: 'invalid-custom-id-part',
@@ -231,7 +230,7 @@ function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
     description = truncate(description, Math.max(0, baseBudget))
     warnings.push({
       code: 'embed-truncated',
-      message: 'embed description was truncated to fit the Discord 6000 character total limit',
+      message: `embed description was truncated to fit the Discord ${DISCORD_EMBED_TOTAL_MAX_LENGTH} character total limit`,
       path: 'templateVersion',
     })
   }
@@ -267,7 +266,7 @@ function buildEmbed(input: DiscordProjectionInput): Result<DiscordEmbedModel> {
     if (usedCharacters + fieldCharacters > DISCORD_EMBED_TOTAL_MAX_LENGTH) {
       warnings.push({
         code: 'embed-truncated',
-        message: 'resource fields were omitted to fit the Discord 6000 character embed limit',
+        message: `resource fields were omitted to fit the Discord ${DISCORD_EMBED_TOTAL_MAX_LENGTH} character embed limit`,
         path: 'palette',
       })
       break
@@ -294,15 +293,7 @@ function buildRollButton(
 ): DiscordButtonModel | undefined {
   if (!validateIdPart(entry.key, `palette.${entry.key}.key`, warnings)) return undefined
   const customId = createRollPaletteCustomId(channelId, entry.key)
-  if (customId === null) {
-    warnings.push({
-      code: 'invalid-custom-id-part',
-      message: `palette.${entry.key} cannot be represented by the roll customId contract; the action was omitted`,
-      path: `palette.${entry.key}.customId`,
-    })
-    return undefined
-  }
-  if (!acceptCustomId(customId, `palette.${entry.key}.customId`, warnings)) return undefined
+  if (!acceptGeneratedCustomId(customId, `palette.${entry.key}.customId`, warnings)) return undefined
   const rawLabel = labelOrFallback(
     entry.label,
     entry.fieldRef.uid || entry.key,
@@ -332,6 +323,7 @@ function buildResourceButtons(
       continue
     }
     const customId = createResourceDeltaCustomId(channelId, entry.key, delta)
+    // The canonical delta guard above, validateIdPart, and caller-side validateChannelId make null unreachable; keep fail-closed.
     if (customId === null) continue
     if (!acceptCustomId(customId, `palette.${entry.key}.customId`, warnings)) continue
     const entryLabel = labelOrFallback(
@@ -400,6 +392,7 @@ function buildGroupSelect(
   const groups = createGroupReferences(palette, warnings)
   if (groups.length === 0) return { value: undefined, warnings }
   const menuCustomId = createHubGroupSelectCustomId(channelId)
+  // validateChannelId above makes null unreachable; keep fail-closed.
   if (menuCustomId === null) return { value: undefined, warnings }
   if (!acceptCustomId(menuCustomId, 'groupSelect.menuCustomId', warnings)) return { value: undefined, warnings }
   const hasMore = groups.length > GROUP_SELECT_VISIBLE_LIMIT
@@ -427,14 +420,6 @@ export function createGroupSelect(
   channelId: string
 ): DiscordGroupSelectModel | undefined {
   return buildGroupSelect(palette, channelId).value
-}
-
-export function createHubViewModel(input: DiscordProjectionInput): HubViewModel {
-  return {
-    embed: buildEmbed(input).value,
-    pinnedButtonRows: buildPinnedButtonRows(input.palette, input.channelId, input.pinnedKeys).value,
-    groupSelect: buildGroupSelect(input.palette, input.channelId).value,
-  }
 }
 
 function collectProjectionWarnings(input: DiscordProjectionInput): ProjectionWarning[] {
@@ -513,15 +498,7 @@ function pageButton(
   customId: string | null,
   warnings: ProjectionWarning[]
 ): DiscordButtonModel | undefined {
-  if (customId === null) {
-    warnings.push({
-      code: 'invalid-custom-id-part',
-      message: `${action}.${label} cannot be represented by the customId contract; the action was omitted`,
-      path: `${action}.${label}`,
-    })
-    return undefined
-  }
-  if (!acceptCustomId(customId, `${action}.${label}`, warnings)) return undefined
+  if (!acceptGeneratedCustomId(customId, `${action}.${label}`, warnings)) return undefined
   return { type: 'button', action, label, customId, style: 'secondary' }
 }
 

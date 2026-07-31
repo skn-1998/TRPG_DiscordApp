@@ -1,4 +1,5 @@
 import { AstNode, countAstNodes } from './ast';
+import { assertArity } from './arity';
 import { isPartsValue } from './parts-value';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, isComputedField, refKey, resolveRefPath, TemplateIndex } from './template-index';
@@ -511,12 +512,6 @@ function numbersEqual(left: number, right: number): boolean {
 function normalizeEpsilon(value: number): number {
   const rounded = Math.round(value);
   return Math.abs(value - rounded) <= EPSILON ? rounded : value;
-}
-
-function assertArity(name: string, args: { length: number }, expected: number): void {
-  if (args.length !== expected) {
-    throw new Error(`${name} expects ${expected} arguments`);
-  }
 }
 
 function numberOrZero(value: unknown): number {
