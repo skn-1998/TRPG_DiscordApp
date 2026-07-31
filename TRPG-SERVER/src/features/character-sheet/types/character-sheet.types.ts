@@ -1,32 +1,12 @@
-import type { CharacterEntity } from '../../../domains/character/models/character.entity'
+import type {
+  CharacterEntity,
+  CharacterPaletteEntry as PaletteEntry,
+  CharacterSheetState
+} from '../../../domains/character/models/character.entity'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import type { AttributeSection } from '../../../core/types/attribute.types'
 
-export interface CharacterSheetState {
-  templateId: string
-  templateVersion: string
-  revision: number
-  values: Record<string, unknown>
-}
-
-interface PaletteEntryBase {
-  key: string
-  fieldRef: { uid: string; rowId?: string }
-  label: string
-  group: string
-}
-
-export type PaletteEntry =
-  | (PaletteEntryBase & {
-      kind: 'roll'
-      notation: string
-      deltas?: never
-    })
-  | (PaletteEntryBase & {
-      kind: 'resource'
-      notation?: never
-      deltas: number[]
-    })
+export type { CharacterSheetState, PaletteEntry }
 
 export interface CharacterSheetProjection {
   status: AttributeSection
