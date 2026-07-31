@@ -9,7 +9,6 @@ import {
   CharacterSheetTemplateSchema
 } from './models/character-sheet-template.model'
 import { CharacterSheetTemplateRepository } from './repositories/character-sheet-template.repository'
-import { BasicTemplateValidationService } from './validation/basic-template-validation.service'
 import { SheetEngineTemplateValidationService } from './validation/sheet-engine-template-validation.service'
 import { TEMPLATE_VALIDATION_PORT } from './validation/template-validation.port'
 
@@ -28,9 +27,6 @@ import { TEMPLATE_VALIDATION_PORT } from './validation/template-validation.port'
   providers: [
     CharacterSheetTemplateService,
     CharacterSheetTemplateRepository,
-    // Spec reference implementation only, not a runtime fallback.
-    // Runtime validation authority is SheetEngineTemplateValidationService via TEMPLATE_VALIDATION_PORT.
-    BasicTemplateValidationService,
     SheetEngineTemplateValidationService,
     {
       provide: TEMPLATE_VALIDATION_PORT,
