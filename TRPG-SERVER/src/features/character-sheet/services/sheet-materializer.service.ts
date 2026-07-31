@@ -1,9 +1,13 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common'
 import { buildValueInputSchema, evaluateTemplate, interpolateNotation } from '@trpg/sheet-engine'
-import type { EvaluationResult, RuntimeValue, SheetField, SheetSection, SheetTemplate } from '@trpg/sheet-engine'
+import type { EvaluationResult, RuntimeValue, SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
 import { AttributeValue, isAttributeSection } from '../../../core/types/attribute.types'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
+import {
+  isProjectedFieldType,
+  projectionTarget
+} from '../../../domains/character-sheet-template/validation/projection-key-validation'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import {
   CharacterSheetProjection,
@@ -164,10 +168,10 @@ export class SheetMaterializerService {
     }
 
     template.sections.forEach((section, sectionIndex) => {
-      const target = this.projectionTarget(section)
+      const target = projectionTarget(section.id)
 
       section.fields.forEach((field, fieldIndex) => {
-        if (!this.isProjectionField(field)) {
+        if (!isProjectedFieldType(field.type)) {
           return
         }
 
@@ -245,19 +249,6 @@ export class SheetMaterializerService {
     }
 
     return entries
-  }
-
-  private projectionTarget(section: SheetSection): keyof CharacterSheetProjection {
-    if (
-      section.id === 'status' ||
-      section.id === 'parameter' ||
-      section.id === 'skill' ||
-      section.id === 'item' ||
-      section.id === 'description'
-    ) {
-      return section.id
-    }
-    return 'description'
   }
 
   private toAttributeValue(field: SheetField, index: number, value: RuntimeValue, rawValue: unknown): AttributeValue {
@@ -403,10 +394,6 @@ export class SheetMaterializerService {
         ])
       }
     }
-  }
-
-  private isProjectionField(field: SheetField): boolean {
-    return field.type === 'scalar' || field.type === 'computed' || field.type === 'track' || field.type === 'roll'
   }
 
   private extractFieldUid(message: string): string | undefined {
