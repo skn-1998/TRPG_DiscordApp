@@ -24,11 +24,15 @@ const DEFAULT_AST_NODE_LIMIT = 256;
 // 根拠: エディタ生成 uid は16文字（v3Template.ts createStableUid）・canonical path 写し規約は最大98文字・応答封筒予算 4,096 bytes
 const MAX_UID_LENGTH = 128;
 const MAX_LABEL_LENGTH = 128;
+const MAX_ID_LENGTH = 32;
+const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 3 + 2;
 
 const ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
 const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', 'floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
-const uidSchema = z.string().max(MAX_UID_LENGTH, `uid must be ${MAX_UID_LENGTH} characters or fewer`);
+const uidSchema = z.string()
+  .min(1, 'uid must not be empty')
+  .max(MAX_UID_LENGTH, `uid must be ${MAX_UID_LENGTH} characters or fewer`);
 const labelSchema = z.string().max(MAX_LABEL_LENGTH, `label must be ${MAX_LABEL_LENGTH} characters or fewer`);
 const nonBlankLabelSchema = labelSchema.refine((label) => label.trim().length > 0, {
   message: 'label must not be empty',
@@ -95,9 +99,14 @@ export function validatePublishTemplate(template: unknown, options: PublishValid
   const astNodeLimit = options.astNodeLimit ?? DEFAULT_AST_NODE_LIMIT;
   const index = buildTemplateIndex(sheet);
   const uids = new Map<string, string>();
+  // フロント v3Template.ts の editor uid/id 検査と、サーバ projection-key-validation.ts の投影キー正本に
+  // 意図的に重ねる多層防御。層間で乖離した場合は両ファイルを参照する。
+  const canonicalFieldPaths = new Set<string>();
+  const tableIds = new Set<string>();
 
   for (const table of sheet.tables) {
     validateId(`tables.${table.id}.id`, table.id, issues);
+    validateUniqueReferenceKey(table.id, tableIds, issues, `tables.${table.id}.id`, 'table id');
     if (table.rows.length > tableRowLimit) {
       issues.push({ path: `tables.${table.id}.rows`, message: `Lookup table row limit exceeded: ${table.rows.length} > ${tableRowLimit}` });
     }
@@ -106,7 +115,7 @@ export function validatePublishTemplate(template: unknown, options: PublishValid
   for (const section of sheet.sections) {
     validateId(`sections.${section.id}.id`, section.id, issues);
     for (const field of section.fields) {
-      validateField(sheet, field, issues, resolvedRefs, uids, astNodeLimit, `${section.id}.${field.id}`);
+      validateField(sheet, field, issues, resolvedRefs, uids, canonicalFieldPaths, astNodeLimit, `${section.id}.${field.id}`);
     }
   }
 
@@ -121,11 +130,19 @@ function validateField(
   issues: PublishIssue[],
   refs: Map<string, ResolvedRef>,
   uids: Map<string, string>,
+  canonicalFieldPaths: Set<string>,
   astNodeLimit: number,
   path: string,
   parentList?: ListField,
 ): void {
   validateId(`${path}.id`, field.id, issues);
+  validateUniqueReferenceKey(
+    path,
+    canonicalFieldPaths,
+    issues,
+    path,
+    'canonical path',
+  );
   if (uids.has(field.uid)) {
     issues.push({ path, message: `uid must be unique: ${field.uid}` });
   }
@@ -166,9 +183,30 @@ function validateField(
       if (subField.type === 'list') {
         issues.push({ path: `${path}.${subField.id}`, message: 'list inside list is not supported' });
       }
-      validateField(template, subField, issues, refs, uids, astNodeLimit, `${path}.${subField.id}`, field);
+      validateField(template, subField, issues, refs, uids, canonicalFieldPaths, astNodeLimit, `${path}.${subField.id}`, field);
     }
   }
+}
+
+function validateUniqueReferenceKey(
+  key: string,
+  seen: Set<string>,
+  issues: PublishIssue[],
+  path: string,
+  keyName: 'canonical path' | 'table id',
+): void {
+  if (seen.has(key)) {
+    issues.push({
+      path: truncateIssueInput(path),
+      message: `${keyName} must be unique: ${truncateIssueInput(key)}`,
+    });
+  }
+  seen.add(key);
+}
+
+function truncateIssueInput(value: string): string {
+  if (value.length <= MAX_CANONICAL_FIELD_PATH_LENGTH) return value;
+  return `${value.slice(0, MAX_CANONICAL_FIELD_PATH_LENGTH - 1)}…`;
 }
 
 function validateTrack(

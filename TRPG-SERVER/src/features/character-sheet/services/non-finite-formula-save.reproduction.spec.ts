@@ -92,8 +92,7 @@ describe('non-finite formula save reproduction', () => {
     status: {},
     parameter: {
       numerator: { name: 'Numerator', index: 0, values: { base: 1 }, isVisible: true },
-      denominator: { name: 'Denominator', index: 1, values: { base: 1 }, isVisible: true },
-      quotient: { name: 'Quotient', index: 2, values: { base: 1 }, isVisible: true }
+      denominator: { name: 'Denominator', index: 1, values: { base: 1 }, isVisible: true }
     },
     skill: {},
     item: {},
@@ -325,15 +324,24 @@ describe('non-finite formula save reproduction', () => {
     expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
   })
 
-  it('同じ projection target と id の後続フィールドに上書きされる非有限 computed は保存を妨げない', async () => {
+  it('canonical path が異なる同じ projection target と id の後続フィールドに上書きされる非有限 computed は保存を妨げない', async () => {
     const collisionTemplate: CharacterSheetTemplateEntity = {
       ...template,
       templateId: 'division-by-zero-id-collision-template',
       sections: [
         {
           ...template.sections[0],
+          fields: templateFields.filter((field) => field.id !== 'quotient')
+        },
+        {
+          id: 'derived_infinite',
+          label: 'Derived infinite',
+          fields: templateFields.filter((field) => field.id === 'quotient')
+        },
+        {
+          id: 'derived_override',
+          label: 'Derived override',
           fields: [
-            ...templateFields,
             {
               id: 'quotient',
               uid: 'uid-quotient-override',
@@ -382,7 +390,7 @@ describe('non-finite formula save reproduction', () => {
     expect(repository.saveSheetMaterialized.mock.calls[0][1]).toEqual(
       expect.objectContaining({
         computedCache: { 'uid-quotient': Number.POSITIVE_INFINITY },
-        parameter: expect.objectContaining({
+        description: expect.objectContaining({
           quotient: expect.objectContaining({ values: { base: 42 } })
         })
       })
