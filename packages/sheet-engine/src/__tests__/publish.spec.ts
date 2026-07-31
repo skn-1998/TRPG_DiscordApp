@@ -69,6 +69,37 @@ describe('publish validation rejects unsupported v1 surface', () => {
     expect(validatePublishTemplate(unknownField).ok).toBe(false);
   });
 
+  it('rejects unknown list rowRole kinds', () => {
+    const template = {
+      ...baseTemplate(),
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            {
+              type: 'list',
+              id: 'items',
+              uid: 'main.items',
+              label: 'Items',
+              rowRole: { kind: 'secret' },
+              itemFields: [
+                { type: 'scalar', id: 'name', uid: 'items.name', label: 'Name', valueType: 'text' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = validatePublishTemplate(template);
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ path: 'sections.0.fields.0.rowRole.kind' }),
+    );
+  });
+
   it('rejects RollField in itemFields and nested lists in list itemFields', () => {
     const template = baseTemplate({
       sections: [
