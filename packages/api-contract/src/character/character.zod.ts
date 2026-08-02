@@ -9,6 +9,7 @@
 import { z } from 'zod'
 
 const finiteNumberSchema = z.number().finite()
+const PALETTE_MAX_ENTRIES = 512
 
 export const attributeValueSchema = z
   .object({
@@ -117,7 +118,7 @@ export const characterEntitySchema = z
     sheet: characterSheetStateSchema.optional(),
     templatePin: characterTemplatePinSchema.optional(),
     computedCache: computedCacheSchema.optional(),
-    palette: z.array(characterPaletteEntrySchema).max(512).optional(),
+    palette: z.array(characterPaletteEntrySchema).max(PALETTE_MAX_ENTRIES).optional(),
     hub: characterHubSchema.optional(),
     appliedInteractionIds: appliedInteractionIdsSchema.optional(),
     createdAt: z.date().optional(),
@@ -137,7 +138,7 @@ export const materializedCharacterEntitySchema = characterEntitySchema.omit({ te
   templatePin: z.never().optional(),
   sheet: characterSheetStateSchema,
   computedCache: computedCacheSchema,
-  palette: z.array(characterPaletteEntrySchema).max(512),
+  palette: z.array(characterPaletteEntrySchema).max(PALETTE_MAX_ENTRIES),
   hub: characterHubSchema,
   appliedInteractionIds: appliedInteractionIdsSchema,
   status: attributeSectionSchema,
@@ -151,7 +152,7 @@ export const saveSheetMaterializedPayloadSchema = z
   .object({
     values: z.record(z.string(), z.unknown()),
     computedCache: computedCacheSchema,
-    palette: z.array(characterPaletteEntrySchema).max(512),
+    palette: z.array(characterPaletteEntrySchema).max(PALETTE_MAX_ENTRIES),
     status: attributeSectionSchema,
     skill: attributeSectionSchema,
     parameter: attributeSectionSchema,

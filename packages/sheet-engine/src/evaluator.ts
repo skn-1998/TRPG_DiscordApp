@@ -14,6 +14,7 @@ import {
   SheetTemplate,
 } from './types';
 
+// publish.ts にも同じ既定値がある。変更時は publish 受理と評価限界が分裂しないよう両方を揃える。
 const DEFAULT_AST_NODE_LIMIT = 256;
 const DEFAULT_STEP_LIMIT = 10_000;
 export const EPSILON = 1e-9;

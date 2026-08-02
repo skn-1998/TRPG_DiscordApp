@@ -20,6 +20,7 @@ import {
 } from './types';
 
 const DEFAULT_TABLE_ROW_LIMIT = 512;
+// evaluator.ts にも同じ既定値がある。変更時は publish 受理と評価限界が分裂しないよう両方を揃える。
 const DEFAULT_AST_NODE_LIMIT = 256;
 // publish 境界で診断増幅（実測 100KB〜1.2MB 応答）を発生源で止める上限。裸の z.string() に戻さないこと。
 // 根拠: エディタ生成 uid は最大45文字（section.id 最大32 + '_' + random 12）・canonical path 写し規約は最大131文字（4セグメント: section.list.relation.attr）・応答封筒予算 4,096 bytes

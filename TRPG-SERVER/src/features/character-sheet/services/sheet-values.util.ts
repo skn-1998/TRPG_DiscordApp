@@ -12,6 +12,9 @@ export function isResourceField(field: SheetField): field is Extract<SheetField,
   return field.role?.kind === 'resource' && allowsParts(field)
 }
 
+// engine 版は parts キーを緩く検出し、各呼び出し側が中身を厳格に検査するか拒絶する。
+// server 版はここで parts の中身がレコードであることまで要求する。
+// engine 版は index.ts から re-export されないため、server はこの厳格版を個別に持つ。
 export function isPartsValue(value: unknown): value is SheetPartsValue {
   return (
     typeof value === 'object' &&

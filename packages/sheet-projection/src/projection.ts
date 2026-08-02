@@ -584,6 +584,9 @@ export function createGroupBrowser(input: GroupBrowserInput): GroupBrowserViewMo
     currentPage * GROUP_BROWSER_PAGE_SIZE
   )
   const menuCustomId = createHubGroupBrowserCustomId(input.channelId, currentPage)
+  // Invalid channels make the factory return null; channelValid && short-circuits before this null check.
+  // With a valid channel, clampPage returns 1..totalPages, so the factory's page pattern cannot return null.
+  // Keep both null checks: they narrow menuCustomId for acceptCustomId and the returned view model.
   const menuAccepted =
     channelValid && menuCustomId !== null && acceptCustomId(menuCustomId, 'groupBrowser.menuCustomId', warnings)
   const options = menuAccepted
