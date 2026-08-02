@@ -39,6 +39,7 @@ interface ProjectionBuildResult {
 
 @Injectable()
 export class SheetMaterializerService {
+  // api-contract の palette 上限と同値に保つ。パッケージ境界を増やさないため定数は共有しない。
   private static readonly PALETTE_HARD_CAP = 512
 
   validateInputValues(

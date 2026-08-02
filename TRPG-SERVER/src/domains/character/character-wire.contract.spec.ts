@@ -6,8 +6,9 @@
  * →repositories/character.repository.ts:74-77（optional 入力を素通しし、永続化前に undefined キーを除去する）。
  */
 import type { CharacterSummaryWire, CharacterWire } from '@trpg/api-contract'
+import type { ProjectionPaletteEntry } from '@trpg/sheet-projection'
 import type { CharacterSummaryDto } from './dto/character-summary.dto'
-import type { CharacterEntity } from './models/character.entity'
+import type { CharacterEntity, CharacterPaletteEntry } from './models/character.entity'
 
 type Serialized<T> = T extends Date
   ? string
@@ -44,6 +45,38 @@ type MismatchedValueKeys<Actual, Expected> = {
     ? never
     : Key
 }[keyof Actual & keyof Expected]
+
+type CharacterPaletteExact = AssertNever<
+  IsExact<CharacterPaletteEntry, ProjectionPaletteEntry> extends true ? never : 'Mismatch'
+>
+// IsExact が見逃す pure optional 追加を、両 variant と入れ子 fieldRef の双方向 optionality 差分で補う。
+type CharacterPaletteRollOptionalityMismatches = AssertBothNever<
+  Exclude<
+    OptionalKeys<Extract<CharacterPaletteEntry, { kind: 'roll' }>>,
+    OptionalKeys<Extract<ProjectionPaletteEntry, { kind: 'roll' }>>
+  >,
+  Exclude<
+    OptionalKeys<Extract<ProjectionPaletteEntry, { kind: 'roll' }>>,
+    OptionalKeys<Extract<CharacterPaletteEntry, { kind: 'roll' }>>
+  >
+>
+type CharacterPaletteResourceOptionalityMismatches = AssertBothNever<
+  Exclude<
+    OptionalKeys<Extract<CharacterPaletteEntry, { kind: 'resource' }>>,
+    OptionalKeys<Extract<ProjectionPaletteEntry, { kind: 'resource' }>>
+  >,
+  Exclude<
+    OptionalKeys<Extract<ProjectionPaletteEntry, { kind: 'resource' }>>,
+    OptionalKeys<Extract<CharacterPaletteEntry, { kind: 'resource' }>>
+  >
+>
+type CharacterPaletteFieldRefOptionalityMismatches = AssertBothNever<
+  Exclude<OptionalKeys<CharacterPaletteEntry['fieldRef']>, OptionalKeys<ProjectionPaletteEntry['fieldRef']>>,
+  Exclude<OptionalKeys<ProjectionPaletteEntry['fieldRef']>, OptionalKeys<CharacterPaletteEntry['fieldRef']>>
+>
+type CharacterPaletteValueTypeMismatches = AssertNever<
+  MismatchedValueKeys<CharacterPaletteEntry, ProjectionPaletteEntry>
+>
 
 type SerializedCharacter = Serialized<CharacterEntity>
 type CharacterPayloadWire = Omit<CharacterWire, '_id' | '__v'>
