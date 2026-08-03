@@ -85,7 +85,7 @@ describe('classifyDicePreviewError', () => {
     [422, 'invalid notation', 'BCDice がこのダイス記法を受理できませんでした。'],
     [429, 'dice preview rate limit exceeded', 'ロール回数の上限に達しました。']
   ])('status %i を固有の文言へ分類する', (status, message, expectedPrefix) => {
-    const classified = classifyDicePreviewError({ status, message })
+    const classified = classifyDicePreviewError({ status, messages: [message] })
 
     expect(classified).toContain(expectedPrefix)
     expect(classified).toContain(message)
@@ -94,10 +94,10 @@ describe('classifyDicePreviewError', () => {
   it('network failure は notation 不正とは異なる文言にする', () => {
     const networkMessage = classifyDicePreviewError({
       status: 502,
-      message: 'upstream unavailable',
-      code: DICE_PREVIEW_NETWORK_ERROR_CODE
+      messages: ['upstream unavailable'],
+      errorCode: DICE_PREVIEW_NETWORK_ERROR_CODE
     })
-    const notationMessage = classifyDicePreviewError({ status: 400, message: 'invalid notation' })
+    const notationMessage = classifyDicePreviewError({ status: 400, messages: ['invalid notation'] })
 
     expect(networkMessage).toBe('ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。')
     expect(networkMessage).not.toBe(notationMessage)
@@ -112,12 +112,11 @@ describe('readDicePreviewActionData', () => {
     })
   })
 
-  it('Nest の message 配列を status ごとのエラーへ変換する', () => {
+  it('route が正規化した action エラーを status ごとの文言へ変換する', () => {
     expect(
       readDicePreviewActionData({
-        statusCode: 422,
-        message: ['invalid notation', 'BCDice rejected'],
-        error: 'Unprocessable Entity'
+        status: 422,
+        messages: ['invalid notation', 'BCDice rejected']
       })
     ).toEqual({
       ok: false,

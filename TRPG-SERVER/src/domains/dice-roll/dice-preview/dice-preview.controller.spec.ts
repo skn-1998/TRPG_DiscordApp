@@ -1,7 +1,10 @@
-import { ExecutionContext, INestApplication, UnauthorizedException } from '@nestjs/common'
+import { ExecutionContext, INestApplication, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
+import type { ErrorEnvelope } from '@trpg/api-contract'
 import { Request } from 'express'
 import request from 'supertest'
+import { AppConfigService } from '../../../config/config.service'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../../core/http/global-exception.filter'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { DicePreviewController } from './dice-preview.controller'
 import { DicePreviewService } from './dice-preview.service'
@@ -19,7 +22,11 @@ describe('DicePreviewController', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [DicePreviewController],
-      providers: [{ provide: DicePreviewService, useValue: dicePreviewService }]
+      providers: [
+        { provide: DicePreviewService, useValue: dicePreviewService },
+        { provide: AppConfigService, useValue: { get: jest.fn().mockReturnValue('test') } },
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
+      ]
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
@@ -65,5 +72,28 @@ describe('DicePreviewController', () => {
     await request(app.getHttpServer()).post('/dice-roll/preview').send({ notation: '1d6' }).expect(401)
 
     expect(dicePreviewService.preview).not.toHaveBeenCalled()
+  })
+
+  it('service の 422 は GlobalExceptionFilter を通り ErrorEnvelope で返る', async () => {
+    dicePreviewService.preview.mockRejectedValue(new UnprocessableEntityException(['invalid notation']))
+
+    const response = await request(app.getHttpServer())
+      .post('/dice-roll/preview')
+      .set('Authorization', 'Bearer test-token')
+      .send({ notation: '1d6' })
+      .expect(422)
+    const body = response.body as ErrorEnvelope
+
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: 'invalid notation',
+        details: [{ message: 'invalid notation' }]
+      })
+    )
+    expect(body.timestamp).toEqual(expect.any(Number))
+    expect(body.requestId).toEqual(expect.any(String))
+    expect(body).not.toHaveProperty('statusCode')
   })
 })

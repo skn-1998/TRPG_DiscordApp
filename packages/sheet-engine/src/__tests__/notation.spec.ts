@@ -71,6 +71,33 @@ describe('notation publish validation', () => {
     expect(validatePublishTemplate(template).issues.map((issue) => issue.message)).toContain('rowRole cannot use {value}; use {row.subFieldId}');
   });
 
+  it('returns issues for unclosed RollField and role notation tokens without throwing', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'roll', id: 'damage', uid: 'main.damage', label: 'Damage', notation: '1d6{' },
+            {
+              type: 'scalar',
+              id: 'attack',
+              uid: 'main.attack',
+              label: 'Attack',
+              valueType: 'number',
+              role: { kind: 'rollable', notation: '1d20{' },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues).toEqual(expect.arrayContaining([
+      { path: 'main.damage.notation', message: 'unclosed notation token' },
+      { path: 'main.attack', message: 'unclosed notation token' },
+    ]));
+  });
+
   it('rejects free text {value} and free text field references in notation', () => {
     const template = baseTemplate({
       sections: [

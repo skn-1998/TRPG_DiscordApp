@@ -5,14 +5,16 @@ import {
   DICE_PREVIEW_INVALID_RESPONSE_CODE,
   DICE_PREVIEW_NETWORK_ERROR_CODE
 } from '~/features/characterTemplate/utils/dicePreview'
+import type { DicePreviewActionError } from '~/features/characterTemplate/utils/dicePreview'
 import { apiClient, clearServerRequestContext, setServerRequestContext, withJwt } from '~/lib/api-client'
+import { errorEnvelopeMessages, isErrorEnvelope } from '~/lib/api-response.util'
 
 const DICE_PREVIEW_PATH = '/dice-roll/preview'
 
 export async function action({ request }: ActionFunctionArgs) {
   const jwt = getJwtFromRequest(request)
   if (!jwt) {
-    return json({ statusCode: 401, message: '認証が必要です', error: 'Unauthorized' }, { status: 401 })
+    return json<DicePreviewActionError>({ status: 401, messages: ['認証が必要です'] }, { status: 401 })
   }
 
   setServerRequestContext(request, jwt)
@@ -21,10 +23,9 @@ export async function action({ request }: ActionFunctionArgs) {
     if (!parsedRequest.success) {
       return json(
         {
-          statusCode: 400,
-          message: parsedRequest.error.issues.map((issue) => issue.message),
-          error: 'Bad Request'
-        },
+          status: 400,
+          messages: parsedRequest.error.issues.map((issue) => issue.message)
+        } satisfies DicePreviewActionError,
         { status: 400 }
       )
     }
@@ -34,11 +35,10 @@ export async function action({ request }: ActionFunctionArgs) {
     if (!parsedResponse.success) {
       return json(
         {
-          statusCode: 502,
-          message: 'ダイスロールサーバーの応答形式が不正です',
-          error: 'Bad Gateway',
-          code: DICE_PREVIEW_INVALID_RESPONSE_CODE
-        },
+          status: 502,
+          messages: ['ダイスロールサーバーの応答形式が不正です'],
+          errorCode: DICE_PREVIEW_INVALID_RESPONSE_CODE
+        } satisfies DicePreviewActionError,
         { status: 502 }
       )
     }
@@ -47,16 +47,33 @@ export async function action({ request }: ActionFunctionArgs) {
   } catch (error) {
     const upstreamResponse = getUpstreamResponse(error)
     if (upstreamResponse) {
-      return json(upstreamResponse.data, { status: upstreamResponse.status })
+      if (isErrorEnvelope(upstreamResponse.data)) {
+        return json(
+          {
+            status: upstreamResponse.status,
+            messages: errorEnvelopeMessages(upstreamResponse.data),
+            ...(upstreamResponse.data.errorCode ? { errorCode: upstreamResponse.data.errorCode } : {})
+          } satisfies DicePreviewActionError,
+          { status: upstreamResponse.status }
+        )
+      }
+
+      return json(
+        {
+          status: 502,
+          messages: ['ダイスロールサーバーの応答形式が不正です'],
+          errorCode: DICE_PREVIEW_INVALID_RESPONSE_CODE
+        } satisfies DicePreviewActionError,
+        { status: 502 }
+      )
     }
 
     return json(
       {
-        statusCode: 502,
-        message: 'ダイスロールサーバーに接続できませんでした',
-        error: 'Bad Gateway',
-        code: DICE_PREVIEW_NETWORK_ERROR_CODE
-      },
+        status: 502,
+        messages: ['ダイスロールサーバーに接続できませんでした'],
+        errorCode: DICE_PREVIEW_NETWORK_ERROR_CODE
+      } satisfies DicePreviewActionError,
       { status: 502 }
     )
   } finally {
