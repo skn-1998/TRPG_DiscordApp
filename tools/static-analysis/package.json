@@ -1,0 +1,14 @@
+{
+  "name": "@trpg/static-analysis",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "analyze:deps": "ts-node --transpile-only src/analyze-dependencies.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "ts-morph": "28.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
