@@ -115,7 +115,7 @@
 
 - [document/phase0-character-sheet.md](../phase0-character-sheet.md) … Phase 0 設計（`CharacterSheetTemplate` 型の初案 §4.1.3、description/式の二重用リスク §5）
 - `trpg-remix-app/app/features/characterTemplate/AI.{feature,types,ui,api,security}.md` … フロント DSL（schemaVersion 2）と式エンジン仕様
-- `trpg-remix-app/app/routes/mock.template-editor.tsx` / `mock.template-gallery.tsx` … エディタ / ギャラリーの mock 実装
+- mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は V3 server draft（`trpg-remix-app/app/routes/templates.tsx` / `templates.$id.edit.tsx`）
 - `TRPG-SERVER/src/core/types/attribute.types.ts` … AttributeValue / AttributeSection（現行の正本）
 - `TRPG-SERVER/src/domains/character/` … character ドメイン（設計ガイド: `.claude/skills/trpg-domain-character/SKILL.md`）
 - `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md` … 実コード根拠の機能棚卸し（Discord 側の消費実態）

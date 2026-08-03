@@ -14,7 +14,7 @@
  ## 直近の完了・安定状況（フロント）
  - 統合型定義システム（`app/types/api.ts`）の導入完了
  - APIクライアント/レスポンスの型安全化
- - テンプレートエディタのUI追加（`app/routes/mock.template-editor.tsx`）
+ - mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` / `app/routes/templates.$id.edit.tsx`）
  
  ## 進行中の設計変更・移行
  - **Discord Interactions のRegistry方式移行**

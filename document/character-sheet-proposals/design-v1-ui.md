@@ -32,8 +32,8 @@ SheetTemplate（正本・schema v3）
 
 ## 1. テンプレート作成UI（エディタ）
 
-既存 mock（`mock.template-editor.tsx` ＋ `features/characterTemplate`: schema v2・固定4タブ・localStorage 正）を
-schema v3 へ拡張・置換する。Mantine v7・モバイル方針・THEME.md に従う。
+mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は
+V3 server draft（`templates.tsx` / `templates.$id.edit.tsx`）。Mantine v7・モバイル方針・THEME.md に従う。
 
 ### 画面構成
 

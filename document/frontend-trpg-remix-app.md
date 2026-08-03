@@ -7,9 +7,8 @@
  - API: Axios + 統合型定義（`app/types/api.ts`）
  
  ## 最近の変更ポイント
- - テンプレートエディタ画面のUI追加  
-   - `app/routes/mock.template-editor.tsx`
-   - `Editor` と `Preview` をタブ切り替えで表示
+ - mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）
+   - エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` / `app/routes/templates.$id.edit.tsx`）
  
  ## 設計メモ
  - Feature-based 構成（`features/`）が中心
