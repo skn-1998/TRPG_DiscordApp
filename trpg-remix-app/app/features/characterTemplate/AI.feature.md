@@ -2,6 +2,14 @@
 
 > **正本注記（2026-08-04）**: 本文の「実装未着手」は V2 世代の記述で現行と不一致。V3（server draft 正）は
 > 実装済みで、正本は `document/character-sheet-proposals/design-v1.md`（DSL）と design-v1-ui.md（UI）。
+>
+> **V2 実装は削除済み（#62 A2・2026-08-04）**: 本文が言及する V2 スタック
+> （Preview.tsx / Editor.tsx / formulaEngine / validation / dependencyGraph /
+> useFieldCalculation / useTemplateValidation / useLocalPersistence・計1,534行）は削除した。
+> 現行実装は V3（TemplateEditorV3 / TemplatePreviewV3・検証は engine の
+> validatePublishTemplate＋validateStandaloneRollNotations・ロール実行は server BCDice の
+> `POST /dice-roll/preview`）。utils/diceRoller.ts のみ B4 で削除予定の残置。
+> 以降の本文は歴史的記録として保持。
 
 > **関連（2026-07-06 追記）**: サーバー連携・キャラクタードメイン再設計を含む基盤全体の案出しドキュメント集を
 > `document/character-sheet-proposals/`（リポジトリルート直下・README が索引）に作成した。
