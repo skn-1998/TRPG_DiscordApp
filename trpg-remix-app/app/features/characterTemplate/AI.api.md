@@ -1,5 +1,9 @@
 # キャラクターシートテンプレート機能 — API 設計（将来サーバー統合、完全刷新版）
 
+> **正本注記（2026-08-04）**: 「当面はフロントエンドのみ」は V2 世代の記述で現行と不一致。
+> サーバー統合は実装済み（`api/sheetTemplateApi.ts` は実クライアント・契約は `@trpg/api-contract`）。
+> 現行 API の正本は contract パッケージと `document/character-sheet-proposals/design-v1.md`。
+
 当面はフロントエンドのみ（ローカル/モック）。以下はTRPG-SERVER統合時のAPI想定。
 
 ## エンドポイント（案）

@@ -1,5 +1,8 @@
 # キャラクターシートテンプレート機能 — UI 設計（完全刷新版）
 
+> **正本注記（2026-08-04）**: 本文は V2 世代（diceFormula・固定4タブ）の記述。現行 V3 エディタの正本は
+> `document/character-sheet-proposals/design-v1-ui.md` と実装（TemplateEditorV3/TemplatePreviewV3/TemplateListV3）。
+
 ## 画面構成
 
 ### エディタ画面

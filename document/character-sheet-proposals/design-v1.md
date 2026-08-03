@@ -4,7 +4,7 @@
 > **ステータス**: **確定（v1.2）** — v1 確定（Codex 討論 2R・§9）→ v1.1（UI 三面）→ **v1.2 = フィールド型充足性監査
 > （[field-sufficiency-audit.md](field-sufficiency-audit.md)・52 エージェント＋Codex レッドチーム）の反映**。
 > **前提資料**: [README.md](README.md) / [trpg-system-survey.md](trpg-system-survey.md)（P1〜P14）/ a2 / a4 / b1 / b2 / b4
-> **最終更新**: 2026-07-07
+> **最終更新**: 2026-08-04（§2.1 に RollExpression の二契約を追加・検査の二段帰属を明示）
 
 ---
 
@@ -164,11 +164,15 @@ role 補間用の断片と、単独で実行するロール式には異なる受
 - **`NotationFragment`**：role notation へ連結する断片。
   空文字、`+1d4`、`-1d4`、数値項を許容し、単独でロールできることは要求しない。
 - **`StandaloneRollExpression`**：参照解決と補間を終えた後に単独でロールできる式。
-  ダイス項を一つ以上含み、対象 `gameSystemId` の BCDice が受理することを要求する。
   定数のみの `10` は `NotationFragment` としては正当だが、この契約では拒否する。
   定数は scalar または computed で表現する。
+  検査は既存の「検証の二段構え」と同じく二段に分かれ、単一の検査器では判定しない:
+  1. **publish（B1・sheet-engine・静的）**: ダイス項を一つ以上含むこと・参照型・
+     placeholder を考慮した構文と上限。character/row の実値や BCDice には依存しない
+  2. **materialize / preview（B2〜・server）**: 補間後の最終式を対象 `gameSystemId` の
+     BCDice で検査・実行する。BCDice 受理の判定はこの段の責務であり publish では行わない
 
-| notation | fragment | standalone（B1 で導入する契約） | 旧 front roller（現状） |
+| notation | fragment | standalone 静的検査（B1・publish 段） | 旧 front roller（現状） |
 |---|---|---|---|
 | `d6` | 可 | 受理 | null（無反応） |
 | `2d6+1d4` | 可 | 受理 | null |

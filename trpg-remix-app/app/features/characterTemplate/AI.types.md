@@ -1,5 +1,9 @@
 # キャラクターシートテンプレート機能 — 型/DSL 設計（完全刷新版）
 
+> **正本注記（2026-08-04）**: 本文前半（diceFormula・`[3d6]` 記法・schemaVersion 2）は V2 世代の記述。
+> 現行 V3 の DSL/notation 正本は `document/character-sheet-proposals/design-v1.md`（RollExpression の二契約を含む）。
+> 末尾の「V3 engine 境界」節（2026-08-03 追記）のみ現行。V2 記述は #62-A2（V2 スタック削除）で doc ごと整理予定。
+
 ## タブ構造
 
 テンプレートは以下の4つのタブで構成される：
