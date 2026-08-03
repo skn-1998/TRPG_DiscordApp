@@ -12,6 +12,7 @@ import {
   migrateV2TemplateToCreateRequest,
   normalizeTemplateReferences,
   parseTags,
+  RESERVED_IDS,
   safeParseTables,
   slugifyId,
   stringifyTables,
@@ -381,12 +382,12 @@ describe('v3Template validation and JSON helpers', () => {
     { id, accepted, placement: 'field' as const }
   ])
 
-  // 件数 assert は削減方向を単独で捕捉し、増加方向では後続の等価テストとともに失敗する。
-  it('sheet-engine の予約語コーパスが既知の14語から増減したことを検出する', () => {
-    expect(SHEET_RESERVED_ID_VALUES).toHaveLength(14)
+  // 集合等価は予約語集合の差をすべて捕捉する。捕捉しないのは「同じ集合が同じように適用されるか」で、それは下の等価テスト（固定標本 ∪ engine 予約語 × section/field）が担う。
+  // front 未検査の list.itemFields / relation.attrs のネスト id と、受理真偽のみの比較で reject 理由を検証しない点は非目標。ネスト id は Task #50 で扱う。
+  it('front と sheet-engine の予約語集合が一致する', () => {
+    expect([...RESERVED_IDS].sort()).toEqual([...SHEET_RESERVED_ID_VALUES].sort())
   })
 
-  // front だけが予約語を追加して厳格化する方向と、front 未検査の list.itemFields / relation.attrs のネスト id は非目標。受理真偽のみを比較し reject 理由は検証しない。front 単独の厳格化は Task #56、ネスト id は Task #50 で扱う。
   it.each(topLevelIdCases)(
     'front と sheet-engine は top-level $placement id "$id" を同じ真偽で受理する',
     ({ id, accepted, placement }) => {
