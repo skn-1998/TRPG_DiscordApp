@@ -1,5 +1,8 @@
 # キャラクターシートテンプレート機能 — Feature 設計（完全刷新版）
 
+> **正本注記（2026-08-04）**: 本文の「実装未着手」は V2 世代の記述で現行と不一致。V3（server draft 正）は
+> 実装済みで、正本は `document/character-sheet-proposals/design-v1.md`（DSL）と design-v1-ui.md（UI）。
+
 > **関連（2026-07-06 追記）**: サーバー連携・キャラクタードメイン再設計を含む基盤全体の案出しドキュメント集を
 > `document/character-sheet-proposals/`（リポジトリルート直下・README が索引）に作成した。
 > 本 DSL（schemaVersion 2）は **案 A2（スキーマ駆動フィールド定義）の土台**として参照されており、
