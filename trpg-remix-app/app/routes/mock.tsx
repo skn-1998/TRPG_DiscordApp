@@ -11,11 +11,9 @@ import {
   Flex,
   Container,
   Stack,
-  Button,
   Group
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { Link } from '@remix-run/react'
 
 export default function MockIndex() {
   const theme = useMantineTheme()
@@ -49,12 +47,6 @@ export default function MockIndex() {
           <Stack gap="md">
             <Group>
               <MockButton />
-              <Button component={Link} to="/mock/template-editor" variant="outline">
-                テンプレートエディタ
-              </Button>
-              <Button component={Link} to="/mock/template-gallery" variant="outline">
-                テンプレートギャラリー
-              </Button>
             </Group>
             <Outlet />
           </Stack>

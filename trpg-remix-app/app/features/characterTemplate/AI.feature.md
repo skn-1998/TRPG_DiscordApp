@@ -140,7 +140,7 @@
 - 既存の基本フィールド実装（text/number/select/checkbox）は削除
 - コンポーネント全刷新（Editor, Preview）
 - Zustandストア全刷新
-- ルートは維持（`/mock/template-editor`, `/mock/template-gallery`）
+- mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` / `app/routes/templates.$id.edit.tsx`）
 
 ### データ移行
 
