@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-08-03 ts-morph 静的解析基盤の新設（tools/static-analysis・未コミット）
+
+リポジトリ直下に `tools/static-analysis/`（`@trpg/static-analysis`）を pnpm workspace パッケージとして
+新設し、ts-morph 製の解析コマンド3本を追加した。利用手順の正本は Skill
+**`.claude/skills/static-structure-audit/SKILL.md`**、実装者向けの構成は `tools/static-analysis/README.md`。
+
+- コマンド（リポジトリルートから実行。`--project <tsconfig.json>` でモノレポの任意パッケージを解析できる）
+  - `pnpm run static:deps` — ファイル/シンボル単位の fan-in・fan-out、死蔵 export
+  - `pnpm run static:independence` — 関数ごとの外部依存の実測と pure 判定・DI 依存数
+  - `pnpm run static:duplication` — AST 構造ハッシュによる同型関数の検出
+- 依存: `ts-morph@28.0.0`（TRPG-SERVER と同版。lockfile は追加32行のみで既存バージョンの変化ゼロ）
+- **2026-07-26 の「`analyze-dependencies.ts` は madge と役割が重複するため移植しない」判断を更新した**。
+  madge＝ファイル間の循環（`check:circular`）、ts-morph＝シンボル単位の被参照・死蔵、という役割分離で
+  実装し、循環検出は実装していない。サイズ計測（`refactor:large-files:analyze`）とも重複させていない
+- 実測（TRPG-SERVER）: 364ファイル・892 export・**真の死蔵候補 95件**（spec 込みでは 61件）／
+  関数1818件・pure 573・extractable 286／重複グループ47・最大複製21
+- 実行時間: deps 0.9秒 / independence 2.8秒 / duplication 0.9秒。すべて advisory・決定的
+
+### 検収で見つけて直したもの
+
+- **pure 判定の水増し**: 外側スコープのキャプチャ未検出（−90件）と DI 注入コンストラクタの空虚な pure
+  （−105件）。pure 768 → 573 に是正
+- **死蔵 export の判別不能**: `referenceCount` が他ファイル参照のみだったため、真の死蔵（`IdentifiableDto`）と
+  export を外せるだけのもの（`BaseApiResponse` = 同一ファイル内で `SuccessResponse` / `ErrorResponse` が
+  継承）が同じ顔で並んでいた。`sameFileReferenceCount` を追加して分離（227 = 95 + 132）
+- **起動形の脆さ**: ルートスクリプトが `node_modules` 内部パスを直叩きしていた。`run.js` へ1本化
+
+### 大粒度認知負荷レビューの結果（フェーズ単位のレビューでは検出できなかったもの）
+
+関数様ノードの型・述語・命名が3実装10サイトに分散し、**すでにドリフトしていた**（実測）。
+
+- `symbolName` が duplication と independence で **39件中31件不一致**
+  （`validateToken` vs `AuthService.validateToken`）
+- duplication では修正済みの改行混入バグが `scripts/refactor/analyze-large-files.ts` に残存（**44件**）
+- Skill が規定した運用（duplication の結果を review-changeability の grep スイープと突き合わせる）が、
+  結合キーの不一致で実装上成立していなかった
+
+→ `shared/function-like.ts` へ1本化（**純減 −18行**）。symbolName 不一致 31/39 → **0/39**、
+グルーピング結果・独立性の判定値はすべて不変であることを実測。
+
+### 未了・別スライス
+
+- `analyze-large-files.ts` の改行混入44件の修正（1行）。別タスクとして切り出し済み
+- 同ファイルの `tools/` への移設は**見送り**。レポート内の全 `filePath` が `src/...` →
+  `TRPG-SERVER/src/...` に変わる破壊的変更で、参照が13箇所（スキル7・doc 3・設定/コード3）あるため
+- 残存する誤検出（Skill に明記済み）: `super.method()` 経由の依存が pure 判定に映らない（11件）、
+  中身が変わる module const を読む pure（3件）
+- ゲート: `pnpm --filter trpg-server run build` 成功・`check:circular` =
+  「No circular dependency found!」（589ファイル）
+
+---
+
 ## 2026-07-26 レビュー起点の修正キャンペーン開始（S0/S1/S6 完了・未コミット）
 
 full-review-2026-07-26.md の着手順に沿い、Fable 指揮・Codex 実装・Opus5＋Codex 両輪レビューの小粒度ループで修正を開始した。

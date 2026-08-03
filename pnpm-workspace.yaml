@@ -2,6 +2,7 @@ packages:
   - "TRPG-SERVER"
   - "trpg-remix-app"
   - "packages/*"
+  - "tools/*"
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
 # server ツリー統合時に minimatch 等で time metadata 欠落が発生するため true へ緩和（2026-07-08・C-0）。

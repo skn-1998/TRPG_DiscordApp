@@ -56,6 +56,14 @@ out/
 .env
 
 .pnpm-store/
+.tmp/
 
 # Claude Code agent worktrees (harness-managed, embedded git repos)
 .claude/worktrees/
+
+# Claude Code compact snapshots (hook-generated, local-only)
+.claude/compact-log/
+
+# Codex delegation evidence (local-only, plain text; see codex-delegate skills)
+review-results/
+.codex/skills/codex-spark-consensus/runs/
