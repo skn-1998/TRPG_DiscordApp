@@ -185,6 +185,7 @@ role 補間用の断片と、単独で実行するロール式には異なる受
 | `(2d6+6)*5` | 不可 | 受理（legacy seed 使用） | null |
 | `2d6+1` | 可 | 受理 | 実行可 |
 | `1d8{derived.db}` | 不可 | 受理（リテラルダイスあり） | null |
+| `({ref})d10` | 不可 | 受理（number 参照・ダイス個数位置） | null |
 
 `StandaloneRollExpression` の検査は publish 専用とし、draft save には適用しない。
 既存の公開 revision は検査導入後も読み取り可能なまま維持する。

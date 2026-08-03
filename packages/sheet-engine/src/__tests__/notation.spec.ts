@@ -90,4 +90,56 @@ describe('notation publish validation', () => {
       'notation reference {main.name} must be number or validated fragment',
     ]));
   });
+
+  it('resolves RollField notation references into resolvedRefs', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'n', uid: 'main.n', label: 'N', valueType: 'number' },
+            { type: 'computed', id: 'frag', uid: 'main.frag', label: 'Frag', resultType: 'dice', formula: "'+1d4'" },
+            { type: 'roll', id: 'damage', uid: 'main.damage', label: 'Damage', notation: '({main.n})d10+1d8{main.frag}' },
+          ],
+        },
+      ],
+    });
+
+    const result = validatePublishTemplate(template);
+
+    expect(result.ok).toBe(true);
+    expect(result.resolvedRefs).toEqual(expect.arrayContaining([
+      { kind: 'field', path: 'main.n', uid: 'main.n' },
+      { kind: 'field', path: 'main.frag', uid: 'main.frag' },
+    ]));
+  });
+
+  it('rejects dangling and free-input RollField notation references', () => {
+    const template = baseTemplate({
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { type: 'scalar', id: 'name', uid: 'main.name', label: 'Name', valueType: 'text' },
+            { type: 'scalar', id: 'choice', uid: 'main.choice', label: 'Choice', valueType: 'select' },
+            {
+              type: 'roll',
+              id: 'damage',
+              uid: 'main.damage',
+              label: 'Damage',
+              notation: '1d8{main.name}+1d6{main.choice}+1d4{derived.db}',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validatePublishTemplate(template).issues.map((issue) => issue.message)).toEqual(expect.arrayContaining([
+      'notation reference {main.name} must be number or validated fragment',
+      'notation reference {main.choice} must be number or validated fragment',
+      'Unknown field reference: derived.db',
+    ]));
+  });
 });

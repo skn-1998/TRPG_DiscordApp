@@ -30,6 +30,8 @@ describe('standalone roll expression syntax', () => {
     '3d6*5',
     '(2d6+6)*5',
     '1d8{derived.db}',
+    '{main.n}d10',
+    '({main.n})d10',
   ])('accepts %s', (notation) => {
     expect(standaloneIssues(notation)).toEqual([]);
   });

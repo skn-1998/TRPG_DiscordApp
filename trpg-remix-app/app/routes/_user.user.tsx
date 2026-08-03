@@ -20,6 +20,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // サーバーリクエストコンテキストを設定
     setServerRequestContext(request, jwt)
 
+    // root loader と重複するが、/user/* の hard gate として意図的に /users で再検証する。
     const response = await apiClient.get('/users')
     if (!response.data) {
       console.log('Invalid JWT, redirecting to login')
@@ -34,7 +35,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     clearServerRequestContext()
   }
 
-  // 認証情報はRoot Loaderから取得できるので、追加のAPI呼び出しは不要
   return { success: true }
 }
 
