@@ -31,6 +31,8 @@ const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 4 + 3;
 
 const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
+// engine 内の runtime 参照は無いが削除不可。関数語彙の drift 等価テスト（src/__tests__/function-vocabulary.spec.ts）が唯一の consumer。
+export const SHEET_KNOWN_FUNCTION_VALUES: readonly string[] = Object.freeze([...KNOWN_FUNCTIONS]);
 const RESERVED_IDS = new Set([
   'row',
   'values',
