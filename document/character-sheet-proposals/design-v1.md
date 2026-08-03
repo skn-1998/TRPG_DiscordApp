@@ -157,6 +157,33 @@ interface ListField extends FieldBase {
   (2) materialize 時 —— **補間後の最終 notation を gameSystemId 付きで bcdice parse 検証**してから palette へ。
   失敗したエントリはエラー状態として保存し（黙って公開しない）、hub/Web に警告表示する。
 
+#### RollExpression の二契約
+
+role 補間用の断片と、単独で実行するロール式には異なる受理条件が必要になる。
+
+- **`NotationFragment`**：role notation へ連結する断片。
+  空文字、`+1d4`、`-1d4`、数値項を許容し、単独でロールできることは要求しない。
+- **`StandaloneRollExpression`**：参照解決と補間を終えた後に単独でロールできる式。
+  ダイス項を一つ以上含み、対象 `gameSystemId` の BCDice が受理することを要求する。
+  定数のみの `10` は `NotationFragment` としては正当だが、この契約では拒否する。
+  定数は scalar または computed で表現する。
+
+| notation | fragment | standalone（B1 で導入する契約） | 旧 front roller（現状） |
+|---|---|---|---|
+| `d6` | 可 | 受理 | null（無反応） |
+| `2d6+1d4` | 可 | 受理 | null |
+| `1d6+1d6+2` | 可 | 受理 | null |
+| `10` | 可 | **拒否**（定数のみ） | null |
+| `3d6*5` | 不可 | 受理（legacy seed 使用） | null |
+| `(2d6+6)*5` | 不可 | 受理（legacy seed 使用） | null |
+| `2d6+1` | 可 | 受理 | 実行可 |
+
+`StandaloneRollExpression` の検査は publish 専用とし、draft save には適用しない。
+既存の公開 revision は検査導入後も読み取り可能なまま維持する。
+ロールの実行主体は server の BCDice とし、旧 front roller の対応記法を拡張せず、sheet-engine に乱数実行を追加しない。
+
+実装は B1（engine 検証）、B2（server preview endpoint）、B3（UI 接続）、B4（旧 roller 削除）の順に進める。
+
 ### 2.2 仕様明文化（v1.2・監査反映。実装時の解釈割れ防止）
 
 1. 行内式は `{row.subFieldId}` に**加えて**通常の `{sectionId.fieldId}` を参照可。禁止は従来どおり

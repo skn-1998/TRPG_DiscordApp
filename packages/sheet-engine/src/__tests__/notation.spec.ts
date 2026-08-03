@@ -1,4 +1,4 @@
-import { evaluateTemplate, interpolateNotation, validatePublishTemplate } from '..';
+import { evaluateTemplate, interpolateNotation, isNotationFragment, validatePublishTemplate } from '..';
 import { baseTemplate } from './test-utils';
 
 describe('notation interpolation', () => {
@@ -12,6 +12,11 @@ describe('notation interpolation', () => {
           { type: 'computed', id: 'n', uid: 'main.n', label: 'N', resultType: 'number', formula: '3' },
           { type: 'computed', id: 'frag', uid: 'main.frag', label: 'Frag', resultType: 'dice', formula: "'+1d4'" },
         ],
+      },
+      {
+        id: 'derived',
+        label: 'Derived',
+        fields: [{ type: 'computed', id: 'db', uid: 'derived.db', label: 'DB', resultType: 'dice', formula: "'+1d4'" }],
       },
     ],
   });
@@ -30,6 +35,26 @@ describe('notation interpolation', () => {
 
     expect(interpolateNotation({ template, evaluated, notation: '({main.n})d10' }).notation).toBe('(3)d10');
     expect(interpolateNotation({ template, evaluated, notation: '{{literal}}+{main.n}' }).notation).toBe('{literal}+3');
+  });
+
+  it('concatenates a resolved dice fragment after the base notation', () => {
+    const evaluated = evaluateTemplate(template);
+
+    expect(interpolateNotation({ template, evaluated, notation: '1d8{derived.db}' }).notation).toBe('1d8+1d4');
+  });
+});
+
+describe('notation fragment characterization', () => {
+  it.each<[string, boolean]>([
+    ['d6', true],
+    ['2d6+1d4', true],
+    ['1d6+1d6+2', true],
+    ['10', true],
+    // Legacy CoC seed source: TRPG-SERVER/src/domains/character-sheet-template/seeds/legacy-coc.template.ts
+    ['3d6*5', false],
+    ['(2d6+6)*5', false],
+  ])('isNotationFragment(%s) returns %s', (notation, expected) => {
+    expect(isNotationFragment(notation)).toBe(expected);
   });
 });
 
