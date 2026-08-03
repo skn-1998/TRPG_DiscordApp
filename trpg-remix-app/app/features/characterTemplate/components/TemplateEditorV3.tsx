@@ -26,6 +26,7 @@ import {
   IconRocket,
   IconTrash
 } from '@tabler/icons-react'
+import { validatePublishTemplate } from '@trpg/sheet-engine'
 import type {
   CharacterSheetTemplateEntity,
   LookupTable,
@@ -45,7 +46,6 @@ import {
   toSheetTemplate,
   validateLocalTemplate
 } from '../utils/v3Template'
-import { validatePublishTemplate } from '../utils/sheetEngine'
 import { TemplatePreviewV3 } from './TemplatePreviewV3'
 
 interface TemplateEditorV3Props {

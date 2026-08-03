@@ -125,6 +125,13 @@ export default defineConfig(
           ],
           patterns: [
             {
+              group: ['@trpg/*'],
+              importNames: ['*'],
+              allowTypeImports: true,
+              message:
+                '@trpg workspace package の値 namespace import は禁止。Vite の CJS 変換設定退行を build error で検出できる named import を使用する（根拠: `vite.config.mjs` の CJS interop コメント）'
+            },
+            {
               group: ['@trpg/api-contract/*'],
               message: '契約パッケージはルートからのみ import する'
             }

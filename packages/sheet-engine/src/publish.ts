@@ -31,7 +31,14 @@ const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 4 + 3;
 
 const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
-const RESERVED_IDS = new Set(['row', 'values', 'parts', 'base', 'other', ...KNOWN_FUNCTIONS]);
+export const SHEET_RESERVED_ID_VALUES: readonly string[] = Object.freeze([
+  'row',
+  'values',
+  'parts',
+  'base',
+  'other',
+  ...KNOWN_FUNCTIONS,
+]);
 // 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
 // inferCallType は二重発行防止の停止マーカーを投げ、catch は前段発行済みの場合だけ握る（fail closed）。
 const FUNCTION_CALL_ISSUE_ALREADY_REPORTED = new Error('function call issue already reported (internal sentinel)');
@@ -890,7 +897,7 @@ function validateId(path: string, id: string, issues: PublishIssue[]): void {
   if (!ID_PATTERN.test(id)) {
     issues.push({ path, message: `id must match ${ID_PATTERN}` });
   }
-  if (RESERVED_IDS.has(id)) {
+  if (SHEET_RESERVED_ID_VALUES.includes(id)) {
     issues.push({ path, message: `id is reserved: ${id}` });
   }
 }

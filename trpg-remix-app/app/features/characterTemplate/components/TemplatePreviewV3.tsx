@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Code, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from '@mantine/core'
 import { IconAlertCircle, IconDice } from '@tabler/icons-react'
+import { evaluateTemplate } from '@trpg/sheet-engine'
 import type { CharacterSheetTemplateEntity, PreviewValues, SheetField } from '../types/v3'
 import { rollDice } from '../utils/diceRoller'
-import { evaluateTemplate } from '../utils/sheetEngine'
 import { toSheetTemplate } from '../utils/v3Template'
 
 interface TemplatePreviewV3Props {

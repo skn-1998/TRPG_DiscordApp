@@ -291,3 +291,56 @@ export interface TemplateMapping {
 - カスタム関数
 - 高度な式関数（IF、SWITCH、LOOKUP等）
 - バージョン間差分
+
+## sheet-engine との境界 — ID 規則の複製方針と CJS interop（2026-08-03 / Task#48）
+
+front は `@trpg/sheet-engine`（`type: commonjs`・workspace パッケージ）を**公開 root から
+直接 named import** する。**production の**値 consumer は `TemplatePreviewV3`（`evaluateTemplate`）と
+`TemplateEditorV3`（`validatePublishTemplate`）の2件。
+テストは `utils/v3Template.spec.ts` が `SHEET_RESERVED_ID_VALUES` を別途 named import するが、
+bundle には載らない（下記の等価テスト用）。
+
+### ID 規則のリテラルを front に残しているのは意図的
+
+`utils/v3Template.ts` の `FIELD_ID_PATTERN` と `RESERVED_IDS` は engine の規則と同じ内容を
+手写ししている。**engine から import する形は実測で却下した**:
+
+- front production が engine の runtime 値を import すると、`TemplateListV3` 経由で
+  **テンプレート一覧ルート**が読む共有 chunk に engine と zod が丸ごと載る。
+  2026-08-03 の実測で共有 chunk `v3Template-*.js` が gzip **2.4KB → 72.8KB**
+  （一覧ルートの実増分 **約 +70KB**）。再測するには front production 側から
+  engine の runtime 値を import して `pnpm run build` し、一覧ルートが読む chunk を比べる
+- engine の dist は CommonJS なので **tree-shake が効かず**、「定数だけ持ってくる」ができない
+
+DRY の見た目より、一覧ページの初期 JS を優先している。
+
+### drift は等価テストで機械検出する
+
+`utils/v3Template.spec.ts` が、front の `validateLocalTemplate` と engine の
+`validatePublishTemplate` が**同じ id 集合に同じ受理/拒絶を返すこと**を検証する。
+jest は node 解決で dist を読むため、このテストは**バンドルに一切載らない**。
+
+コーパスは「固定標本 ∪ engine の `SHEET_RESERVED_ID_VALUES`」。
+engine が予約語を**増やす**と標本が自動的に増え、front が追随していなければ赤くなる
+（このとき件数 assert も同時に赤くなる）。engine が**減らす**と標本ごと消えて等価テストは
+素通りするので、件数 assert だけが唯一の検出器になる。これが件数を固定している理由。
+
+**検出できない方向（受容）**: front だけが予約語を追加するケース（**Task #56**）。
+front が engine より厳しくなる側で、害は「有効な id が編集画面で弾かれる」UX 退行にとどまる。
+
+**検証範囲は top-level のみ**。`list.itemFields` / `relation.attrs` のネスト id は
+front が検査しておらず engine とは等価でない（**Task #50**）。
+
+### CJS interop の3設定（`vite.config.mjs`）
+
+pnpm の junction が実体パス `packages/sheet-engine/dist` へ解決され、そのパスが
+`node_modules` を含まないため Vite の既定変換対象から外れる。この1つの原因に対して
+build / dev SSR / client dev の**3パイプラインそれぞれに設定が要る**（1つずつ外して実測済み）。
+
+これを欠くと **committed HEAD に実在した production 欠陥**が再発する:
+build SSR では `evaluateTemplate` が `void 0`、dev SSR では `exports is not defined`。
+**jest（node 解決で dist を読む）・tsc（`.d.ts` を読む）・build（警告どまりで成功）の
+3層すべてが構造的に見逃す**ため、CI が全緑のまま出荷される。
+
+`@trpg/*` からの値 namespace import は eslint で禁止している。
+設定が退行したとき、named import なら build が止まるが namespace import は止まらないため。
