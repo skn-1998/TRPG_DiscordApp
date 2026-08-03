@@ -8,6 +8,8 @@ import type {
   V3EditorFieldType
 } from '../types'
 
+// `@trpg/sheet-engine` と同じ ID 規則を bundle 増加回避のため意図的に複製している。
+// 理由・非目標は `../AI.types.md` の「sheet-engine との境界」、drift 検出は `./v3Template.spec.ts` を参照。
 const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/
 const SECTION_ID_PATTERN = FIELD_ID_PATTERN
 const RESERVED_IDS = new Set([

@@ -8,7 +8,7 @@ import type {
   SheetField,
   SheetSection,
   SheetTemplate
-} from '../utils/sheetEngine'
+} from '@trpg/sheet-engine'
 
 export type SheetTemplateStatus = 'draft' | 'published' | 'deprecated'
 

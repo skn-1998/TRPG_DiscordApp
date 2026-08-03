@@ -1,3 +1,5 @@
+// この import は engine のビルド済み dist を読む。engine の src 変更時は `ensure:workspace-dist` 込みの `pnpm test` を使うこと（`ensure:workspace-dist` を前置しない入口（現状 `test:watch` / `test:coverage`）では stale dist で偽の緑になり得る）。
+import { SHEET_RESERVED_ID_VALUES, validatePublishTemplate } from '@trpg/sheet-engine'
 import type { CharacterSheetTemplateEntity, LookupTable, SheetSection, Template, V3EditorFieldType } from '../types'
 import {
   collectFieldIds,
@@ -356,6 +358,57 @@ describe('v3Template validation and JSON helpers', () => {
       '同一セクション内の field id が重複しています: 1bad.valid'
     ])
   })
+
+  const fixedTopLevelIdCases: Array<readonly [id: string, accepted: boolean]> = [
+    ['a', true],
+    [`a${'b'.repeat(31)}`, true],
+    ['', false],
+    [`a${'b'.repeat(32)}`, false],
+    ['aB', false],
+    ['1abc', false],
+    ['a-b', false],
+    ['Abc', false],
+    ['a1', true],
+    ['a_', true],
+    ['_a', false],
+    ['a.b', false]
+  ]
+  const topLevelIdCases = [
+    ...fixedTopLevelIdCases,
+    ...SHEET_RESERVED_ID_VALUES.map((id) => [id, false] as const)
+  ].flatMap(([id, accepted]) => [
+    { id, accepted, placement: 'section' as const },
+    { id, accepted, placement: 'field' as const }
+  ])
+
+  // 件数 assert は削減方向を単独で捕捉し、増加方向では後続の等価テストとともに失敗する。
+  it('sheet-engine の予約語コーパスが既知の14語から増減したことを検出する', () => {
+    expect(SHEET_RESERVED_ID_VALUES).toHaveLength(14)
+  })
+
+  // front だけが予約語を追加して厳格化する方向と、front 未検査の list.itemFields / relation.attrs のネスト id は非目標。受理真偽のみを比較し reject 理由は検証しない。front 単独の厳格化は Task #56、ネスト id は Task #50 で扱う。
+  it.each(topLevelIdCases)(
+    'front と sheet-engine は top-level $placement id "$id" を同じ真偽で受理する',
+    ({ id, accepted, placement }) => {
+      const sectionId = placement === 'section' ? id : 'section'
+      const fieldId = placement === 'field' ? id : 'field'
+      const template = validTemplate({
+        sections: [
+          {
+            id: sectionId,
+            label: 'Section',
+            fields: [{ id: fieldId, uid: 'field_uid', label: 'Field', type: 'scalar', valueType: 'number' }]
+          }
+        ]
+      })
+
+      const frontAccepted = validateLocalTemplate(template).length === 0
+      const engineAccepted = validatePublishTemplate(toSheetTemplate(template)).ok
+
+      expect(frontAccepted).toBe(engineAccepted)
+      expect(frontAccepted).toBe(accepted)
+    }
+  )
 
   it('validateLocalTemplate は妥当な template では error を返さない', () => {
     expect(validateLocalTemplate(validTemplate())).toEqual([])
