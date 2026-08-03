@@ -71,6 +71,32 @@ describe('SheetEngineTemplateValidationService', () => {
     expect(() => service.validateForSave(broken)).toThrow(BadRequestException)
   })
 
+  it('未閉鎖 notation token は save / publish の両方で 400 にする', () => {
+    const broken: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ id: 'broken', uid: 'uid-broken', label: 'Broken', type: 'roll', notation: '1d6{' }]
+        }
+      ]
+    }
+
+    for (const validate of [() => service.validateForSave(broken), () => service.validateForPublish(broken)]) {
+      let caught: unknown
+      try {
+        validate()
+      } catch (error) {
+        caught = error
+      }
+
+      expect(caught).toBeInstanceOf(BadRequestException)
+      expect((caught as BadRequestException).getStatus()).toBe(400)
+      expect((caught as BadRequestException).message).toContain('main.broken.notation: unclosed notation token')
+    }
+  })
+
   it('publish は public visibility 以外を拒否する', () => {
     expect(() => service.validateForPublish({ ...template, visibility: 'private' })).toThrow(BadRequestException)
   })

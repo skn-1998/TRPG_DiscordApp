@@ -334,7 +334,15 @@ function validateNotation(
   parentList: ListField | undefined,
   isRowRole: boolean,
 ): void {
-  for (const token of extractNotationTokens(notation)) {
+  let tokens: Array<{ path: string }>;
+  try {
+    tokens = extractNotationTokens(notation);
+  } catch {
+    issues.push({ path, message: 'unclosed notation token' });
+    return;
+  }
+
+  for (const token of tokens) {
     if (token.path === 'value') {
       if (isRowRole) {
         issues.push({ path, message: 'rowRole cannot use {value}; use {row.subFieldId}' });

@@ -20,7 +20,11 @@
    子を守れない（親と子の両方に検査があるのは冗長ではなく必要）。共有 helper は置かない
    （旧 `app/utils/auth-guards.ts` は #60/#72 で削除済み）。
    `_user.user.character.tsx` の soft degrade（redirect せず未認証状態を返す）は既知の
-   UX 改善候補で現状維持
+   UX 改善候補で現状維持。
+   **例外（俯瞰#14・2026-08-04）**: UI を持たない resource route（fetcher が叩く action 専用
+   route。例 `templates.dice-preview.tsx`）は redirect せず **401 JSON を返す** —
+   redirect すると fetcher が HTML（ログイン画面）を受け取り、呼び出し側の
+   エラー分類が network 失敗へ誤分類されるため
  - **jwt の受け渡し不変条件（俯瞰#13 CL-1・2026-08-04）**: `setServerRequestContext` は
    module 単位の可変グローバルで、Remix は同一リクエストで複数 loader を並走させ同じ
    グローバルを set/clear する。`prepareConfig` はこれを同期で読むため、**loader/action 内で

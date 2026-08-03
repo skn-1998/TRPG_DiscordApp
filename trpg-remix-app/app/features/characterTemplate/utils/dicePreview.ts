@@ -10,17 +10,17 @@ type DicePreviewRequestBuildResult = { ok: true; request: DicePreviewRequest } |
 
 export type DicePreviewActionResult = { ok: true; result: DicePreviewResponse } | { ok: false; error: string }
 
+export interface DicePreviewActionError {
+  status: number
+  messages: string[]
+  errorCode?: string
+}
+
 interface BuildDicePreviewRequestInput {
   template: SheetTemplate
   evaluated: EvaluationResult | null
   notation: string
   gameSystemId?: string
-}
-
-interface DicePreviewErrorInput {
-  status?: number
-  message?: unknown
-  code?: unknown
 }
 
 export function buildDicePreviewRequest({
@@ -44,12 +44,12 @@ export function buildDicePreviewRequest({
   }
 }
 
-export function classifyDicePreviewError({ status, message, code }: DicePreviewErrorInput): string {
-  if (code === DICE_PREVIEW_NETWORK_ERROR_CODE || status == null) {
+export function classifyDicePreviewError({ status, messages, errorCode }: Partial<DicePreviewActionError>): string {
+  if (errorCode === DICE_PREVIEW_NETWORK_ERROR_CODE || status == null) {
     return 'ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。'
   }
 
-  const details = extractErrorMessage(message)
+  const details = messages?.join(' / ') ?? ''
   if (status === 400) {
     return appendDetails('ダイス記法が不正です。', details)
   }
@@ -67,18 +67,13 @@ export function readDicePreviewActionData(data: unknown): DicePreviewActionResul
     return { ok: true, result: data }
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!isDicePreviewActionError(data)) {
     return { ok: false, error: classifyDicePreviewError({}) }
   }
 
-  const errorData = data as Record<string, unknown>
   return {
     ok: false,
-    error: classifyDicePreviewError({
-      status: typeof errorData.statusCode === 'number' ? errorData.statusCode : undefined,
-      message: errorData.message,
-      code: errorData.code
-    })
+    error: classifyDicePreviewError(data)
   }
 }
 
@@ -90,9 +85,15 @@ function isDicePreviewResponse(value: unknown): value is DicePreviewResponse {
   )
 }
 
-function extractErrorMessage(message: unknown): string {
-  if (Array.isArray(message)) return message.map(String).join(' / ')
-  return typeof message === 'string' ? message : ''
+function isDicePreviewActionError(value: unknown): value is DicePreviewActionError {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.status === 'number' &&
+    Array.isArray(candidate.messages) &&
+    candidate.messages.every((message) => typeof message === 'string') &&
+    (candidate.errorCode === undefined || typeof candidate.errorCode === 'string')
+  )
 }
 
 function appendDetails(prefix: string, details: string): string {

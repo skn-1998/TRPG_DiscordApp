@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs } from '@remix-run/node'
+import type { ErrorEnvelope } from '@trpg/api-contract'
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { apiClient, clearServerRequestContext, setServerRequestContext, withJwt } from '~/lib/api-client'
 import { action } from '../../../routes/templates.dice-preview'
@@ -26,6 +27,8 @@ jest.mock(
   { virtual: true }
 )
 
+jest.mock('~/lib/api-response.util', () => jest.requireActual('../../../lib/api-response.util'), { virtual: true })
+
 const mockedGetJwtFromRequest = jest.mocked(getJwtFromRequest)
 const mockedPost = jest.mocked(apiClient.post)
 const mockedClearServerRequestContext = jest.mocked(clearServerRequestContext)
@@ -44,9 +47,8 @@ describe('templates.dice-preview action', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({
-      statusCode: 401,
-      message: '認証が必要です',
-      error: 'Unauthorized'
+      status: 401,
+      messages: ['認証が必要です']
     })
     expect(mockedPost).not.toHaveBeenCalled()
     expect(mockedSetServerRequestContext).not.toHaveBeenCalled()
@@ -81,15 +83,42 @@ describe('templates.dice-preview action', () => {
     expect(mockedClearServerRequestContext).toHaveBeenCalledTimes(1)
   })
 
-  it.each([400, 422, 429])('server の %i body と status をそのまま返す', async (status) => {
-    const upstreamBody = { statusCode: status, message: [`upstream ${status}`], error: 'Upstream Error' }
+  it.each([400, 422, 429])('server の ErrorEnvelope を action エラー形へ正規化する', async (status) => {
+    const upstreamBody: ErrorEnvelope = {
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: 1,
+      error: `upstream ${status}`,
+      details: [{ message: `upstream ${status}` }]
+    }
     mockedPost.mockRejectedValue({ response: { status, data: upstreamBody } })
 
     const response = await invokeAction({ notation: '10' })
 
     expect(response.status).toBe(status)
-    await expect(response.json()).resolves.toEqual(upstreamBody)
+    await expect(response.json()).resolves.toEqual({ status, messages: [`upstream ${status}`] })
     expect(mockedClearServerRequestContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('server の errorCode を action errorCode として保持する', async () => {
+    const upstreamBody: ErrorEnvelope = {
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: 1,
+      error: 'invalid notation',
+      errorCode: 'UPSTREAM_DICE_ERROR',
+      details: [{ message: 'invalid notation' }]
+    }
+    mockedPost.mockRejectedValue({ response: { status: 422, data: upstreamBody } })
+
+    const response = await invokeAction({ notation: '10' })
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      status: 422,
+      messages: ['invalid notation'],
+      errorCode: 'UPSTREAM_DICE_ERROR'
+    })
   })
 
   it('server に接続できない場合は network 固有 code の 502 を返す', async () => {
@@ -99,9 +128,9 @@ describe('templates.dice-preview action', () => {
 
     expect(response.status).toBe(502)
     await expect(response.json()).resolves.toMatchObject({
-      statusCode: 502,
-      message: 'ダイスロールサーバーに接続できませんでした',
-      code: 'DICE_PREVIEW_NETWORK_ERROR'
+      status: 502,
+      messages: ['ダイスロールサーバーに接続できませんでした'],
+      errorCode: 'DICE_PREVIEW_NETWORK_ERROR'
     })
     expect(mockedClearServerRequestContext).toHaveBeenCalledTimes(1)
   })
@@ -113,8 +142,8 @@ describe('templates.dice-preview action', () => {
 
     expect(response.status).toBe(502)
     await expect(response.json()).resolves.toMatchObject({
-      statusCode: 502,
-      code: 'DICE_PREVIEW_INVALID_RESPONSE'
+      status: 502,
+      errorCode: 'DICE_PREVIEW_INVALID_RESPONSE'
     })
     expect(mockedClearServerRequestContext).toHaveBeenCalledTimes(1)
   })
