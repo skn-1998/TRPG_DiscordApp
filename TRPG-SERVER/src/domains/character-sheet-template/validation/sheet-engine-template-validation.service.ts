@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
-import { validatePublishTemplate } from '@trpg/sheet-engine'
+import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
 import { CharacterSheetTemplateEntity } from '../models/character-sheet-template.entity'
 import { collectProjectionKeyErrors } from './projection-key-validation'
 import { toEngineTemplate } from './sheet-engine-template.mapper'
@@ -16,6 +16,7 @@ export class SheetEngineTemplateValidationService implements TemplateValidationP
       throw new BadRequestException('published template visibility must be public')
     }
     this.assertEngineValid(template)
+    this.assertStandaloneRollNotationsValid(template)
     this.assertProjectionKeysUnique(template)
   }
 
@@ -30,6 +31,13 @@ export class SheetEngineTemplateValidationService implements TemplateValidationP
     const errors = collectProjectionKeyErrors(template)
     if (errors.length > 0) {
       throw new BadRequestException(errors.join('; '))
+    }
+  }
+
+  private assertStandaloneRollNotationsValid(template: CharacterSheetTemplateEntity): void {
+    const issues = validateStandaloneRollNotations(toEngineTemplate(template))
+    if (issues.length > 0) {
+      throw new BadRequestException(issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '))
     }
   }
 }

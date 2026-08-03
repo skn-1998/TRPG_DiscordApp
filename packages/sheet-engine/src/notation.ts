@@ -1,6 +1,10 @@
 import { buildTemplateIndex, refKey, resolveRefPath } from './template-index';
 import { EvaluationResult, NotationInterpolationResult, ResolvedRef, RuntimeValue, SheetTemplate } from './types';
 
+export {
+  validateStandaloneRollNotations,
+} from './standalone-roll';
+
 export interface InterpolateNotationInput {
   template: SheetTemplate;
   evaluated: EvaluationResult;
