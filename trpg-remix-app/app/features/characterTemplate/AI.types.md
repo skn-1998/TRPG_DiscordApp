@@ -297,8 +297,8 @@ export interface TemplateMapping {
 front は `@trpg/sheet-engine`（`type: commonjs`・workspace パッケージ）を**公開 root から
 直接 named import** する。**production の**値 consumer は `TemplatePreviewV3`（`evaluateTemplate`）と
 `TemplateEditorV3`（`validatePublishTemplate`）の2件。
-テストは `utils/v3Template.spec.ts` が `SHEET_RESERVED_ID_VALUES` を別途 named import するが、
-bundle には載らない（下記の等価テスト用）。
+テストは `utils/v3Template.spec.ts` が engine の `SHEET_RESERVED_ID_VALUES` と
+front の `RESERVED_IDS` を import するが、bundle には載らない（下記の drift 検出用）。
 
 ### ID 規則のリテラルを front に残しているのは意図的
 
@@ -320,13 +320,20 @@ DRY の見た目より、一覧ページの初期 JS を優先している。
 `validatePublishTemplate` が**同じ id 集合に同じ受理/拒絶を返すこと**を検証する。
 jest は node 解決で dist を読むため、このテストは**バンドルに一切載らない**。
 
-コーパスは「固定標本 ∪ engine の `SHEET_RESERVED_ID_VALUES`」。
-engine が予約語を**増やす**と標本が自動的に増え、front が追随していなければ赤くなる
-（このとき件数 assert も同時に赤くなる）。engine が**減らす**と標本ごと消えて等価テストは
-素通りするので、件数 assert だけが唯一の検出器になる。これが件数を固定している理由。
+検出は2段構え:
 
-**検出できない方向（受容）**: front だけが予約語を追加するケース（**Task #56**）。
-front が engine より厳しくなる側で、害は「有効な id が編集画面で弾かれる」UX 退行にとどまる。
+1. **集合等価 assert** — front の `RESERVED_IDS` と engine の `SHEET_RESERVED_ID_VALUES` を
+   sort 済み配列で比較する。予約語集合の差 — engine の増減・front 単独の増減・同数入れ替え —
+   を**すべて**捕捉する（変異実測: 4方向とも赤・2026-08-04）
+2. **等価テスト** — コーパス「固定標本 ∪ engine 予約語」× section/field で、front と engine が
+   同じ id に同じ受理/拒絶を返すことを検証する。集合が一致していても
+   **検査の掛け方が壊れる退行**（`FIELD_ID_PATTERN` の緩和など）はこちらだけが検出する
+
+かつて受容していた限界「front だけが予約語を追加する方向は検出できない」は、
+**Task #56（集合等価化・2026-08-04）で解消した**。engine 側は予約語の正本が内部 Set
+`RESERVED_IDS` に一本化され、公開配列はそこからの導出（`Object.freeze([...RESERVED_IDS])`）。
+公開配列の engine 内 runtime 参照は 0 だが、この spec が唯一の consumer なので削除不可
+（`publish.ts` の定義直上に導線コメントあり）。
 
 **検証範囲は top-level のみ**。`list.itemFields` / `relation.attrs` のネスト id は
 front が検査しておらず engine とは等価でない（**Task #50**）。

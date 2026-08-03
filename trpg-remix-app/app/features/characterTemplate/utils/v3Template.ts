@@ -12,7 +12,7 @@ import type {
 // 理由・非目標は `../AI.types.md` の「sheet-engine との境界」、drift 検出は `./v3Template.spec.ts` を参照。
 const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/
 const SECTION_ID_PATTERN = FIELD_ID_PATTERN
-const RESERVED_IDS = new Set([
+export const RESERVED_IDS: ReadonlySet<string> = new Set([
   'row',
   'values',
   'parts',
