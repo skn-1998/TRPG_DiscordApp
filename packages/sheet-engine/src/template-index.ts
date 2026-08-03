@@ -9,7 +9,7 @@ import {
   SheetTemplate,
 } from './types';
 
-export interface FieldLocator {
+interface FieldLocator {
   section: SheetSection;
   field: SheetField;
   path: string;
