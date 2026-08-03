@@ -73,6 +73,42 @@ describe('SheetEngineTemplateValidationService', () => {
     expect(() => service.validateForPublish({ ...template, visibility: 'private' })).toThrow(BadRequestException)
   })
 
+  it('standalone roll の定数のみ表記は publish で拒否するが save は許可する', () => {
+    const constantRoll: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [{ id: 'fixed', uid: 'uid-fixed', label: 'Fixed', type: 'roll', notation: '10' }]
+        }
+      ]
+    }
+
+    expect(() => service.validateForSave(constantRoll)).not.toThrow()
+    expect(() => service.validateForPublish(constantRoll)).toThrow(
+      /main\.fixed\.notation: standalone roll expression must contain at least one literal dice term/
+    )
+  })
+
+  it.each(['d6', '2d6+1d4', '1d6+1d6+2', '2d6+1', '3d6*5', '(2d6+6)*5', '1d8{derived.db}'])(
+    'publish は standalone roll %s を許可する',
+    (notation) => {
+      const rollTemplate: CharacterSheetTemplateEntity = {
+        ...template,
+        sections: [
+          {
+            id: 'main',
+            label: 'Main',
+            fields: [{ id: 'roll', uid: 'uid-roll', label: 'Roll', type: 'roll', notation }]
+          }
+        ]
+      }
+
+      expect(() => service.validateForPublish(rollTemplate)).not.toThrow()
+    }
+  )
+
   it('T-23: publish は description へ集約される top-level field id 重複を拒否するが save は許可する', () => {
     const duplicatedProjectionKey: CharacterSheetTemplateEntity = {
       ...template,

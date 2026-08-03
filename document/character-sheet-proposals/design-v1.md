@@ -166,6 +166,9 @@ role 補間用の断片と、単独で実行するロール式には異なる受
 - **`StandaloneRollExpression`**：参照解決と補間を終えた後に単独でロールできる式。
   定数のみの `10` は `NotationFragment` としては正当だが、この契約では拒否する。
   定数は scalar または computed で表現する。
+  placeholder だけの式は拒否し、`1d8{derived.db}` はリテラルな `1d8` を含むため受理する。
+  静的上限は 1 式 256 文字・式全体のリテラルダイス合計 100 個・各ダイス 1000 面とする。
+  個数・面数は既存 server whitelist と揃え、placeholder 展開分は materialize / preview 段で検査する。
   検査は既存の「検証の二段構え」と同じく二段に分かれ、単一の検査器では判定しない:
   1. **publish（B1・sheet-engine・静的）**: ダイス項を一つ以上含むこと・参照型・
      placeholder を考慮した構文と上限。character/row の実値や BCDice には依存しない
@@ -181,6 +184,7 @@ role 補間用の断片と、単独で実行するロール式には異なる受
 | `3d6*5` | 不可 | 受理（legacy seed 使用） | null |
 | `(2d6+6)*5` | 不可 | 受理（legacy seed 使用） | null |
 | `2d6+1` | 可 | 受理 | 実行可 |
+| `1d8{derived.db}` | 不可 | 受理（リテラルダイスあり） | null |
 
 `StandaloneRollExpression` の検査は publish 専用とし、draft save には適用しない。
 既存の公開 revision は検査導入後も読み取り可能なまま維持する。

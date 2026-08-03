@@ -14,6 +14,18 @@ const VALID_ARGUMENT_CANDIDATES = [
   'numbers, 1',
 ] as const;
 
+const EXPECTED_KNOWN_FUNCTION_VALUES = [
+  'ceil',
+  'count',
+  'floor',
+  'if',
+  'lookup',
+  'max',
+  'min',
+  'round',
+  'sum',
+] as const;
+
 function functionTemplate(functionName: string, argumentsSource: string): SheetTemplate {
   return baseTemplate({
     tables: [{ id: 'numbers', resultType: 'number', rows: [[1, 10]] }],
@@ -58,10 +70,10 @@ function findValidArguments(functionName: string): string | undefined {
 }
 
 describe('function vocabulary and arity equivalence', () => {
-  // 下の it.each(SHEET_KNOWN_FUNCTION_VALUES) は語が減るとそのテスト行ごと消えて緑のままになる（コーパス自己参照の罠）ため、総数を固定して増減の両方向を可視化する。
-  // 語彙を意図的に変えたときはこの数値を更新すること。
-  it('pins the known-function corpus size so additions and removals both surface', () => {
-    expect(SHEET_KNOWN_FUNCTION_VALUES).toHaveLength(9);
+  // 下の it.each は production コーパスを自己参照するため、独立した正本コーパスとの集合等価で
+  // 追加・削除・同数置換と design-v1.md の一覧 drift を可視化する。
+  it('matches the exact design-v1 known-function corpus', () => {
+    expect([...SHEET_KNOWN_FUNCTION_VALUES].sort()).toEqual(EXPECTED_KNOWN_FUNCTION_VALUES);
   });
 
   it.each(SHEET_KNOWN_FUNCTION_VALUES)('%s has a publish-valid call', (functionName) => {
