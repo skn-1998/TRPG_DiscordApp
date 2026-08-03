@@ -115,12 +115,16 @@ export default defineConfig(
                 'CharacterSummaryWire',
                 'CharacterWire',
                 'CreateCharacterFromTemplateResultWire',
+                'DicePreviewRequest',
+                'DicePreviewResponse',
                 'DiscordGuildWire',
                 'DiscordGuildsPayloadWire',
                 'SaveCharacterSheetResultWire',
-                'UserProfileWire'
+                'UserProfileWire',
+                'dicePreviewRequestSchema',
+                'dicePreviewResponseSchema'
               ],
-              message: '永続化スキーマは front で使用禁止。HTTP 応答には公開済みの wire 型だけを使用する'
+              message: '永続化スキーマは front で使用禁止。公開済み wire 型と dice preview 契約だけを使用する'
             }
           ],
           patterns: [

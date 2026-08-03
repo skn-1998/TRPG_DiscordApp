@@ -32,19 +32,21 @@ export default defineConfig({
     }),
     tsconfigPaths()
   ],
-  // pnpm junction の実体パスに node_modules がないため、@trpg/sheet-engine の CJS dist は build・dev SSR・client dev の3経路で個別に変換する。
+  // pnpm junction の実体パスに node_modules がないため、workspace package の CJS dist は利用経路ごとに明示的に変換する。
   // preserveSymlinks は React/Mantine 系の依存解決を壊し、client optimizeDeps 単独と ssr.noExternal 単独は dev SSR に効かなかった。
   // namespace import では設定退行を build error にできないため named import を lint 強制する。失敗署名は `app/features/characterTemplate/AI.types.md` の「CJS interop の3設定」を参照。
+  // @trpg/api-contract の runtime schema は resource action 専用。production image が dist をコピーしないため SSR bundle に内包し、client chunk には載せない。
   // dual build 化（ESM出力 + exports）後は build.commonjsOptions・ssr.optimizeDeps・client optimizeDeps.include の対象エントリを撤去候補とする。
   // 撤去時は `AI.types.md` の同節と `eslint.config.js` の namespace import 禁止ルールの存廃・message を更新し、dev SSR・client dev・build の3経路を再確認する。
   build: {
     commonjsOptions: {
-      include: [/node_modules/, /packages[\\/]sheet-engine[\\/]dist/]
+      include: [/node_modules/, /packages[\\/](?:api-contract|sheet-engine)[\\/]dist/]
     }
   },
   ssr: {
+    noExternal: ['@trpg/api-contract'],
     optimizeDeps: {
-      include: ['@trpg/sheet-engine']
+      include: ['@trpg/api-contract', '@trpg/sheet-engine']
     }
   },
   // Docker環境とWindows向けの最適化

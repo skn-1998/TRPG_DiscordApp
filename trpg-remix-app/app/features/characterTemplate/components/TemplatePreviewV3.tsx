@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Code, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from '@mantine/core'
+import { useFetcher } from '@remix-run/react'
 import { IconAlertCircle, IconDice } from '@tabler/icons-react'
 import { evaluateTemplate } from '@trpg/sheet-engine'
 import type { CharacterSheetTemplateEntity, PreviewValues, SheetField } from '../types/v3'
-import { rollDice } from '../utils/diceRoller'
+import { buildDicePreviewRequest, readDicePreviewActionData } from '../utils/dicePreview'
 import { toSheetTemplate } from '../utils/v3Template'
 
 interface TemplatePreviewV3Props {
@@ -11,21 +12,71 @@ interface TemplatePreviewV3Props {
 }
 
 export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
+  const fetcher = useFetcher<unknown>()
   const [activeSectionId, setActiveSectionId] = useState(template.sections[0]?.id ?? '')
   const [values, setValues] = useState<PreviewValues>({})
+  const [rollingFieldUid, setRollingFieldUid] = useState<string | null>(null)
+  const [rollFeedback, setRollFeedback] = useState<Record<string, { details?: string; error?: string }>>({})
+  // v3_fetcherPersist では前回 data が次の submit 開始時にも残るため、non-idle → idle 遷移だけを完了として処理する。
+  const previousFetcherState = useRef(fetcher.state)
+  const sheetTemplate = useMemo(() => toSheetTemplate(template), [template])
 
   const evaluated = useMemo(() => {
     try {
-      return { result: evaluateTemplate(toSheetTemplate(template), { values }), error: null }
+      return { result: evaluateTemplate(sheetTemplate, { values }), error: null }
     } catch (error) {
       return { result: null, error: error instanceof Error ? error.message : '式評価に失敗しました' }
     }
-  }, [template, values])
+  }, [sheetTemplate, values])
 
   const activeSection = template.sections.find((section) => section.id === activeSectionId) ?? template.sections[0]
 
-  const updateValue = (uid: string, value: string | number | boolean | undefined) => {
+  const updateValue = useCallback((uid: string, value: string | number | boolean | undefined) => {
     setValues((current) => ({ ...current, [uid]: value }))
+  }, [])
+
+  useEffect(() => {
+    const requestCompleted = previousFetcherState.current !== 'idle' && fetcher.state === 'idle'
+    previousFetcherState.current = fetcher.state
+    if (!requestCompleted || !rollingFieldUid) return
+
+    const actionResult = readDicePreviewActionData(fetcher.data)
+    if (actionResult.ok) {
+      updateValue(rollingFieldUid, actionResult.result.total)
+      setRollFeedback((current) => ({
+        ...current,
+        [rollingFieldUid]: { details: actionResult.result.details }
+      }))
+    } else {
+      setRollFeedback((current) => ({
+        ...current,
+        [rollingFieldUid]: { error: actionResult.error }
+      }))
+    }
+    setRollingFieldUid(null)
+  }, [fetcher.data, fetcher.state, rollingFieldUid, updateValue])
+
+  const rollField = (field: Extract<SheetField, { type: 'roll' }>) => {
+    if (fetcher.state !== 'idle') return
+
+    const builtRequest = buildDicePreviewRequest({
+      template: sheetTemplate,
+      evaluated: evaluated.result,
+      notation: field.notation,
+      gameSystemId: template.gameSystemId
+    })
+    if (!builtRequest.ok) {
+      setRollFeedback((current) => ({ ...current, [field.uid]: { error: builtRequest.error } }))
+      return
+    }
+
+    setRollFeedback((current) => ({ ...current, [field.uid]: {} }))
+    setRollingFieldUid(field.uid)
+    fetcher.submit(builtRequest.request, {
+      method: 'post',
+      action: '/templates/dice-preview',
+      encType: 'application/json'
+    })
   }
 
   const renderField = (field: SheetField) => {
@@ -82,27 +133,40 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
     }
 
     if (field.type === 'roll') {
+      const feedback = rollFeedback[field.uid]
+      const isRolling = rollingFieldUid === field.uid && fetcher.state !== 'idle'
       return (
-        <Group key={field.uid} align="end" wrap="nowrap">
-          <TextInput
-            label={field.label}
-            description={`記法: ${field.notation}`}
-            value={current == null ? '' : String(current)}
-            onChange={(event) => updateValue(field.uid, event.currentTarget.value)}
-            style={{ flex: 1 }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            leftSection={<IconDice size={16} />}
-            onClick={() => {
-              const result = rollDice(`[${field.notation}]`)
-              if (result) updateValue(field.uid, result.total)
-            }}
-          >
-            ロール
-          </Button>
-        </Group>
+        <Stack key={field.uid} gap={4}>
+          <Group align="end" wrap="nowrap">
+            <TextInput
+              label={field.label}
+              description={`記法: ${field.notation}`}
+              value={current == null ? '' : String(current)}
+              onChange={(event) => updateValue(field.uid, event.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              leftSection={<IconDice size={16} />}
+              loading={isRolling}
+              disabled={fetcher.state !== 'idle'}
+              onClick={() => rollField(field)}
+            >
+              {isRolling ? 'ロール中' : 'ロール'}
+            </Button>
+          </Group>
+          {feedback?.details && (
+            <Text size="xs" c="dimmed">
+              結果: {feedback.details}
+            </Text>
+          )}
+          {feedback?.error && (
+            <Text size="xs" c="red" role="alert">
+              {feedback.error}
+            </Text>
+          )}
+        </Stack>
       )
     }
 
