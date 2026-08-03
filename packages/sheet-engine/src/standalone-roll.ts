@@ -1,8 +1,8 @@
 import type { PublishIssue, SheetField, SheetTemplate } from './types';
 import { parseExpression } from './parser';
 
-// 個数・面数は既存 server whitelist と揃え、長さは UID/label より複雑な複合式を許容しつつ
-// publish 診断と後段 BCDice 入力を有界に保つ。
+// 個数は TRPG-SERVER/src/discord/services/dice/dice-calculation.service.ts の MAX_DICE_COUNT（100）、
+// 面数は TRPG-SERVER/src/discord/services/dice/dice-orchestrator.service.ts:135 の 1000 と揃える。
 const STANDALONE_ROLL_EXPRESSION_MAX_LENGTH = 256;
 const STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT = 100;
 const STANDALONE_ROLL_DIE_MAX_SIDES = 1_000;
@@ -53,6 +53,7 @@ function collectStandaloneRollIssues(field: SheetField, path: string, issues: Pu
     return;
   }
 
+  // publish.ts の v1 制約が itemFields 内 RollField を先に拒否するため現状は到達せず、list/relation の型拡張へ先回りする。
   if (field.type === 'list') {
     for (const itemField of field.itemFields) {
       collectStandaloneRollIssues(itemField, `${path}.${itemField.id}`, issues);
@@ -165,17 +166,37 @@ function isStandaloneRollDiceToken(token: StandaloneRollToken): token is Standal
 function toParserSource(tokens: readonly StandaloneRollToken[]): string {
   let source = '';
   let previousKind: StandaloneRollTokenKind | undefined;
+  let previousClosedGroupContainsPlaceholder = false;
+  const placeholderGroupStack: boolean[] = [];
 
   for (const token of tokens) {
+    let closedGroupContainsPlaceholder = false;
+    if (token.kind === 'leftParen') {
+      placeholderGroupStack.push(false);
+    } else if (token.kind === 'placeholder' && placeholderGroupStack.length > 0) {
+      placeholderGroupStack[placeholderGroupStack.length - 1] = true;
+    } else if (token.kind === 'rightParen') {
+      closedGroupContainsPlaceholder = placeholderGroupStack.pop() ?? false;
+      if (closedGroupContainsPlaceholder && placeholderGroupStack.length > 0) {
+        placeholderGroupStack[placeholderGroupStack.length - 1] = true;
+      }
+    }
+
     if (previousKind && endsPrimary(previousKind) && beginsPrimary(token.kind)) {
-      if (previousKind !== 'placeholder' && token.kind !== 'placeholder') {
+      const isPlaceholderBoundary = previousKind === 'placeholder'
+        || token.kind === 'placeholder'
+        || (previousKind === 'rightParen'
+          && previousClosedGroupContainsPlaceholder
+          && token.kind === 'dice');
+      if (!isPlaceholderBoundary) {
         throw new Error('operator is missing between terms');
       }
-      // `1d8{derived.db}` のように placeholder と接する場合だけ暗黙連結を許可する。
+      // placeholder または placeholder を含む個数括弧と接する場合だけ暗黙連結を許可する。
       source += '*';
     }
     source += parserTokenSource(token.kind);
     previousKind = token.kind;
+    previousClosedGroupContainsPlaceholder = closedGroupContainsPlaceholder;
   }
 
   return source;

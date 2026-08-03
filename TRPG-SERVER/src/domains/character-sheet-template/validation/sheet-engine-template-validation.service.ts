@@ -15,6 +15,7 @@ export class SheetEngineTemplateValidationService implements TemplateValidationP
     if (template.visibility !== 'public') {
       throw new BadRequestException('published template visibility must be public')
     }
+    // engine 検証が先に throw することを、後続 assert の無検査キャスト・無防備走査の前提とする。
     this.assertEngineValid(template)
     this.assertStandaloneRollNotationsValid(template)
     this.assertProjectionKeysUnique(template)

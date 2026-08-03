@@ -26,7 +26,7 @@ import {
   IconRocket,
   IconTrash
 } from '@tabler/icons-react'
-import { validatePublishTemplate } from '@trpg/sheet-engine'
+import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
 import type {
   CharacterSheetTemplateEntity,
   LookupTable,
@@ -241,8 +241,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     try {
       const payload = buildPayload()
       const localErrors = validateLocalTemplate(payload).map((message) => ({ message }))
-      const publishResult = validatePublishTemplate(toSheetTemplate(payload))
-      const publishErrors = publishResult.issues.map((issue) => ({
+      const sheetTemplate = toSheetTemplate(payload)
+      const publishResult = validatePublishTemplate(sheetTemplate)
+      const standaloneRollIssues = validateStandaloneRollNotations(sheetTemplate)
+      const publishErrors = [...publishResult.issues, ...standaloneRollIssues].map((issue) => ({
         fieldId: extractFieldId(issue.path),
         message: issue.message
       }))

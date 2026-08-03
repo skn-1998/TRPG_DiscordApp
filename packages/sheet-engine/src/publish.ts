@@ -177,6 +177,9 @@ function validateField(
     const effectiveActual = field.resultType === 'dice' && actual === 'text' && diceSourceOk ? 'dice' : actual;
     validateExpectedFormulaType(field.id, field.resultType, effectiveActual, issues, `${path}.formula`);
   }
+  if (field.type === 'roll') {
+    validateNotation(template, field.notation, field, issues, refs, `${path}.notation`, parentList, false);
+  }
   if (field.type === 'track') {
     validateTrack(template, field, issues, refs, astNodeLimit, path, parentList);
   }
