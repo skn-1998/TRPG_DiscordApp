@@ -1,11 +1,38 @@
 import { Outlet } from '@remix-run/react'
-import { LoaderFunctionArgs } from '@remix-run/node'
-import { requireLogin } from '../utils/auth-guards'
+import { LoaderFunctionArgs, redirect } from '@remix-run/node'
+import { getJwtFromRequest } from '~/features/auth/api/auth.service'
+import { apiClient, setServerRequestContext, clearServerRequestContext } from '~/lib/api-client'
 import { useAuth } from '../hooks/useAuth'
 
-export const loader = async (args: LoaderFunctionArgs) => {
-  // ログインが必須なので認証ガードを実行
-  await requireLogin(args)
+// ログインが必須なので、この loader 自身で認証を検査する。
+// 親 layout のガードは client-side transition で単独実行される子 loader を守れないため、
+// ログイン必須のルートはそれぞれの loader でインライン検査するのが本プロジェクトの方式。
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const jwt = getJwtFromRequest(request)
+
+  if (!jwt) {
+    console.log('JWT not found, redirecting to login')
+    throw redirect('/login')
+  }
+
+  // JWTが存在する場合、有効性を再確認
+  try {
+    // サーバーリクエストコンテキストを設定
+    setServerRequestContext(request, jwt)
+
+    const response = await apiClient.get('/users')
+    if (!response.data) {
+      console.log('Invalid JWT, redirecting to login')
+      throw redirect('/login')
+    }
+    console.log('JWT validation successful')
+  } catch (error) {
+    console.error('認証確認エラー:', error)
+    throw redirect('/login')
+  } finally {
+    // コンテキストをクリア
+    clearServerRequestContext()
+  }
 
   // 認証情報はRoot Loaderから取得できるので、追加のAPI呼び出しは不要
   return { success: true }
@@ -36,7 +63,7 @@ export function ErrorBoundary() {
 }
 
 export default function User() {
-  // サーバーサイドの requireLogin() により、このコンポーネントに到達した時点で
+  // サーバーサイドの loader での認証検査により、このコンポーネントに到達した時点で
   // ユーザーは必ず認証済みです
   const { user } = useAuth()
 

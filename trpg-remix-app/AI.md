@@ -612,11 +612,11 @@ const character = characterHandler.handleSuccess(response)
   封筒面 `/users/discord/guilds` を素データとして読んでいたが、**修復済み（S6b）**
   （封筒深度は固定済み・payload 型は S5a で接続済み・server 側は S5a2 で機械固定済み）。
   `characterCard` の Discord サーバー選択が常に失敗する問題を解消。
-- `app/utils/auth-guards.ts` は `/users` を無型で叩き、封筒オブジェクトをそのまま `user` として返す
-  （`checkAuth`・現消費ゼロ）。
-  この経路はスキーマ変更を永久に検出しない。
-- `app/utils/corsApiWithJwt.ts` は任意エンドポイントを無型で叩く。
-  現消費はモックルート1件だけで、戻り値は未使用。
+- `app/utils/auth-guards.ts` は**削除済み**（#60 で死蔵3関数を削除 → #72 で requireLogin を
+  `_user.user.tsx` へインライン化しファイルごと削除。無型 `checkAuth` の懸念も消滅）。
+  認証ガード規約の正本は `document/frontend-trpg-remix-app.md` の設計メモ。
+- `app/utils/corsApiWithJwt.ts` は**削除済み**（#70 の dev ルート残骸クラスタ掃討・
+  生 JWT ログ出力の実害も同時解消）。
 - `CharacterRepository.findByName()` は S7e で projection を全必須キーへ広げ、schema にない stale selector
   `attributes` / `primaryAttributes` を除去した。これにより projection 由来の必須キー欠落は解消したが、
   元 document に `status` がなければ返却値にも生成されないため、必須キー欠落そのものは残る。
