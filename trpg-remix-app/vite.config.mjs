@@ -32,14 +32,11 @@ export default defineConfig({
     }),
     tsconfigPaths()
   ],
-  // pnpm junction の実体パスに node_modules がないため、build・dev SSR・client dev の別パイプラインで同じ CJS dist を変換する。
+  // pnpm junction の実体パスに node_modules がないため、@trpg/sheet-engine の CJS dist は build・dev SSR・client dev の3経路で個別に変換する。
   // preserveSymlinks は React/Mantine 系の依存解決を壊し、client optimizeDeps 単独と ssr.noExternal 単独は dev SSR に効かなかった。
-  // 退行 + namespace import では、dev SSR は `ReferenceError: exports is not defined`、build は `MISSING_EXPORT` warning を出すが EXIT=0 になる。
-  // production SSR bundle では engine 参照が tree-shake され `void 0`、production client chunk には bare `exports` 9箇所・`require(` 8箇所が残り、ブラウザでの読込時に `exports is not defined` になる。
-  // named import なら build は `MISSING_EXPORT` で EXIT=1 になり、退行を止める。
-  // @trpg/sheet-engine が type: commonjs の間は build・dev SSR・client dev の3設定が必要。
-  // 将来 dual build 化（ESM 出力 + exports フィールド）した場合は、build.commonjsOptions と ssr.optimizeDeps の2ブロック、および client optimizeDeps.include の `@trpg/sheet-engine` 1エントリを撤去できる可能性がある（撤去時は `app/features/characterTemplate/AI.types.md` の「CJS interop の3設定」節も同時更新し、`eslint.config.js` の `@trpg/*` namespace import 禁止ルールは存置時に message の根拠を書き換え、不要なら削除する）。
-  // 撤去時は dev SSR・client dev・build の3経路を再確認してから判断する。
+  // namespace import では設定退行を build error にできないため named import を lint 強制する。失敗署名は `app/features/characterTemplate/AI.types.md` の「CJS interop の3設定」を参照。
+  // dual build 化（ESM出力 + exports）後は build.commonjsOptions・ssr.optimizeDeps・client optimizeDeps.include の対象エントリを撤去候補とする。
+  // 撤去時は `AI.types.md` の同節と `eslint.config.js` の namespace import 禁止ルールの存廃・message を更新し、dev SSR・client dev・build の3経路を再確認する。
   build: {
     commonjsOptions: {
       include: [/node_modules/, /packages[\\/]sheet-engine[\\/]dist/]
