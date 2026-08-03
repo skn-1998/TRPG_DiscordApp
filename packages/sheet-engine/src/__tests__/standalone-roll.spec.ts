@@ -1,13 +1,13 @@
 import {
   PublishIssue,
   SheetField,
+  STANDALONE_ROLL_DIE_MAX_SIDES,
+  STANDALONE_ROLL_EXPRESSION_MAX_LENGTH,
+  STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT,
+  validateStandaloneRollNotation,
   validateStandaloneRollNotations,
 } from '..';
 import { baseTemplate } from './test-utils';
-
-const STANDALONE_ROLL_EXPRESSION_MAX_LENGTH = 256;
-const STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT = 100;
-const STANDALONE_ROLL_DIE_MAX_SIDES = 1_000;
 
 function standaloneIssues(notation: string): PublishIssue[] {
   return validateStandaloneRollNotations(baseTemplate({
@@ -59,6 +59,21 @@ describe('standalone roll expression syntax', () => {
     expect(standaloneIssues(`50d6+${STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT - 49}d6`)).not.toEqual([]);
     expect(standaloneIssues(`d${STANDALONE_ROLL_DIE_MAX_SIDES}`)).toEqual([]);
     expect(standaloneIssues(`d${STANDALONE_ROLL_DIE_MAX_SIDES + 1}`)).not.toEqual([]);
+  });
+});
+
+describe('single standalone roll validation', () => {
+  it('returns no issues for an interpolated executable expression', () => {
+    expect(validateStandaloneRollNotation('2d6+1')).toEqual([]);
+  });
+
+  it('rejects a remaining placeholder at the single-notation boundary', () => {
+    expect(validateStandaloneRollNotation('1d8{derived.db}')).toEqual([
+      {
+        path: 'notation',
+        message: 'standalone roll expression must not contain placeholders',
+      },
+    ]);
   });
 });
 

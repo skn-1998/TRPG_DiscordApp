@@ -3,9 +3,9 @@ import { parseExpression } from './parser';
 
 // 個数は TRPG-SERVER/src/discord/services/dice/dice-calculation.service.ts の MAX_DICE_COUNT（100）、
 // 面数は TRPG-SERVER/src/discord/services/dice/dice-orchestrator.service.ts:135 の 1000 と揃える。
-const STANDALONE_ROLL_EXPRESSION_MAX_LENGTH = 256;
-const STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT = 100;
-const STANDALONE_ROLL_DIE_MAX_SIDES = 1_000;
+export const STANDALONE_ROLL_EXPRESSION_MAX_LENGTH = 256;
+export const STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT = 100;
+export const STANDALONE_ROLL_DIE_MAX_SIDES = 1_000;
 
 type StandaloneRollTokenKind =
   | 'dice'
@@ -43,6 +43,20 @@ export function validateStandaloneRollNotations(template: SheetTemplate): Publis
   }
 
   return issues;
+}
+
+/**
+ * 補間済みの単式を静的検査する。
+ *
+ * template 用検査と異なり、実行境界へ placeholder を持ち越す式は受理しない。
+ */
+export function validateStandaloneRollNotation(notation: string): PublishIssue[] {
+  const messages = validateStandaloneRollExpression(notation);
+  if (notation.includes('{')) {
+    messages.unshift('standalone roll expression must not contain placeholders');
+  }
+
+  return messages.map((message) => ({ path: 'notation', message }));
 }
 
 function collectStandaloneRollIssues(field: SheetField, path: string, issues: PublishIssue[]): void {
