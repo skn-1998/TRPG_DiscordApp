@@ -12,6 +12,7 @@ import { CharacterSheetModule } from './features/character-sheet/character-sheet
 import { UserModule } from './domains/user/user.module'
 import { AuthModule } from './domains/auth/auth.module'
 import { DiceRollModule } from './domains/dice-roll/dice-roll.module'
+import { DicePreviewModule } from './domains/dice-roll/dice-preview/dice-preview.module'
 import { DiscordModule } from './discord/discord.module'
 import { CharacterSheetDiscordFeatureModule } from './discord/features/characterSheet/character-sheet-discord-feature.module'
 import { EventsModule } from './events/events.module'
@@ -43,6 +44,7 @@ import { APP_VALIDATION_PIPE_PROVIDER } from './core/http/validation-pipe.provid
     UserModule,
     AuthModule,
     DiceRollModule,
+    DicePreviewModule,
     DiscordModule,
     CharacterSheetDiscordFeatureModule
   ],

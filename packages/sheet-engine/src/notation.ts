@@ -2,6 +2,10 @@ import { buildTemplateIndex, refKey, resolveRefPath } from './template-index';
 import { EvaluationResult, NotationInterpolationResult, ResolvedRef, RuntimeValue, SheetTemplate } from './types';
 
 export {
+  STANDALONE_ROLL_DIE_MAX_SIDES,
+  STANDALONE_ROLL_EXPRESSION_MAX_LENGTH,
+  STANDALONE_ROLL_LITERAL_DICE_MAX_COUNT,
+  validateStandaloneRollNotation,
   validateStandaloneRollNotations,
 } from './standalone-roll';
 

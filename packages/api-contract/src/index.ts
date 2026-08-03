@@ -35,3 +35,5 @@ export {
   sheetTemplateVisibilitySchema
 } from './character-sheet-template/character-sheet-template.zod'
 export type { CharacterSheetTemplateEntityInput } from './character-sheet-template/character-sheet-template.zod'
+export { dicePreviewRequestSchema, dicePreviewResponseSchema } from './dice-roll/dice-preview.zod'
+export type { DicePreviewRequest, DicePreviewResponse } from './dice-roll/dice-preview.zod'

@@ -6,7 +6,7 @@ declare const __dirname: string
 const path = require('path') as { join: (...paths: string[]) => string }
 
 describe('@trpg/api-contract public exports', () => {
-  it('型シンボルの公開面を35名に固定する', () => {
+  it('型シンボルの公開面を39名に固定する', () => {
     const indexPath = path.join(__dirname, 'index.ts')
     const program = ts.createProgram([indexPath], {
       moduleResolution: ts.ModuleResolutionKind.Node10
@@ -41,6 +41,8 @@ describe('@trpg/api-contract public exports', () => {
       'CharacterTemplatePinWire',
       'CharacterWire',
       'CreateCharacterFromTemplateResultWire',
+      'DicePreviewRequest',
+      'DicePreviewResponse',
       'DiscordGuildWire',
       'DiscordGuildsPayloadWire',
       'Envelope',
@@ -58,6 +60,8 @@ describe('@trpg/api-contract public exports', () => {
       'characterSheetStateSchema',
       'characterSheetTemplateEntitySchema',
       'characterTemplatePinSchema',
+      'dicePreviewRequestSchema',
+      'dicePreviewResponseSchema',
       'materializedCharacterEntitySchema',
       'saveSheetMaterializedPayloadSchema',
       'sheetTemplateForkedFromSchema',
@@ -67,10 +71,10 @@ describe('@trpg/api-contract public exports', () => {
     ])
   })
 
-  it('ランタイム値の公開面を15名に固定する', () => {
+  it('ランタイム値の公開面を17名に固定する', () => {
     // require('./index') は ts-jest がソースを解決する。
     // これはソース公開面の値/型区分の証人であり、dist 成果物の検証は build が担う。
-    // 35 − 15 = 型のみ20（封筒3＋auth wire型1＋character wire型12＋user/guild wire型3＋template型1）を不変条件とする。
+    // 39 − 17 = 型のみ22（既存20＋dice preview request/response型2）を不変条件とする。
     const runtimeExportNames = Object.keys(require('./index'))
       .filter((name) => name !== '__esModule')
       .sort()
@@ -85,6 +89,8 @@ describe('@trpg/api-contract public exports', () => {
       'characterSheetStateSchema',
       'characterSheetTemplateEntitySchema',
       'characterTemplatePinSchema',
+      'dicePreviewRequestSchema',
+      'dicePreviewResponseSchema',
       'materializedCharacterEntitySchema',
       'saveSheetMaterializedPayloadSchema',
       'sheetTemplateForkedFromSchema',
