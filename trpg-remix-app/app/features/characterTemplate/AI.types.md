@@ -344,8 +344,14 @@ pnpm の junction が実体パス `packages/sheet-engine/dist` へ解決され�
 `node_modules` を含まないため Vite の既定変換対象から外れる。この1つの原因に対して
 build / dev SSR / client dev の**3パイプラインそれぞれに設定が要る**（1つずつ外して実測済み）。
 
-これを欠くと **committed HEAD に実在した production 欠陥**が再発する:
-build SSR では `evaluateTemplate` が `void 0`、dev SSR では `exports is not defined`。
+これを欠くと **committed HEAD に実在した production 欠陥**が再発する。失敗署名（すべて実測）:
+
+- dev SSR: `ReferenceError: exports is not defined`
+- build（namespace import 時）: Rollup が `MISSING_EXPORT` warning を出すが **EXIT=0** で成功する。
+  production SSR bundle では engine 参照が tree-shake され `void 0`、
+  production client chunk には生 CJS が残りブラウザ読込時に `exports is not defined`
+- build（named import 時）: `MISSING_EXPORT` エラーで **EXIT=1** — 退行を止められるのはこの経路だけ
+
 **jest（node 解決で dist を読む）・tsc（`.d.ts` を読む）・build（警告どまりで成功）の
 3層すべてが構造的に見逃す**ため、CI が全緑のまま出荷される。
 
