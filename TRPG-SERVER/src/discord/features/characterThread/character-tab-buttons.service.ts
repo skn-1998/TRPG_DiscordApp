@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ThreadChannel, MessageFlags } from 'discord.js'
 import { discordButtonType } from '../../discord.type'
+import { CHARACTER_TAB_CUSTOM_ID_PATTERN } from './custom-id'
 import { CharacterDisplayService } from './services'
 import { ErrorContext } from '../../../core/http/error-handler'
 import { DiscordErrorReporter } from '../../utils/discord-error-reporter'
@@ -11,13 +12,16 @@ export class CharacterTabButtonsService implements discordButtonType {
 
   constructor(private readonly characterDisplayService: CharacterDisplayService) {}
 
-  public data = new ButtonBuilder().setCustomId('character-tab*').setLabel('基本情報').setStyle(ButtonStyle.Primary)
+  public data = new ButtonBuilder()
+    .setCustomId(CHARACTER_TAB_CUSTOM_ID_PATTERN)
+    .setLabel('基本情報')
+    .setStyle(ButtonStyle.Primary)
 
   async execute(interaction: ButtonInteraction<CacheType>): Promise<void> {
     try {
       if (!interaction.isButton()) return
 
-      const _temp = interaction.customId.replace('character-tab*', '')
+      const _temp = interaction.customId.replace(CHARACTER_TAB_CUSTOM_ID_PATTERN, '')
       const channelId = _temp.split('*')[0]
       const tabType = _temp.split('*')[1] || 'basic'
 

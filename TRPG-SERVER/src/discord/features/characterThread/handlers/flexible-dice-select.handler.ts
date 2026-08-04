@@ -11,7 +11,7 @@ import { SelectMenuInteractionHandler } from 'src/discord/interactions/handlers/
 import { DiceRollLogicService } from 'src/discord/services/dice/dice-roll-logic.service'
 import { DiceRollRequest } from 'src/discord/utils/dice-roll.interface'
 // P1-D slice2: handler pattern を feature-local 契約モジュールへ集約（pattern 完全同一）
-import { FlexibleDiceSelectCustomId } from '../custom-id'
+import { FLEXIBLE_DICE_SELECT_CUSTOM_ID_PATTERN, FlexibleDiceSelectCustomId } from '../custom-id'
 import { sendToParentChannel } from '../services/parent-channel.util'
 
 /**
@@ -38,7 +38,7 @@ export class FlexibleDiceSelectHandler extends SelectMenuInteractionHandler {
       this.logger.debug(`Handling flexible dice select: ${interaction.customId}`)
 
       // customIdからchannelIdを抽出
-      const channelId = interaction.customId.replace('flexible_dice_', '')
+      const channelId = interaction.customId.replace(FLEXIBLE_DICE_SELECT_CUSTOM_ID_PATTERN, '')
       const selectedValue = interaction.values[0]
 
       this.logger.debug(`Flexible dice selection: value=${selectedValue}, channelId=${channelId}`)
