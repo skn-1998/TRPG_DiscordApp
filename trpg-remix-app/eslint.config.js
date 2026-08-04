@@ -1,4 +1,5 @@
 import globals from 'globals'
+import { join } from 'node:path'
 import eslint from '@eslint/js'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
@@ -92,7 +93,9 @@ export default defineConfig(
         { name: 'NavLink', linkAttribute: 'to' }
       ],
       'import/resolver': {
-        typescript: {}
+        typescript: {
+          project: join(import.meta.dirname, 'tsconfig.json')
+        }
       }
     }
   },
@@ -150,7 +153,8 @@ export default defineConfig(
           extensions: ['.ts', '.tsx', '.js', '.jsx']
         },
         typescript: {
-          alwaysTryTypes: true
+          alwaysTryTypes: true,
+          project: join(import.meta.dirname, 'tsconfig.json')
         }
       }
     }
@@ -160,6 +164,7 @@ export default defineConfig(
       'import/no-restricted-paths': [
         'error',
         {
+          basePath: import.meta.dirname,
           zones: [
             {
               target: './app/lib',

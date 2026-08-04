@@ -239,7 +239,7 @@ export function stringifyTables(tables: LookupTable[]): string {
  * - template.fields[]: ガードで検査（各 field を直接参照するため object を要求）。
  * - field.id: ガードで検査（V3 field id の生成に直接使用）。
  * - field.type: migration フォールバック（未知・欠落は text scalar）。
- * - field.tab: migration フォールバック（未知・欠落は basic）。
+ * - field.tab: migration フォールバック（own key 以外（未知・欠落・継承キー）は basic）。
  * - template.version: migration フォールバック（falsy は 0.1.0、それ以外は素通しして server 検証）。
  * - template.tags: migration フォールバック（nullish は空配列、それ以外は素通しして server 検証）。
  * - field.label: 素通し（server 検証が受ける）。
@@ -283,7 +283,7 @@ export function migrateV2TemplateToCreateRequest(template: Template): CreateShee
   const knownUids = new Set<string>()
 
   for (const field of template.fields) {
-    const section = sectionsByTab[field.tab] ?? sectionsByTab.basic
+    const section = Object.hasOwn(sectionsByTab, field.tab) ? sectionsByTab[field.tab] : sectionsByTab.basic
     const uid = createStableUid(knownUids, section.id)
     knownUids.add(uid)
     const base = {
