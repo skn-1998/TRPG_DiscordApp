@@ -14,7 +14,7 @@ export function CustomError(error: unknown | null | undefined): string {
       const statusText = axiosResponse?.statusText
 
       if (isErrorEnvelope(data)) {
-        return `HTTP ${status}: ${errorEnvelopeMessages(data)[0]}`
+        return `HTTP ${status}: ${errorEnvelopeMessages(data).join(' / ')}`
       } else if (data && typeof data === 'object' && 'message' in data) {
         return `HTTP ${status}: ${data.message}`
       } else if (statusText) {
