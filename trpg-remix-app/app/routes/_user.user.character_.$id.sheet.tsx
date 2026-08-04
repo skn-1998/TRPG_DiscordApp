@@ -12,6 +12,7 @@ import {
 } from '~/features/characterTemplate'
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { clearServerRequestContext, setServerRequestContext } from '~/lib/api-client'
+import { getResponseStatus } from '~/lib/api-response.util'
 
 type SheetActionData = {
   error?: string
@@ -45,11 +46,6 @@ function readEditableValue(field: EditableScalarField, values: Record<string, un
   }
   if (field.valueType === 'number') return typeof raw === 'number' ? raw : undefined
   return typeof raw === 'string' ? raw : undefined
-}
-
-function responseStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object' || !('response' in error)) return undefined
-  return (error as { response?: { status?: number } }).response?.status
 }
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -86,13 +82,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return redirect('/user/character')
   } catch (error) {
     const message = extractApiErrorMessages(error).join(' / ')
-    if (responseStatus(error) === 409) {
+    if (getResponseStatus(error) === 409) {
       return json<SheetActionData>(
         { conflict: true, error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。' },
         { status: 409 }
       )
     }
-    return json<SheetActionData>({ error: message }, { status: responseStatus(error) ?? 400 })
+    return json<SheetActionData>({ error: message }, { status: getResponseStatus(error) ?? 400 })
   } finally {
     clearServerRequestContext()
   }
