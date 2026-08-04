@@ -1,5 +1,8 @@
 > [!WARNING]
 > この文書は旧 Bulletproof React 構成を記録した履歴資料です。現行の構成・API 契約は実コードと `trpg-remix-app/AI.md` を参照してください。
+> 特に本文中の `~/lib/hooks/` は廃止済み（#84・2026-08-04）。現行規約は逆で、**lib 層は features に依存しない**
+> （eslint `import/no-restricted-paths` で機械固定）。共通フックは各 feature の `hooks/` に置くこと。
+> `useCharacters` の例も削除済みコードにつき動かない。
 
 # 🛡️ TRPG Remix App - Bulletproof Architecture
 
@@ -150,7 +153,7 @@ import { Button } from '~/components/Elements'
 2. `api/[feature-name].service.ts`でAPI通信を定義
 3. `components/`でUIコンポーネントを作成
 4. `index.ts`で統一されたexportsを提供
-5. 必要に応じて`~/lib/hooks/`にカスタムフックを追加
+5. ~~必要に応じて`~/lib/hooks/`にカスタムフックを追加~~（廃止 — フックは当該 feature の `hooks/` へ。lib→features 依存は eslint が拒否する）
 
 ## 🔗 参考資料
 
