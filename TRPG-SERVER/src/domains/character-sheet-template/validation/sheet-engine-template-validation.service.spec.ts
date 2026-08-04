@@ -46,7 +46,7 @@ describe('SheetEngineTemplateValidationService', () => {
     expect(() => service.validateForPublish(template)).not.toThrow()
   })
 
-  it('式が壊れているテンプレートは保存検証で拒否する', () => {
+  it('式が壊れているテンプレートは engine 診断を配列で保存検証から返す', () => {
     const broken: CharacterSheetTemplateEntity = {
       ...template,
       sections: [
@@ -68,7 +68,19 @@ describe('SheetEngineTemplateValidationService', () => {
       ]
     }
 
-    expect(() => service.validateForSave(broken)).toThrow(BadRequestException)
+    let caught: unknown
+    try {
+      service.validateForSave(broken)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: ['main.bad.formula: Expected ")" after function arguments'],
+      error: 'Bad Request',
+      statusCode: 400
+    })
   })
 
   it('未閉鎖 notation token は save / publish の両方で 400 にする', () => {
@@ -93,7 +105,11 @@ describe('SheetEngineTemplateValidationService', () => {
 
       expect(caught).toBeInstanceOf(BadRequestException)
       expect((caught as BadRequestException).getStatus()).toBe(400)
-      expect((caught as BadRequestException).message).toContain('main.broken.notation: unclosed notation token')
+      expect((caught as BadRequestException).getResponse()).toStrictEqual({
+        message: ['main.broken.notation: unclosed notation token'],
+        error: 'Bad Request',
+        statusCode: 400
+      })
     }
   })
 
@@ -114,9 +130,20 @@ describe('SheetEngineTemplateValidationService', () => {
     }
 
     expect(() => service.validateForSave(constantRoll)).not.toThrow()
-    expect(() => service.validateForPublish(constantRoll)).toThrow(
-      /main\.fixed\.notation: standalone roll expression must contain at least one literal dice term/
-    )
+
+    let caught: unknown
+    try {
+      service.validateForPublish(constantRoll)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: ['main.fixed.notation: standalone roll expression must contain at least one literal dice term'],
+      error: 'Bad Request',
+      statusCode: 400
+    })
   })
 
   it.each([
@@ -159,7 +186,19 @@ describe('SheetEngineTemplateValidationService', () => {
       ]
     }
 
-    expect(() => service.validateForPublish(danglingRoll)).toThrow(/Unknown field reference: derived\.db/)
+    let caught: unknown
+    try {
+      service.validateForPublish(danglingRoll)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: ['main.roll.notation: Unknown field reference: derived.db'],
+      error: 'Bad Request',
+      statusCode: 400
+    })
   })
 
   it('publish は検証済み notation fragment への standalone roll 参照を許可する', () => {
@@ -194,26 +233,46 @@ describe('SheetEngineTemplateValidationService', () => {
     expect(() => service.validateForPublish(referencedRoll)).not.toThrow()
   })
 
-  it('T-23: publish は description へ集約される top-level field id 重複を拒否するが save は許可する', () => {
+  it('T-23: publish は description へ集約される top-level field id 重複を配列で拒否するが save は許可する', () => {
     const duplicatedProjectionKey: CharacterSheetTemplateEntity = {
       ...template,
       sections: [
         {
           id: 'profile',
           label: 'Profile',
-          fields: [{ id: 'memo', uid: 'uid-profile-memo', label: 'Profile memo', type: 'scalar', valueType: 'text' }]
+          fields: [
+            { id: 'memo', uid: 'uid-profile-memo', label: 'Profile memo', type: 'scalar', valueType: 'text' },
+            { id: 'bio', uid: 'uid-profile-bio', label: 'Profile bio', type: 'scalar', valueType: 'text' }
+          ]
         },
         {
           id: 'notes',
           label: 'Notes',
-          fields: [{ id: 'memo', uid: 'uid-notes-memo', label: 'Notes memo', type: 'scalar', valueType: 'text' }]
+          fields: [
+            { id: 'memo', uid: 'uid-notes-memo', label: 'Notes memo', type: 'scalar', valueType: 'text' },
+            { id: 'bio', uid: 'uid-notes-bio', label: 'Notes bio', type: 'scalar', valueType: 'text' }
+          ]
         }
       ]
     }
 
     expect(() => service.validateForSave(duplicatedProjectionKey)).not.toThrow()
-    expect(() => service.validateForPublish(duplicatedProjectionKey)).toThrow(
-      /duplicate projected field id in description: memo/
-    )
+
+    let caught: unknown
+    try {
+      service.validateForPublish(duplicatedProjectionKey)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: [
+        'duplicate projected field id in description: memo',
+        'duplicate projected field id in description: bio'
+      ],
+      error: 'Bad Request',
+      statusCode: 400
+    })
   })
 })

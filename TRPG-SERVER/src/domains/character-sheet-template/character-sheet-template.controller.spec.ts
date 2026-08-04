@@ -1,13 +1,19 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, ExecutionContext, INestApplication, UnauthorizedException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
+import type { Request } from 'express'
+import request from 'supertest'
+import { AppConfigService } from '../../config/config.service'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
+import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterSheetTemplateController } from './character-sheet-template.controller'
 import { CharacterSheetTemplateService } from './character-sheet-template.service'
 import { CharacterSheetTemplateEntity } from './models/character-sheet-template.entity'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 
 describe('CharacterSheetTemplateController', () => {
   let controller: CharacterSheetTemplateController
   let service: jest.Mocked<CharacterSheetTemplateService>
+  let app: INestApplication
 
   const user = { discordUserId: 'user-1', username: 'tester' }
   let guardUser: typeof user | null
@@ -28,7 +34,7 @@ describe('CharacterSheetTemplateController', () => {
 
   const jwtAuthGuardMock = {
     canActivate: jest.fn((context: ExecutionContext) => {
-      const request = context.switchToHttp().getRequest()
+      const request = context.switchToHttp().getRequest<Request>()
       if (guardUser) {
         request.user = guardUser
       }
@@ -59,7 +65,15 @@ describe('CharacterSheetTemplateController', () => {
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [CharacterSheetTemplateController],
-      providers: [{ provide: CharacterSheetTemplateService, useValue: serviceMock }]
+      providers: [
+        { provide: CharacterSheetTemplateService, useValue: serviceMock },
+        {
+          provide: AppConfigService,
+          useValue: { get: jest.fn(() => 'test') }
+        },
+        APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
+      ]
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(jwtAuthGuardMock)
@@ -67,9 +81,12 @@ describe('CharacterSheetTemplateController', () => {
 
     controller = moduleRef.get(CharacterSheetTemplateController)
     service = moduleRef.get(CharacterSheetTemplateService)
+    app = moduleRef.createNestApplication()
+    await app.init()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await app.close()
     jest.clearAllMocks()
   })
 
@@ -81,6 +98,22 @@ describe('CharacterSheetTemplateController', () => {
 
     expect(service.create).toHaveBeenCalledWith(dto, 'user-1')
     expect(result).toBe(template)
+  })
+
+  it('POST /sheet-templates は複数の BadRequest 診断を details に非損失で載せる', async () => {
+    service.create.mockRejectedValueOnce(new BadRequestException(['first issue', 'second issue']))
+
+    const response = await request(app.getHttpServer()).post('/sheet-templates').send({ name: 'Template' }).expect(400)
+
+    expect(response.body).toStrictEqual({
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'first issue, second issue',
+      details: [{ message: 'first issue' }, { message: 'second issue' }]
+    })
+    expect(service.create).toHaveBeenCalledWith({ name: 'Template' }, 'user-1')
   })
 
   it('GET /sheet-templates は自分の summary 一覧だけを取得する', async () => {

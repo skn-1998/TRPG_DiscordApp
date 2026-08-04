@@ -24,21 +24,21 @@ export class SheetEngineTemplateValidationService implements TemplateValidationP
   private assertEngineValid(template: CharacterSheetTemplateEntity): void {
     const result = validatePublishTemplate(toEngineTemplate(template))
     if (!result.ok) {
-      throw new BadRequestException(result.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '))
+      throw new BadRequestException(result.issues.map((issue) => `${issue.path}: ${issue.message}`))
     }
   }
 
   private assertProjectionKeysUnique(template: CharacterSheetTemplateEntity): void {
     const errors = collectProjectionKeyErrors(template)
     if (errors.length > 0) {
-      throw new BadRequestException(errors.join('; '))
+      throw new BadRequestException(errors)
     }
   }
 
   private assertStandaloneRollNotationsValid(template: CharacterSheetTemplateEntity): void {
     const issues = validateStandaloneRollNotations(toEngineTemplate(template))
     if (issues.length > 0) {
-      throw new BadRequestException(issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '))
+      throw new BadRequestException(issues.map((issue) => `${issue.path}: ${issue.message}`))
     }
   }
 }
