@@ -431,25 +431,117 @@ describe('v3Template validation and JSON helpers', () => {
     expect(() => safeParseTables('{"id":"crit"}')).toThrow('tables は JSON array で入力してください')
   })
 
-  const acceptedV2Fixtures: Array<[label: string, value: unknown]> = [
-    ['最小契約を満たす v2', { schemaVersion: 2, name: 'Valid V2', fields: [{ id: 'memo' }] }],
+  const acceptedV2Fixtures: Array<
+    [label: string, value: unknown, expectedSectionId: string, expectedField: Record<string, unknown>]
+  > = [
     [
-      'roll と computed の必須 payload が string の正常な v2',
+      'type と tab が欠落した field',
+      { schemaVersion: 2, name: 'Missing type', fields: [{ id: 'missing_type' }] },
+      'basic',
+      { id: 'missing_type', type: 'scalar', valueType: 'text' }
+    ],
+    [
+      '未知 type の field',
+      { schemaVersion: 2, name: 'Unknown type', fields: [{ id: 'unknown_type', tab: 'status', type: 'mystery' }] },
+      'status',
+      { id: 'unknown_type', type: 'scalar', valueType: 'text' }
+    ],
+    [
+      'text field',
+      { schemaVersion: 2, name: 'Text', fields: [{ id: 'text_field', tab: 'basic', type: 'text' }] },
+      'basic',
+      { id: 'text_field', type: 'scalar', valueType: 'text' }
+    ],
+    [
+      'textarea field',
+      { schemaVersion: 2, name: 'Textarea', fields: [{ id: 'textarea_field', tab: 'basic', type: 'textarea' }] },
+      'basic',
+      { id: 'textarea_field', type: 'scalar', valueType: 'text' }
+    ],
+    [
+      'number field',
+      { schemaVersion: 2, name: 'Number', fields: [{ id: 'number_field', tab: 'parameter', type: 'number' }] },
+      'parameter',
+      { id: 'number_field', type: 'scalar', valueType: 'number' }
+    ],
+    [
+      'select field',
+      { schemaVersion: 2, name: 'Select', fields: [{ id: 'select_field', tab: 'basic', type: 'select' }] },
+      'basic',
+      { id: 'select_field', type: 'scalar', valueType: 'select', options: undefined }
+    ],
+    [
+      'checkbox field',
+      { schemaVersion: 2, name: 'Checkbox', fields: [{ id: 'checkbox_field', tab: 'status', type: 'checkbox' }] },
+      'status',
+      { id: 'checkbox_field', type: 'scalar', valueType: 'boolean' }
+    ],
+    [
+      'computed field',
       {
         schemaVersion: 2,
-        name: 'Valid typed V2',
-        version: '1.0.0',
-        fields: [
-          { id: 'con', label: 'CON', tab: 'parameter', type: 'number' },
-          { id: 'hp', label: 'HP', tab: 'status', type: 'computed', formula: '{con}' },
-          { id: 'check', label: 'Check', tab: 'skill', type: 'roll', diceFormula: '[1d100]' }
-        ]
-      }
+        name: 'Computed',
+        fields: [{ id: 'computed_field', tab: 'status', type: 'computed', formula: '1 + 2' }]
+      },
+      'status',
+      { id: 'computed_field', type: 'computed', resultType: 'number', formula: '1 + 2' }
+    ],
+    [
+      'roll field',
+      {
+        schemaVersion: 2,
+        name: 'Roll',
+        fields: [{ id: 'roll_field', tab: 'skill', type: 'roll', diceFormula: '[1d100]' }]
+      },
+      'skill',
+      { id: 'roll_field', type: 'roll', notation: '1d100', rerollable: true }
     ]
   ]
 
-  it.each(acceptedV2Fixtures)('%sを受理する', (_label, value) => {
+  it.each(acceptedV2Fixtures)(
+    '%sを受理し、migration の直接消費値を出力する',
+    (_label, value, expectedSectionId, expectedField) => {
+      const migrateAccepted = () => [value].filter(isV2LocalTemplate).map(migrateV2TemplateToCreateRequest)
+
+      expect(isV2LocalTemplate(value)).toBe(true)
+      expect(migrateAccepted).not.toThrow()
+
+      const migrated = migrateAccepted()
+      expect(migrated).toHaveLength(1)
+      expect(migrated[0].sections.filter((section) => section.fields.length > 0).map((section) => section.id)).toEqual([
+        expectedSectionId
+      ])
+      expect(findSection(migrated[0].sections, expectedSectionId).fields).toEqual([
+        expect.objectContaining(expectedField)
+      ])
+    }
+  )
+
+  it.each([
+    ['prototype 継承キー', 'constructor'],
+    ['未知 key', 'unknown_tab']
+  ])('tab が%sのとき各 migration フォールバック値を出力する', (_label, tab) => {
+    const value: unknown = {
+      schemaVersion: 2,
+      name: 'Fallbacks',
+      version: '',
+      tags: null,
+      fields: [{ id: 'fallback_field', tab, type: 'mystery' }]
+    }
+    const migrateAccepted = () => [value].filter(isV2LocalTemplate).map(migrateV2TemplateToCreateRequest)
+
     expect(isV2LocalTemplate(value)).toBe(true)
+    expect(migrateAccepted).not.toThrow()
+
+    const migrated = migrateAccepted()
+    expect(migrated).toHaveLength(1)
+    expect(migrated[0]).toMatchObject({ version: '0.1.0', tags: [] })
+    expect(migrated[0].sections.filter((section) => section.fields.length > 0).map((section) => section.id)).toEqual([
+      'basic'
+    ])
+    expect(findSection(migrated[0].sections, 'basic').fields).toEqual([
+      expect.objectContaining({ id: 'fallback_field', type: 'scalar', valueType: 'text' })
+    ])
   })
 
   it.each([
@@ -485,13 +577,6 @@ describe('v3Template validation and JSON helpers', () => {
 
     expect(candidates.filter(isV2LocalTemplate).map(migrate)).toEqual([])
     expect(migrate).not.toHaveBeenCalled()
-  })
-
-  it('ガードが受理する全 fixture は filter 後の migration 実経路で throw しない', () => {
-    const candidates = acceptedV2Fixtures.map(([, value]) => value)
-
-    expect(candidates.filter(isV2LocalTemplate)).toHaveLength(candidates.length)
-    expect(() => candidates.filter(isV2LocalTemplate).map(migrateV2TemplateToCreateRequest)).not.toThrow()
   })
 
   it('null を拒否する', () => {
