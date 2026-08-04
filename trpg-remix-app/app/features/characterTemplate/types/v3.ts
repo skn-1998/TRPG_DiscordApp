@@ -1,10 +1,7 @@
 import type {
-  ComputedResultType,
-  FieldRole,
   LookupTable,
   RoundingMode,
   RuntimeValue,
-  ScalarValueType,
   SheetField,
   SheetSection,
   SheetTemplate
@@ -73,16 +70,4 @@ export interface PreviewValues {
   [fieldUid: string]: string | number | boolean | undefined
 }
 
-export type PreviewRuntimeValues = Record<string, RuntimeValue>
-
-export type {
-  ComputedResultType,
-  FieldRole,
-  LookupTable,
-  RoundingMode,
-  RuntimeValue,
-  ScalarValueType,
-  SheetField,
-  SheetSection,
-  SheetTemplate
-}
+export type { LookupTable, RoundingMode, RuntimeValue, SheetField, SheetSection, SheetTemplate }
