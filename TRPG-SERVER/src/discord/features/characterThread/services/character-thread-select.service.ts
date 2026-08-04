@@ -19,6 +19,7 @@ import {
   CHARACTER_CHANNEL_BINDING_REQUIRED_MESSAGE,
   isMaterializedWithoutChannel
 } from './character-channel-binding.util'
+import { FLEXIBLE_DICE_PARAM_CUSTOM_ID_PATTERN } from '../custom-id'
 
 @Injectable()
 export class CharacterThreadSelectService implements discordSelectMenuType {
@@ -48,7 +49,7 @@ export class CharacterThreadSelectService implements discordSelectMenuType {
       const isThreadSelect = customId === 'character-thread-select-with-thread'
       const isCurrentSelect = customId === 'character-thread-select-current'
       const isCreateSelect = customId === 'character-thread-create-select'
-      const isFlexibleDiceSelect = customId.startsWith('flexible-dice-param*')
+      const isFlexibleDiceSelect = customId.startsWith(FLEXIBLE_DICE_PARAM_CUSTOM_ID_PATTERN)
 
       if (!isLegacySelect && !isThreadSelect && !isCurrentSelect && !isCreateSelect && !isFlexibleDiceSelect) {
         return
