@@ -226,13 +226,14 @@ store/
 
 ```
 lib/
-├── api-client.ts           # HTTP通信クライアント（統合型定義対応）
-├── api-response.util.ts    # 統合レスポンス処理ユーティリティ
-├── gameSystem.ts           # ゲームシステム管理
-└── hooks/                  # 共通カスタムフック
-    ├── useCharacters.ts    # キャラクター管理フック
-    └── useCharacterSummaries.ts # キャラクター概要フック
+├── api-client.ts           # HTTP通信クライアント
+├── api-response.util.ts    # axios error / ErrorEnvelope の低レベル復号（正本ノート: 同名 .md）
+└── gameSystem.ts           # ゲームシステム管理
 ```
+
+lib は **features に依存しない**（層規約・eslint `import/no-restricted-paths` で機械固定済み・#84）。
+旧 `lib/hooks/` は #84（`a2a5383`）で廃止 — useCharacters は死蔵につき削除・
+useCharacterSummaries は唯一の消費者の家 `features/character/hooks/` へ移動。
 
 #### 8. **型定義** (`/types`)
 
