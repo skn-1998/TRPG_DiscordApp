@@ -232,12 +232,16 @@ export function stringifyTables(tables: LookupTable[]): string {
 }
 
 export function isV2LocalTemplate(value: unknown): value is Template {
-  return !!(
-    value &&
-    typeof value === 'object' &&
-    'schemaVersion' in value &&
-    (value as { schemaVersion?: unknown }).schemaVersion === 2 &&
-    Array.isArray((value as { fields?: unknown }).fields)
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as { schemaVersion?: unknown; name?: unknown; fields?: unknown }
+  return (
+    candidate.schemaVersion === 2 &&
+    typeof candidate.name === 'string' &&
+    Array.isArray(candidate.fields) &&
+    candidate.fields.every(
+      (field: unknown) => field !== null && typeof field === 'object' && 'id' in field && typeof field.id === 'string'
+    )
   )
 }
 

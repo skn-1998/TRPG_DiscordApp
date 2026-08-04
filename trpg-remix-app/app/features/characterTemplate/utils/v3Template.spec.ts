@@ -431,10 +431,29 @@ describe('v3Template validation and JSON helpers', () => {
     expect(() => safeParseTables('{"id":"crit"}')).toThrow('tables は JSON array で入力してください')
   })
 
-  it('isV2LocalTemplate は schemaVersion 2 かつ fields array の入力だけを v2 と判定する', () => {
-    expect(isV2LocalTemplate({ schemaVersion: 2, fields: [] })).toBe(true)
-    expect(isV2LocalTemplate({ schemaVersion: 3, fields: [] })).toBe(false)
-    expect(isV2LocalTemplate({ schemaVersion: 2, fields: {} })).toBe(false)
+  it('isV2LocalTemplate は migration が消費する name と各 field.id が string の v2 を受理する', () => {
+    expect(isV2LocalTemplate({ schemaVersion: 2, name: 'Valid V2', fields: [{ id: 'memo' }] })).toBe(true)
+  })
+
+  it.each([
+    ['schemaVersion 2 と空 fields 以外を持たない値', { schemaVersion: 2, fields: [{}] }],
+    ['id のない field を含む値', { schemaVersion: 2, name: 'Missing field id', fields: [{ id: 'memo' }, {}] }],
+    ['name のない値', { schemaVersion: 2, fields: [{ id: 'memo' }] }],
+    ['schemaVersion が 2 ではない値', { schemaVersion: 3, name: 'V3', fields: [] }],
+    ['fields が array ではない値', { schemaVersion: 2, name: 'Invalid fields', fields: {} }]
+  ])('%sを拒否する', (_label, value) => {
+    expect(isV2LocalTemplate(value)).toBe(false)
+  })
+
+  it('id のない field は migration に渡さず slugifyId(undefined) への到達を防ぐ', () => {
+    const candidates: unknown[] = [{ schemaVersion: 2, name: 'Broken V2', fields: [{}] }]
+    const migrate = jest.fn(migrateV2TemplateToCreateRequest)
+
+    expect(candidates.filter(isV2LocalTemplate).map(migrate)).toEqual([])
+    expect(migrate).not.toHaveBeenCalled()
+  })
+
+  it('null を拒否する', () => {
     expect(isV2LocalTemplate(null)).toBe(false)
   })
 })
