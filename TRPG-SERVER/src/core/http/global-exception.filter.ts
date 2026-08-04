@@ -55,7 +55,7 @@ export const GLOBAL_INTERNAL_ERROR_MESSAGE = 'サーバー内部でエラーが�
  * 2. HttpException は ErrorResponse 封筒へ整形し、ValidationPipe の message 配列は details[] に保持する。
  * 3. 未知例外は内部診断を隠した固定 500 封筒へ整形する。
  *
- * sheet 422 の issues[] や 409 の conflicts[] は controller-scoped filter が保護する。
+ * sheet 422 の issues[] や 409 の cause.conflicts は controller-scoped filter が保護する。
  * 局所 filter がない controller の HttpException だけが本 filter の封筒化対象になる。
  *
  * 委譲判定または BaseExceptionFilter 内で accessor 等の二次例外が起きた場合は、

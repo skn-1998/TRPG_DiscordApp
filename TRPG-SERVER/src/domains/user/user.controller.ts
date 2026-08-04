@@ -9,7 +9,6 @@ import {
   Patch,
   UseGuards,
   UseInterceptors,
-  UseFilters,
   HttpCode,
   HttpStatus,
   Req
@@ -22,7 +21,7 @@ import { CreateUserProfileDto, UpdateUserProfileDto } from './dto/user-profile.d
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
-import { ResponseInterceptor, HttpExceptionFilter, ApiErrorResponse, ApiError } from '../../core/http'
+import { ResponseInterceptor, ApiErrorResponse, ApiError } from '../../core/http'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../core/dto/api-response.dto'
 import { toUserOutput } from './presenters/user-output.presenter'
 import type { DiscordGuildsPayloadWire, UserProfileWire } from '@trpg/api-contract'
@@ -32,7 +31,7 @@ interface RequestWithUser extends Request {
 }
 
 /**
- * HttpException は HttpExceptionFilter、非 HttpException は GlobalExceptionFilter、
+ * 例外レスポンスの封筒化は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 全エンドポイントは success=200/'成功'。
  * @ApiErrorResponse は現在どの経路からも参照されない無効メタであり、第5群で撤去する。
@@ -44,7 +43,6 @@ interface RequestWithUser extends Request {
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 @UseInterceptors(ResponseInterceptor)
-@UseFilters(HttpExceptionFilter)
 // 未知フィールドは APP_PIPE で 400 にせず strip する。再厳格化は @StrictBody() メタデータ + APP_PIPE の useClass 方式で pipe の責務として実装する。
 export class UserController {
   constructor(private readonly userService: UserService) {}

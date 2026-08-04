@@ -4,7 +4,7 @@ import { ApiError } from '../../core/http'
 /**
  * 認証欠落（変換前の UnauthorizedException → authenticationError）を表す例外。
  *
- * userMessage は HttpExceptionFilter が作る ErrorResponse の error フィールドへ反映される。
+ * userMessage は GlobalExceptionFilter が作る ErrorResponse の error フィールドへ反映される。
  * errorPayload は文字列なので stack は development でも undefined となり、旧 wire 封筒を維持する。
  */
 export class CharacterAuthenticationException extends ApiError {
@@ -19,7 +19,7 @@ export class CharacterAuthenticationException extends ApiError {
 /**
  * リソース未発見（変換前の notFoundError(res, resource)）を表す例外。
  *
- * resource から作る文字列は HttpExceptionFilter が ErrorResponse の error へ反映する。
+ * resource から作る文字列は GlobalExceptionFilter が ErrorResponse の error へ反映する。
  * errorPayload は文字列なので stack は development でも undefined となり、旧 wire 封筒を維持する。
  */
 export class CharacterNotFoundException extends ApiError {

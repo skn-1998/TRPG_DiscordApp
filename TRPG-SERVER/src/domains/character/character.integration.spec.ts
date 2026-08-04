@@ -17,7 +17,8 @@ import {
 } from 'test/utils/character-http-contract'
 import { requireIsolatedMongoUri } from 'test/testcontainers/mongo-uri'
 import { AppConfigService } from '../../config/config.service'
-import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
+import { ResponseInterceptor } from '../../core/http'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.provider'
 import { CharacterService } from './character.service'
 import { CharacterRepository } from './repositories/character.repository'
@@ -74,9 +75,9 @@ describe('Character CRUD Integration Test', () => {
         CharacterService,
         CharacterRepository,
         TypedEventService,
-        HttpExceptionFilter,
         ResponseInterceptor,
         APP_VALIDATION_PIPE_PROVIDER,
+        APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
         {
           provide: 'TYPED_EVENT_EMITTER',
           useFactory: () =>

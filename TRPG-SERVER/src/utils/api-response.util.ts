@@ -1,3 +1,4 @@
+/** production 参照 0。移行等価性の実行可能オラクルとしてのみ維持する。 */
 import { Response } from 'express'
 import {
   SuccessResponse,

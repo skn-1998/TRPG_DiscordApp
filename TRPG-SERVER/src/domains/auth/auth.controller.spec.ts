@@ -19,7 +19,8 @@ import { DiscordLoginDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { JwtTokenPayload } from './models/auth.token.model'
 import { CookieService } from '../../core/http/cookie.service'
-import { ResponseInterceptor, HttpExceptionFilter, RESPONSE_MESSAGE_KEY } from '../../core/http'
+import { ResponseInterceptor, RESPONSE_MESSAGE_KEY } from '../../core/http'
+import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER, GlobalExceptionFilter } from '../../core/http/global-exception.filter'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 
@@ -74,8 +75,8 @@ describe('AuthController', () => {
   // ===== 変換後方式（戻り値 + throw）を envelope へ変換して検証するヘルパ =====
   // 変換前: ハンドラ内で ApiResponseUtil.success/error を直接呼んでいた。
   // 変換後: ハンドラはデータを return / 例外を throw し、
-  //         ResponseInterceptor / HttpExceptionFilter（HttpException）が封筒化する。
-  // 以下のヘルパは成功値と HttpException を実 interceptor/filter に通し、
+  //         ResponseInterceptor / GlobalExceptionFilter が封筒化する。
+  // 以下のヘルパは成功値と HttpException を実 interceptor/global filter に通し、
   // 変換前の spec が保証していた envelope/status/message を引き続き検証する。
 
   const reflector = new Reflector()
@@ -92,17 +93,17 @@ describe('AuthController', () => {
     return lastValueFrom(interceptor.intercept(ctx, next))
   }
 
-  /** ハンドラから throw された例外を HttpExceptionFilter に通して最終 envelope/status を得る */
+  /** ハンドラから throw された HttpException を GlobalExceptionFilter に通して最終 envelope/status を得る */
   const filterError = (error: unknown): { status: number; body: any } => {
     if (!(error instanceof HttpException)) {
-      throw new Error('HttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+      throw new Error('GlobalExceptionFilter の単体ヘルパには HttpException のみ渡せます')
     }
     // P1-C: filter は AppConfigService から dev 判定（includeStack）を得る。
     // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
     const mockAppConfig = {
       get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
     } as unknown as import('../../config/config.service').AppConfigService
-    const filter = new HttpExceptionFilter(mockAppConfig)
+    const filter = new GlobalExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {
@@ -302,9 +303,9 @@ describe('AuthController', () => {
             useValue: { get: jest.fn((key: string) => configValues[key]) }
           },
           CookieService,
-          HttpExceptionFilter,
           ResponseInterceptor,
-          APP_VALIDATION_PIPE_PROVIDER
+          APP_VALIDATION_PIPE_PROVIDER,
+          APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
         ]
       }).compile()
       const app = httpModule.createNestApplication()

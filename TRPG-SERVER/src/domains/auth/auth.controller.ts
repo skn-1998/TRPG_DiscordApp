@@ -7,7 +7,6 @@ import {
   Res,
   UseGuards,
   UseInterceptors,
-  UseFilters,
   HttpCode,
   HttpStatus,
   Headers,
@@ -21,7 +20,7 @@ import { User } from '../user/models/user.model'
 import { DiscordLoginDto, TokenValidationOutputDto } from './dto/discord-login.dto'
 import { DiscordUserProfile } from './models/discord-user.model'
 import { CookieService } from '../../core/http/cookie.service'
-import { ResponseInterceptor, HttpExceptionFilter, SkipResponseWrapper } from '../../core/http'
+import { ResponseInterceptor, SkipResponseWrapper } from '../../core/http'
 import { AppConfigService } from '../../config/config.service'
 import type { LoginDataWire } from '@trpg/api-contract'
 
@@ -31,14 +30,13 @@ import type { LoginDataWire } from '@trpg/api-contract'
  * 認証コントローラー
  * 認証関連のエンドポイントを提供
  *
- * HttpException は HttpExceptionFilter、非 HttpException は GlobalExceptionFilter、
+ * 例外レスポンスの封筒化は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 各ハンドラはデータを return（成功）/ 例外を throw（異常）するだけにし、
  * 成功 status は @HttpCode、失敗 status / message は発生源の HttpException で保持する。
  */
 @Controller('auth')
 @UseInterceptors(ResponseInterceptor)
-@UseFilters(HttpExceptionFilter)
 export class AuthController {
   private readonly logger = new Logger(AuthController.name)
 

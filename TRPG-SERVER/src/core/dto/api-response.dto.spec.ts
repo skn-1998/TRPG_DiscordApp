@@ -6,7 +6,7 @@ import { ErrorResponse, InternalServerErrorResponse, ValidationErrorResponse } f
  *
  * 旧挙動: process.env.NODE_ENV==='development' のときのみ stack を含める。
  * 新挙動: includeStack（既定 false）が true のときのみ stack を含める。
- * → 生成側（http-exception.filter / character-http.exception）が AppConfigService の
+ * → 生成側（global-exception.filter / character-http.exception）が AppConfigService の
  *   app.environment==='development' を渡すことで、env と等価な出し分けを維持する。
  */
 describe('ErrorResponse / InternalServerErrorResponse の stack 出し分け（includeStack）', () => {

@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser'
 import { of, throwError } from 'rxjs'
 import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
-import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
+import { ResponseInterceptor } from '../../core/http'
 import { CookieService } from '../../core/http/cookie.service'
 import {
   APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
@@ -68,7 +68,6 @@ describe('AuthController / UserController HTTP integration', () => {
         CookieService,
         JwtTokenService,
         JwtAuthGuard,
-        HttpExceptionFilter,
         ResponseInterceptor,
         APP_VALIDATION_PIPE_PROVIDER,
         APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
@@ -214,7 +213,7 @@ describe('AuthController / UserController HTTP integration', () => {
     expect(userService.findOne).not.toHaveBeenCalled()
   })
 
-  it('/auth/login の素の Error は local filter を通過し global の固定 500 封筒になる', async () => {
+  it('/auth/login の素の Error は global の固定 500 封筒になる', async () => {
     const rawMessage = 'auth-user-info-upstream-private-detail'
     httpService.post.mockReturnValueOnce(
       of({
@@ -243,7 +242,7 @@ describe('AuthController / UserController HTTP integration', () => {
     expect(userService.findOne).not.toHaveBeenCalled()
   })
 
-  it('/users の素の Error は local filter を通過し global の固定 500 封筒になる', async () => {
+  it('/users の素の Error は global の固定 500 封筒になる', async () => {
     const rawMessage = 'user-create-private-database-detail'
     const token = new JwtService({ secret: jwtSecret }).sign({
       username: 'raw-error-user',

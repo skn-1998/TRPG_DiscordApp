@@ -14,7 +14,7 @@ import {
   JsonObject
 } from 'test/utils/character-http-contract'
 import { AppConfigService } from '../../config/config.service'
-import { HttpExceptionFilter, ResponseInterceptor } from '../../core/http'
+import { ResponseInterceptor } from '../../core/http'
 import {
   APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
   GLOBAL_INTERNAL_ERROR_MESSAGE
@@ -26,7 +26,7 @@ import { CharacterService } from './character.service'
 
 /**
  * CharacterController の実 HTTP 応答契約を検証する。
- * service 境界だけをモックし、guard override、実 interceptor、実 character/global filter を通す。
+ * service 境界だけをモックし、guard override、実 interceptor、実 global filter を通す。
  */
 describe('CharacterController HTTP payload contract', () => {
   const authenticatedUser = {
@@ -55,7 +55,6 @@ describe('CharacterController HTTP payload contract', () => {
             get: jest.fn(() => 'test')
           }
         },
-        HttpExceptionFilter,
         ResponseInterceptor,
         APP_VALIDATION_PIPE_PROVIDER,
         APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
@@ -159,7 +158,7 @@ describe('CharacterController HTTP payload contract', () => {
     expect(characterService.create).not.toHaveBeenCalled()
   })
 
-  it('GET /character/:id の素の Error は character filter を通過し global の固定 500 封筒になる', async () => {
+  it('GET /character/:id の素の Error は global の固定 500 封筒になる', async () => {
     const rawMessage = 'character-service-private-detail'
     characterService.findOneForOwner.mockRejectedValueOnce(new Error(rawMessage))
 
