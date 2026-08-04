@@ -56,8 +56,13 @@ export class CharacterEmbedService {
    * 強化表示：詳細なキャラクター情報
    */
   private async postEnhancedCharacterInfo(thread: ThreadChannel, character: CharacterEntity): Promise<void> {
+    const embed = this.buildEnhancedCharacterEmbed(thread.guildId, character)
+
+    await thread.send({ embeds: [embed] })
+  }
+
+  private buildEnhancedCharacterEmbed(guildId: string, character: CharacterEntity): EmbedBuilder {
     // DiscordチャンネルURLを生成
-    const guildId = thread.guildId
     const channelUrl = character.discordChannelId
       ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
       : null
@@ -115,7 +120,7 @@ export class CharacterEmbedService {
       }
     }
 
-    await thread.send({ embeds: [embed] })
+    return embed
   }
 
   /**
@@ -279,64 +284,7 @@ export class CharacterEmbedService {
         // 既存メッセージを更新
         this.logger.debug(`Found existing character embed message, updating: ${characterEmbedMessage.id}`)
 
-        // 新しいEmbed情報を生成
-        const guildId = thread.guildId
-        const channelUrl = character.discordChannelId
-          ? `https://discord.com/channels/${guildId}/${character.discordChannelId}`
-          : null
-
-        const description = [
-          `**ゲームシステム**: ${character.gameSystemId || '未設定'}`,
-          channelUrl ? `**編集チャンネル**: [キャラクター編集](${channelUrl})` : null
-        ]
-          .filter(Boolean)
-          .join('\n')
-
-        const embed = new EmbedBuilder()
-          .setTitle(`🎭 ${character.characterName}`)
-          .setDescription(description)
-          .setColor(0x00ae86)
-          .setTimestamp()
-
-        // ステータス情報
-        if (character.status && Object.keys(character.status).length > 0) {
-          const statusText = this.formatAttributeSection(character.status)
-          if (statusText) {
-            embed.addFields({ name: '📊 ステータス', value: statusText, inline: true })
-          }
-        }
-
-        // パラメータ情報
-        if (character.parameter && Object.keys(character.parameter).length > 0) {
-          const parameterText = this.formatAttributeSection(character.parameter)
-          if (parameterText) {
-            embed.addFields({ name: '⚡ パラメータ', value: parameterText, inline: true })
-          }
-        }
-
-        // スキル情報（上位5個まで）
-        if (character.skill && Object.keys(character.skill).length > 0) {
-          const skillText = this.formatAttributeSection(character.skill, 5)
-          if (skillText) {
-            embed.addFields({ name: '🎯 スキル', value: skillText, inline: false })
-          }
-        }
-
-        // アイテム情報（上位3個まで）
-        if (character.item && Object.keys(character.item).length > 0) {
-          const itemText = this.formatAttributeSection(character.item, 3)
-          if (itemText) {
-            embed.addFields({ name: '🎒 アイテム', value: itemText, inline: false })
-          }
-        }
-
-        // 説明情報
-        if (character.description && Object.keys(character.description).length > 0) {
-          const descriptionText = this.formatAttributeSection(character.description, 1)
-          if (descriptionText) {
-            embed.addFields({ name: '📖 説明', value: descriptionText, inline: false })
-          }
-        }
+        const embed = this.buildEnhancedCharacterEmbed(thread.guildId, character)
 
         await characterEmbedMessage.edit({ embeds: [embed] })
         this.logger.debug(`Character embed message updated successfully`)
