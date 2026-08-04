@@ -1,212 +1,29 @@
-# APIレスポンス処理共通関数（統合型定義版）
+# api-response.util.ts — axios error / ErrorEnvelope の低レベル復号（現況）
 
-> 本機構は S6a で撤去済み。正典パターンは @trpg/api-contract の SuccessEnvelope<T> 直読み（封筒適用コントローラのみ）。
-> `handleError` は ErrorEnvelope の `error`（実詳細）を `message`（ラベル）より優先して返します。
-> 以下の本文は撤去済み機構の履歴資料（2026-07 S6a 撤去）。現行仕様は `handleError` / `isErrorEnvelope` のみ。
+`app/lib/api-response.util.ts` の正本ノート。責務は「axios-like error と
+`@trpg/api-contract` ErrorEnvelope の低レベル復号」で一貫させる（俯瞰#16 で確認済み・
+lib 層のため feature への依存は持たない）。
 
-## 概要
+## 住人（2026-08-04 現在）
 
-`api-client.ts`と`api-response.util.ts`を統合した型安全なAPIレスポンス処理システムです。
+| export                             | 役割                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `isErrorEnvelope(data)`            | `{success:false, error:string}` 形の型ガード                                              |
+| `getResponseStatus(error)`         | axios-like error から `response.status` を取り出す（#61 で route 2本から1本化）           |
+| `errorEnvelopeMessages(data)`      | ErrorEnvelope から表示用メッセージ配列を抽出（issues → cause → details → error の優先順） |
+| `ApiResponseUtil.handleError(err)` | ErrorEnvelope の `error`（実詳細）を `message`（ラベル）より優先して1文字列で返す         |
 
-## 特徴
+- status 別の許可リスト（403/409/422 等）は **presentation policy として各 route が持つ**。
+  ここへは統合しない（#61 裁定・俯瞰#16 で再確認）
+- UI 文言への分類（`classifyDicePreviewError` 等）は feature 側の責務。全面統合は
+  俯瞰#15 で No-Go 裁定済み
+- 既知の残件: `getResponseStatus` は typeof 検査がなく `status: "409"`（文字列）を
+  宣言 `number | undefined` のまま返す型穴＋spec 不在＋同義ローカル実装が
+  `_user.user.character_.$id.sheet.tsx` に1本残存 — Task #82 で解消予定
 
-- **完全な型安全性**: TypeScriptによる厳密な型チェック
-- **統合型定義**: APIクライアントとレスポンスユーティリティの型が完全に連携
-- **ドメインベース**: ドメイン名による明確なデータ分離
-- **エラーハンドリング**: 統一されたエラー処理
-- **後方互換性**: 既存のAPIクライアント使用方法も維持
+## 履歴
 
-## 型定義システム
-
-### 1. 中央集権的な型定義（`app/types/api.ts`）
-
-```typescript
-// ドメイン定義
-export type KnownDomains = 'auth' | 'character' | 'user' | 'discord'
-
-// ドメインデータマッピング
-export interface DomainDataMap {
-  auth: {
-    message: string
-    discordUserId: string
-    userName: string
-    token: string
-    user: DiscordUserProfile
-  }
-  character: Character
-  user: User
-  discord: DiscordData
-}
-
-// 統合APIレスポンス型
-export type ApiResponse<T, Domain extends string> =
-  | SuccessApiResponse<T, Domain> // { success: true, [domain]: T }
-  | ErrorApiResponse // { success: false, message: string }
-```
-
-## 使用方法
-
-### 1. 型安全なAPIクライアント使用
-
-```typescript
-import { apiClient } from '~/lib/api-client'
-import { createApiHandler } from '~/lib/api-response.util'
-
-// ドメイン指定でAPIハンドラーを作成
-const authHandler = createApiHandler('auth')
-
-// 型安全なAPI呼び出し
-const response = await apiClient.postDomain('/auth/login', 'auth', { code })
-const authData = authHandler.handleSuccess(response)
-
-console.log(authData.userName) // 型安全にアクセス可能
-```
-
-### 2. サービス層での実装例
-
-```typescript
-// 認証サービス
-export async function loginOrRegisterUser(code: string): Promise<LoginResponse> {
-  try {
-    const response = await apiClient.postDomain('/auth/login', 'auth', { code })
-    const authData = authHandler.handleSuccess(response)
-
-    console.log('ログイン成功:', authData.userName) // 型安全
-    return response.data
-  } catch (err) {
-    const errorMessage = ApiResponseUtil.handleError(err)
-    throw new Error(errorMessage)
-  }
-}
-
-// キャラクターサービス
-export async function getCharacter(id: string): Promise<Character> {
-  const response = await apiClient.getDomain(`/character/${id}`, 'character')
-  return characterHandler.handleSuccess(response) // 型安全にCharacterを返す
-}
-```
-
-### 3. 型ガードによる安全なアクセス
-
-```typescript
-const userInfo = await loginOrRegisterUser(code)
-
-// TypeScriptの型ガードが自動的に働く
-if (userInfo.success) {
-  // この時点でuserInfo.authが型安全にアクセス可能
-  console.log(userInfo.auth.userName)
-  const token = userInfo.auth.token
-} else {
-  // この時点でuserInfo.messageが型安全にアクセス可能
-  console.error(userInfo.message)
-}
-```
-
-## APIクライアントメソッド
-
-### 新しい型安全メソッド
-
-```typescript
-// ドメイン指定版（推奨）
-apiClient.getDomain<Domain>(url, domain, config?)
-apiClient.postDomain<Domain>(url, domain, data?, config?)
-apiClient.putDomain<Domain>(url, domain, data?, config?)
-apiClient.deleteDomain<Domain>(url, domain, config?)
-```
-
-### 従来メソッド（後方互換性）
-
-```typescript
-// 汎用版（既存コードとの互換性のため）
-apiClient.get<T>(url, config?)
-apiClient.post<T>(url, data?, config?)
-apiClient.put<T>(url, data?, config?)
-apiClient.delete<T>(url, config?)
-```
-
-## レスポンス形式
-
-### 成功レスポンス
-
-```json
-{
-  "success": true,
-  "auth": {
-    "message": "認証成功",
-    "token": "jwt-token",
-    "userName": "username",
-    "discordUserId": "123456789",
-    "user": { ... }
-  }
-}
-```
-
-### エラーレスポンス
-
-```json
-{
-  "success": false,
-  "message": "エラーメッセージ",
-  "error": "詳細エラー情報"
-}
-```
-
-## 型安全性の恩恵
-
-1. **コンパイル時エラー検出**
-
-   ```typescript
-   // ❌ コンパイルエラー：存在しないプロパティ
-   const invalid = authData.invalidProperty
-
-   // ✅ 型安全：正しいプロパティのみアクセス可能
-   const valid = authData.userName
-   ```
-
-2. **IntelliSenseサポート**
-   - IDEでの自動補完
-   - プロパティの型情報表示
-   - リファクタリング支援
-
-3. **ドメイン名のtypo防止**
-
-   ```typescript
-   // ❌ コンパイルエラー：未定義のドメイン
-   createApiHandler('auht') // typo
-
-   // ✅ 正しいドメイン名のみ許可
-   createApiHandler('auth')
-   ```
-
-## マイグレーション指針
-
-### 既存コードから新システムへ
-
-1. **段階的移行**
-
-   ```typescript
-   // Before
-   const response = await apiClient.post('/auth/login', { code })
-   const authData = response.data.auth
-
-   // After
-   const response = await apiClient.postDomain('/auth/login', 'auth', { code })
-   const authData = authHandler.handleSuccess(response)
-   ```
-
-2. **型定義の更新**
-
-   ```typescript
-   // Before
-   interface CustomResponse { ... }
-
-   // After
-   type CustomResponse = DomainApiResponse<'custom'>
-   ```
-
-## 注意事項
-
-- 新しいドメインを追加する場合は`app/types/api.ts`の`KnownDomains`と`DomainDataMap`を更新
-- 既存の`as any`キャストは不要になりました
-- エラーハンドリングは必ず`ApiResponseUtil.handleError`を使用
-- レスポンスは必ず`success`フラグでの分岐処理を推奨
+旧「統合型定義版」システム（`createApiHandler` / `apiClient.postDomain` / `DomainDataMap` /
+`app/types/api.ts` の KnownDomains）は S6a（2026-07）で撤去済み。本ファイルは当時その
+資料だったが、存在しない API を現行仕様のように記載していたため俯瞰#16（2026-08-04）で
+現況版へ全面縮約した。旧資料は git 履歴 `fa532b8` 以前を参照。
