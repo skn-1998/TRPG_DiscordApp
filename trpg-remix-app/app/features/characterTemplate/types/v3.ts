@@ -1,17 +1,10 @@
-import type {
-  LookupTable,
-  RoundingMode,
-  RuntimeValue,
-  SheetField,
-  SheetSection,
-  SheetTemplate
-} from '@trpg/sheet-engine'
+import type { LookupTable, RoundingMode, SheetField, SheetSection, SheetTemplate } from '@trpg/sheet-engine'
 
-export type SheetTemplateStatus = 'draft' | 'published' | 'deprecated'
+type SheetTemplateStatus = 'draft' | 'published' | 'deprecated'
 
-export type SheetTemplateVisibility = 'private' | 'unlisted' | 'public'
+type SheetTemplateVisibility = 'private' | 'unlisted' | 'public'
 
-export type V3ScalarEditorType = 'number' | 'text' | 'select' | 'checkbox'
+type V3ScalarEditorType = 'number' | 'text' | 'select' | 'checkbox'
 
 export type V3EditorFieldType = V3ScalarEditorType | 'computed' | 'roll'
 
@@ -70,4 +63,4 @@ export interface PreviewValues {
   [fieldUid: string]: string | number | boolean | undefined
 }
 
-export type { LookupTable, RoundingMode, RuntimeValue, SheetField, SheetSection, SheetTemplate }
+export type { LookupTable, SheetField, SheetSection, SheetTemplate }

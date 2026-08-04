@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from '@remix-run/node'
 import type { ErrorEnvelope } from '@trpg/api-contract'
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { apiClient, clearServerRequestContext, setServerRequestContext, withJwt } from '~/lib/api-client'
-import { action } from '../../../routes/templates.dice-preview'
+import { action } from '../../../routes/templates_.dice-preview'
 
 jest.mock(
   '~/features/auth/api/auth.service',

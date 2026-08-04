@@ -460,8 +460,7 @@ describe('migrateV2TemplateToCreateRequest', () => {
           type: 'computed',
           formula: '{pow} * 5'
         }
-      ],
-      layout: []
+      ]
     }
 
     const migrated = migrateV2TemplateToCreateRequest(template)
@@ -490,8 +489,7 @@ describe('migrateV2TemplateToCreateRequest', () => {
         { id: 'san', label: 'SAN', tab: 'status', type: 'computed', formula: '{pow} * 5' },
         { id: 'san_check', label: 'SAN Check', tab: 'skill', type: 'roll', diceFormula: '[1d100]' },
         { id: 'free_roll', label: 'Free Roll', tab: 'skill', type: 'roll', diceFormula: '2d6+6' }
-      ],
-      layout: []
+      ]
     }
 
     const migrated = migrateV2TemplateToCreateRequest(template)
@@ -565,8 +563,7 @@ describe('migrateV2TemplateToCreateRequest', () => {
       name: 'Empty',
       version: '2.0.0',
       schemaVersion: 2,
-      fields: [],
-      layout: []
+      fields: []
     })
 
     expect(migrated.sections).toEqual([

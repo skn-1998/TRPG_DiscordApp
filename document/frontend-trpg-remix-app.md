@@ -3,12 +3,16 @@
  ## 役割と構成
  - Remix v2 + TypeScript
  - UI: Mantine v7
- - 状態管理: Zustand（characterTemplate の store で使用。immer は #70 以降 app 内参照0＝依存整理候補）
- - API: Axios + 統合型定義（`app/types/api.ts`）
+ - 状態管理: React ローカル state のみ（#64-A3 で characterTemplate の Zustand store を全削除。
+   zustand / immer は app 内参照0の宣言残り＝依存整理は #79）
+ - API: Axios（`app/lib/api-client.ts`）。かつての統合型定義 `app/types/api.ts`
+   （KnownDomains/DomainDataMap）は S6 で契約置換済みで現存しない
  
  ## 最近の変更ポイント
  - mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）
-   - エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` / `app/routes/templates.$id.edit.tsx`）
+   - エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` /
+     `app/routes/templates_.$id.edit.tsx` — 俯瞰#14 F-2 で un-nest リネーム。
+     `templates_.dice-preview.tsx` も同様に un-nest（B4）
  
  ## 設計メモ
  - Feature-based 構成（`features/`）が中心
@@ -22,7 +26,7 @@
    `_user.user.character.tsx` の soft degrade（redirect せず未認証状態を返す）は既知の
    UX 改善候補で現状維持。
    **例外（俯瞰#14・2026-08-04）**: UI を持たない resource route（fetcher が叩く action 専用
-   route。例 `templates.dice-preview.tsx`）は redirect せず **401 JSON を返す** —
+   route。例 `templates_.dice-preview.tsx`）は redirect せず **401 JSON を返す** —
    redirect すると fetcher が HTML（ログイン画面）を受け取り、呼び出し側の
    エラー分類が network 失敗へ誤分類されるため
  - **jwt の受け渡し不変条件（俯瞰#13 CL-1・2026-08-04）**: `setServerRequestContext` は
@@ -32,7 +36,8 @@
    （ambient 依存は最初の呼び出しのみ安全）。現行9サイトはすべてこの規則に従っている
  - `_user.user.tsx` の loader は root.tsx と重複して `/users` を1往復し JWT の有効性を
    再検証する（/user/* 配下で計2往復）。意図的な hard gate であり削減は挙動変更になる
- - テストは jest 6 suites / 161 tests（coverage threshold: global 80%）
+ - テストは jest 7 suites / 130 tests（coverage threshold: global 80%・2026-08-04 B4 時点。
+   数は増減するため目安）
  
  ## 次にやるべきこと（フロント）
  - エラーハンドリング統一の方針整理
