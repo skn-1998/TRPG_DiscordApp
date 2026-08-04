@@ -36,7 +36,7 @@
    （ambient 依存は最初の呼び出しのみ安全）。現行9サイトはすべてこの規則に従っている
  - `_user.user.tsx` の loader は root.tsx と重複して `/users` を1往復し JWT の有効性を
    再検証する（/user/* 配下で計2往復）。意図的な hard gate であり削減は挙動変更になる
- - テストは jest 7 suites / 130 tests（coverage threshold: global 80%・2026-08-04 B4 時点。
+ - テストは jest 7 suites / 137 tests（coverage threshold: global 80%・2026-08-04 #75 時点。
    数は増減するため目安）
  
  ## 次にやるべきこと（フロント）
