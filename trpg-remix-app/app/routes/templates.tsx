@@ -12,6 +12,7 @@ import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { clearServerRequestContext, setServerRequestContext } from '~/lib/api-client'
 import type { CharacterSheetTemplateSummary, CreateSheetTemplateRequest } from '~/features/characterTemplate/types/v3'
 import { createCharacterFromTemplate } from '~/features/character/api/character.service'
+import { getResponseStatus } from '~/lib/api-response.util'
 
 type TemplatesLoaderData = {
   summaries: CharacterSheetTemplateSummary[]
@@ -106,11 +107,4 @@ export default function TemplatesRoute() {
   const { summaries, error } = useLoaderData<typeof loader>()
   const actionData = useActionData<TemplatesActionData>()
   return <TemplateListV3 summaries={summaries} error={error} actionError={actionData?.error} />
-}
-
-function getResponseStatus(error: unknown): number | undefined {
-  if (error && typeof error === 'object' && 'response' in error) {
-    return (error as { response?: { status?: number } }).response?.status
-  }
-  return undefined
 }

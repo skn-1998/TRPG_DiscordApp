@@ -9,6 +9,13 @@ export function isErrorEnvelope(data: unknown): data is ErrorEnvelope {
   )
 }
 
+export function getResponseStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    return (error as { response?: { status?: number } }).response?.status
+  }
+  return undefined
+}
+
 export function errorEnvelopeMessages(data: ErrorEnvelope): string[] {
   const issueMessages = (data.issues?.map((issue) => issue.message) ?? []).filter((message) => message.length > 0)
   if (issueMessages.length > 0) return [...new Set(issueMessages)]
