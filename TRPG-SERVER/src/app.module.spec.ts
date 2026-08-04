@@ -166,6 +166,7 @@ describe('AppModule', () => {
       'CharacterSheetController',
       'CharacterSheetTemplateController',
       'CommandsController',
+      'DicePreviewController',
       'DiscordController',
       'InteractionsController',
       'PerformanceDashboardController',

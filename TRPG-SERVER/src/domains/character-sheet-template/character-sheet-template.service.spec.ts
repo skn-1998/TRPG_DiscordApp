@@ -241,10 +241,23 @@ describe('CharacterSheetTemplateService', () => {
     expect(repository.deprecatePublished).toHaveBeenCalledWith('template-1', 'user-1')
   })
 
-  it('Zod 構造検証に失敗した作成は 400', async () => {
-    await expect(service.create({ name: 'Broken', version: 'not-semver' }, 'user-1')).rejects.toBeInstanceOf(
-      BadRequestException
-    )
+  it('Zod 構造検証に失敗した作成は全メッセージを順序どおり配列で 400 にする', async () => {
+    let caught: unknown
+    try {
+      await service.create({ name: '', version: 'not-semver' }, 'user-1')
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: [
+        'Invalid string: must match pattern /^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$/',
+        'Too small: expected string to have >=1 characters'
+      ],
+      error: 'Bad Request',
+      statusCode: 400
+    })
     expect(repository.create).not.toHaveBeenCalled()
   })
 })
