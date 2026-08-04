@@ -7,7 +7,8 @@ import { UserController } from './user.controller'
 import { UserService } from './user.service'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { JwtTokenService } from '../auth/token/jwt-token.service'
-import { ResponseInterceptor, HttpExceptionFilter, ApiError } from '../../core/http'
+import { ResponseInterceptor, ApiError } from '../../core/http'
+import { GlobalExceptionFilter } from '../../core/http/global-exception.filter'
 import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 import { GUARDS_METADATA } from '@nestjs/common/constants'
@@ -54,15 +55,13 @@ describe('UserController', () => {
 
   const reflector = new Reflector()
 
-  // P1-C: HttpExceptionFilter は @UseFilters(class) 経由で DI 解決される（本番は @Global な
-  // AppConfigModule が供給）。TestingModule と filterError の両方で AppConfigService(mock) が要る。
-  // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
+  // GlobalExceptionFilter の dev 判定を test 固定にし、ApiResponseUtil.error の既定と同じく stack を含めない。
   const mockAppConfig = {
     get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
   } as unknown as AppConfigService
 
   // 変換後: ハンドラはデータを return / 例外を throw し、
-  // ResponseInterceptor / HttpExceptionFilter（HttpException）が封筒化する。
+  // ResponseInterceptor / GlobalExceptionFilter が封筒化する。
   // 以下のヘルパで成功値と HttpException の最終 envelope を再現し、変換前の
   // ApiResponseUtil.success/error と同形であることを検証する。
 
@@ -75,9 +74,9 @@ describe('UserController', () => {
 
   const filterError = (error: unknown): { status: number; body: any } => {
     if (!(error instanceof HttpException)) {
-      throw new Error('HttpExceptionFilter の単体ヘルパには HttpException のみ渡せます')
+      throw new Error('GlobalExceptionFilter の単体ヘルパには HttpException のみ渡せます')
     }
-    const filter = new HttpExceptionFilter(mockAppConfig)
+    const filter = new GlobalExceptionFilter(mockAppConfig)
     const captured: { status?: number; body?: any } = {}
     const res = {
       status: (s: number) => {

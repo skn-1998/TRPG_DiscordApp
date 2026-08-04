@@ -1,27 +1,40 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   Body,
   Catch,
   Controller,
   ExceptionFilter,
   Get,
   HttpException,
+  HttpStatus,
   INestApplication,
   Logger,
   NotFoundException,
   Post,
   Res,
+  UnauthorizedException,
   UnprocessableEntityException,
   UseFilters
 } from '@nestjs/common'
+import { FILTER_CATCH_EXCEPTIONS } from '@nestjs/common/constants'
 import { Test } from '@nestjs/testing'
 import { IsInt, IsString } from 'class-validator'
 import type { Response } from 'express'
 import request from 'supertest'
 import { AppConfigService } from '../../config/config.service'
+import {
+  CharacterAuthenticationException,
+  CharacterNotFoundException
+} from '../../domains/character/character-http.exception'
+import { ApiResponseUtil } from '../../utils/api-response.util'
 import { ApiError } from './api-error'
 import { APP_VALIDATION_PIPE_PROVIDER } from './validation-pipe.provider'
-import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER, GLOBAL_INTERNAL_ERROR_MESSAGE } from './global-exception.filter'
+import {
+  APP_GLOBAL_EXCEPTION_FILTER_PROVIDER,
+  GLOBAL_INTERNAL_ERROR_MESSAGE,
+  GlobalExceptionFilter
+} from './global-exception.filter'
 
 class ValidationTestDto {
   @IsString()
@@ -405,5 +418,207 @@ describe('GlobalExceptionFilter', () => {
     const response = await request(app.getHttpServer()).get('/global-exception-filter/unknown-error').expect(500)
 
     expect(response.body.stack).toEqual(expect.any(String))
+  })
+})
+
+/**
+ * 削除する controller-scoped filter の HttpException pin を global 境界へ再ホストする。
+ * requestId と timestamp は実行ごとに変わるため、旧オラクルとの比較時だけ除外する。
+ */
+describe('GlobalExceptionFilter rehosted HttpException pins', () => {
+  const mockAppConfig = {
+    get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
+  } as unknown as AppConfigService
+
+  const createResponse = (): { res: Response; status: jest.Mock; json: jest.Mock } => {
+    const status = jest.fn().mockReturnThis()
+    const json = jest.fn().mockReturnThis()
+    const res = { status, json } as unknown as Response
+    return { res, status, json }
+  }
+
+  const createHost = (res: Response): ArgumentsHost =>
+    ({
+      switchToHttp: () => ({
+        getResponse: () => res,
+        getRequest: () => ({})
+      })
+    }) as unknown as ArgumentsHost
+
+  const stripVolatile = (payload: any): Record<string, unknown> => {
+    const { requestId, timestamp, ...rest } = payload
+    return rest
+  }
+
+  it('UnauthorizedException は 401 と例外メッセージを維持する', () => {
+    const { res, status, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+
+    filter.catch(new UnauthorizedException('無効な認証トークンです'), createHost(res))
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
+    expect(json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: '無効な認証トークンです'
+      })
+    )
+  })
+
+  it.each([
+    {
+      caseName: '文字列 response',
+      exception: new HttpException('plain-string', HttpStatus.CONFLICT),
+      expectedStatus: HttpStatus.CONFLICT,
+      expectedError: 'plain-string'
+    },
+    {
+      caseName: '配列 message',
+      exception: new BadRequestException(['a', 'b']),
+      expectedStatus: HttpStatus.BAD_REQUEST,
+      expectedError: 'a, b'
+    },
+    {
+      caseName: '数値 message',
+      exception: new HttpException({ message: 123 }, HttpStatus.BAD_REQUEST),
+      expectedStatus: HttpStatus.BAD_REQUEST,
+      expectedError: '123'
+    }
+  ])(
+    '$caseName は status=$expectedStatus・error=$expectedError に整形する',
+    ({ exception, expectedStatus, expectedError }) => {
+      const { res, status, json } = createResponse()
+      const filter = new GlobalExceptionFilter(mockAppConfig)
+
+      filter.catch(exception, createHost(res))
+
+      expect(status).toHaveBeenCalledWith(expectedStatus)
+      expect(json.mock.calls[0][0].error).toBe(expectedError)
+    }
+  )
+
+  it('app.environment=development では stack を含める', () => {
+    const { res, json } = createResponse()
+    const configService = {
+      get: (path: string) => (path === 'app.environment' ? 'development' : undefined)
+    } as unknown as AppConfigService
+    const filter = new GlobalExceptionFilter(configService)
+    const exception = new HttpException('stack-target', HttpStatus.CONFLICT)
+
+    filter.catch(exception, createHost(res))
+
+    expect(json.mock.calls[0][0].stack).toBe(exception.stack)
+  })
+
+  it('app.environment=test では stack を含めない', () => {
+    const { res, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+    const exception = new HttpException('stack-target', HttpStatus.CONFLICT)
+
+    filter.catch(exception, createHost(res))
+
+    expect(json.mock.calls[0][0].stack).toBeUndefined()
+  })
+
+  it('全例外を捕捉対象として宣言する', () => {
+    expect(Reflect.getMetadata(FILTER_CATCH_EXCEPTIONS, GlobalExceptionFilter)).toEqual([])
+  })
+
+  it('ApiError(404, label, 文字列) → ApiResponseUtil.error(res, 文字列, 404, label) と一致', () => {
+    const { res, status, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+
+    filter.catch(new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません'), createHost(res))
+
+    const { res: expectedRes, json: expectedJson } = createResponse()
+    ApiResponseUtil.error(expectedRes, 'ユーザーが見つかりません', 404, 'エラーが発生しました')
+
+    expect(status).toHaveBeenCalledWith(404)
+    expect(stripVolatile(json.mock.calls[0][0])).toEqual(stripVolatile(expectedJson.mock.calls[0][0]))
+    expect(json.mock.calls[0][0].error).toBe('ユーザーが見つかりません')
+  })
+
+  it('errorCode 付き ApiError は ErrorResponse の wire 封筒へ errorCode を伝播する', () => {
+    const { res, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+
+    filter.catch(new ApiError(401, '認証エラー', 'ログインが必要です', 'AUTHENTICATION_ERROR'), createHost(res))
+
+    expect(json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: '認証エラー',
+        error: 'ログインが必要です',
+        errorCode: 'AUTHENTICATION_ERROR'
+      })
+    )
+  })
+
+  it('errorCode なし ApiError は JSON wire に errorCode キーを追加しない', () => {
+    const { res, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+
+    filter.catch(new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません'), createHost(res))
+
+    expect(JSON.stringify(json.mock.calls[0][0])).not.toContain('"errorCode"')
+  })
+
+  it('BadRequestException は 400 と object response の message を維持する', () => {
+    const { res, status, json } = createResponse()
+    const filter = new GlobalExceptionFilter(mockAppConfig)
+
+    filter.catch(new BadRequestException('認証コードが指定されていません'), createHost(res))
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST)
+    expect(json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        success: false,
+        message: 'エラーが発生しました',
+        error: '認証コードが指定されていません'
+      })
+    )
+  })
+
+  describe('Character exceptions', () => {
+    const developmentConfig = {
+      get: (path: string) => (path === 'app.environment' ? 'development' : undefined)
+    } as unknown as AppConfigService
+
+    it('CharacterAuthenticationException は旧 401 wire とバイト等価なフィールドを返す', () => {
+      const { res, status, json } = createResponse()
+      const filter = new GlobalExceptionFilter(developmentConfig)
+
+      filter.catch(new CharacterAuthenticationException('ログインが必要です'), createHost(res))
+
+      expect(status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
+      expect(JSON.parse(JSON.stringify(json.mock.calls[0][0]))).toEqual({
+        success: false,
+        message: '認証エラー',
+        timestamp: expect.any(Number),
+        requestId: expect.any(String),
+        error: 'ログインが必要です',
+        errorCode: 'AUTHENTICATION_ERROR'
+      })
+      expect(JSON.stringify(json.mock.calls[0][0])).not.toContain('"stack"')
+    })
+
+    it('CharacterNotFoundException は旧 404 wire とバイト等価なフィールドを返す', () => {
+      const { res, status, json } = createResponse()
+      const filter = new GlobalExceptionFilter(developmentConfig)
+
+      filter.catch(new CharacterNotFoundException('キャラクター'), createHost(res))
+
+      expect(status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND)
+      expect(JSON.parse(JSON.stringify(json.mock.calls[0][0]))).toEqual({
+        success: false,
+        message: '未発見エラー',
+        timestamp: expect.any(Number),
+        requestId: expect.any(String),
+        error: 'キャラクターが見つかりません',
+        errorCode: 'NOT_FOUND_ERROR'
+      })
+      expect(JSON.stringify(json.mock.calls[0][0])).not.toContain('"stack"')
+    })
   })
 })

@@ -7,7 +7,7 @@ import { HttpException } from '@nestjs/common'
  * ApiResponseUtil.error(res, error, status, label) を返していた分岐」
  * （例: findOne / update の 404）を再現するために使う。
  *
- * HttpExceptionFilter はこの例外を最優先で扱い、
+ * GlobalExceptionFilter はこの例外を最優先で扱い、
  * - HTTP status     = status
  * - ErrorResponse.message(label) = label
  * - ErrorResponse.error          = errorPayload（変換前に error 引数へ渡していた値）
