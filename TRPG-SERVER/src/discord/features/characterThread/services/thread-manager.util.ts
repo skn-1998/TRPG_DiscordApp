@@ -4,7 +4,7 @@
  * ThreadManagerService から抽出した「純粋ロジック」群。
  * Discord I/O（fetch/create 等の副作用）や Date.now / setTimeout は一切持たず、
  * 入力（文字列・数値）から出力（文字列・数値）を組み立てるだけ。
- * 既存の thread-creation.util.ts / channel-manager.util.ts と同じ方針。
+ * 既存の channel-manager.util.ts と同じ方針。
  */
 
 /**

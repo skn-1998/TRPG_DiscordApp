@@ -2,8 +2,6 @@ import { Module, OnModuleInit } from '@nestjs/common'
 import { CharacterModule } from '../../../domains/character/character.module'
 import { DiscordIntegrationModule } from '../../application/discord-integration.module'
 import { CharacterSheetDiscordFeatureModule } from '../characterSheet/character-sheet-discord-feature.module'
-import { ThreadCreationService } from './services/thread-creation.service'
-import { CharacterThreadOrchestrator } from './services/character-thread.orchestrator'
 import { CharacterDisplayService } from './services/character-display.service'
 import { CharacterTabButtonsService } from './character-tab-buttons.service'
 // 新しい分割サービス
@@ -20,7 +18,6 @@ import { InteractionRegistryService } from '../../interactions/registry/interact
 import { CharacterThreadSelectService } from './services/character-thread-select.service'
 
 // 🆕 Interaction Handlers - Character Thread 系（registry 登録対象・interactions core から移管）
-import { CharacterThreadSelectHandler } from './handlers/character-thread-select.handler'
 import { CharacterThreadCreateHandler } from './handlers/character-thread-create.handler'
 import { CharacterTabHandler } from './handlers/character-tab.handler'
 import { FlexibleDiceParamHandler } from './handlers/flexible-dice-param.handler'
@@ -64,8 +61,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     DiceServicesModule
   ],
   providers: [
-    ThreadCreationService,
-    CharacterThreadOrchestrator,
     CharacterDisplayService, // CharacterTabButtonsServiceより先に定義
     CharacterTabButtonsService,
     // 新しい分割サービス
@@ -77,7 +72,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     // 🆕 Interaction Services（handler の委譲先・interactions core から移管）
     CharacterThreadSelectService,
     // 🆕 Interaction Handlers（registry 登録対象・interactions core から移管）
-    CharacterThreadSelectHandler,
     CharacterThreadCreateHandler,
     CharacterTabHandler,
     FlexibleDiceParamHandler,
@@ -88,8 +82,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
     PresetDiceQuickRollHandler
   ],
   exports: [
-    ThreadCreationService,
-    CharacterThreadOrchestrator,
     CharacterDisplayService,
     CharacterTabButtonsService,
     // 新しい分割サービス
@@ -105,7 +97,6 @@ import { PresetDiceQuickRollHandler } from './handlers/preset-dice-quick-roll.ha
 export class CharacterThreadFeatureModule implements OnModuleInit {
   constructor(
     private readonly interactionRegistry: InteractionRegistryService,
-    private readonly characterThreadSelectHandler: CharacterThreadSelectHandler,
     private readonly characterThreadCreateHandler: CharacterThreadCreateHandler,
     private readonly characterTabHandler: CharacterTabHandler,
     private readonly flexibleDiceParamHandler: FlexibleDiceParamHandler,
@@ -122,7 +113,6 @@ export class CharacterThreadFeatureModule implements OnModuleInit {
    */
   onModuleInit(): void {
     this.interactionRegistry.registerHandlers([
-      this.characterThreadSelectHandler,
       this.characterThreadCreateHandler,
       this.characterTabHandler,
       this.flexibleDiceParamHandler,
