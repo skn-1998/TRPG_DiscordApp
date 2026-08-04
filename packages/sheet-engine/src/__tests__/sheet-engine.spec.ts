@@ -1,20 +1,5 @@
-import { evaluateTemplate, interpolateNotation, SheetTemplate, validatePublishTemplate } from '..';
-
-function baseTemplate(overrides: Partial<SheetTemplate> = {}): SheetTemplate {
-  return {
-    templateId: 'tpl',
-    name: 'Template',
-    version: '1.0.0',
-    schemaVersion: 3,
-    tags: [],
-    visibility: 'private',
-    authorDiscordUserId: 'author',
-    settings: { rounding: 'floor' },
-    tables: [],
-    sections: [],
-    ...overrides,
-  };
-}
+import { evaluateTemplate, interpolateNotation, validatePublishTemplate } from '..';
+import { baseTemplate } from './test-utils';
 
 describe('sheet-engine', () => {
   it('evaluates the CoC touchstone values and dice fragment lookup', () => {

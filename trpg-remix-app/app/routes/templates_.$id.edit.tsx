@@ -9,6 +9,7 @@ import {
 } from '~/features/characterTemplate'
 import { getJwtFromRequest } from '~/features/auth/api/auth.service'
 import { clearServerRequestContext, setServerRequestContext } from '~/lib/api-client'
+import { getResponseStatus } from '~/lib/api-response.util'
 import type { CharacterSheetTemplateEntity, UpdateSheetTemplateRequest } from '~/features/characterTemplate/types/v3'
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -86,11 +87,4 @@ function toUpdateRequest(template: CharacterSheetTemplateEntity): UpdateSheetTem
     tables: template.tables,
     settings: template.settings
   }
-}
-
-function getResponseStatus(error: unknown): number | undefined {
-  if (error && typeof error === 'object' && 'response' in error) {
-    return (error as { response?: { status?: number } }).response?.status
-  }
-  return undefined
 }
