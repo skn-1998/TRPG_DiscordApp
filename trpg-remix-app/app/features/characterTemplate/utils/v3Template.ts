@@ -231,6 +231,25 @@ export function stringifyTables(tables: LookupTable[]): string {
   return JSON.stringify(tables, null, 2)
 }
 
+/**
+ * V2 migration 入力の消費表:
+ * - template.schemaVersion: ガードで検査（V2 を表す 2 だけを受理）。
+ * - template.name: ガードで検査（移行後の名前を構築）。
+ * - template.fields: ガードで検査（field を反復するため array を要求）。
+ * - template.fields[]: ガードで検査（各 field を直接参照するため object を要求）。
+ * - field.id: ガードで検査（V3 field id の生成に直接使用）。
+ * - field.type: migration フォールバック（未知・欠落は text scalar）。
+ * - field.tab: migration フォールバック（未知・欠落は basic）。
+ * - template.version: migration フォールバック（falsy は 0.1.0、それ以外は素通しして server 検証）。
+ * - template.tags: migration フォールバック（nullish は空配列、それ以外は素通しして server 検証）。
+ * - field.label: 素通し（server 検証が受ける）。
+ * - field.description: 素通し（server 検証が受ける）。
+ * - select field.options: 素通し（server 検証が受ける）。
+ * - computed field.formula: ガードで検査（式として直接消費）。
+ * - roll field.diceFormula: ガードで検査（replace で直接消費）。
+ * migration で新しく直接消費する値を追加したら、この表とガードも更新する。
+ * この述語は migration を安全に通すための最小契約であり、V2 Template の完全検証ではない。
+ */
 export function isV2LocalTemplate(value: unknown): value is Template {
   if (!value || typeof value !== 'object') return false
 
@@ -239,9 +258,18 @@ export function isV2LocalTemplate(value: unknown): value is Template {
     candidate.schemaVersion === 2 &&
     typeof candidate.name === 'string' &&
     Array.isArray(candidate.fields) &&
-    candidate.fields.every(
-      (field: unknown) => field !== null && typeof field === 'object' && 'id' in field && typeof field.id === 'string'
-    )
+    candidate.fields.every((field: unknown) => {
+      if (field === null || typeof field !== 'object' || !('id' in field) || typeof field.id !== 'string') {
+        return false
+      }
+      if ('type' in field && field.type === 'roll') {
+        return 'diceFormula' in field && typeof field.diceFormula === 'string'
+      }
+      if ('type' in field && field.type === 'computed') {
+        return 'formula' in field && typeof field.formula === 'string'
+      }
+      return true
+    })
   )
 }
 

@@ -431,8 +431,25 @@ describe('v3Template validation and JSON helpers', () => {
     expect(() => safeParseTables('{"id":"crit"}')).toThrow('tables は JSON array で入力してください')
   })
 
-  it('isV2LocalTemplate は migration が消費する name と各 field.id が string の v2 を受理する', () => {
-    expect(isV2LocalTemplate({ schemaVersion: 2, name: 'Valid V2', fields: [{ id: 'memo' }] })).toBe(true)
+  const acceptedV2Fixtures: Array<[label: string, value: unknown]> = [
+    ['最小契約を満たす v2', { schemaVersion: 2, name: 'Valid V2', fields: [{ id: 'memo' }] }],
+    [
+      'roll と computed の必須 payload が string の正常な v2',
+      {
+        schemaVersion: 2,
+        name: 'Valid typed V2',
+        version: '1.0.0',
+        fields: [
+          { id: 'con', label: 'CON', tab: 'parameter', type: 'number' },
+          { id: 'hp', label: 'HP', tab: 'status', type: 'computed', formula: '{con}' },
+          { id: 'check', label: 'Check', tab: 'skill', type: 'roll', diceFormula: '[1d100]' }
+        ]
+      }
+    ]
+  ]
+
+  it.each(acceptedV2Fixtures)('%sを受理する', (_label, value) => {
+    expect(isV2LocalTemplate(value)).toBe(true)
   })
 
   it.each([
@@ -445,12 +462,36 @@ describe('v3Template validation and JSON helpers', () => {
     expect(isV2LocalTemplate(value)).toBe(false)
   })
 
+  it.each([
+    ['roll', 'diceFormula 欠落', { schemaVersion: 2, name: 'x', fields: [{ id: 'a', type: 'roll' }] }],
+    [
+      'roll',
+      'diceFormula の型違い',
+      { schemaVersion: 2, name: 'x', fields: [{ id: 'a', type: 'roll', diceFormula: 3 }] }
+    ],
+    ['computed', 'formula 欠落', { schemaVersion: 2, name: 'x', fields: [{ id: 'a', type: 'computed' }] }],
+    [
+      'computed',
+      'formula の型違い',
+      { schemaVersion: 2, name: 'x', fields: [{ id: 'a', type: 'computed', formula: 1 }] }
+    ]
+  ])('%s field の%sを拒否する', (_type, _reason, value) => {
+    expect(isV2LocalTemplate(value)).toBe(false)
+  })
+
   it('id のない field は migration に渡さず slugifyId(undefined) への到達を防ぐ', () => {
     const candidates: unknown[] = [{ schemaVersion: 2, name: 'Broken V2', fields: [{}] }]
     const migrate = jest.fn(migrateV2TemplateToCreateRequest)
 
     expect(candidates.filter(isV2LocalTemplate).map(migrate)).toEqual([])
     expect(migrate).not.toHaveBeenCalled()
+  })
+
+  it('ガードが受理する全 fixture は filter 後の migration 実経路で throw しない', () => {
+    const candidates = acceptedV2Fixtures.map(([, value]) => value)
+
+    expect(candidates.filter(isV2LocalTemplate)).toHaveLength(candidates.length)
+    expect(() => candidates.filter(isV2LocalTemplate).map(migrateV2TemplateToCreateRequest)).not.toThrow()
   })
 
   it('null を拒否する', () => {
