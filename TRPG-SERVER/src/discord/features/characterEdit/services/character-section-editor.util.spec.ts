@@ -186,6 +186,14 @@ describe('character-section-editor.util (pure functions)', () => {
     it('該当するセクション語が無ければ null', () => {
       expect(extractSectionFromCustomId('character-edit-section-abc')).toBeNull()
     })
+
+    it('中置は位置を問わず一致する（includes 現挙動の正例 pin）', () => {
+      expect(extractSectionFromCustomId('x-status-y')).toBe('status')
+    })
+
+    it('中置の語彙を含むが両端ハイフンが揃わない敵対値は null', () => {
+      expect(extractSectionFromCustomId('character-field-edit-statusx-abc')).toBeNull()
+    })
   })
 
   describe('isFieldOperationCustomId', () => {
@@ -193,7 +201,12 @@ describe('character-section-editor.util (pure functions)', () => {
       ['character-field-edit-status-x', true],
       ['character-field-add-status-x', true],
       ['character-edit-section-x', false],
-      ['character-section-select-x', false]
+      ['character-section-select-x', false],
+      // 中置に prefix を含む敵対値（includes 現挙動の正例 pin）
+      ['x-character-field-edit-y', true],
+      // 引き締め差分の負例 pin: 末尾ハイフン無しの非生成形は旧 true → 新 false
+      ['character-field-edit', false],
+      ['character-field-editorial-x', false]
     ])('%s -> %s', (customId, expected) => {
       expect(isFieldOperationCustomId(customId)).toBe(expected)
     })
@@ -203,7 +216,12 @@ describe('character-section-editor.util (pure functions)', () => {
     it.each([
       ['character-edit-section-x', true],
       ['character-section-select-x', true],
-      ['character-field-edit-status-x', false]
+      ['character-field-edit-status-x', false],
+      // 中置に prefix を含む敵対値（includes 現挙動の正例 pin）
+      ['x-character-edit-section-y', true],
+      // 引き締め差分の負例 pin: 末尾ハイフン無しの非生成形は旧 true → 新 false
+      ['character-edit-section', false],
+      ['character-section-selection', false]
     ])('%s -> %s', (customId, expected) => {
       expect(isSectionSelectionCustomId(customId)).toBe(expected)
     })

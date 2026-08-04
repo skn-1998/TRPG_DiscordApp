@@ -100,6 +100,14 @@ describe('enhanced-character-edit.util (pure functions)', () => {
       expect(messageHasCharacterEditButtons(botMessageWith('character-refresh-other'), 'abc')).toBe(false)
     })
 
+    it('生成文字列が中置に現れる敵対値も一致する（includes 現挙動の正例 pin）', () => {
+      expect(messageHasCharacterEditButtons(botMessageWith('x-character-refresh-abc-y'), 'abc')).toBe(true)
+    })
+
+    it('語彙を中置に含むが characterId が一致しない敵対値は false', () => {
+      expect(messageHasCharacterEditButtons(botMessageWith('x-character-refresh-zzz-y'), 'abc')).toBe(false)
+    })
+
     it('ボタン以外(type!=2)は false', () => {
       const msg: MessageLike = {
         author: { bot: true },

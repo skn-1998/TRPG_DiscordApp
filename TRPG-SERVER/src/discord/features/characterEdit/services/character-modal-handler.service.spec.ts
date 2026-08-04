@@ -182,6 +182,23 @@ describe('CharacterModalHandlerService (characterization)', () => {
         content: 'キャラクターの作成に失敗しました。'
       })
     })
+
+    // 引き締め差分の負例 pin: 作成判定を includes('character-create-basic') から
+    // CharacterCreateCustomId.isBasic()（先頭一致・末尾ハイフン）へ寄せた。
+    // 中置に語彙を含む非生成形は旧 true（作成扱い）→ 新 false（編集経路→解析失敗）。
+    it('中置に character-create-basic を含む customId は作成扱いしない（編集経路の解析失敗になる）', async () => {
+      const interaction = createMockModalInteraction({
+        customId: 'x-character-create-basic-chan123-user456',
+        fields: { 'character-name': 'Hero' }
+      })
+
+      await service.handleModalSubmit(interaction)
+
+      expect(mockEmbedManager.createCharacter).not.toHaveBeenCalled()
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'モーダル情報の解析に失敗しました。'
+      })
+    })
   })
 
   // ===== キャラクター編集モーダル =====
@@ -267,6 +284,51 @@ describe('CharacterModalHandlerService (characterization)', () => {
 
       // 成功時は deleteReply が呼ばれる
       expect(interaction.deleteReply).toHaveBeenCalled()
+    })
+
+    // isSectionEditEmbed の probe を契約参照（byte 同一）へ置換した現挙動の pin。
+    // 正例（生成形 select customId）は削除され、語彙を含むがハイフンが揃わない敵対値は残る。
+    it('セクション編集 Embed は削除し、customId が生成形でない敵対値メッセージは残す', async () => {
+      setupSession()
+      mockCharacterService.findOne.mockResolvedValue(character)
+      mockCharacterService.update.mockResolvedValue(character)
+      mockTypedEventService.emit.mockResolvedValue(undefined)
+
+      const sectionEditMessage = {
+        author: { bot: true },
+        embeds: [{ title: 'ステータス編集' }],
+        components: [{ components: [{ type: 3, customId: 'character-edit-section-char-1' }] }],
+        delete: jest.fn().mockResolvedValue(undefined),
+        edit: jest.fn(),
+        id: 'msg-hit'
+      }
+      const adversarialMessage = {
+        author: { bot: true },
+        embeds: [{ title: '編集' }],
+        components: [{ components: [{ type: 3, customId: 'character-edit-sectionchar-1' }] }],
+        delete: jest.fn(),
+        edit: jest.fn(),
+        id: 'msg-miss'
+      }
+      const fetch = jest.fn().mockResolvedValue(
+        new Map([
+          ['msg-miss', adversarialMessage],
+          ['msg-hit', sectionEditMessage]
+        ])
+      )
+
+      const interaction = createMockModalInteraction({
+        customId: 'char-edit-modal-0001',
+        fields: { 'field-values': '20' }
+      })
+      ;(interaction as unknown as { channel: unknown }).channel = { messages: { fetch } }
+
+      const promise = service.handleModalSubmit(interaction)
+      await jest.advanceTimersByTimeAsync(200)
+      await promise
+
+      expect(sectionEditMessage.delete).toHaveBeenCalled()
+      expect(adversarialMessage.delete).not.toHaveBeenCalled()
     })
 
     it('既存フィールドのvalues内訳・index・isVisibleを維持して合算値を更新する', async () => {
