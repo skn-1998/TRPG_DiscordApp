@@ -1,12 +1,13 @@
-export * from './types'
-export * from './api/sheetTemplateApi'
-export * from './store/templateStore'
-export * from './store/galleryStore'
-export * from './store/mappingStore'
-export * from './components/Gallery'
-export * from './components/FieldAddModal'
-export * from './components/TemplateEditorV3'
-export * from './components/TemplateListV3'
-export * from './components/TemplatePreviewV3'
-export * from './utils/diceRoller'
-export * from './utils/v3Template'
+export type { CharacterSheetTemplateEntity, SheetField } from './types/v3'
+export {
+  createSheetTemplate,
+  deleteSheetTemplate,
+  extractApiErrorMessages,
+  getSheetTemplate,
+  getSheetTemplateSummaries,
+  publishSheetTemplate,
+  updateSheetTemplate
+} from './api/sheetTemplateApi'
+export { TemplateEditorV3 } from './components/TemplateEditorV3'
+export { TemplateListV3 } from './components/TemplateListV3'
+export { normalizeTemplateReferences } from './utils/v3Template'
