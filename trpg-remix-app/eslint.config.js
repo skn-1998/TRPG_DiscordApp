@@ -155,6 +155,22 @@ export default defineConfig(
       }
     }
   },
+  {
+    rules: {
+      'import/no-restricted-paths': [
+        'error',
+        {
+          zones: [
+            {
+              target: './app/lib',
+              from: './app/features',
+              message: 'lib 層は features に依存しない（層規約・server #31 の front 版）'
+            }
+          ]
+        }
+      ]
+    }
+  },
   // 追加ルール
   {
     rules: {

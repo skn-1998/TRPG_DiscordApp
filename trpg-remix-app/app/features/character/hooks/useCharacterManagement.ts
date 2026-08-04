@@ -1,6 +1,6 @@
 import { useNavigation } from '@remix-run/react'
 import { CharacterSummary } from '~/features/character/api/character.service'
-import { useCharacterSummaries } from '~/lib/hooks/useCharacterSummaries'
+import { useCharacterSummaries } from './useCharacterSummaries'
 
 export function useCharacterManagement(initialCharacters: CharacterSummary[]) {
   // ナビゲーション状態（Remixの遷移状態）
