@@ -17,7 +17,7 @@ export interface SelectMenuInteractionOptions {
  * @example
  * ```typescript
  * const interaction = createMockSelectMenuInteraction({
- *   customId: 'character-thread-select',
+ *   customId: 'character-thread-create-select',
  *   values: ['char-id-123'],
  * })
  *

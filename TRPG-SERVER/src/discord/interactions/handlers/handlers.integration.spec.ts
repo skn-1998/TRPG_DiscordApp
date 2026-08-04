@@ -22,7 +22,6 @@ import { DiceRollModalHandler } from '../../features/diceRoll/handlers/dice-roll
 import { DiceCharacterSelectCustomId, DicePageCustomId } from '../../features/diceRoll/custom-id'
 
 // Character Thread Handlers（characterThread feature へ移管済み）
-import { CharacterThreadSelectHandler } from '../../features/characterThread/handlers/character-thread-select.handler'
 import { CharacterThreadCreateHandler } from '../../features/characterThread/handlers/character-thread-create.handler'
 import { CharacterTabHandler } from '../../features/characterThread/handlers/character-tab.handler'
 import { FlexibleDiceParamHandler } from '../../features/characterThread/handlers/flexible-dice-param.handler'
@@ -79,7 +78,6 @@ describe('Interaction Handlers Integration', () => {
   let dicePageSelectHandler: DicePageSelectHandler
   let diceCharacterSelectHandler: DiceCharacterSelectHandler
   let diceRollModalHandler: DiceRollModalHandler
-  let characterThreadSelectHandler: CharacterThreadSelectHandler
   let characterThreadCreateHandler: CharacterThreadCreateHandler
   let characterTabHandler: CharacterTabHandler
   let flexibleDiceParamHandler: FlexibleDiceParamHandler
@@ -162,10 +160,6 @@ describe('Interaction Handlers Integration', () => {
 
         // Character Thread Handlers
         {
-          provide: CharacterThreadSelectHandler,
-          useFactory: () => new (CharacterThreadSelectHandler as any)(mockCharacterThreadSelectService)
-        },
-        {
           provide: CharacterThreadCreateHandler,
           useFactory: () => new (CharacterThreadCreateHandler as any)(mockCharacterThreadSelectService)
         },
@@ -226,7 +220,6 @@ describe('Interaction Handlers Integration', () => {
     dicePageSelectHandler = module.get<DicePageSelectHandler>(DicePageSelectHandler)
     diceCharacterSelectHandler = module.get<DiceCharacterSelectHandler>(DiceCharacterSelectHandler)
     diceRollModalHandler = module.get<DiceRollModalHandler>(DiceRollModalHandler)
-    characterThreadSelectHandler = module.get<CharacterThreadSelectHandler>(CharacterThreadSelectHandler)
     characterThreadCreateHandler = module.get<CharacterThreadCreateHandler>(CharacterThreadCreateHandler)
     characterTabHandler = module.get<CharacterTabHandler>(CharacterTabHandler)
     flexibleDiceParamHandler = module.get<FlexibleDiceParamHandler>(FlexibleDiceParamHandler)
@@ -254,7 +247,6 @@ describe('Interaction Handlers Integration', () => {
       dicePageSelectHandler,
       diceCharacterSelectHandler,
       diceRollModalHandler,
-      characterThreadSelectHandler,
       characterThreadCreateHandler,
       characterTabHandler,
       flexibleDiceParamHandler,
@@ -273,9 +265,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('25個のハンドラーが登録されている', () => {
+    it('24個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(25)
+      expect(stats.totalHandlers).toBe(24)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -315,9 +307,8 @@ describe('Interaction Handlers Integration', () => {
       })
     })
 
-    it('Character Thread系ハンドラーが6個登録されている', () => {
+    it('Character Thread系ハンドラーが5個登録されている', () => {
       const threadHandlers = [
-        characterThreadSelectHandler,
         characterThreadCreateHandler,
         characterTabHandler,
         flexibleDiceParamHandler,
@@ -454,18 +445,6 @@ describe('Interaction Handlers Integration', () => {
     })
 
     describe('Character Thread系', () => {
-      it('character-thread-select にマッチ', () => {
-        expect(registry.hasHandler('character-thread-select', 'select')).toBe(true)
-      })
-
-      it('character-thread-select-with-thread にマッチ', () => {
-        expect(registry.hasHandler('character-thread-select-with-thread', 'select')).toBe(true)
-      })
-
-      it('character-thread-select-current にマッチ', () => {
-        expect(registry.hasHandler('character-thread-select-current', 'select')).toBe(true)
-      })
-
       it('character-thread-create-select にマッチ', () => {
         expect(registry.hasHandler('character-thread-create-select', 'select')).toBe(true)
       })

@@ -8,7 +8,6 @@
  *
  * discord.js の StringSelectMenuOptionBuilder は副作用を持たない値オブジェクト
  * （送信時に初めてシリアライズされる）であり、ここでの生成は純粋関数として扱える。
- * 既存の thread-creation.util.ts と同じ方針。
  */
 
 import { ChannelType, StringSelectMenuOptionBuilder } from 'discord.js'
