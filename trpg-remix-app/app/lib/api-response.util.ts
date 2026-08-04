@@ -11,7 +11,8 @@ export function isErrorEnvelope(data: unknown): data is ErrorEnvelope {
 
 export function getResponseStatus(error: unknown): number | undefined {
   if (error && typeof error === 'object' && 'response' in error) {
-    return (error as { response?: { status?: number } }).response?.status
+    const status = (error as { response?: { status?: unknown } }).response?.status
+    return typeof status === 'number' ? status : undefined
   }
   return undefined
 }

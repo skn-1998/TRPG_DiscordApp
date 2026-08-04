@@ -35,7 +35,7 @@ const mockedClearServerRequestContext = jest.mocked(clearServerRequestContext)
 const mockedSetServerRequestContext = jest.mocked(setServerRequestContext)
 const mockedWithJwt = jest.mocked(withJwt)
 
-describe('templates.dice-preview action', () => {
+describe('templates_.dice-preview action', () => {
   beforeEach(() => {
     mockedGetJwtFromRequest.mockReturnValue('jwt-token')
   })

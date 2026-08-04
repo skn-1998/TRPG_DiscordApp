@@ -1,4 +1,27 @@
-import { ApiResponseUtil } from './api-response.util'
+import { ApiResponseUtil, getResponseStatus } from './api-response.util'
+
+describe('getResponseStatus', () => {
+  it('response.status が number なら返す', () => {
+    expect(getResponseStatus({ response: { status: 409 } })).toBe(409)
+  })
+
+  it('response.status が string なら undefined を返す', () => {
+    expect(getResponseStatus({ response: { status: '409' } })).toBeUndefined()
+  })
+
+  it('response.status が欠落していれば undefined を返す', () => {
+    expect(getResponseStatus({ response: {} })).toBeUndefined()
+  })
+
+  it('response が欠落していれば undefined を返す', () => {
+    expect(getResponseStatus({})).toBeUndefined()
+  })
+
+  it('null または非 object なら undefined を返す', () => {
+    expect(getResponseStatus(null)).toBeUndefined()
+    expect(getResponseStatus('error')).toBeUndefined()
+  })
+})
 
 describe('ApiResponseUtil.handleError', () => {
   it('ErrorEnvelope は issues を優先して重複除去し、複数件をスラッシュ区切りにする', () => {
