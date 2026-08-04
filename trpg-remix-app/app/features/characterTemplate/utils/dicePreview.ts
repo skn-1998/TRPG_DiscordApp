@@ -8,7 +8,7 @@ export const NOTATION_INTERPOLATION_ERROR_MESSAGE = 'ロール式の参照を解
 
 type DicePreviewRequestBuildResult = { ok: true; request: DicePreviewRequest } | { ok: false; error: string }
 
-export type DicePreviewActionResult = { ok: true; result: DicePreviewResponse } | { ok: false; error: string }
+type DicePreviewActionResult = { ok: true; result: DicePreviewResponse } | { ok: false; error: string }
 
 export interface DicePreviewActionError {
   status: number

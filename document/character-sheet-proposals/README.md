@@ -86,7 +86,9 @@
 - リポジトリの読み取りは projection 明示列挙（S-1 の教訓）。モデル拡張時は関係する全 `.select(...)` と repository spec を更新する
 - ドメイン間のイベント RPC は禁止（DI で直接呼ぶ）。通知目的の event 発行・購読は可
 - Discord でのロール実行の正本は bcdice。フロントのプレビュー用ローラーと二重化する場合は責務を分ける
-- 式・参照表は「データ」であり「コード」ではない（`eval` 禁止・専用評価器。`characterTemplate/AI.security.md` の方針を継承）
+- 式・参照表は「データ」であり「コード」ではない（`eval` 禁止・専用評価器。
+  旧 `characterTemplate/AI.security.md` の方針を継承 — 同 doc は #65-B4 で削除済み・
+  全文は git 履歴 `dbd45e5` 以前）
 
 ## 主な未決事項（案の選定後に決める）
 

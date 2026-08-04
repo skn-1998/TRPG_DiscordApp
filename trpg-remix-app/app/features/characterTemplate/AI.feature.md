@@ -1,223 +1,30 @@
-# キャラクターシートテンプレート機能 — Feature 設計（完全刷新版）
+# キャラクターシートテンプレート機能 — 現況（V3）
 
-> **正本注記（2026-08-04）**: 本文の「実装未着手」は V2 世代の記述で現行と不一致。V3（server draft 正）は
-> 実装済みで、正本は `document/character-sheet-proposals/design-v1.md`（DSL）と design-v1-ui.md（UI）。
->
-> **V2 実装は削除済み（#62 A2・2026-08-04）**: 本文が言及する V2 スタック
-> （Preview.tsx / Editor.tsx / formulaEngine / validation / dependencyGraph /
-> useFieldCalculation / useTemplateValidation / useLocalPersistence・計1,534行）は削除した。
-> 現行実装は V3（TemplateEditorV3 / TemplatePreviewV3・検証は engine の
-> validatePublishTemplate＋validateStandaloneRollNotations・ロール実行は server BCDice の
-> `POST /dice-roll/preview`）。utils/diceRoller.ts のみ B4 で削除予定の残置。
-> 以降の本文は歴史的記録として保持。
+正本: DSL/検証契約は `document/character-sheet-proposals/design-v1.md`（RollExpression の二契約を含む）・
+UI は `design-v1-ui.md`・route/認証規約は `document/frontend-trpg-remix-app.md`。
+型と engine 境界の設計判断は `AI.types.md`。
 
-> **関連（2026-07-06 追記）**: サーバー連携・キャラクタードメイン再設計を含む基盤全体の案出しドキュメント集を
-> `document/character-sheet-proposals/`（リポジトリルート直下・README が索引）に作成した。
-> 本 DSL（schemaVersion 2）は **案 A2（スキーマ駆動フィールド定義）の土台**として参照されており、
-> LOOKUP 参照表・ダイス値型・repeater・Discord 用 role 注釈が schemaVersion 3 相当の拡張候補に挙がっている。
-> **（2026-07-07 追記）**: 基盤は `design-v1.md`、UI 三面（エディタ／作成フォーム／Discord hub）は `design-v1-ui.md`
-> として Codex 討論を経て**確定**。本 feature に将来入る主な変更 = schema v3 エディタ化・
-> `TemplateFormRenderer`（controlled）新設・**サーバー draft 正への移行（localStorage 正の卒業）**・
-> Discord プレビュー（`packages/sheet-projection` の ViewModel 描画）。実装は未着手。
+## 構成（2026-08-04 時点・実装12ファイル）
 
-## 目的
+- **components**: `TemplateEditorV3`（編集・検証ボタン = engine の
+  `validatePublishTemplate`＋`validateStandaloneRollNotations`）・`TemplatePreviewV3`
+  （プレビュー・ロールは `useFetcher` → `/templates/dice-preview` → server BCDice）・
+  `TemplateListV3`（一覧・V2 localStorage テンプレートの取り込み導線）
+- **routes**（feature 外）: `templates.tsx`（一覧・作成）・`templates_.$id.edit.tsx`（編集・
+  un-nest。親 `templates.tsx` は Outlet を持たないため）・`templates_.dice-preview.tsx`
+  （action 専用 resource route・401 は JSON）
+- **api**: `sheetTemplateApi.ts`（型は `types/v3.ts` の手書き定義。`@trpg/api-contract` を
+  使うのは dice-preview 系のみ — template API の契約化は未着手）
+- **barrel**: `index.ts`（明示 named re-export のみ・`export *` 禁止）
+- **utils**: `v3Template.ts`（`toSheetTemplate`・ID 規則・`normalizeTemplateReferences`・
+  V2→V3 移行 `isV2LocalTemplate`/`migrateV2TemplateToCreateRequest`）・
+  `dicePreview.ts`（ロールの request 組み立て・エラー分類。action エラー形
+  `DicePreviewActionError` の生成者は resource route のみ）
+- **types**: `v3.ts`（現行型）・`index.ts`（V2 localStorage 形の `Template` — 移行経路専用）
 
-- 様々なTRPGに対応できるよう、ユーザーがキャラクターシートの「枠組み（テンプレート）」を作成し公開できる。
-- 式エンジン（`{fieldId}`参照）とダイスロール（`[NdM]`）に対応し、柔軟なシート設計を可能にする。
-- タブ構造（basic/status/parameter/skill）で整理されたエクセル風編集。
-- 当面はフロントエンドのみ（ローカル/モック）で運用。将来TRPG-SERVERと連携可能な情報を残す。
-- テンプレートから生成された入力データは、将来的に`character`ドメイン型へ安全にマッピングできることを前提とする。
+## V2 の撤去記録
 
-## MVPスコープ
-
-### テンプレート作成・編集
-
-- **タブ構造**: basic / status / parameter / skill の4種
-- **フィールド種別**:
-  - 基本: text, textarea, number, select, checkbox
-  - 計算: computed（式: `{pow} * 5`）
-  - ロール: roll（ダイス: `[3d6]`）
-- **式エンジン**: プレースホルダ `{fieldId}` + 演算子 + 関数（max, min, floor, ceil, round）
-- **ダイスロール**: `[NdM]`記法、ロールボタン、タブ一括ロール
-- **グリッドレイアウト**: 12カラム、行/列/幅の設定
-
-### バリデーション
-
-- フィールドID重複検出
-- 循環参照検出（依存グラフ）
-- 式構文チェック
-- ダイス記法チェック
-- 必須フィールド、min/max、options
-
-### ローカル保存
-
-- localStorage保存/読み込み
-- インポート/エクスポート（JSON）
-- 自動保存（オプション）
-
-### 公開ギャラリー（フロント内モック）
-
-- テンプレート一覧
-- 検索（Fuse.js）
-- タグ/作者/バージョン表示
-
-### マッピング雛形（ドキュメント化のみ、実装はMVP外）
-
-- テンプレートの`fieldId`→`character`の`path`
-- 将来の統合に向けた設計指針を残す
-
-## 画面/ユースケース
-
-### エディタ
-
-- タブ切替（basic/status/parameter/skill）
-- フィールドパレット（型選択→属性編集）
-- グリッド配置（行追加、列幅、フィールド割当）
-- 検証結果表示（エラー一覧）
-- 保存/読み込み/インポート/エクスポート
-
-### プレビュー
-
-- タブ切替
-- テンプレートからフォーム生成
-- 入力→計算フィールド自動更新
-- ロールボタン（ダイス実行）
-- タブ一括ロールボタン
-- 入力データJSON表示（デバッグ）
-
-### ギャラリー
-
-- テンプレート一覧
-- 検索（Fuse.js）
-- タグ/作者/バージョン/作成日表示
-- 詳細表示
-- インポート
-
-## 非目標（MVP外）
-
-### 機能
-
-- リピータ/テーブル（繰り返しフィールド）
-- 条件表示（showIf）
-- カスタム関数
-- 高度な式関数（IF、SWITCH、LOOKUP等）
-- ドラッグ&ドロップレイアウト編集
-- マッピングUI実装（ドキュメント化のみ）
-
-### インフラ
-
-- サーバー永続化
-- 認証・権限の実装（文書化のみ）
-- モデレーション機能
-
-## 成功条件
-
-- 型チェック/ビルド通過
-- ローカル保存/復元が機能
-- 式エンジンが正常動作（依存グラフ、再計算）
-- ダイスロールが正常動作（ロールボタン、タブ一括）
-- ギャラリー検索が機能
-- エディタ↔プレビュー連携が正常動作
-
-## 将来拡張
-
-### 機能
-
-- リピータ/テーブル
-- 条件表示（showIf）
-- カスタム関数定義
-- i18n（多言語対応）
-- バージョン遡及、差分表示
-- ドラッグ&ドロップ編集
-- マッピングUI実装
-
-### サーバー連携
-
-- TRPG-SERVERへのAPI統合
-- 公開/モデレーション/権限/監査
-- バージョン管理
-- 共同編集
-
-### キャラクター生成
-
-- テンプレート→character型の自動マッピング
-- バリデーション（必須未充足、型不一致）
-- プレビュー時にcharacter型でエクスポート
-
-## 移行方針
-
-### 旧実装からの移行
-
-- 既存の基本フィールド実装（text/number/select/checkbox）は削除
-- コンポーネント全刷新（Editor, Preview）
-- Zustandストア全刷新
-- mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は V3 server draft（`app/routes/templates.tsx` / `app/routes/templates.$id.edit.tsx`）
-
-### データ移行
-
-- schemaVersion: 1→2
-- 旧テンプレート（基本フィールドのみ）は手動更新を促す
-- 自動マイグレーションは行わない
-
-## 技術スタック
-
-### 式エンジン
-
-- パーサー: 正規表現 or 簡易手書きパーサー
-- 評価器: 依存グラフを辿って再帰評価
-- エラーハンドリング: 構文エラー、未定義参照、循環参照、ゼロ除算
-
-### ダイスロール
-
-- パーサー: 正規表現で `[NdM]`, `[NdM+K]`, `[NdM-K]` 抽出
-- 評価器: Math.random()でロール
-- エラーハンドリング: 構文エラー、範囲外
-
-### 依存グラフ
-
-- データ構造: Map<fieldId, Set<dependentFieldId>>
-- アルゴリズム: DFSで循環検出
-- 更新: 依存先をトポロジカル順に再計算
-
-### 状態管理
-
-- Zustand: template, gallery, tabState, calculationCache
-- localStorage: 永続化
-
-### UI
-
-- Mantine: Tabs, TextInput, NumberInput, Select, Button, Grid, Card, etc.
-- Fuse.js: 検索
-
-## テスト戦略（AI.test.mdに準拠）
-
-### 単体テスト
-
-- 式パーサー/評価器
-- ダイスロールパーサー/評価器
-- 依存グラフ（循環検出、トポロジカルソート）
-- バリデーション関数
-
-### 統合テスト
-
-- エディタ↔プレビュー連携
-- ローカル保存/復元
-- ギャラリー検索
-
-### E2Eテスト（将来）
-
-- テンプレート作成→保存→読み込み→プレビュー
-- ダイスロール→再計算→JSON出力
-
-## 開発順序
-
-1. ドキュメント更新（AI.\*.md） ✅
-2. 型定義刷新（types/index.ts）
-3. 式パーサー/評価器（utils/formulaEngine.ts）
-4. ダイスロール評価器（utils/diceRoller.ts）
-5. 依存グラフ管理（utils/dependencyGraph.ts）
-6. Zustandストア更新（タブ状態、計算キャッシュ）
-7. エディタUI刷新（タブ切替、グリッド、式入力）
-8. プレビューUI刷新（ロールボタン、タブ一括ロール、再計算）
-9. バリデーション更新（循環参照、式構文、ダイス記法）
-10. テスト実装
+V2 式言語スタックは #62/#64/#65 で完全撤去した（2026-08-04・純減で
+`60f2379`＝A2 1,534行・`dbd45e5`＝A3 552行（うち死蔵島436行）・B4 411行）。
+残る V2 資産は localStorage 取り込み用の `Template` 型と移行関数のみ。
+旧設計の全文が必要なら git 履歴（`dbd45e5` 以前の AI.api/AI.security/AI.ui/AI.feature/AI.types）を参照。

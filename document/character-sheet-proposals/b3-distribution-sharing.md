@@ -40,7 +40,8 @@ draft（作者のみ編集可）
 
 - 式・参照表・ラベル文字列はすべて untrusted:
   - 式・テーブル → B1 の評価器サンドボックス（eval 禁止・上限つき）で扱う
-  - ラベル・説明文 → sanitize（`characterTemplate/AI.security.md` の方針を継承。XSS）
+  - ラベル・説明文 → sanitize（旧 `characterTemplate/AI.security.md` の方針を継承。XSS。
+    同 doc は #65-B4 で削除済み・全文は git 履歴 `dbd45e5` 以前）
   - サイズ上限: fields 数・式長・テーブル行数・JSON 全体サイズ
 - モデレーション最小セット: 通報 → 運営非公開化。公開時の機械チェック（構文検証・サイズ・NG ワード）は同期実行
 - **ライセンス / クレジット欄**: 配布文化（版権システムの用語・数値の扱い）への配慮として、

@@ -291,7 +291,7 @@ export function migrateV2TemplateToCreateRequest(template: Template): CreateShee
   return normalizeTemplateReferences(draft)
 }
 
-export type CreateSheetTemplateDraft = {
+type CreateSheetTemplateDraft = {
   name: string
   version: string
   schemaVersion: 3

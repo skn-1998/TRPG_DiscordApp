@@ -175,7 +175,7 @@ role 補間用の断片と、単独で実行するロール式には異なる受
   2. **materialize / preview（B2〜・server）**: 補間後の最終式を対象 `gameSystemId` の
      BCDice で検査・実行する。BCDice 受理の判定はこの段の責務であり publish では行わない
 
-| notation | fragment | standalone 静的検査（B1・publish 段） | 旧 front roller（現状） |
+| notation | fragment | standalone 静的検査（B1・publish 段） | 旧 front roller（B4 で削除済み・当時の実測） |
 |---|---|---|---|
 | `d6` | 可 | 受理 | null（無反応） |
 | `2d6+1d4` | 可 | 受理 | null |
@@ -183,15 +183,16 @@ role 補間用の断片と、単独で実行するロール式には異なる受
 | `10` | 可 | **拒否**（定数のみ） | null |
 | `3d6*5` | 不可 | 受理（legacy seed 使用） | null |
 | `(2d6+6)*5` | 不可 | 受理（legacy seed 使用） | null |
-| `2d6+1` | 可 | 受理 | 実行可 |
+| `2d6+1` | 可 | 受理 | `[2d6+1]` 形式でのみ実行可（裸のリテラルは null） |
 | `1d8{derived.db}` | 不可 | 受理（リテラルダイスあり） | null |
 | `({ref})d10` | 不可 | 受理（number 参照・ダイス個数位置） | null |
 
 `StandaloneRollExpression` の検査は publish 専用とし、draft save には適用しない。
 既存の公開 revision は検査導入後も読み取り可能なまま維持する。
-ロールの実行主体は server の BCDice とし、旧 front roller の対応記法を拡張せず、sheet-engine に乱数実行を追加しない。
+ロールの実行主体は server の BCDice であり、sheet-engine に乱数実行は追加しない。
 
-実装は B1（engine 検証）、B2（server preview endpoint）、B3（UI 接続）、B4（旧 roller 削除）の順に進める。
+実装は完了済み（2026-08-04）: B1（engine 検証・`5336941`/`7a8f108`）→ B2（server preview
+endpoint・`30c35f2`）→ B3（UI 接続・`c5fefbf`/`6bd93f7`）→ B4（旧 front roller 削除）。
 
 ### 2.2 仕様明文化（v1.2・監査反映。実装時の解釈割れ防止）
 

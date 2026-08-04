@@ -1,6 +1,6 @@
 // キャラクターシートテンプレート機能 — 型定義（完全刷新版）
 
-export type TabType = 'basic' | 'status' | 'parameter' | 'skill'
+type TabType = 'basic' | 'status' | 'parameter' | 'skill'
 
 export interface Template {
   id: string
@@ -28,15 +28,6 @@ export interface Template {
       | { type: 'roll'; diceFormula: string }
     )
   >
-  layout: Array<{
-    tab: TabType
-    rows: Array<{
-      columns: Array<{
-        width: number
-        fieldIds: string[]
-      }>
-    }>
-  }>
 }
 
 export type {
