@@ -28,6 +28,33 @@ describe('CharacterEmbedService', () => {
       ...overrides
     }) as never
 
+  const enhancedCharacterAttributes = {
+    status: { HP: 12, MP: 8 },
+    parameter: { SAN: 55, 幸運: 60 },
+    skill: { 目星: 75, 聞き耳: 65, 図書館: 55, 回避: 45, 応急手当: 35, 説得: 25 },
+    item: { 懐中電灯: 1, 手帳: 1, 鉛筆: 2, ロープ: 1 },
+    description: { 背景: '古書店員', メモ: '非表示' }
+  }
+
+  const expectedEnhancedEmbedJson = {
+    title: '🎭 テスト探索者',
+    description:
+      '**ゲームシステム**: coc7\n**編集チャンネル**: [キャラクター編集](https://discord.com/channels/guild-1/channel-1)',
+    color: 44678,
+    timestamp: expect.any(String),
+    fields: [
+      { name: '📊 ステータス', value: '**HP**: 12\n**MP**: 8', inline: true },
+      { name: '⚡ パラメータ', value: '**SAN**: 55\n**幸運**: 60', inline: true },
+      {
+        name: '🎯 スキル',
+        value: '**目星**: 75\n**聞き耳**: 65\n**図書館**: 55\n**回避**: 45\n**応急手当**: 35',
+        inline: false
+      },
+      { name: '🎒 アイテム', value: '**懐中電灯**: 1\n**手帳**: 1\n**鉛筆**: 2', inline: false },
+      { name: '📖 説明', value: '**背景**: 古書店員', inline: false }
+    ]
+  }
+
   // send をスパイできる thread モックを生成
   const createThread = (overrides: Record<string, unknown> = {}): ThreadChannel & { send: jest.Mock } =>
     ({
@@ -54,7 +81,7 @@ describe('CharacterEmbedService', () => {
     it('enhanced 表示ではステータス等を含む Embed を thread.send する', async () => {
       // Arrange
       const thread = createThread()
-      const character = buildCharacter({ status: { HP: 12 } })
+      const character = buildCharacter(enhancedCharacterAttributes)
 
       // Act
       await service.postCharacterDisplay(thread, character, 'enhanced')
@@ -62,8 +89,7 @@ describe('CharacterEmbedService', () => {
       // Assert
       expect(thread.send).toHaveBeenCalledTimes(1)
       const embedJson = thread.send.mock.calls[0][0].embeds[0].toJSON()
-      expect(embedJson.title).toBe('🎭 テスト探索者')
-      expect(embedJson.fields).toEqual(expect.arrayContaining([expect.objectContaining({ name: '📊 ステータス' })]))
+      expect(embedJson).toEqual(expectedEnhancedEmbedJson)
     })
 
     it('compact 表示では主要ステータスのみを含む Embed を送信する', async () => {
@@ -176,13 +202,15 @@ describe('CharacterEmbedService', () => {
         messages: { fetch: jest.fn().mockResolvedValue(new Collection([['m1', existingMessage]])) }
       })
       mockClient.channels.fetch.mockResolvedValue(thread)
-      const character = buildCharacter({ discordThreadId: 'thread-1' })
+      const character = buildCharacter({ ...enhancedCharacterAttributes, discordThreadId: 'thread-1' })
 
       // Act
       await service.updateCharacterDisplay(character)
 
       // Assert: 既存メッセージを編集し、新規 send はしない
       expect(existingMessage.edit).toHaveBeenCalledTimes(1)
+      const embedJson = existingMessage.edit.mock.calls[0][0].embeds[0].toJSON()
+      expect(embedJson).toEqual(expectedEnhancedEmbedJson)
       expect(thread.send).not.toHaveBeenCalled()
     })
   })
