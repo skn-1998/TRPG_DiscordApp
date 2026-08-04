@@ -15,6 +15,31 @@
 
 export type PresetDiceSystem = 'coc7' | 'dnd5e' | 'sw25'
 
+export const PRESET_DICE_ACTIONS: Record<
+  PresetDiceSystem,
+  readonly { action: string; label: string; semantic: boolean }[]
+> = {
+  coc7: [
+    { action: '1d100', label: '技能判定', semantic: false },
+    { action: 'sanity', label: 'SAN値判定', semantic: true },
+    { action: 'idea', label: 'アイデア', semantic: true },
+    { action: 'luck', label: '幸運', semantic: true },
+    { action: 'damage', label: 'ダメージ', semantic: true }
+  ],
+  dnd5e: [
+    { action: '1d20', label: 'd20攻撃', semantic: false },
+    { action: 'save', label: 'セーヴィング・スロー', semantic: true },
+    { action: 'ability', label: '能力値判定', semantic: true },
+    { action: 'damage', label: 'ダメージ', semantic: true }
+  ],
+  sw25: [
+    { action: '2d6', label: '2d6判定', semantic: false },
+    { action: 'attack', label: '命中判定', semantic: true },
+    { action: 'damage', label: 'ダメージ', semantic: true },
+    { action: 'magic', label: '魔法行使', semantic: true }
+  ]
+}
+
 /** handler の getCustomIdPattern() が返す正規表現（不変・3 system のいずれか） */
 export const PRESET_DICE_CUSTOM_ID_PATTERN = /^dice_(coc7|dnd5e|sw25)_/
 
@@ -68,27 +93,14 @@ const SYSTEM_DEFAULT_NOTATION: Record<PresetDiceSystem, string> = {
  * action ごとの reason ラベル（生成側ボタンラベルに対応）。
  * base action（system 既定 notation そのもの）はラベルのみ、専用ルール未実装の semantic action は「（簡易）」を付す。
  */
-const ACTION_REASON: Record<PresetDiceSystem, Record<string, string>> = {
-  coc7: {
-    '1d100': '技能判定',
-    sanity: 'SAN値判定（簡易）',
-    idea: 'アイデア（簡易）',
-    luck: '幸運（簡易）',
-    damage: 'ダメージ（簡易）'
-  },
-  dnd5e: {
-    '1d20': 'd20攻撃',
-    save: 'セーヴィング・スロー（簡易）',
-    ability: '能力値判定（簡易）',
-    damage: 'ダメージ（簡易）'
-  },
-  sw25: {
-    '2d6': '2d6判定',
-    attack: '命中判定（簡易）',
-    damage: 'ダメージ（簡易）',
-    magic: '魔法行使（簡易）'
-  }
-}
+const ACTION_REASON = Object.fromEntries(
+  VALID_SYSTEMS.map((system) => [
+    system,
+    Object.fromEntries(
+      PRESET_DICE_ACTIONS[system].map(({ action, label, semantic }) => [action, semantic ? `${label}（簡易）` : label])
+    )
+  ])
+) as Record<PresetDiceSystem, Record<string, string>>
 
 export interface ResolvedPresetDiceRoll {
   /** 実際に振る notation（system 既定。専用ルール未実装のため固定） */

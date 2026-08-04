@@ -43,8 +43,15 @@ describe('ThreadInteractionService', () => {
     }) as unknown as Character
 
   // 送信された components から全ボタンを JSON で取り出すヘルパー
-  const collectButtons = (sendArg: any): Array<{ custom_id: string; label: string; style: number }> =>
-    (sendArg.components ?? []).flatMap((row: any) => row.toJSON().components)
+  const collectButtons = (sendArg: any): Array<{ custom_id: string; label: string; style: number; emoji?: string }> =>
+    (sendArg.components ?? [])
+      .flatMap((row: any) => row.toJSON().components)
+      .map((button: any) => ({
+        custom_id: button.custom_id,
+        label: button.label,
+        style: button.style,
+        emoji: button.emoji?.name
+      }))
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
@@ -100,14 +107,13 @@ describe('ThreadInteractionService', () => {
       expect(sendArg.content).toContain('プリセットダイス')
 
       const buttons = collectButtons(sendArg)
-      expect(buttons.map((b) => b.custom_id)).toEqual([
-        'dice_coc7_1d100_ch-coc',
-        'dice_coc7_sanity_ch-coc',
-        'dice_coc7_idea_ch-coc',
-        'dice_coc7_luck_ch-coc',
-        'dice_coc7_damage_ch-coc'
+      expect(buttons).toEqual([
+        { custom_id: 'dice_coc7_1d100_ch-coc', label: '技能判定', style: 1, emoji: '🎲' },
+        { custom_id: 'dice_coc7_sanity_ch-coc', label: 'SAN値判定', style: 4, emoji: '😱' },
+        { custom_id: 'dice_coc7_idea_ch-coc', label: 'アイデア', style: 2, emoji: '💡' },
+        { custom_id: 'dice_coc7_luck_ch-coc', label: '幸運', style: 3, emoji: '🍀' },
+        { custom_id: 'dice_coc7_damage_ch-coc', label: 'ダメージ', style: 4, emoji: '💥' }
       ])
-      expect(buttons.map((b) => b.label)).toEqual(['技能判定', 'SAN値判定', 'アイデア', '幸運', 'ダメージ'])
     })
 
     it('call_of_cthulhu エイリアスも coc7 と同じプリセットになる', async () => {
@@ -127,11 +133,16 @@ describe('ThreadInteractionService', () => {
       await service.postPresetDiceButtons(thread, character)
 
       const buttons = collectButtons((thread.send as jest.Mock).mock.calls[0][0])
-      expect(buttons.map((b) => b.custom_id)).toEqual([
-        'dice_dnd5e_1d20_ch-dnd',
-        'dice_dnd5e_save_ch-dnd',
-        'dice_dnd5e_ability_ch-dnd',
-        'dice_dnd5e_damage_ch-dnd'
+      expect(buttons).toEqual([
+        { custom_id: 'dice_dnd5e_1d20_ch-dnd', label: 'd20攻撃', style: 1, emoji: '⚔️' },
+        {
+          custom_id: 'dice_dnd5e_save_ch-dnd',
+          label: 'セーヴィング・スロー',
+          style: 2,
+          emoji: '🛡️'
+        },
+        { custom_id: 'dice_dnd5e_ability_ch-dnd', label: '能力値判定', style: 3, emoji: '💪' },
+        { custom_id: 'dice_dnd5e_damage_ch-dnd', label: 'ダメージ', style: 4, emoji: '💥' }
       ])
     })
 
@@ -142,11 +153,11 @@ describe('ThreadInteractionService', () => {
       await service.postPresetDiceButtons(thread, character)
 
       const buttons = collectButtons((thread.send as jest.Mock).mock.calls[0][0])
-      expect(buttons.map((b) => b.custom_id)).toEqual([
-        'dice_sw25_2d6_ch-sw',
-        'dice_sw25_attack_ch-sw',
-        'dice_sw25_damage_ch-sw',
-        'dice_sw25_magic_ch-sw'
+      expect(buttons).toEqual([
+        { custom_id: 'dice_sw25_2d6_ch-sw', label: '2d6判定', style: 1, emoji: '🎲' },
+        { custom_id: 'dice_sw25_attack_ch-sw', label: '命中判定', style: 3, emoji: '⚔️' },
+        { custom_id: 'dice_sw25_damage_ch-sw', label: 'ダメージ', style: 4, emoji: '💥' },
+        { custom_id: 'dice_sw25_magic_ch-sw', label: '魔法行使', style: 2, emoji: '✨' }
       ])
     })
 

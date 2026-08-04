@@ -9,9 +9,39 @@ import {
 } from 'discord.js'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 // P1-D slice2: routed な customId 生成を feature-local 契約モジュールの Factory へ集約（byte-identical・挙動不変）
-import { FlexibleDiceSelectCustomId, DiceGenericCustomId, SkillRollCustomId, AbilityRollCustomId } from '../custom-id'
+import {
+  AbilityRollCustomId,
+  DiceGenericCustomId,
+  FlexibleDiceSelectCustomId,
+  PRESET_DICE_ACTIONS,
+  PresetDiceCustomId,
+  SkillRollCustomId,
+  type PresetDiceSystem
+} from '../custom-id'
 // skill 解決ロジックは handler と共有する純粋 util へ集約
 import { extractSkillLevel } from './skill-roll.util'
+
+const PRESET_DICE_BUTTON_APPEARANCE: Record<PresetDiceSystem, Record<string, { style: ButtonStyle; emoji: string }>> = {
+  coc7: {
+    '1d100': { style: ButtonStyle.Primary, emoji: '🎲' },
+    sanity: { style: ButtonStyle.Danger, emoji: '😱' },
+    idea: { style: ButtonStyle.Secondary, emoji: '💡' },
+    luck: { style: ButtonStyle.Success, emoji: '🍀' },
+    damage: { style: ButtonStyle.Danger, emoji: '💥' }
+  },
+  dnd5e: {
+    '1d20': { style: ButtonStyle.Primary, emoji: '⚔️' },
+    save: { style: ButtonStyle.Secondary, emoji: '🛡️' },
+    ability: { style: ButtonStyle.Success, emoji: '💪' },
+    damage: { style: ButtonStyle.Danger, emoji: '💥' }
+  },
+  sw25: {
+    '2d6': { style: ButtonStyle.Primary, emoji: '🎲' },
+    attack: { style: ButtonStyle.Success, emoji: '⚔️' },
+    damage: { style: ButtonStyle.Danger, emoji: '💥' },
+    magic: { style: ButtonStyle.Secondary, emoji: '✨' }
+  }
+}
 
 /**
  * スレッドインタラクションサービス
@@ -121,15 +151,15 @@ export class ThreadInteractionService {
       switch (gameSystem) {
         case 'coc7':
         case 'call_of_cthulhu':
-          presetButtons = this.createCoC7Buttons(character)
+          presetButtons = this.createPresetDiceButtons(character, 'coc7')
           break
         case 'dnd5e':
         case 'dungeons_and_dragons':
-          presetButtons = this.createDnD5eButtons(character)
+          presetButtons = this.createPresetDiceButtons(character, 'dnd5e')
           break
         case 'sw2.5':
         case 'sword_world':
-          presetButtons = this.createSW25Buttons(character)
+          presetButtons = this.createPresetDiceButtons(character, 'sw25')
           break
         default:
           presetButtons = this.createGenericButtons(character)
@@ -255,99 +285,18 @@ export class ThreadInteractionService {
     }
   }
 
-  /**
-   * Call of Cthulhu 7th用ボタン
-   */
-  private createCoC7Buttons(character: CharacterEntity): ButtonBuilder[] {
+  private createPresetDiceButtons(character: CharacterEntity, system: PresetDiceSystem): ButtonBuilder[] {
     const channelId = character.discordChannelId || character.characterId
 
-    return [
-      new ButtonBuilder()
-        .setCustomId(`dice_coc7_1d100_${channelId}`)
-        .setLabel('技能判定')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🎲'),
-      new ButtonBuilder()
-        .setCustomId(`dice_coc7_sanity_${channelId}`)
-        .setLabel('SAN値判定')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('😱'),
-      new ButtonBuilder()
-        .setCustomId(`dice_coc7_idea_${channelId}`)
-        .setLabel('アイデア')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('💡'),
-      new ButtonBuilder()
-        .setCustomId(`dice_coc7_luck_${channelId}`)
-        .setLabel('幸運')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('🍀'),
-      new ButtonBuilder()
-        .setCustomId(`dice_coc7_damage_${channelId}`)
-        .setLabel('ダメージ')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('💥')
-    ]
-  }
+    return PRESET_DICE_ACTIONS[system].map(({ action, label }) => {
+      const appearance = PRESET_DICE_BUTTON_APPEARANCE[system][action]
 
-  /**
-   * D&D 5e用ボタン
-   */
-  private createDnD5eButtons(character: CharacterEntity): ButtonBuilder[] {
-    const channelId = character.discordChannelId || character.characterId
-
-    return [
-      new ButtonBuilder()
-        .setCustomId(`dice_dnd5e_1d20_${channelId}`)
-        .setLabel('d20攻撃')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('⚔️'),
-      new ButtonBuilder()
-        .setCustomId(`dice_dnd5e_save_${channelId}`)
-        .setLabel('セーヴィング・スロー')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🛡️'),
-      new ButtonBuilder()
-        .setCustomId(`dice_dnd5e_ability_${channelId}`)
-        .setLabel('能力値判定')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('💪'),
-      new ButtonBuilder()
-        .setCustomId(`dice_dnd5e_damage_${channelId}`)
-        .setLabel('ダメージ')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('💥')
-    ]
-  }
-
-  /**
-   * ソード・ワールド2.5用ボタン
-   */
-  private createSW25Buttons(character: CharacterEntity): ButtonBuilder[] {
-    const channelId = character.discordChannelId || character.characterId
-
-    return [
-      new ButtonBuilder()
-        .setCustomId(`dice_sw25_2d6_${channelId}`)
-        .setLabel('2d6判定')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🎲'),
-      new ButtonBuilder()
-        .setCustomId(`dice_sw25_attack_${channelId}`)
-        .setLabel('命中判定')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('⚔️'),
-      new ButtonBuilder()
-        .setCustomId(`dice_sw25_damage_${channelId}`)
-        .setLabel('ダメージ')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('💥'),
-      new ButtonBuilder()
-        .setCustomId(`dice_sw25_magic_${channelId}`)
-        .setLabel('魔法行使')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('✨')
-    ]
+      return new ButtonBuilder()
+        .setCustomId(PresetDiceCustomId.create(system, action, channelId))
+        .setLabel(label)
+        .setStyle(appearance.style)
+        .setEmoji(appearance.emoji)
+    })
   }
 
   /**
