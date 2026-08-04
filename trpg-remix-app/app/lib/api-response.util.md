@@ -17,9 +17,8 @@ lib 層のため feature への依存は持たない）。
   ここへは統合しない（#61 裁定・俯瞰#16 で再確認）
 - UI 文言への分類（`classifyDicePreviewError` 等）は feature 側の責務。全面統合は
   俯瞰#15 で No-Go 裁定済み
-- 既知の残件: `getResponseStatus` は typeof 検査がなく `status: "409"`（文字列）を
-  宣言 `number | undefined` のまま返す型穴＋spec 不在＋同義ローカル実装が
-  `_user.user.character_.$id.sheet.tsx` に1本残存 — Task #82 で解消予定
+- #82（`a71d891`）で解消済み: 型穴（typeof number 絞り込み追加）・spec 5件追加・
+  sheet route の同義ローカル実装を統合（status extractor は共有1所有者・3 route 利用）
 
 ## 履歴
 
