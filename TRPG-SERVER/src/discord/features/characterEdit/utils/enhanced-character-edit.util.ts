@@ -6,6 +6,11 @@
  * 純粋ロジックを切り出し、個別にユニットテスト可能にする。
  */
 
+// customId の生成文字列は契約モジュール（byte 一致の create()）を参照する。
+// いずれも純粋モジュールのため、本ファイルの discord.js 非依存は保たれる。
+import { CharacterRefreshCustomId } from '../custom-id/character-refresh.custom-id'
+import { CharacterCompactCustomId } from '../custom-id/character-compact.custom-id'
+
 const SECTION_TYPES = ['status', 'parameter', 'skill', 'item', 'basic'] as const
 export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
 
@@ -114,8 +119,8 @@ export function messageHasCharacterEditButtons(message: MessageLike, characterId
         const customId = component.customId
         return (
           !!customId &&
-          (customId.includes(`character-refresh-${characterId}`) ||
-            customId.includes(`character-compact-view-${characterId}`))
+          (customId.includes(CharacterRefreshCustomId.create(characterId)) ||
+            customId.includes(CharacterCompactCustomId.create(characterId)))
         )
       })
   )

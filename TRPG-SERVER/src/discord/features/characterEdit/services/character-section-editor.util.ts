@@ -16,11 +16,16 @@ import { CharacterEntity } from '../../../../domains/character/models/character.
 // P1-D slice1 Slice C: characterId 抽出の正規表現を feature-local 契約モジュールへ集約（byte-identical・非アンカーのまま）
 import {
   CHARACTER_EDIT_SECTION_PARSE_PATTERN,
-  CHARACTER_SECTION_SELECT_PARSE_PATTERN
+  CHARACTER_SECTION_SELECT_PARSE_PATTERN,
+  CHARACTER_EDIT_SECTION_CUSTOM_ID_PREFIX,
+  CHARACTER_SECTION_SELECT_CUSTOM_ID_PREFIX
 } from '../custom-id/character-section.custom-id'
 import {
   CHARACTER_FIELD_EDIT_PARSE_PATTERN,
-  CHARACTER_FIELD_ADD_PARSE_PATTERN
+  CHARACTER_FIELD_ADD_PARSE_PATTERN,
+  CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
+  CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
+  characterFieldSectionInfix
 } from '../custom-id/character-field.custom-id'
 
 /**
@@ -159,29 +164,43 @@ export function extractCharacterIdFromCustomId(customId: string): string | null 
 
 /**
  * カスタムIDからセクションタイプを抽出する（純粋）。
- * `-status-` 等の部分文字列で判定。該当無しは null。
+ * `-status-` 等の中置部分文字列で判定（中置の正本は契約 characterFieldSectionInfix・byte 同一）。
+ * 該当無しは null。
  */
 export function extractSectionFromCustomId(customId: string): EmbedSectionType | null {
-  if (customId.includes('-status-')) return 'status'
-  if (customId.includes('-parameter-')) return 'parameter'
-  if (customId.includes('-skill-')) return 'skill'
-  if (customId.includes('-item-')) return 'item'
+  if (customId.includes(characterFieldSectionInfix('status'))) return 'status'
+  if (customId.includes(characterFieldSectionInfix('parameter'))) return 'parameter'
+  if (customId.includes(characterFieldSectionInfix('skill'))) return 'skill'
+  if (customId.includes(characterFieldSectionInfix('item'))) return 'item'
   return null
 }
 
 /**
  * フィールド操作（編集 / 追加）の customId かを判定する（純粋）。
  * true の場合は deferUpdate せず modal を表示する分岐。
+ *
+ * 判定は契約 prefix（末尾ハイフン付き）の includes。旧実装のハイフン無し literal からの
+ * 引き締めだが、生成側（createEdit/createAdd）は常に末尾ハイフン付きのため生成集合上で等価
+ * （差分は 'character-field-editorial' 等の非生成形のみ・spec で負例 pin）。
  */
 export function isFieldOperationCustomId(customId: string): boolean {
-  return customId.includes('character-field-edit') || customId.includes('character-field-add')
+  return (
+    customId.includes(CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX) || customId.includes(CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX)
+  )
 }
 
 /**
  * section選択（メッセージ更新）の customId かを判定する（純粋）。
+ *
+ * 判定は契約 prefix（末尾ハイフン付き）の includes。旧実装のハイフン無し literal からの
+ * 引き締めだが、生成側（createEditSection/createSectionSelect）は常に末尾ハイフン付きのため
+ * 生成集合上で等価（差分は 'character-section-selection' 等の非生成形のみ・spec で負例 pin）。
  */
 export function isSectionSelectionCustomId(customId: string): boolean {
-  return customId.includes('character-edit-section') || customId.includes('character-section-select')
+  return (
+    customId.includes(CHARACTER_EDIT_SECTION_CUSTOM_ID_PREFIX) ||
+    customId.includes(CHARACTER_SECTION_SELECT_CUSTOM_ID_PREFIX)
+  )
 }
 
 /**

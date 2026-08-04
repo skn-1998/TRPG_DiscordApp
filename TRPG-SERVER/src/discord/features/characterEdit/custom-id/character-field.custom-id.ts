@@ -13,18 +13,31 @@
 /** handler の getCustomIdPattern() が返す前方一致 prefix（不変） */
 export const CHARACTER_FIELD_CUSTOM_ID_PATTERN = 'character-field-'
 
+/** field-edit / field-add の操作 prefix（生成 createEdit/createAdd と探索側 includes 判定の正本） */
+export const CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX = 'character-field-edit-'
+export const CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX = 'character-field-add-'
+
 /** field-edit / field-add から characterId を抽出する正規表現（現挙動を保存） */
 export const CHARACTER_FIELD_EDIT_PARSE_PATTERN = /character-field-edit-\w+-(.+)/
 export const CHARACTER_FIELD_ADD_PARSE_PATTERN = /character-field-add-\w+-(.+)/
+
+/**
+ * field customId 中のセクション中置 `-{sectionType}-` の正本。
+ * 生成側（createEdit/createAdd）は PREFIX + `${sectionType}-` の合成で同一 bytes を生成するため
+ * 本関数を直接は呼べない。両者の一致は custom-id-predicates.spec.ts で固定する。
+ */
+export function characterFieldSectionInfix(sectionType: string): string {
+  return `-${sectionType}-`
+}
 
 export const CharacterFieldCustomId = {
   pattern: CHARACTER_FIELD_CUSTOM_ID_PATTERN,
 
   createEdit(sectionType: string, characterId: string): string {
-    return `character-field-edit-${sectionType}-${characterId}`
+    return `${CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX}${sectionType}-${characterId}`
   },
 
   createAdd(sectionType: string, characterId: string): string {
-    return `character-field-add-${sectionType}-${characterId}`
+    return `${CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX}${sectionType}-${characterId}`
   }
 } as const

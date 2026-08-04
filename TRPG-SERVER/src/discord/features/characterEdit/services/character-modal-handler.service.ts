@@ -6,7 +6,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { ModalSubmitInteraction, TextChannel, Message, MessageFlags } from 'discord.js'
+import { ModalSubmitInteraction, TextChannel, Message, MessageFlags, ComponentType } from 'discord.js'
 import { CharacterEntity, resolveCharacterState } from '../../../../domains/character/models/character.entity'
 import { CharacterInputDto } from '../../../../domains/character/dto/create-character.dto'
 import { CharacterService } from '../../../../domains/character/character.service'
@@ -18,6 +18,12 @@ import { respondEphemeralError } from '../../../utils/interaction-error-response
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
+import {
+  CharacterCreateCustomId,
+  CharacterSectionCustomId,
+  CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
+  CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX
+} from '../custom-id'
 import {
   FieldData,
   parseEditCustomId,
@@ -52,8 +58,10 @@ export class CharacterModalHandlerService {
       this.logger.log(`Modal submit received: ${interaction.customId}`)
       await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
-      // キャラクター作成モーダルかどうかを確認
-      if (interaction.customId.includes('character-create-basic')) {
+      // キャラクター作成モーダルかどうかを確認。
+      // 作成モーダル customId は createBasic() 生成形（先頭一致・末尾ハイフン付き）のみのため、
+      // 旧 includes('character-create-basic') と isBasic() は生成集合上で等価（引き締めは spec で pin）。
+      if (CharacterCreateCustomId.isBasic(interaction.customId)) {
         this.logger.debug('Processing character creation modal')
         await this.handleCharacterCreation(interaction)
         return
@@ -467,12 +475,12 @@ export class CharacterModalHandlerService {
     const hasSectionSelectMenu = rows.some((row) => {
       const comps: ComponentLike[] = row.components ?? []
       return comps.some((component: ComponentLike) => {
-        if (component.type !== 3) return false // StringSelectMenu type = 3
+        if (component.type !== ComponentType.StringSelect) return false
         const customId = component.customId ?? ''
         return (
-          customId.includes(`character-edit-section-${characterId}`) ||
-          customId.includes('character-field-edit-') ||
-          customId.includes('character-field-add-')
+          customId.includes(CharacterSectionCustomId.createEditSection(characterId)) ||
+          customId.includes(CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX) ||
+          customId.includes(CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX)
         )
       })
     })

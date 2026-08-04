@@ -10,6 +10,12 @@
 import { CharacterRefreshCustomId } from './character-refresh.custom-id'
 import { CharacterCompactCustomId } from './character-compact.custom-id'
 import { CharacterCreateCustomId } from './character-create.custom-id'
+import {
+  CharacterFieldCustomId,
+  CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
+  CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
+  characterFieldSectionInfix
+} from './character-field.custom-id'
 
 describe('characterEdit custom-id 述語（startsWith 等価）', () => {
   describe('CharacterRefreshCustomId.is', () => {
@@ -62,6 +68,41 @@ describe('characterEdit custom-id 述語（startsWith 等価）', () => {
 
     it('前方一致でない場合は false', () => {
       expect(CharacterCreateCustomId.isBasic('x-character-create-basic-')).toBe(false)
+    })
+  })
+
+  // field 操作 prefix とセクション中置の正本を契約側へ集約。
+  // 生成（createEdit/createAdd）と探索（includes 判定・extractSectionFromCustomId）の
+  // byte 一致をここで固定する。
+  describe('CharacterFieldCustomId 正本（prefix / セクション中置）', () => {
+    it('prefix 定数は生成フォーマットの literal と byte 一致', () => {
+      expect(CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX).toBe('character-field-edit-')
+      expect(CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX).toBe('character-field-add-')
+    })
+
+    it('characterFieldSectionInfix は `-{sectionType}-` を返す', () => {
+      expect(characterFieldSectionInfix('status')).toBe('-status-')
+      expect(characterFieldSectionInfix('parameter')).toBe('-parameter-')
+      expect(characterFieldSectionInfix('skill')).toBe('-skill-')
+      expect(characterFieldSectionInfix('item')).toBe('-item-')
+    })
+
+    it('createEdit/createAdd の生成 bytes は prefix + 中置と一致する（Factory ↔ 正本の三者一致）', () => {
+      expect(CharacterFieldCustomId.createEdit('status', 'abc123')).toBe('character-field-edit-status-abc123')
+      expect(CharacterFieldCustomId.createAdd('skill', 'xyz789')).toBe('character-field-add-skill-xyz789')
+
+      expect(
+        CharacterFieldCustomId.createEdit('status', 'abc123').startsWith(CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX)
+      ).toBe(true)
+      expect(CharacterFieldCustomId.createAdd('skill', 'xyz789').startsWith(CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX)).toBe(
+        true
+      )
+      expect(CharacterFieldCustomId.createEdit('status', 'abc123').includes(characterFieldSectionInfix('status'))).toBe(
+        true
+      )
+      expect(CharacterFieldCustomId.createAdd('skill', 'xyz789').includes(characterFieldSectionInfix('skill'))).toBe(
+        true
+      )
     })
   })
 })
