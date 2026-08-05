@@ -3,7 +3,7 @@ import { CharacterEditSectionHandler } from './character-edit-section.handler'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditSectionHandler', () => {
-  const mockService = { handleSelectMenuInteraction: jest.fn().mockResolvedValue(undefined) }
+  const mockService = { handleSectionSelect: jest.fn().mockResolvedValue(undefined) }
   let handler: CharacterEditSectionHandler
 
   beforeEach(() => {
@@ -22,12 +22,12 @@ describe('CharacterEditSectionHandler', () => {
     expect(pattern.test('character-section-select-char123')).toBe(true)
   })
 
-  it('execute は handleSelectMenuInteraction へ interaction を委譲する', async () => {
+  it('execute は handleSectionSelect へ interaction を委譲する', async () => {
     const interaction = createMockSelectMenuInteraction({ customId: 'character-edit-section-char123' })
 
     await handler.execute(interaction)
 
-    expect(mockService.handleSelectMenuInteraction).toHaveBeenCalledWith(interaction)
-    expect(mockService.handleSelectMenuInteraction).toHaveBeenCalledTimes(1)
+    expect(mockService.handleSectionSelect).toHaveBeenCalledWith(interaction)
+    expect(mockService.handleSectionSelect).toHaveBeenCalledTimes(1)
   })
 })

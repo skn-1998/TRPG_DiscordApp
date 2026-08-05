@@ -21,6 +21,6 @@ export class CharacterEditFieldHandler extends SelectMenuInteractionHandler {
 
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {
     this.logger.debug(`Handling character field select: ${interaction.customId}`)
-    await this.characterEditService.handleSelectMenuInteraction(interaction)
+    await this.characterEditService.handleFieldSelect(interaction)
   }
 }

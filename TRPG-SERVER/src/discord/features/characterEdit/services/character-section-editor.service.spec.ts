@@ -2,7 +2,7 @@
  * CharacterSectionEditorService characterization tests
  *
  * 手順0: リファクタ前の現挙動を固定する characterization テスト。
- * execute(interaction) の外部挙動（どの分岐でどの interaction メソッドを呼ぶか、
+ * section / field 専用入口の外部挙動（どの interaction メソッドを呼ぶか、
  * どの依存をどう呼ぶか）を、依存を最小モックして記録する。
  * リファクタ後もこれらが緑であることで挙動不変を証明する。
  *
@@ -119,7 +119,7 @@ describe('CharacterSectionEditorService', () => {
       embedManager.createFieldSelectMenu.mockReturnValue(undefined) // 失敗で早期 return
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
     })
@@ -128,7 +128,7 @@ describe('CharacterSectionEditorService', () => {
       mockCharacterFound(buildCharacter())
       const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
 
-      await service.execute(interaction as never)
+      await service.handleFieldSelectInteraction(interaction as never)
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled()
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
@@ -141,10 +141,24 @@ describe('CharacterSectionEditorService', () => {
       mockCharacterFound(buildCharacter())
       const interaction = buildInteraction('character-field-add-status-abc123', ['add_new'])
 
-      await service.execute(interaction as never)
+      await service.handleFieldSelectInteraction(interaction as never)
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled()
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
+    })
+
+    it('field pattern の契約外 customId は defer 後に warn し ephemeral followUp する', async () => {
+      const interaction = buildInteraction('character-field-delete-status-abc123', ['hp'])
+
+      await service.handleFieldSelectInteraction(interaction as never)
+
+      expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith('Unsupported character field customId: character-field-delete-status-abc123')
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '⚠️ このインタラクションは現在処理できません。',
+        flags: MessageFlags.Ephemeral
+      })
+      expect(characterService.findOne).not.toHaveBeenCalled()
     })
   })
 
@@ -152,7 +166,7 @@ describe('CharacterSectionEditorService', () => {
     it('抽出できない customId はエラーメッセージを followUp する (deferUpdate 済み)', async () => {
       const interaction = buildInteraction('totally-unknown-id', ['x'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
       expect(interaction.followUp).toHaveBeenCalledWith({
@@ -169,7 +183,7 @@ describe('CharacterSectionEditorService', () => {
       mockCharacterNotFound()
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(interaction.editReply).not.toHaveBeenCalled()
@@ -180,7 +194,7 @@ describe('CharacterSectionEditorService', () => {
       characterService.findOne.mockRejectedValue(new Error('DB error'))
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(interaction.editReply).not.toHaveBeenCalled()
@@ -194,7 +208,7 @@ describe('CharacterSectionEditorService', () => {
       embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(
         expect.objectContaining({ characterId: 'abc123' }),
@@ -219,7 +233,7 @@ describe('CharacterSectionEditorService', () => {
       embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(plain, 'status', 'abc123')
     })
@@ -229,7 +243,7 @@ describe('CharacterSectionEditorService', () => {
       embedManager.createFieldSelectMenu.mockReturnValue({ __fieldMenu: true })
       const interaction = buildInteraction('character-section-select-abc123', ['skill'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(embedManager.createFieldSelectMenu).toHaveBeenCalledWith(expect.anything(), 'skill', 'abc123')
       expect(interaction.editReply).toHaveBeenCalledTimes(1)
@@ -243,7 +257,7 @@ describe('CharacterSectionEditorService', () => {
       })
       const interaction = buildInteraction('character-edit-section-abc123', ['back'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(embedManager.createSectionedEmbeds).toHaveBeenCalledTimes(1)
       expect(interaction.editReply).toHaveBeenCalledWith({
@@ -257,7 +271,7 @@ describe('CharacterSectionEditorService', () => {
       embedManager.createFieldSelectMenu.mockReturnValue(undefined)
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await service.execute(interaction as never)
+      await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(interaction.editReply).not.toHaveBeenCalled()
@@ -273,7 +287,7 @@ describe('CharacterSectionEditorService', () => {
       mockCharacterFound(character)
       const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
 
-      await service.execute(interaction as never)
+      await service.handleFieldSelectInteraction(interaction as never)
 
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
       // session 採番は短いIDでは使われない
@@ -288,7 +302,7 @@ describe('CharacterSectionEditorService', () => {
         'add_new'
       ])
 
-      await service.execute(interaction as never)
+      await service.handleFieldSelectInteraction(interaction as never)
 
       expect(modalSessionManager.createSession).toHaveBeenCalledWith(
         'a-very-long-character-id-1234567890',
@@ -309,7 +323,9 @@ describe('CharacterSectionEditorService', () => {
       })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
 
-      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      await expect(service.handleSectionSelectInteraction(interaction as never)).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
 
       expect(handleServiceError).toHaveBeenCalledWith(
         originalError,
@@ -331,7 +347,9 @@ describe('CharacterSectionEditorService', () => {
       const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
       ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
 
-      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
 
       expect(interaction.reply).toHaveBeenCalledTimes(1)
       expect(interaction.reply).toHaveBeenCalledWith({
@@ -348,7 +366,9 @@ describe('CharacterSectionEditorService', () => {
       interaction.replied = true
       ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
 
-      await expect(service.execute(interaction as never)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toThrow(
+        'サービス処理中にエラーが発生しました'
+      )
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(interaction.followUp).toHaveBeenCalledWith({
@@ -370,7 +390,7 @@ describe('CharacterSectionEditorService', () => {
       const notificationError = new Error('notification failed')
       ;(interaction.followUp as jest.Mock).mockRejectedValue(notificationError)
 
-      await expect(service.execute(interaction as never)).rejects.toBe(originalError)
+      await expect(service.handleSectionSelectInteraction(interaction as never)).rejects.toBe(originalError)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(warnSpy).toHaveBeenCalledWith('Failed to send character section editor error response', notificationError)
