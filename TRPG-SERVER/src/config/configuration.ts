@@ -121,36 +121,6 @@ export const generateAppConfig = () => {
 export type AppConfig = ReturnType<typeof generateAppConfig>
 
 /**
- * 利用可能な設定パスの型定義
- * IntelliSenseで予測変換される設定パス
- */
-export type ConfigPaths =
-  | 'app.environment'
-  | 'app.port'
-  | 'app.frontendUrl'
-  | 'database.mongoUri'
-  | 'database.logging'
-  | 'discord.token'
-  | 'discord.applicationId'
-  | 'discord.secret'
-  | 'discord.guildId'
-  | 'discord.characterCategory'
-  | 'discord.diceRollCategory'
-  | 'discord.cacheTtl'
-  | 'discord.messageCacheLimit'
-  | 'discord.channelCacheLimit'
-  | 'discord.testMockDiscord'
-  | 'auth.jwtSecret'
-  | 'auth.jwtExpiresIn'
-  | 'auth.redirectUrl'
-  | 'security.discordTokenEncryptionKey'
-  | 'logging.level'
-  | 'logging.fileEnabled'
-  | 'logging.consoleEnabled'
-  | 'logging.filePath'
-  | 'logging.errorFilePath'
-
-/**
  * 環境変数の再検証（テスト用）
  */
 export function revalidateEnvironment(): void {

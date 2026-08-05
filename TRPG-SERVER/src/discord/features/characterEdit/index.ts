@@ -40,33 +40,6 @@ export { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 // - AddCharaInfoService: Integrated into enhanced-character-edit.service.ts
 // - ChangeCharaInfoService: Integrated into enhanced-character-edit.service.ts
 
-// ============================================================================
-// Types and Interfaces
-// ============================================================================
-
-export interface CharacterEditContext {
-  channelId: string
-  userId: string
-  guildId: string
-}
-
-export interface CharacterUpdatePayload {
-  field: 'status' | 'parameter' | 'skill'
-  data: Record<string, any>
-  context: CharacterEditContext
-}
-
-// Configuration
-export const CHARACTER_EDIT_CONFIG = {
-  MAX_INPUT_LENGTH: 2000,
-  AUTO_DELETE_ERROR_TIMEOUT: 5000,
-  SUPPORTED_FIELDS: ['status', 'parameter', 'skill'] as const,
-  // リファクタリングで追加された設定
-  AUDIT_LOG_LIMIT: 10,
-  DEFAULT_GAME_SYSTEM_ID: '',
-  NOTIFICATION_TIMEOUT: 30000
-} as const
-
 // 注: かつて存在した CharacterEditServiceFactory は、実在しない
 // './character-channel-create.service' を require する未使用デッドコードだったため削除（2026-06-03）。
 // ChannelDetectionService / CharacterCreationService / CharacterNotificationService は

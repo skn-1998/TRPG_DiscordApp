@@ -37,16 +37,6 @@ import {
 import { CharacterSectionCustomId } from '../custom-id'
 // import { discordSelectMenuType } from '../../../discord.type'
 
-/**
- * フィールド編集データ
- */
-export interface FieldEditData {
-  section: EmbedSectionType
-  field: string
-  value: string
-  isNew: boolean
-}
-
 @Injectable()
 export class CharacterSectionEditorService {
   private readonly logger = new Logger(CharacterSectionEditorService.name)

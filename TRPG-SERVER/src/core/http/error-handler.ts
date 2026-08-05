@@ -1,17 +1,4 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
-import { Response } from 'express'
-
-/**
- * エラーレスポンスの型定義
- */
-export interface ErrorResponse {
-  success: false
-  message: string
-  error?: string
-  timestamp: string
-  path?: string
-  statusCode?: number
-}
 
 /**
  * エラーコンテキストの型定義
@@ -76,54 +63,6 @@ export class ErrorHandler {
 
     // 一般的なエラーの場合、適切な HTTP エラーに変換
     throw new HttpException('処理中にエラーが発生しました', HttpStatus.INTERNAL_SERVER_ERROR)
-  }
-
-  /**
-   * HTTP API エラーをハンドリング
-   * @param error エラーオブジェクト
-   * @param context エラーコンテキスト
-   * @param response Expressレスポンス
-   * @param options.isProduction 本番判定（true で error 詳細を隠す）。
-   *   本クラスは static utility で DI 不可のため、env 判定は呼び出し側（AppConfigService を注入できる境界）が
-   *   解決して渡す（P1-C: 脱 process.env 直接参照）。未指定時は false（＝詳細露出）。
-   */
-  static handleHttpError(
-    error: unknown,
-    context: ErrorContext,
-    response: Response,
-    options?: { isProduction?: boolean }
-  ): void {
-    const errorMessage = this.extractErrorMessage(error)
-    const isProduction = options?.isProduction ?? false
-
-    // ログ記録
-    this.logError(error, context, 'HTTP_API')
-
-    // HTTPエラーの場合
-    if (error instanceof HttpException) {
-      const statusCode = error.getStatus()
-      const errorResponse: ErrorResponse = {
-        success: false,
-        message: error.message,
-        error: isProduction ? undefined : errorMessage,
-        timestamp: new Date().toISOString(),
-        statusCode
-      }
-
-      response.status(statusCode).json(errorResponse)
-      return
-    }
-
-    // 一般的なエラーの場合
-    const errorResponse: ErrorResponse = {
-      success: false,
-      message: 'リクエストの処理中にエラーが発生しました',
-      error: isProduction ? undefined : errorMessage,
-      timestamp: new Date().toISOString(),
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR
-    }
-
-    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json(errorResponse)
   }
 
   /**

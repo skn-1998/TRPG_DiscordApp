@@ -21,7 +21,7 @@ import { CreateUserProfileDto, UpdateUserProfileDto } from './dto/user-profile.d
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import { Request } from 'express'
-import { ResponseInterceptor, ApiErrorResponse, ApiError } from '../../core/http'
+import { ResponseInterceptor, ApiError } from '../../core/http'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../core/dto/api-response.dto'
 import { toUserOutput } from './presenters/user-output.presenter'
 import type { DiscordGuildsPayloadWire, UserProfileWire } from '@trpg/api-contract'
@@ -34,7 +34,6 @@ interface RequestWithUser extends Request {
  * 例外レスポンスの封筒化は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 全エンドポイントは success=200/'成功'。
- * @ApiErrorResponse は現在どの経路からも参照されない無効メタであり、第5群で撤去する。
  * リソース未発見（変換前の ApiResponseUtil.error(res, '...が見つかりません', 404)）は
  * ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, '...') を throw して再現する。
  */
@@ -65,7 +64,6 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a new user' })
   @ApiResponse({ status: 200, description: 'The user has been successfully created.', type: UserOutputDto })
-  @ApiErrorResponse(500, 'ユーザー作成に失敗しました')
   async create(@Body() profile: CreateUserProfileDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const user = await this.userService.create({
@@ -82,7 +80,6 @@ export class UserController {
   @ApiOperation({ summary: 'Get a user by Discord ID' })
   @ApiResponse({ status: 200, description: 'Return the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @ApiErrorResponse(500, 'ユーザー取得に失敗しました')
   async findOne(@Req() req: RequestWithUser): Promise<UserProfileWire> {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const user = await this.userService.findByDiscordId(discordUserId)
@@ -97,7 +94,6 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get user Discord guilds' })
   @ApiResponse({ status: 200, description: 'Return the user Discord guilds.' })
-  @ApiErrorResponse(500, 'Discord Guild一覧取得に失敗しました')
   async getDiscordGuilds(@Req() req: RequestWithUser): Promise<DiscordGuildsPayloadWire> {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const guilds = await this.userService.getUserDiscordGuilds(discordUserId)
@@ -113,7 +109,6 @@ export class UserController {
   @ApiOperation({ summary: 'Update a user' })
   @ApiResponse({ status: 200, description: 'The user has been successfully updated.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @ApiErrorResponse(500, 'ユーザー更新に失敗しました')
   async update(
     @Param() params: DiscordUserIdParamDto,
     @Body() updateUserDto: UpdateUserProfileDto,
@@ -138,7 +133,6 @@ export class UserController {
   @ApiOperation({ summary: 'Add a character to a user' })
   @ApiResponse({ status: 200, description: 'The character has been added to the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @ApiErrorResponse(500, 'キャラクター追加に失敗しました')
   async addCharacter(@Param() params: UserCharacterParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId, characterId } = params
     const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
@@ -155,7 +149,6 @@ export class UserController {
   @ApiOperation({ summary: 'Remove a character from a user' })
   @ApiResponse({ status: 200, description: 'The character has been removed from the user.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @ApiErrorResponse(500, 'キャラクター削除に失敗しました')
   async removeCharacter(@Param() params: UserCharacterParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId, characterId } = params
     const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)
@@ -172,7 +165,6 @@ export class UserController {
   @ApiOperation({ summary: 'Delete a user' })
   @ApiResponse({ status: 200, description: 'The user has been successfully deleted.', type: UserOutputDto })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  @ApiErrorResponse(500, 'ユーザー削除に失敗しました')
   async remove(@Param() params: DiscordUserIdParamDto, @Req() req: RequestWithUser): Promise<UserOutputDto> {
     const { discordUserId } = params
     const authenticatedDiscordUserId = this.extractAuthenticatedDiscordUserId(req)

@@ -29,15 +29,6 @@ import {
 // 既存の import 互換のため re-export（型の正本は util 側）
 export { EmbedSectionType }
 
-/**
- * キャラクター編集アクション
- */
-export interface CharacterEditAction {
-  type: 'add' | 'edit' | 'delete'
-  section: EmbedSectionType
-  field?: string
-}
-
 @Injectable()
 export class CharacterEmbedManagerService {
   private readonly logger = new Logger(CharacterEmbedManagerService.name)

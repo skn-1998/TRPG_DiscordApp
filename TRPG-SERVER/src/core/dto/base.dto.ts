@@ -17,14 +17,6 @@ export abstract class BaseDto {
 }
 
 /**
- * 識別子を持つDTO基底クラス
- */
-export abstract class IdentifiableDto extends BaseDto {
-  @IsString()
-  readonly id: string
-}
-
-/**
  * Discord関連共通フィールド
  */
 export abstract class DiscordDto extends BaseDto {

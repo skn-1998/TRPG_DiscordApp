@@ -1,28 +1,5 @@
 import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator'
-import { BaseDto, ValidationUtils } from '../../../core/dto/base.dto'
-
-/**
- * ダイスロールチャンネル作成DTO
- */
-export class CreateDiceRollChannelDto extends BaseDto {
-  @IsString(ValidationUtils.requiredString('Discordチャンネル'))
-  @IsNotEmpty()
-  readonly discordChannelId: string
-
-  @IsArray(ValidationUtils.array('キャラクターID'))
-  @IsString({ each: true })
-  @IsOptional()
-  readonly characterIds?: string[]
-
-  @IsArray(ValidationUtils.array('テキストID'))
-  @IsString({ each: true })
-  @IsOptional()
-  readonly textIds?: string[]
-
-  @IsString(ValidationUtils.optionalString('ゲームシステムID'))
-  @IsOptional()
-  readonly gameSystemId?: string
-}
+import { ValidationUtils } from '../../../core/dto/base.dto'
 
 /**
  * ダイスロールチャンネル入力DTO（部分入力可能）
