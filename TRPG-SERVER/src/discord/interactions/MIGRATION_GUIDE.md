@@ -126,12 +126,17 @@ characterEdit → characterThread の順。
 
 ## 新 Handler 追加手順（現行）
 
-1. `handlers/{feature}/xxx.handler.ts` を作成（基底クラス継承）
+1. `src/discord/features/{feature}/handlers/xxx.handler.ts` を作成（基底クラス継承。
+   `interactions/handlers/` 配下には base/ と integration spec しか無い — handler 本体は
+   feature 側が所有する）
 2. `getCustomIdPattern()` / `getInteractionType()` / `execute()` を実装
 3. FeatureModule.providers に追加
 4. FeatureModule の `onModuleInit` の `registerHandlers([...])` に追加
-5. `handlers.integration.spec.ts` に pattern テストを追加
+5. `handlers.integration.spec.ts` に pattern テストを追加し、**登録配列と `totalHandlers` pin も
+   更新**する
 6. customId 生成側が Factory 経由であることを確認
+7. **登録台帳の正本 = [DESIGN.md §11](../DESIGN.md) を更新**する（本手順書・
+   `document/interaction-registry.md`（歴史文書）は台帳を持たない — 正本は DESIGN.md §11 の 1 つ）
 
 ---
 
@@ -143,6 +148,10 @@ characterEdit → characterThread の順。
 2. `interactionRegistry.debugInfo()` で未登録集計を確認
 3. [DESIGN.md §6.3](../DESIGN.md#63-legacy廃止対象) の Legacy 形式で生成されていないか確認
 4. Handler pattern と生成 customId の prefix が一致するか確認
+5. **登録済み handler の防衛枝**の可能性を確認（H1-c1/c2・2026-08-05）: registry pattern は
+   通過したが handler 側の契約（create の basic/cancel・field の edit/add）に一致しない場合、
+   同文言＋`Unsupported character create/field customId:` の warn ログが出る。この場合
+   2 の未登録集計には**現れない** — warn ログの有無で 1〜4 と切り分ける
 
 ### Handler が意図しないものにマッチする
 

@@ -12,19 +12,13 @@ Discord 上でのキャラクターチャンネル作成・初期化、および
 characterEdit/
 ├── character-edit.module.ts                # NestJS モジュール定義（providers / exports）
 ├── enhanced-character-edit.service.ts       # 中心となる統合オーケストレーター
-├── index.ts                                 # 公開 API・型・設定・バリデータの集約
 ├── events/                                  # feature 固有イベント
 │   ├── index.ts
 │   ├── character-edit.ids.ts                # CustomId 定義（後方互換）
-│   ├── contracts/
-│   │   └── character-edit-events.contract.ts  # イベント契約定義
 │   └── handlers/
-│       ├── character-edit-feature.handler.ts   # feature 内部 ⇔ グローバルイベント橋渡し
-│       └── character-edit-creation.handler.ts  # creation.requested イベント処理
+│       └── character-edit-feature.handler.ts   # feature 内部 ⇔ グローバルイベント橋渡し
 ├── services/                                # サービス群（@Injectable）
-│   ├── index.ts
 │   ├── channel-detection.service.ts          # チャンネル検出（作成対象判定）
-│   ├── character-creation.service.ts         # キャラクター作成（イベント駆動）
 │   ├── character-notification.service.ts     # 作成通知・URL 送信（自己完結型）
 │   ├── channel-create-orchestrator.service.ts # チャンネル作成フローの統合
 │   ├── character-event-integration.service.ts # キャラクター関連イベントの統合処理
@@ -99,14 +93,15 @@ import { CharacterEditModule } from './features/characterEdit/character-edit.mod
 export class YourModule {}
 ```
 
-`CharacterEditModule` は内部で `CharacterModule`（forwardRef）と `DiscordIntegrationModule` をインポートします。
+`CharacterEditModule` は内部で `CharacterModule` と `DiscordIntegrationModule` をインポートします
+（CharacterModule は characterEdit を import しない＝循環なしのため forwardRef 不要・P1-B）。
 
 ### 2. オーケストレーターの利用（チャンネル作成フロー）
 
 ```typescript
 import { Injectable } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { ChannelCreateOrchestratorService } from './services'
+import { ChannelCreateOrchestratorService } from './services/channel-create-orchestrator.service'
 
 @Injectable()
 export class YourService {
@@ -124,7 +119,7 @@ export class YourService {
 ```typescript
 import { Injectable } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { ChannelDetectionService } from './services'
+import { ChannelDetectionService } from './services/channel-detection.service'
 
 @Injectable()
 export class CustomService {
@@ -166,12 +161,9 @@ interface ChannelCreationResult {
 かつて `index.ts` が公開していた feature 向けの型・設定・バリデーション
 （`CharacterEditContext` / `CharacterUpdatePayload` / `CHARACTER_EDIT_CONFIG` /
 `CharacterEditValidator`）は、いずれも production 参照 0 のため第5群 G5-a/G5-b
-（2026-08-05）で削除済みです。現在の `index.ts` は module / services / EnhancedCharacterEditService
-の再エクスポートのみです。
-
-> 注: かつて `index.ts` にあった `CharacterEditServiceFactory`（実在しない `./character-channel-create.service` を
-> `require` する未使用デッドコード）は 2026-06-03 に削除済み。各サービスは `./services` から export され、NestJS の DI
-> （`CharacterEditModule`）経由で利用する。
+（2026-08-05）で削除済みです。さらに **barrel（`index.ts`・`services/index.ts`）自体も
+importer 0 のため H1-a（同日）で削除済み** — 各サービス・型は実ファイルを直接 import し、
+利用は NestJS の DI（`CharacterEditModule`）経由で行います。
 
 ## 🔧 設定
 
@@ -205,7 +197,8 @@ pnpm test:cov
 
 - **依存性注入エラー**: `CharacterEditModule` が正しくインポートされているか、
   利用したいサービスが `exports` に含まれているかを確認。
-- **型エラー**: 型は `services/index.ts` 経由で再エクスポートされたものを使用しているか確認。
+- **型エラー**: 型は定義元の実ファイル（例: `services/channel-detection.service.ts`）から
+  直接 import しているか確認（barrel は H1-a で削除済み）。
 
 ### ログレベル
 

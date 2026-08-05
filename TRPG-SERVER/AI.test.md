@@ -1709,6 +1709,9 @@ ts-jest が import グラフ全体を型チェックするため、本番1ファ
 - **`saveRollResult`**: character 未取得→保存せず return、取得→createText に DTO 委譲・成功 then でキャッシュ無効化、失敗→`BackgroundTaskErrorHandler.handleBackgroundError('save-dice-roll-result')` に委譲し外側は解決。
 - fire-and-forget は `await Promise.resolve()` を複数回まわすヘルパ（`flush`）＋ fake timers で観測。`handleBackgroundError` は **void（throw しない）** ことを利用しスロットルスキップのログ経路も安定して固定できた。
 
+> ⚠️ 追記（2026-08-05）: 本節の `saveRollResult`／`BackgroundTaskErrorHandler` は現存しない
+> （前者は本体ごと撤去済み・後者は消費者不在のため H1-a `1827f79` で削除）。手法の記録として残す。
+
 ### 抽出した Pure 関数（新規 `character-dice-history.pure.ts`・DI 無し）
 
 - `shouldUpdateEmbed(lastUpdate, now, minInterval): boolean` — **最重要**。throttle 判定（本体2箇所で使用）。境界 `===` は更新側＝true。
