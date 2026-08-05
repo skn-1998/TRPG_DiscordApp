@@ -10,6 +10,7 @@ import { UpdateCharacterDto } from '../../../../domains/character/dto/update-cha
 import { AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
 import { AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
+import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
 
 /**
  * フィールドデータ構造
@@ -30,38 +31,19 @@ export type ParsedEditCustomId =
   | { kind: 'legacy'; characterId: string; sectionType: EmbedSectionType; fieldKey: string }
   | { kind: 'invalid' }
 
-const SESSION_FORMAT_PREFIX = 'char-edit-modal-'
-const LEGACY_FORMAT_PREFIX = 'char-edit-'
-
 /**
  * モーダル customId を解析する（純粋）。
  * - セッション形式: char-edit-modal-{sessionId}
  * - レガシー形式  : char-edit-{sectionType}-{fieldKey}-{characterId...}
  */
 export function parseEditCustomId(customId: string): ParsedEditCustomId {
-  // セッションベース形式
-  if (customId.startsWith(SESSION_FORMAT_PREFIX)) {
-    const sessionId = customId.slice(SESSION_FORMAT_PREFIX.length)
-    return { kind: 'session', sessionId }
+  const parsed = CharacterModalCustomId.parse(customId)
+
+  if (parsed.kind !== 'legacy') {
+    return parsed
   }
 
-  // 従来の形式（後方互換）
-  if (customId.startsWith(LEGACY_FORMAT_PREFIX) && !customId.startsWith(SESSION_FORMAT_PREFIX)) {
-    const rest = customId.slice(LEGACY_FORMAT_PREFIX.length)
-    const parts = rest.split('-')
-
-    if (parts.length < 3) {
-      return { kind: 'invalid' }
-    }
-
-    const sectionType = parts[0] as EmbedSectionType
-    const fieldKey = parts[1]
-    const characterId = parts.slice(2).join('-')
-
-    return { kind: 'legacy', characterId, sectionType, fieldKey }
-  }
-
-  return { kind: 'invalid' }
+  return { ...parsed, sectionType: parsed.sectionType as EmbedSectionType }
 }
 
 /**
