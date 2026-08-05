@@ -9,7 +9,7 @@ import { CharacterCreationRequestedHandler } from './handlers/character.creation
  *
  * 方針: 副作用の境界（TypedEventService）と注入ハンドラ（E-3a の dead チェーン撤去後は
  *       creation の 1 本）を mock スタブで注入し、実ハンドラの依存解決を回避する。
- *       純粋ロジック（isValidEventName / stats 更新 / healthReport 判定 / 相関ID生成）は
+ *       純粋ロジック（isValidEventName / stats 更新 / 相関ID生成）は
  *       private のため型アサーションで直接検証する。本番コードは一切変更しない。
  */
 
@@ -73,8 +73,7 @@ describe('EventRegistryService', () => {
 
       // Assert: setTypedEventService 呼出 + handlers 登録
       expect(creationHandler.setTypedEventService).toHaveBeenCalledWith(typedEventService)
-      expect(service.getRegisteredEventNames()).toHaveLength(1)
-      expect(service.getHandler('character.creation.requested')).toBe(creationHandler)
+      expect((service as any).handlers.get('character.creation.requested')).toBe(creationHandler)
     })
 
     it('登録時の検証 throw は内部 try/catch で握られ、onModuleInit の外へ漏れない', async () => {
@@ -85,8 +84,7 @@ describe('EventRegistryService', () => {
       await expect(service.onModuleInit()).resolves.toBeUndefined()
 
       // Assert: 失敗したハンドラは登録されない
-      expect(service.getRegisteredEventNames()).toHaveLength(0)
-      expect(service.getHandler('character.creation.requested')).toBeUndefined()
+      expect((service as any).handlers.size).toBe(0)
     })
   })
 
@@ -111,8 +109,8 @@ describe('EventRegistryService', () => {
 
       // Assert
       expect(handler.setTypedEventService).toHaveBeenCalledWith(typedEventService)
-      expect(service.getHandler('character.creation.requested')).toBe(handler)
-      expect(service.getEventStatistics('character.creation.requested')).toEqual({
+      expect((service as any).handlers.get('character.creation.requested')).toBe(handler)
+      expect((service as any).eventStats.get('character.creation.requested')).toEqual({
         totalExecutions: 0,
         successCount: 0,
         errorCount: 0,
@@ -219,7 +217,7 @@ describe('EventRegistryService', () => {
       })
 
       // Assert: success stats
-      const stats = service.getEventStatistics('character.creation.requested') as any
+      const stats = (service as any).eventStats.get('character.creation.requested')
       expect(stats.totalExecutions).toBe(1)
       expect(stats.successCount).toBe(1)
       expect(stats.errorCount).toBe(0)
@@ -247,7 +245,7 @@ describe('EventRegistryService', () => {
       await expect((service as any).executeHandler('character.creation.requested', {})).rejects.toThrow('boom')
 
       // Assert: error stats
-      const stats = service.getEventStatistics('character.creation.requested') as any
+      const stats = (service as any).eventStats.get('character.creation.requested')
       expect(stats.totalExecutions).toBe(1)
       expect(stats.errorCount).toBe(1)
       expect(stats.successCount).toBe(0)
@@ -335,113 +333,6 @@ describe('EventRegistryService', () => {
       expect(stats.successCount).toBe(0)
       expect(stats.lastError).toMatchObject({ message: 'failed', name: 'Error' })
       expect(stats.lastExecuted).toBeInstanceOf(Date)
-    })
-  })
-
-  describe('getAllHandlers', () => {
-    it('登録済みハンドラのコピー Map を返す（内部 Map とは別インスタンス）', async () => {
-      // Arrange
-      await (service as any).registerHandler(creationHandler)
-
-      // Act
-      const all = service.getAllHandlers()
-      all.delete('character.creation.requested')
-
-      // Assert: コピーを変更しても内部状態は壊れない
-      expect(service.getHandler('character.creation.requested')).toBe(creationHandler)
-    })
-  })
-
-  describe('getRegisteredEventNames', () => {
-    it('登録済みイベント名をソートして返す', async () => {
-      // Arrange: あえて登録順を非ソートにする（契約内の実イベント名でローカルスタブ2本を直接登録。
-      // E-4a の membership 検証により契約外の test.* 名は登録できないため）
-      await (service as any).registerHandler(createHandlerStub('character.update.completed', 'BetaHandler'))
-      await (service as any).registerHandler(createHandlerStub('character.creation.completed', 'AlphaHandler'))
-
-      // Act
-      const names = service.getRegisteredEventNames()
-
-      // Assert
-      expect(names).toEqual(['character.creation.completed', 'character.update.completed'])
-    })
-  })
-
-  describe('getEventStatistics', () => {
-    it('イベント名を指定するとその統計を返す', async () => {
-      // Arrange
-      await (service as any).registerHandler(creationHandler)
-
-      // Act
-      const stats = service.getEventStatistics('character.creation.requested')
-
-      // Assert
-      expect(stats).toMatchObject({ totalExecutions: 0, successCount: 0, errorCount: 0 })
-    })
-
-    it('未登録イベント名を指定すると undefined を返す', () => {
-      expect(service.getEventStatistics('character.unknown.requested')).toBeUndefined()
-    })
-
-    it('引数なしの場合は全統計のコピー Map を返す', async () => {
-      // Arrange
-      await (service as any).registerHandler(creationHandler)
-
-      // Act
-      const all = service.getEventStatistics() as Map<string, unknown>
-
-      // Assert
-      expect(all).toBeInstanceOf(Map)
-      expect(all.has('character.creation.requested')).toBe(true)
-    })
-  })
-
-  describe('getHealthReport', () => {
-    it('実行が 0 件の場合 errorRate は 0 で healthy を返す', () => {
-      // Act
-      const report = service.getHealthReport()
-
-      // Assert
-      expect(report.totalExecutions).toBe(0)
-      expect(report.errorRate).toBe(0)
-      expect(report.healthStatus).toBe('healthy')
-    })
-
-    it('errorRate < 0.05 は healthy', async () => {
-      // Arrange: 成功 100 / エラー 0
-      await (service as any).registerHandler(creationHandler)
-      const stats = service.getEventStatistics('character.creation.requested') as any
-      stats.totalExecutions = 100
-      stats.errorCount = 0
-
-      // Act & Assert
-      expect(service.getHealthReport().healthStatus).toBe('healthy')
-    })
-
-    it('0.05 <= errorRate < 0.15 は warning', async () => {
-      // Arrange: 100 実行中 10 エラー = 0.1
-      await (service as any).registerHandler(creationHandler)
-      const stats = service.getEventStatistics('character.creation.requested') as any
-      stats.totalExecutions = 100
-      stats.errorCount = 10
-
-      // Act
-      const report = service.getHealthReport()
-
-      // Assert
-      expect(report.errorRate).toBeCloseTo(0.1)
-      expect(report.healthStatus).toBe('warning')
-    })
-
-    it('errorRate >= 0.15 は critical', async () => {
-      // Arrange: 100 実行中 20 エラー = 0.2
-      await (service as any).registerHandler(creationHandler)
-      const stats = service.getEventStatistics('character.creation.requested') as any
-      stats.totalExecutions = 100
-      stats.errorCount = 20
-
-      // Act & Assert
-      expect(service.getHealthReport().healthStatus).toBe('critical')
     })
   })
 

@@ -16,7 +16,7 @@ import { DiceCalculationService } from './dice-calculation.service'
  *
  * 🏗️ 位置づけ（ARCHITECTURE §5.3 / §6 / §12）:
  * これらは特定 feature の所有物ではなく「複数の利用者（interactions の character-thread handler・
- * character-dice-buttons、diceRoll feature の orchestrator/custom-dice-modal）が使う横断的な dice 基盤」。
+ * diceRoll feature の orchestrator/custom-dice-modal）が使う横断的な dice 基盤」。
  * §6「features は横断基盤を所有しない」に従い services/dice（中立）に置き、本モジュールが所有する。
  * 旧来は interactions.module が ad-hoc に provide していた（§5.3 違反）のを是正。
  *

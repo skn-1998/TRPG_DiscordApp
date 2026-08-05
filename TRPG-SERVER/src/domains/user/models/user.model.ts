@@ -46,8 +46,3 @@ export const UserSchema = SchemaFactory.createForClass(User)
  * ユーザーモデル名
  */
 export const USER_MODEL = 'User'
-
-/**
- * コレクション名
- */
-export const USER_COLLECTION = 'trpg-usertable'

@@ -1,5 +1,4 @@
 import { Logger, HttpException, HttpStatus } from '@nestjs/common'
-import { Response } from 'express'
 import { ErrorHandler, BackgroundTaskErrorHandler, ErrorContext } from './error-handler'
 
 // Logger のモック
@@ -14,84 +13,6 @@ jest.mock('@nestjs/common', () => ({
 }))
 
 describe('ErrorHandler', () => {
-  let mockResponse: Partial<Response>
-
-  beforeEach(() => {
-    // Response モック
-    mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn()
-    }
-
-    // 環境変数をリセット
-    process.env.NODE_ENV = 'test'
-  })
-
-  describe('handleHttpError', () => {
-    const mockContext: ErrorContext = {
-      userId: 'test-user-id',
-      action: 'test-action'
-    }
-
-    it('should handle HttpException correctly', () => {
-      const httpError = new HttpException('Test error', HttpStatus.BAD_REQUEST)
-
-      ErrorHandler.handleHttpError(httpError, mockContext, mockResponse as Response)
-
-      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST)
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Test error',
-        error: 'Test error',
-        timestamp: expect.any(String),
-        statusCode: HttpStatus.BAD_REQUEST
-      })
-    })
-
-    it('should handle generic Error correctly', () => {
-      const genericError = new Error('Generic error')
-
-      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response)
-
-      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR)
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'リクエストの処理中にエラーが発生しました',
-        error: 'Generic error',
-        timestamp: expect.any(String),
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR
-      })
-    })
-
-    it('should hide error details in production (isProduction オプションで判定・脱 process.env)', () => {
-      const genericError = new Error('Generic error')
-
-      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response, { isProduction: true })
-
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'リクエストの処理中にエラーが発生しました',
-        error: undefined,
-        timestamp: expect.any(String),
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR
-      })
-    })
-
-    it('isProduction:false（既定）では error 詳細を露出する', () => {
-      const genericError = new Error('Generic error')
-
-      ErrorHandler.handleHttpError(genericError, mockContext, mockResponse as Response, { isProduction: false })
-
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'リクエストの処理中にエラーが発生しました',
-        error: 'Generic error',
-        timestamp: expect.any(String),
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR
-      })
-    })
-  })
-
   describe('handleServiceError', () => {
     const mockContext: ErrorContext = {
       action: 'test-service-action'

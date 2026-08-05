@@ -28,7 +28,6 @@ import {
 import { CharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../domains/character/character.service'
 import { ErrorHandler } from '../../../core/http/error-handler'
-import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
 import { CharacterSectionEditorService } from './services/character-section-editor.service'
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
 import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
@@ -49,7 +48,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
 
   constructor(
     private readonly characterService: CharacterService,
-    private readonly embedManager: CharacterEmbedManagerService,
     private readonly sectionEditor: CharacterSectionEditorService,
     private readonly modalHandler: CharacterModalHandlerService,
     private readonly eventEmitter: CharacterEditEventEmitterService,
@@ -63,49 +61,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     // イベントハンドラー登録は削除 - File-based handlers（EventRegistryService）で一元管理
     this.logger.log('Enhanced Character Edit Service initialized')
-  }
-
-  /**
-   * 改善されたキャラクター編集画面を表示
-   *
-   * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
-   */
-  async displayEnhancedCharacterEdit(channelId: string, character: CharacterEntity): Promise<void> {
-    try {
-      this.logger.log(`Requesting enhanced character edit display for: ${character.characterId}`)
-
-      await this.embedManager.createSectionedEmbeds(character)
-
-      this.logger.log(`Enhanced character edit display requested successfully`)
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          channelId,
-          characterId: character.characterId
-        },
-        'EnhancedCharacterEditService'
-      )
-    }
-  }
-
-  /**
-   * チャンネルIDからキャラクター編集画面を表示（イベント駆動）
-   */
-  async displayCharacterEditByChannelId(channelId: string): Promise<void> {
-    try {
-      // キャラクター情報を取得
-      const character = await this.getCharacterByChannelId(channelId)
-      if (!character) {
-        this.logger.warn(`Character not found for channel: ${channelId}`)
-        return
-      }
-
-      // イベント駆動でキャラクター編集画面を表示
-      await this.displayEnhancedCharacterEdit(channelId, character)
-    } catch (error) {
-      ErrorHandler.handleServiceError(error, { channelId }, 'EnhancedCharacterEditService')
-    }
   }
 
   /**
@@ -258,42 +213,6 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     await interaction.editReply({
       content: '📋 簡易表示機能は開発中です。'
     })
-  }
-
-  /**
-   * 新規キャラクター作成画面の表示
-   *
-   * E-3d: dead なメッセージ送信リクエスト emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い送信しないゴースト（連鎖解体は E-5/E-6）。
-   */
-  async displayNewCharacterCreation(channelId: string, userId: string): Promise<void> {
-    try {
-      this.embedManager.createNewCharacterEmbed(channelId, userId)
-
-      this.logger.log(`New character creation display requested for user: ${userId} in channel: ${channelId}`)
-    } catch (error) {
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          channelId,
-          userId
-        },
-        'EnhancedCharacterEditService.displayNewCharacterCreation'
-      )
-      throw error
-    }
-  }
-
-  /**
-   * チャンネルIDでキャラクターを取得
-   */
-  private async getCharacterByChannelId(channelId: string): Promise<CharacterEntity | null> {
-    try {
-      // 同一プロセス内クエリのため CharacterService を直接呼び出す（E-2c: イベント RPC 廃止）
-      return await this.characterService.findByChannelId(channelId)
-    } catch (error) {
-      this.logger.error(`Failed to get character by channel ID: ${channelId}`, error)
-      return null
-    }
   }
 
   /**

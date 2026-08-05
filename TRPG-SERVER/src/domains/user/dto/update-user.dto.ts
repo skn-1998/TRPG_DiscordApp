@@ -16,13 +16,3 @@ export class UserOutputDto {
   readonly avatarHash?: string | null
   readonly characterIds: string[]
 }
-
-/**
- * ユーザー要約DTO
- */
-export class UserSummaryDto {
-  readonly discordUserId: string
-  readonly name: string
-  readonly avatarHash?: string
-  readonly characterCount?: number
-}

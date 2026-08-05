@@ -281,72 +281,6 @@ export class EventRegistryService implements OnModuleInit {
       this.logger.debug(`  📌 ${eventName} → ${handler.constructor.name}`)
     })
   }
-
-  // ===== Public API =====
-
-  /**
-   * 特定イベントのハンドラー取得
-   */
-  getHandler(eventName: string): EventHandler | undefined {
-    return this.handlers.get(eventName)
-  }
-
-  /**
-   * 全ハンドラーのマップ取得
-   */
-  getAllHandlers(): Map<string, EventHandler> {
-    return new Map(this.handlers)
-  }
-
-  /**
-   * 登録済みイベント名一覧取得
-   */
-  getRegisteredEventNames(): string[] {
-    return Array.from(this.handlers.keys()).sort()
-  }
-
-  /**
-   * イベント統計情報取得
-   */
-  getEventStatistics(eventName?: string): Map<string, EventStatistics> | EventStatistics | undefined {
-    if (eventName) {
-      return this.eventStats.get(eventName)
-    }
-    return new Map(this.eventStats)
-  }
-
-  /**
-   * レジストリ健全性レポート取得
-   */
-  getHealthReport(): RegistryHealthReport {
-    const totalHandlers = this.handlers.size
-    const totalExecutions = Array.from(this.eventStats.values()).reduce((sum, stats) => sum + stats.totalExecutions, 0)
-    const totalErrors = Array.from(this.eventStats.values()).reduce((sum, stats) => sum + stats.errorCount, 0)
-
-    const errorRate = totalExecutions > 0 ? totalErrors / totalExecutions : 0
-    const averageExecutionTime = this.calculateOverallAverageExecutionTime()
-
-    return {
-      totalHandlers,
-      totalExecutions,
-      totalErrors,
-      errorRate,
-      averageExecutionTime,
-      healthStatus: errorRate < 0.05 ? 'healthy' : errorRate < 0.15 ? 'warning' : 'critical',
-      lastUpdated: new Date()
-    }
-  }
-
-  /**
-   * 全体平均実行時間の計算
-   */
-  private calculateOverallAverageExecutionTime(): number {
-    const stats = Array.from(this.eventStats.values()).filter((s) => s.averageExecutionTime > 0)
-
-    if (stats.length === 0) return 0
-
-    return stats.reduce((sum, s) => sum + s.averageExecutionTime, 0) / stats.length
-  }
 }
 
 /**
@@ -363,17 +297,4 @@ interface EventStatistics {
     name: string
     timestamp: Date
   } | null
-}
-
-/**
- * レジストリ健全性レポート
- */
-interface RegistryHealthReport {
-  totalHandlers: number
-  totalExecutions: number
-  totalErrors: number
-  errorRate: number
-  averageExecutionTime: number
-  healthStatus: 'healthy' | 'warning' | 'critical'
-  lastUpdated: Date
 }

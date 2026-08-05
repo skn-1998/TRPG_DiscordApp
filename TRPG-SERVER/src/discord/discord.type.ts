@@ -9,8 +9,7 @@ import {
   AnySelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
-  SlashCommandOptionsOnlyBuilder,
-  TextChannel
+  SlashCommandOptionsOnlyBuilder
 } from 'discord.js'
 import { eventSelectButtonType, eventType } from './interactions/interactions.list'
 
@@ -48,9 +47,4 @@ export interface discordButtonType extends discordInteractionType {
 export interface discordModalType extends discordInteractionType {
   execute(interaction: ModalSubmitInteraction): Promise<void>
   data: ModalBuilder
-}
-
-export interface discordChannelType {
-  execute(interaction: TextChannel): Promise<void>
-  data: TextChannel
 }

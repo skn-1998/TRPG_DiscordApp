@@ -69,15 +69,3 @@ export function setupTestEnvironment() {
   process.env.TEST_MOCK_DATABASE = testEnvironment.test.mockDatabase.toString()
   process.env.TEST_SUPPRESS_LOGS = testEnvironment.test.suppressLogs.toString()
 }
-
-// テスト環境のリセット
-export function resetTestEnvironment() {
-  // 主要な環境変数をリセット
-  delete process.env.NODE_ENV
-  delete process.env.MONGO_URI
-  delete process.env.TEST_DB_NAME
-  delete process.env.JWT_SECRET
-  delete process.env.DISCORD_CLIENT_ID
-  delete process.env.DISCORD_CLIENT_SECRET
-  delete process.env.DISCORD_BOT_TOKEN
-}

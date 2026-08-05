@@ -38,26 +38,6 @@ export class CreateUserDto extends DiscordDto {
 }
 
 /**
- * ユーザー入力DTO（部分入力可能）
- */
-export class UserInputDto {
-  @IsString(ValidationUtils.requiredString('DiscordユーザーID'))
-  readonly discordUserId: string
-
-  @IsString(ValidationUtils.requiredString('ユーザー名'))
-  readonly name: string
-
-  @IsString(ValidationUtils.optionalString('アバターハッシュ'))
-  @IsOptional()
-  readonly avatarHash?: string
-
-  @IsArray(ValidationUtils.array('キャラクターID'))
-  @IsString({ each: true })
-  @IsOptional()
-  readonly characterIds?: string[]
-}
-
-/**
  * ユーザーID用Param DTO
  */
 export class DiscordUserIdParamDto {
