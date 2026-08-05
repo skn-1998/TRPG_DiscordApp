@@ -16,7 +16,6 @@ import {
 } from 'discord.js'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
-import { ErrorHandler } from '../../../../core/http/error-handler'
 import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -107,14 +106,7 @@ export class CharacterSectionEditorService {
         this.logger.warn('Failed to send character section editor error response', notificationError)
       }
 
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          customId: interaction.customId,
-          userId: interaction.user.id
-        },
-        'CharacterSectionEditorService'
-      )
+      throw error
     }
   }
 
