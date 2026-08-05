@@ -13,14 +13,7 @@
 import { getDisplayNumber, AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
-// P1-D slice1 Slice C: characterId 抽出の正規表現を feature-local 契約モジュールへ集約（byte-identical・非アンカーのまま）
 import {
-  CHARACTER_EDIT_SECTION_PARSE_PATTERN,
-  CHARACTER_SECTION_SELECT_PARSE_PATTERN
-} from '../custom-id/character-section.custom-id'
-import {
-  CHARACTER_FIELD_EDIT_PARSE_PATTERN,
-  CHARACTER_FIELD_ADD_PARSE_PATTERN,
   CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
   CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
   characterFieldSectionInfix
@@ -136,29 +129,6 @@ export function extractFieldEditValues(
   fieldName = fieldName || fieldKey
 
   return { fieldName, currentValues, currentDice, currentDescription }
-}
-
-// 契約モジュールの解析パターンを参照（順序・正規表現とも従来と完全同一＝byte-identical）。
-// field の2本は契約モジュール既存定数、section の2本は同モジュールへ追加した定数。
-const CHARACTER_ID_PATTERNS = [
-  CHARACTER_EDIT_SECTION_PARSE_PATTERN,
-  CHARACTER_FIELD_EDIT_PARSE_PATTERN,
-  CHARACTER_FIELD_ADD_PARSE_PATTERN,
-  CHARACTER_SECTION_SELECT_PARSE_PATTERN // character-ui.service.ts からのパターンも対応
-]
-
-/**
- * カスタムIDからキャラクターIDを抽出する（純粋）。
- * 4 パターンを順に試し、最初に一致したキャプチャを返す。一致無しは null。
- */
-export function extractCharacterIdFromCustomId(customId: string): string | null {
-  for (const pattern of CHARACTER_ID_PATTERNS) {
-    const match = customId.match(pattern)
-    if (match && match[1]) {
-      return match[1]
-    }
-  }
-  return null
 }
 
 /**

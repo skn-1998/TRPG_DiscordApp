@@ -277,7 +277,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
 
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.error.occurred',
-        expect.objectContaining({ characterId: 'unknown' })
+        expect.objectContaining({ characterId: 'char-123' })
       )
     })
 
@@ -391,8 +391,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         'サービス処理中にエラーが発生しました'
       )
 
-      // error.occurred の characterId は extractCharacterIdFromCustomId（refresh/compact パターン）
-      // を使うため char-edit-* はマッチせず 'unknown' になる（現挙動）
+      // error.occurred の characterId 抽出は modal（char-edit-*）を対象にしないため、
+      // modal 経路では引き続き 'unknown' になる。
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.error.occurred',
         expect.objectContaining({ characterId: 'unknown' })
