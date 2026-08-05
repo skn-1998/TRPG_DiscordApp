@@ -22,6 +22,6 @@ export class CharacterEditSectionHandler extends SelectMenuInteractionHandler {
 
   async execute(interaction: StringSelectMenuInteraction): Promise<void> {
     this.logger.debug(`Handling character section select: ${interaction.customId}`)
-    await this.characterEditService.handleSelectMenuInteraction(interaction)
+    await this.characterEditService.handleSectionSelect(interaction)
   }
 }

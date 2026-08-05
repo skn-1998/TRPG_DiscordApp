@@ -49,7 +49,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   }
 
   const mockSectionEditor = {
-    execute: jest.fn().mockResolvedValue(undefined)
+    handleSectionSelectInteraction: jest.fn().mockResolvedValue(undefined),
+    handleFieldSelectInteraction: jest.fn().mockResolvedValue(undefined)
   }
 
   const mockModalHandler = {
@@ -85,7 +86,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
     messageUpdater = module.get(CharacterEditMessageUpdaterService)
     jest.clearAllMocks()
     mockTypedEventService.emit.mockResolvedValue(undefined)
-    mockSectionEditor.execute.mockResolvedValue(undefined)
+    mockSectionEditor.handleSectionSelectInteraction.mockResolvedValue(undefined)
+    mockSectionEditor.handleFieldSelectInteraction.mockResolvedValue(undefined)
     mockModalHandler.handleModalSubmit.mockResolvedValue(undefined)
   })
 
@@ -219,37 +221,35 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   })
 
   // ==========================================================================
-  // handleSelectMenuInteraction
+  // select menu entry points
   // ==========================================================================
-  describe('handleSelectMenuInteraction', () => {
-    it('sectionEditor へ委譲する（dead な section.selected emit は E-3c で撤去済み）', async () => {
+  describe('select menu entry points', () => {
+    it('section select を sectionEditor の専用入口へ委譲する（dead な section.selected emit は E-3c で撤去済み）', async () => {
       const interaction = createMockSelectMenuInteraction({
-        customId: 'character-refresh-char-123',
-        values: ['status-hp']
+        customId: 'character-edit-section-char-123',
+        values: ['status']
       })
 
-      await service.handleSelectMenuInteraction(interaction)
+      await service.handleSectionSelect(interaction)
 
       // E-3c: 恒常購読者ゼロだったセクション選択/フィールド選択イベントは emit しない
       expect(mockTypedEventService.emit).not.toHaveBeenCalled()
-      expect(mockSectionEditor.execute).toHaveBeenCalledWith(interaction)
+      expect(mockSectionEditor.handleSectionSelectInteraction).toHaveBeenCalledWith(interaction)
     })
 
-    it('sectionEditor がエラーのとき error.occurred を発行し HttpException を再スローする', async () => {
+    it('field select の委譲先がエラーのとき共通ラップで error.occurred を発行し HttpException を再スローする', async () => {
       const interaction = createMockSelectMenuInteraction({
-        customId: 'character-refresh-char-123',
-        values: ['status-hp']
+        customId: 'character-field-edit-status-char-123',
+        values: ['hp']
       })
-      mockSectionEditor.execute.mockRejectedValue(new Error('section boom'))
+      mockSectionEditor.handleFieldSelectInteraction.mockRejectedValue(new Error('section boom'))
 
       // 現挙動: ErrorHandler.handleServiceError が HttpException を再スローする
-      await expect(service.handleSelectMenuInteraction(interaction)).rejects.toThrow(
-        'サービス処理中にエラーが発生しました'
-      )
+      await expect(service.handleFieldSelect(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
 
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.error.occurred',
-        expect.objectContaining({ characterId: 'char-123' })
+        expect.objectContaining({ characterId: 'unknown' })
       )
     })
   })

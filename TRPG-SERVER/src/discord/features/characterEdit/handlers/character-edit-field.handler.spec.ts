@@ -3,7 +3,7 @@ import { CharacterEditFieldHandler } from './character-edit-field.handler'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditFieldHandler', () => {
-  const mockService = { handleSelectMenuInteraction: jest.fn().mockResolvedValue(undefined) }
+  const mockService = { handleFieldSelect: jest.fn().mockResolvedValue(undefined) }
   let handler: CharacterEditFieldHandler
 
   beforeEach(() => {
@@ -21,12 +21,12 @@ describe('CharacterEditFieldHandler', () => {
     expect(handler.getMatchScore('character-field-status-char123')).toBeGreaterThan(0)
   })
 
-  it('execute は handleSelectMenuInteraction へ interaction を委譲する', async () => {
+  it('execute は handleFieldSelect へ interaction を委譲する', async () => {
     const interaction = createMockSelectMenuInteraction({ customId: 'character-field-status-char123' })
 
     await handler.execute(interaction)
 
-    expect(mockService.handleSelectMenuInteraction).toHaveBeenCalledWith(interaction)
-    expect(mockService.handleSelectMenuInteraction).toHaveBeenCalledTimes(1)
+    expect(mockService.handleFieldSelect).toHaveBeenCalledWith(interaction)
+    expect(mockService.handleFieldSelect).toHaveBeenCalledTimes(1)
   })
 })

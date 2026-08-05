@@ -40,7 +40,8 @@ const mockEnhancedCharacterEditService = {
   handleRefresh: jest.fn().mockResolvedValue(undefined),
   handleCreate: jest.fn().mockResolvedValue(undefined),
   handleCompact: jest.fn().mockResolvedValue(undefined),
-  handleSelectMenuInteraction: jest.fn().mockResolvedValue(undefined),
+  handleSectionSelect: jest.fn().mockResolvedValue(undefined),
+  handleFieldSelect: jest.fn().mockResolvedValue(undefined),
   handleModalSubmitInteraction: jest.fn().mockResolvedValue(undefined)
 }
 

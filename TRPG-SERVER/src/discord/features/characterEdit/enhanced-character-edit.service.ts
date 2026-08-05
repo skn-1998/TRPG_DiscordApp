@@ -63,14 +63,14 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   async handleRefresh(interaction: ButtonInteraction<CacheType>): Promise<void> {
-    await this.executeButtonAction(interaction, async () => {
+    await this.executeInteractionAction(interaction, async () => {
       await this.handleRefreshButton(interaction)
       await this.eventEmitter.emitEmbedRefresh(interaction)
     })
   }
 
   async handleCreate(interaction: ButtonInteraction<CacheType>): Promise<void> {
-    await this.executeButtonAction(interaction, async () => {
+    await this.executeInteractionAction(interaction, async () => {
       if (CharacterCreateCustomId.isBasic(interaction.customId)) {
         await this.handleCreateBasicButton(interaction)
       } else if (CharacterCreateCustomId.isCancel(interaction.customId)) {
@@ -87,13 +87,13 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   async handleCompact(interaction: ButtonInteraction<CacheType>): Promise<void> {
-    await this.executeButtonAction(interaction, async () => {
+    await this.executeInteractionAction(interaction, async () => {
       await this.handleCompactViewButton(interaction)
     })
   }
 
-  private async executeButtonAction(
-    interaction: ButtonInteraction<CacheType>,
+  private async executeInteractionAction(
+    interaction: ButtonInteraction<CacheType> | StringSelectMenuInteraction<CacheType>,
     action: () => Promise<void>
   ): Promise<void> {
     try {
@@ -112,26 +112,16 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     }
   }
 
-  /**
-   * セレクトメニューインタラクションの処理
-   */
-  async handleSelectMenuInteraction(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
-    try {
-      // セクションエディターに委譲
-      await this.sectionEditor.execute(interaction)
-    } catch (error) {
-      // エラーイベント発火
-      await this.eventEmitter.emitError(error, interaction.customId, interaction.user.id)
+  async handleSectionSelect(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
+    await this.executeInteractionAction(interaction, async () => {
+      await this.sectionEditor.handleSectionSelectInteraction(interaction)
+    })
+  }
 
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          customId: interaction.customId,
-          userId: interaction.user.id
-        },
-        'EnhancedCharacterEditService'
-      )
-    }
+  async handleFieldSelect(interaction: StringSelectMenuInteraction<CacheType>): Promise<void> {
+    await this.executeInteractionAction(interaction, async () => {
+      await this.sectionEditor.handleFieldSelectInteraction(interaction)
+    })
   }
 
   /**

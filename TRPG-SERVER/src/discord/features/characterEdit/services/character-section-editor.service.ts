@@ -25,7 +25,6 @@ import {
   extractCharacterIdFromCustomId,
   extractSectionFromCustomId,
   isFieldOperationCustomId,
-  isSectionSelectionCustomId,
   buildDirectModalId,
   buildSessionModalId,
   shouldUseDirectModalId,
@@ -47,45 +46,60 @@ export class CharacterSectionEditorService {
     private readonly modalSessionManager: ModalSessionManagerService
   ) {}
 
-  /**
-   * セクション選択メニューの処理
-   */
-  async execute(interaction: StringSelectMenuInteraction): Promise<void> {
-    try {
-      const customId = interaction.customId
-      const isFieldOperation = isFieldOperationCustomId(customId)
+  async handleSectionSelectInteraction(interaction: StringSelectMenuInteraction): Promise<void> {
+    await this.executeSelectAction(interaction, async () => {
+      await interaction.deferUpdate()
+      const selectedValue = interaction.values[0]
+      const character = await this.getCharacterForInteraction(interaction)
+      if (!character) return
 
-      // フィールド編集/追加（モーダル表示）の場合は defer しない
-      if (!isFieldOperation) {
+      await this.handleSectionSelection(interaction, character, selectedValue as EmbedSectionType)
+    })
+  }
+
+  async handleFieldSelectInteraction(interaction: StringSelectMenuInteraction): Promise<void> {
+    await this.executeSelectAction(interaction, async () => {
+      if (!isFieldOperationCustomId(interaction.customId)) {
+        // Invariant: Registry の field pattern を通過し得る理論クラスを拒否し、契約 drift を可視化する。
         await interaction.deferUpdate()
-      }
-      const selectedValues = interaction.values
-
-      // カスタムIDからcharacterIdを抽出
-      const characterId = extractCharacterIdFromCustomId(customId)
-      if (!characterId) {
-        await this.sendErrorMessage(interaction, 'キャラクター情報の取得に失敗しました。')
+        this.logger.warn(`Unsupported character field customId: ${interaction.customId}`)
+        await this.sendErrorMessage(interaction, '⚠️ このインタラクションは現在処理できません。')
         return
       }
 
-      // キャラクター情報を取得
-      const character = await this.getCharacter(characterId)
-      if (!character) {
-        await this.sendErrorMessage(interaction, 'キャラクターが見つかりません。')
-        return
-      }
+      const selectedValue = interaction.values[0]
+      const character = await this.getCharacterForInteraction(interaction)
+      if (!character) return
 
-      // セクション選択の処理（メッセージ更新）
-      if (isSectionSelectionCustomId(customId)) {
-        await this.handleSectionSelection(interaction, character, selectedValues[0] as EmbedSectionType)
+      const sectionType = extractSectionFromCustomId(interaction.customId)
+      if (sectionType) {
+        await this.handleFieldSelection(interaction, character, sectionType, selectedValue)
       }
-      // フィールド編集の処理
-      else if (isFieldOperation) {
-        const sectionType = extractSectionFromCustomId(customId)
-        if (sectionType) {
-          await this.handleFieldSelection(interaction, character, sectionType, selectedValues[0])
-        }
-      }
+    })
+  }
+
+  private async getCharacterForInteraction(interaction: StringSelectMenuInteraction): Promise<CharacterEntity | null> {
+    const characterId = extractCharacterIdFromCustomId(interaction.customId)
+    if (!characterId) {
+      await this.sendErrorMessage(interaction, 'キャラクター情報の取得に失敗しました。')
+      return null
+    }
+
+    const character = await this.getCharacter(characterId)
+    if (!character) {
+      await this.sendErrorMessage(interaction, 'キャラクターが見つかりません。')
+      return null
+    }
+
+    return character
+  }
+
+  private async executeSelectAction(
+    interaction: StringSelectMenuInteraction,
+    action: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await action()
     } catch (error) {
       try {
         await this.sendErrorMessage(interaction, 'エラーが発生しました。もう一度お試しください。')
