@@ -1,4 +1,4 @@
 interface:
   display_name: "Claude Delegation Reviewer"
   short_description: "Claude handoff and review workflow"
-  default_prompt: "Use $claude-delegation-reviewer to prepare a Claude handoff and review the returned work."
+  default_prompt: "Use $claude-delegation-reviewer to prepare a Fable-model Claude handoff and review the returned work."

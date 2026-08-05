@@ -5,6 +5,8 @@
 
 目的:
 
+モデル: Fable (`--model fable`)
+
 参照:
 
 使用する skill:
@@ -33,6 +35,8 @@ Findings:
 
 Evidence reviewed:
 
+Model check:
+
 Validation:
 
 Scope check:
@@ -47,6 +51,7 @@ Next action:
 # Review Checklist
 
 - Objective matches the original handoff.
+- The handoff and launch evidence explicitly select Fable (`--model fable`).
 - Required documents were read or their relevant rules are reflected.
 - Diff stays inside the allowed scope.
 - Forbidden project patterns were not added.

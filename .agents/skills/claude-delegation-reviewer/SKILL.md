@@ -5,6 +5,12 @@ description: Coordinate work delegated to Claude and review Claude's returned ch
 
 # Claude Delegation Reviewer
 
+## Required Model
+
+Use Claude Fable for every delegation covered by this skill. When Claude Code CLI is the execution surface, include `--model fable` explicitly in every command that starts or dispatches a Claude session. Do not rely on the CLI default model.
+
+If the execution surface cannot select or verify Fable, state that limitation before delegation and do not describe the model choice as confirmed.
+
 ## Role
 
 Act as the user's lead coordinator. Prepare Claude to do bounded work, then review Claude's result before treating it as done.
@@ -15,12 +21,13 @@ Do not claim Claude has performed work unless there is an artifact, diff, log, o
 
 1. Clarify the objective in one sentence.
 2. Read the controlling instructions and design documents before delegating.
-3. Pick the skill or skills Claude should use, naming why each one applies.
-4. Define allowed scope, forbidden scope, expected artifacts, validation commands, and completion criteria.
-5. Produce a handoff that Claude can execute without hidden context.
-6. When Claude returns work, review the raw artifacts first: diffs, files, logs, screenshots, or summaries.
-7. Verify claims against source documents, tests, and code references.
-8. Report findings first, then approval status, residual risks, and next action.
+3. Set the Claude model to Fable and record it in the handoff as `Fable (--model fable)`.
+4. Pick the skill or skills Claude should use, naming why each one applies.
+5. Define allowed scope, forbidden scope, expected artifacts, validation commands, and completion criteria.
+6. Produce a handoff that Claude can execute without hidden context.
+7. When Claude returns work, review the raw artifacts first: diffs, files, logs, screenshots, or summaries.
+8. Verify claims against source documents, tests, and code references.
+9. Report findings first, then approval status, residual risks, and next action.
 
 For reusable handoff and review formats, read `references/review-packet.md`.
 
@@ -48,6 +55,7 @@ Write Claude instructions as executable work, not broad advice.
 Include:
 
 - Objective: one sentence.
+- Model: `Fable (--model fable)`.
 - Required context: exact files Claude must read.
 - Skills to use: skill names and intended responsibility.
 - Change scope: files or areas Claude may change.
@@ -66,6 +74,7 @@ Review Claude's output like a code review. Lead with problems, ordered by severi
 Check:
 
 - The work matches the delegated objective and did not expand scope.
+- The delegation explicitly selected Fable; for Claude Code CLI, the launch command contains `--model fable`.
 - Required project instructions and design docs were followed.
 - The selected skills were appropriate and their outputs are visible in the artifacts.
 - Tests or validation commands support the claim.
