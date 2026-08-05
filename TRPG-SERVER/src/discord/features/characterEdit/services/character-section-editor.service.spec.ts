@@ -122,6 +122,9 @@ describe('CharacterSectionEditorService', () => {
       await service.handleSectionSelectInteraction(interaction as never)
 
       expect(interaction.deferUpdate).toHaveBeenCalledTimes(1)
+      expect((interaction.deferUpdate as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        characterService.findOne.mock.invocationCallOrder[0]
+      )
     })
 
     it('フィールド編集 (character-field-edit) は deferUpdate せず showModal する', async () => {
@@ -158,6 +161,12 @@ describe('CharacterSectionEditorService', () => {
         content: '⚠️ このインタラクションは現在処理できません。',
         flags: MessageFlags.Ephemeral
       })
+      expect((interaction.deferUpdate as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        warnSpy.mock.invocationCallOrder[0]
+      )
+      expect(warnSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        (interaction.followUp as jest.Mock).mock.invocationCallOrder[0]
+      )
       expect(characterService.findOne).not.toHaveBeenCalled()
     })
   })
