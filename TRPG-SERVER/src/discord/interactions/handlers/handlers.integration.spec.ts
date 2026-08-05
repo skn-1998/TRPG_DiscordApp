@@ -34,6 +34,14 @@ import { PresetDiceQuickRollHandler } from '../../features/characterThread/handl
 // Character Sheet Handlers（PH-6a Discord 新経路）
 import { RollPaletteHandler } from '../../features/characterSheet/handlers/roll-palette.handler'
 import { ResourceDeltaHandler } from '../../features/characterSheet/handlers/resource-delta.handler'
+import { HubGroupSelectHandler } from '../../features/characterSheet/handlers/hub-group-select.handler'
+import { HubPanelNavigationHandler } from '../../features/characterSheet/handlers/hub-panel-navigation.handler'
+import { HubGroupBrowserNavigationHandler } from '../../features/characterSheet/handlers/hub-group-browser-navigation.handler'
+import {
+  HubGroupBrowserCustomId,
+  HubGroupSelectCustomId,
+  HubPanelCustomId
+} from '../../features/characterSheet/custom-id'
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
@@ -62,6 +70,10 @@ const mockDiceRollLogicService = {
 }
 const mockCharacterService = { findByChannelId: jest.fn().mockResolvedValue(null) }
 const mockCharacterSheetOperationService = { applyResourceDelta: jest.fn().mockResolvedValue(undefined) }
+const mockHubDiscordViewBuilder = {
+  buildGroupBrowser: jest.fn(),
+  buildPanel: jest.fn()
+}
 
 describe('Interaction Handlers Integration', () => {
   let registry: InteractionRegistryService
@@ -92,6 +104,9 @@ describe('Interaction Handlers Integration', () => {
   let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
   let rollPaletteHandler: RollPaletteHandler
   let resourceDeltaHandler: ResourceDeltaHandler
+  let hubGroupSelectHandler: HubGroupSelectHandler
+  let hubPanelNavigationHandler: HubPanelNavigationHandler
+  let hubGroupBrowserNavigationHandler: HubGroupBrowserNavigationHandler
 
   const findProductionHandler = (customId: string, type: 'button' | 'select' | 'modal') => {
     const handlers = registry.getAllHandlers().filter((handler) => handler.getInteractionType() === type)
@@ -208,6 +223,19 @@ describe('Interaction Handlers Integration', () => {
           provide: ResourceDeltaHandler,
           useFactory: () =>
             new ResourceDeltaHandler(mockCharacterService as any, mockCharacterSheetOperationService as any)
+        },
+        {
+          provide: HubGroupSelectHandler,
+          useFactory: () => new HubGroupSelectHandler(mockCharacterService as any, mockHubDiscordViewBuilder as any)
+        },
+        {
+          provide: HubPanelNavigationHandler,
+          useFactory: () => new HubPanelNavigationHandler(mockCharacterService as any, mockHubDiscordViewBuilder as any)
+        },
+        {
+          provide: HubGroupBrowserNavigationHandler,
+          useFactory: () =>
+            new HubGroupBrowserNavigationHandler(mockCharacterService as any, mockHubDiscordViewBuilder as any)
         }
       ]
     }).compile()
@@ -240,6 +268,9 @@ describe('Interaction Handlers Integration', () => {
     presetDiceQuickRollHandler = module.get<PresetDiceQuickRollHandler>(PresetDiceQuickRollHandler)
     rollPaletteHandler = module.get<RollPaletteHandler>(RollPaletteHandler)
     resourceDeltaHandler = module.get<ResourceDeltaHandler>(ResourceDeltaHandler)
+    hubGroupSelectHandler = module.get<HubGroupSelectHandler>(HubGroupSelectHandler)
+    hubPanelNavigationHandler = module.get<HubPanelNavigationHandler>(HubPanelNavigationHandler)
+    hubGroupBrowserNavigationHandler = module.get<HubGroupBrowserNavigationHandler>(HubGroupBrowserNavigationHandler)
 
     // 全ハンドラーを登録
     registry.registerHandlers([
@@ -266,7 +297,10 @@ describe('Interaction Handlers Integration', () => {
       abilityRollHandler,
       presetDiceQuickRollHandler,
       rollPaletteHandler,
-      resourceDeltaHandler
+      resourceDeltaHandler,
+      hubGroupSelectHandler,
+      hubPanelNavigationHandler,
+      hubGroupBrowserNavigationHandler
     ])
   })
 
@@ -275,9 +309,9 @@ describe('Interaction Handlers Integration', () => {
   })
 
   describe('全ハンドラーの登録確認', () => {
-    it('24個のハンドラーが登録されている', () => {
+    it('27個のハンドラーが登録されている', () => {
       const stats = registry.getStatistics()
-      expect(stats.totalHandlers).toBe(24)
+      expect(stats.totalHandlers).toBe(27)
     })
 
     it('Character Edit系ハンドラーが6個登録されている', () => {
@@ -317,17 +351,32 @@ describe('Interaction Handlers Integration', () => {
       })
     })
 
-    it('Character Thread系ハンドラーが5個登録されている', () => {
+    it('Character Thread系ハンドラーが8個登録されている', () => {
       const threadHandlers = [
         characterThreadCreateHandler,
         characterTabHandler,
         flexibleDiceParamHandler,
         diceGenericHandler,
-        flexibleDiceSelectHandler
+        flexibleDiceSelectHandler,
+        characterSkillRollHandler,
+        abilityRollHandler,
+        presetDiceQuickRollHandler
       ]
 
       threadHandlers.forEach((handler) => {
         expect(registry.getAllHandlers()).toContain(handler)
+      })
+    })
+
+    describe('Character Sheet系', () => {
+      it('hub 3 handler の factory 生成 customId に production handler がマッチする', () => {
+        expect(findProductionHandler(HubGroupSelectCustomId.create('123'), 'select')).toBe(hubGroupSelectHandler)
+        expect(findProductionHandler(HubPanelCustomId.create('123', 'gabc123', 2), 'button')).toBe(
+          hubPanelNavigationHandler
+        )
+        expect(findProductionHandler(HubGroupBrowserCustomId.create('123', 2), 'button')).toBe(
+          hubGroupBrowserNavigationHandler
+        )
       })
     })
   })

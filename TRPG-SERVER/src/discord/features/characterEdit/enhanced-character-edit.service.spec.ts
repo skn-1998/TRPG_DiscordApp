@@ -167,6 +167,31 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       expect(mockTypedEventService.emit).not.toHaveBeenCalledWith('character.findById.requested', expect.anything())
     })
 
+    it('refresh 処理の最終更新が完了してから embed refresh イベントを発行する', async () => {
+      const completionOrder: string[] = []
+      const character = buildCharacter()
+      const interaction = createMockButtonInteraction({
+        customId: 'character-refresh-char-123'
+      })
+      mockCharacterService.findOne.mockResolvedValue(character)
+      jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockImplementation(async () => {
+        await Promise.resolve()
+        completionOrder.push('refresh-complete')
+      })
+      mockTypedEventService.emit.mockImplementation(async () => {
+        completionOrder.push('emit')
+      })
+
+      await service.handleRefresh(interaction)
+
+      expect(messageUpdater.updateExistingCharacterEditEmbed).toHaveBeenCalledWith(character, interaction)
+      expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+        'characterEdit.embed.refresh.requested',
+        expect.objectContaining({ characterId: 'char-123' })
+      )
+      expect(completionOrder).toEqual(['refresh-complete', 'emit'])
+    })
+
     it('refresh の共有 embed 復旧が失敗したら ephemeral followUp 後に元例外を伝播する', async () => {
       const originalError = new HttpException('refresh failed', 409)
       const character = buildCharacter()
