@@ -198,8 +198,11 @@ character-edit の中核オーケストレーター（6 interaction handler が�
     embed 生成失敗時は catch 先頭の handleServiceError で再スローし、フォールバック emit には到達しない。
   - モーダル送信の characterId 抽出は customId を `-` split し**最後の要素**を採用
     （`char-edit-status-hp-char-123` → characterId=`'123'`）。一方 error.occurred 側は
-    `extractCharacterIdFromCustomId`（refresh/compact パターンのみ）を使うため `char-edit-*` は
+    `extractCharacterIdFromCustomId`（当時: refresh/compact パターンのみ）を使うため `char-edit-*` は
     マッチせず `'unknown'`。この非対称性は現挙動として固定した。
+    ※歴史注記（2026-08-05・I2 `2251a60`）: extractor は `utils/enhanced-character-edit.util` の
+    合併版（6 family）へ 1 本化され、select/field/refresh/compact 経路は実 ID を返す。
+    `char-edit-*`（modal）のみ引き続き非対応で `'unknown'`（JSDoc・spec 注記済み）。
 
 ### **作成テスト**
 
@@ -999,6 +1002,9 @@ characterization spec を作成 → 緑確認 → 分割 → 再度緑、の順�
   抽出: `parseEditCustomId`(session/legacy/invalid 判定。セッション取得=副作用はサービスに残置) /
   `parseCreationCustomId` / `buildFieldData`(trim・空判定) / `buildAttributeValueFromForm`(now 注入で純粋化) /
   `isValidAttributeValue` / `getSectionData` / `buildUpdateData`。サービスは薄いオーケストレーターに。
+  ※歴史注記（2026-08-05）: `getSectionData` は I2 `2251a60` で `character-section-editor.util` の
+  正本へ 1 本化（modal util 側は削除・modal service は正本を import）。`parseCreationCustomId` は
+  H1-e `af2c95a` で `CharacterCreateCustomId.parseBasic` への委譲形になった。
   `readTextInput` で discord.js I/O 境界を分離。
 - **デッドコード削除**（characterization 緑のまま）: `sendSuccessResponse`（呼び出しゼロ）と、それに伴う未使用 import
   `ActionRowBuilder/ButtonBuilder/ButtonStyle`。重複していた private `getSectionData`/`parseCreationCustomId` は util へ集約。
@@ -1529,7 +1535,8 @@ Map の実体操作（delete/set）は呼び出し側（imperative shell = サ�
   - characterId 抽出失敗→editReply エラー／character 取得失敗→editReply エラー
   - section選択（`character-edit-section`/`character-section-select`）→ createFieldSelectMenu 正引数＋元embed保持で2行 editReply／`back`→ createSectionedEmbeds
   - フィールド選択→ showModal（短いID=直接、長いID=session採番 createSession）
-  - 例外→ ErrorHandler.handleServiceError 経由
+  - 例外→ ErrorHandler.handleServiceError 経由（当時。I1 `22dca0a` で内層は
+    「ユーザー通知＋原文 rethrow」のみへ変更 — 変換/ログ/emitError は外層 enhanced 側の 1 本。spec 追随済み）
 - 重要な落とし穴: グローバル `test/utils/jest-setup.ts` の `jest.mock('discord.js')` の **`TextInputBuilder` に `setValue` が欠落**しており、既存値ありの編集で本番コードが落ちていた（モックの不備）。実 discord.js には存在するメソッドなので **`setValue: jest.fn().mockReturnThis()` を1行追加**（他テスト非影響を全 characterEdit spec で確認）。
   → modal builder はモックで `.data` を持たないため、3分岐の値振り分け検証は characterization では行わず、抽出した純関数の単体テストへ委譲する設計とした。
 
@@ -1537,6 +1544,9 @@ Map の実体操作（delete/set）は呼び出し側（imperative shell = サ�
 
 - **`extractFieldEditValues(sectionData, fieldKey)`**（最重要）: 旧 handleFieldSelection 180〜238行の AttributeValue／レガシー name+value／プリミティブの3分岐を純化。戻り `{ fieldName, currentValues, currentDice, currentDescription }`。
 - `extractCharacterIdFromCustomId` / `extractSectionFromCustomId`（customId 解析・4パターン正規表現／部分文字列）。
+  ※歴史注記（2026-08-05）: `extractCharacterIdFromCustomId` と `CHARACTER_ID_PATTERNS` は
+  I2 `2251a60` で削除し、`utils/enhanced-character-edit.util` の合併版（6 family）へ 1 本化。
+  `extractSectionFromCustomId` / `isFieldOperationCustomId` 等は本 util に残存。
 - `isFieldOperationCustomId` / `isSectionSelectionCustomId`（分岐判定）。
 - `shouldUseDirectModalId`（≤8 判定）/ `buildDirectModalId` / `buildSessionModalId`（modalId 純粋部分）。
 - `buildModalTitle` / `getSectionDisplayName`（表示名）。
