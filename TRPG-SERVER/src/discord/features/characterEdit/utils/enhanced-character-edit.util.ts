@@ -10,12 +10,25 @@
 // いずれも純粋モジュールのため、本ファイルの discord.js 非依存は保たれる。
 import { CharacterRefreshCustomId } from '../custom-id/character-refresh.custom-id'
 import { CharacterCompactCustomId } from '../custom-id/character-compact.custom-id'
+import {
+  CHARACTER_EDIT_SECTION_PARSE_PATTERN,
+  CHARACTER_SECTION_SELECT_PARSE_PATTERN
+} from '../custom-id/character-section.custom-id'
+import {
+  CHARACTER_FIELD_EDIT_PARSE_PATTERN,
+  CHARACTER_FIELD_ADD_PARSE_PATTERN
+} from '../custom-id/character-field.custom-id'
 
 const SECTION_TYPES = ['status', 'parameter', 'skill', 'item', 'basic'] as const
 export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
 
 /**
- * カスタムIDからキャラクターIDを抽出（refresh / compact-view パターンのみ）
+ * characterEdit の customId からキャラクター ID を抽出する。
+ *
+ * 対応 family は refresh / compact-view / section / field-edit / field-add / section-select。
+ * 非アンカーのパターンを refresh、compact-view、section、field-edit、field-add、section-select の
+ * 順に評価し、最初に一致した match[1] を返す。一致しない場合は null。
+ * modal（char-edit-*）は session 形式の customId だけでは characterId を決定できないため対象外。
  *
  * @example
  * extractCharacterIdFromCustomId('character-refresh-abc123') // => 'abc123'
@@ -23,7 +36,14 @@ export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
  * extractCharacterIdFromCustomId('char-edit-status-hp-abc123') // => null
  */
 export function extractCharacterIdFromCustomId(customId: string): string | null {
-  const patterns = [/character-refresh-(.+)/, /character-compact-view-(.+)/]
+  const patterns = [
+    /character-refresh-(.+)/,
+    /character-compact-view-(.+)/,
+    CHARACTER_EDIT_SECTION_PARSE_PATTERN,
+    CHARACTER_FIELD_EDIT_PARSE_PATTERN,
+    CHARACTER_FIELD_ADD_PARSE_PATTERN,
+    CHARACTER_SECTION_SELECT_PARSE_PATTERN
+  ]
 
   for (const pattern of patterns) {
     const match = customId.match(pattern)

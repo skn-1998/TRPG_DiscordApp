@@ -21,6 +21,34 @@ describe('enhanced-character-edit.util (pure functions)', () => {
       expect(extractCharacterIdFromCustomId('character-refresh-id-with-dash')).toBe('id-with-dash')
     })
 
+    it('character-edit-section- パターンから ID を抽出', () => {
+      expect(extractCharacterIdFromCustomId('character-edit-section-abc123')).toBe('abc123')
+    })
+
+    it('character-field-edit-<section>- パターンから ID を抽出', () => {
+      expect(extractCharacterIdFromCustomId('character-field-edit-status-abc123')).toBe('abc123')
+    })
+
+    it('character-field-add-<section>- パターンから ID を抽出', () => {
+      expect(extractCharacterIdFromCustomId('character-field-add-skill-xyz789')).toBe('xyz789')
+    })
+
+    it('character-section-select- パターンから ID を抽出', () => {
+      expect(extractCharacterIdFromCustomId('character-section-select-id-1')).toBe('id-1')
+    })
+
+    it('ハイフンを含む長い ID も貪欲に抽出', () => {
+      expect(extractCharacterIdFromCustomId('character-edit-section-a-b-c-123')).toBe('a-b-c-123')
+    })
+
+    it('refresh パターンを section パターンより先に評価する', () => {
+      expect(extractCharacterIdFromCustomId('character-edit-section-character-refresh-x')).toBe('x')
+    })
+
+    it('一致しない customId は null', () => {
+      expect(extractCharacterIdFromCustomId('totally-unknown')).toBeNull()
+    })
+
     it('マッチしない customId は null を返す', () => {
       expect(extractCharacterIdFromCustomId('char-edit-status-hp-char-123')).toBeNull()
       expect(extractCharacterIdFromCustomId('unknown')).toBeNull()

@@ -21,7 +21,6 @@ import { CharacterEmbedManagerService, EmbedSectionType } from './character-embe
 import { ModalSessionManagerService } from './modal-session-manager.service'
 import {
   extractFieldEditValues,
-  extractCharacterIdFromCustomId,
   extractSectionFromCustomId,
   isFieldOperationCustomId,
   buildDirectModalId,
@@ -31,6 +30,7 @@ import {
   sanitizeDescriptionValue,
   getSectionData
 } from './character-section-editor.util'
+import { extractCharacterIdFromCustomId } from '../utils/enhanced-character-edit.util'
 // P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
 import { CharacterSectionCustomId } from '../custom-id'
 // import { discordSelectMenuType } from '../../../discord.type'

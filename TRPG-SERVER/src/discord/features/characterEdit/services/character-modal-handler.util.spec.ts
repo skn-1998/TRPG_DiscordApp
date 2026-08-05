@@ -7,11 +7,9 @@ import {
   buildFieldData,
   buildAttributeValueFromForm,
   isValidAttributeValue,
-  getSectionData,
   buildUpdateData,
   type BuiltAttributeValue
 } from './character-modal-handler.util'
-import { Character } from '../../../../domains/character/models/character.model'
 
 describe('character-modal-handler.util', () => {
   describe('parseEditCustomId', () => {
@@ -288,26 +286,6 @@ describe('character-modal-handler.util', () => {
 
     it('dice があれば有効', () => {
       expect(isValidAttributeValue({ ...base, dice: '1d6' })).toBe(true)
-    })
-  })
-
-  describe('getSectionData', () => {
-    const character = {
-      status: { hp: 1 },
-      parameter: { str: 2 },
-      skill: { swim: 3 },
-      item: { sword: 4 }
-    } as unknown as Character
-
-    it('各セクションを返す', () => {
-      expect(getSectionData(character, 'status')).toEqual({ hp: 1 })
-      expect(getSectionData(character, 'parameter')).toEqual({ str: 2 })
-      expect(getSectionData(character, 'skill')).toEqual({ swim: 3 })
-      expect(getSectionData(character, 'item')).toEqual({ sword: 4 })
-    })
-
-    it('未知セクションは undefined', () => {
-      expect(getSectionData(character, 'basic' as never)).toBeUndefined()
     })
   })
 

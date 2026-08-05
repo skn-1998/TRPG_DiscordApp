@@ -7,7 +7,6 @@
 
 import {
   extractFieldEditValues,
-  extractCharacterIdFromCustomId,
   extractSectionFromCustomId,
   isFieldOperationCustomId,
   buildDirectModalId,
@@ -143,32 +142,6 @@ describe('character-section-editor.util (pure functions)', () => {
           currentDescription: ''
         })
       })
-    })
-  })
-
-  describe('extractCharacterIdFromCustomId', () => {
-    it('character-edit-section- パターンから ID を抽出', () => {
-      expect(extractCharacterIdFromCustomId('character-edit-section-abc123')).toBe('abc123')
-    })
-
-    it('character-field-edit-<section>- パターンから ID を抽出', () => {
-      expect(extractCharacterIdFromCustomId('character-field-edit-status-abc123')).toBe('abc123')
-    })
-
-    it('character-field-add-<section>- パターンから ID を抽出', () => {
-      expect(extractCharacterIdFromCustomId('character-field-add-skill-xyz789')).toBe('xyz789')
-    })
-
-    it('character-section-select- パターンから ID を抽出', () => {
-      expect(extractCharacterIdFromCustomId('character-section-select-id-1')).toBe('id-1')
-    })
-
-    it('ハイフンを含む長い ID も貪欲に抽出', () => {
-      expect(extractCharacterIdFromCustomId('character-edit-section-a-b-c-123')).toBe('a-b-c-123')
-    })
-
-    it('一致しない customId は null', () => {
-      expect(extractCharacterIdFromCustomId('totally-unknown')).toBeNull()
     })
   })
 
