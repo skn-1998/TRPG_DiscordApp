@@ -22,18 +22,18 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ## 📝 最新メモ（2026-08-05）
 
-### characterEdit エラー経路の実測表（俯瞰#20 CL-1(a)・HEAD `1d98569` 実測）
+### characterEdit エラー経路の実測表（俯瞰#20 CL-1(a)・#102/J1 `62a84f3` 反映済み）
 
 最深部 service が throw した場合の端から端（interactions.service の catch まで）。
 read-only 実測エージェント測定＋Fable が registry:140 / refresh 内層 / modal 内層 / compact を現物で裏取り。
 
-| 経路（入口）             | ユーザー通知                                                                | ERROR ログ                          | error.occurred の message                                        | 最外周 interactions.service:93                                                                           |
-| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| ①select（section/field） | **2 通**（内層 section-editor:104→respondEphemeralError＋最外周）           | **4 本**                            | **原文**（I1）                                                   | followUp 送達（replied=true）                                                                            |
-| ②modal submit            | **2 通**（内層 modal-handler:75 editReply＋最外周）                         | **5 本**（内層 ErrorHandler 分 +1） | **HttpException 変換後**「サービス処理中にエラーが発生しました」 | followUp 送達                                                                                            |
-| ③refresh                 | **2 通**（内層 enhanced:173-176 `interaction.followUp` **直呼び**＋最外周） | **4 本**                            | **原文**                                                         | followUp 送達                                                                                            |
-| ④-a create               | **1 通**（内層 catch なし・最外周のみ）                                     | **4 本**                            | **原文**                                                         | **reply()**（showModal/update は成功時のみ replied=true のため未応答扱い。5 変種中唯一 followUp 不成立） |
-| ④-b compact              | **1 通**（内層 catch なし・最外周のみ）                                     | **4 本**                            | **原文**                                                         | followUp 送達（deferReply の placeholder は残置 = interactions.service:90-92 の許容劣化）                |
+| 経路（入口）             | ユーザー通知                                                                                | ERROR ログ                                   | error.occurred の message                       | 最外周 interactions.service:93                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ①select（section/field） | **2 通**（内層 section-editor:104→respondEphemeralError＋最外周）                           | **4 本**                                     | **原文**（I1）                                  | followUp 送達（replied=true）                                                                            |
+| ②modal submit            | **2 通**（内層 sendErrorResponse=editReply＋最外周）                                        | **4 本**（J1 で内層 ErrorHandler 撤去・5→4） | **原文**（J1。従前は HttpException 変換後文言） | followUp 送達                                                                                            |
+| ③refresh                 | **2 通**（内層 respondEphemeralError `deferredStrategy:'followUp'`＝J1 で util 化＋最外周） | **4 本**                                     | **原文**                                        | followUp 送達                                                                                            |
+| ④-a create               | **1 通**（内層 catch なし・最外周のみ）                                                     | **4 本**                                     | **原文**                                        | **reply()**（showModal/update は成功時のみ replied=true のため未応答扱い。5 変種中唯一 followUp 不成立） |
+| ④-b compact              | **1 通**（内層 catch なし・最外周のみ）                                                     | **4 本**                                     | **原文**                                        | followUp 送達（deferReply の placeholder は残置 = interactions.service:90-92 の許容劣化）                |
 
 - **共通 ERROR 4 本の内訳**: ①character-edit-feature.handler:118 🚨（error.occurred 経由・
   I3 で characterId 付き）②error-handler.ts:128/130（外層 enhanced:106 経由の logError）
@@ -46,6 +46,7 @@ read-only 実測エージェント測定＋Fable が registry:140 / refresh 内�
   （enhanced:169-181）は select と同じ「通知＋原文 rethrow」同型だが、共有 util を使わず
   `interaction.followUp` 直呼び。→ Task #102 の対象 = modal 内層の ErrorHandler 撤去
   ＋refresh の followUp 直呼び util 化（達成後: 文言全経路原文・ERROR 5→4 統一）
+  **→ #102/J1（`62a84f3`・2026-08-06）で両方達成済み。表は達成後の状態**
 - create の防衛枝（enhanced:80-86 respondEphemeralError・H1-e）は customId 契約 drift
   ガードであり throw 経路上には無い。compact（enhanced:187-204）は開発中 placeholder で
   try/catch 皆無
