@@ -44,6 +44,8 @@ services:
       - nestjs_root_node_modules:/usr/src/app/node_modules
       - nestjs_node_modules:/usr/src/app/TRPG-SERVER/node_modules
       - sheet_engine_node_modules:/usr/src/app/packages/sheet-engine/node_modules
+      - sheet_projection_node_modules:/usr/src/app/packages/sheet-projection/node_modules
+      - api_contract_node_modules:/usr/src/app/packages/api-contract/node_modules
     ports:
       - "3000:3000"
     environment:
@@ -102,3 +104,7 @@ volumes:
     name: trpg-nestjs-node-modules
   sheet_engine_node_modules:
     name: trpg-sheet-engine-node-modules
+  sheet_projection_node_modules:
+    name: trpg-sheet-projection-node-modules
+  api_contract_node_modules:
+    name: trpg-api-contract-node-modules
