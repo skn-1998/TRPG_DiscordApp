@@ -14,7 +14,6 @@
 // ============================================================================
 
 export { ChannelDetectionService } from './channel-detection.service'
-export { CharacterCreationService } from './character-creation.service'
 export { CharacterNotificationService } from './character-notification.service'
 export { ChannelCreateOrchestratorService } from './channel-create-orchestrator.service'
 export { CharacterEventIntegrationService } from './character-event-integration.service'
@@ -29,7 +28,6 @@ export { CharacterModalHandlerService } from './character-modal-handler.service'
 // ============================================================================
 
 export { ChannelCreationContext, ChannelCreationResult } from './channel-detection.service'
-export { CharacterCreationResult } from './character-creation.service'
 
 // ============================================================================
 // Service Usage Guide (NestJS依存性注入の使用方法)

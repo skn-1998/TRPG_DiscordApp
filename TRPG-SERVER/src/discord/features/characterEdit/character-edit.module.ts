@@ -7,7 +7,6 @@ import { CharacterEditFeatureHandler } from './events/handlers/character-edit-fe
 
 // Modern Services (分離されたサービス群)
 import { ChannelDetectionService } from './services/channel-detection.service'
-import { CharacterCreationService } from './services/character-creation.service'
 import { CharacterNotificationService } from './services/character-notification.service'
 import { ChannelCreateOrchestratorService } from './services/channel-create-orchestrator.service'
 import { CharacterEditChannelCreateListenerService } from './services/character-edit-channel-create-listener.service'
@@ -64,7 +63,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     // Modern Services (推奨) - Discord依存関係なし
     // ============================================================================
     ChannelDetectionService,
-    CharacterCreationService,
     CharacterNotificationService,
     ChannelCreateOrchestratorService,
     // ChannelCreate リスナー（旧 InteractionsService.handleChannelCreate を feature へ移管・§8）
@@ -104,7 +102,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     // Modern Services Export (新しいコードで使用)
     // ============================================================================
     ChannelDetectionService,
-    CharacterCreationService,
     CharacterNotificationService,
     ChannelCreateOrchestratorService,
     CharacterEventIntegrationService,

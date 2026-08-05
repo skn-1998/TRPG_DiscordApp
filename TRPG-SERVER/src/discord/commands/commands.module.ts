@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common'
 // import { CommandsService } from './commands.service'
-import { CommandsController } from './commands.controller'
 import { CharacterThreadService } from './commands-components/character-thread.service'
 import { RollDiceService } from './commands-components/roll-dice.service'
 import { SelectGameSystemService } from './commands-components/select-game-system.service'
@@ -30,7 +29,6 @@ import { DiceRollFeatureModule } from '../features/diceRoll/dice-roll.module'
     CommandsService,
     DiceResultService
   ],
-  controllers: [CommandsController],
   exports: [CommandsService]
 })
 export class CommandsModule {}

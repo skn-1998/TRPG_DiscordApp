@@ -31,9 +31,6 @@ export * from './services'
 // Enhanced Character Edit Service
 export { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 
-// Import types for internal use
-import { ChannelCreationContext, CharacterCreationResult } from './services'
-
 // ============================================================================
 // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)
 // ============================================================================
@@ -69,27 +66,6 @@ export const CHARACTER_EDIT_CONFIG = {
   DEFAULT_GAME_SYSTEM_ID: '',
   NOTIFICATION_TIMEOUT: 30000
 } as const
-
-// Validation utilities
-export class CharacterEditValidator {
-  static isValidField(field: string): field is (typeof CHARACTER_EDIT_CONFIG.SUPPORTED_FIELDS)[number] {
-    return CHARACTER_EDIT_CONFIG.SUPPORTED_FIELDS.includes(field as any)
-  }
-
-  static validateInput(input: string): boolean {
-    return input.length > 0 && input.length <= CHARACTER_EDIT_CONFIG.MAX_INPUT_LENGTH
-  }
-
-  // リファクタリングで追加されたバリデーション
-  static validateChannelContext(context: ChannelCreationContext): boolean {
-    return !!(context.channel && context.categoryId && context.channel.id)
-  }
-
-  static validateCharacterCreationResult(result: CharacterCreationResult): boolean {
-    if (!result.success) return false
-    return !!(result.characterId && result.characterName)
-  }
-}
 
 // 注: かつて存在した CharacterEditServiceFactory は、実在しない
 // './character-channel-create.service' を require する未使用デッドコードだったため削除（2026-06-03）。
