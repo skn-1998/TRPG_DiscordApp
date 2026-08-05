@@ -67,3 +67,10 @@ out/
 # Codex delegation evidence (local-only, plain text; see codex-delegate skills)
 review-results/
 .codex/skills/codex-spark-consensus/runs/
+
+# 委譲セッションのビルド/ESLint 証跡ログ（ルート直下・local-only）
+/*.log
+
+# スキル持ち出し用エクスポート（正本は .claude/skills と .codex/skills）
+portable-skills-*/
+portable-skills-*.zip
