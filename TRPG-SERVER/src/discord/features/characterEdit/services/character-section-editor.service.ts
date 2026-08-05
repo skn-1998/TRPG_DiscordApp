@@ -27,10 +27,10 @@ import {
   buildSessionModalId,
   shouldUseDirectModalId,
   buildModalTitle,
-  sanitizeDescriptionValue,
-  getSectionData
+  sanitizeDescriptionValue
 } from './character-section-editor.util'
 import { extractCharacterIdFromCustomId } from '../utils/enhanced-character-edit.util'
+import { getSectionData } from '../utils/character-embed.util'
 // P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
 import { CharacterSectionCustomId } from '../custom-id'
 // import { discordSelectMenuType } from '../../../discord.type'

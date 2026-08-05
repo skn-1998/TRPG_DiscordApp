@@ -2,23 +2,23 @@
  * Character Section Editor - 純粋関数ユーティリティ
  *
  * CharacterSectionEditorService から、副作用を持たない整形・分岐判定ロジックを切り出す。
- * discord.js / NestJS DI に依存せず、引数と戻り値だけで完結する（モック不要でテスト可能）。
+ * NestJS DI や副作用に依存せず、引数と戻り値だけで完結する。
  *
  * 配置方針（ARCHITECTURE.md 準拠）:
  * - getDisplayNumber は core/types に依存する純ヘルパ（discord.js import 無し）。
- * - shared/ には discord.js import 禁止のため置けないが、本 util も discord.js を import しない。
- *   Character/EmbedSectionType 型に触れるためサービスと同じ characterEdit/services/ 配下に置く。
+ * - セクション表示名は ../utils/character-embed.util.ts の正本を参照する。
+ * - EmbedSectionType 型に触れるためサービスと同じ characterEdit/services/ 配下に置く。
  */
 
 import { getDisplayNumber, AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
-import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import {
   CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
   CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
   characterFieldSectionInfix
 } from '../custom-id/character-field.custom-id'
 import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
+import { getSectionDisplayName } from '../utils/character-embed.util'
 
 /**
  * フィールド編集モーダルに流し込む既存値。
@@ -36,28 +36,6 @@ export interface FieldEditValues {
 
 /** セクションデータの 1 フィールドが取り得る型（AttributeValue / レガシー name+value / プリミティブ） */
 type SectionFieldValue = unknown
-
-/**
- * Character から指定セクションのデータを取り出す（純粋・switch）。
- * 該当しないセクション（basic/back 等）は undefined。
- */
-export function getSectionData(
-  character: CharacterEntity,
-  sectionType: EmbedSectionType
-): Record<string, unknown> | undefined {
-  switch (sectionType) {
-    case 'status':
-      return character.status
-    case 'parameter':
-      return character.parameter
-    case 'skill':
-      return character.skill
-    case 'item':
-      return character.item
-    default:
-      return undefined
-  }
-}
 
 /**
  * セクションデータと fieldKey から、編集モーダル用の既存値を抽出する（純粋）。
@@ -182,21 +160,6 @@ export function buildSessionModalId(sessionId: string): string {
  */
 export function shouldUseDirectModalId(characterId: string): boolean {
   return characterId.length <= 8
-}
-
-const SECTION_NAMES: Record<Exclude<EmbedSectionType, 'back'>, string> = {
-  status: 'ステータス',
-  parameter: 'パラメータ',
-  skill: 'スキル',
-  item: 'アイテム',
-  basic: '基本情報'
-}
-
-/**
- * セクションタイプから日本語表示名を返す（純粋）。
- */
-export function getSectionDisplayName(sectionType: EmbedSectionType): string {
-  return SECTION_NAMES[sectionType as Exclude<EmbedSectionType, 'back'>]
 }
 
 /**

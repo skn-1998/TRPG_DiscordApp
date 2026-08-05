@@ -36,6 +36,48 @@ import {
 export type EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item' | 'back'
 
 /**
+ * フィールド編集メニューを持つセクション。basic/back は対象外。
+ */
+export const EDITABLE_SECTION_TYPES = ['status', 'parameter', 'skill', 'item'] as const
+
+/**
+ * Character から指定セクションのデータを取り出す（純粋・switch）。
+ * 該当しないセクション（basic/back 等）は undefined。
+ */
+export function getSectionData(
+  character: CharacterEntity,
+  sectionType: EmbedSectionType
+): Record<string, unknown> | undefined {
+  switch (sectionType) {
+    case 'status':
+      return character.status
+    case 'parameter':
+      return character.parameter
+    case 'skill':
+      return character.skill
+    case 'item':
+      return character.item
+    default:
+      return undefined
+  }
+}
+
+const SECTION_NAMES: Record<Exclude<EmbedSectionType, 'back'>, string> = {
+  status: 'ステータス',
+  parameter: 'パラメータ',
+  skill: 'スキル',
+  item: 'アイテム',
+  basic: '基本情報'
+}
+
+/**
+ * セクションタイプから日本語表示名を返す（純粋）。
+ */
+export function getSectionDisplayName(sectionType: EmbedSectionType): string {
+  return SECTION_NAMES[sectionType as Exclude<EmbedSectionType, 'back'>]
+}
+
+/**
  * Embed フィールドのプレーンデータ（discord.js EmbedField 互換）
  */
 export interface EmbedFieldData {
@@ -331,10 +373,16 @@ export function buildSectionedEmbeds(character: CharacterEntity): {
 } {
   const embeds: EmbedBuilder[] = [
     buildBasicEmbed(character),
-    buildSectionEmbed('📊', 'ステータス', '#e74c3c', character.characterName, character.status),
-    buildSectionEmbed('⚙️', 'パラメータ', '#34495e', character.characterName, character.parameter),
-    buildSectionEmbed('⚔️', 'スキル', '#9b59b6', character.characterName, character.skill),
-    buildSectionEmbed('🎒', 'アイテム', '#f39c12', character.characterName, character.item)
+    buildSectionEmbed('📊', getSectionDisplayName('status'), '#e74c3c', character.characterName, character.status),
+    buildSectionEmbed(
+      '⚙️',
+      getSectionDisplayName('parameter'),
+      '#34495e',
+      character.characterName,
+      character.parameter
+    ),
+    buildSectionEmbed('⚔️', getSectionDisplayName('skill'), '#9b59b6', character.characterName, character.skill),
+    buildSectionEmbed('🎒', getSectionDisplayName('item'), '#f39c12', character.characterName, character.item)
   ]
 
   // 編集用コンポーネントを作成
@@ -353,29 +401,12 @@ export function buildFieldSelectMenu(
   sectionType: EmbedSectionType,
   characterId: string
 ): StringSelectMenuBuilder | null {
-  let data: Record<string, any> | undefined
-  let sectionName: string
-
-  switch (sectionType) {
-    case 'status':
-      data = character.status
-      sectionName = 'ステータス'
-      break
-    case 'parameter':
-      data = character.parameter
-      sectionName = 'パラメータ'
-      break
-    case 'skill':
-      data = character.skill
-      sectionName = 'スキル'
-      break
-    case 'item':
-      data = character.item
-      sectionName = 'アイテム'
-      break
-    default:
-      return null
+  if (!EDITABLE_SECTION_TYPES.some((editableSectionType) => editableSectionType === sectionType)) {
+    return null
   }
+
+  const data = getSectionData(character, sectionType)
+  const sectionName = getSectionDisplayName(sectionType)
 
   if (!data || Object.keys(data).length === 0) {
     // データがない場合は追加専用メニュー
