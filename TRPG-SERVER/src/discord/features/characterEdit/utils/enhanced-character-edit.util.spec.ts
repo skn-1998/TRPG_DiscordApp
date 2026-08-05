@@ -59,6 +59,34 @@ describe('enhanced-character-edit.util (pure functions)', () => {
       expect(extractCharacterIdFromCustomId('x-character-refresh-abc')).toBeNull()
     })
 
+    it('compact family は edit-section family の characterId 内にある prefix を横取りしない', () => {
+      expect(extractCharacterIdFromCustomId('character-edit-section-character-compact-view-x')).toBe(
+        'character-compact-view-x'
+      )
+    })
+
+    it('edit-section family は field-edit family の characterId 内にある prefix を横取りしない', () => {
+      expect(extractCharacterIdFromCustomId('character-field-edit-status-character-edit-section-x')).toBe(
+        'character-edit-section-x'
+      )
+    })
+
+    it('field-edit family は field-add family の characterId 内にある prefix を横取りしない', () => {
+      expect(extractCharacterIdFromCustomId('character-field-add-status-character-field-edit-status-x')).toBe(
+        'character-field-edit-status-x'
+      )
+    })
+
+    it('field-add family は section-select family の characterId 内にある prefix を横取りしない', () => {
+      expect(extractCharacterIdFromCustomId('character-section-select-character-field-add-status-x')).toBe(
+        'character-field-add-status-x'
+      )
+    })
+
+    it('section-select family は modal family の customId 内にある prefix を捕捉しない', () => {
+      expect(extractCharacterIdFromCustomId('char-edit-status-character-section-select-x')).toBeNull()
+    })
+
     it('一致しない customId は null', () => {
       expect(extractCharacterIdFromCustomId('totally-unknown')).toBeNull()
     })

@@ -26,9 +26,11 @@ export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
  * characterEdit の customId からキャラクター ID を抽出する。
  *
  * 対応 family は refresh / compact-view / section / field-edit / field-add / section-select。
- * 全パターンはアンカー付きで family prefix ごとに排他のため、評価順序は意味を持たない。
+ * この characterId 抽出用 6 family は全パターンがアンカー付きで、評価順序は意味を持たない。
  * characterId に他 family の prefix 文字列が含まれていても完全な ID を返す（俯瞰#20 F-1）。
  * prefix が位置 0 にない customId は null（registry を通過した customId では発生しない）。
+ * sectionType 抽出は character-section-editor.util の extractSectionFromCustomId（includes ベース）という別規則。
+ * modal payload の parseModalSubmitCustomId は lossy split で、正本解析は CharacterModalCustomId.parse。
  * modal（char-edit-*）は session 形式の customId だけでは characterId を決定できないため対象外。
  *
  * @example

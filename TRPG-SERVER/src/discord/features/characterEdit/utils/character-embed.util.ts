@@ -253,7 +253,7 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
  */
 export function buildBasicEmbed(character: CharacterEntity): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`🏷️ ${character.characterName} - 基本情報`)
+    .setTitle(`🏷️ ${character.characterName} - ${getSectionDisplayName('basic')}`)
     .setColor('#3498db')
     .setTimestamp()
 
@@ -330,16 +330,19 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
     .setPlaceholder('編集するセクションを選択')
     .addOptions(
       new StringSelectMenuOptionBuilder()
-        .setLabel('📊 ステータス')
+        .setLabel('📊 ' + getSectionDisplayName('status'))
         .setValue('status')
         .setDescription('基本ステータスを編集'),
       new StringSelectMenuOptionBuilder()
-        .setLabel('⚙️ パラメータ')
+        .setLabel('⚙️ ' + getSectionDisplayName('parameter'))
         .setValue('parameter')
         .setDescription('能力値やパラメータを編集'),
-      new StringSelectMenuOptionBuilder().setLabel('⚔️ スキル').setValue('skill').setDescription('技能や特技を編集'),
       new StringSelectMenuOptionBuilder()
-        .setLabel('🎒 アイテム')
+        .setLabel('⚔️ ' + getSectionDisplayName('skill'))
+        .setValue('skill')
+        .setDescription('技能や特技を編集'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🎒 ' + getSectionDisplayName('item'))
         .setValue('item')
         .setDescription('装備品やアイテムを編集')
     )
@@ -373,16 +376,34 @@ export function buildSectionedEmbeds(character: CharacterEntity): {
 } {
   const embeds: EmbedBuilder[] = [
     buildBasicEmbed(character),
-    buildSectionEmbed('📊', getSectionDisplayName('status'), '#e74c3c', character.characterName, character.status),
+    buildSectionEmbed(
+      '📊',
+      getSectionDisplayName('status'),
+      '#e74c3c',
+      character.characterName,
+      getSectionData(character, 'status')
+    ),
     buildSectionEmbed(
       '⚙️',
       getSectionDisplayName('parameter'),
       '#34495e',
       character.characterName,
-      character.parameter
+      getSectionData(character, 'parameter')
     ),
-    buildSectionEmbed('⚔️', getSectionDisplayName('skill'), '#9b59b6', character.characterName, character.skill),
-    buildSectionEmbed('🎒', getSectionDisplayName('item'), '#f39c12', character.characterName, character.item)
+    buildSectionEmbed(
+      '⚔️',
+      getSectionDisplayName('skill'),
+      '#9b59b6',
+      character.characterName,
+      getSectionData(character, 'skill')
+    ),
+    buildSectionEmbed(
+      '🎒',
+      getSectionDisplayName('item'),
+      '#f39c12',
+      character.characterName,
+      getSectionData(character, 'item')
+    )
   ]
 
   // 編集用コンポーネントを作成
