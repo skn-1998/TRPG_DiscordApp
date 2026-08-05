@@ -18,7 +18,7 @@ describe('CharacterEditFieldHandler', () => {
   it('customId パターンが前方一致 "character-field-"', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBe('character-field-')
-    expect(handler.matches('character-field-status-char123')).toBe(true)
+    expect(handler.getMatchScore('character-field-status-char123')).toBeGreaterThan(0)
   })
 
   it('execute は handleSelectMenuInteraction へ interaction を委譲する', async () => {

@@ -18,7 +18,7 @@ describe('CharacterEditRefreshHandler', () => {
   it('customId パターンが前方一致 "character-refresh-"', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBe('character-refresh-')
-    expect(handler.matches('character-refresh-char123')).toBe(true)
+    expect(handler.getMatchScore('character-refresh-char123')).toBeGreaterThan(0)
   })
 
   it('execute は handleButtonInteraction へ interaction を委譲する', async () => {

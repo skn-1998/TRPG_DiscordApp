@@ -14,14 +14,6 @@ export interface PatternMatchResult {
 }
 
 /**
- * ハンドラーとパターンのペア
- */
-export interface HandlerWithPattern<T = InteractionHandler> {
-  handler: T
-  pattern: string | RegExp
-}
-
-/**
  * パターンマッチングサービス
  *
  * customIdに基づいてハンドラーをマッチングする責務を持ちます。
@@ -30,38 +22,6 @@ export interface HandlerWithPattern<T = InteractionHandler> {
 @Injectable()
 export class PatternMatcherService {
   private readonly logger = new Logger(PatternMatcherService.name)
-
-  /**
-   * 単一パターンのマッチングを実行
-   *
-   * @param customId マッチ対象のcustomId
-   * @param pattern マッチパターン（文字列または正規表現）
-   * @returns マッチング結果
-   */
-  matchPattern(customId: string, pattern: string | RegExp): PatternMatchResult {
-    if (typeof pattern === 'string') {
-      // 完全一致チェック
-      if (customId === pattern) {
-        return { matched: true, type: 'exact', score: 100 }
-      }
-
-      // 前方一致チェック
-      if (customId.startsWith(pattern)) {
-        // パターンが長いほど高スコア（最大99）
-        const score = Math.min(50 + pattern.length, 99)
-        return { matched: true, type: 'startsWith', score }
-      }
-
-      return { matched: false }
-    }
-
-    // 正規表現マッチング
-    if (pattern.test(customId)) {
-      return { matched: true, type: 'regex', score: 30 }
-    }
-
-    return { matched: false }
-  }
 
   /**
    * 複数のハンドラーから最適なものを検索
@@ -89,27 +49,6 @@ export class PatternMatcherService {
     }
 
     return undefined
-  }
-
-  /**
-   * 全てのマッチするハンドラーを取得（デバッグ用）
-   *
-   * @param customId マッチ対象のcustomId
-   * @param handlers ハンドラーのリスト
-   * @returns マッチしたハンドラーとスコアのリスト
-   */
-  findAllMatches<T extends InteractionHandler>(customId: string, handlers: T[]): Array<{ handler: T; score: number }> {
-    const matches: Array<{ handler: T; score: number }> = []
-
-    for (const handler of handlers) {
-      const score = handler.getMatchScore(customId)
-      if (score > 0) {
-        matches.push({ handler, score })
-      }
-    }
-
-    // スコアの降順でソート
-    return matches.sort((a, b) => b.score - a.score)
   }
 
   /**
