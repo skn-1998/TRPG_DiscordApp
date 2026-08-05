@@ -12,6 +12,7 @@ import {
   createMockModalInteraction
 } from '@discord-test-utils'
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
+import { ErrorHandler } from 'src/core/http/error-handler'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { CharacterEmbedManagerService } from './services/character-embed-manager.service'
@@ -19,6 +20,7 @@ import { CharacterSectionEditorService } from './services/character-section-edit
 import { CharacterModalHandlerService } from './services/character-modal-handler.service'
 import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
+import { ModalSessionManagerService } from './services/modal-session-manager.service'
 import { Character } from 'src/domains/character/models/character.model'
 
 /**
@@ -45,7 +47,8 @@ describe('EnhancedCharacterEditService (characterization)', () => {
   }
 
   const mockEmbedManager = {
-    createSectionedEmbeds: jest.fn()
+    createSectionedEmbeds: jest.fn(),
+    createFieldSelectMenu: jest.fn()
   }
 
   const mockSectionEditor = {
@@ -276,6 +279,74 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         'characterEdit.error.occurred',
         expect.objectContaining({ characterId: 'unknown' })
       )
+    })
+
+    it('実物 sectionEditor の section select エラーを外層だけでイベント発行・ログ・500 変換する', async () => {
+      const composedModule = await Test.createTestingModule({
+        providers: [
+          EnhancedCharacterEditService,
+          CharacterSectionEditorService,
+          CharacterEditEventEmitterService,
+          CharacterEditMessageUpdaterService,
+          { provide: TypedEventService, useValue: mockTypedEventService },
+          { provide: CharacterService, useValue: mockCharacterService },
+          { provide: CharacterEmbedManagerService, useValue: mockEmbedManager },
+          { provide: ModalSessionManagerService, useValue: { createSession: jest.fn() } },
+          { provide: CharacterModalHandlerService, useValue: mockModalHandler }
+        ]
+      }).compile()
+
+      try {
+        const composedService = composedModule.get(EnhancedCharacterEditService)
+        const eventEmitter = composedModule.get(CharacterEditEventEmitterService)
+        const originalError = new Error('field select menu generation failed')
+        const interaction = createMockSelectMenuInteraction({
+          customId: 'character-edit-section-abc123',
+          values: ['status']
+        })
+        ;(interaction.deferUpdate as jest.Mock).mockImplementation(async () => {
+          ;(interaction as unknown as { deferred: boolean }).deferred = true
+        })
+        mockCharacterService.findOne.mockResolvedValue(buildCharacter({ characterId: 'abc123' }))
+        mockEmbedManager.createFieldSelectMenu.mockImplementationOnce(() => {
+          throw originalError
+        })
+        const emitErrorSpy = jest.spyOn(eventEmitter, 'emitError')
+        const logErrorSpy = jest.spyOn(ErrorHandler, 'logError').mockImplementation(() => undefined)
+
+        let thrownError: unknown
+        try {
+          await composedService.handleSectionSelect(interaction)
+        } catch (error) {
+          thrownError = error
+        }
+
+        expect(thrownError).toBeInstanceOf(HttpException)
+        expect((thrownError as HttpException).getStatus()).toBe(500)
+        expect((thrownError as HttpException).message).toBe('サービス処理中にエラーが発生しました')
+        expect(emitErrorSpy).toHaveBeenCalledTimes(1)
+        expect(emitErrorSpy).toHaveBeenCalledWith(originalError, interaction.customId, interaction.user.id)
+        expect(mockTypedEventService.emit).toHaveBeenCalledTimes(1)
+        expect(mockTypedEventService.emit).toHaveBeenCalledWith(
+          'characterEdit.error.occurred',
+          expect.objectContaining({
+            error: expect.objectContaining({ message: originalError.message })
+          })
+        )
+        expect(logErrorSpy).toHaveBeenCalledTimes(1)
+        expect(logErrorSpy).toHaveBeenCalledWith(
+          originalError,
+          { customId: interaction.customId, userId: interaction.user.id },
+          'SERVICE_ENHANCEDCHARACTEREDITSERVICE'
+        )
+        expect(interaction.followUp).toHaveBeenCalledTimes(1)
+        expect(interaction.followUp).toHaveBeenCalledWith({
+          content: 'エラーが発生しました。もう一度お試しください。',
+          flags: MessageFlags.Ephemeral
+        })
+      } finally {
+        await composedModule.close()
+      }
     })
   })
 

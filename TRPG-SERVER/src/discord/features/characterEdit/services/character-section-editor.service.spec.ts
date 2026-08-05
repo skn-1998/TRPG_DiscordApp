@@ -21,7 +21,6 @@ import { CharacterService } from '../../../../domains/character/character.servic
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
-import { ErrorHandler } from '../../../../core/http/error-handler'
 
 type AnyInteraction = Record<string, unknown>
 
@@ -323,42 +322,39 @@ describe('CharacterSectionEditorService', () => {
   })
 
   describe('例外処理 (characterization)', () => {
-    it('deferUpdate 済みでは ephemeral followUp してから元例外を ErrorHandler へ渡す', async () => {
+    it('deferUpdate 済みでは ephemeral followUp 完了後に元例外をそのまま再スローする', async () => {
       const originalError = new Error('boom')
-      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const completionOrder: string[] = []
       mockCharacterFound(buildCharacter())
       embedManager.createFieldSelectMenu.mockImplementation(() => {
         throw originalError
       })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
+      ;(interaction.followUp as jest.Mock).mockImplementation(async () => {
+        completionOrder.push('notification')
+      })
+      const execution = service.handleSectionSelectInteraction(interaction as never).catch((error) => {
+        completionOrder.push('rethrow')
+        throw error
+      })
 
-      await expect(service.handleSectionSelectInteraction(interaction as never)).rejects.toThrow(
-        'サービス処理中にエラーが発生しました'
-      )
+      await expect(execution).rejects.toBe(originalError)
 
-      expect(handleServiceError).toHaveBeenCalledWith(
-        originalError,
-        { customId: 'character-edit-section-abc123', userId: 'user-1' },
-        'CharacterSectionEditorService'
-      )
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'エラーが発生しました。もう一度お試しください。',
         flags: MessageFlags.Ephemeral
       })
       expect(interaction.editReply).not.toHaveBeenCalled()
-      expect((interaction.followUp as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        handleServiceError.mock.invocationCallOrder[0]
-      )
+      expect(completionOrder).toEqual(['notification', 'rethrow'])
     })
 
-    it('未応答のフィールド操作ではエラー通知に reply を使う', async () => {
+    it('未応答のフィールド操作ではエラー通知に reply を使い元例外をそのまま再スローする', async () => {
+      const originalError = new Error('showModal failed')
       mockCharacterFound(buildCharacter())
       const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
-      ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
+      ;(interaction.showModal as jest.Mock).mockRejectedValue(originalError)
 
-      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toThrow(
-        'サービス処理中にエラーが発生しました'
-      )
+      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toBe(originalError)
 
       expect(interaction.reply).toHaveBeenCalledTimes(1)
       expect(interaction.reply).toHaveBeenCalledWith({
@@ -369,15 +365,14 @@ describe('CharacterSectionEditorService', () => {
       expect(interaction.followUp).not.toHaveBeenCalled()
     })
 
-    it('応答済みのフィールド操作ではエラー通知に followUp を使う', async () => {
+    it('応答済みのフィールド操作ではエラー通知に followUp を使い元例外をそのまま再スローする', async () => {
+      const originalError = new Error('showModal failed')
       mockCharacterFound(buildCharacter())
       const interaction = buildInteraction('character-field-edit-status-abc123', ['hp'])
       interaction.replied = true
-      ;(interaction.showModal as jest.Mock).mockRejectedValue(new Error('showModal failed'))
+      ;(interaction.showModal as jest.Mock).mockRejectedValue(originalError)
 
-      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toThrow(
-        'サービス処理中にエラーが発生しました'
-      )
+      await expect(service.handleFieldSelectInteraction(interaction as never)).rejects.toBe(originalError)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(interaction.followUp).toHaveBeenCalledWith({
@@ -390,27 +385,30 @@ describe('CharacterSectionEditorService', () => {
 
     it('エラー通知自体が失敗しても元の HttpException を伝播する', async () => {
       const originalError = new HttpException('original section failure', 409)
-      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const completionOrder: string[] = []
       mockCharacterFound(buildCharacter())
       embedManager.createFieldSelectMenu.mockImplementation(() => {
         throw originalError
       })
       const interaction = buildInteraction('character-edit-section-abc123', ['status'])
       const notificationError = new Error('notification failed')
-      ;(interaction.followUp as jest.Mock).mockRejectedValue(notificationError)
+      ;(interaction.followUp as jest.Mock).mockImplementation(async () => {
+        completionOrder.push('notification')
+        throw notificationError
+      })
+      warnSpy.mockImplementation(() => {
+        completionOrder.push('warn')
+      })
+      const execution = service.handleSectionSelectInteraction(interaction as never).catch((error) => {
+        completionOrder.push('rethrow')
+        throw error
+      })
 
-      await expect(service.handleSectionSelectInteraction(interaction as never)).rejects.toBe(originalError)
+      await expect(execution).rejects.toBe(originalError)
 
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
       expect(warnSpy).toHaveBeenCalledWith('Failed to send character section editor error response', notificationError)
-      expect(handleServiceError).toHaveBeenCalledWith(
-        originalError,
-        { customId: 'character-edit-section-abc123', userId: 'user-1' },
-        'CharacterSectionEditorService'
-      )
-      expect((interaction.followUp as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        handleServiceError.mock.invocationCallOrder[0]
-      )
+      expect(completionOrder).toEqual(['notification', 'warn', 'rethrow'])
     })
   })
 })
