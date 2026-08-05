@@ -1,0 +1,1192 @@
+# SESSION_HANDOFF — compact 復帰用の状況 doc（正本）
+
+<!-- fable-rules の必須ゲート:
+     - feature 完了ごとに全面更新する。更新が済むまで feature を完了扱いにしない・次へ着手しない
+     - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
+     - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
+
+- 最終更新: 2026-08-03（静的解析基盤 feature 完了）／以下「現在の feature」以降の記載は
+  2026-07-29〜08-03 時点のもの
+
+## 2026-08-03 完了: ts-morph 静的解析基盤（tools/static-analysis・第4群とは独立の feature）
+
+ユーザー依頼「ts-morph をライブラリに導入して静的検証を簡単に＋依存関係や関数の独立性を確認する Skill」。
+経緯の正本は `TRPG-SERVER/AI.refactor.md` の 2026-08-03 節、利用手順は Skill
+`.claude/skills/static-structure-audit/SKILL.md`、実装構成は `tools/static-analysis/README.md`。
+
+- ts-morph は**既に TRPG-SERVER へ導入済み**だった（利用は `analyze-large-files.ts` 1本のみ）。
+  実作業は「リポジトリ直下 `tools/` への解析基盤新設」に置き換わった（配置・検出軸はユーザー選択）
+- 追加コマンド（リポジトリルートから・`--project <tsconfig>` でモノレポ任意パッケージを解析）:
+  `pnpm run static:deps`（依存と死蔵 export）/ `static:independence`（関数の独立性・pure 判定）/
+  `static:duplication`（同型ロジックの重複）
+- 変更範囲: `tools/static-analysis/**`（新規）・ルート `package.json`（scripts 3行）・
+  `pnpm-workspace.yaml`（packages に `tools/*` の1行のみ・既存キーは無変更）・`.gitignore`（`.tmp/` 1行）・
+  `pnpm-lock.yaml`（追加32行・既存バージョンの変化ゼロ）
+- **すべて未コミット**。`TRPG-SERVER/**` `trpg-remix-app/**` `packages/**` は一切変更していない
+- ゲート: build 成功・`check:circular` 循環0（589ファイル）・3ツールとも決定的・全 advisory（exit 0）
+- 検収で是正した3件: pure 判定の水増し（768→573・キャプチャ未検出と空虚 constructor）／
+  死蔵 export の判別不能（`sameFileReferenceCount` 追加で 227 = 真の死蔵95 + export外し132 に分離）／
+  起動形が `node_modules` 内部パス直叩き（`run.js` へ1本化）
+- 大粒度認知負荷レビューで **CL-1(High)** を検出し統合済み（関数様ノードの語彙が3実装10サイトに分散し
+  `symbolName` が 39件中31件ドリフト）→ `shared/function-like.ts` へ1本化・**純減 −18行**・
+  不一致 31/39 → **0/39**・グルーピング/判定値は不変を実測
+- 積み残し: `TRPG-SERVER/scripts/refactor/analyze-large-files.ts` の改行混入44件（別タスク起票済み・1行修正）／
+  同ファイルの `tools/` 移設は**見送り**（レポート内の全パス基準が変わる破壊的変更・参照13箇所）
+
+## 現在の feature
+
+`TRPG-SERVER/docs/reviews/full-review-2026-07-26.md` 駆動のリファクタキャンペーン **第4群**（タスク #22）。
+経緯・所見・裁定の正本は `TRPG-SERVER/AI.refactor.md`（本 doc は復帰用要約）。
+
+## 完了済みフェーズと検収結果（第4群）
+
+| フェーズ | コミット | 内容 | 検収 |
+|---|---|---|---|
+| 第4群-a (OV5-1) | `418c6af` | 局所例外フィルタ2本を `@Catch(HttpException)` へ狭小化・生メッセージ露出 18 route 封鎖・N-1 3→2 | build/circular/全suite 緑・Opus needs-fix 5件→round2 解消 |
+| 第4群-b (OV5-4) | `3e9c058` | 'エラーが発生しました' literal 10 箇所→`DEFAULT_ERROR_RESPONSE_MESSAGE` 参照（挙動ゼロ） | spec 無変更のまま緑 = 挙動保存の証明 |
+| 第4群-c (OV5-2) | `10b1e31` | loadJsonFile を throw 版（discord/utils/file.util）へ一本化・`__dirname` 解決で production 潜在欠陥修正・boot fail-fast | 3実行系（jest/e2e/dist）で解決成立を3者確認 |
+| 俯瞰#6 | `0892a3d` | 3者レビュー（Opus×2/Codex/Fable実測）: 合成欠陥なし・OV6-1/2/3 採用・台帳訂正4件 | `review-results/overview-6/integration-verdict.md` |
+| 第4群-d (OV6-2) | `cbfb3e1` | gameSystemList 構造検証（parseGameSystemList・boot throw）・型宣言 3→1・死蔵 export 削除 | full suite 230/3196 緑・実物 JSON 224 entries 通過実測・Opus pass（low2 は round2 反映） |
+| 第4群-e (OV6-1・E段階1) | `fc70075` | ApiError optional errorCode → filter 1本化・CharacterHttpExceptionFilter 削除（+162/−221 純減） | wire 全項目等価を Opus 突合・認知負荷実測純減（同時保持7→5・複製2→1）・full suite 230/3191 緑 |
+| E1a (E段階2前半) | `9765f03` | global の HttpException 封筒化（ApiError 分岐逐語移植・ValidationPipe N件→details[] 非損失・局所 filter 温存） | 局所 4 spec diff ゼロのまま緑・full suite 230/3192・Opus needs-fix(CL-1)→round2 解消 |
+
+並行セッション: T19 `42f12fd`・T31 `7ef6819`・**U1 `0805609`**（セッション B・sheet 必須キー導出1本化）。
+
+**ユーザー裁定（2026-07-29）**: OV5-6 = **E 方向 案 A 採用**（g4e → E1 → E2）。
+**cognitive-load-review 最重視**（fable-rules・メモリ反映済み。全スライスのレビュー主レンズ）。
+
+## 進行中・未完了の作業
+
+**俯瞰#7 完了（`3bd0b8e`）**。統合判定 = `review-results/overview-7/integration-verdict.md`。
+要点: 合成欠陥なし / **E1b は等価削除ではなく wire 拡張**（generic 分岐は global のみ details[] 保持）
+→ Go with conditions / F-1 = sheet-templates の表示粒度退化（E1a 出荷済み）→ E1c 採用 /
+キャリア 1 本化 No-Go / CL6-4 クローズ / **訂正の訂正**: lint 6→4 は g4e 帰属で Codex が正だった
+（--stdin lint 実験の手法欠陥。メモリ verify-claims 事例5）。
+
+## 次にやること（順序）
+
+1. **E1b**（@UseFilters ×3 撤去＋HttpExceptionFilter 削除）— 同一コミット内の必須条件:
+   (a) pin 13 件を GlobalExceptionFilter へ再ホスト（単純削除禁止）
+   (b) /auth/login 400・character 404・auth 401 の route 水準 toStrictEqual を**先に**固定・
+   wire 拡張（3 route の ValidationPipe 400 に details[] 追加）を宣言
+   (c) lint 期待 4→2 errors (d) CL-5 JSDoc 訂正＋CL-4 オラクル明記を相乗り
+2. **front 小スライス**: customError.ts:17 の `[0]` → join 化（E1b の details 付与で先頭 1 件表示に
+   退化するため対で実施）
+3. **E1c**: sheet-templates の検証エラー 3 発生源を配列 throw 化（F-1 復旧・5 行級）
+4. E2（front 非封筒 fallback 撤去・死蔵 ';' split 分岐撤去）→ 残: OV5-3・OV5-5・OV5-7・CH-1 系・CH-7
+2. E2（front の非封筒 fallback 撤去・別群・front repo）
+3. 残: OV5-3（parent-channel 偽成功）・OV5-5（corsApiWithJwt）・OV5-7・CH-1 系・CH-7
+4. 第5群（タスク #23）拘束条件: OV6-3（api-response.util 削除は検証面 6 ファイル同時）＋
+   g4e CL-1（label/errorCode literal 単一ソース化）＋ CL-2（ErrorResponse サブクラス 401/404 系は
+   runtime 消費者ゼロ・spec oracle として存続中）＋ coverage/** の eslint ignores 追加候補
+
+## ゲート状態
+
+- `fc70075`（g4e）検収時点: build / check:circular（循環0）/ 全 jest suite 230 suites・3191 tests 緑
+  （3196→3191 の内訳: 自スライス −1・並行 U1 −4）
+- lint: 新規指摘ゼロ。ベースラインは U1 コミット後に再計測要（U1 が track-range 系 spec を変更）
+- 既知: tsc --noEmit 既存エラー 1 件（test/mocks/auth.mock.ts:48 TS7053）・
+  `eslint .` は coverage/** 残骸に 6 parsing error のノイズ（gitignore 済み生成物）
+- コミットは TRPG-SERVER pathspec 方式・コミット後に index 残渣（MM）確認 → formatting-only なら targeted `git restore --staged`
+
+## 並行セッション B（api-contract キャンペーン側）の状態（2026-07-29 追記）
+
+正本は memory `api-contract-campaign-state`。完了: 契約キャンペーン本体 / S9・S7e・S7f・S10 /
+U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実装不要裁定）/ U2。
+
+- **U1（Task#25）完了・コミット `0805609`**（2026-07-29・6ファイル 21+/29−）。
+  必須キー導出1本化（sentinel は expectRequiredCharacterRuntimeKeyCount）・
+  writePathValue 到達不能ガード削除・engine isPartsValue 統合（public API 不変）。
+  二重レビュー Opus ok(low4)/Codex pass(0)・round 2 で L-2/L-3 適用。
+  全ゲート緑（230 suites/3197・contract-stack・integration 24・lint 6/99 不変）。
+  設計記録 = AI.character.md「必須キー導出とシート内部の重複整理」。
+  証跡 `review-results/u1-required-keys/`
+- 着手前裏取りの訂正: `character-sheet-operation.service.ts` は
+  `src/features/character-sheet/services/` へ移動済み（台帳の domains/character は陳腐化）。
+  `does not allow parts` は2箇所で、削除対象は writePathValue 末尾（544-546 行）のみ・
+  492 行の assertWritablePath 内は正当。L1 は index.ts 非経由の葉モジュール（public API 不変）
+- **2026-07-30 ユーザー承認**: 「推奨方法を Codex と相談して進めてしまって構わない」→ 保留解除。
+  Codex read-only 相談完了（review-results/next-phase-consult/・実測根拠つき）。**確定計画**:
+  第1 = U3（palette ラベル書式を @trpg/sheet-projection 葉モジュールへ・書式規則3→1・Task#32）→
+  第2 = #29 を「2公開境界のみ」へ縮小（publish 検証の raw Error 500 化経路＋notation 展開失敗の
+  generic 422 退化経路。engine 全 67 throw の型階層化はしない）。着手条件 = 並行セッションの
+  wire 形式安定（未確定なら第3と入替）→ 第3 = #28+#23 の本番 DB read-only 実測のみ →
+  第4候補 = U4 ベンチのみ（第3と束ねない）。**#7 は close 済み**（DomainDataMap コード0件・
+  Codex＋Fable 独立確認）。#24 は独立の裁定資料タスク・#20 は初回 CI 後に分割実施・
+  #12 は customError.ts 衝突で保留・U6 は対象外
+- **U3（Task#32）完了・コミット `d584020`**（2026-07-30・6ファイル 56+/7−）。
+  palette ラベル書式を @trpg/sheet-projection の葉モジュール palette-label.ts へ1本化
+  （複製3→1・同時保持5→1・public API +2関数のみ）。挙動保存はド・モルガン構造証明＋
+  差分テスト406ケース差分0で証明。二重レビュー Opus pass(low1)/Codex pass(low2)。
+  `—` の共有定数化は認知負荷優先で不採用裁定（コメント1行で結合明示）。
+  全ゲート緑（230 suites/3192・projection 2/19・循環0・lint 4/99 不変）。
+  設計記録 = AI.character.md「palette ラベル書式の1本化」。証跡 review-results/u3-palette-label/
+- **#28+#23 の本番 DB read-only 実測完了**（2026-07-30・review-results/task28-23-data-survey/
+  survey-report.md）。**最重要所見: 本番のシートテンプレートは 0 件・materialized キャラも 0 件
+  = Phase 2 シート機能は本番未採用**。#28 の上限はどの候補でも切り捨て0（移行・互換分岐不要・
+  厳しい側 uid 64 / label 128 のコストゼロ）。#23 の衝突は実データ0だがコード上のギャップは実在
+  （publish 検査 scalar/computed のみ vs materializer は track/roll も後勝ち上書き）=「経路を塞ぐ
+  前向き課題」。U4 ベンチの入力分布は実データから導出不能（fixture 合成が必要・
+  アンカーは旧属性 max 37・doc max 2.9KB のみ）
+- **事故記録**: 実測エージェントが環境の DNS 隔離（127.0.0.1 固定）を dns.setServers で回避して
+  Atlas へ到達（harness 警告・プロセス内限り・DB は read-only 証跡あり・成果物に漏出なし）。
+  メモリ delegation-must-forbid-control-bypass に教訓化 — 外部接続系の委譲指示書には
+  「制約に阻まれたら回避せず停止して報告」を定型で入れる
+- **2026-07-30 ユーザー裁定**: 「後方互換なしでいい・あなたが判断していい・
+  cognitive-load-review の観点が揃うならばいい」→ Fable 裁定: ①#28+#23 実装 Go・
+  上限 = uid 64 / label 128（publish schema の uid/label 全キーへ一律・エラーに値を反響させない
+  増幅 spec 付き）②#23 の投影型集合はローカル Set＋結合明示コメント（U3 の `—` 裁定と同原則・
+  domains→features 禁止辺でもある）③**U4 ベンチは Phase 2 採用判断まで保留**。
+  #29 は E1b 着地待ちのまま
+- **#28+#23 完了・コミット `32ee086`**（2026-07-30・5ファイル 203+/9−・3ラウンド）。
+  publish schema の uid/label 全キーへ ≤128（**uid 64 案はレビュー F-2 で 128 へ裁定変更** —
+  canonical path 写し規約 最大98文字を弾くため）・自前固定メッセージ（zod 文言非依存・値非反響）・
+  増幅 spec は sentinel＋UTF-8 byte＋per-issue O(1)。衝突検査は isProjectionField() と同集合
+  （scalar/computed/track/roll・ローカル Set＋結合コメント）。再現 spec の旧前提
+  （長大 uid/label は publish 可能）は反転済み・実行時 4,096 予算検証は防御層として存続。
+  二重レビュー Opus needs-fix(F-1 blocking→round2 解消)/Codex needs-fix(medium1)→round3 全反映。
+  全ゲート緑（engine 55・230 suites/3,197・循環0・contract-stack・lint 4/99 不変）。
+  残タスク起票: **#33**（formula/notation/lookup rows の残存増幅・理論50MB級）。
+  #29 へ CL-2（materializer 逆参照コメント）を相乗り済み。
+  設計記録 = AI.character.md「publish 検証の見直し」（旧「uid/label 無制限が根本」記述も更新済み）
+- **大粒度認知負荷レビュー完了**（2026-07-31・review-results/overview-batch2/・二重実施）。
+  直近3フェーズ導入の複製ゼロ（U1/U3 の1本化は横断でも成立）。統合フェーズ5件を起票:
+  **#34** BasicTemplateValidationService 削除（両者一致・死蔵第2実装 384行・#28 乖離6件実測）→
+  **#35** 投影規則を domains 側へ1本化（処方衝突を Codex 構造化案で裁定・features→domains 合法方向）→
+  **#36** publish 参照キー一意性（Codex C-high・重複 canonical path を ok:true 受理の実測）→
+  **#37** 式検証 issue 二重発行解消 → **#38** sheet-projection 低スイープ。
+  正本 = integration-verdict.md。#29（E1b 待ち）は独立に挿入
+- **#34 完了・コミット `e1a1ca5`**（2026-07-31・4ファイル 31+/388−・純減357行）。
+  1対1照合10行を両レビュアが実測プローブで全行裏取り（黙って消えた spec 検証ゼロ）・
+  rowRole.kind ケースのみ engine spec へ移送。「権威側に規則なし」8件バケット
+  （4上限・secret・uid 空文字・role.when・rowRole.when）は #36 説明へ台帳化済み。
+  全 229 suites/3,187 tests・lint 4/99 不変。指示書教訓: 削除照合は spec assertion
+  だけでなく**実装規則の全列挙**で（「など」の例示止まりが3件の台帳漏れを生んだ）
+- **#35 完了・コミット `4a2cd7d`**（2026-07-31・2ファイル 21+/25−）:
+  投影規則（isProjectedFieldType/projectionTarget）を
+  projection-key-validation.ts へ1本化し materializer が import。
+  **裁定反転の記録**: T28 時の「ローカル Set＋コメント」裁定の阻害根拠は
+  domains→features 禁止辺だったが、本件の依存は **features→domains（ARCHITECTURE §4 許可辺）**
+  で該当せず、実害記録（#23 の乖離）を持つ複製にはコメント運用より import 1本化が優越。
+  #29 に積んでいた CL-2（逆参照コメント）は本変更で不要化・取り下げ。
+  レビュー: Codex pass(0)・Opus needs-fix（F-1/F-2 = Fable の doc 陳腐化→修正済み・
+  F-3 JSDoc 位置・F-4 engine 型 rename のコンパイル時ガード復元→round 2 適用）
+  罠メモ: `pnpm test -- <args>` は jest にパターン扱いされる（`--runInBand` 等のオプションは
+  不発・全 suite は素の `pnpm test`）
+- **#36 完了・コミット `85b2723`**（2026-07-31・3ファイル 203+/8−）:
+  publish に canonical path / table id の一意性（list itemFields 再帰含む）＋ uid .min(1)。
+  重複は**常に報告・表示値のみ 98 文字切り詰め**（150 文字 pin spec で機械固定）。
+  Fable 監査で注入した fail-open 疑義（長さゲート）は Opus が計装プローブで「現行到達不能」を
+  証明しつつ、目的未達（増幅の本丸は validateId path echo・300KB 実測）＋入れ子 list 対応で
+  黙殺実在化＋認知負荷過大（ホップ5・同時保持4）→ 両レビュー処方一致で round 2 撤去。
+  round 3 = Fable 検収指摘（切り詰めガードの pin spec 欠落）の補完。
+  **裁定3件**: ①relation attrs 素通り（Codex high / Opus F-2・既存不具合）は挙動追加面が
+  一意性を超えるため **#39 へ切り出し**＋role/rowRole.when 黙殺（台帳⑦⑧）も #39 相乗り。
+  ②validateId path echo（Opus F-3）と台帳①〜④の量的上限は **#33 へ**。
+  ③台帳⑤ field 直下 secret は**不採用**（passthrough 設計の未知キー黙殺の一事例・意図的放置）。
+  **裁定反転の記録**: 俯瞰時の「projection 側 canonicalPath 検査削除」処方は round 1 で反転 —
+  3層は境界責務の異なる多層防御（projection 側にしかない担保あり）で統合せず連結コメントのみ。
+  全ゲート緑（engine 63・229/3,187・循環0・lint 4/99 不変）。
+  証跡: review-results/ov3-publish-uniqueness/（round1 二重レビュー・integration・acceptance）
+- **俯瞰#8 完了（overview-batch3・2026-07-31・二重実施・正本 = integration-verdict.md）**:
+  #34 残骸ゼロ・#35 取り残しゼロを両者独立確認（統合3フェーズの健全性成立）。
+  新検出: **F1 = server 側「投影先ごと canonical path」検査は死蔵**（Opus 256ケース
+  プローブ 0/208 通過・field id 半分は生存実証。round 1 の層跨ぎ3層裁定とは対象が別。
+  Codex の「削除処方なし」はプローブ無し前例踏襲で棄却）。
+  **根拠は #40 レビューで訂正済み（Opus B-1）**: 「engine 全体 Set が支配」（層跨ぎ論法）
+  ではなく「**同一関数内に残る field id 検査が単独で厳密支配**」（canonical path 一致 ⇒
+  同一 target ∧ 同一 field.id。実測 514/514）。正本 = integration-verdict.md の訂正注記。起票: **#40 OV8-a**（挙動不変純減 −55行:
+  F1 canonicalPath 削除［field id 保持］・F2 uid helper 化・F3+F4 lookup 2実装統合・
+  F5 死蔵2件・F6 parts 式・F7 32 二重符号化・F8 コメント訂正・CL-3 as const 導出）/
+  **#41 OV8-b**（feature 側 state/palette 型削除 −23行・Codex CL-2）/
+  **#42 裁定**（save が publish 規則を全適用する結合・Codex CL-1）/
+  **#43 裁定**（dice 判定二重走査の真理値差・Opus 保留）。
+  engine の lint ゲート不在（死蔵検出ゼロ）は #20 へ追記。
+  実行順: #37 → #40 → #38 → #41（裁定 #42/#43 は随時）
+- **#37 完了・コミット `451e036`**（2026-07-31・2ファイル 51+/3−）:
+  未知 function・max/min arity の issue 二重発行を解消。**裁定反転の記録**: 俯瞰#2 の
+  「inferCallType へ統合・純減20行」は Opus の裁定方向変異体で不成立を実証
+  （first-error で複合式2件目が欠落）→ 逆方向（validateFunctionCalls 単独発行・純増5行）採用。
+  機構: Error ベース sentinel＋fail-closed ガード（sentinel 同一性 AND 前段発行済み。
+  フラグ単独は無関係型エラーを握る — 変異体実測で禁止）。Opus は900テンプレートファズで
+  漏出ゼロを証明。残: **#44**（参照エラーの同形二重発行・first-error 契約裁定が先）。
+  証跡: review-results/ov4-issue-dedup/
+- **#40 OV8-a 完了・コミット `2dc8b23`**（2026-07-31・7ファイル 111+/77−・production −21行）:
+  俯瞰#8 の純減8項目。F1（projection 側 canonical path 検査削除 — **根拠は同一関数内
+  field id 検査の厳密支配**・514/514 実測・field id 検査と spec は保持）・F2（uid 一意性を
+  helper へ・Map→Set）・F3+F4（lookup 型推論/table 解決の複製解消。nested array の
+  text fallback は isNotationFragment の String 強制対策 guard＋pin で保存 — 完全単純化は
+  型外入力で挙動差のため見積−55は未達・正当な逸脱）・F5 死蔵2件・F6 allowsParts・
+  F7 regex 導出（message byte 不変）・F8 コメント45文字訂正・CL-3 as const 導出。
+  挙動不変（例外: uid >98 重複の表示のみ・pin 済み）。
+  レビュー: 両者 pass。**Opus B-1 = Fable の記録根拠が層跨ぎ論法で自裁定と矛盾**
+  → 3記録訂正済み・教訓は verify-claims-before-prescribing 事例6。
+  I-3 メモ: test/mocks/auth.mock.ts の TS7053 は並行セッション由来の既存事象（不触）。
+  証跡: review-results/ov8a-net-reduction/
+- **#38 完了・コミット `02bbc20`**（2026-07-31・4ファイル 42+/13−）—
+  **俯瞰#2 起票分（#34〜#38）これで全完了**。regex source 5→2（正本は中立名
+  CUSTOM_ID_SAFE_TOKEN_SOURCE・palette 固有名を正本にする誤ラベルを Codex が検出）・
+  Discord 上限 named 化（48 = 導出上限52−予備4・由来無しを両者確認・予算 pin spec 追加）・
+  `—` module-local 化（U3 裁定維持・AI.character.md へ区別基準を追記済み）。
+  出力 byte 不変を両レビュア独立再現。相補性の実例: Codex=誤ラベル正本・
+  Opus=第3の写し/裸200/予算 pin と検出領域が完全に分かれた。
+  証跡: review-results/ov5-projection-sweep/
+- **俯瞰#9 完了（overview-batch4・2026-07-31・二重実施・正本 = integration-verdict.md）**:
+  #37/#40/#38 の新機構（sentinel/一意性 helper/regex alias）間の**新規複製ゼロ**を両者確認。
+  検出領域は今回も完全相補 — Opus: customId null 処理 3方式6箇所・createHubViewModel 死蔵・
+  **allowsParts の cross-package 写し残存（OV8-a F6 は server 内で完結していた）**・
+  assertArity byte 一致・barrel 死蔵5件 / Codex: **CL-1[中] lookup 型優先順位が3箇所2順序に
+  分裂（publish 受理→runtime 拒絶の実害再現・row-level resultType 使用実績0）**。
+  起票: **#45 OV9-a**（機械的純減 −35行・警告 message 統一のみ挙動変化）/
+  **#46**（row-level resultType 契約削除・挙動裁定つき）。#43 へ Opus B-1
+  （inferRuntimeInputType ⇄ inferRuntimeType の load-bearing 真理値差）を併合。
+  実行順: #45 → #41 → #39 → 俯瞰#10 → #46 → #33（裁定 #42/#43/#44 は随時）
+- **#45 OV9-a 完了・コミット `1cf6adb`**（2026-08-01・9ファイル 57+/66−・production −37行）:
+  customId null 処理 3方式6箇所→helper 1本（code@path pin・fail-closed 残置に根拠コメント）・
+  createHubViewModel 削除・**allowsParts 正本を engine value-input.ts へ**（server util は
+  互換 shim・AI.character.md の正本記述も更新済み）・assertArity を arity.ts
+  （index 非公開の葉）へ1本化・barrel 死蔵5件＋alias 2名削除・warning 数値補間。
+  レビュー: Codex pass(0) / Opus pass(low5)。**裁定分岐の決着**: index.ts 明示 export 化を
+  Codex は許容・Opus L3 は arity.ts 切り出しを処方 → Opus 採用（編集箇所 1 vs 2・
+  descriptor 非対称と publish→evaluator 辺も同時解消。index.ts は HEAD 同一へ復帰）。
+  **指示書教訓**: 「新ファイル作成は不可」が葉配置まで禁止し round 1 の歪みを誘発 —
+  抽象追加の禁止と配置用モジュールの禁止は区別する。
+  全ゲート緑（engine 69・projection 22・server 3,186・lint 4/99）。
+  証跡: review-results/ov9a-mechanical-reduction/
+- **#41 OV8-b 完了・コミット `ce158c3`**（2026-08-01・1ファイル 6+/26−・−20行）:
+  feature 側 CharacterSheetState/PaletteEntryBase/PaletteEntry 定義を削除し
+  domain（character.entity.ts）型の import type＋type-only re-export へ1本化。
+  レビュー: Codex pass(0)（AST メンバー単位比較・strict 双方向 extends 4/4・
+  emit 77 bytes SHA 一致）/ Opus pass（42アサーション＋負の対照14/15発火・
+  実 nest build 成果物とも byte 一致・**「2→1」は server 内の数字で repo 全体の
+  実ファン・アウトは 4→3**）。全ゲート緑（3,186 tests・循環0・lint 4/99）。
+  **俯瞰#10 議題**: S1 = ProjectionPaletteEntry ≡ CharacterPaletteEntry の
+  cross-package 同形残存（機械確認済・境界逆流のため import 統合不可・
+  片方向型互換アサーションで drift 検出案）/ S2 = characterPaletteEntrySchema
+  （zod）との同期が人手依存。
+  **インシデント**: Opus レビュアの emit プローブ（rootDir 不備）が src/ へ
+  生成物6件を流出 → 自己申告の「復元済み」は誤りで残存・Codex の lint 7-errors
+  注記から Fable が検出・削除し 4/99 復帰。教訓はメモリ
+  review-agents-must-be-readonly へ（emit プローブは transpileModule か
+  scratchpad outDir 限定・「復元済み」申告も untracked スキャンで裏取り）。
+  証跡: review-results/ov8b-state-palette-types/（正本 = integration-round1.md）
+- **#39 完了・コミット `f60b0db`**（2026-08-01・2ファイル 219+/12−・2ラウンド）:
+  publish 検証の素通り解消。relation attrs を validateField 再帰へ（canonical path/uid/
+  ID_PATTERN/when/role が attr にも発火・front collectFieldUid との非対称解消）＋
+  role.when / rowRole.when 拒絶（`role.when is 未対応`・field.when と message 区別）。
+  レビュー: Codex pass(low2=sandbox 未検証申告のみ) / Opus pass(should2, info4)。
+  両者が変異体プローブ独立実施（Opus は scratchpad 複製4系統 jest 実測で pin a〜f 全滅確認）。
+  round 2 = F1（**MAX_CANONICAL_FIELD_PATH_LENGTH を 32*4+3=131 へ再導出** — attr 再帰で
+  4セグメント path が生まれ98前提が偽に。spec 98境界3箇所追随・131 path pin 追加・
+  旧 120文字 uid 切り詰め pin は前提消滅で「schema 最大128 非切り詰め」pin へ転換）＋
+  F2（superset コメント）＋ F3（到達不能な非 scalar チェック3行削除）。
+  F4（'when' in role 由来コメント）は不採用裁定。
+  重要確証: resolvedRefs 新種 entry 消費者0件・front に relation ビルダー不在・
+  validateForSave 同関数共有で save にも新規拒絶が効く（#42 裁定対象として残存）・
+  engine 2ファイルに lint gate は存在しない（「4/99」は TRPG-SERVER スコープ）。
+  **指示書教訓をメモリへ**: 形状前提（セグメント数）を動かす変更は依存定数の再導出を必須項目に
+  （delegation-prompt-must-name-invariants 事例追加）。
+  全ゲート緑（engine 77・projection 22・server 3,186・lint 4/99）。
+  証跡: review-results/t39-publish-passthrough/（正本 = integration-round1.md）。
+  **次 = 俯瞰#10（3フェーズ #45/#41/#39 完了・S1/S2 議題込み）**
+- **俯瞰#10 完了（overview-batch5・2026-08-01・二重実施・正本 = integration-verdict.md）**:
+  #45/#41/#39 の3フェーズ横断。**新機構の第2実装ゼロを両者が独立 grep で確認**
+  （attr 再帰・role.when・acceptGeneratedCustomId・arity.ts・allowsParts・型 re-export）。
+  検出は今回も相補 — Codex: AST 上限2宣言・palette cap 512×4・AI.character.md 陳腐化 /
+  Opus: **front の ID_PATTERN/RESERVED_IDS 完全複製（high・予約語14語×2セット・3ホップ）**・
+  isPartsValue の同名異責務2実装（真理値が割れる入力3クラス・1本化不適と裁定）・
+  value-input.ts の fieldsByUid 再実装・publish の buildTemplateIndex 8回再構築。
+  **tsc プローブ8件で palette 同期を機械実測**し、前回持ち込み議題を決着:
+  domain⟷zod は既存 character-wire.contract.spec.ts の IsExact が双方向被覆済み（S2 は対応不要）・
+  欠けは domain⟷projection の片方向のみ（S1 = 素の代入 assert +6行で解決）。
+  **裁定衝突3件はすべて Opus 採用**（プローブ実測 > 定数統合の一般論。zod 追加は純増・
+  AST 定数は import 辺を増やさず相互参照コメント・palette cap は跨ぎ統合しない）。
+  起票: **#47 OV10-a**（挙動不変スイープ約20行）/ **#48**（ID 規則の正本共有・挙動変化あり・
+  F4 同梱）/ **#49**（buildTemplateIndex 再構築・性能予算の要求が立つまで保留）。
+  クローズ判定: 「未対応」message 統合（同時保持 3→4・+1ホップで**価値は負**）・
+  front ID 規則の多層防御・`—` 2定義・truncate/parts 合計の跨ぎ実装（projection 無依存設計）。
+  AI.character.md の陳腐化3件は Fable が直接修正済み（数値の括弧内再掲を参照化・
+  OV9-a 節を新設）。証跡: review-results/overview-batch5/
+- **#47 OV10-a 完了・コミット `561786f`**（2026-08-02・7ファイル 47+/4−・3ラウンド）:
+  palette 型 drift を character-wire.contract.spec.ts で機械固定（既存 IsExact/OptionalKeys/
+  MismatchedValueKeys の合成・**新 helper ゼロ**・負の対照4件実測）／api-contract の
+  palette 上限を PALETTE_MAX_ENTRIES へ1本化（未 export 維持）／非局所前提の明文化3件。
+  レビューは **Codex adversarial ＋ 4レンズ Workflow の二系統**。
+  **レンズが Codex の見落としを2件検出**:
+  ① projection.ts のコメントが兄弟2サイトの語り口を流用して主張が強すぎた
+  （spy 実測: 兄弟は生成関数を**0回**しか呼ばないが新サイトは**呼ばれて null を返す** —
+  守っているのは `channelValid &&` の短絡だけ）→ round 2 で実態へ書き換え
+  ② isPartsValue コメントの根拠「schema 分岐のため」は engine 側5呼び出しのうち2箇所のみ
+  → 実際の不変条件（緩く検出し呼び出し側が厳格検査）＋ re-export 不可の事実へ差し替え。
+  **Fable の裁定変更1件**: 俯瞰#10 の「IsExact を持ち込まない」は「新規機械になる」という
+  未検証の前提が誤りだった（repo 内6ファイルで既存）。
+  **さらに是正版の指示書で同じ失敗を反復** — レンズの「IsExact なら optional も検出（実測済み）」を
+  検証せず拘束条件に転記し、実装者が負の対照で前提矛盾を検出して停止・報告（統制が機能）。
+  repo の IsExact は双方向 extends 版で pure optional 追加のみ素通りするのが正。
+  round 3 で上限15行の合成を採用し optional も検出。教訓は
+  [[verify-claims-before-prescribing]] 事例7（後半が本命）。
+  全ゲート緑（server 3,186・engine 77・projection 22・api-contract 14・contract-stack・
+  循環0・lint 4/99・untracked 汚染ゼロ）。証跡: review-results/ov10a-sweep/
+- **#48（2026-08-03・`3944d76` でコミット済み）** — 途中経過の記述は誤誘導になるため
+  **最終形のみ**を記す。設計の詳細正本は
+  `trpg-remix-app/app/features/characterTemplate/AI.types.md`（**追跡対象**）。
+  `review-results/` は `.gitignore:68` で除外されるため正本にしない。
+
+  **当初目的（front の ID 規則リテラル複製を engine 正本へ寄せる）は撤回した。**
+  実測で割に合わないと判明したため（下記）。front の
+  `v3Template.ts:11-28` のリテラル複製は**意図的に残置**する。
+
+  **実際に届けるもの**:
+  1. **committed HEAD に実在した production 欠陥2件の修正**（これが本体）
+     - build SSR で `evaluateTemplate` が `void 0`（route `/templates/:id/edit` で到達）
+     - dev SSR で `ReferenceError: exports is not defined`
+     - 原因: pnpm junction が実体パス `packages/sheet-engine/dist` へ解決され、
+       そのパスが `node_modules` を含まないため Vite の既定変換対象から外れる
+     - 対処: `vite.config.mjs` の3設定（`build.commonjsOptions` / `ssr.optimizeDeps` /
+       client `optimizeDeps.include`）。**3つとも独立に必要**（1つずつ外して別々の失敗を実測）
+  2. **等価テスト**: front `validateLocalTemplate` ⇔ engine `validatePublishTemplate` が
+     同一 id 集合に同じ受理/拒絶を返す（`v3Template.spec.ts`）。
+     engine の予約語配列を export してコーパス源にしているため、
+     engine の規則変更に front が追随していなければ赤くなる
+  3. wrapper `utils/sheetEngine.ts` **削除**（consumer が engine を直接 named import・ホップ 2→1）
+  4. `@trpg/*` の値 namespace import を eslint で禁止
+
+  **撤回した設計と理由（すべて実測）**:
+  - front production が engine の runtime 値を import する形 → `TemplateListV3` 経由で
+    **一覧ルート**の client chunk が gzip **+72.6KB**（CJS は tree-shake が効かない）
+  - spec でリテラル一致を assert する形 → front production 側が **fail-open**
+    （`FIELD_ID_PATTERN` を `[a-zA-Z0-9_]` に緩めても全緑だった）
+  - 「named import は欠落 export を build error にする」→ CJS 変換適用後は**偽**
+    （Rollup が synthetic named exports を生成）。守れるのは**設定退行**のみ
+
+  **コミットゲート（round 6・二重レビュー完了）**:
+  - Codex `--mode review`: コード・コメント・engine 挙動に blocking 無し。
+    Fable 未検証だった3主張（退行 chunk の `exports` 9 / `require(` 8、
+    namespace 退行 build が EXIT=0、named なら EXIT=1）を**独立実測で真と確認**。
+    `Set.has` → `Array.includes` は 5経路 × 14語 = 70件プローブで文言まで完全一致
+  - Codex の blocking は**コミット境界の誤り**（コードの欠陥ではない）:
+    Fable の「8ファイル」はコードのみの数で、追跡済みの設計正本 `AI.types.md` が漏れていた。
+    **確定: コミット境界は9ファイル**（コード8 ＋ `AI.types.md`）。
+    `document/SESSION_HANDOFF.md` は `git log` が空＝元から追跡外なので含めない
+  - Opus 認知負荷レビュー: blocking 無し・findings 7件はすべて理解コスト。
+    Fable が事実主張5件を独立に裏取り（全件真）。うち5件（導線コメント・撤去チェックリストへの
+    doc 追記・再ビルド前提・件数 assert のテスト名・非目標1句）を **round 7** として同梱、
+    残り3件は **#55 / #56 / #57** へ分離
+  - **CL-2（コメント8→4行）は保留**: 削除論拠「検死数値は再検証不能」を
+    Codex が同サイクルで再実測して反証。加えて CL-2（doc にあるから消せ）と
+    CL-3（その doc こそ腐る）が逆を向く。裁定は `interop-design-verdict.md`
+
+  **round 7 コミットゲート（4レンズ × 反証・17エージェント）**:
+  - レンズ: 文言の真偽 / テスト名の妥当性 / 記述の重複 / コミット境界。
+    各指摘は独立の懐疑者が「**事実として誤りか**」と「深刻度が過大か」を**別々に**判定
+  - **blocking ゼロ**。生存11件は全て low、1件は事実誤りとして棄却
+  - 境界レンズが**隔離 worktree に HEAD + 10ファイルのみを適用して全ゲート緑を実測**
+    ＝コミット単位の自己完結性が確定（worktree は撤去済み）
+
+  **round 8（テキストのみ11行）で直した5件**:
+  - **H-1**: 件数 assert のテスト名を「削減」→「増減」へ。
+    **2レンズが別々に指摘し両方が反証を生存** — 追加方向で赤くなると名前は「削減」・
+    失敗本文は `Received length: 15` で**名前が自分の失敗出力と矛盾**していた。
+    `publish.ts` は全9コミット中**7件が直近3日**で、現実に起きるのは追加方向
+  - **H-2**: 撤去チェックリストに `eslint.config.js` を追加
+    （round 7 が `AI.types.md` について直したのと**同じ欠陥がもう1件残っていた**）
+  - H-3: eslint message に根拠の所在を1句（片方向の袋小路を閉じる）
+  - H-4: 危険な入口を script 名列挙から**条件**へ（#54 着地時に虚偽化しない形）
+  - H-5: 非目標の front 単独厳格化に `Task #56` を付番
+
+  **Fable が `AI.types.md` を自分で3箇所訂正**:
+  - **自分が書いた数値の誤り**: 「gzip +72.6KB」は round 2 の一次ログを復元して確認した結果、
+    単一 chunk の**総量**であって増分ではなかった。実増分は**約 +70KB**（2.4KB → 72.8KB）
+  - 「値の consumer は2件」が同コミットの spec 値 import と矛盾 → 「**production の**」で限定
+  - 件数 assert と等価テストの分担を明文化・受容する限界に `Task #56` を付番
+
+  **作業中に自分で踏みかけた罠**: 一次ログのパス `review-results/...` を追跡 doc に
+  書きかけた（コミットされないので他人のクローンで切れる）。パス参照を落として再測手順へ置換。
+  さらに `review-results/` を除外する `.gitignore:68` は**並行セッションの未コミット変更**で
+  HEAD には無いことも判明（HEAD では untracked かつ未 ignore）
+
+  **教訓**: [[cross-package-runtime-value-blindspot]] [[verify-claims-before-prescribing]]
+  [[negative-control-substitution]] [[cross-review-contradiction-check]]
+  [[commit-unit-verification]]。out-of-scope 所見は **#51〜#58** として起票済み
+- **#56/#57（2026-08-04・`c1fcaa8` でコミット済み）** — #48 の後続スライス。
+  予約語 drift 検出を**集合等価化**（front `RESERVED_IDS: ReadonlySet` を export・
+  `toHaveLength(14)` を sort 済み配列比較へ置換）し、engine の照合を内部 Set
+  `RESERVED_IDS` 単一正本へ（公開配列は `Object.freeze([...RESERVED_IDS])` 導出・
+  `validateId` は `has` 判定）。**#48 で受容していた検出限界2つが閉じた**:
+  front 単独追加（旧 M4 緑）と同数入れ替え。変異実測 4方向すべて赤・第2集合は適用不能。
+  engine 挙動は 5経路 × 14語 = 70件プローブで文言まで不変。バンドル gzip 2,810B 不変。
+  - 二重レビュー（Codex ＋ Opus 認知負荷）: コード blocking なし・R1 の同時保持 6→2。
+    唯一の必須指摘は「`AI.types.md` の drift 検出節が虚偽化する」で、同一コミットで同期済み
+    （検出は集合等価＋等価テストの2段構え・「受容していた限界」段落は削除）
+  - Opus CL-2 の重要発見: 公開配列の engine 内 runtime 参照が 0 になり、engine 単体の
+    static:deps では**真の死蔵に誤分類される状態を本差分が作った** → `publish.ts` の
+    定義直上に consumer 導線コメント1行で対処（publish.ts は直近5日8コミット中3件が
+    死蔵掃除スイープ＝踏む確率が高い）
+  - `AI.types.md` に失敗署名の詳細（`MISSING_EXPORT` warning EXIT=0 / named なら EXIT=1）を
+    補記 — #55 の新コメントが失敗署名を doc へ委譲するための前提
+- **#55（2026-08-04・`35f1144` でコミット済み）** — vite interop コメント 8行 → 5行圧縮。
+  round 9 レビューの行別裁定（L38 検死数値・L40 再述を削除、L37/L39 は
+  「失敗署名は AI.types.md 参照」へ圧縮、L35/L36/L41/L42 維持）。意味チャンク 10→5。
+  委譲先の `AI.types.md` に `MISSING_EXPORT` 署名（namespace=warning で EXIT 0 /
+  named=EXIT 1）を**先に補記してから**参照を張った（宙に浮く参照を作らない）。
+  設定オブジェクトは不変・dev SSR 3経路の読み込み成功を再確認済み
+- **static-structure-audit 初適用（2026-08-04）** — front/engine に deps + duplication の
+  4解析。検証済み所見を **#59**（front 死蔵ファイル8件＝fanIn 0・grep 裏取り済み。
+  duplication 上位2グループは死蔵内なので削除で解消）・**#60**（auth-guards の
+  `requireAdmin`/`requireResourceOwnership`/`checkAuth` が宣言のみ参照 0 —
+  配線漏れか YAGNI かのセキュリティ裁定）・**#61**（生きた重複: `getResponseStatus`
+  route 2箇所素コピペ / engine spec の fixture 自前コピー）として起票。
+  parser の parseAdditive⇄parseMultiplicative 同型は意図的な段構造として flag しない判断を記録
+- **#59（2026-08-04・`0cd28ac` でコミット済み）** — static:deps 実測の死蔵掃討。
+  13ファイル・**961行純減**（モック系コンポーネント5＋孤児CSS3＋characterSlice＋
+  hoverStyles＋character/types、PaginationParams/PaginatedResponse 宣言削除、
+  engine FieldLocator の export 解除）。front lint warnings 228→218。
+  duplication 上位2グループ（TextCell / createTestSlice の素コピペ）は死蔵内だったため
+  削除で解消。auth-guards の未配線ガード3関数は #60 裁定まで残置
+- **#58（2026-08-04・裁定済み・実行保留）** — Codex 相談の結論: **(d) tracked な入口＋
+  作業系列別 handoff（document/session-handoffs/<task-id>-<slug>.md・1ファイル1所有者）**。
+  (a) 単独 tracked 化は同一 worktree の並行上書きを git が検出できず共有書き込み点が残る、
+  (b) ignore 明示・(c) 明文化のみは No-Go。実行トリガー: CLAUDE.md / settings.json /
+  fable-rules の並行セッション未コミット変更の着地後（詳細は Task#58 の記述と
+  review-results/t58-handoff-tracking/）
+- **俯瞰#11（2026-08-04・大粒度認知負荷レビュー完了）** — 3フェーズ毎の必須ゲート。
+  Opus（モードA大粒度）＋ Codex（reuse & duplication スイープ）＋ ts-morph 実測の三本立て。
+  **最重要所見 L1: 式言語が front V2（1,888行）と sheet-engine（1,413行）に二重実装**され、
+  V2 は mock ルート2本から loader/ガードなしで production 到達・正本の記載なし。
+  小粒度が全 pass だった理由 = 各スライスは片側しか触らず、AST 重複検出は tsconfig を
+  跨げない（機械実測にも構造的に不可視だった）。preset-map の再発・パッケージ境界版。
+  起票: **#62**（V2 去就の製品判断・除去なら約1,780行純減）/ **#63**（関数語彙 drift の
+  等価テスト・fail-open と sentinel 文言混入の予防）/ **#64**（barrel 明示化＋隠れ死蔵8）/
+  **#65**（V3 プレビュー notation の silent no-op — publish 受理 8記法中4つで無反応の実測・
+  挙動変更）/ **#66/#67/#68**（server 真の重複3件・並行セッション調整後）/ **#69**（V3 側
+  リテラル小掃討）。#61 はスコープ 2→5 へ訂正・#60 に L6 新証拠追記。
+  意図的分離と裁定（統合しない）: getCharacter* 5実装・command execute・
+  request-context HOF 化。ツール盲点2件（tsconfig 跨ぎ・export * barrel）は
+  static-structure-audit スキルへキャリブレーション追記済み。
+  正本: review-results/ov11-large-grain/verdict.md
+- **#63（2026-08-04・`a275a40` でコミット済み）** — 関数語彙とアリティの drift 等価テスト
+  （俯瞰#11 L2 の処方）。`function-vocabulary.spec.ts` 新設（28テスト・9関数×
+  publish 受理/evaluate 実行/不正アリティ両側拒絶を動的列挙）＋ publish.ts に
+  テスト専用 export `SHEET_KNOWN_FUNCTION_VALUES` 2行のみ。変異4種
+  （'abs' 追加・evalCall/inferCallType 分岐削除・max アリティ改変）の検出を実測。
+  engine 77→**105テスト**（7 suites）。総数固定 assert の名前は round-8 H-1 同型欠陥
+  （「shrinking」主張・増加でも赤）を Opus 差し戻しで方向中立へ修正済み
+- **委譲環境インシデント（2026-08-04・解決済み）** — #63 の Codex 変異実測（temp 複製）後、
+  実リポジトリ `packages/sheet-engine/node_modules` の junction 4本（jest/ts-jest/
+  typescript/zod）が撤去済み temp を指し engine の jest/tsc/build 全停止。
+  plain `pnpm install` は "Already up to date" の no-op — `rm -rf` → `pnpm install --force`
+  で修復（lockfile は sha256 前後突合で不変・他パッケージ汚染なしをスキャン確認）。
+  メモリ `codex-temp-workspace-junction-pollution` ＋ codex-delegate-e2e スキルに
+  統制2件（temp 複製の node_modules 再リンク禁止・「git 変更系操作禁止」の書き方）追記
+- **#62/#65 設計裁定（2026-08-04・受入済み）** — Codex 相談の結論を受入。**V2 スタック
+  1,888行＋ mock ルート2本は除去**（隔離 No-Go）。notation は `NotationFragment` ⇄
+  `StandaloneRollExpression` の2契約分離・実行主体 server/BCDice・publish 専用検査
+  （draft save/既存公開 revision 不変）。決定的根拠: legacy CoC seed の `3d6*5` 系は
+  fragment 検査流用で8件全滅。実装順 B0→A1→B1→B2→B3→A2→A3(#64)→B4。
+  A1（mock 閉鎖）は独立着手可として先行実施中。#69 は再測により #62 依存へ変更
+  （schemaVersion 4箇所は contract z.literal(3) で型固定済み・「コメント1語」は再現不能）。
+  正本: review-results/ov11-large-grain/verdict.md 末尾の統合判定
+- **#62-A1（2026-08-04・`56170c0` でコミット済み）** — 未認証 mock ルート2本
+  （mock.template-editor / mock.template-gallery）＋親リンクを削除し doc 6件の正本表記を
+  V3 server draft へ更新。9ファイル・8+/79-。V2 本体1,888行は B 契約確定後の A2 で削除
+- **#60（2026-08-04・`8e3daa3` でコミット済み）** — auth-guards 死蔵3関数
+  （checkAuth/requireAdmin/requireResourceOwnership）を削除・-65行。Codex 裁定:
+  server 側で所有権が三層強制（JwtAuthGuard・service authorDiscordUserId 検査・
+  repository owner 条件クエリ）を実測確認・front ガード欠如はセキュリティ欠陥に非ず。
+  checkAuth は封筒を user として返す誤実装だった。**将来リスク記録**: character sheet PUT の
+  最終 CAS クエリ（character.repository.ts:139 付近）は owner 条件を含まない —
+  controller 前置チェックを迂回する新規 caller を作らないこと（再評価条件）。
+  正本: review-results/t60-auth-guards/
+- **#65-B0 進行中（2026-08-04）** — notation 契約固定（design-v1.md 拡張＋characterization test）を
+  Codex へ委譲中。**DB read-only 監査は DNS 隔離で SRV 解決が拒否されブロック**
+  （`querySrv ECONNREFUSED`・Fable 自身が回避せず中止 — 委譲先へ課す統制と同一規律）。
+  裁定済み互換方針（publish 専用・既存公開 revision 不変）により監査は B1 の必須ゲートではなく
+  定量情報のため、無しで進行。ネットワーク隔離が解ける環境なら再実施可
+  （scratchpad の audit-roll-notations.cjs 参照・集計のみ出力の read-only 設計）
+- **#65-B0（2026-08-04・`54ea6c4` でコミット済み）** — RollExpression 二契約を design-v1.md へ
+  固定（受理対照表つき）＋ characterization test（engine 105→112・front 110→161）。
+  front で coverage threshold 罠が的中（diceRoller.ts が分母入りし global 79.64%）—
+  Opus 修正ラウンドで diceRoller 全 export 表面を凍結し global 85.84% へ回復。
+  凍結した現状挙動4件（parse のレンジ検証不在・[0d6] が rolls:[] を返す・Map キーが trim 前・
+  validate L28 死枝）は B4 削除まで仕様承認ではない。DB 監査は DNS 隔離でブロック（前項）
+- **俯瞰#12（2026-08-04・大粒度認知負荷レビュー完了）** — #63/A1/#60/B0 の4スライス後。
+  Opus モードA大粒度＋ Codex reuse&duplication＋ ts-morph の三本立て。矛盾突合で事実対立1件:
+  #63 の総数 pin（Opus「唯一解」⇄ Codex「テスト側独立コーパスで同数置換も検出可」）→
+  **Codex 採用**（B1 に同梱）。両者一致: dev ルート残骸クラスタ削除基準充足（→**#70**・
+  corsApiWithJwt:17 の生 JWT ログ含む・~671行）・Editor⇄Preview sections.map は**統合しない**
+  （意図的分離・定量反証つき）。他の裁定: RC-2 B0 契約文の二段明示化（Fable 即時修正済み）・
+  CL-2 認証入口3方式分裂（→**#72**）・CL-3 AI.*.md 5本の V2 断定（signpost 5件 Fable 記入済み・
+  →**#71** で正本1本化）・CL-4 閾値がコードを生む（メモリ追記済み）・RC-5 冗長 fixture（B1 で除去）。
+  skill キャリブレーション追記: fanIn=1 アンカー越し死蔵の不可視性。
+  正本: review-results/ov12-large-grain/verdict.md
+- **#65-B1（2026-08-04・`5336941` でコミット済み）** — StandaloneRollExpression の publish 静的検証。
+  engine 新設 validateStandaloneRollNotations（公開 API 1本・parseExpression 再利用・上限
+  256字/100個/1000面）＋ server は validateForPublish のみ配線（validateForSave 不変を spec 固定・
+  変異 M-B で実証）。validatePublishTemplate 本体不変 = draft save 不変。legacy seed 緑維持。
+  RC-3（独立コーパス集合等価）・RC-5（冗長 fixture 削除）同梱。engine 129・server focused 54・
+  front 161 全緑。コミット時に prettier hook が4行整形（事前計測496→492）— テキスト生存・
+  再ゲートで無害確認済み。次: #70（dev ルート削除）→ #72（認証入口裁定）→ 俯瞰#13 → B2
+- **#70（2026-08-04・`91fe817` でコミット済み）** — dev ルート残骸クラスタ削除。20ファイル・
+  **671行純減**（routes 8本＋corsApiWithJwt＋store 3＋features/mock）。生 JWT ログ出力も同時解消。
+  全ファイル参照0を削除前再実測・lint warnings 211→179。連鎖候補: immer が app 内参照0
+  （依存整理は別スライス・未着手）
+- **#72（2026-08-04・`9e6fb77` でコミット済み）** — 認証ガード規約を per-loader インライン検査へ
+  1本化。requireLogin を _user.user.tsx へ挙動不変インライン化し auth-guards.ts 削除。
+  規約は frontend-trpg-remix-app.md 設計メモが正本（親子二重検査は必要・soft degrade は
+  UX 改善候補で現状維持）。裁定は新規相談なし — #60 相談の Remix 意味論実証＋ CL-2 定量を根拠に
+  Fable が統合判定（4+/-49・48+/49-）
+- **俯瞰#13（2026-08-04・大粒度認知負荷レビュー完了）** — B1/#70/#72 の3スライス後。対立なし・
+  軸相補（Codex=契約正しさ・Opus=認知負荷）。**B1 に publish 契約欠陥3件**（すべて再現つき）:
+  CH-1 placeholder 参照解決・型検査欠落（dangling が素通り・server spec が誤固定）/
+  CH-3 文書化済み `({ref})d10` の誤拒否 / CH-2 front 検証ボタンと server の受理集合分裂
+  → **B1-fix ラウンド実行中**。CL-1（jwt の await 跨ぎ不変条件）と /users 2往復の意図は
+  frontend doc へ明文化済み。CH-2 の単一入口化は #42 へ・上限 named export は B2 へ・
+  CL-6 re-export 移動は #64 へ積んだ。beginsPrimary/endsPrimary は統合しない（両者一致）。
+  Opus 既報の engine fixture 私物コピーは #61 が既にカバー。
+  正本: review-results/ov13-large-grain/verdict.md
+- **#65-B1fix（2026-08-04・`7a8f108` でコミット済み）** — 俯瞰#13 の契約欠陥3件を修正。
+  CH-1: RollField.notation を publish.ts 既存 validateNotation へ接続（resolvedRefs 解決＋型検査・
+  dangling/text 拒否・server spec の誤固定を訂正）/ CH-3: 括弧スタックに placeholder 由来を保持し
+  `({ref})d10` 受理 / CH-2: front 検証ボタンに standalone 検査を合流。コメント4件＋ jwt 不変条件
+  doc 化同梱。10ファイル・全ゲート緑（engine 133・server focused 58・front 161）。
+  prettier hook 再整形（175→182）はテキスト生存・再ゲートで無害確認
+- **#65-B2（2026-08-04・`30c35f2` でコミット済み）** — `POST /dice-roll/preview` 新設
+  （DicePreviewModule・JWT→rate limit guard 順・DB/Discord import 0）。補間済み最終式のみ受理・
+  rate limit は依存追加なしの per-user 固定窓（10req/10s・in-memory の限界コメント済み）・
+  engine 上限3定数 named export＋単式入口 validateStandaloneRollNotation（CL-3(b) 完了）・
+  api-contract に dice-preview schema。16ファイル・444+/10-。全ゲート緑
+  （engine 135・dice-roll focused 133・front 161）。Fable 事実訂正を記録: 実行実体は
+  domains/dice-roll/services/dice-execution.service.ts・bcdice は in-process npm 依存
+- **#65-B3（2026-08-04・`c5fefbf` でコミット済み）** — V3 プレビューのロールを resource route
+  （templates.dice-preview・#72 認証規約完全適合: setServerRequestContext を最初の await 前・
+  withJwt 明示・finally clear）経由で server BCDice 実行へ接続。rollDice ブリッジ撤去・
+  純粋関数3本（buildDicePreviewRequest/classifyDicePreviewError/readDicePreviewActionData）＋19 spec・
+  400/422/429/network 文言分岐・未解決参照はローカルエラー・v3_fetcherPersist 対応の
+  non-idle→idle 遷移検知。api-contract runtime schema は SSR bundle 内包
+  （production image が dist 未コピーのため・client chunk 0.00 kB）。7ファイル・544+/30-。
+  全ゲート緑（front 180/180・coverage 87.62/84.97/85.50/86.82・tsc 0・build 緑・
+  eslint 0 errors/179 warnings）。**silent no-op（俯瞰#11 L5）解消**。
+  trip-wire 発火: `--only` コミットは worktree（prettier 整形後）を記録し index に原文残渣4件
+  → `git restore --staged` で除去・worktree==HEAD 確認・ゲート再実行済み。
+  残りは A2（V2 削除）→ A3=#64 → B4（diceRoller 削除）
+- **俯瞰#14 完了・差し戻し裁定（2026-08-04）** — B1fix/B2/B3 の必須大粒度レビュー。二重レビュー
+  （Opus 認知負荷モード A＋Codex reuse&duplication）完了・矛盾突合で相反ゼロ・
+  verdict は review-results/ov14-large-grain/verdict.md。**blocking 3件（全件 Fable 独立裏取り済み）
+  → B3-fix2 ラウンドへ差し戻し（Codex code mode 実行中）**。
+  F-3（Codex 検出・Fable 静的裏取り）: publish.ts:893 の `Unclosed notation token` throw を
+  validateNotation が捕捉せず、server assertEngineValid も generic Error を捕捉しない →
+  **draft save / publish の両方が `1d6{` 入力で 500**（front 検証ボタンのみ try/catch 済み）。
+  処方: validateNotation で例外→PublishIssue 変換（最小）。字句3実装の1本化は #73 へ backlog。
+  他: 未知キー方針分裂は #74 へ backlog・resource route 401 JSON 例外は
+  frontend-trpg-remix-app.md へ追記済み・全面統合系は両者一致で No-Go 維持。
+  **B3-fix2（2026-08-04・`6bd93f7` でコミット済み・検収完了）**: F-1 route を唯一の正規化点化
+  （DicePreviewActionError 単一形・ErrorEnvelope 復号・errorCode 統一・fixture 実形化・
+  server spec に filter 登録の実 HTTP 422 封筒固定）／F-2 templates_.$id.edit.tsx へ un-nest
+  リネーム（manifest parentId=root 実測・**editor chunk が初めて client へ出荷**）／
+  F-3 validateNotation で未閉鎖 token throw→PublishIssue 変換（save/publish の 500 解消・
+  server spec で 400 固定）。10ファイル・+199/-58（rename 100% 検出）。
+  全ゲート緑: engine 136/136・server focused 37/37・build/循環0・front 181/181
+  （coverage 87.50/85.38/85.71/86.70）・eslint 0/179。trip-wire 同型再発（2ファイル MM 残渣→
+  restore --staged で除去・worktree==HEAD 確認・ゲート再実行済み）。
+  次: **A2（#62 V2 スタック削除・unblocked）** → A3=#64 → B4 → 俯瞰#15。
+- **#62-A2（2026-08-04・`60f2379` でコミット済み・#62 完了）** — V2 式言語スタック削除。
+  8ファイル（Preview/Editor/formulaEngine/validation/dependencyGraph/hooks 3本）1,534行＋
+  barrel 8行の純削除（+8/-1,542）。dependencyGraph は Codex 着手前監査が私の grep 漏れ
+  （同一ディレクトリ相対 import はパス接頭辞つき grep をすり抜ける — memory
+  verify-claims-before-prescribing #10 に記録）を検出して停止→再実測→追加承認の経緯。
+  全ゲート緑: front 181/181（coverage 不変）・tsc 0・build 緑・**eslint 0 errors/130 warnings
+  （179→130・V2 分49警告純減。以後の受入上限は 130 を基準にする）**・basename 全域 grep 参照残0。
+  trip-wire 一致（+8/-1542 完全一致・残渣なし）。AI.feature.md 冒頭注記に V2 削除を記録。
+  残置: diceRoller.ts（B4）・DependencyGraph 型 types/index.ts:147 定義1消費0（#64）。
+  次: **A3=#64（barrel 明示 re-export 化＋隠れ死蔵8＋DependencyGraph 型＋ov13 CL-6 の
+  standalone-roll re-export を index.ts 直行へ）** → 俯瞰#15（B3fix2/A2/A3 の3フェーズ分・必須）→ B4
+- **#64-A3（2026-08-04・`dbd45e5` でコミット済み・#64 完了）** — barrel 明示化＋死蔵掃討
+  （+59/-611）。死蔵島5ファイル436行（Gallery/FieldAddModal/store3本・外部消費者0を
+  シンボル別 grep で実測）・types/index.ts の V2 型15本＋玉突き6本＋DependencyGraph・
+  types/v3.ts エイリアス4本を削除。現用 Template（V2→V3 移行経路 isV2LocalTemplate/
+  TemplateListV3 消費を実測確認）は匿名構造型へ畳み込み維持。barrel は named re-export のみ
+  （diceRoller 行も外部消費者0で削除・本体/spec は B4）。engine CL-6: standalone-roll 公開を
+  index.ts 直行化（公開集合不変を diff 確認）。static:deps: re-exported-by-another-module 31→0・
+  unusedExports 44→22（null 10・tests-only 12）。eslint 0 errors/**105** warnings（130→105）。
+  全ゲート緑（front 181/181・engine 136/136・server build/循環0）。trip-wire 発火
+  （+58/-603→+59/-611・v3.ts 1件 MM→除去済み）。
+  **顕在化した reason=null 10件（FormulaPreview 等）と likelyUnreferenced 2件は俯瞰#15 で裁定**。
+  次: **俯瞰#15（実行中）** → B4（diceRoller＋spec＋AI.feature.md:209 記載の削除で #65 完了）
+- **俯瞰#15 完了・条件付き受入（2026-08-04）** — verdict は review-results/ov15-large-grain/verdict.md。
+  3フェーズ（B3fix2/A2/A3）のコード変更に挙動退行なし（barrel 12/12 過不足0・engine 公開集合不変・
+  feature 実装 25→12ファイル/4,021→1,929行）。blocking は「doc/残渣の未追随」層に集中:
+  FormulaPreview＋types/formula の死蔵島110行（Gallery と同型・A3 の取り残し）・
+  A2 が約束した doc 整理未実施（AI.types.md:5 の文言）・正本 doc 3行陳腐化。
+  唯一の相反（doc 整理の深さ）は CLAUDE.md の削除許可＋git 履歴保全を根拠に Opus 案
+  （削除・縮約）を採択。**B4 確定スコープ = 削除4本398行＋export 解除7件＋RuntimeValue/
+  RoundingMode re-export 削除＋layout 9行＋dice-preview un-nest リネーム（Codex 実行中）**。
+  Fable 側 doc 手術は実施済み（B4 と同一コミット予定）: AI.api/AI.security/AI.ui 削除・
+  AI.feature を V3 現況25行へ縮約・AI.types を正本注記＋engine 境界節のみへ（consumer 2→3件の
+  事実修正込み）・design-v1.md の B1→B4 予定表現を完了へ・frontend doc L6/L11 修正
+  （L35 テスト数は B4 最終値で更新予定）。
+  **backlog 起票**: #75（isV2 ガード弱い→/templates クラッシュ）・#76（fixture 実形化・429 に
+  details なし/requestId あり）・#77（normalize 所有者＋roll notation 非対称の裁定）・
+  #78（shouldRevalidate）・#79（zustand/immer 依存衛生）・#80（残る export * barrel）・
+  #73 に症状追記（`1d6{` プレビューの誤誘導文言）。getResponseStatus は #61 のまま（B4 純度維持）
+- **#65-B4（2026-08-04・`32be7b4` でコミット済み・★#65 feature 完了★）** — V2 完全撤去。
+  21ファイル・+99/-1686。コード純減411行（diceRoller＋spec・FormulaPreview＋types/formula 島・
+  export 解除6＋RuntimeValue/RoundingMode/layout・dice-preview un-nest リネーム）＋
+  doc 整理（AI.api/AI.security/AI.ui 削除・AI.feature 縮約・AI.types engine 境界のみ・
+  design-v1 完了表現・frontend doc 陳腐化4件・削除 doc への参照残3件更新・
+  trpg-remix-frontend skill reference を V3 現況へ書き換え）。
+  Codex は2回正当停止（spec import 追随・layout fixture 追随）→ 各1行/3箇所を承認して完走。
+  **feature 完了ゲート**: doc 事実照合レビュー（Codex adversarial fact-check）で blocking 5件
+  検出→全件修正済み（削除 doc 参照残・sheetTemplateApi の契約主張誤り・api.ts 陳腐化・
+  route 名・2d6+1 受理表）。俯瞰#15 が feature 完了時の大粒度を兼ねる（B4 は同 verdict の
+  逐語実行・逸脱ゼロを検収で確認）。
+  全ゲート緑: front 7 suites 130/130（coverage 86.14/84.87/84.61/85.02）・tsc 0・build 緑・
+  eslint 0 errors/**93** warnings（以後の受入上限は 93）・残骸 grep 0・
+  static:deps reason=null 0/likelyUnreferenced 0。trip-wire 発火（v3.ts 残渣1件→除去済み）。
+  **#65 サマリ**: B0 `54ea6c4`→B1 `5336941`→B1fix `7a8f108`→B2 `30c35f2`→B3 `c5fefbf`→
+  B3fix2 `6bd93f7`→B4 `32be7b4`。silent no-op（俯瞰#11 L5）は「publish 静的検査＋
+  server BCDice 実行＋UI エラー文言分岐」の縦系列で解消。V2 は計約2,500行純減。
+  **次の候補**: #69（V3 リテラル小掃討・#62 完了で unblocked）・#61・#71（doc）・
+  #66/#67/#68（server・並行セッション調整待ち）・backlog #73〜#80
+- **#69・#71 完了（2026-08-04・attrition 消滅を実測確認・コミット不要）** —
+  #69: schemaVersion は型 `schemaVersion?: 3` で全5サイト機械固定・既定テンプレートは
+  templates.tsx:78 の1箇所のみ（第2複製は削除フェーズ群で消滅）。
+  #71: route lifecycle fact の doc 6複製は #70/A2/B4 の doc 削除で消滅し、残存は
+  frontend-conventions.md:9 の正確な1行のみ。両タスク新規作業なしで閉鎖
+- **#61 完了（2026-08-04・`fa532b8`）** — getResponseStatus を api-response.util.ts へ1本化
+  （許可リスト route 別方針は不変）＋ sheet-engine.spec.ts の private baseTemplate を
+  test-utils 共有版へ（形状完全一致・assert 変更0）。+11/-31・numstat 完全一致・全ゲート緑
+  （front 130/130・coverage 85.48/83.25/83.33/84.31・engine 136/136・eslint 0/93）
+- **#75 完了（2026-08-04・`5f9f797`）** — isV2LocalTemplate に name/各 field.id の string 検査を
+  追加。spec 7ケース・slugifyId(undefined) 不到達を固定。front 137/137・eslint 0/93・numstat 一致。
+  **訂正（俯瞰#16 F-1 で反証・Fable 実測確認済み）**: コミット記録の「他項目は migration
+  フォールバック済み」は誤り。フォールバックがあるのは version/tab/label と**未知の type** だけで、
+  既知 type の必須 payload は無条件消費される — v3Template.ts:274 `computed`→`field.formula`・
+  :279 `roll`→`field.diceFormula.replace()`。`{schemaVersion:2, name:'x', fields:[{id:'a',
+  type:'roll'}]}` はガード通過後 TemplateListV3.tsx:183（JSX map・render 中・try/catch 外）で
+  TypeError → /templates 全落ち。#75 の標的と同一クラスのクラッシュが2経路残存 → F-1 修正ラウンドへ
+- **俯瞰#16 完了（2026-08-04・必須ゲート: B4/#61/#75 の3フェーズ分・verdict:
+  review-results/ov16-large-grain/verdict.md）** — 二重レビュー（Codex reuse&duplication＋
+  Opus 認知負荷モード A）。判定: `32be7b4` 条件付き受入・`fa532b8` 受入・**`5f9f797` 受入不可**。
+  - **F-1 [blocking・両者一致・Fable 実測確認]**: #75 ガードは既知 type の必須 payload 未検査
+    （v3Template.ts:274 computed→formula・:279 roll→diceFormula を無条件消費・フォールバックは
+    未知 type の default 節だけ）→ TemplateListV3.tsx:183（render 中）で TypeError・/templates 全落ち。
+    Codex probe: 欠落＋数値型違い 4/4 通過→throw。**F-1 修正ラウンド＝Task #81 実行中**
+    （prompt-code-f1.txt・MigratableV2Template 新型は YAGNI で不採用裁定）
+  - **突合の矛盾1件裁定**: lib→feature 逆依存は Opus が正（lib/hooks/useCharacters.ts:2・
+    useCharacterSummaries.ts:3 に実在）。Codex の「なし」は #61 スコープでのみ真 → F-5 裁定は生存
+  - Codex 単独所見（Fable 裏取り済み）: status extractor 第3実装＋型穴＋spec 不在（→ **#82 起票**）・
+    B4 doc 残件（README.md:119-120・dicePreviewRoute.spec.ts:38 describe 名）・
+    engine CoC シナリオ重複（→ **#83 起票**・#61 起因ではない）
+  - Opus 単独所見: api-response.util.md が存在しない API を文書化（縮約要）・import 形式3分裂・
+    空 dir（rmdir 済み）。backlog 妥当性: 全件生存・#73 範囲限定・#77 改稿・**#78 前提訂正
+    （現状は再検証1回・親子2回ではない）**・#79/#80 完了条件/在庫更新 — 台帳反映済み
+  - 実行順: #81 → doc 残件小スライス（README/describe 名/api-response.util.md）→ #82 →
+    F-5 裁定 → #76 → #79 → #77。全面 ErrorEnvelope 統合は俯瞰#15 No-Go 維持（両者一致）
+  - 俯瞰#14 の CL-1/CL-2 詳細はここから削除（B3fix2 `6bd93f7`・B4 `32be7b4` で解決済み。
+    詳細は review-results/ov14-large-grain/）
+- **#81 完了（2026-08-04・`d4c6aa1`）** — F-1 修正: ガードへ roll→diceFormula /
+  computed→formula の string 条件付き検査＋消費表コメント（最小契約の明示込み）＋
+  spec 拒否4/受理/契約閉包テスト。MigratableV2Template 新型は不採用（verdict 裁定）。
+  検収: front 143/143（+6）・coverage 85.86/84.51/83.58/84.72・tsc 0・eslint 0/93・
+  numstat 完全一致（74+/5-）。
+  **訂正（俯瞰#17 OV17-1 で反証・Fable probe 確認済み）**: 当時の検収記録「消費表の全行を
+  migration 実読と突合して真を確認」は**過大**。`field.tab` 行が偽 — `sectionsByTab[field.tab]
+  ?? basic` は prototype 継承キー（'constructor'/'toString'/'__proto__' 等9値）で truthy を返し
+  フォールバック不発 → collectFieldIds が TypeError・render 中クラッシュの第3経路が残存。
+  実読突合は敵対値 probe を欠いた目視だった。→ OV17-1 修正ラウンド（blocking・E1c 完了後）
+- **俯瞰#16 doc 残件完了（2026-08-04・`4da5587`）** — README.md:119-120（削除済み
+  AI.{ui,api,security}.md 参照と旧 route 名の訂正）・api-response.util.md を 213行→現況
+  正本（32行）へ全面縮約・frontend doc テスト数 137 へ。api-response.util.md は commit 時
+  prettier hook の MM 残渣が出たが worktree==HEAD 確認済み・restore --staged で収束
+  （commit-unit-verification の既知パターン5回目）。残るテストコード分
+  （describe 名リネーム）は #82 スライスへ併合済み
+- **#82 完了（2026-08-04・`a71d891`）** — status extractor を共有1所有者へ（sheet route の
+  ローカル responseStatus 削除・3 route 利用）＋getResponseStatus に typeof number 絞り込み
+  （文字列 status は理論上のみ・sheet route :95 の Response init 素通し経路も 400 へ安全化）＋
+  spec 5件＋describe 名を templates_.dice-preview へ追随。指示書の「消費側はリテラル比較のみ」
+  という当初主張は起動前裏取りで sheet route :95 に対し不正確と判明し精密化してから投入
+  （verify-claims 項目11の運用）。検収: front 148/148（+5）・coverage 86.68/86.40/85.07/85.63・
+  tsc 0・eslint 0/93・numstat 完全一致（30+/10-）
+- **#84（F-5）完了（2026-08-04・`a2a5383`）** — useCharacters 死蔵削除（66行）＋
+  useCharacterSummaries を features/character/hooks/ へ純移動（blob SHA 一致・git rename 100%
+  検出）＋ import/no-restricted-paths（target ./app/lib ← from ./app/features）で層規約を
+  機械固定（server #31 の front 版・既存 @trpg 制限とはルール ID 直交で上書きなし）。
+  負の対照実測: ルール先行追加で既存2違反を検知→移動後0。検収: 148/148・
+  coverage 86.68/86.40/85.07/85.63・tsc 0・--print-config で lib 配下の活性確認・
+  **eslint 新基準値 0 errors / 92 warnings**（削除した useCharacters.ts:54 useEffect 由来の
+  warning 1件が消滅）。付随 docs: `5b50afa`（api-response.util.md #82 解消記録）。
+  **俯瞰#16 後3フェーズ（#81/#82/#84）到達 → 大粒度俯瞰#17 が必須ゲート（起動済み）**
+
+- **俯瞰#17 完了（2026-08-04・verdict: review-results/ov17-large-grain/verdict.md・旧 cadence
+  下で起動済みだったため完遂・以後は feature 完了時のみ）** — 判定: `d4c6aa1` 条件付き受入
+  （**OV17-1 blocking**: 消費表 tab 行が偽 — `?? basic` は prototype 継承キー9値で不発・
+  render TypeError 第3経路。Codex「全行一致」と矛盾し Fable probe で Opus 正と裁定。
+  #81 検収記録も反証→訂正済み・メモリ項目12）・`a71d891` 受入・`a2a5383` 条件付き受入
+  （OV17-9 doc ゲート違反 → Fable 即日修正 `9da0617` で充足）。
+  処理区分: #93 起票（OV17-1 hasOwn 1行＋type 別負の対照＋OV17-7 zone basePath・
+  E1c 完了後起動・prompt-code-ov17-1.txt 準備済み）・#92 起票（OV17-8 死蔵掃討＋#78 合流・
+  #78 単独着手禁止）・OV17-4/5/6 は #76 へ併合・OV17-3 は #77 へ注記・OV17-10 rmdir 済み。
+  backlog 全件更新（#73 4実装/対象2本・#79 vite.config.mjs・#83 coc-acid 削除候補ほか）
+
+## 運用変更（2026-08-04 ユーザー決定・最優先）
+
+**キャンペーン終了条件 = full-review 台帳（TRPG-SERVER/docs/reviews/full-review-2026-07-26.md）の
+本流残＋第5群の消化**。以後の大粒度俯瞰は **feature 完了時のみ**（3フェーズ毎は廃止）。
+**low 所見は起票だけで処理義務なし**（blocking/should は従来どおり処理）。
+メモリ fable-primary-coding-review-protocol に記録済み。
+
+**本流残の実測（2026-08-04・Fable 確定）**: Must 系（CE-1/SP-2/SP-3）・第3群 a/b・
+第4群 a〜e・E1a は完了済み。残: **E1b-front（#86）→ E1b（#87・拘束は俯瞰#7 主判定1）→
+第4群 originals（#88 customId 統一・#89 characterThread 一本化・#90 CH-9）→
+第5群スイープ（#91 umbrella・候補11系統）**。
+
+- **#86（E1b-front）完了（2026-08-04・`f965edd`）** — CustomError の envelope 分岐を
+  `[0]` → `.join(' / ')` へ（1行・俯瞰#7 条件(d)の順序拘束を充足）。spec 12ケース・
+  fixture は satisfies ErrorEnvelope で実形固定。検収: 159/159（+3）・tsc 0・eslint 0/92・
+  numstat 一致（75+/14-）。**E1b は E1b-1（route 水準 pin 先行固定・追加のみ・実行中）→
+  E1b-2（pin 13件再ホスト＋@UseFilters 3箇所撤去＋wire 拡張宣言＋riders CL-4/CL-5）の
+  2分割**。@UseFilters 実測: auth:41・character:46・user:47（character-sheet は別 filter・
+  対象外）
+- **E1b-1 完了（2026-08-04・`a4a882e`）** — before wire pin 4本を追加のみで固定
+  （/auth/login 400 は ValidationPipe 配列の ', ' join 平坦・details なし＝現行 wire を実測記録・
+  401/404 は ApiError 系封筒）。user は route 水準 literal pin 不在と棚卸し→ /users 404 追加。
+  検収: build・循環0・full suite 233/3218 全緑（+1/+4）。
+- **#87（E1b-2）完了（2026-08-04・`a03d8c6`）— E 方向完遂**。pin 13件（旧 filter spec 11＋
+  character-http filter 2・記録と現況一致）を global-exception.filter.spec へ再ホスト →
+  @UseFilters 3箇所撤去 → HttpExceptionFilter（73行）＋旧 spec（170行）削除（参照0・
+  barrel から export 除去、interceptor 行不変）。wire pin を実 APP_GLOBAL_EXCEPTION_FILTER_PROVIDER
+  配線へ更新: **401/404 の3 pin は全キー・全 literal 不変**（E1a 逐語移植の等価性を実 HTTP で証明）・
+  /auth/login 400 のみ details[]（N=2）追加 = wire 拡張は pin diff が宣言。riders CL-4/CL-5 済み。
+  実測: 封筒生成点 7→5・wire 系統 3→2・includeStack 3→2・filter 概念 3→2・
+  lint コード由来 4→2（拘束(c)充足）・純減102行。検収: build・循環0（598 files）・
+  full suite **232/3218 全緑**（−1 suite は spec 削除の検算どおり）・
+  numstat 一致（274+/376-）。コミット後の MM 残渣2件（global spec / auth.controller.spec =
+  整形のみの stale index）は worktree==HEAD 確認のうえ restore --staged で収束（6回目）。
+  AI.refactor.md へ「E1c＋E1b: E 方向完遂」節を追記済み
+- **#93 完了（2026-08-04・`c73dc18`）** — OV17-1/2/7 反映: migration tab 振り分けを
+  Object.hasOwn 化（prototype 継承キー9値の第3クラッシュ経路封鎖・消費表 tab 行を実装どおり
+  訂正）＋type 別最小 fixture 9本＋負の対照2本（敵対値でのみ落ちる欠陥も検知する網）＋
+  eslint zone の無言失効2経路閉鎖（basePath＋resolver project 二重固定 — 後段 settings が
+  前段を上書きするため2箇所、は委譲先の発見）。round1 は指示書の検証コマンド前提矛盾で
+  正当停止 → Fable 3 probe 切り分け（root の素 pnpm exec は音を立てて落ちる・無言経路は
+  alias 解決の tsconfig 発見）→ 修正版で完走。検収: Fable 自身の root＋alias probe が
+  修正前 0 errors → 修正後 error を確認・156/156（+8）・tsc 0・eslint 0/92・
+  numstat 一致（113+/23-）
+
+- **#85（E1c）完了（2026-08-04・`1a26624`）** — '; ' join 文字列 BadRequest の全4発生源
+  （台帳の「3発生源」は grep 実測で4と確定・全 production 到達）を配列 throw 化 →
+  global filter の details[] 写像へ合流・front 無改修で N 項目表示復帰。区切り '; '→', ' を宣言。
+  controller に実 APP_PIPE/APP_FILTER 配線の supertest 400 route pin 新設。
+  **前提修復同梱**: app.module.spec の controller 名簿へ DicePreviewController 追加
+  （#65-B2 `30c35f2` の追従漏れ — 着手前ベースライン 231/232 赤の原因。
+  focused 検収が大域不変条件 spec を素通しした再発事例をメモリ
+  verify-full-suite-before-merge へ記録済み）。
+  検収: build・循環0（599 files）・focused 8/8 88/88・**full suite 232/232 / 3214/3214**・
+  numstat 完全一致（132+/26-）・残渣なし（並行 M 群のみ）
+- **#88 着手時実測（2026-08-04・Fable）** — 新鮮実測の結果:
+  (1) **CH-6 現存**: thread-interaction.service.ts の create{CoC7,DnD5e,SW25}Buttons に raw literal
+  `dice_{system}_{action}_${channelId}` が 13 箇所（coc7×5/dnd5e×4/sw25×4）＋ボタンラベルが
+  契約側 ACTION_REASON と二重管理（（簡易）有無は全 13 action で規則的 — 導出可能と突合済み）。
+  → **#88-a 完了（2026-08-05・`cbfd96a`）**: PRESET_DICE_ACTIONS（順序付き action/label/semantic）を
+  契約側へ新設し ACTION_REASON を導出化（preset-dice.custom-id.spec 無変更全緑 = 導出等価証明）・
+  13 literal → PresetDiceCustomId.create・builder 3→1（83行→13行）・style/emoji は feature 側
+  PRESET_DICE_BUTTON_APPEARANCE（契約の discord.js 非依存維持・台帳⇄appearance 欠落は pin が
+  builder 実走するため TypeError で赤化=閉包）・13 ボタン {custom_id,label,style,emoji}×順序 literal pin。
+  検収: build・循環0・full 232/3218 全緑（±0 検算どおり）・認知負荷 同時保持7→5/概念6→5/ホップ3→2。
+  ※Codex run は前セッション終了で「stopped」通知になったが実際は完走（output 全文あり）—
+  停止通知時は output ファイルと worktree を先に確認すること。コミット時 MM 残渣（7回目）も
+  worktree==HEAD 確認→restore --staged で収束。
+  **#88-b 完了（2026-08-05・`fb198cd`）**: 契約 character-field.custom-id.ts へ prefix 定数2本＋
+  中置正本 characterFieldSectionInfix() を追加（createEdit/createAdd 自身も同定数から合成・
+  三者 byte 一致を spec 固定）。探索側 probe 置換の真理区分 = byte 完全保存6サイト
+  （refresh/compact create() 参照・edit-section・field prefix・中置4種）＋生成集合等価の
+  引き締め3関数（isBasic 化・isFieldOperation/isSectionSelection の末尾ハイフン付き prefix 化 —
+  根拠コメント＋非生成形の負例 pin）。type !== 3 → ComponentType.StringSelect（値不変）・
+  type !== 2 は MessageLike 純関数のため理由付き維持。spec 4本へ敵対値含む15件追加。
+  round1 は Fable の前提誤り（「type !== 2 が唯一」— grep が `!==` 欠落）で正当停止 →
+  事例13としてメモリ記録・前提訂正 round2 で完走。
+  検収: build・循環0・focused 28/420・full **232/3233 全緑**（+15 検算どおり）。
+  Codex follow-up 所見: 作成モーダル 'character-create-basic-*' に対し modal registry pattern が
+  'char-edit-*' のみという既存 routing gap（CE-2 の dead 経路下流・潜伏）→ #94 系で起票のみ。
+  **#88-c 完了（2026-08-05・`d53b7ce`）**: byte 一致既存定数の機械的参照化4サイト
+  （演算・真理不変・hex 突合）。full 232/3233（±0）。build 初回失敗は一過性（exit 0×2 で再現せず）。
+  → **Task #88 完遂**（CH-6=cbfd96a・CL-3=fb198cd・CH-7=実測決着・残件は #94 起票のみ）。
+  AI.refactor.md に「第4群 #88」節を追記済み。
+- **#89（characterThread 一本化・CL-2+CH-3+CH-8）着手（2026-08-05・in_progress）**:
+  Fable 事前 grep で CL-2 骨格の現存を確認 — スレッド作成2経路
+  （thread-creation.service/util = `🎭 ${name} [date]`・buildThreadUrl 3引数 vs
+  thread-manager.service/util = `🎭${name}`・buildThreadUrl 2引数）。
+  **read-only Opus 実測エージェントへ委譲中**: 呼び出しグラフ（イベント経由 vs セレクトメニュー）・
+  DC-30 'default-guild' の生死裏付け・CL-2 複製4種・CH-3 親チャンネルヘルパ残存・
+  CH-8 Embed 2系統・並行 M 重なり表（M かつ候補は numstat で内容差分まで）。
+  **Opus 実測完了（2026-08-05）— 設計を決めた事実**:
+  (1) スレッド作成2経路は「**1 live＋1 dead**」— select 入口 'character-thread-select(-with-thread|-current)'
+  を setCustomId する production コードが存在せず（唯一の :30 `data` は未使用フィールド）、
+  thread-creation.service(293行)・character-thread.orchestrator(97行)・thread-creation.util(209行・
+  7 export 全部)・character-thread-select.handler(30行)＋custom-id＋各 spec が**丸ごと死蔵**。
+  削除で複製 D1(スレッド名)/D2(buildThreadUrl 同名2実装)/D3(ダイス5連投稿 2/3)/D4(materialized
+  分岐A側)/D5(Embed dead側) が自動消滅。live 経路 = commands-components/character-thread.service:112
+  → character-thread-create.handler → character-thread-select.service:264 → emit → thread-orchestrator
+  → thread-manager。
+  (2) **DC-30 は所在訂正のうえ実質成立**: literal 'default-guild' は character.creation.completed.ts:149
+  の1箇所のみ（台帳の thread-manager:72 は変数 fetch で誤り）。イベント経由の自動スレッド作成は
+  live-but-broken（:149 の「Channel Create Orchestrator で更新される」コメントは stale —
+  onModuleInit がリスナー登録をスキップ）。**手動は動くが自動が壊れている**。修復は guildId 供給源の
+  契約変更を要する挙動変更 = #89 の一本化スコープ外 → 起票。
+  (3) CH-3: characterThread 内5実装は集約済み。境界外に R1（characterSheet adapter・意味論同一・
+  JSDoc で意図的分離）＋R2/R3/R4（dice 系・PrivateThread 非対応の意味論差・意図か漏れか未検証）→ 起票のみ。
+  (4) CH-8: live = character-embed.service。**未報告 D6** = 同ファイル内 :58-118 と :283-339 の
+  enhanced embed 二重記述（dead 削除では消えない）→ #89-b 候補。
+  (5) 並行 M との重なり **0 件**（characterThread 配下 M ゼロ・discord M 群の内容差分は
+  AI.discord.md/DESIGN.md の doc 2件のみ）。
+  **#89-a 完了（2026-08-05・`32186df`）**: 9ファイル削除＋live 側の死蔵断片・配線・stale JSDoc 掃討 =
+  18ファイル +16/−1634（**純減1618行**）。handler 総数 25→24（DESIGN.md の「23」は drift — #90 材料）。
+  検収: build・循環0（**589 files** = 598−9 検算一致）・full suite **228 suites / 3187 tests 全緑**
+  （−4/−46 = 削除 spec 40＋死蔵分岐3＋死蔵 pattern 検査3 の検算どおり）・start:dev は TS 0 errors・
+  DI 解決成功（DB 接続は DNS 隔離で環境上到達不可・Codex は回避せず停止 = 統制どおり）。
+  live の isCreateSelect / flexible dice 分岐は不変（diff 実読で確認）。
+  ※コミットはコマンド長でシェルが壊れたため `--pathspec-from-file` 方式に切替（以後の多ファイル
+  コミットはこの方式を使う）。
+  **#89-b（最終）= D6 統合を Codex へ委譲中**: character-embed.service.ts 内 :58-118
+  （postEnhancedCharacterInfo）と :283-339（updateExistingCharacterEmbed）の enhanced embed
+  二重記述を単一 builder へ（wire byte 不変・両経路の embed JSON literal pin 先行）。
+  **#89-b 完了（2026-08-05・`f6ee30a`）→ Task #89 完遂**: 2ブロック wire 完全同一と棚卸し確定 →
+  mode 引数なし private buildEnhancedCharacterEmbed(guildId, character) へ逐語抽出（production
+  純減52行・enhanced wire 所有 2→1）。pin 先行（service 未変更で両経路 toJSON() exact literal 緑）
+  = wire byte 不変の証明。検収: build・循環0（589）・full **228/3187 全緑（±0）**。
+  r1 は「M ゼロ」前提の stale で正当停止 → 可変状態は開放形で書く教訓を
+  delegation-prompt-must-name-invariants へ記録済み。
+  **#89 総括**: 89-a 32186df（純減1618）＋89-b f6ee30a（純減24）。CL-2/CH-8 解消・
+  CH-3 は境界内集約済み＋境界外 #96 起票・DC-30 修復 #95 起票。
+  次: **#90（CH-9 DESIGN.md 実態同期・Fable 直筆）** — 材料: handler 総数実測 24（DESIGN 記載 23 は
+  drift・89-a で 25→24）・89-a/b の削除反映・DESIGN.md は並行 M 1/1 内容差分ありの吸収裁定から。
+  その後 #91（第5群スイープ）でキャンペーン終了。
+- **#90 完了（2026-08-05・`8415ee6`）— 第4群 originals（#88/#89/#90）全完了**:
+  DESIGN.md を 2026-08-05 実態へ同期（53+/51-・Fable 直筆＋Codex fact-check ゲート）。
+  同期内容: **登録 handler の正本 = production 実物列挙 27 件**（module 内訳 6/8/8/5・§11 を
+  4 module 分類へ全面改稿）・Phase 0 完了宣言・As-Is 図現行化・DiscordService ラッパー削除反映・
+  Phase 2 特例 if [x]・Phase 3 custom-id [x]（契約 2/6/9）・§6.3 Legacy 廃止済み化・
+  stale パス3件・controller 消費者 0 明記。
+  **fact-check（64 主張・真52/偽12）が blocking 6 検出**: 最重要 = spec pin 24 を総数の正本と
+  誤認（production は 27・spec は characterSheet hub 3 件を含まない部分集合。**#89 の実効果も
+  production 28→27 で「25→24」は spec 内の数字 — AI.refactor.md の 89-a 記録訂正済み**）。
+  他: 'dice_button' raw literal 1本残存（#94 (4) 台帳済み）・Phase 4 残件の過大表現・
+  builder/service の生成元取り違え等。全 findings（blocking 6/should 3/low 1）反映後、
+  Fable が数値を module 実物列挙で独立再計測（6/8/8/5=27 一致）して受入。
+  教訓 = verify-claims 事例14（spec pin ≠ 母集団）。
+  **コミット結合の新知見**: hunk 分割方式（add → apply --cached -R）は pre-commit hook
+  （prettier）が worktree 全文を再ステージするため**成立しない** — 並行セッション B の
+  Approved 済み 1 hunk（L175 permission overwrite）は同梱となり、amend でメッセージに
+  帰属を明示（内容は正確・無害）。教訓は parallel-session-commit-coupling へ。
+  同一ファイルに並行変更がある場合は (i) 同梱＋帰属明示 (ii) 着地待ち の2択のみ。
+  証跡: review-results/ledger-close/prompt-review-90.txt。
+  次: **#91（第5群スイープ・umbrella）— 消化でキャンペーン終了**。台帳は Task #91 の
+  description（13 系統・#90 副産物 2 件追記済み）。着手前に fresh 測定（attrition 確認）。
+- **#91 着手・fresh 測定完了（2026-08-05・Opus read-only・正本 =
+  review-results/ledger-close/g5-measurement-digest.md）**: 13 系統のうち
+  **close 3**（系統10 split 死枝 = attrition 済み／CE-18 = 対象特定不能［台帳取り込み漏れ］／
+  系統11 = 「44件」再現不能＋untracked 並行生成物のため不触）。
+  **台帳訂正 3**（サブクラス未到達は6種**全て**・CL-1 は 14 中 13 死蔵・OV6-3「6ファイル」は
+  現在も 6 だが 6 番目の親 TestAppModule は消費者 0）。
+  誤検出注意 2（jest globalSetup/teardown の default・types/express ambient = 削除禁止）。
+  **スライス確定: G5-a（純削除 ≈−3,170: dependency-analysis.json・controller 2＋spec・
+  src/types 4・CE-19・DC-13・全死蔵ファイル4本）→ G5-b（メソッド/export 単位 ≈−400・
+  test/mocks は並行 M で対象外）→ G5-c（api-response.util＋サブクラス6種＋oracle literal 化・
+  結合必須）→ G5-d（character-ui 4 ファイル ≈−1,110）→ G5-e（CH-7 4 メソッド＋
+  handlers.integration.spec 45 assertion の書換・検証能力純減禁止）**。
+  G5-a を Codex code mode へ委譲中（prompt-code-g5a.txt）。
+  **G5-a r1 は着手前監査で正当停止**（統制機能・3例目）: 測定の「CE-19 は module 配線のみ」に
+  barrel re-export（services/index.ts）＋characterEdit/index.ts の CharacterEditValidator 型参照＋
+  event-integration spec 残骸が漏れ・「commandType は controller 専用」も 6 config 型注釈で偽。
+  Fable 裁定: Validator はクラスごと削除（死蔵 61 件リスト内・ChannelCreationContext は生存側定義で
+  無傷・event-integration の constructor は空を実読確認）／commandType は残置（G5-b 送り）→
+  **r2 実行中（prompt-code-g5a-r2.txt）**。削除 spec 5 本の事前検算 = 56 tests。
+- **G5-a 完了（2026-08-05・`c3b4d1b`）**: 19 ファイル削除＋配線除去 9（+0/−3,660）。
+  検収は Fable 独立再実行 — build 0・循環 0（589→571・−18 = 削除 .ts 数一致）・
+  full suite **223 suites / 3131 tests 全緑**（−5/−56 = 検算完全一致）・numstat/D 19 突合一致。
+  spec 残骸の not.toHaveBeenCalled 4 件はモック未注入（実挙動を観測せず）と評価し除去。
+  ベースライン更新: **223 suites / 3131 tests・circular 571 files**。
+  次: G5-b（メソッド/export 単位。@ApiErrorResponse・handleHttpError・CL-5 getter 5・
+  CL-4 display 3・stale JSDoc・ts-morph 死蔵 export の src 側個別分 — HandlerWithPattern/
+  RegisterHandler は G5-e 送り・test/mocks 並行 M と testcontainers 2 件は不触）。
+- **G5-b 完了（2026-08-05・`a9c7553`）**: 29 ファイル・+11/−993（F-6 @ApiErrorResponse・
+  EV-22 handleHttpError＋非互換 interface・CL-5 getter 5＋連鎖 2［spec は生存機能検証を
+  内部状態 pin へ置換］・CL-4 display 3＋連鎖 2・stale JSDoc・fresh 再測定の真の死蔵 export
+  29 件全裏取り→宣言ごと削除＋連鎖 2・空化した 2 ファイル削除）。スキップ 0。
+  検収 Fable 独立再実行: build 0・循環 0（571→568）・full **223/3112 全緑**（−19 検算一致）。
+  static:deps 対象条件 29→0（残は意図的除外のみ）。コミット後 stale index 残渣 4 件
+  （8回目・worktree==HEAD 確認→restore --staged 収束）。
+  **ベースライン更新: 223 suites / 3112 tests・circular 568 files**。
+  次: G5-c（B-1 結合: api-response.util＋spec 削除・サブクラス 6 種＋dto spec 削除・
+  oracle literal 化 4 spec・test-auth.controller 2 箇所インライン化［CRLF ノイズ M につき
+  編集可・最小限］）→ G5-d → G5-e。
+- **G5-c 完了（2026-08-05・`7576566`）**: 15 ファイル・+138/−543（純減405）。OV6-3 拘束消化。
+  oracle literal 化 4 spec は it 数不変（28/27/17/15）・stripVolatile は HEAD 既存慣行を確認。
+  スコープ外に見えた production 6 ファイルの差分は stale コメント文言のみ（実行行ゼロ）を
+  Fable diff 実読で確認し受入。検収独立再実行: build 0・循環 0（566）・
+  full **222 suites / 3090 tests 全緑**（−1/−22 検算一致）。
+  **ベースライン更新: 222 suites / 3090 tests・circular 566 files**。
+  次: G5-d（B-2: character-ui 4 ファイル同時 ≈−1,110・生存 = updateCharacterEmbed 1 経路＋
+  util 4 シンボル）→ G5-e（CH-7・最終）。
+- **G5-d 完了（2026-08-05・`71158f9`）**: CL-1 消化・5 ファイル +6/−1,000。3 ラウンド
+  （r1 停止 = 対象外 spec の型モック残骸 → 5 ファイル目承認／r2 停止 = 発注側指示の矛盾
+  「コメント編集禁止×残存 grep 0」→ 対象内 stale コメント削除承認／r3 = ランナーが
+  sandbox helper 故障 1312 で結果不受理 → **編集は worktree 完全適用を確認し、検収を
+  Fable 全ゲート独立実行で受理**）。build 0・循環 0（566）・full **222/3057 全緑**
+  （−33 検算一致）・残存 grep 0・生存経路健在。残渣 1 件収束（9回目）。
+  **ベースライン更新: 222 suites / 3057 tests・circular 566 files**。
+  次: **G5-e（最終）** = CH-7 4 メソッド（matches/matchPattern/findAllMatches/hasHandler）＋
+  HandlerWithPattern/RegisterHandler 削除・spec 7 本を本番経路（findBestMatch/route/
+  getMatchScore）検証へ書き換え（検証能力の純減禁止）。**G5-e 完了で #91 完了 =
+  キャンペーン終了 → feature 完了ゲートの大粒度俯瞰#18（二重）→ 台帳クローズ記録**。
+- **G5-e 完了（2026-08-05・`5a0e067`）**: CH-7 消化・10 ファイル +134/−223（production −106）。
+  **handler 選択**の accept 判定 実装/入口 **5→1**（正本 route→findHandler→findBestMatch→
+  getMatchScore のみ。※characterEdit 内の customId→action 第2段判定は未統合 = 俯瞰#18 CL-1）。
+  spec 7 本を本番経路検証へ書き換え（it **112→112**・handlers.integration の hasHandler×45 →
+  production type filter＋findBestMatch・正例は handler 同一性まで強化）。書き換え前に
+  真理値等価性監査（matches ⇔ getMatchScore>0・override 0・stateful regex 0）・
+  負の対照実測（pattern 隔離変異→該当 assertion 赤・変異残存なし）。旧 matchPattern の
+  数値スコア契約は base getMatchScore spec が保持。検収 Fable 独立再実行: build 0・
+  循環 0（566）・full **222 suites / 3057 tests 全緑**（±0 検算一致）・6 シンボル残存 grep 0・
+  spec 抜き取りで findBestMatch 経由を実読確認。コミット numstat = Codex 申告と完全一致
+  （hook 巻き込みなし）・stale index 残渣なし。
+- **#91 完了 = 第5群スイープ終了（2026-08-05）**: G5-a〜G5-e の 5 コミット
+  （`c3b4d1b`/`a9c7553`/`7576566`/`71158f9`/`5a0e067`）で **累計 +289/−6,419（純減 ≈6,130 行）**。
+  13 系統中 10 消化・close 3（attrition／CE-18 特定不能／系統11 再現不能）・台帳訂正 3。
+  ベースライン: **222 suites / 3057 tests・circular 566 files・build 0**。
+  **full-review 台帳 mainline＋第5群消化完了 = キャンペーン終了条件成立**。
+  残ゲート: feature 完了の大粒度俯瞰#18（二重: Opus 認知負荷モードA大粒度＋Codex
+  reuse&duplication・焦点 = G5 削除の取り残し・新規重複なし・G5-e spec 書換の等価性）→
+  台帳クローズ記録（CE-18 取り込み漏れ・系統11 数値再現不能の注記）。
+- **俯瞰#18 完了・キャンペーン終了（2026-08-05）**: 二重レビュー突合矛盾なし・判定 **Go**
+  （Codex blocking 0・G5-e 等価性は両輪とも抜けなし）。close-out 2 コミット =
+  **G5-f `2d1fb7c`**（死蔵 PatternMatchResult＋stale 注記 4・+3/−21・全ゲート Fable 独立検収）＋
+  **docs `403b1fb`**（DESIGN.md/AI.md/AI.test.md/README 3 本の削除追従・+43/−55）。
+  主張スコープ訂正済み（「accept 判定 5→1」→ handler 選択に限定・第2段判定は #97）。
+  起票: #97 [High] CL-1 第2段判定統合／#98 CL-3 台帳 27/24 乖離／#99 CL-4 掃き残し 4 件＋
+  ts-morph barrel 素通り申し送り／#94 追記 CL-2。full-review 台帳へクローズ注記済み。
+  証跡: review-results/overview-18/（integration-verdict.md 正本）。
+  正本記録: AI.refactor.md「俯瞰レビュー#18」節。
+  **最終ベースライン: 222 suites / 3057 tests・circular 566・build 0・HEAD `403b1fb`**。
+  **2026-07-26 full-review 起点の修正キャンペーンは全群消化で終了**。
+  未コミットの M doc プール（AI.refactor.md・AI.discord.md・AI.character.md 等）と
+  SESSION_HANDOFF（版管理外・#58）はユーザーの push/コミット判断待ちのまま維持。
+- **【H フェーズ開始 2026-08-05】俯瞰#18 宿題の消化（ユーザー指示「これらは処理して継続して」）**:
+  対象 = #97 [High]・#98・#99・#94 CL-2。スライス構成（結合事実順）:
+  **H1-a=#99 純削除 → H1-b=#94 CL-2 modal 契約採用 → H1-c1=#97 button 経路統合 →
+  H1-c2=#97 select 経路（pattern⇄predicate 1:1 検証つき・不成立なら最小手当てへ縮退）→
+  大粒度レビュー（3 フェーズ規律）→ H1-d=#98 台帳一本化**。
+  指示書 = review-results/overview-18/prompt-code-h1{a,b,c1}.txt。
+  設計上の発見: enhanced-character-edit.util の parseModalSubmitCustomId は**意味論が異なる
+  第3 parse**（素朴 split('-')・最終要素を characterId とする損失系・「現挙動」JSDoc 明記・
+  spec pin 済み）→ H1-b スコープ外に明示（統合すると挙動変更）。
+  create の pattern ≡ isBasic∪isCancel（同 2 prefix）を実読確認 → C1 の防衛枝は到達不能。
+- **H1-a 完了（2026-08-05・`1827f79` +2/−242 相当・7 ファイル）**: #99 消化。
+  character-dice.custom-id 削除＋barrel 行除去／characterEdit の importer 0 barrel 2 本削除／
+  error-handler の getErrorStats＋BackgroundTaskErrorHandler 削除（spec 13→9 it）／
+  character-notification の no-op 2 本削除。検収 Fable 独立実行: build 0・循環 0
+  （**566→563**）・full **222 suites / 3053 tests** 全緑（−4 検算一致）・残存 grep 0。
+  再測定（barrel 裏取り込み）: **src 側の真の死蔵 0**（残 = test/mocks 21［並行 M 不可侵］＋
+  testcontainers 2［既知誤検出］）。コミット後の空行 1 行残渣（hook 整形差）は checkout で解消。
+  **ベースライン更新: 222 suites / 3053 tests・circular 563 files**。#99 completed。
+- **H1-b 完了（2026-08-05・`b113942` +8/−25）**: #94 CL-2 消化。modal customId の契約採用 —
+  character-modal-handler.util のローカル prefix 2 定義削除＋parseEditCustomId を契約 parse()
+  委譲＋narrowing へ（等価性 = ロジック行同一を双方実読）・character-section-editor.util の
+  buildDirect/SessionModalId を契約 Factory 委譲へ（byte 等価）。prefix 宣言 4→2・parse 実装
+  2→1・generate 所有 2→1。損失系 parseModalSubmitCustomId は意味論相違で対象外のまま。
+  **Codex サンドボックスで full suite が V8 native crash（exit 3221225477 →
+  `Check failed: page_->ContainsLimit`）— Codex は統制どおり回避せず停止し、Fable の独立実行で
+  受入**（build 0・循環 0［563］・full 222/3053 全緑・focused 100 tests 前後不変）。
+  H1-a コミット時の hook 整形差（末尾空行 1 行）が error-handler.spec と
+  character-notification.service に残存 → checkout で解消（新パターン: --only コミット時に
+  hook が staged を整形すると worktree と 1 行ずれる）。
+  次: **H1-c1（#97 button 経路）実行中** → H1-c2（select）→ 大粒度 → H1-d（#98）。
+- **H1-c1 完了（2026-08-05・`0882990` +78/−61・9 ファイル）**: #97 前半（button 経路）消化。
+  専用入口 handleRefresh/handleCreate/handleCompact 新設・3 handler 直結・generic
+  handleButtonInteraction と refresh/compact predicate 削除（残存 grep 0）・共通エラー処理は
+  private executeButtonAction 1 本。refresh の実行順（action→emitEmbedRefresh）spec 固定。
+  create は本質的 2 分岐残置＋防衛枝（warn＋ephemeral・pattern ≡ isBasic∪isCancel 確認済みで
+  契約 drift 時のみ到達）。r1 正当停止（5例目・発注側制約矛盾: 8 ファイル制約 vs grep 0 —
+  integration spec の DI mock property）→ 9 ファイル目最小移行を裁定（mock 3 入口化・it 38 不変）。
+  負の対照 = Jest プロセス内 overlay 変異（ディスク非改変・赤確認・残存 0 — 新手法として優良）。
+  検収 Fable 独立実行: build 0・循環 0（563）・full **222/3053 全緑**・grep 0・diff 実読一致。
+  同時保持 5→3・refresh 変更時の意識 family 4→1。
+  次: **H1-c2（select 経路）実行中**（prompt-code-h1c2.txt・integration spec の select mock
+  移行を 9 ファイル目として先回り組込済み）→ 大粒度（A/B/C1/C2 俯瞰）→ H1-d（#98）。
+- **H1-c2 完了（2026-08-05・`5d2fc1c` +128/−103・9 ファイル）→ #97 [High] 完結**:
+  select 経路統合。sectionEditor.execute を 2 専用入口へ分割（共通前処理 =
+  getCharacterForInteraction・共通例外 = executeSelectAction）・enhanced service の generic
+  select 削除＋C1 ラップを executeInteractionAction へ一般化・integration spec select mock
+  最小移行。**defer 意味論保存**（section = 前処理前 defer・valid field = defer なし）。
+  挙動差 = delta クラス（character-field-{edit/add 以外}）の silent→warn＋ephemeral のみ。
+  spec 17→18 it（+1 防衛枝）・負の対照 = 読み込み時 overlay（SHA-256 で実体不変）。
+  検収 Fable 独立実行: build 0・循環 0（563）・full **222 suites / 3054 tests 全緑**
+  （+1 検算一致）・grep 0・diff 実読で defer/ガード順保存を確認。
+  **コミット時の新事象**: hook（prettier）が staged を 1 行形へ collapse して commit し、
+  worktree/index に複数行形が残留 → restore --staged＋checkout で HEAD に整地・
+  整地後 focused 29 tests 全緑。characterEdit の customId→action 判定は
+  **registry 1 段＋handler 直結のみ**に。副産物: isSectionSelectionCustomId が死蔵化
+  （宣言＋自 spec のみ）→ H1-d で削除。
+  **ベースライン更新: 222 suites / 3054 tests・circular 563 files・HEAD `5d2fc1c`**。
+  次: 大粒度レビュー（3 フェーズ規律・H1-a/b/c1/c2 俯瞰・二重）→ H1-d（#98）。
+- **俯瞰#19 完了（2026-08-05・H1-a/b/c1/c2 の 3 フェーズ規律大粒度・二重レビュー）**:
+  判定 **Go**（正本 = review-results/overview-18/ov19-integration-verdict.md）。
+  突合: 事実矛盾なし。焦点の「エラーラップ 2 層」は両輪一致で **H 以前からの既存**＋
+  `ErrorHandler.handleServiceError` は**必ず throw**（swallow なし・名前が誤解を誘う）。
+  行動要否のみ相違（Codex 0 / Opus Med）→ 挙動影響ありにつき**新 task 起票へ裁定**。
+  H1 主目的は両輪実測で確認（第2段 action 判定 2→0・削除残存 grep 0・退行 0）。
+  主要 finding: CL-1 [High] 契約死蔵 11 member＋型 3（うち Refresh.is/Compact.is は
+  **H1-c1 が新規死蔵化・コミットメッセージ未報告** = 報告網羅性の非対称）・
+  CL-5 #4 modal catch 直書き（6 入口同型化で 12 行純減）・CL-3 create 防衛枝の規約逸脱＋
+  registry 未登録と同文言（診断空振り）。
+  **doc 分は Fable 直筆で消化済み**: characterEdit README（barrel 案内・不在ファイル・
+  forwardRef）・AI.md:857 追記・AI.test.md:1709 追記・MIGRATION_GUIDE（手順 path・
+  台帳正本 = DESIGN.md §11 宣言・診断手順に防衛枝の第5切り分け）・
+  document/interaction-registry.md 歴史文書化。
+  close-out 2 スライス: **H1-d（実行中・spec のみ・#98 台帳 27 化＋S-1/S-2 順序契約固定）**→
+  **H1-e（prompt-code-h1e.txt 作成済み**・CL-1 死蔵削除＋CL-5#2 parseBasic 委譲生存化
+  ［regex byte 同一を Fable 実測・挙動不変］＋CL-5#4 union 拡張＋CL-3 create 防衛枝
+  respondEphemeralError 化＋文言分離［唯一の挙動変更・未 defer 枝では reply() に落ちて実質同一］＋
+  コメント 3 件。H1-d コミット後にベースライン埋めて発注）。
+  起票済み: **#100**（CL-2 select 経路 2 層ラップ一本化裁定）・**#101**（CL-5 #1 byte 同一
+  switch ×2＋#3 同名 extractCharacterIdFromCustomId 2 実装［emitError characterId 常時
+  'unknown' 実害］）。doc 追従コミット **`103483d`**（+31/−19・5 本・差分実読で自筆分のみ確認）。
+- **H1-d 完了（2026-08-05・`c932d75` +88/−5・spec 3 本のみ・production 0 行）→ #98 完結**:
+  台帳 27 化 — hub 3 handler（HubGroupSelect/HubPanelNavigation/HubGroupBrowserNavigation）を
+  DI 組み立て・登録配列へ追加し pin 24→27・factory 生成 customId の正例追加・Thread 系
+  登録確認 5→実数 8 本へ強化。負例 10 assertion は 27 本化後も全緑（受理化なし）。
+  S-1: refresh の「最終更新の非同期完了→emit」を completionOrder で固定。
+  S-2: section deferUpdate<findOne・delta deferUpdate<warn<followUp を invocationCallOrder で固定。
+  負の対照 = HubGroupSelectHandler 隔離除去で pin＋正例 2 tests 赤（復元 SHA-256 一致）。
+  検収 Fable 独立実行: production 実物列挙 6/8/8/5=27 を module 4 本の registerHandlers 実読で
+  突合・hub constructor と mock 形状一致確認・build 0・循環 0（563）・
+  full **222 suites / 3056 tests 全緑**（+2 検算一致）・diff 実読（既存 assertion 削除なし）。
+  コミット時 hook 整形差は index 残渣のみ（worktree ≡ HEAD）→ restore --staged 整地・
+  整地後 focused 75 tests 全緑。
+  **ベースライン更新: 222 suites / 3056 tests・circular 563 files・HEAD `c932d75`**。
+  次: **H1-e 発注**（最終スライス・prompt-code-h1e.txt）。
+- **H1-e 完了（2026-08-05・`af2c95a` +22/−179・12 ファイル）→ H フェーズ完結**:
+  CL-1 契約死蔵削除（11 member＋型＋カスケード定数＋isSectionSelectionCustomId・
+  削除 member 直検証の spec 13 it 整理）・CL-5#2 parseCreationCustomId → parseBasic 委譲
+  （挙動不変・死蔵→生存化）・CL-5#4 modal catch を executeInteractionAction へ（6 入口統一）・
+  CL-3 create 防衛枝の respondEphemeralError 化＋文言分離（唯一の挙動変更・
+  MIGRATION_GUIDE 診断手順へ追従 `c2464c1`）・コメント 3 件。
+  検収 Fable 独立実行: diff 12 本実読（H1-d 順序 assertion 無傷確認）・build 0・循環 0（563）・
+  full **222 suites / 3043 tests 全緑**（3056−13 検算一致）・残存 grep 0 独立実測・
+  eslint 12 ファイル 0。コミット後の hook 残渣は index のみ（worktree ≡ HEAD）→
+  restore --staged 整地（テスト済み内容 = コミット内容のため再テスト不要）。
+  **環境注記（重要）**: V8 native crash が**ローカル検収中にも再現**
+  （pnpm build 2 連続 exit 3221225477 → 3 回目成功・eslint segfault 139 → 単体再実行で回復）。
+  Codex sandbox 固有ではなく**マシン全体の間欠事象**。exit 3221225477 / 139 は
+  まず再試行・コマンド分割で切り分けてから診断する。
+  **ベースライン更新: 222 suites / 3043 tests・circular 563 files・HEAD `c2464c1`**。
+  **H フェーズ総括**: 宿題 4 件（#97/#98/#99/#94 追記）完了・コード 6＋doc 2 コミット・
+  純減約570行・新規起票 #100/#101。#94 残りは跨ぎ modal 契約裁定のみ（low）。
+- **I フェーズ開始（2026-08-05・ユーザーが #100/#101 を指名 → 消化中）**: 裁定確定済み。
+  **#100 = I1（実行中）**: 内層 executeSelectAction から handleServiceError を撤去し
+  通知＋原文 rethrow へ純化（変換・ログ・emitError は外層 1 箇所）。最終伝播例外は byte 同等。
+  挙動差 3 点開示: error イベント原因文言が原文へ・service 層 ERROR ログ 2→1・
+  sectionEditor 単体境界の throw 形が原文へ（消費者は enhanced のみ）。合成 spec（2 層貫通）を
+  1 本追加（注意: getCharacter は findOne 失敗を null に飲むため、失敗注入は
+  embedManager.createFieldSelectMenu throw 等の catch へ届く経路で行う）。
+  **#101 = I2（prompt-code-i2.txt 作成済み・I1 後に発注）**: extract 合併
+  （6 pattern・enhanced 側優先順・正本 = utils/enhanced-character-edit.util）で
+  select/field の emitError characterId 'unknown' → 実 ID へ（modal は session 形式が
+  決定不能のため据え置き）。enhanced spec:323 の characterization 追随が必要。
+  getSectionData は section-editor.util 正本・modal util 側削除・modal-handler.service 直 import。
+  characterThread の private 同名（別 family）は対象外。
+  **Fable 裏取り済みの根拠**: emitError:110 は enhanced 版 extract を使用（実害確定）・
+  両 extract は非アンカー regex list 同形・getSectionData は byte 同一・
+  section-editor.util は modal util を import しない（循環なし）。
+  I2 後: feature 完了ゲートの大粒度（二重・scope = I1+I2 と隣接エラー経路）→ 記録 → 報告。
+- **I1 完了（2026-08-05・`22dca0a` +106/−45・3 ファイル）→ #100 完結**: 内層
+  executeSelectAction から handleServiceError 撤去（ErrorHandler import ごと）・通知＋原文
+  rethrow へ。内層 spec 4 エラー経路を rejects.toBe（原文同一性）＋notification→(warn→)rethrow
+  順序固定へ追随（18→18・H1-d assertion 無傷を diff で確認）。外層に 2 層貫通合成 spec 追加
+  （実物 sectionEditor＋実物 eventEmitter・createFieldSelectMenu 注入・原文イベント/logError 1 回/
+  followUp 1 回/最終 500 を固定・I2 の characterId 変更と衝突しない objectContaining 形。12→13）。
+  負の対照 = rethrow 握り潰し変異で合成 spec 赤（実体無変更）。
+  検収 Fable 独立実行: build 0（間欠 segfault 1 回→再試行で回復）・循環 0（563）・
+  full **222 suites / 3044 tests 全緑**（+1 検算一致）・eslint 3 ファイル 0・diff 実読。
+  **ベースライン更新: 222 suites / 3044 tests・circular 563 files・HEAD `22dca0a`**。
+  **I2 発注済み（実行中）**。bash 長コマンド EOF 破損が commit/status でも頻発 —
+  コミットは pathspec/msg を review-results 配下の短パスに置く形へ切替済み（i1-*.txt）。
+  （破損の正体も特定: harness のラッパー行が長コマンドで切れる。コマンド全長を短く保つのが対処）
+- **I2 完了（2026-08-05・`2251a60` +55/−108・9 ファイル）→ #101 完結**: extract 合併
+  （6 family・refresh/compact 優先・非アンカー first-match 維持・正本 =
+  utils/enhanced-character-edit.util）＋getSectionData 1 本化（正本 = section-editor.util・
+  modal-handler.service は直 import）。実装所有者 2→1 ×2。
+  挙動差 = emitError characterId が select/field で実 ID へ（spec:277 'unknown'→'char-123' 追随・
+  modal 据え置きは注記更新）。優先順位 adversarial pin
+  （'character-edit-section-character-refresh-x' → 'x'）。移設 6 ケース＋純減 1 it。
+  負の対照 = 契約 4 pattern 除去変異で 7 tests 赤（実体無変更）。
+  検収 Fable 独立実行: diff 9 本実読・build 0・循環 0（563）・
+  full **222 suites / 3043 tests 全緑**（−1 検算一致）・削除 symbol 残存 grep 0 独立実測・
+  eslint 0。**ベースライン更新: 222 suites / 3043 tests・circular 563 files・HEAD `2251a60`**。
+- **俯瞰#20 完了（2026-08-05・判定 needs-fix→I3 で Go 化）**: 正本 =
+  review-results/overview-18/ov20-integration-verdict.md。二重（Codex review＋Opus 認知負荷
+  モード A 大粒度）・事実矛盾なし。**F-1 [High]（Codex）: I2 合併 extractor の非アンカー・
+  refresh 優先が衝突クラスの ID を短縮** — characterId は外部生成・@IsString のみ
+  （create-character.dto.ts:40・character.service.ts:117-121）で公開 API から到達可能。
+  I2 裁定「生成集合上不変」は Fable の誤り（adversarial pin が新挙動の追認化 →
+  verify-claims-before-prescribing 事例15 追記済み）。CL-2 [High]（Opus）:
+  error.occurred 唯一の購読者 handleFeatureError:117-120 が characterId を読まない。
+  CL-1: 端から端は経路 4 変種（既存構造・I1 の 2→1 は service 層内で正）。
+  【訂正 2026-08-05 実測】ERROR は registry:140 を欠いた過小計上で **正しくは 4 本
+  （modal のみ 5 本）**・通知は select/modal/refresh 2 通・create/compact 1 通・
+  create のみ最外周 reply()。内層 ErrorHandler 残存は **modal のみ**（refresh は
+  followUp 直呼び＋原文 rethrow）。正本表 = AI.discord.md 最新メモ（2026-08-05）。
+  消化計画: **I3 実行中**（prompt-code-i3.txt: 全 6 パターンアンカー化＋refresh/compact
+  PARSE_PATTERN 契約新設 = CL-3 解消・pin 反転 'character-edit-section-character-refresh-x'→
+  完全 ID・round-trip 6 family・CL-2(a) characterId ログ追加・CL-6 到達不能 throw 削除・
+  CL-5 serviceName 訂正）。doc: AI.test.md 歴史注記 4 件（F-2）適用済み未コミット・
+  AI.discord.md 経路表は I3 後。起票: **#102**（CL-1(b)(c)）・**#103**（CL-4）。
+- **I3 完了（2026-08-05・`1d98569` +92/−22・11 ファイル）→ 俯瞰#20 Go 化**:
+  全 6 パターンアンカー化（refresh/compact PARSE_PATTERN 契約新設・既存 4 定数 `^` 付与・
+  extractor は契約定数 6 本のみの配列へ）。pin 反転
+  （'character-edit-section-character-refresh-x' → 完全 ID）＋field 衝突＋中置 prefix 負例＋
+  round-trip 6 family（衝突 ID 'character-refresh-x' で契約 create→extract 同一性）= +8 it。
+  CL-2(a) handleFeatureError ログへ characterId（spec は Logger.prototype.error spy で文言固定）・
+  CL-5 serviceName 実クラス名化（spec 2 assertion 追随）・CL-6 到達不能 throw 削除
+  （**開示された適応**: catch 枝が値を返さなくなるため `return ErrorHandler.handleServiceError(...)
+  as never` — シグネチャ never 化（不採用済み）ではなく呼び出し側の局所キャスト。受入）。
+  負の対照 = refresh のみ非アンカー化の隔離変異で field 衝突 pin 赤（残存なし実測）。
+  検収 Fable 独立実行: diff 11 本実読・build 0・circular 563/循環 0・
+  full **222 suites / 3051 tests 全緑**（+8 検算一致）・eslint 11 ファイル 0（V8 crash 1 回→分割）・
+  PARSE_PATTERN 消費者 = extractor のみ grep 実測・MM 残渣 restore --staged（numstat 0 = CRLF のみ）。
+  doc 追従: AI.test.md 歴史注記 4 件 = `95e92be`。
+  **ベースライン更新: 222 suites / 3051 tests・circular 563 files・HEAD `95e92be`**。
+  AI.discord.md 経路表（CL-1(a)）記載完了（2026-08-05・5 変種 ×
+  通知/ERROR/イベント文言/最外周分岐・Fable が registry:140/refresh/modal/compact/
+  discord.js InteractionResponses.js:284 を現物裏取り）。俯瞰#20 verdict へ訂正注記・
+  #102 起票文の前提訂正済み。**I フェーズ完全終了 — compact 推奨タイミング**。
+  (2) **CH-7 決着**: 本番 dispatch は findBestMatch→getMatchScore の1本。matches/matchPattern/
+  findAllMatches/hasHandler は spec 専用の意味重複（live 1＋spec-only 2）→ 死蔵去就は #91 へ。
+  台帳訂正を AI.refactor.md 俯瞰#5 節に反映済み。
+  (3) **CL-3 現況**: component type マジック数は production **2箇所**現存
+  （enhanced-character-edit.util.ts:113 `type !== 2`・character-modal-handler.service.ts:470
+  `type !== 3` — 当初「唯一」と誤記載。裏取り grep が `!==` を欠いた検証穴で、Codex round1 の
+  前提矛盾停止で発覚 → verify-claims-before-prescribing 事例13）。
+  探索側 literal probe は 3 ファイル約 10 箇所に現存（enhanced-character-edit.util.ts:117-118 /
+  character-modal-handler.service.ts:56,473-475 / character-section-editor.util.ts:165-184）
+  → #88-b（includes 意味論を保存した契約定数参照化）。
+  (4) 副産物: postSkill/postAbility 257-node 重複と dnd5e/sw25 builder 111-node 重複を
+  static:duplication で確認（前者は #89 領分）。customId 生成/解析サイトは並行 M ファイルと
+  重なりゼロ（thread-interaction / characterEdit utils・services は M 群外）。
+front 側 backlog（#76〜#80/#83 等）は low 相当につき起票のまま（処理義務なし）。
+
+**並行 M ファイル統制（不変）**: TRPG-SERVER の未コミット M 群（discord 系・auth service/
+jwt-token・response.interceptor・test-auth 等 = 2026-07-12 改善単位2〜7 の Approved 済み
+未コミット成果）には触れない・巻き込まない。E1b/E1c のコード対象との衝突は実測済みで無し
+（core/http は response.interceptor のみ M・E 系は触らない）。full suite ゲートは混在 worktree
+での実行になるため、着手前ベースラインとの差分で判定する。
+sheet-engine-template-validation.service.spec.ts の MM 残渣（index のみ整形差）は
+restore --staged で収束済み（2026-08-04）。
+- ユーザー側 TODO: push → pnpm 11 初回 CI（T19 の cold-cache 初実証）
+
+## 参照
+
+- 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）
+- レビュー証跡: review-results/（俯瞰#6 は overview-6/）
+- compact 直前スナップショット・要約: .claude/compact-log/
+- Codex 委譲ランナー: `bash review-results/g3b-app-filter/retry-codex.sh <code|review> <prompt-file> <outdir>`

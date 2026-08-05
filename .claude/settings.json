@@ -1,4 +1,28 @@
 {
+  "autoCompactEnabled": true,
+  "autoCompactWindow": 500000,
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p .claude/compact-log && { date '+%Y-%m-%d %H:%M:%S'; cat; printf '\\n--- git status ---\\n'; git status --short; } > \".claude/compact-log/precompact-$(date +%Y%m%d-%H%M%S).log\" 2>&1 || true"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p .claude/compact-log && cat > \".claude/compact-log/postcompact-$(date +%Y%m%d-%H%M%S).json\" 2>/dev/null; echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostCompact\",\"additionalContext\":\"compact 直後です。まず document/SESSION_HANDOFF.md を読み、fable-rules・AI.*.md・メモリ・.claude/compact-log/ で補完して状況を再同期してから作業を再開してください。\"}}'"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(pnpm run start:dev)",

@@ -5,6 +5,11 @@ Codexから作業委譲された場合は、最初にAGENTS.mdを確認してく
 委譲メモがある場合はTRPG-SERVER/CLAUDE_HANDOFF.mdを確認してください
 Codexが作成した委譲メモの範囲・触らない範囲・完了条件を守ってください
 
+コード実装・修正・リファクタ・レビューの依頼では、着手前に必ず fable-rules Skill（.claude/skills/fable-rules）を確認してください
+Fable はコーディングとレビューを直接実行せず、Opus/Codex への指示出し・監査・検収に徹します
+compact（自動要約）後は、作業再開の前に必ず document/SESSION_HANDOFF.md を確認して状況を再同期してください
+feature 完了時は document/SESSION_HANDOFF.md の全面更新が必須ゲートです（更新なしに完了扱い禁止・手動 /compact は行わない運用）
+
 
 なによりも作業を開始する前にAI.mdを確認してください
 AI.mdはTRPG
