@@ -231,21 +231,21 @@ describe('InteractionRegistryService', () => {
     })
   })
 
-  describe('hasHandler', () => {
+  describe('route によるハンドラー判定', () => {
     beforeEach(() => {
       service.registerHandler(new MockButtonHandler())
     })
 
-    it('登録済みのハンドラーが存在する場合、trueを返す', () => {
-      expect(service.hasHandler('test-button', 'button')).toBe(true)
+    it('登録済みのハンドラーへルーティングできる', async () => {
+      await expect(service.route(createMockButtonInteraction('test-button'))).resolves.toBe(true)
     })
 
-    it('未登録のハンドラーの場合、falseを返す', () => {
-      expect(service.hasHandler('unknown', 'button')).toBe(false)
+    it('未登録の customId はルーティングしない', async () => {
+      await expect(service.route(createMockButtonInteraction('unknown'))).resolves.toBe(false)
     })
 
-    it('タイプが異なる場合、falseを返す', () => {
-      expect(service.hasHandler('test-button', 'select')).toBe(false)
+    it('タイプが異なるハンドラーへはルーティングしない', async () => {
+      await expect(service.route(createMockSelectInteraction('test-button'))).resolves.toBe(false)
     })
   })
 

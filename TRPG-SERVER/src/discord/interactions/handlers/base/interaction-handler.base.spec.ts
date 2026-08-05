@@ -48,17 +48,17 @@ describe('InteractionHandler Base Classes', () => {
       expect(handler.getCustomIdPattern()).toBe('test-button')
     })
 
-    describe('matches', () => {
-      it('完全一致でtrueを返す', () => {
-        expect(handler.matches('test-button')).toBe(true)
+    describe('getMatchScore による本番 accept 判定', () => {
+      it('完全一致を受理する', () => {
+        expect(handler.getMatchScore('test-button')).toBeGreaterThan(0)
       })
 
-      it('前方一致でtrueを返す', () => {
-        expect(handler.matches('test-button-extra')).toBe(true)
+      it('前方一致を受理する', () => {
+        expect(handler.getMatchScore('test-button-extra')).toBeGreaterThan(0)
       })
 
-      it('異なる文字列でfalseを返す', () => {
-        expect(handler.matches('other-button')).toBe(false)
+      it('異なる文字列を拒否する', () => {
+        expect(handler.getMatchScore('other-button')).toBe(0)
       })
     })
 
@@ -107,14 +107,14 @@ describe('InteractionHandler Base Classes', () => {
       expect(handler.getCustomIdPattern()).toBe('test-select-')
     })
 
-    describe('matches', () => {
-      it('前方一致でtrueを返す（末尾-パターン）', () => {
-        expect(handler.matches('test-select-123')).toBe(true)
-        expect(handler.matches('test-select-abc')).toBe(true)
+    describe('getMatchScore による本番 accept 判定', () => {
+      it('前方一致を受理する（末尾-パターン）', () => {
+        expect(handler.getMatchScore('test-select-123')).toBeGreaterThan(0)
+        expect(handler.getMatchScore('test-select-abc')).toBeGreaterThan(0)
       })
 
-      it('パターン自体と一致でtrueを返す', () => {
-        expect(handler.matches('test-select-')).toBe(true)
+      it('パターン自体との一致を受理する', () => {
+        expect(handler.getMatchScore('test-select-')).toBeGreaterThan(0)
       })
     })
   })
@@ -138,16 +138,16 @@ describe('InteractionHandler Base Classes', () => {
       expect(handler.getCustomIdPattern()).toBeInstanceOf(RegExp)
     })
 
-    describe('matches (正規表現)', () => {
-      it('正規表現にマッチする場合trueを返す', () => {
-        expect(handler.matches('test-modal-123')).toBe(true)
-        expect(handler.matches('test-modal-999')).toBe(true)
+    describe('getMatchScore による本番 accept 判定（正規表現）', () => {
+      it('正規表現にマッチする customId を受理する', () => {
+        expect(handler.getMatchScore('test-modal-123')).toBeGreaterThan(0)
+        expect(handler.getMatchScore('test-modal-999')).toBeGreaterThan(0)
       })
 
-      it('正規表現にマッチしない場合falseを返す', () => {
-        expect(handler.matches('test-modal-abc')).toBe(false)
-        expect(handler.matches('test-modal-')).toBe(false)
-        expect(handler.matches('other-modal-123')).toBe(false)
+      it('正規表現にマッチしない customId を拒否する', () => {
+        expect(handler.getMatchScore('test-modal-abc')).toBe(0)
+        expect(handler.getMatchScore('test-modal-')).toBe(0)
+        expect(handler.getMatchScore('other-modal-123')).toBe(0)
       })
     })
 

@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { PatternMatcherService } from './pattern-matcher.service'
-import { InteractionHandler, ButtonInteractionHandler } from '../handlers/base/interaction-handler.base'
-import { ButtonInteraction } from 'discord.js'
+import { ButtonInteractionHandler } from '../handlers/base/interaction-handler.base'
 
 // テスト用のモックハンドラー
 class MockExactHandler extends ButtonInteractionHandler {
@@ -25,6 +24,13 @@ class MockRegexHandler extends ButtonInteractionHandler {
   async execute(): Promise<void> {}
 }
 
+class MockBroadPrefixHandler extends ButtonInteractionHandler {
+  getCustomIdPattern(): string {
+    return 'test-'
+  }
+  async execute(): Promise<void> {}
+}
+
 describe('PatternMatcherService', () => {
   let service: PatternMatcherService
 
@@ -40,47 +46,46 @@ describe('PatternMatcherService', () => {
     expect(service).toBeDefined()
   })
 
-  describe('matchPattern', () => {
+  describe('findBestMatch の accept 判定', () => {
     describe('完全一致', () => {
-      it('完全一致の場合、score=100を返す', () => {
-        const result = service.matchPattern('test-exact', 'test-exact')
-        expect(result.matched).toBe(true)
-        expect(result.type).toBe('exact')
-        expect(result.score).toBe(100)
+      it('完全一致するハンドラーを返す', () => {
+        const exactHandler = new MockExactHandler()
+
+        expect(service.findBestMatch('test-exact', [exactHandler])).toBe(exactHandler)
       })
 
-      it('異なる文字列の場合、matchedがfalseを返す', () => {
-        const result = service.matchPattern('different', 'test-exact')
-        expect(result.matched).toBe(false)
+      it('異なる文字列の場合、undefinedを返す', () => {
+        const exactHandler = new MockExactHandler()
+
+        expect(service.findBestMatch('different', [exactHandler])).toBeUndefined()
       })
     })
 
     describe('前方一致', () => {
-      it('前方一致の場合、適切なスコアを返す', () => {
-        const result = service.matchPattern('test-prefix-123', 'test-prefix-')
-        expect(result.matched).toBe(true)
-        expect(result.type).toBe('startsWith')
-        expect(result.score).toBeGreaterThan(50)
-        expect(result.score).toBeLessThan(100)
+      it('前方一致するハンドラーを返す', () => {
+        const prefixHandler = new MockPrefixHandler()
+
+        expect(service.findBestMatch('test-prefix-123', [prefixHandler])).toBe(prefixHandler)
       })
 
-      it('前方が一致しない場合、matchedがfalseを返す', () => {
-        const result = service.matchPattern('other-prefix-123', 'test-prefix-')
-        expect(result.matched).toBe(false)
+      it('前方が一致しない場合、undefinedを返す', () => {
+        const prefixHandler = new MockPrefixHandler()
+
+        expect(service.findBestMatch('other-prefix-123', [prefixHandler])).toBeUndefined()
       })
     })
 
     describe('正規表現', () => {
-      it('正規表現にマッチする場合、score=30を返す', () => {
-        const result = service.matchPattern('test-regex-123', /^test-regex-\d+$/)
-        expect(result.matched).toBe(true)
-        expect(result.type).toBe('regex')
-        expect(result.score).toBe(30)
+      it('正規表現にマッチするハンドラーを返す', () => {
+        const regexHandler = new MockRegexHandler()
+
+        expect(service.findBestMatch('test-regex-123', [regexHandler])).toBe(regexHandler)
       })
 
-      it('正規表現にマッチしない場合、matchedがfalseを返す', () => {
-        const result = service.matchPattern('test-regex-abc', /^test-regex-\d+$/)
-        expect(result.matched).toBe(false)
+      it('正規表現にマッチしない場合、undefinedを返す', () => {
+        const regexHandler = new MockRegexHandler()
+
+        expect(service.findBestMatch('test-regex-abc', [regexHandler])).toBeUndefined()
       })
     })
   })
@@ -97,7 +102,7 @@ describe('PatternMatcherService', () => {
     })
 
     it('完全一致のハンドラーを優先して返す', () => {
-      const handlers = [prefixHandler, exactHandler]
+      const handlers = [new MockBroadPrefixHandler(), exactHandler]
       const result = service.findBestMatch('test-exact', handlers)
       expect(result).toBe(exactHandler)
     })
@@ -126,18 +131,13 @@ describe('PatternMatcherService', () => {
     })
   })
 
-  describe('findAllMatches', () => {
-    it('マッチする全てのハンドラーをスコア順で返す', () => {
-      const exactHandler = new MockExactHandler()
+  describe('findBestMatch の複数候補選択', () => {
+    it('複数の前方一致候補から長いパターンのハンドラーを返す', () => {
+      const broadPrefixHandler = new MockBroadPrefixHandler()
       const prefixHandler = new MockPrefixHandler()
+      const handlers = [broadPrefixHandler, prefixHandler]
 
-      // test-exactは両方にマッチ（exactとprefix）
-      // ただしprefixHandlerのパターンは'test-prefix-'なので実際にはマッチしない
-      const handlers = [prefixHandler, exactHandler]
-      const results = service.findAllMatches('test-exact', handlers)
-
-      expect(results).toHaveLength(1)
-      expect(results[0].handler).toBe(exactHandler)
+      expect(service.findBestMatch('test-prefix-123', handlers)).toBe(prefixHandler)
     })
   })
 

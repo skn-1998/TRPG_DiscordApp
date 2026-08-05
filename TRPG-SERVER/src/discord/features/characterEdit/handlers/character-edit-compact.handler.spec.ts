@@ -18,7 +18,7 @@ describe('CharacterEditCompactHandler', () => {
   it('customId パターンが前方一致 "character-compact-view-"', () => {
     const pattern = handler.getCustomIdPattern()
     expect(pattern).toBe('character-compact-view-')
-    expect(handler.matches('character-compact-view-char123')).toBe(true)
+    expect(handler.getMatchScore('character-compact-view-char123')).toBeGreaterThan(0)
   })
 
   it('execute は handleButtonInteraction へ interaction を委譲する', async () => {

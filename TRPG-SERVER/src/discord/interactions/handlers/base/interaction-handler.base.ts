@@ -66,32 +66,6 @@ export abstract class InteractionHandler<T extends Interaction = Interaction> {
   abstract execute(interaction: T): Promise<void>
 
   /**
-   * 指定されたcustomIdがこのハンドラーのパターンにマッチするか判定します
-   *
-   * @param customId Discord インタラクションのcustomId
-   * @returns マッチする場合 true
-   */
-  matches(customId: string): boolean {
-    const pattern = this.getCustomIdPattern()
-
-    if (typeof pattern === 'string') {
-      // 完全一致を優先
-      if (customId === pattern) {
-        return true
-      }
-      // 前方一致（パターンが末尾に - や * を持つ場合）
-      if (pattern.endsWith('-') || pattern.endsWith('*')) {
-        return customId.startsWith(pattern)
-      }
-      // それ以外は前方一致として扱う
-      return customId.startsWith(pattern)
-    }
-
-    // 正規表現の場合
-    return pattern.test(customId)
-  }
-
-  /**
    * マッチングの優先度スコアを返します
    * スコアが高いほど優先度が高い
    *
@@ -156,17 +130,5 @@ export abstract class SelectMenuInteractionHandler extends InteractionHandler<
 export abstract class ModalInteractionHandler extends InteractionHandler<ModalSubmitInteraction> {
   getInteractionType(): 'modal' {
     return 'modal'
-  }
-}
-
-/**
- * ハンドラー登録用のデコレータ（将来の拡張用）
- * 現在は使用していませんが、自動登録の拡張時に使用予定
- */
-export function RegisterHandler(customIdPattern: string | RegExp) {
-  return function <T extends new (...args: any[]) => InteractionHandler>(constructor: T) {
-    // メタデータを設定（Reflect APIを使用する場合）
-    Reflect.defineMetadata('customIdPattern', customIdPattern, constructor)
-    return constructor
   }
 }

@@ -196,13 +196,6 @@ export class InteractionRegistryService implements OnModuleInit {
   }
 
   /**
-   * 特定のcustomIdに対応するハンドラーが存在するか確認
-   */
-  hasHandler(customId: string, interactionType: 'button' | 'select' | 'modal'): boolean {
-    return this.findHandler(customId, interactionType) !== undefined
-  }
-
-  /**
    * 初期化完了を確認
    */
   isInitialized(): boolean {

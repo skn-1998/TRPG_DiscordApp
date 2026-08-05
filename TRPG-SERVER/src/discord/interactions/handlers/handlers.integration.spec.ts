@@ -62,6 +62,7 @@ const mockCharacterSheetOperationService = { applyResourceDelta: jest.fn().mockR
 
 describe('Interaction Handlers Integration', () => {
   let registry: InteractionRegistryService
+  let patternMatcher: PatternMatcherService
 
   // 全ハンドラーインスタンス
   let characterEditRefreshHandler: CharacterEditRefreshHandler
@@ -88,6 +89,11 @@ describe('Interaction Handlers Integration', () => {
   let presetDiceQuickRollHandler: PresetDiceQuickRollHandler
   let rollPaletteHandler: RollPaletteHandler
   let resourceDeltaHandler: ResourceDeltaHandler
+
+  const findProductionHandler = (customId: string, type: 'button' | 'select' | 'modal') => {
+    const handlers = registry.getAllHandlers().filter((handler) => handler.getInteractionType() === type)
+    return patternMatcher.findBestMatch(customId, handlers)
+  }
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -204,6 +210,7 @@ describe('Interaction Handlers Integration', () => {
     }).compile()
 
     registry = module.get<InteractionRegistryService>(InteractionRegistryService)
+    patternMatcher = module.get<PatternMatcherService>(PatternMatcherService)
 
     // ハンドラー取得
     characterEditRefreshHandler = module.get<CharacterEditRefreshHandler>(CharacterEditRefreshHandler)
@@ -325,39 +332,39 @@ describe('Interaction Handlers Integration', () => {
   describe('customIdパターンマッチング確認', () => {
     describe('Character Edit系', () => {
       it('character-refresh-* にマッチ', () => {
-        expect(registry.hasHandler('character-refresh-abc123', 'button')).toBe(true)
+        expect(findProductionHandler('character-refresh-abc123', 'button')).toBe(characterEditRefreshHandler)
       })
 
       it('character-create-basic-* にマッチ', () => {
-        expect(registry.hasHandler('character-create-basic-channel123', 'button')).toBe(true)
+        expect(findProductionHandler('character-create-basic-channel123', 'button')).toBe(characterEditCreateHandler)
       })
 
       it('character-create-cancel-* にマッチ', () => {
-        expect(registry.hasHandler('character-create-cancel-channel123', 'button')).toBe(true)
+        expect(findProductionHandler('character-create-cancel-channel123', 'button')).toBe(characterEditCreateHandler)
       })
 
       it('character-compact-view-* にマッチ', () => {
-        expect(registry.hasHandler('character-compact-view-char123', 'button')).toBe(true)
+        expect(findProductionHandler('character-compact-view-char123', 'button')).toBe(characterEditCompactHandler)
       })
 
       it('character-edit-section-* にマッチ', () => {
-        expect(registry.hasHandler('character-edit-section-char123', 'select')).toBe(true)
+        expect(findProductionHandler('character-edit-section-char123', 'select')).toBe(characterEditSectionHandler)
       })
 
       it('character-section-select-* にマッチ', () => {
-        expect(registry.hasHandler('character-section-select-char123', 'select')).toBe(true)
+        expect(findProductionHandler('character-section-select-char123', 'select')).toBe(characterEditSectionHandler)
       })
 
       it('character-field-* にマッチ', () => {
-        expect(registry.hasHandler('character-field-status-char123', 'select')).toBe(true)
+        expect(findProductionHandler('character-field-status-char123', 'select')).toBe(characterEditFieldHandler)
       })
 
       it('char-edit-* にマッチ', () => {
-        expect(registry.hasHandler('char-edit-status-hp-char123', 'modal')).toBe(true)
+        expect(findProductionHandler('char-edit-status-hp-char123', 'modal')).toBe(characterEditModalHandler)
       })
 
       it('char-edit-modal-* にマッチ', () => {
-        expect(registry.hasHandler('char-edit-modal-char123', 'modal')).toBe(true)
+        expect(findProductionHandler('char-edit-modal-char123', 'modal')).toBe(characterEditModalHandler)
       })
     })
 
@@ -371,8 +378,16 @@ describe('Interaction Handlers Integration', () => {
         ['select', 'select']
       ] as const)('DicePageCustomId factory が生成した %s customId に handler pattern がマッチする', (action, type) => {
         const customId = DicePageCustomId.create(action, 'message123', 'channel123')
+        const expectedHandler = {
+          first: dicePageFirstHandler,
+          prev: dicePagePrevHandler,
+          next: dicePageNextHandler,
+          last: dicePageLastHandler,
+          cancel: dicePageCancelHandler,
+          select: dicePageSelectHandler
+        }[action]
 
-        expect(registry.hasHandler(customId, type)).toBe(true)
+        expect(findProductionHandler(customId, type)).toBe(expectedHandler)
         expect(DicePageCustomId.parse(customId)).toEqual({
           action,
           messageId: 'message123',
@@ -383,7 +398,7 @@ describe('Interaction Handlers Integration', () => {
       it('DiceCharacterSelectCustomId factory が生成した customId に handler pattern がマッチする', () => {
         const customId = DiceCharacterSelectCustomId.create('message123', 'channel123')
 
-        expect(registry.hasHandler(customId, 'select')).toBe(true)
+        expect(findProductionHandler(customId, 'select')).toBe(diceCharacterSelectHandler)
         expect(DiceCharacterSelectCustomId.parse(customId)).toEqual({
           messageId: 'message123',
           channelId: 'channel123'
@@ -391,116 +406,118 @@ describe('Interaction Handlers Integration', () => {
       })
 
       it('dice-page-prev にマッチ', () => {
-        expect(registry.hasHandler('dice-page-prev', 'button')).toBe(true)
+        expect(findProductionHandler('dice-page-prev', 'button')).toBe(dicePagePrevHandler)
       })
 
       it('dice-page-next にマッチ', () => {
-        expect(registry.hasHandler('dice-page-next', 'button')).toBe(true)
+        expect(findProductionHandler('dice-page-next', 'button')).toBe(dicePageNextHandler)
       })
 
       it('dice-page-first にマッチ', () => {
-        expect(registry.hasHandler('dice-page-first', 'button')).toBe(true)
+        expect(findProductionHandler('dice-page-first', 'button')).toBe(dicePageFirstHandler)
       })
 
       it('dice-page-last にマッチ', () => {
-        expect(registry.hasHandler('dice-page-last', 'button')).toBe(true)
+        expect(findProductionHandler('dice-page-last', 'button')).toBe(dicePageLastHandler)
       })
 
       it('dice-page-cancel にマッチ', () => {
-        expect(registry.hasHandler('dice-page-cancel', 'button')).toBe(true)
+        expect(findProductionHandler('dice-page-cancel', 'button')).toBe(dicePageCancelHandler)
       })
 
       it('dice-page-select にマッチ', () => {
-        expect(registry.hasHandler('dice-page-select', 'select')).toBe(true)
+        expect(findProductionHandler('dice-page-select', 'select')).toBe(dicePageSelectHandler)
       })
 
       it('dice-char-select* にマッチ', () => {
-        expect(registry.hasHandler('dice-char-select*message123*channel123', 'select')).toBe(true)
+        expect(findProductionHandler('dice-char-select*message123*channel123', 'select')).toBe(
+          diceCharacterSelectHandler
+        )
       })
 
       it('roll*{skill}_{channelId} は未登録（S-5c で DiceRollSkillHandler 撤去）', () => {
-        expect(registry.hasHandler('roll*戦闘_1234567890', 'button')).toBe(false)
+        expect(findProductionHandler('roll*戦闘_1234567890', 'button')).toBeUndefined()
       })
 
       it('roll*{dice} は未登録（S-5c で DiceRollGeneralHandler 撤去）', () => {
-        expect(registry.hasHandler('roll*1d100', 'button')).toBe(false)
-        expect(registry.hasHandler('roll*2d6', 'button')).toBe(false)
+        expect(findProductionHandler('roll*1d100', 'button')).toBeUndefined()
+        expect(findProductionHandler('roll*2d6', 'button')).toBeUndefined()
       })
 
       it('roll*custom は未登録（S-5c で DiceRollCustomHandler 撤去）', () => {
-        expect(registry.hasHandler('roll*custom', 'button')).toBe(false)
+        expect(findProductionHandler('roll*custom', 'button')).toBeUndefined()
       })
 
       it('preset-dice* は未登録（S-5c で DiceRollPresetHandler 撤去）', () => {
-        expect(registry.hasHandler('preset-dice*preset1_char123', 'button')).toBe(false)
+        expect(findProductionHandler('preset-dice*preset1_char123', 'button')).toBeUndefined()
       })
 
       it('custom-dice-modal にマッチ', () => {
-        expect(registry.hasHandler('custom-dice-modal', 'modal')).toBe(true)
+        expect(findProductionHandler('custom-dice-modal', 'modal')).toBe(diceRollModalHandler)
       })
 
       it('param-dice-modal* にマッチ', () => {
-        expect(registry.hasHandler('param-dice-modal*char123', 'modal')).toBe(true)
+        expect(findProductionHandler('param-dice-modal*char123', 'modal')).toBe(diceRollModalHandler)
       })
     })
 
     describe('Character Thread系', () => {
       it('character-thread-create-select にマッチ', () => {
-        expect(registry.hasHandler('character-thread-create-select', 'select')).toBe(true)
+        expect(findProductionHandler('character-thread-create-select', 'select')).toBe(characterThreadCreateHandler)
       })
 
       it('character-tab* にマッチ', () => {
-        expect(registry.hasHandler('character-tab*channel123*basic', 'button')).toBe(true)
+        expect(findProductionHandler('character-tab*channel123*basic', 'button')).toBe(characterTabHandler)
       })
 
       it('flexible-dice-param* にマッチ', () => {
-        expect(registry.hasHandler('flexible-dice-param*char123', 'select')).toBe(true)
+        expect(findProductionHandler('flexible-dice-param*char123', 'select')).toBe(flexibleDiceParamHandler)
       })
 
       it('character-dice* は未登録（S-5c で CharacterDiceHandler 撤去）', () => {
-        expect(registry.hasHandler('character-dice*action*char123', 'button')).toBe(false)
+        expect(findProductionHandler('character-dice*action*char123', 'button')).toBeUndefined()
       })
 
       it('dice_generic_* にマッチ', () => {
-        expect(registry.hasHandler('dice_generic_1d6_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_generic_2d6_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_generic_1d20_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_generic_1d100_1234567890', 'button')).toBe(true)
+        expect(findProductionHandler('dice_generic_1d6_1234567890', 'button')).toBe(diceGenericHandler)
+        expect(findProductionHandler('dice_generic_2d6_1234567890', 'button')).toBe(diceGenericHandler)
+        expect(findProductionHandler('dice_generic_1d20_1234567890', 'button')).toBe(diceGenericHandler)
+        expect(findProductionHandler('dice_generic_1d100_1234567890', 'button')).toBe(diceGenericHandler)
       })
 
       it('flexible_dice_* にマッチ', () => {
-        expect(registry.hasHandler('flexible_dice_1234567890', 'select')).toBe(true)
+        expect(findProductionHandler('flexible_dice_1234567890', 'select')).toBe(flexibleDiceSelectHandler)
       })
 
       it('skill_* にマッチ（P1-D slice2 で配線・button）', () => {
-        expect(registry.hasHandler('skill_1234567890_dodge', 'button')).toBe(true)
+        expect(findProductionHandler('skill_1234567890_dodge', 'button')).toBe(characterSkillRollHandler)
       })
 
       it('ability_* にマッチ（S-3 で配線・button）', () => {
-        expect(registry.hasHandler('ability_1234567890_str', 'button')).toBe(true)
+        expect(findProductionHandler('ability_1234567890_str', 'button')).toBe(abilityRollHandler)
       })
 
       it('dice_coc7_* / dice_dnd5e_* / dice_sw25_* にマッチ（P1-D 後続で配線・button）', () => {
-        expect(registry.hasHandler('dice_coc7_1d100_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_coc7_sanity_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_dnd5e_save_1234567890', 'button')).toBe(true)
-        expect(registry.hasHandler('dice_sw25_magic_1234567890', 'button')).toBe(true)
+        expect(findProductionHandler('dice_coc7_1d100_1234567890', 'button')).toBe(presetDiceQuickRollHandler)
+        expect(findProductionHandler('dice_coc7_sanity_1234567890', 'button')).toBe(presetDiceQuickRollHandler)
+        expect(findProductionHandler('dice_dnd5e_save_1234567890', 'button')).toBe(presetDiceQuickRollHandler)
+        expect(findProductionHandler('dice_sw25_magic_1234567890', 'button')).toBe(presetDiceQuickRollHandler)
       })
 
       it('routed な dice_generic_ と未対応 system は区別される（dice_generic_ は別 handler・dice_xxx_ unknown は未routing）', () => {
         // dice_generic_ は DiceGenericHandler（preset 用 /^dice_(coc7|dnd5e|sw25)_/ には match しない）
-        expect(registry.hasHandler('dice_generic_1d6_1234567890', 'button')).toBe(true)
+        expect(findProductionHandler('dice_generic_1d6_1234567890', 'button')).toBe(diceGenericHandler)
         // coc7/dnd5e/sw25 以外の system 名は preset handler に match しない
-        expect(registry.hasHandler('dice_pathfinder_attack_1234567890', 'button')).toBe(false)
+        expect(findProductionHandler('dice_pathfinder_attack_1234567890', 'button')).toBeUndefined()
       })
     })
   })
 
   describe('未登録のcustomId', () => {
-    it('存在しないcustomIdはfalseを返す', () => {
-      expect(registry.hasHandler('unknown-button-id', 'button')).toBe(false)
-      expect(registry.hasHandler('unknown-select-id', 'select')).toBe(false)
-      expect(registry.hasHandler('unknown-modal-id', 'modal')).toBe(false)
+    it('存在しないcustomIdではハンドラーを選択しない', () => {
+      expect(findProductionHandler('unknown-button-id', 'button')).toBeUndefined()
+      expect(findProductionHandler('unknown-select-id', 'select')).toBeUndefined()
+      expect(findProductionHandler('unknown-modal-id', 'modal')).toBeUndefined()
     })
   })
 })
