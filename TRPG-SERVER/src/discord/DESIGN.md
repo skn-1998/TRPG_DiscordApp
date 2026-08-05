@@ -1,10 +1,10 @@
 # Discord 層 統合設計書
 
-**最終更新**: 2026-05-30（本文は当時のスナップショット）
-**ステータス**: 設計確定。Phase 0 一部着手 / **Phase 1（diceRoll Feature 自立）完了** / Phase 2 以降進行中
+**最終更新**: 2026-08-05（CH-9 実態同期。本文の基底は 2026-05-30 のスナップショット）
+**ステータス**: 設計確定。**Phase 0（customId 統一）完了** / **Phase 1（diceRoll Feature 自立）完了** / Phase 2 以降進行中
 **関連**: [AI.discord.md](./AI.discord.md) / [interactions/README.md](./interactions/README.md) / [interactions/MIGRATION_GUIDE.md](./interactions/MIGRATION_GUIDE.md)
 
-> ℹ️ 本書の現状評価・As-Is 記述・§11 の handler 一覧は 2026-05-30 時点の表現を含む。Phase 1 完了後の進捗（diceRoll feature 移管、`InteractionsService` の characterEdit 特例分岐撤去など）の正本は **`AI.refactor.md`**、登録 handler の最新は **`interactions/handlers/handlers.integration.spec.ts`**（現在 23 件）を参照。
+> ℹ️ 本書の現状評価・As-Is 記述は 2026-05-30 時点の表現を含む。以後の進捗（diceRoll feature 移管、`InteractionsService` の characterEdit 特例分岐撤去、#88 customId 契約化、#89 characterThread 死蔵経路 1,618 行削除など）の正本は **`AI.refactor.md`** を参照。登録 handler の実数は §11（production 登録 **27 件**・module 内訳 6/8/8/5）。`interactions/handlers/handlers.integration.spec.ts` の pin **24** はうち characterSheet の hub 系 3 handler を含まない部分集合を検証している。
 
 ---
 
@@ -47,11 +47,10 @@
 
 ```
 Discord.js Event
-  → DiscordInteractionHandlerService（E-5 で Map キャッシュ層を撤去済み＝InteractionsService(Registry) へ直結）
-    → InteractionsService.execute()（character 系特例 if 分岐あり）
-      → InteractionsController.handleInteraction()
-        → InteractionRegistryService.route()
-          → handlers/* → adapters / legacy services
+  → DiscordInteractionHandlerService（E-5 で Map キャッシュ層を撤去済み・type 振り分けのみ）
+    → InteractionsService.execute()（characterEdit 特例 if は撤去済み・全件 Registry へ委譲）
+      → InteractionRegistryService.route()（InteractionsController は経由しない）
+        → PatternMatcherService.findBestMatch() → handler.execute()
 ```
 
 ### Module 依存（問題箇所）
@@ -172,7 +171,7 @@ FeatureModule が `InteractionsModule` から Registry を import し、自身�
 - Embed色は `0..0xFFFFFF` の整数、または `#RRGGBB` 形式とし、後者はDTO境界で整数へ変換する。
 - `create-channel` はguild channelだけを作る。親テキストチャンネルが必要な `thread` は400で拒否し、通常テキストチャンネルへ暗黙変換しない。
 - チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必要とする。呼び出しチャンネル限定の overwrite による付与は、ギルド全体のチャンネル作成を許可しない。
-- `create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と、overwrite で指定した各権限（allow/deny の全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠）。判定は parent 指定時はカテゴリ実効権限、なしは guild 基底権限で行い、不足は既存の permission-denied と同じ 403 に分類する。`permissions: []` は overwrite 無指定扱いのままとする。
+- `create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と、overwrite で指定した各権限（allow/deny の全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠）。判定の粒度は非対称: **`ManageChannels` / `ManageRoles` は guild 基底 AND（parent 指定時）カテゴリ実効の両方**を要求する意図的過剰制限（Bot による代理作成のため）、**overwrite で指定した各権限**は parent 指定時はカテゴリ実効のみ・なしは guild 基底で判定する。不足は既存の permission-denied と同じ 403 に分類する。`permissions: []` は overwrite 無指定扱いのままとする。
 
 **成功時の事後条件**:
 
@@ -194,16 +193,15 @@ FeatureModule が `InteractionsModule` から Registry を import し、自身�
 
 これらは `TypedEventService`（疎結合な domain イベント）とは責務が異なり、置換できない。`§4.2 目標フロー` 図に facade が現れないのは、あの図が **interaction ルーティング専用**（Discord.js Event → dispatcher → registry → handlers）だからであって、除外＝廃止意図ではない。bootstrap と REST 裏付けは別レイヤーの関心事である。
 
-**本当に廃止すべきは `DiscordService`（@deprecated ラッパー）の方**。現状の実ランタイム経路は
+**`DiscordService`（@deprecated ラッパー）は削除済み**（2026-08-05 実測: ファイル不存在・`main.ts:58-60` は `app.get(DiscordFacadeService)` で facade を取得し `initializeDiscord()` を呼ぶ直 get）。現在の実ランタイム経路は
 
 ```
 main.ts / discord.controller.ts
-  → DiscordService（@deprecated 薄いラッパー）
-    → DiscordFacadeService
-      → discord-client / interactions / commands / guildManager / channelManager / performanceOrchestrator
+  → DiscordFacadeService
+    → discord-client / interactions / commands / guildManager / channelManager / performanceOrchestrator
 ```
 
-であり、ラッパーが 1 段噛んでいる。クリーンアップは **Phase 4**（下記）で行う:`main.ts` と `discord.controller.ts` の注入を `DiscordService` → `DiscordFacadeService` 直注入へ置換し、その後 `DiscordService` を削除する。挙動を変える置換のため、着手は安全網テスト（`discord.controller.spec.ts` は既存・facade 委譲も spec 済み）の確認＋ユーザー承認後とする。
+で、ラッパー段は存在しない。facade 周辺で残る Phase 4 作業は `discord/core/` への移動のみ（Phase 4 全体には `commands/` の feature 移動・`'discord-facade'` リテラル棚卸し等が未完了で残る＝下記チェックリスト）。
 
 > 補足: `events/contracts/index.ts` の `source: ... | 'discord-facade' | string` は `| string` 込みの非強制リテラルで、facade が当該イベントを発行している実体はない（残存ラベル）。Phase 4 整理時に併せて棚卸し。
 
@@ -224,7 +222,7 @@ main.ts / discord.controller.ts
 
 ### ports パターン（進行中の良い例）
 
-`DiceRollCharacterProviderService`（`components/pagination/dice-roll-character-provider.service.ts`）は **ports への第一歩**。
+`DiceRollCharacterProviderService`（`features/diceRoll/services/pagination/dice-roll-character-provider.service.ts`。Phase 1 で `components/pagination/` から移管済み）は **ports への第一歩**。
 
 - pagination service → embed/component/state 操作に専念
 - character 取得・event request/response → provider/port に隔離
@@ -254,15 +252,15 @@ main.ts / discord.controller.ts
 | ページ選択 | `dice-page-select*{messageId}*{channelId}` | `dice-page-select` |
 | キャラ選択 | `dice-char-select*{messageId}*{channelId}` | `dice-char-select` |
 
-### 6.3 Legacy（廃止対象）
+### 6.3 Legacy（廃止済み・2026-08-05 実測）
 
-| 操作                      | Legacy 形式                                             | 生成元（例）                                            |
-| ------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| 前/次/先頭/末尾           | `dice-prev*`, `dice-next*`, `dice-first*`, `dice-last*` | `features/diceRoll/adapters/*`, `interactions/button/*` |
-| アンダースコア形式        | `dice_page_prev_{channelId}` 等                         | `interactions/button/dice-button-ui.service.ts`         |
-| キャラスレッド pagination | `dice-prev*{msg}*{ch}`                                  | `interactions/button/character-dice-buttons.service.ts` |
+| 操作                      | Legacy 形式                                             | 現状                                                               |
+| ------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| 前/次/先頭/末尾           | `dice-prev*`, `dice-next*`, `dice-first*`, `dice-last*` | 生成コード 0 件。adapter は全て `DicePageCustomId.template()` 経由 |
+| アンダースコア形式        | `dice_page_prev_{channelId}` 等                         | 生成元 `interactions/button/` ディレクトリごと削除済み             |
+| キャラスレッド pagination | `dice-prev*{msg}*{ch}`                                  | 生成元 `character-dice-buttons.service.ts` 削除済み                |
 
-**Legacy は Registry handler に届かず「未登録インタラクション」になる。Phase 0 で解消する。**
+**Legacy 形式の生成元は全て消滅済み。** `dice-roll.custom-id.spec.ts` が legacy 形式（`dice-prev*...`）を parse 拒否する負例 pin を保持しており、parser が legacy を受理する退行は spec で検出される（新規 generator による raw literal 再導入までは保証しない）。
 
 ### 6.4 フレキシブルダイス（別系統として明示）
 
@@ -301,13 +299,13 @@ export const DicePageCustomId = {
 
 **目的**: pagination 無反応・handler 不一致を止める  
 **規模**: 1〜2 PR
-**状態**: 一部着手済み。`dice-page-*` 生成・`dice-char-select` handler・pagination `currentPage: 1` は反映済みだが、Factory / Parser 統一と legacy 廃止は未完了。
+**状態**: ✅ 完了（2026-08-05 実測確認）。Factory / Parser 統一と legacy 廃止は達成済み（§6.3）。
 
 - [x] `dice-page-*` を canonical に固定（生成・handler 登録済み）
-- [ ] `character-dice-buttons.service.ts` の `dice-prev*` を `DicePageCustomId` 経由に変更
-- [ ] adapter の `setCustomId('dice-prev*')` 等を canonical に合わせる
-- [ ] Handler pattern と Factory の一致を integration test で固定
-- [ ] pagination state / spec を 1-indexed 前提に統一
+- [x] `character-dice-buttons.service.ts` の `dice-prev*` — ファイル自体が削除済みで対象消滅
+- [x] adapter の `setCustomId` を canonical 化 — pagination/select 関連 7 adapter が `DicePageCustomId.template()` / `DiceCharacterSelectCustomId.template()` 経由（実測。残る `dice-button.adapter.ts` の `'dice_button'` は単発ボタンの別系統 literal で legacy `dice-prev*` 系ではない）
+- [x] Handler pattern と Factory の一致を spec で固定（`dice-roll.custom-id.spec.ts` の三者一致＋legacy 拒否 pin・`handlers.integration.spec.ts` の pattern match 検証）
+- [x] pagination state / spec を 1-indexed 前提に統一（`dice-roll-pagination.service.ts` は `currentPage: 1` 初期化・0-index 痕跡 0 件を実測）
 - [x] 未参照の `interactions/button/dice-page-*.service.ts` を削除（2026-06-02。正は `features/diceRoll/adapters/dice-page-*-button.adapter.ts`）
 
 **触らない**: Module 分割、Registry 一本化
@@ -339,7 +337,7 @@ export const DicePageCustomId = {
 - [ ] `InteractionsModule` export を Registry + PatternMatcher のみに
 - [ ] monitoring の二重登録解消
 - [x] `DiscordInteractionHandlerService` の Map キャッシュ廃止（E-5・2026-07-07・`491ddac`。dedup Set／5分 setTimeout も撤去し dispatcher → InteractionsService(Registry) の直結へ）
-- [ ] `InteractionsService.execute()` の特例 if を Handler へ移管
+- [x] `InteractionsService.execute()` の特例 if を Handler へ移管（characterEdit 特例分岐は撤去済み・全件 Registry 委譲。撤去経緯は同ファイルの JSDoc に記録）
 - [x] `ModuleRef.get(InteractionsController)` 経路を削除し、Registry 直接委譲へ寄せる
 - [x] `InteractionRegistryService` の `ModuleRef` 依存を削除し、明示登録のみへ寄せる
 
@@ -349,20 +347,20 @@ export const DicePageCustomId = {
 
 優先: diceRoll → characterEdit → characterThread
 
-- [ ] 各 feature に `custom-id/` を設置
+- [x] 各 feature に `custom-id/` を設置（契約モジュール実数: diceRoll 2・characterEdit 6・characterThread 9。#88 で raw literal 13 箇所→Factory 参照化・探索側 probe の契約定数化・ACTION_REASON 導出化まで完了）
 - [ ] `AI.discord.md` に customId 仕様表を維持
-- [ ] flexible-dice 命名規則の段階的統一
+- [ ] flexible-dice 命名規則の段階的統一（`flexible-dice-param*` / `flexible_dice_` の 2 系統は現存・別系統のまま）
 
 ---
 
 ### Phase 4 — core 抽出 & Legacy 削除
 
-> `DiscordFacadeService` は §4.5 の決着により**存続**（`core/` へ移動）。Legacy 削除対象は `DiscordService` ラッパーの方。
+> `DiscordFacadeService` は §4.5 の決着により**存続**（`core/` へ移動）。Legacy の `DiscordService` ラッパーは削除済み（§4.5）。
 
 - [ ] `DiscordFacadeService` を `discord/core/` へ移動（§4.1 To-Be 配置）
-- [ ] `main.ts` の `app.get(DiscordService).initializeDiscord()` を `DiscordFacadeService` 直注入/直 get へ置換
+- [x] `main.ts` の初期化を `DiscordFacadeService` 直 get へ置換済み（`main.ts:58-60` で facade を `app.get` し `initializeDiscord()` を呼ぶ 2 行を実測）
 - [x] `discord.controller.ts` の `DiscordService` 注入を `DiscordFacadeService` 直注入へ置換済み（`verifyGuildManagePermission` / `getBotStatus` 等の利用経路も移管済み）
-- [ ] 上記 2 経路の置換後に `DiscordService` deprecated を削除（module の providers/exports からも除去）
+- [x] `DiscordService` deprecated を削除済み（2026-08-05 実測: ファイル不存在・production TypeScript の import/値参照 0 件）
 - [ ] `events/contracts/index.ts` の `'discord-facade'` 残存リテラルを棚卸し
 - [x] レガシー global event bus 等 legacy events 削除（B-2 T2c, 2026-05-31）
 - [ ] `commands/` を各 feature の `commands/` へ段階移動
@@ -404,34 +402,38 @@ export const DicePageCustomId = {
 
 ---
 
-## 11. 参考: 登録済み Interaction Handler 一覧（2026-05-30 時点）
+## 11. 参考: 登録済み Interaction Handler 一覧（2026-08-05 実測）
 
-> ⚠️ 以下は 2026-05-30 時点の表現。その後 S-5c で legacy な `roll*` / `character-dice*` / `preset-dice*` 系 handler が撤去され、characterThread 側の handler が追加された。**現在の登録総数は 23 件**で、内訳・最新は `interactions/handlers/handlers.integration.spec.ts` を正とする。
+> ⚠️ **production の登録総数は 27 件**（各 feature module の `registerHandlers` 実物列挙・内訳 6/8/8/5）。`handlers.integration.spec.ts` の `totalHandlers` pin は **24** で、characterSheet の hub 系 3 handler を含まない部分集合を検証している。#89（2026-08-05・`32186df`）は死蔵だった `character-thread-select` handler を削除し production **28→27**（spec は 25→24）。同 handler の唯一の production builder（未使用 `data` フィールドの `.setCustomId('character-thread-select')`）には生成・消費の実経路がなかった。
 
-### Character Edit（6）
+### Character Edit（6・CharacterEditModule）
 
-`character-refresh-`, `character-create-*`, `character-compact-view-`, `character-edit-section-`, `character-field-*`, character-edit modal 系
+refresh / create / compact-view / edit-section / field / modal
 
-### Dice Roll（10）
+### Dice Roll（8・DiceRollFeatureModule）
 
-`dice-page-prev/next/first/last/cancel`, `dice-page-select`, `dice-char-select`, roll/skill/general/custom/preset/modal 系
+dice-page prev / next / first / last / cancel / select、dice-char-select、dice-roll modal
 
-### Character Thread（7）
+### Character Thread（8・CharacterThreadFeatureModule）
 
-`character-thread-select`, `thread-create-character`, `character-tab*`, `flexible-dice-param*`, character-dice, dice-generic, `flexible_dice_`
+character-thread-create / character-tab / flexible-dice-param / dice-generic / flexible-dice-select / skill-roll / ability-roll / preset-dice quick-roll
 
-**未登録・不一致の代表例**: `dice-prev*` 系（Legacy 生成）、一部 `thread-create-character` の経路差異
+### Character Sheet（5・CharacterSheetDiscordFeatureModule）
+
+roll-palette / resource-delta / hub-group-select / hub-panel-navigation / hub-group-browser-navigation
+
+**旧「未登録・不一致」は解消済み**: `dice-prev*` 系の Legacy 生成元は消滅（§6.3）。#89 は死蔵 `character-thread-select*` 経路を削除し、スレッド作成は live の `character-thread-create` 系経路のみになった。
 
 ---
 
 ## 12. 関連ファイル
 
-| ファイル                                                | 役割                                                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `interactions/interactions.module.ts`                   | slim 化進行中（feature import / monitoring は P1-A 撤去済・残整理は Phase 2） |
-| `interactions/registry/interaction-registry.service.ts` | ルーティング中核                                                              |
-| `interactions/interactions.controller.ts`               | Registry 委譲済み                                                             |
-| `interactions/interactions.service.ts`                  | 特例分岐・ModuleRef 残存                                                      |
-| `services/discord-interaction-handler.service.ts`       | Map キャッシュ・3 層ルーティングの起点                                        |
-| `components/pagination/dice-roll-pagination.service.ts` | canonical customId 生成元                                                     |
-| `features/diceRoll/dice-roll.module.ts`                 | Phase 1 で拡張する Module                                                     |
+| ファイル                                                                | 役割                                                                                                                                                                |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `interactions/interactions.module.ts`                                   | slim 化進行中（feature import / monitoring は P1-A 撤去済・残整理は Phase 2）                                                                                       |
+| `interactions/registry/interaction-registry.service.ts`                 | ルーティング中核（本番 dispatch は `findBestMatch` → `getMatchScore` の 1 本）                                                                                      |
+| `interactions/interactions.controller.ts`                               | production 消費者 0（module 登録のみ）。去就は第5群スイープ（Task #91）で裁定                                                                                       |
+| `interactions/interactions.service.ts`                                  | 特例分岐・ModuleRef とも撤去済み。Registry へ委譲する薄い層                                                                                                         |
+| `services/discord-interaction-handler.service.ts`                       | type 振り分けのみ（Map キャッシュは E-5 撤去済み）→ InteractionsService 直結                                                                                        |
+| `features/diceRoll/services/pagination/dice-roll-pagination.builder.ts` | canonical customId 生成元（`.setCustomId` の実装はここ。同 dir の pagination.service は builder を呼ぶ側。Phase 1 で `components/pagination/` から feature へ移管） |
+| `features/diceRoll/dice-roll.module.ts`                                 | Phase 1 で拡張した Module                                                                                                                                           |
