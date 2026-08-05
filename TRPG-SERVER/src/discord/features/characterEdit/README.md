@@ -12,6 +12,15 @@ Discord 上でのキャラクターチャンネル作成・初期化、および
 characterEdit/
 ├── character-edit.module.ts                # NestJS モジュール定義（providers / exports）
 ├── enhanced-character-edit.service.ts       # 中心となる統合オーケストレーター
+├── custom-id/                               # customId 契約（生成・解析パターンの正本）
+│   ├── index.ts
+│   ├── character-refresh.custom-id.ts / character-compact.custom-id.ts
+│   ├── character-section.custom-id.ts / character-field.custom-id.ts
+│   └── character-create.custom-id.ts / character-modal.custom-id.ts
+├── handlers/                                # registry へ登録される interaction handler（薄い委譲）
+│   ├── character-edit-refresh.handler.ts / character-edit-compact.handler.ts
+│   ├── character-edit-create.handler.ts / character-edit-section.handler.ts
+│   └── character-edit-field.handler.ts / character-edit-modal.handler.ts
 ├── events/                                  # feature 固有イベント
 │   ├── index.ts
 │   ├── character-edit.ids.ts                # CustomId 定義（後方互換）
@@ -31,10 +40,10 @@ characterEdit/
 │   ├── character-ui.service.ts               # チャンネル/メッセージの UI I/O
 │   ├── character-modal-handler.util.ts       # モーダル処理の純粋ロジック
 │   └── character-section-editor.util.ts      # セクション編集の純粋ロジック
-└── utils/                                    # discord.js 非依存の純粋関数群
-    ├── character-embed.util.ts               # Embed データ整形（AttributeValue 合算等）
+└── utils/                                    # 純粋関数群（DI 非依存）
+    ├── character-embed.util.ts               # Embed/コンポーネント構築（discord.js Builder 依存）＋セクション正本（EDITABLE_SECTION_TYPES / getSectionData / SECTION_NAMES）
     ├── character-ui.util.ts                  # Embed/SelectMenu データ構築・文言整形
-    └── enhanced-character-edit.util.ts       # customId 解析・分岐判定
+    └── enhanced-character-edit.util.ts       # customId 解析・分岐判定（discord.js 非依存）
 ```
 
 > `character-modal-handler.util.ts` と `character-section-editor.util.ts` は対応するサービスと密接なため
@@ -60,7 +69,6 @@ characterEdit/
 **Modern Services**
 
 - `ChannelDetectionService`
-- `CharacterCreationService`
 - `CharacterNotificationService`
 - `ChannelCreateOrchestratorService`
 - `CharacterEventIntegrationService`
