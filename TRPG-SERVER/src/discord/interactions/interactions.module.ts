@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common'
-import { InteractionsController } from './interactions.controller'
 import { InteractionsService } from './interactions.service'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 
@@ -34,7 +33,6 @@ import { InteractionRegistryModule } from './registry/interaction-registry.modul
  *   interactions core は feature module を一切 import しない（§8 達成）。挙動は不変。
  */
 @Module({
-  controllers: [InteractionsController],
   providers: [InteractionsService],
   exports: [
     // Registry を re-export（下流が InteractionRegistryService / PatternMatcherService を解決できるように）

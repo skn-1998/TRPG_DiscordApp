@@ -10,7 +10,6 @@ describe('CommandsService', () => {
     RollDiceService: { execute: jest.fn() },
     SelectGameSystemService: { execute: jest.fn() },
     UserDefinedDiceService: { execute: jest.fn() },
-    CommandsController: { handleInteraction: jest.fn() },
     DiceFromContextMenuService: { execute: jest.fn() },
     DiceResultService: { execute: jest.fn() }
   }

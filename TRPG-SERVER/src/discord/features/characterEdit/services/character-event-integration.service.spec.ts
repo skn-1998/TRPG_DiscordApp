@@ -6,7 +6,6 @@
 import { Test } from '@nestjs/testing'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterService } from 'src/domains/character/character.service'
-import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { CharacterEventIntegrationService } from './character-event-integration.service'
 
@@ -25,7 +24,6 @@ describe('CharacterEventIntegrationService', () => {
         CharacterEventIntegrationService,
         { provide: TypedEventService, useValue: typedEventService },
         { provide: CharacterService, useValue: {} },
-        { provide: CharacterCreationService, useValue: {} },
         { provide: CharacterNotificationService, useValue: {} }
       ]
     }).compile()

@@ -3,7 +3,6 @@ import { Logger } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
 import { ChannelCreateOrchestratorService } from './channel-create-orchestrator.service'
 import { ChannelDetectionService } from './channel-detection.service'
-import { CharacterCreationService } from './character-creation.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
@@ -13,7 +12,6 @@ describe('ChannelCreateOrchestratorService', () => {
   let service: ChannelCreateOrchestratorService
   let module: TestingModule
   let channelDetectionService: ChannelDetectionService
-  let characterCreationService: CharacterCreationService
   let characterNotificationService: CharacterNotificationService
   let typedEventService: TypedEventService
   let discordClientService: DiscordClientService
@@ -27,10 +25,6 @@ describe('ChannelCreateOrchestratorService', () => {
   const mockChannelDetectionService = {
     detectCharacterChannel: jest.fn(),
     isBotManagedChannel: jest.fn()
-  }
-
-  const mockCharacterCreationService = {
-    createCharacter: jest.fn()
   }
 
   const mockCharacterNotificationService = {
@@ -65,10 +59,6 @@ describe('ChannelCreateOrchestratorService', () => {
           useValue: mockChannelDetectionService
         },
         {
-          provide: CharacterCreationService,
-          useValue: mockCharacterCreationService
-        },
-        {
           provide: CharacterNotificationService,
           useValue: mockCharacterNotificationService
         },
@@ -89,7 +79,6 @@ describe('ChannelCreateOrchestratorService', () => {
 
     service = moduleRef.get<ChannelCreateOrchestratorService>(ChannelCreateOrchestratorService)
     channelDetectionService = moduleRef.get<ChannelDetectionService>(ChannelDetectionService)
-    characterCreationService = moduleRef.get<CharacterCreationService>(CharacterCreationService)
     characterNotificationService = moduleRef.get<CharacterNotificationService>(CharacterNotificationService)
     typedEventService = moduleRef.get<TypedEventService>(TypedEventService)
     discordClientService = moduleRef.get<DiscordClientService>(DiscordClientService)
@@ -169,7 +158,6 @@ describe('ChannelCreateOrchestratorService', () => {
       await service.execute(mockTextChannel)
 
       expect(loggerSpy).toHaveBeenCalledWith('チャンネル検出に失敗:', 'Detection failed')
-      expect(mockCharacterCreationService.createCharacter).not.toHaveBeenCalled()
       expect(mockCharacterNotificationService.notifyCharacterCreation).not.toHaveBeenCalled()
     })
 
@@ -183,7 +171,6 @@ describe('ChannelCreateOrchestratorService', () => {
 
       await service.execute(mockTextChannel)
 
-      expect(mockCharacterCreationService.createCharacter).not.toHaveBeenCalled()
       expect(mockCharacterNotificationService.notifyCharacterCreation).not.toHaveBeenCalled()
     })
 
@@ -206,7 +193,6 @@ describe('ChannelCreateOrchestratorService', () => {
       await service.execute(mockTextChannel)
 
       expect(mockTypedEventService.emit).toHaveBeenCalledWith('character.creation.requested', expect.any(Object))
-      expect(mockCharacterCreationService.createCharacter).not.toHaveBeenCalled()
       expect(mockCharacterNotificationService.notifyCharacterCreation).not.toHaveBeenCalled()
     })
 
@@ -290,7 +276,6 @@ describe('ChannelCreateOrchestratorService', () => {
 
       await service.execute(mockTextChannel)
 
-      expect(mockCharacterCreationService.createCharacter).not.toHaveBeenCalled()
       expect(mockCharacterNotificationService.notifyCharacterCreation).not.toHaveBeenCalled()
     })
   })
