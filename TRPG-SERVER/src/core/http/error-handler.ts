@@ -174,37 +174,4 @@ export class ErrorHandler {
     return false
   }
 
-  /**
-   * エラー統計情報を取得（将来的な監視用）
-   * @returns エラー統計
-   */
-  static getErrorStats(): Record<string, number> {
-    // 実装は将来的に追加（Redis等を使用）
-    return {}
-  }
-}
-
-/**
- * バックグラウンドタスクエラーハンドラー
- */
-export class BackgroundTaskErrorHandler {
-  /**
-   * バックグラウンドタスクエラーをハンドリング
-   * @param error エラーオブジェクト
-   * @param taskName タスク名
-   * @param context エラーコンテキスト
-   */
-  static handleBackgroundError(error: unknown, taskName: string, context: ErrorContext = {}): void {
-    ErrorHandler.logError(
-      error,
-      {
-        ...context,
-        action: taskName
-      },
-      'BACKGROUND_TASK'
-    )
-
-    // バックグラウンドタスクのエラーは処理を続行
-    // 必要に応じて再試行やアラート機能を追加
-  }
 }
