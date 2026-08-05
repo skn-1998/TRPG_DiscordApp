@@ -3,7 +3,7 @@ import { CharacterEditCompactHandler } from './character-edit-compact.handler'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditCompactHandler', () => {
-  const mockService = { handleButtonInteraction: jest.fn().mockResolvedValue(undefined) }
+  const mockService = { handleCompact: jest.fn().mockResolvedValue(undefined) }
   let handler: CharacterEditCompactHandler
 
   beforeEach(() => {
@@ -21,12 +21,12 @@ describe('CharacterEditCompactHandler', () => {
     expect(handler.getMatchScore('character-compact-view-char123')).toBeGreaterThan(0)
   })
 
-  it('execute は handleButtonInteraction へ interaction を委譲する', async () => {
+  it('execute は handleCompact へ interaction を委譲する', async () => {
     const interaction = createMockButtonInteraction({ customId: 'character-compact-view-char123' })
 
     await handler.execute(interaction)
 
-    expect(mockService.handleButtonInteraction).toHaveBeenCalledWith(interaction)
-    expect(mockService.handleButtonInteraction).toHaveBeenCalledTimes(1)
+    expect(mockService.handleCompact).toHaveBeenCalledWith(interaction)
+    expect(mockService.handleCompact).toHaveBeenCalledTimes(1)
   })
 })

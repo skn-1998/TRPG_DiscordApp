@@ -37,7 +37,9 @@ import { ResourceDeltaHandler } from '../../features/characterSheet/handlers/res
 
 // モックサービス
 const mockEnhancedCharacterEditService = {
-  handleButtonInteraction: jest.fn().mockResolvedValue(undefined),
+  handleRefresh: jest.fn().mockResolvedValue(undefined),
+  handleCreate: jest.fn().mockResolvedValue(undefined),
+  handleCompact: jest.fn().mockResolvedValue(undefined),
   handleSelectMenuInteraction: jest.fn().mockResolvedValue(undefined),
   handleModalSubmitInteraction: jest.fn().mockResolvedValue(undefined)
 }
