@@ -1,0 +1,3 @@
+interface:
+  display_name: "Refactoring Rules"
+  short_description: "Plan and review safe behavior-preserving refactoring with AI agents."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Comment Rules"
+  short_description: "Project rules for useful code comments"
+  default_prompt: "Use $code-comment-rules to add or review comments that explain intent, constraints, and project-specific exceptions."

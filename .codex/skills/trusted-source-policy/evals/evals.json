@@ -1,0 +1,23 @@
+{
+  "skill_name": "trusted-source-policy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Playwright の locator assertion について調査して、実装方針を説明して。Qiita/Zenn は使わないで。",
+      "expected_output": "Uses official Playwright documentation or other trusted sources, excludes Qiita/Zenn, and cites the sources used.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "WebRTC getStats の inbound-rtp で音声受信を判定する方法をデバッグ観点で調べて。",
+      "expected_output": "Prioritizes MDN, W3C specs, browser documentation, or official issues; does not open, cite, or rely on Qiita/Zenn.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "GitHub Actions のキャッシュキー設計を見直したい。公式情報をもとにレビューして。",
+      "expected_output": "Uses GitHub official documentation or official repository discussions first, with no Qiita/Zenn reliance.",
+      "files": []
+    }
+  ]
+}
