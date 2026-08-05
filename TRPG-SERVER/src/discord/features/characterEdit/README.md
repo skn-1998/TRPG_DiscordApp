@@ -124,29 +124,19 @@ export class YourService {
 ```typescript
 import { Injectable } from '@nestjs/common'
 import { TextChannel } from 'discord.js'
-import { ChannelDetectionService, CharacterCreationService, CharacterNotificationService } from './services'
+import { ChannelDetectionService } from './services'
 
 @Injectable()
 export class CustomService {
-  constructor(
-    private readonly channelDetectionService: ChannelDetectionService,
-    private readonly characterCreationService: CharacterCreationService,
-    private readonly characterNotificationService: CharacterNotificationService
-  ) {}
+  constructor(private readonly channelDetectionService: ChannelDetectionService) {}
 
   async customFlow(channel: TextChannel) {
     const detectionResult = await this.channelDetectionService.detectCharacterChannel(channel)
 
     if (detectionResult.shouldCreateCharacter && detectionResult.context) {
-      const creationResult = await this.characterCreationService.createCharacter(detectionResult.context)
-
-      if (creationResult.success) {
-        await this.characterNotificationService.notifyCharacterCreation(
-          channel,
-          creationResult.characterId!,
-          creationResult.characterName!
-        )
-      }
+      // キャラクター作成〜通知の実経路は ChannelCreateOrchestratorService が統合している。
+      // 旧 CharacterCreationService（作成ロジック単体）は production 参照 0 のため
+      // 第5群 G5-a（2026-08-05）で削除済み — 個別再実装せず orchestrator を利用すること
     }
   }
 }
@@ -154,7 +144,8 @@ export class CustomService {
 
 ## 📚 型定義
 
-`channel-detection.service.ts` / `character-creation.service.ts` で定義され、`services/index.ts` から再エクスポートされます。
+`channel-detection.service.ts` で定義されます（旧 character-creation.service.ts の
+`CharacterCreationResult` は G5-a 2026-08-05 でファイルごと削除済み）。
 
 ```typescript
 // channel-detection.service.ts
@@ -170,32 +161,13 @@ interface ChannelCreationResult {
   context?: ChannelCreationContext
   error?: string
 }
-
-// character-creation.service.ts
-interface CharacterCreationResult {
-  success: boolean
-  characterId?: string
-  characterName?: string
-  error?: string
-}
 ```
 
-`index.ts` では feature 向けの型・設定・ユーティリティも公開しています:
-
-- `CharacterEditContext` / `CharacterUpdatePayload`（型）
-- `CHARACTER_EDIT_CONFIG`（設定値オブジェクト）
-- `CharacterEditValidator`（フィールド・入力・コンテキストのバリデーション）
-
-```typescript
-export const CHARACTER_EDIT_CONFIG = {
-  MAX_INPUT_LENGTH: 2000,
-  AUTO_DELETE_ERROR_TIMEOUT: 5000,
-  SUPPORTED_FIELDS: ['status', 'parameter', 'skill'] as const,
-  AUDIT_LOG_LIMIT: 10,
-  DEFAULT_GAME_SYSTEM_ID: '',
-  NOTIFICATION_TIMEOUT: 30000
-} as const
-```
+かつて `index.ts` が公開していた feature 向けの型・設定・バリデーション
+（`CharacterEditContext` / `CharacterUpdatePayload` / `CHARACTER_EDIT_CONFIG` /
+`CharacterEditValidator`）は、いずれも production 参照 0 のため第5群 G5-a/G5-b
+（2026-08-05）で削除済みです。現在の `index.ts` は module / services / EnhancedCharacterEditService
+の再エクスポートのみです。
 
 > 注: かつて `index.ts` にあった `CharacterEditServiceFactory`（実在しない `./character-channel-create.service` を
 > `require` する未使用デッドコード）は 2026-06-03 に削除済み。各サービスは `./services` から export され、NestJS の DI
@@ -223,7 +195,6 @@ export const CHARACTER_EDIT_CONFIG = {
 pnpm test
 
 # 特定ファイルのみ（ファイル名でフィルタ）
-pnpm test character-creation.service.spec
 pnpm test channel-create-orchestrator.service.spec
 
 # カバレッジ付き

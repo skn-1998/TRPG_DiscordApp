@@ -24,7 +24,6 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
   - `contracts/` - イベント契約定義
 - `services/` - 編集機能専門サービス群
   - `channel-create-orchestrator.service.ts` - チャンネル作成統合
-  - `character-creation.service.ts` - キャラクター作成ロジック
   - `character-embed-manager.service.ts` - Discord Embed管理
   - `character-modal-handler.service.ts` - モーダル処理
   - `character-ui.service.ts` - UI コンポーネント管理

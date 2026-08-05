@@ -32,7 +32,8 @@
 ### 設計更新・注意点
 
 - **Discord InteractionsのRegistry移行が進行中**
-  - `interactions.controller.ts` はRegistry委譲方式に移行済み
+  - `interactions.controller.ts` はRegistry委譲方式に移行後、production 消費者 0 のため削除
+    （第5群 G5-a・2026-08-05）。dispatch は Gateway イベント → InteractionsService → Registry の1本
   - `interactions/handlers` と `interactions/registry` が新設
 - **テスト専用 Discord Auth ログインフローを追加 (2026-04-26)**
   - `test/auth/test-auth.controller.ts` に `POST /auth/test/login` を実装

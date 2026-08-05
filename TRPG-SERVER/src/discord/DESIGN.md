@@ -85,8 +85,7 @@ discord/
 │   ├── registry/
 │   ├── pattern-matcher/
 │   ├── handlers/base/
-│   ├── interactions.controller
-│   └── interactions.module        ← export は registry 系のみ
+│   └── interactions.module        ← export は registry 系のみ（controller は G5-a で削除済み）
 │
 ├── features/
 │   ├── diceRoll/
@@ -364,7 +363,8 @@ export const DicePageCustomId = {
 - [ ] `events/contracts/index.ts` の `'discord-facade'` 残存リテラルを棚卸し
 - [x] レガシー global event bus 等 legacy events 削除（B-2 T2c, 2026-05-31）
 - [ ] `commands/` を各 feature の `commands/` へ段階移動
-- [ ] `RegisterHandler` デコレータ + 自動登録（任意・低優先）
+- ~~`RegisterHandler` デコレータ + 自動登録~~（**取り下げ** — 未使用のまま死蔵化し G5-e 2026-08-05 で
+  削除。登録は各 feature module の `registerHandlers()` 明示列挙を正とする）
 
 ---
 
@@ -432,7 +432,7 @@ roll-palette / resource-delta / hub-group-select / hub-panel-navigation / hub-gr
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `interactions/interactions.module.ts`                                   | slim 化進行中（feature import / monitoring は P1-A 撤去済・残整理は Phase 2）                                                                                       |
 | `interactions/registry/interaction-registry.service.ts`                 | ルーティング中核（本番 dispatch は `findBestMatch` → `getMatchScore` の 1 本）                                                                                      |
-| `interactions/interactions.controller.ts`                               | production 消費者 0（module 登録のみ）。去就は第5群スイープ（Task #91）で裁定                                                                                       |
+| `interactions/interactions.controller.ts`                               | **削除済み**（第5群 G5-a `c3b4d1b`・2026-08-05。production 消費者 0 の裁定どおり commands.controller と共に撤去）                                                   |
 | `interactions/interactions.service.ts`                                  | 特例分岐・ModuleRef とも撤去済み。Registry へ委譲する薄い層                                                                                                         |
 | `services/discord-interaction-handler.service.ts`                       | type 振り分けのみ（Map キャッシュは E-5 撤去済み）→ InteractionsService 直結                                                                                        |
 | `features/diceRoll/services/pagination/dice-roll-pagination.builder.ts` | canonical customId 生成元（`.setCustomId` の実装はここ。同 dir の pagination.service は builder を呼ぶ側。Phase 1 で `components/pagination/` から feature へ移管） |
