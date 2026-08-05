@@ -13,7 +13,7 @@ import {
  * キャラクター関連のDiscord UI操作サービス
  * キャラクター機能専用のUI操作を担当
  *
- * 純粋な構築ロジック（embed / select menu / 文言整形）は character-ui.util.ts に分離し、
+ * 純粋な embed 構築ロジックは character-ui.util.ts に分離し、
  * 本サービスは channel 取得・送信・編集などの Discord I/O オーケストレーションを担う。
  */
 @Injectable()

@@ -2,18 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { InteractionHandler } from '../handlers/base/interaction-handler.base'
 
 /**
- * パターンマッチング結果
- */
-export interface PatternMatchResult {
-  /** マッチしたかどうか */
-  matched: boolean
-  /** マッチタイプ（exact: 完全一致, startsWith: 前方一致, regex: 正規表現） */
-  type?: 'exact' | 'startsWith' | 'regex'
-  /** 優先度スコア（0-100、高いほど優先） */
-  score?: number
-}
-
-/**
  * パターンマッチングサービス
  *
  * customIdに基づいてハンドラーをマッチングする責務を持ちます。

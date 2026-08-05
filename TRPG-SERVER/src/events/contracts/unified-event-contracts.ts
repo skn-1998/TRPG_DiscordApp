@@ -68,7 +68,7 @@ export type CharacterEditSectionType = 'status' | 'parameter' | 'skill' | 'item'
 
 /**
  * キャラクター作成リクエスト
- * emit: channel-create-orchestrator.service / character-creation.service
+ * emit: channel-create-orchestrator.service
  * on:   events/handlers/character.creation.requested（EventRegistryService 経由）
  */
 export interface CharacterCreationRequestedEvent {
