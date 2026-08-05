@@ -20,7 +20,7 @@ import { CharacterUpdateCompletedHandler } from './character.update.completed'
 
 describe('CharacterUpdateCompletedHandler', () => {
   let handler: CharacterUpdateCompletedHandler
-  let characterUIService: jest.Mocked<Pick<CharacterUIService, 'updateCharacterEmbed' | 'updateChannelStatusDisplay'>>
+  let characterUIService: jest.Mocked<Pick<CharacterUIService, 'updateCharacterEmbed'>>
   let threadOrchestratorService: jest.Mocked<Pick<ThreadOrchestratorService, 'updateCharacterThreadDisplay'>>
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'on'>>
 
@@ -44,8 +44,7 @@ describe('CharacterUpdateCompletedHandler', () => {
 
   beforeEach(async () => {
     characterUIService = {
-      updateCharacterEmbed: jest.fn().mockResolvedValue(undefined),
-      updateChannelStatusDisplay: jest.fn().mockResolvedValue(undefined)
+      updateCharacterEmbed: jest.fn().mockResolvedValue(undefined)
     }
     threadOrchestratorService = {
       updateCharacterThreadDisplay: jest.fn().mockResolvedValue(undefined)
@@ -145,8 +144,6 @@ describe('CharacterUpdateCompletedHandler', () => {
       // Assert
       expect(characterUIService.updateCharacterEmbed).toHaveBeenCalledWith('ch-1', event.character)
       expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
-      // E-4a: 契約外 updatedFields 依存のステータス表示分岐は撤去済み＝呼ばれないことを固定
-      expect(characterUIService.updateChannelStatusDisplay).not.toHaveBeenCalled()
     })
 
     it('discordChannelId 無しのときは embed 更新を呼ばない', async () => {
@@ -158,7 +155,6 @@ describe('CharacterUpdateCompletedHandler', () => {
 
       // Assert
       expect(characterUIService.updateCharacterEmbed).not.toHaveBeenCalled()
-      expect(characterUIService.updateChannelStatusDisplay).not.toHaveBeenCalled()
       // threadId はあるのでスレッド更新は呼ばれる
       expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
     })

@@ -5,18 +5,8 @@ jest.mock('discord.js', () => jest.requireActual('discord.js'))
 
 import {
   CHARACTER_EMBED_TITLE_KEYWORD,
-  SECTION_SELECT_CUSTOM_ID_PREFIX,
-  buildChannelStatusText,
-  buildCharacterDeletionNotificationMessage,
   buildCharacterEmbed,
   buildCharacterEmbedData,
-  buildCharacterUpdateNotificationMessage,
-  buildFieldSelectMenu,
-  buildSectionSelectMenu,
-  buildSectionSelectMenuWithBack,
-  extractCharacterIdFromSectionSelect,
-  isSectionSelectCustomId,
-  toSelectMenuRow,
   type GuildInfo
 } from './character-ui.util'
 import { Character } from 'src/domains/character/models/character.model'
@@ -100,112 +90,6 @@ describe('character-ui.util', () => {
       const data = buildCharacterEmbedData(buildCharacter(), guildInfo)
       const embed = buildCharacterEmbed(data, true).toJSON()
       expect(embed.timestamp).toBeDefined()
-    })
-  })
-
-  describe('buildCharacterUpdateNotificationMessage', () => {
-    it('既知フィールドを日本語名にマップし、userId 付きメンションで整形する', () => {
-      const msg = buildCharacterUpdateNotificationMessage(
-        buildCharacter(),
-        ['characterName', 'status', 'hp'],
-        'user-99'
-      )
-      expect(msg).toBe('<@user-99> 「テスト太郎」のキャラクター名, ステータス, HPが更新されました！✨')
-    })
-
-    it('未知フィールドはそのまま使い、userId 無しならメンションを付けない', () => {
-      const msg = buildCharacterUpdateNotificationMessage(buildCharacter(), ['unknownField'])
-      expect(msg).toBe('「テスト太郎」のunknownFieldが更新されました！✨')
-    })
-  })
-
-  describe('buildCharacterDeletionNotificationMessage', () => {
-    it('userId 付きでメンションを付ける', () => {
-      expect(buildCharacterDeletionNotificationMessage('テスト太郎', 'user-99')).toBe(
-        '<@user-99> キャラクター「テスト太郎」が削除されました。'
-      )
-    })
-
-    it('userId 無しならメンションなし', () => {
-      expect(buildCharacterDeletionNotificationMessage('テスト太郎')).toBe(
-        'キャラクター「テスト太郎」が削除されました。'
-      )
-    })
-  })
-
-  describe('buildChannelStatusText', () => {
-    it('名前のみ（status 無し）', () => {
-      expect(buildChannelStatusText(buildCharacter({ status: undefined as unknown as Character['status'] }))).toBe(
-        '🎭 テスト太郎'
-      )
-    })
-
-    it('hp/mp/level を順に連結する', () => {
-      const text = buildChannelStatusText(
-        buildCharacter({ status: { hp: 10, mp: 5, level: 3 } as unknown as Character['status'] })
-      )
-      expect(text).toBe('🎭 テスト太郎 | HP: 10 | MP: 5 | Lv: 3')
-    })
-
-    it('status が JSON 文字列でもパースして連結する', () => {
-      const text = buildChannelStatusText(
-        buildCharacter({ status: JSON.stringify({ hp: 8 }) as unknown as Character['status'] })
-      )
-      expect(text).toBe('🎭 テスト太郎 | HP: 8')
-    })
-  })
-
-  describe('buildSectionSelectMenu', () => {
-    it('customId とプレースホルダ・4セクションのオプションを持つ', () => {
-      const data = buildSectionSelectMenu('char-1234').toJSON()
-      expect(data.custom_id).toBe(`${SECTION_SELECT_CUSTOM_ID_PREFIX}char-1234`)
-      expect(data.placeholder).toBe('編集するセクションを選択')
-      expect(data.options.map((o) => o.value)).toEqual(['status', 'parameter', 'skill', 'item'])
-    })
-  })
-
-  describe('buildSectionSelectMenuWithBack', () => {
-    it('先頭に back オプションを含む5オプションを持つ', () => {
-      const data = buildSectionSelectMenuWithBack('char-1234').toJSON()
-      expect(data.placeholder).toBe('別のセクションを選択するか戻る')
-      expect(data.options.map((o) => o.value)).toEqual(['back', 'status', 'parameter', 'skill', 'item'])
-    })
-  })
-
-  describe('buildFieldSelectMenu', () => {
-    it('既知セクションで customId と「追加 / 準備中」の2オプションを持つ', () => {
-      const menu = buildFieldSelectMenu('skill', 'char-1234')
-      expect(menu).not.toBeNull()
-      const data = menu!.toJSON()
-      expect(data.custom_id).toBe('character-field-edit-skill-char-1234')
-      expect(data.placeholder).toBe('編集するスキルを選択')
-      expect(data.options.map((o) => o.value)).toEqual(['add_new', 'coming_soon'])
-      expect(data.options[0].label).toBe('➕ 新しいスキルを追加')
-    })
-
-    it('未知セクションは null を返す', () => {
-      expect(buildFieldSelectMenu('unknown', 'char-1234')).toBeNull()
-    })
-  })
-
-  describe('toSelectMenuRow', () => {
-    it('StringSelectMenu を含む ActionRow を返す', () => {
-      const row = toSelectMenuRow(buildSectionSelectMenu('char-1234')).toJSON() as {
-        components: Array<{ custom_id: string }>
-      }
-      expect(row.components).toHaveLength(1)
-      expect(row.components[0].custom_id).toBe(`${SECTION_SELECT_CUSTOM_ID_PREFIX}char-1234`)
-    })
-  })
-
-  describe('isSectionSelectCustomId / extractCharacterIdFromSectionSelect', () => {
-    it('プレフィックス一致を判定する', () => {
-      expect(isSectionSelectCustomId(`${SECTION_SELECT_CUSTOM_ID_PREFIX}abc`)).toBe(true)
-      expect(isSectionSelectCustomId('other-id')).toBe(false)
-    })
-
-    it('プレフィックスを除いた characterId を抽出する', () => {
-      expect(extractCharacterIdFromSectionSelect(`${SECTION_SELECT_CUSTOM_ID_PREFIX}char-1234`)).toBe('char-1234')
     })
   })
 
