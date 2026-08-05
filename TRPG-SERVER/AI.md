@@ -855,6 +855,7 @@ export class ApiErrorHandler {
 - API エラーレスポンスの標準化 (`ErrorHandler.handleHttpError`)
 - ログ出力の一貫性向上 (構造化ログ、機密情報サニタイズ)
 - バックグラウンドタスクエラー処理 (`BackgroundTaskErrorHandler`)
+  （※2026-08-05 追記: 消費者不在のため H1-a で削除済み — 当時の実装記録として残す）
 
 **🔧 技術的改善点:**
 

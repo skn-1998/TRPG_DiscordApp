@@ -1,4 +1,10 @@
  # Interactions Registry 移行まとめ
+
+> ⚠️ **歴史文書（2026-08-05 注記）**: 本書は Registry 移行の計画時点のスナップショットであり、
+> 移行は**完了済み**。以下の「現在の構成」「旧経路」「未移行」の記述は当時のもので現状と一致しない
+> （handlers は各 feature へ移管済み・登録は各 feature module の registerHandlers・
+> interactions.controller と character-dice 経路は削除済み・generic select 経路は
+> H1-c2 で専用入口化）。**現況の正本は `TRPG-SERVER/src/discord/DESIGN.md`**。
  
  ## 目的
  - Discord.jsのインタラクション処理を **if分岐からRegistry方式へ移行**
