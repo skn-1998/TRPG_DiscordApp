@@ -132,7 +132,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         'Unsupported character create customId: character-create-unsupported-channel-1'
       )
       expect(interaction.reply).toHaveBeenCalledWith({
-        content: '⚠️ このインタラクションは現在処理できません。',
+        content: '⚠️ この作成ボタンは現在処理できません。（作成操作の customId 形式が不正です）',
         flags: MessageFlags.Ephemeral
       })
     })

@@ -34,6 +34,7 @@ import { CharacterEditEventEmitterService } from './services/character-edit-even
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { extractCharacterIdFromCustomId } from './utils/enhanced-character-edit.util'
 import { CharacterCreateCustomId } from './custom-id'
+import { respondEphemeralError } from '../../utils/interaction-error-response.util'
 // DiscordClientService依存を完全削除 - イベント駆動アーキテクチャに移行
 
 /**
@@ -78,10 +79,10 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       } else {
         // Invariant: Registry pattern は上記2述語の和集合。この枝は契約 drift 時の silent no-op を防ぐ。
         this.logger.warn(`Unsupported character create customId: ${interaction.customId}`)
-        await interaction.reply({
-          content: '⚠️ このインタラクションは現在処理できません。',
-          flags: MessageFlags.Ephemeral
-        })
+        await respondEphemeralError(
+          interaction,
+          '⚠️ この作成ボタンは現在処理できません。（作成操作の customId 形式が不正です）'
+        )
       }
     })
   }
@@ -93,7 +94,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
   }
 
   private async executeInteractionAction(
-    interaction: ButtonInteraction<CacheType> | StringSelectMenuInteraction<CacheType>,
+    interaction:
+      ButtonInteraction<CacheType> | StringSelectMenuInteraction<CacheType> | ModalSubmitInteraction<CacheType>,
     action: () => Promise<void>
   ): Promise<void> {
     try {
@@ -128,25 +130,13 @@ export class EnhancedCharacterEditService implements OnModuleInit {
    * モーダル送信インタラクションの処理
    */
   async handleModalSubmitInteraction(interaction: ModalSubmitInteraction<CacheType>): Promise<void> {
-    try {
+    await this.executeInteractionAction(interaction, async () => {
       // モーダル送信イベント発火
       await this.eventEmitter.emitModalSubmitted(interaction)
 
       // モーダルハンドラーに委譲
       await this.modalHandler.handleModalSubmit(interaction)
-    } catch (error) {
-      // エラーイベント発火
-      await this.eventEmitter.emitError(error, interaction.customId, interaction.user.id)
-
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          customId: interaction.customId,
-          userId: interaction.user.id
-        },
-        'EnhancedCharacterEditService'
-      )
-    }
+    })
   }
 
   /**

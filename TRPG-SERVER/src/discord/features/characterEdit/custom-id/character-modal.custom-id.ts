@@ -30,8 +30,6 @@ export type ParsedModalCustomId =
 
 export const CharacterModalCustomId = {
   pattern: CHARACTER_MODAL_CUSTOM_ID_PATTERN,
-  sessionPrefix: CHARACTER_MODAL_SESSION_PREFIX,
-  legacyPrefix: CHARACTER_MODAL_LEGACY_PREFIX,
 
   /**
    * direct 形式のモーダル customId を生成する（純粋）。

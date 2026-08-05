@@ -67,6 +67,7 @@ export class ErrorHandler {
 
   /**
    * サービス層エラーをハンドリング
+   * このメソッドは必ず throw する。HttpException はそのまま、それ以外は 500 HttpException へ変換して再スローし、名前に反して復帰しない。
    * @param error エラーオブジェクト
    * @param context エラーコンテキスト
    * @param serviceName サービス名
@@ -173,5 +174,4 @@ export class ErrorHandler {
 
     return false
   }
-
 }

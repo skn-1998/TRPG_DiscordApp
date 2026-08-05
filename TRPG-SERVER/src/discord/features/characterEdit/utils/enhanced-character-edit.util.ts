@@ -40,6 +40,9 @@ export function extractCharacterIdFromCustomId(customId: string): string | null 
  *
  * 現挙動: '-' で split し、最後の要素を characterId、parts[2] を sectionType、
  * parts[3] を fieldKey とする。要素が無い場合は 'unknown' を返す。
+ * CharacterModalCustomId.parse とは意味論が異なる lossy な第3実装
+ * （素朴な split('-')・末尾要素を characterId とする）。イベント payload 用途の現挙動保存であり、
+ * 契約 parse への統一は挙動変更を伴うため見送っている。
  *
  * @example
  * parseModalSubmitCustomId('char-edit-status-hp-char-123')
