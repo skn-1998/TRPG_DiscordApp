@@ -119,7 +119,7 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
 | `reason` | 意味 | 扱い |
 |---|---|---|
 | `null` | 誤検出源に当たらない | **有力候補**。ただし下記の2種類に分かれる |
-| `re-exported-by-another-module` | barrel 経由で転送されている | 転送先を追う必要がある |
+| `re-exported-by-another-module` | barrel 経由で転送されている | 転送先を追う必要がある。**`export *` の barrel はこのバケットへ死蔵を丸ごと吸い込む**（俯瞰#11 実測: characterTemplate の `export *` 配下で `sameFileReferenceCount=0` の完全死蔵8件がここに隠れ、`reason: null` だけを処理した掃討 #59 から取りこぼされた）。掃討時はこのバケットも「barrel から先の実 consumer」まで追うか、barrel を明示 re-export 化して信号を回復する |
 | `referenced-only-from-tests` | テストからのみ使われる | 消すとテストが壊れる |
 | `framework-decorated` | NestJS デコレータ経由で使われる | DI コンテナが使うので消せない |
 | `declared-in-entry-point` | エントリポイントの宣言 | 消せない |
@@ -189,6 +189,12 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
 
 ### 依存解析
 
+- **fanIn=1 のアンカー越し死蔵は不可視**（俯瞰#12 実測）: Remix の route ファイルは動的発見のため
+  fanIn=0 が死蔵の証拠にならず #59 で明示的に対象外とされた。その結果、**死蔵ルートだけが参照する**
+  支援モジュール（store 72行・corsApiWithJwt 62行）は fanIn=1 で生存判定され、俯瞰2回分
+  トリアージから漏れた。route 層は「到達 URL 台帳 × product 側参照 grep × git 履歴」の
+  手動トリアージを併走させ、ルート削除後に fanIn=0 へ落ちる連鎖まで追うこと
+
 - `reason: null` でも `sameFileReferenceCount >= 1` なら削除できない（`export` を外せるだけ）。
   実例: `core/dto/api-response.dto.ts` の `BaseApiResponse` は同一ファイルの `SuccessResponse` /
   `ErrorResponse` が継承している（`sameFileReferenceCount: 2`）
@@ -197,6 +203,12 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
   型チェッカとの全件突合せで、危険側（過小カウント）による死蔵の誤判定は 0 件と実測済み
 - 既定モードは import 宣言ベースなので、**動的 `import()` 経由の参照が見えない**。
   実例: `src/scripts/backfill-template-pin.ts` の動的 import。疑わしいときは `--precise` を併用する
+- **`export *` barrel の向こう側が見えない（危険側の実測例・2026-08-05 俯瞰#18）**:
+  `characterThread/custom-id/character-dice.custom-id.ts`（production 参照 0 の真の死蔵）が
+  barrel の `export *` 1 行に参照されているだけで死蔵候補から漏れた。逆に **importer 0 の
+  barrel 自体**（characterEdit の index.ts＋services/index.ts 計 106 行）も「export される側」
+  としては検出対象にならない。死蔵スイープでは (i) `export *` を持つ barrel の再エクスポート先を
+  grep で個別裏取りし、(ii) barrel ファイル自身の importer 数も測ること
 - リフレクション・文字列経由の参照（NestJS の一部、テンプレート、設定ファイル駆動）は原理的に見えない
 
 ### 独立性
@@ -235,6 +247,15 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
 
 その他の限界: 関数単位のみ（関数内の一部ブロックは見ない）、完全一致のみ（`if` が1個多いコピペ亜種は
 一致しない）、tsconfig をまたげない（server と front に同じヘルパをコピーしていても検出しない）。
+
+**tsconfig 跨ぎの盲点は「最大の重複を最後まで隠す」規模になり得る（俯瞰#11・2026-08-04 実測）**:
+front V2 の式言語スタック（トークナイザ・再帰下降パーサ・評価器・循環検出、計1,888行）が
+sheet-engine の同責務（1,413行）と丸ごと二重化していたが、`dup-front` / `dup-engine` が
+プロジェクト単位で別実行のため**機械実測には一切映らなかった**。同型の論理でも AST 構造が
+違う変種（ド・モルガン反転の早期 return 等）も同一プロジェクト内ですら別グループになる
+（実例: getResponseStatus は AST 一致2箇所＋構造回避1箇所＋インライン展開2箇所の計5箇所だった）。
+→ **大粒度レビューでは、責務語彙（parse/evaluate/validate/sanitize 等）の cross-package grep を
+ツール出力と必ず併走させる**。ツールの重複ゼロは「重複ゼロ」を意味しない。
 
 ## レシピ
 

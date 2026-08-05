@@ -279,8 +279,10 @@ APP_FILTER の `GlobalExceptionFilter`（1206a3e）が 500 封筒化する。
 
 **この上限が塞いでいるのは非有限経路だけ**。同じ 100,000 文字 uid でも
 `throwOutOfBounds` は約 200KB、`calculateBounds` の `resolved max below min` は約 100KB を返す。
-根本は `validatePublishTemplate`（`packages/sheet-engine/src/publish.ts`）が
-uid / label の長さを一切制限していないことで、発生源で止める対応は別タスク。
+発生源の uid / label 無制限は **#28（コミット 32ee086・2026-07-30）で封鎖済み**
+（publish schema の uid/label 全キーに ≤128。新規テンプレートは巨大 uid/label を持てない）。
+**未封鎖の同クラス経路**: formula / notation は無制限・`tables[].rows` は `z.any()`・
+lookup 検証は上限超過後も全行走査（理論 50MB 級）— Task#33 で対応予定。
 
 ### 保存可否の不変条件
 
@@ -315,3 +317,211 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 なお楽観ロック境界（`character-sheet-operation.service.ts` の merge 段）は JSON が非有限値を
 表現できないため `baseValue` が null になり 409 を返す — これは HEAD からの既存挙動で、
 対象データが存在しない以上、実害はない。
+
+## 必須キー導出とシート内部の重複整理（U1・2026-07-29・コミット 0805609）
+
+- **必須キー導出の正本は `test/utils/character-http-contract.ts` の
+  `requiredCharacterRuntimeKeys`（export・readonly）**。`characterEntitySchema.shape` から
+  `safeParse(undefined)` で導出する実装はリポジトリでここ1箇所のみ。spec で必須キー検査を
+  書くときは必ずこれを import する（独自に `.shape` から導出しない — S7e round 2 で
+  複製が生まれ、sentinel なし側が fail-open だった実例がある）
+- **fail-open sentinel は `expectRequiredCharacterRuntimeKeyCount()`**（長さ6の検査。
+  根拠コメントも同関数に併記）。導出が空配列になる事故（zod メジャー更新・全 field
+  optional 化）では HTTP ヘルパと repository projection 検査の両方がこれで落ちる
+- `character-sheet-operation.service.ts` の `writePathValue` は parts 許可検査を持たない。
+  検査は呼び出し前の `assertWritablePath` が唯一の担当（到達不能だった末尾ガードは
+  U1 で削除。破壊的代入の後に置かれた潜在バグでもあった）。
+  残余観察: `assertWritablePath` の戻り値 `SheetField` は現在消費者ゼロ（void 化は未実施・
+  レビュー L-1 記録のみ）
+- **`isPartsValue` は2系統あり意図的に別物**: engine 版
+  （`packages/sheet-engine/src/parts-value.ts`・緩い `'parts' in value` 検査・index.ts 非公開）と
+  server 版（`features/character-sheet/services/sheet-values.util.ts`・parts の型まで検査する
+  厳格版）。統合すると挙動変更になるため統合しない（U1 裁定）
+
+## palette ラベル書式の1本化（U3・2026-07-30・コミット d584020）
+
+- **palette ラベル書式の正本は `packages/sheet-projection/src/palette-label.ts`**
+  （純粋関数2個・import ゼロの葉モジュール・public API は関数2個のみ）。
+  組み立て = `formatPaletteLabel(baseLabel, formattedValue)`、
+  剥離 = `stripMatchingPaletteValueSuffix(label, formattedValue)`（厳密一致のみ・`—` は剥がさない）。
+  palette ラベルに値 suffix を付ける・剥がすコードを書くときは必ずこれを使う
+  （旧: materializer / operation / projection.ts の3箇所複製で、剥離 suffix と組立 suffix の
+  一致が規約のみだった。SP-2 三重乖離バグ bd22017 と同族の構造）
+- **値の選択責務は呼び出し元に残す**: materializer = 評価直後の生値（`type==='number'` のみ付与）、
+  operation = クランプ後実効値、projection = parts 合算後文字列。palette-label.ts は
+  文字列の組み立て・剥離だけを行い、評価・クランプへは関与しない
+- **`—`（値なし記号）は共有定数化しない**（レビュー裁定・2026-07-30）:
+  projection.ts の `formatResourceValue` は最高頻度 read path で、単一ソース化は
+  読解ホップ +4 の確定コストに対し便益の実測頻度0（記号変更は創設以来0回）。
+  結合は palette-label.ts 冒頭のコメント1行で明示している。記号を変えるときは両ファイル同時に
+- characterThread（legacy 属性ベース）の `skillName (skillLevel)` 書式は**意図的に対象外**:
+  データ経路も剥離側の相手も持たない別機能で、共有抽象で結合すると負荷増（U3 レビュー判定）
+
+### U3 追記（#38・2026-07-31）
+
+- projection.ts 内の `—` 4リテラルは **module-local const** へ集約済み（#38）。
+  「パッケージ跨ぎ・export での共有定数化はしない」という U3 裁定は**維持**
+  （palette-label.ts の private PALETTE_VALUE_PLACEHOLDER と projection.ts の
+  RESOURCE_VALUE_PLACEHOLDER は別所有のまま・共に U+2014・結合コメントで連結）
+- 区別基準の明文化: **契約に効く重複**（customId の生成側⇄parse 側の regex source 等）は
+  1本化する。**表示のみの重複**（`—` 等）はファイル内集約まで — export 共有はしない
+
+## publish 検証の見直し（#28+#23・2026-07-30・コミット 32ee086）
+
+- **uid/label の長さ上限は publish schema が正本**（`packages/sheet-engine/src/publish.ts` の
+  `MAX_UID_LENGTH = 128` / `MAX_LABEL_LENGTH = 128`・uid/label 名の全キーへ一律適用）。
+  裸の `z.string()` に戻さないこと。根拠と選定理由は定数直上の Why コメントが正本
+  （数値をここへ再掲しない — 過去に uid 16/45・path 98/131 の写しズレを2回起こした）。
+  uid 64 案は canonical path 写しを弾くためレビューで 128 へ裁定変更した経緯あり
+- **上限違反の issue は O(1) サイズ**（自前固定メッセージ・値非反響・zod 既定文言に依存しない）。
+  publish.spec.ts の増幅 spec（sentinel 非含有・UTF-8 byte・per-issue 上限）が機械固定
+- **投影規則の正本は `projection-key-validation.ts`**（OV-2/#35・2026-07-31 で1本化）:
+  materializer は同ファイルから `isProjectedFieldType` / `projectionTarget` を import する
+  （features→domains・ARCHITECTURE.md §4 の許可辺）。写し・両方更新の運用は廃止済み —
+  投影型や投影先を変えるときはこのファイルだけを編集する。
+  roll は publish 時点で rawValues 不可知のため一律拒絶（保守側）が裁定
+- 旧「長大 uid/label は publish 可能」前提の再現 spec
+  （non-finite-formula-save.reproduction.spec.ts）は前提を反転済み。実行時 422 の
+  応答予算検証（4,096 bytes）は「過去に永続化された長大値」想定の防御層として存続
+- 本番 DB 実測（2026-07-30・review-results/task28-23-data-survey/）: テンプレート0件・
+  materialized キャラ0件 = **Phase 2 シート機能は本番未採用**。#28/#23 は採用前に締めた
+  仕様変更で移行・互換分岐なし。U4 ベンチは実データ分布が存在しないため採用判断まで保留
+
+## publish 検証の1本化（OV-1・2026-07-31・コミット e1a1ca5）
+
+- **publish 検証の実装は1系統のみ**: `TEMPLATE_VALIDATION_PORT → SheetEngineTemplateValidationService
+→（実体）packages/sheet-engine/src/publish.ts の validatePublishTemplate`。
+  死蔵の第2実装 BasicTemplateValidationService（runtime 呼び出し0・#28 の上限が伝播せず
+  実挙動6件乖離）は削除済み（純減357行）。**publish 規則を追加・変更するときは
+  publish.ts と権威側 spec だけを見ればよい**
+- 旧第2実装にのみ存在した8規則の採否は #36 完了時（2026-07-31）に裁定済み:
+  **uid 空文字拒絶は採用済み**（uidSchema .min(1)・#36）。4上限（section/table/field 数・
+  serialized size）は増幅封鎖と同根のため **#33 で値を導出して採用**。
+  role.when / rowRole.when の黙殺は field.when 拒絶との非対称を揃えるため **#39 で採用**。
+  **field 直下 secret のみ不採用**（passthrough 設計での未知キー黙殺の一事例。エンジンモデルに
+  field.secret は存在せず、エディタも生成しない — 単独拒絶は場当たりのため意図的放置）
+
+## publish 参照キー一意性（OV-3/#36・2026-07-31・コミット 85b2723）
+
+- **canonical field path と table id は publish で一意性保証**（list itemFields 再帰含む）。
+  重複はキー長にかかわらず**常に**報告し、issue の表示値のみ truncateIssueInput
+  （MAX_CANONICAL_FIELD_PATH_LENGTH＝#39 以降 131・超過時 `…`）で切り詰める —
+  「報告するか」と「どう表示するか」を分離するのが設計意図。
+  報告条件に長さを混ぜる形へ戻さないこと（黙殺の fail-open 化と認知負荷過大の両方で
+  レビュー棄却済み・切り詰め挙動は publish.spec.ts の 150 文字 pin spec が機械固定）
+- uid は .min(1) で空文字拒絶（空白のみ uid の許容は不透明キーとして意図・spec で明示 pin）
+- **一意性検査は3層の意図的多層防御**: フロント v3Template.ts（editor 内 uid/id）・
+  engine publish.ts（canonical path/table id/uid）・サーバ projection-key-validation.ts
+  （投影先ごとの field id 衝突 = 別セクション→同一 target を担保。engine は検出しない）。
+  **層跨ぎの検査を「重複だから」と削除しないこと**（round 1 裁定・不変）
+- 例外の記録（OV8-a/#40・2026-07-31）: projection-key-validation の **canonical path 検査
+  のみ**削除した。これは層跨ぎ統合ではなく**同一関数内の死蔵**: canonical path
+  `${section.id}.${field.id}` の一致は「同一 section.id ⇒ 同一 target」かつ「同一 field.id」を
+  含意するため、**同じ関数に残した field id 検査が単独で厳密支配する**
+  （Opus 7,063ケース: 発火514件は全件 field id 検査でも捕捉・server 単独発火0。
+  Codex 16,384組で同結論）。projection 層固有の担保（別セクション→同一 target）は無傷。
+  復活させないこと — 復活は field id 検査と全入力で重複する
+- 残存する既知の検証素通り: validateId の path echo 増幅（#33）のみ。
+  relation attrs・role/rowRole.when は #39（f60b0db）で解消済み — 後段の
+  「publish 検証の素通り解消」節が正本
+
+## 式検証の issue 単独発行（OV-4/#37・2026-07-31・コミット 451e036）
+
+- **未知 function・max/min arity の診断は validateFunctionCalls が唯一の発行元**。
+  inferCallType は Error ベース sentinel（FUNCTION_CALL_ISSUE_ALREADY_REPORTED）を投げ、
+  validateFormula の catch は「sentinel 同一性 **かつ** 前段発行済み（issues.length 差分）」の
+  ときだけ握る — **fail closed**（前段未発行なら sentinel の message が診断に残り黙って通らない）。
+  ガードを**フラグ単独条件にしないこと**（無関係な型エラーまで握り潰すことを変異体実測で確認済み）
+- 設計判断の記録: 「inferCallType へ統合」方向は first-error で複合式の2件目が欠落するため
+  不成立（変異体実測）。発行元は validateFunctionCalls 側に置くのが正
+- RESERVED_IDS は KNOWN_FUNCTIONS から導出（9リテラルを再掲しない）
+- 観測可能な変化: `max/min expects 2 arguments` 文字列は消滅し `… is a binary function` へ
+  一本化（依存ゼロ確認済み）
+- 残存する同形の二重発行: 参照エラー（collectRefs → infer throw → catch 再発行・
+  `{main.nope}` で2件実測）は first-error 契約の裁定が先 → #44
+
+## 俯瞰#8 純減（OV8-a/#40・2026-07-31・コミット 2dc8b23）
+
+- **lookup 結果型の優先規則（table.resultType → row.resultType → 値推論）の実装は1系統**
+  （inferLookupTableType = lookupRowResult＋inferRuntimeInputType の合成）。
+  nested array 等の型外入力を text へ落とす guard は旧挙動の保存で、理由は
+  isNotationFragment の非 string String 強制（コード内 Why コメント＋pin spec あり）。
+  guard の否定条件は inferRuntimeInputType が扱う値種別の補集合を維持すること
+- **parts を持てる field の判定は @trpg/sheet-engine の allowsParts が正本**
+  （value-input.ts。OV9-a/#45 で engine へ移設 — server の sheet-values.util は
+  既存 import 経路維持のための re-export shim。engine/server どちらにも複製を作らない）
+- **投影先語彙は projection-key-validation.ts の PROJECTION_TARGETS（as const）が単一編集点**
+  （union・Set とも導出。片方だけの編集は型エラーになる）
+- uid/canonical path/table id の一意性はすべて validateUniqueReferenceKey 様式
+  （uid のみ issue path を非切り詰めで維持 — 理由はコード内コメント・pin spec あり）
+
+## 型契約の1本化（OV8-b/#41・2026-08-01・コミット ce158c3）
+
+- **CharacterSheetState / palette 型の正本は domains/character/models/character.entity.ts**。
+  feature 側 types/character-sheet.types.ts は import type＋type-only re-export のみ
+  （PaletteEntry = CharacterPaletteEntry の alias。feature 内の読者は従来名のまま）
+- 削除時に型同一性を機械証明済み（AST メンバー単位比較・strict 双方向 extends・
+  負の対照14/15発火・transpile byte-identical）。alias 化で契約の拡大/縮小はゼロ
+- **注意（俯瞰#10 議題）**: 「編集箇所 2→1」は server 内スコープ。repo 全体では
+  packages/sheet-projection の ProjectionPaletteEntry（domain 型と完全同一を機械確認）と
+  packages/api-contract の characterPaletteEntrySchema（zod）が残り、
+  palette 契約へのフィールド追加は依然 3 箇所同期（4→3）。
+  境界逆流のため import 統合は不可 — 片方向型互換アサーションによる drift 検出が候補
+
+## publish 検証の素通り解消（#39・2026-08-01・コミット f60b0db）
+
+- **relation attrs は validateField 再帰で全検査を受ける**（canonical path 登録・グローバル uid
+  一意性・ID_PATTERN/予約語・when 拒絶・role 検証）。attr 用の別検査関数を作らないこと —
+  検証所有者は validateField 1本を維持する
+- attr の canonical path は buildTemplateIndex に索引されず runtime 参照不能だが、
+  一意性集合には superset として参加する（publish.ts にコメントあり・誤衝突は構造的に不能）
+- **role.when / rowRole.when は拒絶**（`role.when is 未対応`）。field.when の
+  `when is 未対応` とは message で区別（path は同一になりうる — secret role と同じ既存パターン）。
+  真理値: undefined のみ許容・null/''/falsy は拒絶 = field.when と同一セマンティクス
+- **MAX_CANONICAL_FIELD_PATH_LENGTH = 32\*4+3 = 131**（4セグメント:
+  section.list.relation.attr）。path の形状前提を変える変更ではこの定数の再導出を必ず検討する。
+  schema 上限 128 の uid は切り詰め非発動（切り詰めガードの pin は 150文字 table id spec が担保）
+- 新規拒絶は validateForSave（同関数共有）でも発火する — save/publish の分岐是非は #42 の裁定事項
+- packages/sheet-engine に lint gate は存在しない（eslint config なし）。「lint 4/99」基準は
+  TRPG-SERVER スコープの数値
+
+## OV9-a 機械的純減の設計記録（#45・2026-08-01・コミット 1cf6adb・俯瞰#10 で節を補完）
+
+- **customId null 処理は acceptGeneratedCustomId（sheet-projection custom-id.ts）1本**。
+  fail-closed の silent drop 残置は3箇所（projection.ts の continue / early-return / && 合流）で、
+  いずれも生成側の前提から到達不能 — 各箇所直上の根拠コメントが正本（無い箇所は OV10-a で補完）
+- **assertArity は engine arity.ts（index 非公開の葉）1本**。root barrel へ公開しないこと
+- server custom-id barrel の死蔵5 re-export・regex alias 2名は削除済み（consumer-zero 実測）。
+  復活させる場合は消費者の実在を先に示すこと
+- 兄弟述語の意図的二重: **isPartsValue は engine（緩・schema 分岐用）と server
+  （厳格・SheetPartsValue 判定）で異責務の2実装**。真理値が割れる入力（{parts:5} 等）が
+  存在するのは仕様 — 1本化しない（俯瞰#10 F3 裁定・server 側に差分コメントあり）
+
+## 俯瞰#10 の裁定記録（2026-08-01・正本 = review-results/overview-batch5/integration-verdict.md）
+
+- palette 契約の drift 検出: domain⟷zod は character-wire.contract.spec.ts の IsExact が
+  双方向被覆済み（プローブ実測）。domain⟷projection は hub-projection.service.spec.ts の
+  片方向代入 assert で「domain が増えた」方向を固定（OV10-a）。optional key の drift は
+  素の代入では検出不能 — 必要になったら IsExact へ昇格
+- DEFAULT_AST_NODE_LIMIT 256 の2宣言（publish/evaluator）は現状維持＋相互参照コメント
+  （1行定数の共有に import 辺を増やさない・U3 と同型の裁定）。値を変えるときは必ず両方
+- palette 上限 512 は api-contract 内で1本化・server materializer とは同値要求コメントで連結
+  （パッケージ跨ぎの定数統合はしない）。TABLE_ROW_LIMIT=512・SOFT_CAP=128 との一致は
+  偶然 — 統合禁止
+- front の ID 規則複製（ID_PATTERN/RESERVED_IDS 14語×2セット）は統合タスク起票済み。
+  front validateLocalTemplate が attrs/itemFields へ再帰しない非対称は別議題として記録
+
+## palette 契約の drift 検出（OV10-a/#47・2026-08-02・コミット 561786f）
+
+- **CharacterPaletteEntry ⇄ ProjectionPaletteEntry の完全一致は
+  character-wire.contract.spec.ts が機械固定する**（このファイルは「型で固定する橋」が役割で、
+  @trpg/api-contract の同一性も同じ様式で固定している。新しい判定器を作らず既存
+  IsExact / OptionalKeys / MismatchedValueKeys / AssertBothNever を合成すること）
+- **判定器の検出力は実装形で決まる**: repo の IsExact は双方向 `extends` 版で、
+  required 追加・削除・rename・型緩和・union 拡大・required↔optional 反転は検出するが
+  **pure な optional 追加だけは素通りする**（`{a}` と `{a, b?}` は相互代入可能）。
+  それを補うのが OptionalKeys 集合の双方向 Exclude 比較。
+  「IsExact だから完全一致」と読まないこと — 名前でなく定義本体を読む
+- palette 上限は api-contract の PALETTE_MAX_ENTRIES（未 export・ファイル内3箇所で参照）と
+  server の PALETTE_HARD_CAP の2箇所。**値の drift は機械固定されておらずコメント頼み**
+  （型 drift は固定済みという非対称。固定するには api-contract のエクスポート面拡大が要る）
