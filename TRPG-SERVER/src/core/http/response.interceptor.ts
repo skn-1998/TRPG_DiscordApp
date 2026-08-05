@@ -9,10 +9,10 @@ import { SKIP_RESPONSE_WRAPPER_KEY } from './skip-response-wrapper.decorator'
 /**
  * 成功レスポンス封筒化インターセプタ。
  *
- * ハンドラの戻り値を ApiResponseUtil.success と完全に同一の SuccessResponse
+ * ハンドラの戻り値を既存 wire と完全に同一の SuccessResponse
  * （= new SuccessResponse(data, message, meta, requestId), requestId=uuidv4()）でラップする。
  *
- * - message      : @ResponseMessage のメタデータ、無ければ '成功'（ApiResponseUtil.success の既定値と一致）
+ * - message      : @ResponseMessage のメタデータ、無ければ '成功'（成功封筒の既定値と一致）
  * - meta         : 付与しない（変換前の対象エンドポイントはいずれも meta 未使用）
  * - requestId    : uuidv4()（変換前と同一）
  *

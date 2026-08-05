@@ -27,7 +27,6 @@ import {
   CharacterAuthenticationException,
   CharacterNotFoundException
 } from '../../domains/character/character-http.exception'
-import { ApiResponseUtil } from '../../utils/api-response.util'
 import { ApiError } from './api-error'
 import { APP_VALIDATION_PIPE_PROVIDER } from './validation-pipe.provider'
 import {
@@ -525,17 +524,21 @@ describe('GlobalExceptionFilter rehosted HttpException pins', () => {
     expect(Reflect.getMetadata(FILTER_CATCH_EXCEPTIONS, GlobalExceptionFilter)).toEqual([])
   })
 
-  it('ApiError(404, label, 文字列) → ApiResponseUtil.error(res, 文字列, 404, label) と一致', () => {
+  it('ApiError(404, label, 文字列) → 旧 wire literal と一致', () => {
     const { res, status, json } = createResponse()
     const filter = new GlobalExceptionFilter(mockAppConfig)
 
     filter.catch(new ApiError(404, 'エラーが発生しました', 'ユーザーが見つかりません'), createHost(res))
 
-    const { res: expectedRes, json: expectedJson } = createResponse()
-    ApiResponseUtil.error(expectedRes, 'ユーザーが見つかりません', 404, 'エラーが発生しました')
-
     expect(status).toHaveBeenCalledWith(404)
-    expect(stripVolatile(json.mock.calls[0][0])).toEqual(stripVolatile(expectedJson.mock.calls[0][0]))
+    expect(stripVolatile(json.mock.calls[0][0])).toEqual({
+      success: false,
+      message: 'エラーが発生しました',
+      error: 'ユーザーが見つかりません',
+      errorCode: undefined,
+      details: undefined,
+      stack: undefined
+    })
     expect(json.mock.calls[0][0].error).toBe('ユーザーが見つかりません')
   })
 

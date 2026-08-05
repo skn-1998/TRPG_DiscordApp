@@ -5,7 +5,7 @@ import { AuthService } from '../../src/domains/auth/services/auth.service'
 import { UserService } from '../../src/domains/user/user.service'
 import { User } from '../../src/domains/user/models/user.model'
 import { CookieService } from '../../src/core/http/cookie.service'
-import { ApiResponseUtil } from '../../src/utils/api-response.util'
+import { v4 as uuidv4 } from 'uuid'
 
 interface TestLoginDto {
   discordUserId: string
@@ -37,7 +37,14 @@ export class TestAuthController {
     const avatarHash = body.avatarHash?.trim()
 
     if (!discordUserId || !username) {
-      ApiResponseUtil.error(res, 'discordUserId と username は必須です', 400)
+      const requestId = uuidv4()
+      res.status(400).json({
+        success: false,
+        message: 'エラーが発生しました',
+        timestamp: Date.now(),
+        requestId,
+        error: 'discordUserId と username は必須です'
+      })
       return
     }
 
@@ -68,18 +75,21 @@ export class TestAuthController {
     const jwt = await this.authService.generateJwt(userData)
     this.cookieService.setJwtCookie(res, jwt, false)
 
-    ApiResponseUtil.success(
-      res,
-      {
+    const requestId = uuidv4()
+    res.status(200).json({
+      success: true,
+      message: '成功',
+      timestamp: Date.now(),
+      requestId,
+      data: {
         token: jwt,
         user: {
           id: discordUserId,
           username,
           avatar: avatarHash
         }
-      },
-      'auth'
-    )
+      }
+    })
   }
 
   private assertTestSecret(testAuthSecret: string | undefined): void {

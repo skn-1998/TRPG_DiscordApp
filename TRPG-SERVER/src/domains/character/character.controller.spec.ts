@@ -18,7 +18,6 @@ import { ResponseInterceptor } from '../../core/http'
 import { GlobalExceptionFilter } from '../../core/http/global-exception.filter'
 import { SuccessResponse } from '../../core/dto/api-response.dto'
 import { CharacterAuthenticationException, CharacterNotFoundException } from './character-http.exception'
-import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 import { GUARDS_METADATA } from '@nestjs/common/constants'
 
@@ -28,8 +27,8 @@ import { GUARDS_METADATA } from '@nestjs/common/constants'
  * 封筒化は ResponseInterceptor（成功）/ GlobalExceptionFilter（異常）が担う。
  *
  * 本 spec は実機同様に interceptor / filter を通して最終 envelope を再現し、
- * 変換前の ApiResponseUtil.success / authenticationError / notFoundError と
- * 同一（success/status/message/error/errorCode）であることを検証する（requestId/timestamp は除外）。
+ * 変換前の wire literal と同一（success/status/message/error/errorCode）であることを検証する
+ * （requestId/timestamp は除外）。
  * 素の Error は controller が同じ値を再 throw することだけを固定し、global 配線は HTTP spec で検証する。
  */
 describe('CharacterController', () => {
@@ -39,7 +38,7 @@ describe('CharacterController', () => {
 
   const reflector = new Reflector()
 
-  // GlobalExceptionFilter の dev 判定を test 固定にし、ApiResponseUtil.error の既定と同じく stack を含めない。
+  // GlobalExceptionFilter の dev 判定を test 固定にし、旧 wire と同じく stack を含めない。
   const mockAppConfig = {
     get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
   } as unknown as AppConfigService
@@ -139,13 +138,6 @@ describe('CharacterController', () => {
     return rest
   }
 
-  /** ApiResponseUtil.* が生成する envelope を取り出す（参照値） */
-  const refEnvelope = (fn: (res: Response) => void): any => {
-    const ref: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() }
-    fn(ref as Response)
-    return ref.json.mock.calls[0][0]
-  }
-
   beforeEach(async () => {
     const characterServiceMock = {
       create: jest.fn(),
@@ -230,13 +222,12 @@ describe('CharacterController', () => {
 
       // interceptor 経由の最終 envelope（status は @HttpCode(201)、message は @ResponseMessage で保持）
       const envelope = await wrapSuccess('create', data)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(res, mockCharacter, 'character', 201, 'キャラクターを作成しました')
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクターを作成しました',
+        data: mockCharacter,
+        meta: undefined
+      })
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
@@ -258,12 +249,17 @@ describe('CharacterController', () => {
       expect(thrown).toBeInstanceOf(CharacterAuthenticationException)
       expect(characterService.create).not.toHaveBeenCalled()
 
-      // filter 経由の最終 envelope が authenticationError と一致
+      // filter 経由の最終 envelope が旧 wire literal と一致
       const { status, body } = filterError(thrown)
       expect(status).toBe(401)
-      expect(stripVolatile(body)).toEqual(
-        stripVolatile(refEnvelope((res) => ApiResponseUtil.authenticationError(res, '認証トークンがありません')))
-      )
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: '認証エラー',
+        error: '認証トークンがありません',
+        errorCode: 'AUTHENTICATION_ERROR',
+        details: undefined,
+        stack: undefined
+      })
     })
 
     it('Service作成の素の Error はそのまま再 throw する', async () => {
@@ -291,13 +287,12 @@ describe('CharacterController', () => {
       // interceptor は SuccessResponse を素通しするため最終 envelope = result
       const envelope = await wrapSuccess('findAll', result)
       expect(envelope).toBe(result)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(res, mockCharacters, 'character', 200, 'キャラクター一覧を取得しました', meta)
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクター一覧を取得しました',
+        data: mockCharacters,
+        meta
+      })
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
@@ -336,13 +331,12 @@ describe('CharacterController', () => {
 
       const meta = { total: 2, page: 1, limit: 2, hasNext: false, hasPrev: false }
       const envelope = await wrapSuccess('findUserCharacterSummaries', result)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(res, mockSummaries, 'character', 200, 'キャラクターサマリーを取得しました', meta)
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクターサマリーを取得しました',
+        data: mockSummaries,
+        meta
+      })
     })
 
     it('userが無い場合は401を返しServiceを呼ばない', async () => {
@@ -380,13 +374,12 @@ describe('CharacterController', () => {
       expect(data).toEqual(mockCharacter)
 
       const envelope = await wrapSuccess('findOne', data)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(res, mockCharacter, 'character', 200, 'キャラクターを取得しました')
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクターを取得しました',
+        data: mockCharacter,
+        meta: undefined
+      })
     })
 
     it('キャラクターが見つからない場合は404を返す', async () => {
@@ -404,9 +397,14 @@ describe('CharacterController', () => {
 
       const { status, body } = filterError(thrown)
       expect(status).toBe(404)
-      expect(stripVolatile(body)).toEqual(
-        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
-      )
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: '未発見エラー',
+        error: 'キャラクターが見つかりません',
+        errorCode: 'NOT_FOUND_ERROR',
+        details: undefined,
+        stack: undefined
+      })
     })
 
     it('ServiceのfindOneの素の Error はそのまま再 throw する', async () => {
@@ -437,13 +435,12 @@ describe('CharacterController', () => {
       expect(data).toEqual(updatedCharacter)
 
       const envelope = await wrapSuccess('update', data)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(res, updatedCharacter, 'character', 200, 'キャラクターを更新しました')
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクターを更新しました',
+        data: updatedCharacter,
+        meta: undefined
+      })
     })
 
     it('更新対象が見つからない場合は404を返す', async () => {
@@ -461,9 +458,14 @@ describe('CharacterController', () => {
 
       const { status, body } = filterError(thrown)
       expect(status).toBe(404)
-      expect(stripVolatile(body)).toEqual(
-        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
-      )
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: '未発見エラー',
+        error: 'キャラクターが見つかりません',
+        errorCode: 'NOT_FOUND_ERROR',
+        details: undefined,
+        stack: undefined
+      })
     })
 
     it('materialized characterのセクション書き込み拒否を409で返す', async () => {
@@ -507,19 +509,12 @@ describe('CharacterController', () => {
       expect(data).toEqual({ message: 'キャラクターを削除しました', characterId })
 
       const envelope = await wrapSuccess('remove', data)
-      expect(stripVolatile(envelope)).toEqual(
-        stripVolatile(
-          refEnvelope((res) =>
-            ApiResponseUtil.success(
-              res,
-              { message: 'キャラクターを削除しました', characterId },
-              'character',
-              200,
-              'キャラクターを削除しました'
-            )
-          )
-        )
-      )
+      expect(stripVolatile(envelope)).toEqual({
+        success: true,
+        message: 'キャラクターを削除しました',
+        data: { message: 'キャラクターを削除しました', characterId },
+        meta: undefined
+      })
     })
 
     it('削除対象が見つからない場合は404を返す', async () => {
@@ -537,9 +532,14 @@ describe('CharacterController', () => {
 
       const { status, body } = filterError(thrown)
       expect(status).toBe(404)
-      expect(stripVolatile(body)).toEqual(
-        stripVolatile(refEnvelope((res) => ApiResponseUtil.notFoundError(res, 'キャラクター')))
-      )
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: '未発見エラー',
+        error: 'キャラクターが見つかりません',
+        errorCode: 'NOT_FOUND_ERROR',
+        details: undefined,
+        stack: undefined
+      })
     })
 
     it('Serviceのremoveの素の Error はそのまま再 throw する', async () => {
