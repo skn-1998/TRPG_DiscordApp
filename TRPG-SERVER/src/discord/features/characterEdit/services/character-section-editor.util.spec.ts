@@ -10,7 +10,6 @@ import {
   extractCharacterIdFromCustomId,
   extractSectionFromCustomId,
   isFieldOperationCustomId,
-  isSectionSelectionCustomId,
   buildDirectModalId,
   buildSessionModalId,
   shouldUseDirectModalId,
@@ -209,21 +208,6 @@ describe('character-section-editor.util (pure functions)', () => {
       ['character-field-editorial-x', false]
     ])('%s -> %s', (customId, expected) => {
       expect(isFieldOperationCustomId(customId)).toBe(expected)
-    })
-  })
-
-  describe('isSectionSelectionCustomId', () => {
-    it.each([
-      ['character-edit-section-x', true],
-      ['character-section-select-x', true],
-      ['character-field-edit-status-x', false],
-      // 中置に prefix を含む敵対値（includes 現挙動の正例 pin）
-      ['x-character-edit-section-y', true],
-      // 引き締め差分の負例 pin: 末尾ハイフン無しの非生成形は旧 true → 新 false
-      ['character-edit-section', false],
-      ['character-section-selection', false]
-    ])('%s -> %s', (customId, expected) => {
-      expect(isSectionSelectionCustomId(customId)).toBe(expected)
     })
   })
 

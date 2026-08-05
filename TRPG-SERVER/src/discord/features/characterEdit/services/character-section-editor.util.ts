@@ -16,9 +16,7 @@ import { CharacterEntity } from '../../../../domains/character/models/character.
 // P1-D slice1 Slice C: characterId 抽出の正規表現を feature-local 契約モジュールへ集約（byte-identical・非アンカーのまま）
 import {
   CHARACTER_EDIT_SECTION_PARSE_PATTERN,
-  CHARACTER_SECTION_SELECT_PARSE_PATTERN,
-  CHARACTER_EDIT_SECTION_CUSTOM_ID_PREFIX,
-  CHARACTER_SECTION_SELECT_CUSTOM_ID_PREFIX
+  CHARACTER_SECTION_SELECT_PARSE_PATTERN
 } from '../custom-id/character-section.custom-id'
 import {
   CHARACTER_FIELD_EDIT_PARSE_PATTERN,
@@ -187,20 +185,6 @@ export function extractSectionFromCustomId(customId: string): EmbedSectionType |
 export function isFieldOperationCustomId(customId: string): boolean {
   return (
     customId.includes(CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX) || customId.includes(CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX)
-  )
-}
-
-/**
- * section選択（メッセージ更新）の customId かを判定する（純粋）。
- *
- * 判定は契約 prefix（末尾ハイフン付き）の includes。旧実装のハイフン無し literal からの
- * 引き締めだが、生成側（createEditSection/createSectionSelect）は常に末尾ハイフン付きのため
- * 生成集合上で等価（差分は 'character-section-selection' 等の非生成形のみ・spec で負例 pin）。
- */
-export function isSectionSelectionCustomId(customId: string): boolean {
-  return (
-    customId.includes(CHARACTER_EDIT_SECTION_CUSTOM_ID_PREFIX) ||
-    customId.includes(CHARACTER_SECTION_SELECT_CUSTOM_ID_PREFIX)
   )
 }
 

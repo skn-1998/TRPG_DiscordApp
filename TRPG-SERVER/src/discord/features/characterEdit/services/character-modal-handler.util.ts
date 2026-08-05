@@ -11,6 +11,7 @@ import { AttributeValueDto } from '../../../../domains/character/dto/create-char
 import { AttributeValue } from '../../../../core/types/attribute.types'
 import { EmbedSectionType } from './character-embed-manager.service'
 import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
+import { CharacterCreateCustomId } from '../custom-id/character-create.custom-id'
 
 /**
  * フィールドデータ構造
@@ -54,17 +55,7 @@ export function parseCreationCustomId(customId: string): {
   channelId: string | null
   userId: string | null
 } {
-  const pattern = /character-create-basic-(.+?)-(.+)$/
-  const match = customId.match(pattern)
-
-  if (!match) {
-    return { channelId: null, userId: null }
-  }
-
-  return {
-    channelId: match[1],
-    userId: match[2]
-  }
+  return CharacterCreateCustomId.parseBasic(customId)
 }
 
 /**

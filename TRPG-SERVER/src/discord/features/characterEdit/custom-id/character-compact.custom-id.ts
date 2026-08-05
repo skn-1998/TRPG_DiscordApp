@@ -7,10 +7,6 @@
  * discord.js / NestJS DI に依存しない純粋な文字列契約のみを提供する。
  */
 
-type CharacterCompactParsedCustomId = {
-  characterId: string
-}
-
 /** handler の getCustomIdPattern() が返す前方一致 prefix（不変） */
 export const CHARACTER_COMPACT_CUSTOM_ID_PATTERN = 'character-compact-view-'
 
@@ -19,26 +15,5 @@ export const CharacterCompactCustomId = {
 
   create(characterId: string): string {
     return `${CHARACTER_COMPACT_CUSTOM_ID_PATTERN}${characterId}`
-  },
-
-  /**
-   * customId が compact-view ボタンのものか判定する（純粋）。
-   * 分岐ディスパッチの現挙動を保存するため startsWith 判定（characterId 空でも true）。
-   */
-  is(customId: string): boolean {
-    return customId.startsWith(CHARACTER_COMPACT_CUSTOM_ID_PATTERN)
-  },
-
-  parse(customId: string): CharacterCompactParsedCustomId | null {
-    if (!customId.startsWith(CHARACTER_COMPACT_CUSTOM_ID_PATTERN)) {
-      return null
-    }
-
-    const characterId = customId.slice(CHARACTER_COMPACT_CUSTOM_ID_PATTERN.length)
-    if (!characterId) {
-      return null
-    }
-
-    return { characterId }
   }
 } as const
