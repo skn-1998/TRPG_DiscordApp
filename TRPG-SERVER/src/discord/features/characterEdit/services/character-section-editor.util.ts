@@ -27,6 +27,7 @@ import {
   CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
   characterFieldSectionInfix
 } from '../custom-id/character-field.custom-id'
+import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
 
 /**
  * フィールド編集モーダルに流し込む既存値。
@@ -209,7 +210,7 @@ export function isSectionSelectionCustomId(customId: string): boolean {
  * @example buildDirectModalId('status', 'hp', 'abc123') // 'char-edit-status-hp-abc123'
  */
 export function buildDirectModalId(sectionType: EmbedSectionType, fieldKey: string, characterId: string): string {
-  return `char-edit-${sectionType}-${fieldKey}-${characterId}`
+  return CharacterModalCustomId.createDirect(sectionType, fieldKey, characterId)
 }
 
 /**
@@ -218,7 +219,7 @@ export function buildDirectModalId(sectionType: EmbedSectionType, fieldKey: stri
  * @example buildSessionModalId('SESSION99') // 'char-edit-modal-SESSION99'
  */
 export function buildSessionModalId(sessionId: string): string {
-  return `char-edit-modal-${sessionId}`
+  return CharacterModalCustomId.createSession(sessionId)
 }
 
 /**
