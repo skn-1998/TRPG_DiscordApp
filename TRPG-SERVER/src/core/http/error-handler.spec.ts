@@ -1,5 +1,5 @@
-import { Logger, HttpException, HttpStatus } from '@nestjs/common'
-import { ErrorHandler, BackgroundTaskErrorHandler, ErrorContext } from './error-handler'
+import { HttpException, HttpStatus } from '@nestjs/common'
+import { ErrorHandler, ErrorContext } from './error-handler'
 
 // Logger のモック
 jest.mock('@nestjs/common', () => ({
@@ -110,58 +110,4 @@ describe('ErrorHandler', () => {
     })
   })
 
-  describe('getErrorStats', () => {
-    it('should return empty stats object', () => {
-      const stats = ErrorHandler.getErrorStats()
-      expect(stats).toEqual({})
-    })
-  })
-})
-
-describe('BackgroundTaskErrorHandler', () => {
-  let mockLogger: jest.Mocked<Logger>
-
-  beforeEach(() => {
-    mockLogger = {
-      error: jest.fn(),
-      warn: jest.fn(),
-      log: jest.fn(),
-      debug: jest.fn()
-    } as any
-    ;(BackgroundTaskErrorHandler as any).logger = mockLogger
-    ;(ErrorHandler as any).logger = mockLogger
-  })
-
-  describe('handleBackgroundError', () => {
-    it('should handle background task error', () => {
-      const error = new Error('Background task error')
-      const taskName = 'test-task'
-      const context: ErrorContext = { userId: 'user-123' }
-
-      BackgroundTaskErrorHandler.handleBackgroundError(error, taskName, context)
-
-      // バックグラウンドタスクエラーが正常にハンドリングされることを確認
-      expect(() => {
-        BackgroundTaskErrorHandler.handleBackgroundError(error, taskName, context)
-      }).not.toThrow()
-    })
-
-    it('should handle background task error with empty context', () => {
-      const error = new Error('Background task error')
-      const taskName = 'test-task'
-
-      expect(() => {
-        BackgroundTaskErrorHandler.handleBackgroundError(error, taskName)
-      }).not.toThrow()
-    })
-
-    it('should not throw error for background tasks', () => {
-      const error = new Error('Background task error')
-      const taskName = 'test-task'
-
-      expect(() => {
-        BackgroundTaskErrorHandler.handleBackgroundError(error, taskName)
-      }).not.toThrow()
-    })
-  })
 })

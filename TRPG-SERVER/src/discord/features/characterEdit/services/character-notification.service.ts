@@ -32,33 +32,4 @@ export class CharacterNotificationService {
     }
   }
 
-  /**
-   * キャラクター作成完了通知（イベント統合サービス用）
-   */
-  async notifyCharacterCreated(characterId: string, _channelId: string, _creatorId: string): Promise<void> {
-    try {
-      this.logger.log(`キャラクター作成完了通知: ${characterId}`)
-      // 実際の通知処理は必要に応じて実装
-    } catch (error) {
-      this.logger.error('キャラクター作成完了通知エラー:', error)
-      throw error
-    }
-  }
-
-  /**
-   * キャラクターEmbed更新（イベント統合サービス用）
-   */
-  async updateCharacterEmbed(
-    characterId: string,
-    _channelId: string,
-    updateType: 'status' | 'parameter' | 'skill' | 'full'
-  ): Promise<void> {
-    try {
-      this.logger.log(`キャラクターEmbed更新: ${characterId} (${updateType})`)
-      // 実際のEmbed更新処理は必要に応じて実装
-    } catch (error) {
-      this.logger.error('キャラクターEmbed更新エラー:', error)
-      throw error
-    }
-  }
 }
