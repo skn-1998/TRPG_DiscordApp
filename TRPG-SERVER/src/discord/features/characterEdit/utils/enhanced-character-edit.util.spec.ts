@@ -6,6 +6,10 @@ import {
   messageHasCharacterEditButtons,
   MessageLike
 } from './enhanced-character-edit.util'
+import { CharacterRefreshCustomId } from '../custom-id/character-refresh.custom-id'
+import { CharacterCompactCustomId } from '../custom-id/character-compact.custom-id'
+import { CharacterSectionCustomId } from '../custom-id/character-section.custom-id'
+import { CharacterFieldCustomId } from '../custom-id/character-field.custom-id'
 
 describe('enhanced-character-edit.util (pure functions)', () => {
   describe('extractCharacterIdFromCustomId', () => {
@@ -41,8 +45,18 @@ describe('enhanced-character-edit.util (pure functions)', () => {
       expect(extractCharacterIdFromCustomId('character-edit-section-a-b-c-123')).toBe('a-b-c-123')
     })
 
-    it('refresh パターンを section パターンより先に評価する', () => {
-      expect(extractCharacterIdFromCustomId('character-edit-section-character-refresh-x')).toBe('x')
+    it('section family の characterId に refresh prefix が含まれても完全な ID を返す', () => {
+      expect(extractCharacterIdFromCustomId('character-edit-section-character-refresh-x')).toBe('character-refresh-x')
+    })
+
+    it('field family の characterId に refresh prefix が含まれても完全な ID を返す', () => {
+      expect(extractCharacterIdFromCustomId('character-field-edit-status-character-refresh-x')).toBe(
+        'character-refresh-x'
+      )
+    })
+
+    it('family prefix が位置 0 にない customId は捕捉しない', () => {
+      expect(extractCharacterIdFromCustomId('x-character-refresh-abc')).toBeNull()
     })
 
     it('一致しない customId は null', () => {
@@ -52,6 +66,38 @@ describe('enhanced-character-edit.util (pure functions)', () => {
     it('マッチしない customId は null を返す', () => {
       expect(extractCharacterIdFromCustomId('char-edit-status-hp-char-123')).toBeNull()
       expect(extractCharacterIdFromCustomId('unknown')).toBeNull()
+    })
+
+    describe('契約 create との round-trip', () => {
+      const collisionId = 'character-refresh-x'
+
+      it('refresh family は create した ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId(CharacterRefreshCustomId.create(collisionId))).toBe(collisionId)
+      })
+
+      it('compact-view family は create した ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId(CharacterCompactCustomId.create(collisionId))).toBe(collisionId)
+      })
+
+      it('edit-section family は create した ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId(CharacterSectionCustomId.createEditSection(collisionId))).toBe(
+          collisionId
+        )
+      })
+
+      it('field-edit family は create した ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId(CharacterFieldCustomId.createEdit('status', collisionId))).toBe(
+          collisionId
+        )
+      })
+
+      it('field-add family は create した ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId(CharacterFieldCustomId.createAdd('skill', collisionId))).toBe(collisionId)
+      })
+
+      it('section-select family は契約形式の ID を完全に抽出する', () => {
+        expect(extractCharacterIdFromCustomId('character-section-select-' + collisionId)).toBe(collisionId)
+      })
     })
   })
 

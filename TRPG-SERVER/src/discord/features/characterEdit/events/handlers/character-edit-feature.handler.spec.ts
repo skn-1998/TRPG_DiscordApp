@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { CharacterEditFeatureHandler } from './character-edit-feature.handler'
 import { TypedEventService } from '../../../../../core/events/typed-event.service'
@@ -40,6 +41,10 @@ describe('CharacterEditFeatureHandler', () => {
 
     handler = moduleRef.get(CharacterEditFeatureHandler)
     handler.onModuleInit()
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
   })
 
   describe('onModuleInit / ハンドラ登録', () => {
@@ -151,9 +156,10 @@ describe('CharacterEditFeatureHandler', () => {
   })
 
   describe('characterEdit.error.occurred ハンドラ', () => {
-    it('severity=high のエラーでもレガシーバスへの dead 発行は撤去済みのため何も emit しない（ログのみ）', async () => {
+    it('severity=high のエラーは characterId 付きでログし、何も emit しない', async () => {
       // Arrange
       const cb = registered.get('characterEdit.error.occurred')!
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
       const event = {
         type: 'characterEdit.error.occurred',
         characterId: 'char-1',
@@ -169,6 +175,9 @@ describe('CharacterEditFeatureHandler', () => {
 
       // Act & Assert: 例外なくログ記録のみで完了する（バス再発行なし）
       await expect(cb(event)).resolves.toBeUndefined()
+      expect(errorSpy).toHaveBeenCalledWith(
+        '🚨 Character Edit Feature Error: SOME_ERROR - failure (characterId=char-1)'
+      )
       expect(typedEventService.emit).not.toHaveBeenCalled()
     })
 

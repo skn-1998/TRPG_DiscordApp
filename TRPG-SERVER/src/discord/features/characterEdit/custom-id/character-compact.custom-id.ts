@@ -10,6 +10,9 @@
 /** handler の getCustomIdPattern() が返す前方一致 prefix（不変） */
 export const CHARACTER_COMPACT_CUSTOM_ID_PATTERN = 'character-compact-view-'
 
+/** characterId 抽出用のアンカー付き解析パターン。 */
+export const CHARACTER_COMPACT_PARSE_PATTERN = /^character-compact-view-(.+)/
+
 export const CharacterCompactCustomId = {
   pattern: CHARACTER_COMPACT_CUSTOM_ID_PATTERN,
 

@@ -115,7 +115,9 @@ export class CharacterEditFeatureHandler implements OnModuleInit {
    * Feature内エラーイベントハンドラー
    */
   private async handleFeatureError(event: EventPayload<'characterEdit.error.occurred'>): Promise<void> {
-    this.logger.error(`🚨 Character Edit Feature Error: ${event.error.code} - ${event.error.message}`)
+    this.logger.error(
+      `🚨 Character Edit Feature Error: ${event.error.code} - ${event.error.message} (characterId=${event.characterId})`
+    )
     // 旧レガシーバスへの system.error.occurred 発行は dead のため撤去（ログ記録のみ）
   }
 

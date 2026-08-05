@@ -8,8 +8,8 @@
 
 // customId の生成文字列は契約モジュール（byte 一致の create()）を参照する。
 // いずれも純粋モジュールのため、本ファイルの discord.js 非依存は保たれる。
-import { CharacterRefreshCustomId } from '../custom-id/character-refresh.custom-id'
-import { CharacterCompactCustomId } from '../custom-id/character-compact.custom-id'
+import { CHARACTER_REFRESH_PARSE_PATTERN, CharacterRefreshCustomId } from '../custom-id/character-refresh.custom-id'
+import { CHARACTER_COMPACT_PARSE_PATTERN, CharacterCompactCustomId } from '../custom-id/character-compact.custom-id'
 import {
   CHARACTER_EDIT_SECTION_PARSE_PATTERN,
   CHARACTER_SECTION_SELECT_PARSE_PATTERN
@@ -26,8 +26,9 @@ export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
  * characterEdit の customId からキャラクター ID を抽出する。
  *
  * 対応 family は refresh / compact-view / section / field-edit / field-add / section-select。
- * 非アンカーのパターンを refresh、compact-view、section、field-edit、field-add、section-select の
- * 順に評価し、最初に一致した match[1] を返す。一致しない場合は null。
+ * 全パターンはアンカー付きで family prefix ごとに排他のため、評価順序は意味を持たない。
+ * characterId に他 family の prefix 文字列が含まれていても完全な ID を返す（俯瞰#20 F-1）。
+ * prefix が位置 0 にない customId は null（registry を通過した customId では発生しない）。
  * modal（char-edit-*）は session 形式の customId だけでは characterId を決定できないため対象外。
  *
  * @example
@@ -37,8 +38,8 @@ export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
  */
 export function extractCharacterIdFromCustomId(customId: string): string | null {
   const patterns = [
-    /character-refresh-(.+)/,
-    /character-compact-view-(.+)/,
+    CHARACTER_REFRESH_PARSE_PATTERN,
+    CHARACTER_COMPACT_PARSE_PATTERN,
     CHARACTER_EDIT_SECTION_PARSE_PATTERN,
     CHARACTER_FIELD_EDIT_PARSE_PATTERN,
     CHARACTER_FIELD_ADD_PARSE_PATTERN,

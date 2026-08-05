@@ -17,9 +17,12 @@ export const CHARACTER_FIELD_CUSTOM_ID_PATTERN = 'character-field-'
 export const CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX = 'character-field-edit-'
 export const CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX = 'character-field-add-'
 
-/** field-edit / field-add から characterId を抽出する正規表現（現挙動を保存） */
-export const CHARACTER_FIELD_EDIT_PARSE_PATTERN = /character-field-edit-\w+-(.+)/
-export const CHARACTER_FIELD_ADD_PARSE_PATTERN = /character-field-add-\w+-(.+)/
+/**
+ * field-edit / field-add から characterId を抽出するアンカー付き解析パターン
+ * （I3・俯瞰#20 F-1）。到達 customId は registry pattern により family prefix が位置 0 にある。
+ */
+export const CHARACTER_FIELD_EDIT_PARSE_PATTERN = /^character-field-edit-\w+-(.+)/
+export const CHARACTER_FIELD_ADD_PARSE_PATTERN = /^character-field-add-\w+-(.+)/
 
 /**
  * field customId 中のセクション中置 `-{sectionType}-` の正本。
