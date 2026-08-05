@@ -12,7 +12,6 @@ import { CharacterInputDto } from '../../../../domains/character/dto/create-char
 import { CharacterService } from '../../../../domains/character/character.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { EVENT_NAMES } from '../../../../events/contracts'
-import { ErrorHandler } from '../../../../core/http/error-handler'
 import { isAttributeValue } from '../../../../core/types/attribute.types'
 import { respondEphemeralError } from '../../../utils/interaction-error-response.util'
 import { CharacterEmbedManagerService, EmbedSectionType } from './character-embed-manager.service'
@@ -77,14 +76,7 @@ export class CharacterModalHandlerService {
         this.logger.warn('Failed to send character modal error response', notificationError)
       }
 
-      ErrorHandler.handleServiceError(
-        error,
-        {
-          customId: interaction.customId,
-          userId: interaction.user.id
-        },
-        'CharacterModalHandlerService'
-      )
+      throw error
     }
   }
 

@@ -14,7 +14,6 @@ import { createMockModalInteraction as createBaseMockModalInteraction } from '@d
 import { CharacterModalHandlerService } from './character-modal-handler.service'
 import { CharacterService } from 'src/domains/character/character.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
-import { ErrorHandler } from 'src/core/http/error-handler'
 import { CharacterEmbedManagerService } from './character-embed-manager.service'
 import { CharacterEditMessageUpdaterService } from './character-edit-message-updater.service'
 import { ModalSessionManagerService } from './modal-session-manager.service'
@@ -685,9 +684,11 @@ describe('CharacterModalHandlerService (characterization)', () => {
       })
     })
 
-    it('外側 catch は defer 済みのエラー通知を editReply してから元例外を ErrorHandler へ渡す', async () => {
+    it('外側 catch は defer 済みのエラー通知を editReply してから元例外を再スローする', async () => {
       const originalError = new Error('create failed')
-      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const observeRejection = jest.fn((error: unknown) => {
+        throw error
+      })
       mockEmbedManager.createCharacter.mockRejectedValue(originalError)
       const interaction = createMockModalInteraction({
         customId: 'character-create-basic-chan123-user456',
@@ -697,28 +698,32 @@ describe('CharacterModalHandlerService (characterization)', () => {
         }
       })
 
-      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      const result = service.handleModalSubmit(interaction).catch(observeRejection)
+
+      await expect(result).rejects.toBe(originalError)
 
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: 'エラーが発生しました。もう一度お試しください。'
       })
-      expect(handleServiceError).toHaveBeenCalledWith(
-        originalError,
-        { customId: 'character-create-basic-chan123-user456', userId: interaction.user.id },
-        'CharacterModalHandlerService'
-      )
+      expect(observeRejection).toHaveBeenCalledWith(originalError)
       expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        handleServiceError.mock.invocationCallOrder[0]
+        observeRejection.mock.invocationCallOrder[0]
       )
     })
 
     it('deferReply 前に失敗した未応答 interaction には reply でエラー通知する', async () => {
+      const originalError = new Error('defer failed')
+      const observeRejection = jest.fn((error: unknown) => {
+        throw error
+      })
       const interaction = createMockModalInteraction({
         customId: 'character-create-basic-chan123-user456'
       })
-      ;(interaction.deferReply as jest.Mock).mockRejectedValue(new Error('defer failed'))
+      ;(interaction.deferReply as jest.Mock).mockRejectedValue(originalError)
 
-      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      const result = service.handleModalSubmit(interaction).catch(observeRejection)
+
+      await expect(result).rejects.toBe(originalError)
 
       expect(interaction.reply).toHaveBeenCalledWith({
         content: 'エラーが発生しました。もう一度お試しください。',
@@ -726,16 +731,25 @@ describe('CharacterModalHandlerService (characterization)', () => {
       })
       expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.followUp).not.toHaveBeenCalled()
+      expect((interaction.reply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        observeRejection.mock.invocationCallOrder[0]
+      )
     })
 
     it('応答済み interaction の外側 catch は followUp でエラー通知する', async () => {
+      const originalError = new Error('already replied')
+      const observeRejection = jest.fn((error: unknown) => {
+        throw error
+      })
       const interaction = createMockModalInteraction({
         customId: 'character-create-basic-chan123-user456',
         base: { replied: true }
       })
-      ;(interaction.deferReply as jest.Mock).mockRejectedValue(new Error('already replied'))
+      ;(interaction.deferReply as jest.Mock).mockRejectedValue(originalError)
 
-      await expect(service.handleModalSubmit(interaction)).rejects.toThrow('サービス処理中にエラーが発生しました')
+      const result = service.handleModalSubmit(interaction).catch(observeRejection)
+
+      await expect(result).rejects.toBe(originalError)
 
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'エラーが発生しました。もう一度お試しください。',
@@ -743,11 +757,16 @@ describe('CharacterModalHandlerService (characterization)', () => {
       })
       expect(interaction.editReply).not.toHaveBeenCalled()
       expect(interaction.reply).not.toHaveBeenCalled()
+      expect((interaction.followUp as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        observeRejection.mock.invocationCallOrder[0]
+      )
     })
 
     it('外側 catch のエラー通知自体が失敗しても元の HttpException を伝播する', async () => {
       const originalError = new HttpException('original modal failure', 409)
-      const handleServiceError = jest.spyOn(ErrorHandler, 'handleServiceError')
+      const observeRejection = jest.fn((error: unknown) => {
+        throw error
+      })
       mockEmbedManager.createCharacter.mockRejectedValue(originalError)
       const interaction = createMockModalInteraction({
         customId: 'character-create-basic-chan123-user456',
@@ -759,17 +778,15 @@ describe('CharacterModalHandlerService (characterization)', () => {
       const notificationError = new Error('notification failed')
       ;(interaction.editReply as jest.Mock).mockRejectedValue(notificationError)
 
-      await expect(service.handleModalSubmit(interaction)).rejects.toBe(originalError)
+      const result = service.handleModalSubmit(interaction).catch(observeRejection)
+
+      await expect(result).rejects.toBe(originalError)
 
       expect(interaction.editReply).toHaveBeenCalledTimes(1)
       expect(warnSpy).toHaveBeenCalledWith('Failed to send character modal error response', notificationError)
-      expect(handleServiceError).toHaveBeenCalledWith(
-        originalError,
-        { customId: 'character-create-basic-chan123-user456', userId: interaction.user.id },
-        'CharacterModalHandlerService'
-      )
+      expect(observeRejection).toHaveBeenCalledWith(originalError)
       expect((interaction.editReply as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-        handleServiceError.mock.invocationCallOrder[0]
+        observeRejection.mock.invocationCallOrder[0]
       )
     })
   })
