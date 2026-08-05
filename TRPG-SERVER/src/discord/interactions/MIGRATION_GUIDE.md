@@ -150,8 +150,11 @@ characterEdit → characterThread の順。
 4. Handler pattern と生成 customId の prefix が一致するか確認
 5. **登録済み handler の防衛枝**の可能性を確認（H1-c1/c2・2026-08-05）: registry pattern は
    通過したが handler 側の契約（create の basic/cancel・field の edit/add）に一致しない場合、
-   同文言＋`Unsupported character create/field customId:` の warn ログが出る。この場合
-   2 の未登録集計には**現れない** — warn ログの有無で 1〜4 と切り分ける
+   `Unsupported character create/field customId:` の warn ログが出る。この場合
+   2 の未登録集計には**現れない** — warn ログの有無で 1〜4 と切り分ける。
+   ユーザー向け文言も手掛かりになる（H1-e で分離）: create 防衛枝は
+   「⚠️ この作成ボタンは現在処理できません。（作成操作の customId 形式が不正です）」の固有文言・
+   field 防衛枝は registry 未登録時と同文言
 
 ### Handler が意図しないものにマッチする
 
