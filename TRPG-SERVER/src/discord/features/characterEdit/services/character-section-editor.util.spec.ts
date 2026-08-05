@@ -13,11 +13,8 @@ import {
   buildSessionModalId,
   shouldUseDirectModalId,
   buildModalTitle,
-  getSectionDisplayName,
-  sanitizeDescriptionValue,
-  getSectionData
+  sanitizeDescriptionValue
 } from './character-section-editor.util'
-import { Character } from '../../../../domains/character/models/character.model'
 
 describe('character-section-editor.util (pure functions)', () => {
   describe('extractFieldEditValues', () => {
@@ -207,18 +204,6 @@ describe('character-section-editor.util (pure functions)', () => {
     })
   })
 
-  describe('getSectionDisplayName', () => {
-    it.each([
-      ['status', 'ステータス'],
-      ['parameter', 'パラメータ'],
-      ['skill', 'スキル'],
-      ['item', 'アイテム'],
-      ['basic', '基本情報']
-    ] as const)('%s -> %s', (section, expected) => {
-      expect(getSectionDisplayName(section)).toBe(expected)
-    })
-  })
-
   describe('buildModalTitle', () => {
     it('isNew=true は「追加」を付ける', () => {
       expect(buildModalTitle('status', true)).toBe('ステータス追加')
@@ -246,30 +231,6 @@ describe('character-section-editor.util (pure functions)', () => {
       expect(result).toHaveLength(1000)
       expect(result.endsWith('...')).toBe(true)
       expect(result.substring(0, 997)).toBe('b'.repeat(997))
-    })
-  })
-
-  describe('getSectionData', () => {
-    const character = {
-      characterId: 'c1',
-      status: { hp: 1 },
-      parameter: { str: 2 },
-      skill: { swim: 3 },
-      item: { sword: 4 }
-    } as unknown as Character
-
-    it.each([
-      ['status', { hp: 1 }],
-      ['parameter', { str: 2 }],
-      ['skill', { swim: 3 }],
-      ['item', { sword: 4 }]
-    ] as const)('%s セクションを返す', (section, expected) => {
-      expect(getSectionData(character, section)).toEqual(expected)
-    })
-
-    it('basic/back など対象外セクションは undefined', () => {
-      expect(getSectionData(character, 'basic')).toBeUndefined()
-      expect(getSectionData(character, 'back')).toBeUndefined()
     })
   })
 })

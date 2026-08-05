@@ -16,10 +16,60 @@ import {
   buildSectionedEmbeds,
   buildFieldSelectMenu,
   buildNewCharacterEmbed,
-  buildCharacterCreatedEmbed
+  buildCharacterCreatedEmbed,
+  EDITABLE_SECTION_TYPES,
+  getSectionData,
+  getSectionDisplayName
 } from './character-embed.util'
 
 describe('character-embed.util', () => {
+  describe('getSectionDisplayName', () => {
+    it.each([
+      ['status', 'ステータス'],
+      ['parameter', 'パラメータ'],
+      ['skill', 'スキル'],
+      ['item', 'アイテム'],
+      ['basic', '基本情報']
+    ] as const)('%s -> %s', (section, expected) => {
+      expect(getSectionDisplayName(section)).toBe(expected)
+    })
+  })
+
+  describe('getSectionData', () => {
+    const character = {
+      characterId: 'c1',
+      status: { hp: 1 },
+      parameter: { str: 2 },
+      skill: { swim: 3 },
+      item: { sword: 4 }
+    } as unknown as Character
+
+    it.each([
+      ['status', { hp: 1 }],
+      ['parameter', { str: 2 }],
+      ['skill', { swim: 3 }],
+      ['item', { sword: 4 }]
+    ] as const)('%s セクションを返す', (section, expected) => {
+      expect(getSectionData(character, section)).toEqual(expected)
+    })
+
+    it('basic/back など対象外セクションは undefined', () => {
+      expect(getSectionData(character, 'basic')).toBeUndefined()
+      expect(getSectionData(character, 'back')).toBeUndefined()
+    })
+
+    it('編集対象の全要素とセクション写像が一致し、basic/back は対象外', () => {
+      expect(EDITABLE_SECTION_TYPES).toEqual(['status', 'parameter', 'skill', 'item'])
+
+      for (const sectionType of EDITABLE_SECTION_TYPES) {
+        expect(getSectionData(character, sectionType)).toBe(character[sectionType])
+      }
+
+      expect(getSectionData(character, 'basic')).toBeUndefined()
+      expect(getSectionData(character, 'back')).toBeUndefined()
+    })
+  })
+
   describe('generateShortCharacterId', () => {
     it('英小文字と数字のみの8文字を生成する', () => {
       const id = generateShortCharacterId()

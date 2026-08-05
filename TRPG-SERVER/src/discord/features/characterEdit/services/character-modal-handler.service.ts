@@ -32,7 +32,7 @@ import {
   isValidAttributeValue,
   buildUpdateData
 } from './character-modal-handler.util'
-import { getSectionData } from './character-section-editor.util'
+import { getSectionData } from '../utils/character-embed.util'
 
 // 後方互換: 既存の import 元を維持するため再エクスポート
 export type { FieldData } from './character-modal-handler.util'
