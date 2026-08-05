@@ -167,12 +167,6 @@ export class ChannelCreateOrchestratorService implements OnModuleInit {
   //     （dead contract 'character.creation.failed' 型参照のみ）だったため E-4a で削除した。
 
   /**
-   * チャンネルIDからTextChannelオブジェクトを取得するヘルパーメソッド
-   * 現在は DiscordUIService の getTextChannel を使用しているため不要
-   * @deprecated Use discordUIService.getTextChannel() instead
-   */
-
-  /**
    * チャンネル名をDiscordの制約に合わせてサニタイズ
    */
   private sanitizeChannelName(characterName: string): string {

@@ -42,5 +42,5 @@ export { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 
 // 注: かつて存在した CharacterEditServiceFactory は、実在しない
 // './character-channel-create.service' を require する未使用デッドコードだったため削除（2026-06-03）。
-// ChannelDetectionService / CharacterCreationService / CharacterNotificationService は
+// ChannelDetectionService / CharacterNotificationService は
 // './services' から export 済みで、利用は NestJS の DI（CharacterEditModule）を介して行う。
