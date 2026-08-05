@@ -21,6 +21,6 @@ export class CharacterEditCreateHandler extends ButtonInteractionHandler {
 
   async execute(interaction: ButtonInteraction): Promise<void> {
     this.logger.debug(`Handling character create: ${interaction.customId}`)
-    await this.characterEditService.handleButtonInteraction(interaction)
+    await this.characterEditService.handleCreate(interaction)
   }
 }

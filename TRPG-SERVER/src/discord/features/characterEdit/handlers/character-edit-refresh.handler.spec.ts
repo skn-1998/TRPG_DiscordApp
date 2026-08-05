@@ -3,7 +3,7 @@ import { CharacterEditRefreshHandler } from './character-edit-refresh.handler'
 import { EnhancedCharacterEditService } from '../enhanced-character-edit.service'
 
 describe('CharacterEditRefreshHandler', () => {
-  const mockService = { handleButtonInteraction: jest.fn().mockResolvedValue(undefined) }
+  const mockService = { handleRefresh: jest.fn().mockResolvedValue(undefined) }
   let handler: CharacterEditRefreshHandler
 
   beforeEach(() => {
@@ -21,12 +21,12 @@ describe('CharacterEditRefreshHandler', () => {
     expect(handler.getMatchScore('character-refresh-char123')).toBeGreaterThan(0)
   })
 
-  it('execute は handleButtonInteraction へ interaction を委譲する', async () => {
+  it('execute は handleRefresh へ interaction を委譲する', async () => {
     const interaction = createMockButtonInteraction({ customId: 'character-refresh-char123' })
 
     await handler.execute(interaction)
 
-    expect(mockService.handleButtonInteraction).toHaveBeenCalledWith(interaction)
-    expect(mockService.handleButtonInteraction).toHaveBeenCalledTimes(1)
+    expect(mockService.handleRefresh).toHaveBeenCalledWith(interaction)
+    expect(mockService.handleRefresh).toHaveBeenCalledTimes(1)
   })
 })

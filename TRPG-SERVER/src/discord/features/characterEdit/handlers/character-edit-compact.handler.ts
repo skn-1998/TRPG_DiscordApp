@@ -21,6 +21,6 @@ export class CharacterEditCompactHandler extends ButtonInteractionHandler {
 
   async execute(interaction: ButtonInteraction): Promise<void> {
     this.logger.debug(`Handling character compact view: ${interaction.customId}`)
-    await this.characterEditService.handleButtonInteraction(interaction)
+    await this.characterEditService.handleCompact(interaction)
   }
 }

@@ -21,6 +21,6 @@ export class CharacterEditRefreshHandler extends ButtonInteractionHandler {
 
   async execute(interaction: ButtonInteraction): Promise<void> {
     this.logger.debug(`Handling character refresh: ${interaction.customId}`)
-    await this.characterEditService.handleButtonInteraction(interaction)
+    await this.characterEditService.handleRefresh(interaction)
   }
 }

@@ -33,8 +33,7 @@ import { CharacterModalHandlerService } from './services/character-modal-handler
 import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
 import { extractCharacterIdFromCustomId } from './utils/enhanced-character-edit.util'
-// P1-D slice1: ボタン分岐判定を feature-local 契約モジュールの述語へ集約（startsWith 等価・挙動不変）
-import { CharacterCreateCustomId, CharacterRefreshCustomId, CharacterCompactCustomId } from './custom-id'
+import { CharacterCreateCustomId } from './custom-id'
 // DiscordClientService依存を完全削除 - イベント駆動アーキテクチャに移行
 
 /**
@@ -63,34 +62,43 @@ export class EnhancedCharacterEditService implements OnModuleInit {
     this.logger.log('Enhanced Character Edit Service initialized')
   }
 
-  /**
-   * ボタンインタラクションの処理
-   */
-  async handleButtonInteraction(interaction: ButtonInteraction<CacheType>): Promise<void> {
-    try {
-      const customId = interaction.customId
+  async handleRefresh(interaction: ButtonInteraction<CacheType>): Promise<void> {
+    await this.executeButtonAction(interaction, async () => {
+      await this.handleRefreshButton(interaction)
+      await this.eventEmitter.emitEmbedRefresh(interaction)
+    })
+  }
 
-      // キャラクター作成基本情報ボタン
-      if (CharacterCreateCustomId.isBasic(customId)) {
+  async handleCreate(interaction: ButtonInteraction<CacheType>): Promise<void> {
+    await this.executeButtonAction(interaction, async () => {
+      if (CharacterCreateCustomId.isBasic(interaction.customId)) {
         await this.handleCreateBasicButton(interaction)
-      }
-      // キャラクター作成キャンセルボタン
-      else if (CharacterCreateCustomId.isCancel(customId)) {
+      } else if (CharacterCreateCustomId.isCancel(interaction.customId)) {
         await this.handleCreateCancelButton(interaction)
+      } else {
+        // Invariant: Registry pattern は上記2述語の和集合。この枝は契約 drift 時の silent no-op を防ぐ。
+        this.logger.warn(`Unsupported character create customId: ${interaction.customId}`)
+        await interaction.reply({
+          content: '⚠️ このインタラクションは現在処理できません。',
+          flags: MessageFlags.Ephemeral
+        })
       }
-      // 更新ボタンの処理
-      else if (CharacterRefreshCustomId.is(customId)) {
-        await this.handleRefreshButton(interaction)
+    })
+  }
 
-        // Embed更新リクエストイベント発火
-        await this.eventEmitter.emitEmbedRefresh(interaction)
-      }
-      // 簡易表示ボタンの処理
-      else if (CharacterCompactCustomId.is(customId)) {
-        await this.handleCompactViewButton(interaction)
-      }
+  async handleCompact(interaction: ButtonInteraction<CacheType>): Promise<void> {
+    await this.executeButtonAction(interaction, async () => {
+      await this.handleCompactViewButton(interaction)
+    })
+  }
+
+  private async executeButtonAction(
+    interaction: ButtonInteraction<CacheType>,
+    action: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await action()
     } catch (error) {
-      // エラーイベント発火
       await this.eventEmitter.emitError(error, interaction.customId, interaction.user.id)
 
       ErrorHandler.handleServiceError(

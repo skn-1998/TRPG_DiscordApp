@@ -94,16 +94,13 @@ describe('EnhancedCharacterEditService (characterization)', () => {
     jest.restoreAllMocks()
   })
 
-  // ==========================================================================
-  // handleButtonInteraction
-  // ==========================================================================
-  describe('handleButtonInteraction', () => {
+  describe('handleCreate', () => {
     it('character-create-basic- でモーダルを表示し characterEdit.modal.opened を発行する', async () => {
       const interaction = createMockButtonInteraction({
         customId: 'character-create-basic-channel-1-user-1'
       })
 
-      await service.handleButtonInteraction(interaction)
+      await service.handleCreate(interaction)
 
       expect(interaction.showModal).toHaveBeenCalledTimes(1)
       const modalArg = (interaction.showModal as jest.Mock).mock.calls[0][0]
@@ -115,7 +112,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
         customId: 'character-create-cancel-channel-1'
       })
 
-      await service.handleButtonInteraction(interaction)
+      await service.handleCreate(interaction)
 
       expect(interaction.update).toHaveBeenCalledWith({
         content: '❌ キャラクター作成がキャンセルされました。',
@@ -124,6 +121,22 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       })
     })
 
+    it('作成 handler の契約外 customId は warn し ephemeral 応答する', async () => {
+      const interaction = createMockButtonInteraction({ customId: 'character-create-unsupported-channel-1' })
+
+      await service.handleCreate(interaction)
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Unsupported character create customId: character-create-unsupported-channel-1'
+      )
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: '⚠️ このインタラクションは現在処理できません。',
+        flags: MessageFlags.Ephemeral
+      })
+    })
+  })
+
+  describe('handleRefresh', () => {
     it('character-refresh- で deferUpdate しキャラ未取得時は followUp する', async () => {
       const interaction = createMockButtonInteraction({
         customId: 'character-refresh-char-123'
@@ -131,7 +144,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       // getCharacterById -> CharacterService.findOne が null を返す（E-2c: イベント RPC 廃止）
       mockCharacterService.findOne.mockResolvedValue(null)
 
-      await service.handleButtonInteraction(interaction)
+      await service.handleRefresh(interaction)
 
       expect(interaction.deferUpdate).toHaveBeenCalled()
       expect(mockCharacterService.findOne).toHaveBeenCalledWith('char-123')
@@ -143,6 +156,9 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.embed.refresh.requested',
         expect.objectContaining({ characterId: 'char-123' })
+      )
+      expect((interaction.deferUpdate as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        mockTypedEventService.emit.mock.invocationCallOrder[0]
       )
       // Assert: 旧イベント RPC（emit + waitForEvent）へ戻っていないことを固定（E-2c の回帰ガード）
       expect(mockTypedEventService.waitForEvent).not.toHaveBeenCalled()
@@ -158,7 +174,7 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       mockCharacterService.findOne.mockResolvedValue(character)
       jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
 
-      await expect(service.handleButtonInteraction(interaction)).rejects.toBe(originalError)
+      await expect(service.handleRefresh(interaction)).rejects.toBe(originalError)
 
       expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'エラーが発生しました。もう一度お試しください。',
@@ -180,34 +196,25 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
       ;(interaction.followUp as jest.Mock).mockRejectedValue(notificationError)
 
-      await expect(service.handleButtonInteraction(interaction)).rejects.toBe(originalError)
+      await expect(service.handleRefresh(interaction)).rejects.toBe(originalError)
 
       expect(warnSpy).toHaveBeenCalledWith('Failed to send final character refresh error response', notificationError)
       expect(interaction.followUp).toHaveBeenCalledTimes(1)
     })
+  })
 
+  describe('handleCompact', () => {
     it('character-compact-view- で deferReply し editReply で開発中メッセージを返す', async () => {
       const interaction = createMockButtonInteraction({
         customId: 'character-compact-view-char-123'
       })
 
-      await service.handleButtonInteraction(interaction)
+      await service.handleCompact(interaction)
 
       expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral })
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: '📋 簡易表示機能は開発中です。'
       })
-    })
-
-    it('未知の customId では何も応答しない', async () => {
-      const interaction = createMockButtonInteraction({ customId: 'unknown-button' })
-
-      await service.handleButtonInteraction(interaction)
-
-      expect(interaction.showModal).not.toHaveBeenCalled()
-      expect(interaction.update).not.toHaveBeenCalled()
-      expect(interaction.deferUpdate).not.toHaveBeenCalled()
-      expect(interaction.deferReply).not.toHaveBeenCalled()
     })
   })
 
