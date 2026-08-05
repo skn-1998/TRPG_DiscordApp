@@ -29,8 +29,7 @@ interactions/
 │   ├── character-edit/                   # feature 側へ移管済み（履歴上の参照）
 │   ├── dice-roll/                        # feature 側へ移管済み（履歴上の参照）
 │   └── character-thread/                 # feature 側へ移管済み（履歴上の参照）
-├── interactions.controller.ts            # Legacy entrypoint（service locator 経路は撤去済み）
-├── interactions.service.ts               # メトリクス + Registry 委譲（characterEdit 特例分岐は P1-A で撤去済み）
+├── interactions.service.ts               # メトリクス + Registry 委譲（characterEdit 特例分岐は P1-A で撤去済み・controller は G5-a で削除済み）
 ├── interactions.module.ts                # slim 化進行中（feature module import は撤去済み・詳細は AI.refactor.md）
 ├── button/                               # Legacy（Phase 0/1 で整理）
 ├── select/

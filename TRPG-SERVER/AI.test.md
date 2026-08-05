@@ -293,6 +293,11 @@ Discord API ラッパー（channel/message I/O 中心）で spec が無かった
 
 ### **テスタビリティ評価（緑/黄/赤）**
 
+> ⚠️ **追記（2026-08-05・第5群 G5-d）**: 本節は作業当時の記録。CharacterUIService の public は
+> その後 14→1（生存 = `updateCharacterEmbed` のみ）に純減し、下記の util シンボルも
+> embed 構築系 4 つ（`CHARACTER_EMBED_TITLE_KEYWORD` / `GuildInfo` / `buildCharacterEmbed` /
+> `buildCharacterEmbedData`）以外は削除済み。現況は `AI.refactor.md` 第5群 #91 節を正とする。
+
 - **緑（モックで素直に固定）**: sendMessage / getTextChannel / sendCharacterDeletionNotification /
   updateChannelName / archiveChannel / addChannelArchiveEmoji / updateChannelStatusDisplay /
   sendCharacterEmbedWithSelectMenu / handleSectionSelectInteraction
@@ -784,17 +789,25 @@ describe('CharacterThreadSelectHandler', () => {
 ```typescript
 import { Test } from '@nestjs/testing'
 import { InteractionRegistryService } from '../registry/interaction-registry.service'
+import { PatternMatcherService } from '../registry/pattern-matcher.service'
 
 describe('InteractionRegistry 統合テスト', () => {
   let registry: InteractionRegistryService
+  let patternMatcher: PatternMatcherService
 
-  // ハンドラーを全登録して customId のルーティングを検証する
-  it('dice-page-next が正しいハンドラーにルーティングされる', async () => {
-    expect(registry.hasHandler('dice-page-next', 'button')).toBe(true)
+  // 本番経路（type filter → findBestMatch → getMatchScore）で選択結果まで検証する
+  // ※ 旧 hasHandler() は G5-e（2026-08-05）で削除済み。boolean ではなく handler 同一性を固定する
+  const findProductionHandler = (customId: string, type: string) => {
+    const handlers = registry.getAllHandlers().filter((h) => h.getInteractionType() === type)
+    return patternMatcher.findBestMatch(customId, handlers)
+  }
+
+  it('dice-page-next が正しいハンドラーにルーティングされる', () => {
+    expect(findProductionHandler('dice-page-next', 'button')).toBe(dicePageNextHandler)
   })
 
-  it('未登録のcustomIdはfalseを返す', () => {
-    expect(registry.hasHandler('unknown-id', 'button')).toBe(false)
+  it('未登録の customId は undefined', () => {
+    expect(findProductionHandler('unknown-id', 'button')).toBeUndefined()
   })
 })
 ```
@@ -1368,7 +1381,8 @@ handlers（25）・adapters（9）・repositories（4）・jwt-auth.guard・dice
 
 ### 🟡 黄（actionable バックログ・dead code 除く約25）
 
-- **util/core（緑寄り・着手容易）**: `utils/api-response.util.ts`（Response mock）/ `utils/cookie.service.ts` / `domains/character/character-http.exception.ts`（ExceptionFilter）/ `domains/auth/discord.strategy.ts`（validate を authService mock）/ `discord/utils/file.util.ts`（`jest.mock('fs')`。握り潰し版 `loadJsonFile.ts` は第4群-c 2026-07-28 で削除済み — spec も file.util 側に統合）/ `discord/utils/tableDice.ts`（`jest.mock('bcdice')`）
+- **util/core（緑寄り・着手容易）**: ~~`utils/api-response.util.ts`（Response mock）~~（G5-c 2026-08-05 で
+  ファイルごと削除済み — 封筒生成は ResponseInterceptor / GlobalExceptionFilter に一本化）/ `utils/cookie.service.ts` / `domains/character/character-http.exception.ts`（ExceptionFilter）/ `domains/auth/discord.strategy.ts`（validate を authService mock）/ `discord/utils/file.util.ts`（`jest.mock('fs')`。握り潰し版 `loadJsonFile.ts` は第4群-c 2026-07-28 で削除済み — spec も file.util 側に統合）/ `discord/utils/tableDice.ts`（`jest.mock('bcdice')`）
 - **dice/commands**: `discord/services/dice/dice-preset.service.ts` / `discord/commands/commands-components/dice-result.service.ts`（BaseCommandService 委譲）
 - **characterEdit**: `events/handlers/character-edit-creation.handler.ts` / `services/channel-name-sync.service.ts`（setName mock）/ `services/character-edit-event-emitter.service.ts` / `services/character-event-integration.service.ts`（現状 no-op 固定のみ）
 - **characterThread/channel**: `character-tab-buttons.service.ts` / `services/character-display-handler.service.ts` / `services/character-display.service.ts` / `services/character-embed.service.ts`（embed 構築の純ロジック優先）/ `discord/services/discord-channel-manager.service.ts`（委譲層・最易）/ `discord/services/discord-command-registration.service.ts`
@@ -1735,6 +1749,10 @@ ts-jest が import グラフ全体を型チェックするため、本番1ファ
 `src/discord/utils/discord-api-rate-limiter.ts`（DiscordApiRateLimiter・255行→約230行）。`Date.now()`（global/bucket リセット判定・stats・cleanup）と `setTimeout`（待機・executeBatch バースト遅延）と状態 Map が密結合で赤判定だった件を消化。
 
 ### 抽出した Pure 関数（discord.js 非依存・DI なし・同 `discord/utils/` 配下）
+
+> ⚠️ **追記（2026-08-05・第5群 G5-a）**: rate-limiter 系は台帳 DC-13（production 参照 0）により
+> 本体・pure 層・characterization spec・pure spec の 4 ファイルとも**削除済み**。本節は抽出手法の
+> 記録として残す（現物は `git show c3b4d1b` で参照可）。
 
 新規 `src/discord/utils/rate-limiter.pure.ts`:
 
