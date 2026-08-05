@@ -19,7 +19,8 @@ import {
   buildCharacterCreatedEmbed,
   EDITABLE_SECTION_TYPES,
   getSectionData,
-  getSectionDisplayName
+  getSectionDisplayName,
+  type EmbedSectionType
 } from './character-embed.util'
 
 describe('character-embed.util', () => {
@@ -356,8 +357,18 @@ describe('character-embed.util', () => {
       expect(data.options[0]).toMatchObject({ label: '➕ 新しいステータスを追加', value: 'add_new' })
     })
 
-    it('未知のセクションタイプは null を返す', () => {
+    it('basic は null を返す', () => {
       const menu = buildFieldSelectMenu(buildCharacter(), 'basic', 'char-1234')
+      expect(menu).toBeNull()
+    })
+
+    it('back は null を返す', () => {
+      const menu = buildFieldSelectMenu(buildCharacter(), 'back', 'char-1234')
+      expect(menu).toBeNull()
+    })
+
+    it('runtime で渡された未知値は null を返す', () => {
+      const menu = buildFieldSelectMenu(buildCharacter(), 'unknown' as EmbedSectionType, 'char-1234')
       expect(menu).toBeNull()
     })
   })
