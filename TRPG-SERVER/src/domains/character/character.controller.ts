@@ -52,7 +52,7 @@ export class CharacterController {
     const user = req.user
 
     if (!user || !user.discordUserId) {
-      // 変換前: UnauthorizedException → catch で ApiResponseUtil.authenticationError(res, message)
+      // 変換前: UnauthorizedException → catch で認証エラー封筒へ変換
       throw new CharacterAuthenticationException('認証トークンがありません')
     }
 

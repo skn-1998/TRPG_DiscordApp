@@ -1,4 +1,4 @@
-import { ErrorResponse, InternalServerErrorResponse, ValidationErrorResponse } from './api-response.dto'
+import { ErrorResponse } from './api-response.dto'
 
 /**
  * P1-C: ErrorResponse の stack 出し分けを「DTO 内 process.env 判定」から
@@ -9,7 +9,7 @@ import { ErrorResponse, InternalServerErrorResponse, ValidationErrorResponse } f
  * → 生成側（global-exception.filter / character-http.exception）が AppConfigService の
  *   app.environment==='development' を渡すことで、env と等価な出し分けを維持する。
  */
-describe('ErrorResponse / InternalServerErrorResponse の stack 出し分け（includeStack）', () => {
+describe('ErrorResponse の stack 出し分け（includeStack）', () => {
   const STACK = 'Error: boom\n    at somewhere'
 
   describe('ErrorResponse', () => {
@@ -39,26 +39,6 @@ describe('ErrorResponse / InternalServerErrorResponse の stack 出し分け（i
       expect(res.error).toBe('err')
       expect(res.message).toBe('msg')
       expect(res.errorCode).toBe('CODE')
-    })
-  })
-
-  describe('InternalServerErrorResponse', () => {
-    it('includeStack を super へ伝播する（true で stack 含有）', () => {
-      const res = new InternalServerErrorResponse('msg', STACK, 'req-1', true)
-      expect(res.stack).toBe(STACK)
-      expect(res.errorCode).toBe('INTERNAL_SERVER_ERROR')
-    })
-
-    it('既定（includeStack 未指定）では stack を含めない', () => {
-      const res = new InternalServerErrorResponse('msg', STACK, 'req-1')
-      expect(res.stack).toBeUndefined()
-    })
-  })
-
-  describe('stack を渡さないサブクラス（ValidationErrorResponse 等）', () => {
-    it('includeStack に関わらず stack は undefined', () => {
-      const res = new ValidationErrorResponse([{ field: 'a', message: 'b' }], 'req-1')
-      expect(res.stack).toBeUndefined()
     })
   })
 })

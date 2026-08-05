@@ -9,7 +9,6 @@ import { UpdateUserDto } from './dto/update-user.dto'
 import { JwtTokenService } from '../auth/token/jwt-token.service'
 import { ResponseInterceptor, ApiError } from '../../core/http'
 import { GlobalExceptionFilter } from '../../core/http/global-exception.filter'
-import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -55,7 +54,7 @@ describe('UserController', () => {
 
   const reflector = new Reflector()
 
-  // GlobalExceptionFilter の dev 判定を test 固定にし、ApiResponseUtil.error の既定と同じく stack を含めない。
+  // GlobalExceptionFilter の dev 判定を test 固定にし、旧 wire と同じく stack を含めない。
   const mockAppConfig = {
     get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
   } as unknown as AppConfigService
@@ -63,7 +62,7 @@ describe('UserController', () => {
   // 変換後: ハンドラはデータを return / 例外を throw し、
   // ResponseInterceptor / GlobalExceptionFilter が封筒化する。
   // 以下のヘルパで成功値と HttpException の最終 envelope を再現し、変換前の
-  // ApiResponseUtil.success/error と同形であることを検証する。
+  // 変換前の wire と同形であることを検証する。
 
   const wrapSuccess = async (method: keyof UserController, data: unknown): Promise<any> => {
     const interceptor = new ResponseInterceptor(reflector)
@@ -194,10 +193,15 @@ describe('UserController', () => {
       expect(status).toBe(404)
       expect(body).toEqual(expect.objectContaining({ success: false, error: expect.any(String) }))
 
-      // 変換前 ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404) と一致
-      const ref: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() }
-      ApiResponseUtil.error(ref, 'ユーザーが見つかりません', 404)
-      expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
+      // 変換前の 404 wire literal と一致
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: 'エラーが発生しました',
+        error: 'ユーザーが見つかりません',
+        errorCode: undefined,
+        details: undefined,
+        stack: undefined
+      })
     })
   })
 

@@ -9,7 +9,7 @@ import { SuccessResponse } from '../dto/api-response.dto'
 /**
  * ResponseInterceptor 単体テスト。
  *
- * 変換前の ApiResponseUtil.success(res, data, domain, 200, message) が生成していた
+ * 変換前の成功 wire が生成していた
  * SuccessResponse と「同一の envelope」を、ハンドラ戻り値から生成できることを保証する。
  */
 describe('ResponseInterceptor', () => {
@@ -31,7 +31,7 @@ describe('ResponseInterceptor', () => {
     return reflector
   }
 
-  it('戻り値を SuccessResponse でラップし、ApiResponseUtil.success と同形になる', async () => {
+  it('戻り値を SuccessResponse でラップし、旧 wire と同形になる', async () => {
     const reflector = setupReflector()
     const interceptor = new ResponseInterceptor(reflector)
     const data = { foo: 'bar' }
@@ -46,7 +46,7 @@ describe('ResponseInterceptor', () => {
         data
       })
     )
-    // ApiResponseUtil.success 同様 requestId(uuid) と timestamp を持つ
+    // 旧 wire 同様 requestId(uuid) と timestamp を持つ
     expect((result as SuccessResponse).requestId).toEqual(expect.any(String))
     expect((result as SuccessResponse).timestamp).toEqual(expect.any(Number))
   })

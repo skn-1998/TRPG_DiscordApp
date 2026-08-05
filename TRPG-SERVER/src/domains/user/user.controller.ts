@@ -34,7 +34,7 @@ interface RequestWithUser extends Request {
  * 例外レスポンスの封筒化は GlobalExceptionFilter、
  * 成功レスポンスの封筒化は ResponseInterceptor（@UseInterceptors）へ委譲する。
  * 全エンドポイントは success=200/'成功'。
- * リソース未発見（変換前の ApiResponseUtil.error(res, '...が見つかりません', 404)）は
+ * リソース未発見（変換前の 404 エラー封筒）は
  * ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, '...') を throw して再現する。
  */
 @ApiTags('users')
@@ -84,7 +84,7 @@ export class UserController {
     const discordUserId = this.extractAuthenticatedDiscordUserId(req)
     const user = await this.userService.findByDiscordId(discordUserId)
     if (!user) {
-      // 変換前: ApiResponseUtil.error(res, 'ユーザーが見つかりません', 404)
+      // 変換前: 404 エラー封筒
       throw new ApiError(404, DEFAULT_ERROR_RESPONSE_MESSAGE, 'ユーザーが見つかりません')
     }
     return toUserOutput(user)

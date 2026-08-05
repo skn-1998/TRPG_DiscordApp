@@ -21,7 +21,6 @@ import { JwtTokenPayload } from './models/auth.token.model'
 import { CookieService } from '../../core/http/cookie.service'
 import { ResponseInterceptor, RESPONSE_MESSAGE_KEY } from '../../core/http'
 import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER, GlobalExceptionFilter } from '../../core/http/global-exception.filter'
-import { ApiResponseUtil } from '../../utils/api-response.util'
 import { AppConfigService } from '../../config/config.service'
 
 describe('AuthController', () => {
@@ -73,7 +72,7 @@ describe('AuthController', () => {
     }) as any
 
   // ===== 変換後方式（戻り値 + throw）を envelope へ変換して検証するヘルパ =====
-  // 変換前: ハンドラ内で ApiResponseUtil.success/error を直接呼んでいた。
+  // 変換前: ハンドラ内でレスポンス封筒を直接生成していた。
   // 変換後: ハンドラはデータを return / 例外を throw し、
   //         ResponseInterceptor / GlobalExceptionFilter が封筒化する。
   // 以下のヘルパは成功値と HttpException を実 interceptor/global filter に通し、
@@ -99,7 +98,7 @@ describe('AuthController', () => {
       throw new Error('GlobalExceptionFilter の単体ヘルパには HttpException のみ渡せます')
     }
     // P1-C: filter は AppConfigService から dev 判定（includeStack）を得る。
-    // test 環境想定で非 development を返す＝stack 非含有（ApiResponseUtil.error の既定と一致）。
+    // test 環境想定で非 development を返す＝旧 wire と同じく stack 非含有。
     const mockAppConfig = {
       get: (path: string) => (path === 'app.environment' ? 'test' : undefined)
     } as unknown as import('../../config/config.service').AppConfigService
@@ -242,7 +241,7 @@ describe('AuthController', () => {
   })
 
   describe('GET /auth/validate-token', () => {
-    it('returns payload, wrapped envelope equals ApiResponseUtil.success (200/成功)', async () => {
+    it('returns payload, wrapped envelope equals the legacy success wire (200/成功)', async () => {
       authService.validateToken.mockResolvedValue(mockJwtPayload)
 
       const output = await controller.validateToken('Bearer valid-token')
@@ -255,7 +254,7 @@ describe('AuthController', () => {
         })
       )
 
-      // interceptor を通した envelope が変換前(ApiResponseUtil.success)と一致
+      // interceptor を通した envelope が変換前の wire と一致
       const envelope = await wrapSuccess('validateToken', output)
       expect(envelope).toEqual(
         expect.objectContaining({
@@ -277,9 +276,14 @@ describe('AuthController', () => {
       expect(status).toBe(401)
       expect(body).toEqual(expect.objectContaining({ message: 'エラーが発生しました', error: 'トークンが無効です' }))
 
-      const ref = mockResponse()
-      ApiResponseUtil.error(ref, err, 401)
-      expect(stripVolatile(body)).toEqual(stripVolatile(ref.json.mock.calls[0][0]))
+      expect(stripVolatile(body)).toEqual({
+        success: false,
+        message: 'エラーが発生しました',
+        error: 'トークンが無効です',
+        errorCode: undefined,
+        details: undefined,
+        stack: undefined
+      })
     })
 
     it('delegates missing authorization header to AuthService for 401 classification', async () => {
@@ -322,7 +326,7 @@ describe('AuthController', () => {
       }
     })
 
-    it('logs in with valid Discord code; envelope equals ApiResponseUtil.success', async () => {
+    it('logs in with valid Discord code; envelope equals the legacy success wire', async () => {
       const loginDto: DiscordLoginDto = { code: 'valid-discord-code' }
       const req = mockRequest()
       const res = mockResponse()
@@ -383,7 +387,7 @@ describe('AuthController', () => {
   })
 
   describe('POST /auth/logout', () => {
-    it('logs out successfully; envelope equals ApiResponseUtil.success (200/成功)', async () => {
+    it('logs out successfully; envelope equals the legacy success wire (200/成功)', async () => {
       const req = mockRequest()
       const res = mockResponse()
       configValues['app.environment'] = 'development'
