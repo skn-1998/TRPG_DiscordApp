@@ -48,8 +48,11 @@ export class CharacterEmbedManagerService {
     try {
       return buildSectionedEmbeds(character)
     } catch (error) {
-      ErrorHandler.handleServiceError(error, { characterId: character.characterId }, 'CharacterEmbedManagerService')
-      throw error
+      return ErrorHandler.handleServiceError(
+        error,
+        { characterId: character.characterId },
+        'CharacterEmbedManagerService'
+      ) as never
     }
   }
 

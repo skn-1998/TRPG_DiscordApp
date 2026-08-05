@@ -86,7 +86,7 @@ export class CharacterEditMessageUpdaterService {
           characterId: character.characterId,
           userId: interaction.user.id
         },
-        'EnhancedCharacterEditService.updateExistingCharacterEditEmbed'
+        'CharacterEditMessageUpdaterService'
       )
     }
   }

@@ -185,7 +185,7 @@ describe('CharacterEditMessageUpdaterService', () => {
       expect(handleServiceError).toHaveBeenCalledWith(
         originalError,
         { characterId: 'char-1', userId: 'user-1' },
-        'EnhancedCharacterEditService.updateExistingCharacterEditEmbed'
+        'CharacterEditMessageUpdaterService'
       )
       expect(send.mock.invocationCallOrder[0]).toBeLessThan(handleServiceError.mock.invocationCallOrder[0])
       expect(interaction.reply).not.toHaveBeenCalled()
@@ -220,7 +220,7 @@ describe('CharacterEditMessageUpdaterService', () => {
       expect(handleServiceError).toHaveBeenCalledWith(
         originalError,
         { characterId: 'char-1', userId: 'user-1' },
-        'EnhancedCharacterEditService.updateExistingCharacterEditEmbed'
+        'CharacterEditMessageUpdaterService'
       )
       expect(sendImpl.mock.invocationCallOrder[0]).toBeLessThan(handleServiceError.mock.invocationCallOrder[0])
       expect(warnSpy).toHaveBeenCalledWith('Fallback message sending also failed', fallbackError)

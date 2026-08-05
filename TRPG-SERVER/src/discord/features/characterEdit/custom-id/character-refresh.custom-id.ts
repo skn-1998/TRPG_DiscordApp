@@ -10,6 +10,9 @@
 /** handler の getCustomIdPattern() が返す前方一致 prefix（不変） */
 export const CHARACTER_REFRESH_CUSTOM_ID_PATTERN = 'character-refresh-'
 
+/** characterId 抽出用のアンカー付き解析パターン。 */
+export const CHARACTER_REFRESH_PARSE_PATTERN = /^character-refresh-(.+)/
+
 export const CharacterRefreshCustomId = {
   pattern: CHARACTER_REFRESH_CUSTOM_ID_PATTERN,
 
