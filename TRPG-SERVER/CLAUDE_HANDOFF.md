@@ -2,6 +2,296 @@
 
 このファイルは作業を別ウィンドウ/セッションへ委譲するときに更新する。
 
+## 現在の委譲 - 改善単位7 Character実DB統合テスト隔離レビュー（2026-07-12）
+
+### 目的
+
+通常テストが外部MongoDBへ接続せず、Character実DBspecだけが使い捨てMongoDBで正準形の往復と確実なcleanupを検証する契約になっているか、読取専用でレビューする。
+
+### Model
+
+Fable（Claude CLIでは必ず `--model fable` を指定する）。
+
+### 必須参照
+
+- `CLAUDE.md`
+- `AI.md`
+- `src/ARCHITECTURE.md`
+- `AI.character.md` の「AttributeValue正準形の契約」
+- `AI.refactor.md` / `AI.test.md` の改善単位7
+- `jest.config.js` / `jest.integration.config.js` / `package.json`
+- `test/config/test-environment.ts` とspec
+- `test/testcontainers/` 配下のsetup、teardown、state、URI guard、READMEとspec
+- `src/domains/character/character.integration.spec.ts`
+- `src/domains/character/character.crud.spec.ts`
+- `src/domains/character/repositories/character.repository.ts` とspec
+- `src/domains/character/character.service.ts` とspec
+
+### 使用するSkill
+
+- `claude-delegation-reviewer`: 対象diffと検証証拠を分離し、重大度順の判定と最終statusを返す。
+- `model-domain-invariants`: URI隔離、AttributeValue保存、section置換、cleanupを事前条件・事後条件・不変条件として検査する。
+- `nestjs-best-practices`: NestJS/Mongoose境界とrepository責務に逆流がないかを確認する。
+
+### 変更範囲
+
+なし。レビューのみ。実装、spec、ドキュメントを変更しない。
+
+### 触らない範囲
+
+- Character Sheet v3のmaterialization/template/hub実装
+- 既存E2E `test:e2e:tc` の再設計
+- frontend、lockfile、依存関係
+- unrelated dirty filesのrevert、stage、commit
+
+### 既知の作業ツリー
+
+- 改善単位2〜7と、ユーザーまたは別作業によるCharacter Sheet関連差分が同居している。対象ファイルと契約だけを評価する。
+- 通常pnpmは既存workspace差分により `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` で停止するため、検証では `--config.verify-deps-before-run=false` を指定し、lockfileは変更していない。
+
+### レビューする契約
+
+- **事前条件**: 通常testは外部URIを継承しない。実DBtestは専用provider、run ID、loopback動的port、run固有DB名を必要とし、残留state/lockを上書きしない。
+- **成功時事後条件**: 専用configは対象2 suiteだけを直列実行し、新規 `values/dice` とlegacy正規化・書戻しを実DBで確認する。終了時にcontainer/state/lockを残さない。
+- **失敗時事後条件**: 外部URI、state欠落、run不一致、起動失敗、cleanup失敗をfallback/skip/握りつぶしせず失敗させる。
+- **不変条件**: 通常Jestは実DBspecを収集しない。section更新は検証済み全体を原子的に置換し、Mongoose `Mixed` のdeep mergeや`undefined`→`null`へ意味を委ねない。
+
+### 検証済み証拠
+
+```powershell
+pnpm --config.verify-deps-before-run=false exec jest test/testcontainers/mongo-uri.spec.ts test/config/test-environment.spec.ts --runInBand
+pnpm --config.verify-deps-before-run=false run test:integration
+pnpm --config.verify-deps-before-run=false run typecheck:test
+```
+
+結果: 隔離境界2 suites / 5 tests、実DB2 suites / 19 tests、typecheck成功。実DB終了後の対象container/state/lock残留0。
+
+### Fable初回レビュー後の追跡
+
+- 初回status: **`Approved with follow-up`**。契約/interface分離/ドメイン完全性はいずれもPass。
+- Medium対応: repositoryのlegacy `create/update/updateForOwner/updateByChannelId` にもundefined除去と5セクション正準形guardを追加。serviceだけに依存しない二重境界へ変更し、unit REDを追加。
+- Low対応: lock `EEXIST` を手動確認手順付きエラーに変換し、setup失敗時のcontainer削除失敗をcontainer ID付きで可視化。rootで既に無視済みのlockを局所 `.gitignore` にも追加。
+- Follow-up対応: pipeline更新後の `updatedAt` をraw BSONで実測するassertを追加。
+- 追跡結果: repository 1 suite / 43 tests、実DB2 suites / 19 tests、`typecheck:test` 成功、container/state/lock残留0。
+- Fable再レビュー結果: **`Approved`**。初回Medium/Low/follow-upはすべて解消し、3観点はいずれもPass。
+- 情報Lowとして示された属性内の明示的undefinedも、`isAttributeValue` の存在property契約を厳格化して拒否。core/repositoryテストを追加し、関連7 suites / 172 tests、`typecheck:test`、実DB2 suites / 19 tests成功。
+- Fable最終確認: **`Approved`**、必須指摘0、3観点Pass。情報提案だった空AttributeValue/optional省略の受理assertも追加して追跡を閉じた。
+
+### 最終gate
+
+- 対象最終: core/repository 2 suites / 81 tests、実DB2 suites / 19 tests、対象lint 0、残留container/state/lock 0、diff check成功。
+- 通常Jestは並行変更前に198 suites / 2,567 tests全件成功。最終再実行は改善単位1の `src/scripts/backfill-template-pin.spec.ts:36` compile error 1 suiteのみ失敗し、199 suites / 2,588 tests成功。
+- 現在のtypecheckは同specと `src/discord/features/characterSheet/handlers/roll-palette.handler.ts:43` の対象外2型エラー、buildは後者1件で停止。
+- lint 0 errors / 92 warnings、circular 525 files / 循環0。対象外2ファイルは変更しない。
+
+### 完了条件
+
+- 問題があれば重大度順に具体的なfile:line、破られる契約、再現条件、最小修正を示す。
+- 契約による設計、interfaceと実装の分離、ドメインモデル完全性をPass/Partial/Failで個別判定する。
+- `GenericContainer` からDocker CLIへ限定した判断、state/lock lifecycle、teardown失敗の可視性、pipeline `$literal` の置換意味を評価する。
+- 最後に `FINAL STATUS: Approved` / `Approved with follow-up` / `Changes requested` / `Blocked` のいずれかを出す。
+
+---
+
+## 現在の委譲 - 改善単位6 AttributeValue正準形レビュー（2026-07-12）
+
+### 目的
+
+AttributeValueのHTTP入力、イベント入力、作成時検証、service変換、Discord編集が単一の正準形に従い、`values`と`dice`を欠落・暗黙変換しないかを読取専用でレビューする。
+
+### 参照
+
+- `CLAUDE.md`
+- `AI.md`
+- `src/ARCHITECTURE.md`
+- `AI.character.md` の「AttributeValue正準形の契約」
+- `AI.refactor.md` / `AI.test.md` の改善単位6
+
+### 変更範囲
+
+なし。レビューのみ。実装、spec、ドキュメントを変更しない。
+
+### 対象
+
+- `src/core/types/attribute.types.ts` とspec
+- `src/domains/character/dto/create-character.dto.ts`
+- `src/domains/character/dto/attribute-value.validator.ts`
+- `src/domains/character/dto/create-character.dto.spec.ts`
+- `src/domains/character/character.service.ts` とspec
+- `src/domains/character/repositories/character.repository.ts` とspec
+- `src/domains/character/mappers/character-attribute.mapper.ts` とspec
+- `src/domains/character/services/character-creation-core.service.ts` とspec
+- `src/events/contracts/unified-event-contracts.ts`
+- `src/events/handlers/character.creation.requested.spec.ts`
+- `src/discord/features/characterEdit/services/character-modal-handler.util.ts` とspec
+- `src/discord/features/characterEdit/services/character-modal-handler.service.spec.ts`
+- 上記契約文書差分
+
+### 触らない範囲
+
+- Character Sheet v3の`sheet.values`モデル
+- ダイス構文・BCDice実行仕様の新設
+- リモートMongoDBテスト隔離（改善単位7）
+- frontend、lockfile、依存関係、unrelated dirty files
+- stage、commit、revert
+
+### レビューする契約
+
+- **事前条件**: セクションはプレーン辞書、属性は許可6キーだけ、`values`は有限数辞書、`dice`は文字列。プリミティブ・配列・`null`・未知キーを拒否する。
+- **成功時事後条件**: create/updateで辞書キー、全`values` part、`dice`を保持する。ゲーム別範囲は合算値で判定する。Discord編集は未指定項目を`null`保存しない。
+- **失敗時事後条件**: 不正値はrepository呼出前に失敗し、空AttributeValueへ暗黙変換しない。
+- **不変条件**: DTO、event、core、service、entityが同じ`AttributeSection`へ収束し、構文検証をAttributeValueへ誤配置しない。
+
+### 検証済み
+
+- RED: 7 assertion failures + 2 compile errors。
+- focused: 5 suites / 114 tests成功。
+- 拡張: 3 suites / 60 tests成功。
+- `typecheck:test`、build成功。
+- DB実体でのcreate/read/update往復は改善単位7の隔離MongoDBで完了（2 suites / 19 tests）。
+
+### Fable初回レビュー後の追跡
+
+- 初回結果: **`Changes requested`**。
+- High: 旧Discord編集が保存したnull付き属性が別キーに残るとread-merge-writeが失敗する。repository読出専用mapperを追加し、既知legacyだけを非破壊正規化。未知の破損形は例外。
+- Medium: `updateField / updateFieldByChannelId` のプリミティブ素通しをservice/repository両境界で拒否。
+- Low: Discordの部分数値・Infinityを拒否。domain版Validation/Business errorを`name`でも明示的に非リトライ化。陳腐化コメントを修正。
+- 追跡RED: 9 failures + mapper compile error。修正後5 suites / 115 tests成功、`typecheck:test`、build、対象lint 0 errors。
+- 再レビューでは、外部入力の厳格性を弱めずrepository読出だけを適応境界にした点、未知形で情報を捨てない点、全CharacterEntity返却経路への適用を重点確認する。
+
+### 完了条件
+
+- 重大度順に具体的なfile:line、破られる事前条件・事後条件・不変条件、再現例を示す。
+- 契約による設計、interfaceと実装の分離、ドメインモデル完全性をPass/Partial/Failで判定する。
+- 改善単位7で追加されたDB統合証拠が初回レビューの追跡条件を満たすか判定する。
+- 最後に `FINAL STATUS: Approved` / `Approved with follow-up` / `Changes requested` のいずれかを出す。
+
+## 現在の委譲 - 改善単位5 User / Character認可レビュー（2026-07-12）
+
+### 目的
+
+UserとCharacterのHTTP操作が、JWT認証主体からrepository queryまで所有者条件を失わず、OAuth tokenや他人のresourceを公開・変更しない契約になっているかを読取専用でレビューする。
+
+### 参照
+
+- `CLAUDE.md`
+- `AI.md`
+- `src/ARCHITECTURE.md`
+- `AI.domain.md` の「2026-07-12 User / Character HTTP認可契約」
+- `AI.refactor.md` / `AI.test.md` の改善単位5
+
+### 変更範囲
+
+なし。レビューのみ。実装、spec、ドキュメントを変更しない。
+
+### 対象
+
+- `src/domains/character/{character.controller,character.service}.ts` とspec
+- `src/domains/character/repositories/character.repository.ts` とspec
+- `src/domains/user/user.controller.ts` とspec
+- `src/domains/user/dto/user-profile.dto.ts` とspec
+- `src/domains/user/dto/update-user.dto.ts`
+- `src/domains/user/presenters/user-output.presenter.ts` とspec
+- 上記の契約文書差分
+
+### 触らない範囲
+
+- OAuth callback / AuthService内部provisioningの設計変更
+- Discord event等が使うCharacterのID単独操作
+- frontend、lockfile、依存関係、unrelated dirty files
+- stage、commit、revert
+
+### 注意
+
+- 現行業務に共有Characterアクセスはないため、HTTPは `Character.discordUserId` の一致だけを許可する。
+- `User.characterIds` はlegacy関連一覧で、Characterアクセス権を付与しない。
+- User HTTP create/updateは公開プロフィールだけを扱い、token更新は `AuthService -> UserService` 内部経路に限定する。
+- 通常pnpmは既存workspace差分により `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` で停止する。lockfileを変更しない。
+
+### 検証済み
+
+- 変更前: 6 suites / 102 tests成功。
+- RED: owner-qualified repository API不存在3件、User主体/非漏えい/他人path6件。
+- 最終focused: 8 suites / 123 tests成功。
+- `typecheck:test` 成功。
+
+### Fable初回レビュー後の追跡（同日）
+
+- 初回結果: 対象diff内に重大指摘なし、`Approved with follow-up`。
+- 中指摘: `/discord/post-character` がID単独 `findOne/update` を使う横断HTTP経路。owner-qualified APIを期待するspecへ変更して5 REDを確認後、`findOneForOwner/updateForOwner` とJWT主体へ接続。
+- 低指摘: Userのintersection Param DTOを実class `UserCharacterParamDto` へ変更し、ValidationPipeで両IDを検証。Character全6routeのguard metadataを固定。`UserOutputDto` からpresenterが返さない時刻項目を削除。
+- 最終focused: 9 suites / 157 tests成功。`typecheck:test` 成功。
+- Fable追跡レビュー: **`Approved`**。全HTTP controller横断検索でCharacter ID単独操作への公開到達経路なし。
+
+### 完了条件
+
+- anonymous、owner、wrong-owner、unknown-ID、mass assignment、token非漏えいを重大度順に評価する。
+- Characterのupdate/removeが事前取得と変更に分かれず、owner条件付き単一queryであることを確認する。
+- Userのguard、入力DTO、controller明示mapping、presenterの四境界を確認する。
+- 契約による設計、interfaceと実装の分離、ドメイン完全性をPass/Partial/Failで判定する。
+- 最後に `FINAL STATUS: Approved` / `Approved with follow-up` / `Changes requested` のいずれかを出す。
+
+## 現在の委譲 - 改善単位4 Discord REST操作契約レビュー（2026-07-12）
+
+### 目的
+
+Discord message/channel操作について、HTTP DTO、facadeの判別可能union、managerでのSDK型変換が契約どおり分離され、認可・失敗処理・既存挙動に回帰がないかを読取専用でレビューする。
+
+### 参照
+
+- `CLAUDE.md`
+- `AI.md`
+- `src/ARCHITECTURE.md`
+- `src/discord/DESIGN.md` §4.5
+- `AI.test.md` / `AI.refactor.md` の改善単位4
+- `src/discord/interfaces/discord-operation-options.interface.ts`
+- `src/discord/interfaces/discord-operation-result.interface.ts`
+
+### 変更範囲
+
+なし。レビューのみ。実装・spec・ドキュメントを変更しない。
+
+### 触らない範囲
+
+- Discord interaction / events / feature実装
+- frontend
+- lockfile、依存関係、generated files
+- unrelated dirty filesのrevert、stage、commit
+
+### 注意
+
+- 作業ツリーにはユーザーおよび別改善単位の既存差分が多数ある。対象diffだけを判断する。
+- `thread` は親テキストチャンネルが必要な別操作なので、`create-channel` では400とする意図的な契約変更。
+- 通常のpnpmは既存workspace差分により `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` で停止する。lockfileを変更せず、必要なら `--config.verify-deps-before-run=false` を一時指定する。
+
+### 検証済み
+
+```powershell
+pnpm --config.verify-deps-before-run=false exec jest src/discord/discord.controller.spec.ts src/discord/discord-facade.service.spec.ts src/discord/services/discord-channel-manager.service.spec.ts src/discord/dto/send-message.dto.spec.ts --runInBand
+pnpm --config.verify-deps-before-run=false run typecheck:test
+pnpm --config.verify-deps-before-run=false run build
+pnpm --config.verify-deps-before-run=false run check:circular
+```
+
+結果: 4 suites / 76 tests、typecheck、build成功、496 filesで循環0。
+
+### Fable初回レビュー後の追跡（同日）
+
+- 初回結果: `Approved with follow-up`。
+- 「空要求が無検証」は実装と不一致で、空要求は既に400だった。ただし条件が複数 `embeds` を見ておらず、`embeds` だけの正当な要求を400にする問題を確認して修正。
+- `DiscordChannelCreationOptions.type` の裸の `string` をguild channel名のliteral unionへ縮小し、managerにも実行時ガードを追加。`thread` / typoをテキストへ暗黙変換しない。
+- DTO色の不正形式・上下限・小数、数値ChannelType素通し、単数/複数Embed結合順を追加テストで固定。
+- 追跡後検証: controller / channel manager / DTOの3 suites / 59 tests成功、`typecheck:test` 成功。
+- C3の失敗理由分類とdeadな `ephemeral` は既存の広い失敗表現に関わるため、改善単位4の必須条件から外し別追跡とする。
+- 追跡レビュー結果: 重大指摘なし、`Approved with follow-up`。残った低指摘だった色の受理境界 `0` / `0xFFFFFF` と数値 `ChannelType.PublicThread` も追加spec・実装で解消。
+- 最終focused検証: 4 suites / 88 tests成功、`typecheck:test` 成功。
+
+### 完了条件
+
+- 重大度順に、具体的なfile:line、破られる事前条件・事後条件・不変条件、再現例を示す。
+- 問題がなければ `Approved`、追跡課題だけなら `Approved with follow-up`、修正必須なら `Changes requested` と明記する。
+- ミノ駆動の観点として、契約による設計、interfaceと実装の分離、ドメイン/操作結果の完全性を個別に判定する。
+
 ## 現在の委譲 — docs 精査結果反映・分割更新（2026-06-06）
 
 ### 目的

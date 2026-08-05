@@ -1035,7 +1035,335 @@ Codex F2（details N≥3・重複 pin）は自然な導線のない仮説変異�
 g4e 節の lint 帰属訂正が誤りだった件を修正（上記 g4e 節に反映済み。Codex 正・--stdin 実験の手法欠陥。
 教訓「反証実験は手法自体を検証する」をメモリ verify-claims-before-prescribing 事例5へ）。
 
-### 俯瞰レビュー#5（2026-07-28・`5434f9c..9eae435` の累積11コミット）
+### E1c＋E1b: E 方向完遂 — 局所 HTTP filter 削除と global 一本化（2026-08-04・完了）
+
+証跡: `review-results/ledger-close/`（prompt-code-e1c / e1b-1 / e1b-2）。
+コミット: E1c = `1a26624`・E1b-1 = `a4a882e`・E1b-2 = `a03d8c6`。
+俯瞰#7 主判定1 の Go with conditions (a)〜(d) を全消化し、**E 方向（server エラー封筒の
+global 一本化）は完遂**。
+
+**運用変更（2026-08-04 ユーザー決定）**: full-review 台帳（本流残＋第5群）の消化をもって
+キャンペーン終了。以後の大粒度俯瞰は **feature 完了時のみ**（3フェーズ毎の規律は廃止）。
+low 所見は起票のみで処理義務なし（blocking/should は従来どおり処理）。
+
+- **E1c（`1a26624`）**: sheet-templates の `'; '` join **文字列** BadRequest を配列 throw 化し
+  details[] 経路へ合流（front 無改修で N 項目表示復帰・F-1 の出荷済み表示退化を解消）。
+  台帳記録は「3 発生源」だったが grep 実測は **4**（character-sheet-template.service.ts:204＋
+  sheet-engine-template-validation.service.ts:27/34/41・全て到達可能）。
+  同梱: **B2 roster 回帰修復** — app.module.spec.ts の controller roster pin に
+  DicePreviewController が `30c35f2` 以来欠けて full suite 赤が約10コミット継続していた
+  （focused suite 検収では検出不能。global 不変量 spec は明示的に受入へ含める —
+  メモリ verify-full-suite-before-merge に記録済み）
+- **E1b-1（`a4a882e`）**: before pin 4本を新設（auth-user-character.local-filter-wire-pin.http.spec.ts）。
+  /auth/login 400・/auth/validate-token 401・/character/:id 404（errorCode NOT_FOUND_ERROR）・
+  /users 404 を toStrictEqual literal で固定（timestamp/requestId のみ matcher）
+- **E1b-2（`a03d8c6`）**: `@UseFilters(HttpExceptionFilter)` 3箇所（auth/character/user）撤去・
+  HttpExceptionFilter（73行）＋旧 spec（170行）削除（参照ゼロ確認・barrel から export 除去）。
+  pin **13件**（旧 filter spec 11＋character-http filter 2 — 俯瞰#7 記録と現況一致）を
+  global-exception.filter.spec へ再ホスト（stack 2件は jest/no-conditional-expect 解消のため分割）。
+  wire pin を実 `APP_GLOBAL_EXCEPTION_FILTER_PROVIDER` 配線へ更新 —
+  **401/404 の 3 pin は全キー・全 literal 不変**（E1a の ApiError 分岐逐語移植の等価性を
+  実 HTTP 経路で証明）・/auth/login 400 のみ details[]（N=2）追加 =
+  ValidationPipe 400 へのユーザー可視 wire 拡張はこの pin diff が宣言（front は #86 で join 化済み・
+  拘束 (d) 充足）。riders: CL-5（global filter JSDoc cause.conflicts 訂正）・
+  CL-4（api-response.util.ts へ「production 参照 0・移行等価性オラクル専用」明記）
+
+**実測（E1b-2 後の現在値）**: 封筒生成点 **7→5**（global 3＋sheet 2・到達不能 9 は不変）・
+wire 系統 3→2・includeStack 所有者 3→2・filter 概念 3→2・lint コード由来 4→2 errors
+（拘束 (c) 充足・残 2 は対象外 track-range.policy.spec.ts）・純減 102 行。
+auth `@Res({passthrough:true})` 3箇所は headersSent=true 後に例外が到達する経路なし（俯瞰#7 CL-4 観点消化）。
+
+**検収（Fable 独立再実行）**: build 成功・循環 0（598 files）・full suite
+**232 suites / 3218 tests 全緑**（基準 233 から −1 suite ±0 tests = 旧 spec 削除＋13 pin 再ホストの
+検算どおり）。response.interceptor.ts は blob==HEAD（CRLF ノイズ・並行 M）を再確認。
+
+**残（第5群 #91 へ）**: utils/api-response.util.ts の削除（E1b 完了で参照が縮小し削除一体性が向上）・
+死蔵 ErrorHandler.handleHttpError・interactions/commands controller 削除ほか第5群スイープ。
+
+### 第4群 #88: customId Factory/Parser 統一 — CL-3＋CH-6＋CH-7（2026-08-05・完了）
+
+証跡: `review-results/ledger-close/`（prompt-code-88a / 88b / 88b-r2 / 88c）。
+コミット: 88-a = `cbfd96a`・88-b = `fb198cd`・88-c = `d53b7ce`。
+台帳指示どおり**着手前に新鮮実測**（static:duplication＋grep）してから設計した。
+
+**着手時実測（設計を決めた事実）**:
+
+- **CH-7 決着（俯瞰#5 の未検証対立を解消・台帳訂正済み）**: 本番 dispatch は
+  `route()`→`PatternMatcherService.findBestMatch()`→`InteractionHandler.getMatchScore()` の**1本**。
+  `matches()` / `matchPattern()` / `findAllMatches()` / `hasHandler()` は spec・debug 専用 =
+  「本番2箇所並列」は否認・「マッチ真理の意味重複3実装（live 1＋spec-only 2）」は実在 → 去就は #91
+- **CH-6 は 13 箇所そのまま現存**（attrition なし）・**CL-3 は半分 attrition**
+  （component type マジック数は production 2箇所 — 当初「唯一」と誤記した検証穴は
+  メモリ verify-claims-before-prescribing 事例13）
+- customId 生成/解析サイトは並行 M ファイルと重なりゼロ
+
+**88-a（CH-6・`cbfd96a`）**: 契約 preset-dice.custom-id.ts へ順序付き
+`PRESET_DICE_ACTIONS`（action/label/semantic）を新設し ACTION_REASON を導出化
+（**preset-dice.custom-id.spec 無変更全緑 = 導出等価の証明**）。thread-interaction の
+raw literal 13箇所 → `PresetDiceCustomId.create`・system 別 builder 3→1（83行→13行）。
+style/emoji は feature 側 PRESET_DICE_BUTTON_APPEARANCE（契約の discord.js 非依存維持・
+台帳⇄appearance 欠落は pin が builder 実走するため TypeError で赤化=閉包）。
+13 ボタンを {custom_id,label,style,emoji}×順序で literal pin。
+認知負荷実測: 同時保持 7→5・概念 6→5・action 変更ホップ 3→2・ラベル正本 2→1。
+
+**88-b（CL-3・`fb198cd`）**: 契約 character-field.custom-id.ts へ field-edit/add prefix 定数2本＋
+中置正本 characterFieldSectionInfix() を追加（createEdit/createAdd 自身も同定数から合成・
+Factory↔prefix↔中置の byte 三者一致を spec 固定）。characterEdit 探索側 probe 9サイトを
+契約参照化 — byte 完全保存 6＋**生成集合等価の引き締め 3**（isBasic 化・isFieldOperation/
+isSectionSelection の末尾ハイフン付き prefix 化。根拠コメント＋非生成形の負例 pin）。
+`type !== 3` → ComponentType.StringSelect（値不変）・`type !== 2` は MessageLike 純関数のため
+理由付き維持。敵対値含む回帰 15 件追加。
+round1 は Fable の前提誤りで Codex が正当停止（統制が機能）→ 前提訂正 round2 で完走。
+
+**88-c（`d53b7ce`）**: byte 一致の契約定数が既にある characterThread 4サイト
+（character-tab ×2・flexible_dice_・flexible-dice-param*）を機械的参照化（演算・真理不変・hex 突合）。
+
+**起票のみ（#94・low）**: custom-dice-modal の feature 跨ぎ契約（characterThread が生成 →
+diceRoll が解析・契約モジュール不在）・'character-thread-select' 文字列定数・
+dice-generic parse()・dice_button・CH-7 死蔵3実装の去就（#91 合流可）。
+Codex follow-up: 作成モーダル 'character-create-basic-_' に対し modal registry pattern が
+'char-edit-_' のみの routing gap（CE-2 の dead 経路下流・潜伏）。
+
+**検収（各スライスで Fable 独立再実行）**: build・循環0（598 files）・full suite
+88-a: 232/3218（±0）→ 88-b: 232/**3233**（+15）→ 88-c: 232/3233（±0）全緑。
+88-c 検収時の build 初回失敗は一過性（rimraf/dist の Windows ファイルロック疑い・exit 0×2 で再現せず）。
+
+### 第4群 #89: characterThread 一本化 — CL-2＋CH-3＋CH-8（2026-08-05・完了）
+
+証跡: `review-results/ledger-close/`（prompt-code-89a / 89b / 89b-r2）。Opus read-only 実測 →
+Codex 実装の2段。コミット: 89-a = `32186df`・89-b = `f6ee30a`。
+
+**実測が覆した前提**: CL-2 の「スレッド作成2経路の複製」は実態が **1 live＋1 dead** —
+select 入口 `character-thread-select(-with-thread|-current)` を setCustomId する production
+コードが存在せず（:30 `data` は未使用フィールド・registry に .data 探索機構なし）、
+thread-creation.service / character-thread.orchestrator / thread-creation.util（7 export 全部）/
+character-thread-select.handler / 同 custom-id が丸ごと死蔵だった。
+
+- **89-a（`32186df`）**: 死蔵9ファイル削除＋live 側の死蔵断片・module 配線・
+  handlers.integration 死蔵 pattern 検査（spec pin **25→24**。**訂正（#90 fact-check・2026-08-05）**:
+  これは spec 内の数字で、production の registerHandlers 実物列挙は **28→27**［module 内訳 6/8/8/5。
+  spec は characterSheet hub 3 handler を含まない部分集合］— DESIGN.md の「23」は drift・#90 で同期済み）・
+  stale JSDoc を掃討。18ファイル +16/−1634（**純減1618行**）。
+  複製 D1(スレッド名)/D2(buildThreadUrl 同名2実装)/D3(ダイス5連投稿 2/3)/D4(materialized A側)/
+  D5(Embed dead側) が自動消滅。live の isCreateSelect / flexible dice 分岐は不変
+- **89-b（`f6ee30a`）**: 実測発見の D6（character-embed.service 内 post/edit 経路の enhanced embed
+  丸ごと2重記述・wire 完全同一）を mode 引数なし private builder へ逐語抽出（production 純減52行）。
+  **pin 先行** = service 未変更で両経路 toJSON() を exact literal 固定して緑 → 統合（byte 不変証明）
+- **DC-30 は所在訂正のうえ実質成立 → #95 起票**: literal 'default-guild' は
+  character.creation.completed.ts:149 の1箇所のみ（台帳の thread-manager:72 は変数 fetch で誤り）。
+  「Orchestrator が実 guildId に更新」コメントは stale（リスナー登録スキップ済み）。
+  **自動スレッド作成は live-but-broken・手動（/character-thread → select）のみ正常**。
+  修復は guildId 供給源の契約設計を要する挙動変更 = 一本化スコープ外
+- **CH-3**: characterThread 内5実装は parent-channel.util へ集約済み。境界外 R1〜R4
+  （characterSheet adapter = 意図的分離 JSDoc あり・dice 系3実装 = PrivateThread 非対応の意味論差）
+  は #96 起票のみ（low）
+- **検収**: 89-a 後 full **228 suites / 3187 tests**（−4/−46 検算一致・循環 589 files = 598−9）→
+  89-b ±0 全緑。start:dev は TS 0 errors・DI 解決成功（DB 接続は DNS 隔離で到達不可・回避せず停止）
+- **プロセス記録**: 多ファイルコミットはコマンド長でシェルが壊れるため
+  `git commit --only --pathspec-from-file=<list> -F <msg>` 方式へ切替。
+  89-b r1 は指示書の「M ゼロ」前提が 89-a コミット後の CRLF ノイズと食い違い正当停止 →
+  可変状態（git status）は開放形で書く教訓を delegation-prompt-must-name-invariants へ記録
+
+### 第4群 #90: CH-9 DESIGN.md の実態同期（2026-08-05・完了 `8415ee6`）— 第4群 originals これで全完了
+
+台帳 CH-9（DESIGN.md の陳腐化）。doc 単独スライス・Fable 直筆（司令塔成果物）＋
+Codex read-only fact-check をコミットゲートに使用。
+
+- **同期した drift（全件実測裏取り）**: 登録 handler の正本を production 実物列挙 **27 件**
+  （module 内訳 6/8/8/5）へ・§11 を 4 module 分類に全面改稿／**Phase 0（customId 統一）完了宣言**
+  （legacy 生成元消滅・pagination/select 7 adapter canonical 化・1-indexed 統一）／As-Is 図を
+  現経路（特例 if 撤去・Controller 非経由・findBestMatch）へ／DiscordService @deprecated
+  ラッパー削除済み反映（main.ts は Facade 直 get）／Phase 2 特例 if [x]・Phase 3 custom-id
+  設置 [x]（契約モジュール 2/6/9）／§6.3 Legacy「廃止済み」化／stale パス3件／
+  interactions.controller = production 消費者 0（去就 #91）
+- **fact-check が Fable の初稿から blocking 6 件を検出**（64 主張検証・真52/偽12）。最重要:
+  **spec の pin 24 を「登録総数の正本」と誤認** — production の registerHandlers 実物列挙は 27
+  （spec は characterSheet hub 3 handler を含まない部分集合。#89 の実効果も production 28→27・
+  spec 25→24 — 89-a 検収記録を本ファイル上で訂正済み）。他: 8 adapter 全 canonical は偽
+  （dice-button.adapter の 'dice_button' raw literal 残存 → #94 へ追記）・「Phase 4 残は facade
+  移動のみ」過大・thread-create-character 一本化表現不正確・canonical 生成元は
+  pagination.builder（service ではない）。**Fable が blocking の数値を module 実物列挙で独立
+  再計測し 6/8/8/5=27 一致を確認してから反映**。教訓 = verify-claims 事例14（spec pin ≠ 母集団）
+- **プロセス記録（コミット結合の新知見）**: DESIGN.md には並行セッション B の Approved 済み
+  1 hunk（L175 permission overwrite 判定粒度）が同居。`git add` → `git apply --cached -R` の
+  index 分離でコミットから除外しようとしたが、**pre-commit hook（prettier）が worktree 全文を
+  再ステージするため同一ファイル内の hunk 分離コミットは構造的に不可能**。同梱して帰属を
+  コミットメッセージに明示（amend でメッセージのみ訂正・内容不変）。教訓は
+  parallel-session-commit-coupling へ記録
+- 証跡: review-results/ledger-close/prompt-review-90.txt（fact-check 指示書・応答は
+  同 dir の codex ログ）。**第4群 originals（#88/#89/#90）これで全完了 — 残る本流は
+  #91（第5群スイープ）のみ・#91 消化でキャンペーン終了**
+
+### 第5群 #91: 死蔵一掃スイープ（2026-08-05・完了・5 コミット）— キャンペーン最終群
+
+台帳の第5群（死蔵・意味重複の一掃）。着手前 fresh 測定（Opus read-only・正本 =
+review-results/ledger-close/g5-measurement-digest.md）で 13 系統を裁定し、結合事実で
+5 スライスに構成。**累計 +289/−6,419（純減 ≈6,130 行）**。全スライスで Codex code mode 委譲＋
+Fable 全ゲート独立検収（build 0・循環 0・full suite 全緑・テスト数増減の事前検算一致）。
+
+- **測定段の裁定**: close 3（系統10 split 死枝 = 第4群で attrition 済み／CE-18 = 台帳取り込み
+  漏れで対象特定不能／系統11「44件」= 数値再現不能＋untracked 並行生成物のため不触）。
+  台帳訂正 3（ErrorResponse サブクラス未到達は 6 種**全て**・CL-1 は「12 中 11」でなく
+  **14 中 13** 死蔵・OV6-3 の 6 番目の親 TestAppModule は消費者 0）。誤検出 2
+  （jest globalSetup/teardown の default export = path 文字列参照で削除禁止・
+  types/express ambient = 保持）
+- **G5-a（`c3b4d1b` +0/−3,660）**: 純削除 19 ファイル＋配線除去 9。dependency-analysis.json・
+  interactions/commands controller＋spec（production 消費者 0 = #90 裁定の実行）・
+  src/types 4 本・CE-19 character-creation.service・DC-13 rate-limiter 系 4 本・
+  死蔵 model/util 4 本。CharacterEditValidator はクラスごと削除。commandType は
+  6 config が型注釈で使用のため残置。suite −5/−56 検算一致
+- **G5-b（`a9c7553` +11/−993）**: メソッド/export 単位。F-6 @ApiErrorResponse・
+  EV-22 handleHttpError＋契約非互換 interface ErrorResponse・CL-5 registry getter 5・
+  CL-4 display 3・fresh 再測定の真の死蔵 export 29 件（全 grep 裏取り）＋空化 2 ファイル削除。
+  static:deps の対象条件（reason null かつ参照 0）29→0
+- **G5-c（`7576566` +138/−543）**: OV6-3 拘束の結合スライス。api-response.util＋spec 削除・
+  ErrorResponse サブクラス 6 種削除・oracle literal 化 4 spec（it 数不変・stripVolatile は
+  HEAD 既存慣行）・test-auth 2 箇所インライン化（byte-equal）
+- **G5-d（`71158f9` +6/−1,000）**: CL-1。CharacterUIService public 14→1
+  （生存 = updateCharacterEmbed・唯一の呼び出し元 character.update.completed.ts:81）・
+  character-ui.util 13→4 シンボル。同名別物（character-display private buildCharacterEmbed 等）
+  不触。r3 はランナー sandbox helper 故障で不受理 → worktree 適用を確認し Fable 全ゲート
+  独立実行で受理
+- **G5-e（`5a0e067` +134/−223）**: CH-7 決着。本番 dispatch（route→findHandler→
+  findBestMatch→getMatchScore）と並行する spec/debug 専用判定 4 メソッド
+  （matches/matchPattern/findAllMatches/hasHandler）＋死蔵 2（HandlerWithPattern/
+  RegisterHandler）を削除 — **handler 選択の accept 判定は実装/入口 5→1**
+  （※主語は handler 選択に限る。characterEdit 内の customId→action 第2段判定は未統合 =
+  俯瞰#18 CL-1・Task #97）。依存 spec 7 本を本番経路検証へ
+  書き換え（it 112→112・handlers.integration は正例を handler 同一性まで強化）。
+  書き換え前に真理値等価性監査（matches ⇔ getMatchScore>0・override 0・stateful regex 0）・
+  負の対照実測（pattern 隔離変異で該当 assertion 赤）。旧 matchPattern の数値スコア契約は
+  base getMatchScore spec が保持
+- **完了時ベースライン: 222 suites / 3057 tests 全緑・circular 566 files・build 0**。
+  証跡: review-results/ledger-close/（prompt-code-g5{a,a-r2,b,c,d,d-r2,d-r3,e}.txt・
+  g5-measurement-digest.md）。**full-review 台帳 mainline＋第5群 = 消化完了 =
+  キャンペーン終了条件成立**。残ゲート = feature 完了の大粒度俯瞰#18（二重）→
+  台帳クローズ注記（CE-18 取り込み漏れ・系統11 再現不能）
+
+### 俯瞰レビュー#18（2026-08-05・`8415ee6..5a0e067`）— キャンペーン完了ゲート・二重レビュー
+
+方式: Opus read-only = 認知負荷モード A 大粒度／Codex `--mode review` = reuse&duplication＋
+削除取り残し＋G5-e 等価性。**突合矛盾なし・相互確認 4 件一致**。
+判定: **Go（キャンペーン終了承認）**。Codex blocking 0・退行 0・**G5-e の spec 書き換え等価性は
+両輪とも抜けなしを確認**（旧 findAllMatches spec は実は 1 件マッチのみでソート未検証 → 新 spec の
+方が強い、まで Codex が特定）。証跡: review-results/overview-18/（integration-verdict.md 正本）。
+
+- **close-out 実施（G5-f `2d1fb7c` +3/−21・docs `403b1fb` +43/−55）**: 両レビューが検出した
+  「G5 の削除に注記/doc が追従していない」自己起因の取り残しを消化。コード側 = 死蔵
+  PatternMatchResult 削除＋stale コメント/JSDoc 4 箇所（実行行変更は interface 削除のみ）。
+  doc 側 = DESIGN.md（controller 削除済み・RegisterHandler TODO 取り下げ）・AI.test.md
+  （hasHandler 手本→本番経路形・G5-a/G5-d 追記）・AI.md・README 3 本。
+  検収 Fable 独立実行: build 0・循環 0（566）・full 222/3057 全緑・残存 grep 0
+- **主張スコープ訂正**（ai-md-claim-scoping 6 例目の未然防止）: CH-7 の「accept 判定 5→1」は
+  **handler 選択に限る**。characterEdit 内の customId→action 第2段判定（enhanced-character-edit
+  .service.ts:70-90 の 4 predicate・else なし silent no-op・select 経路も同型）は未統合 →
+  **Task #97 [High]** 起票
+- 起票: **#97**（CL-1 第2段判定統合）・**#98**（CL-3 登録台帳 3 系統 27/24 乖離）・
+  **#99**（CL-4 掃き残し 4 件＋ts-morph が export * barrel を素通りする測定手法の申し送り）・
+  **#94 追記**（CL-2 modal customId 契約の採用 1/7・parse/generate 各 2 実装）
+- 不採用の裁定: stripVolatile 4 複製の統合（oracle 共有は回帰検出力を落とす・両輪一致）／
+  封筒生成 2 本の 1 本化（別要件・契約型で drift 不能）／findHandler public 化（type filter
+  1 行のギャップに過剰）
+- **キャンペーン終了処理**: full-review-2026-07-26.md にクローズ注記（mainline＋第5群消化・
+  CE-18 は台帳取り込み漏れで着手不能クローズ・系統11「44件」は数値再現不能・低優先は
+  #94/#96-#99 等へ起票済み）。**2026-07-26 全体レビュー起点の修正キャンペーンはこれで終了**
+
+### H フェーズ（2026-08-05・俯瞰#18 宿題の消化: #97/#98/#99/#94 追記）
+
+ユーザー指示「これらは処理して継続して」による宿題 4 件の消化。委譲は全スライス Codex
+（codex-delegate-e2e）・検収は Fable 独立実行。証跡: review-results/overview-18/
+（prompt-code-h1{a,b,c1,c1-r2,c2,d,e}.txt・ov19-integration-verdict.md）。
+
+- **H1-a（`1827f79` 純減242行）— #99 完結**: 死蔵掃き残し 4 件（character-dice.custom-id.ts・
+  BackgroundTaskErrorHandler＋spec 4 it・saveRollResult 系・characterEdit barrel 2 本）を削除。
+  barrel 削除は importer 0 を実測してから（ts-morph の export * 素通りを grep で補完）。
+  **barrel-aware 再測定で src 側 true-dead 0 を確認** — 測定手法の穴
+  （export * barrel 素通り＋importer-0 barrel 自体の検出不能）は static-structure-audit
+  スキル較正節へ記録済み。full 222/3053（−4 it 検算一致）・circular 566→**563**
+- **H1-b（`b113942` +8/−25）— #94 追記分（CL-2）消化**: characterEdit modal customId の
+  契約採用を実装へ: parseEditCustomId → CharacterModalCustomId.parse 委譲
+  （EmbedSectionType narrowing のみ残置）・buildDirectModalId/buildSessionModalId →
+  契約 createDirect/createSession 委譲。**prefix リテラル 4→2・parse 2→1・generate 2→1**。
+  Codex sandbox で full suite V8 native crash（exit 3221225477）→ 統制どおり回避せず停止報告 →
+  Fable 独立 full 3053 全緑で受理（以後の指示書に crash 許容条項を明文化）
+- **H1-c1（`0882990` +78/−61）＋ H1-c2（`5d2fc1c` +128/−103）— #97 [High] 完結**:
+  第2段 customId→action 判定の統合。generic handleButtonInteraction／select 判定を削除し
+  **専用入口 5 本（handleRefresh/handleCreate/handleCompact/handleSectionSelect/
+  handleFieldSelect）＋共通ラップ executeInteractionAction** へ。create の本質的 2 分岐
+  （isBasic/isCancel）には防衛枝（warn＋ephemeral）を追加し silent no-op を封鎖
+  （pattern ≡ isBasic∪isCancel を実測してから）。sectionEditor 側も execute を 2 専用入口へ
+  分割（defer 意味論保存: section = 前処理前 defer・valid field = defer なし＝modal 表示 API 制約）。
+  挙動差 = 契約 drift 時と delta クラスの silent→warn＋通知のみ。
+  c1 は r1 正当停止（発注側の 8 ファイル制約 vs integration spec mock の矛盾）→ 9 ファイル目
+  最小移行を裁定して r2。**characterEdit の accept/action 判定は registry 1 段＋handler 直結のみ**に
+- **俯瞰#19（3 フェーズ規律・二重・判定 Go）**: 正本 = overview-18/ov19-integration-verdict.md。
+  事実矛盾なし。エラーラップ 2 層は H 以前からの既存＋handleServiceError は必ず throw で両輪一致
+  （行動要否のみ相違 → 挙動影響ありにつき Task #100 起票）。CL-1 [High]: 契約死蔵 11 member＋
+  型 3 — うち Refresh.is/Compact.is は **H1-c1 が新規死蔵化しコミットメッセージ未報告**
+  （報告網羅性の非対称 = 検収観点として記録）。doc 分（README barrel 案内・MIGRATION_GUIDE
+  手順 path・台帳正本 = DESIGN.md §11 宣言・interaction-registry.md 歴史文書化・AI.md/AI.test.md
+  追記）は Fable 直筆で消化済み。起票: **#100**（CL-2 ラップ 2 層裁定）・**#101**（CL-5 #1/#3
+  重複 2 件 — extractCharacterIdFromCustomId 同名 2 実装は emitError characterId 常時 'unknown' の
+  実害つき）
+- **H1-d（`c932d75` +88/−5・spec 3 本のみ）— #98 完結**: 台帳 27 化 — hub 3 handler を
+  spec 組み立て・登録配列へ追加し pin 24→27・factory 生成 customId の正例追加・Thread 系
+  登録確認 5→実数 8 本。**production 実物列挙 6/8/8/5=27 ＝ spec 組み立て 27 ＝ pin 27**
+  （Fable が module 4 本の registerHandlers 実読で独立突合）。負例 10 assertion は 27 本化後も
+  全緑。＋俯瞰#19 S-1/S-2: refresh 完了→emit・section defer<findOne・delta defer<warn<followUp
+  の順序契約を固定。負の対照 = hub 1 本の隔離除去で 2 tests 赤。full 222/3056（+2 検算一致）
+- **H1-e（`af2c95a` +22/−179・12 ファイル・純減154行）— 俯瞰#19 close-out 完結**:
+  CL-1 契約死蔵削除（Refresh/Compact の is/parse＋型・Section 5 member＋SELECT prefix 定数・
+  Modal の sessionPrefix/legacyPrefix・isSectionSelectionCustomId。削除 member 直検証 spec 13 it
+  整理・生存述語検証は維持）。CL-5#2 parseCreationCustomId → 契約 parseBasic 委譲
+  （regex byte 同一実測・挙動不変・死蔵→生存化・宣言 2→1）。CL-5#4 modal catch の
+  executeInteractionAction 同型化（union 拡張・6 入口統一）。CL-3 create 防衛枝の
+  respondEphemeralError 規約準拠＋文言分離（唯一の挙動変更: 未 defer 枝は同一 reply・
+  異常系のみ graceful 化。warn 不変。MIGRATION_GUIDE 診断手順へ追従 `c2464c1`）。
+  コメント 3 件（handleServiceError「必ず throw」・parseModalSubmitCustomId 意味論差異・
+  section-select 生成元なし）。負の対照 = parseBasic→isBasic 隔離変異で spec 赤（TS2322）。
+  検収 Fable 独立実行: build 0・循環 0（563）・full **222 suites / 3043 tests 全緑**
+  （3056−13 削除 it 検算一致）・残存 grep 0（parseSectionSelectValue 別関数のみヒット =
+  生存確認）・eslint 12 ファイル 0。
+  **環境注記**: 検収中に V8 native crash（build 2 回 exit 3221225477・eslint segfault 139）が
+  **ローカルでも再現** — Codex sandbox 固有ではなくマシン全体の間欠事象。再試行で全て回復
+- **H フェーズ完了サマリ**: 宿題 4 件（#97/#98/#99/#94 追記）すべて消化。コミット 6 本
+  （`1827f79`/`b113942`/`0882990`/`5d2fc1c`/`c932d75`/`af2c95a`）＋doc 2 本
+  （`103483d`/`c2464c1`）。**src 純減 約570行**・ベースライン 222 suites / 3043 tests・
+  circular 563 files。新規起票 #100/#101。#94 の残りは跨ぎ modal 契約の裁定のみ（low）
+- **I フェーズ（2026-08-05・#100/#101 消化）**:
+  - **I1（`22dca0a` +106/−45・3 ファイル）— #100 完結**: select 経路のエラーラップを外層
+    executeInteractionAction 1 本へ統合。内層 executeSelectAction = 通知＋原文 rethrow のみ
+    （ErrorHandler import ごと撤去）。2 層貫通の合成 spec 追加（実物 sectionEditor＋実物
+    eventEmitter・原文イベント/logError 1 回/followUp 1 回/最終 500 固定）。挙動差 3 点開示
+    （イベント原因文言原文化・service 層 ERROR 2→1・単体境界 throw 形原文化）。full 3044（+1）
+  - **I2（`2251a60` +55/−108・9 ファイル）— #101 完結**: extractCharacterIdFromCustomId
+    同名 2 実装を utils/enhanced-character-edit.util へ合併（6 family）— emitError の
+    characterId が select/field で 'unknown'→実 ID へ。getSectionData byte 同一 switch を
+    section-editor.util 正本へ 1 本化。full 3043（−1）
+  - **俯瞰#20（feature 完了ゲート・二重・判定 needs-fix→I3 で Go 化）**: 正本 =
+    overview-18/ov20-integration-verdict.md。事実矛盾なし・相補（Codex = 意味論の穴 F-1、
+    Opus = 構造残債 CL-1〜7）。**F-1 [High]: I2 合併 extractor の非アンカー・refresh 優先が
+    衝突クラス（characterId に他 family prefix 文字列を含む・@IsString のみで公開 API から
+    到達可能）の ID を短縮** — I2 裁定「生成集合上不変」は誤りで、adversarial pin が新挙動の
+    追認になっていた（発注者起因 → verify-claims-before-prescribing 事例15）。
+    CL-2 [High]: error.occurred 唯一の購読者 handleFeatureError が characterId を読まない
+    （#101 主効果に消費者 0）。裁定 = **I3**（全 6 パターンアンカー化＋refresh/compact
+    PARSE_PATTERN 契約新設 = CL-3 同時解消・handleFeatureError へ characterId 追加・
+    embed-manager:52 到達不能 throw 削除・message-updater serviceName 訂正）＋
+    doc 直筆（AI.test.md 歴史注記 4 件 = F-2 消化済み・AI.discord.md 経路表 = I3 後）＋
+    起票 **#102**（CL-1(b)(c) modal/refresh 内層同型化＋手書き followUp util 化）・
+    **#103**（CL-4 sectionData 第 3 switch＋日本語名 3 重の 1 本化）。
+    CL-7（素通し層）は記録のみ・handleServiceError never 化は不採用
+  - **I3（`1d98569` +92/−22・11 ファイル）— 俯瞰#20 close-out で Go 化**: 全 6 パターン
+    アンカー化（refresh/compact PARSE_PATTERN 契約新設 = CL-3 解消・既存 4 定数 `^` 付与・
+    extractor は契約定数のみ）。F-1 衝突クラスは完全 ID 抽出へ復帰（pin 反転＋field 衝突＋
+    中置 prefix 負例＋round-trip 6 family = +8 it）。CL-2(a)/CL-5/CL-6 同梱（CL-6 は
+    `return ... as never` の局所適応で「必ず throw」を型へ伝達 — 開示済み受入）。
+    負の対照 = refresh 非アンカー化変異で field 衝突 pin 赤。検収独立実行 build 0・
+    循環 0（563）・full **222/3051 全緑**（+8 検算一致）・eslint 11 本 0・消費者 grep。
+    doc 追従 = AI.test.md 歴史注記 4 件（F-2・`95e92be`）。
+    **I フェーズ総括: #100/#101 完結・コミット 4 本（`22dca0a`/`2251a60`/`1d98569`/`95e92be`）・
+    ベースライン 222 suites / 3051 tests・circular 563 files**
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
 第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・
@@ -1097,7 +1425,11 @@ front に届かない / `services/dice/README.md` に虚偽記載（実在2フ�
 #### 統合しない判定（現状維持・両輪一致）
 
 requestId 生成7箇所（分岐排他）/ ダイス parse 3境界（扱う言語が異なる意図的分離。ただし
-Opus CH-7「受理ゲート本番2箇所並列」は Codex 判定と対立し未検証 → 第4群 CH-1 設計時に実測）/
+Opus CH-7「受理ゲート本番2箇所並列」は Codex 判定と対立し未検証 → 第4群 CH-1 設計時に実測
+— **2026-08-04 #88 着手時実測で決着**: 本番 dispatch は `route()`→`findBestMatch()`→
+`InteractionHandler.getMatchScore()` の**1本**。`matches()` / `PatternMatcherService.matchPattern()` /
+`findAllMatches()` / `hasHandler()` は spec・debug 専用 = 「本番2箇所並列」は否認、
+「マッチ真理の意味重複3実装（live 1＋spec-only 2）」としては実在 → 死蔵側の去就は第5群 #91 へ起票）/
 `APP_*` provider の spec 登録（同一定数の参照でありロジック複製ではない）
 
 #### 台帳訂正（本俯瞰で実施）

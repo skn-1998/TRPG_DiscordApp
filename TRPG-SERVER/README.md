@@ -45,13 +45,14 @@ package.json に定義されている主要スクリプトです。パッケー�
 
 ### テスト
 
-| コマンド           | 説明                                                        |
-| ------------------ | ----------------------------------------------------------- |
-| `pnpm test`        | Jest でユニットテストを実行                                 |
-| `pnpm test:watch`  | watch モードでユニットテスト                                |
-| `pnpm test:cov`    | カバレッジ付きでユニットテスト                              |
-| `pnpm test:e2e`    | E2E テスト（`NODE_ENV=test`、要 MongoDB 接続）              |
-| `pnpm test:e2e:tc` | Testcontainers で MongoDB コンテナを自動起動して E2E テスト |
+| コマンド              | 説明                                                        |
+| --------------------- | ----------------------------------------------------------- |
+| `pnpm test`           | Jest でユニットテストを実行                                 |
+| `pnpm test:watch`     | watch モードでユニットテスト                                |
+| `pnpm test:cov`       | カバレッジ付きでユニットテスト                              |
+| `pnpm typecheck:test` | テストコードとテスト補助コードをTypeScriptで型検査          |
+| `pnpm test:e2e`       | E2E テスト（`NODE_ENV=test`、要 MongoDB 接続）              |
+| `pnpm test:e2e:tc`    | Testcontainers で MongoDB コンテナを自動起動して E2E テスト |
 
 `pnpm test:e2e:tc` は使い捨ての MongoDB コンテナを起動して E2E を実行します。
 詳細は [`test/testcontainers/README.md`](./test/testcontainers/README.md) を参照してください。
@@ -60,7 +61,9 @@ package.json に定義されている主要スクリプトです。パッケー�
 
 | コマンド              | 説明                                                                            |
 | --------------------- | ------------------------------------------------------------------------------- |
-| `pnpm lint`           | ESLint（`--fix`、一部ディレクトリは除外）                                       |
+| `pnpm lint`           | `lint:check` の別名。ファイルを変更せずESLintを実行                             |
+| `pnpm lint:check`     | 設定済み除外を適用し、ファイルを変更せずESLintを実行                            |
+| `pnpm lint:fix`       | ESLintの自動修正を明示的に実行                                                  |
 | `pnpm format`         | Prettier による整形                                                             |
 | `pnpm check:circular` | 循環依存チェック（`madge --circular`）。「No circular dependency found!」が正常 |
 | `pnpm check:deps`     | 依存グラフを SVG 出力                                                           |

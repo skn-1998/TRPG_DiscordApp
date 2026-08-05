@@ -42,6 +42,10 @@ pnpm run test:e2e
 # Lint & Format
 pnpm run lint
 pnpm run format
+
+# 静的解析（リファクタ計画用・advisory。詳細は AI.refactor.md 2026-07-26）
+pnpm run refactor:large-files:analyze -- --out .tmp/refactor/large-files.json
+pnpm run check:circular
 ```
 
 ### **IDE設定**

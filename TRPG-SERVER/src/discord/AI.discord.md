@@ -20,6 +20,70 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ---
 
+## 📝 最新メモ（2026-08-05）
+
+### characterEdit エラー経路の実測表（俯瞰#20 CL-1(a)・HEAD `1d98569` 実測）
+
+最深部 service が throw した場合の端から端（interactions.service の catch まで）。
+read-only 実測エージェント測定＋Fable が registry:140 / refresh 内層 / modal 内層 / compact を現物で裏取り。
+
+| 経路（入口）             | ユーザー通知                                                                | ERROR ログ                          | error.occurred の message                                        | 最外周 interactions.service:93                                                                           |
+| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ①select（section/field） | **2 通**（内層 section-editor:104→respondEphemeralError＋最外周）           | **4 本**                            | **原文**（I1）                                                   | followUp 送達（replied=true）                                                                            |
+| ②modal submit            | **2 通**（内層 modal-handler:75 editReply＋最外周）                         | **5 本**（内層 ErrorHandler 分 +1） | **HttpException 変換後**「サービス処理中にエラーが発生しました」 | followUp 送達                                                                                            |
+| ③refresh                 | **2 通**（内層 enhanced:173-176 `interaction.followUp` **直呼び**＋最外周） | **4 本**                            | **原文**                                                         | followUp 送達                                                                                            |
+| ④-a create               | **1 通**（内層 catch なし・最外周のみ）                                     | **4 本**                            | **原文**                                                         | **reply()**（showModal/update は成功時のみ replied=true のため未応答扱い。5 変種中唯一 followUp 不成立） |
+| ④-b compact              | **1 通**（内層 catch なし・最外周のみ）                                     | **4 本**                            | **原文**                                                         | followUp 送達（deferReply の placeholder は残置 = interactions.service:90-92 の許容劣化）                |
+
+- **共通 ERROR 4 本の内訳**: ①character-edit-feature.handler:118 🚨（error.occurred 経由・
+  I3 で characterId 付き）②error-handler.ts:128/130（外層 enhanced:106 経由の logError）
+  ③interaction-registry.service.ts:140「Handler execution failed」＋rethrow
+  ④interactions.service.ts:87。interactions.service:86-99 は rethrow しないため :43 の
+  catch には到達しない。emitAsync は await されるため 🚨 は ErrorHandler ログより先に出る
+- **訂正**: 俯瞰#20 CL-1 当初集計の「ERROR 3 本」は registry:140 を欠いた過小計上。本表が正
+- **CL-1(b) 前提の訂正**: 内層に `ErrorHandler.handleServiceError` が残るのは **modal のみ**
+  （modal-handler:80-87。このため②だけイベント文言が変換後になる）。refresh 内層
+  （enhanced:169-181）は select と同じ「通知＋原文 rethrow」同型だが、共有 util を使わず
+  `interaction.followUp` 直呼び。→ Task #102 の対象 = modal 内層の ErrorHandler 撤去
+  ＋refresh の followUp 直呼び util 化（達成後: 文言全経路原文・ERROR 5→4 統一）
+- create の防衛枝（enhanced:80-86 respondEphemeralError・H1-e）は customId 契約 drift
+  ガードであり throw 経路上には無い。compact（enhanced:187-204）は開発中 placeholder で
+  try/catch 皆無
+
+---
+
+## 📝 最新メモ（2026-07-27）
+
+### post-character の自動キャラ作成 suppression 契約（86e1f15）
+
+REST `post-character` が開設したチャンネルに対し、`channelCreate` リスナー由来の自動キャラクター作成を抑止する仕組み。
+
+- **マーク主体**: `DiscordController.postCharacter` — `createChannel` の resolve **直後**にマークする。
+  **不変条件: resolve からマークまでに `await` を挟まないこと**（discord.js の `channelCreate` は
+  `channels.create()` の promise 解決前に同期 emit されるため、マイクロタスク順序がこの契約の根拠）
+- **照合**: `ChannelCreateOrchestratorService` が `CHARACTER_CREATION_REQUESTED` を emit する**直前**に照合
+- **TTL**: 60 秒（unref 済みタイマー）。状態はプロセス内 Map（`ChannelDetectionService`）のため、
+  **マルチレプリカ構成では成立しない**（負債として台帳記載）
+
+### discord 層のエラー通知規則（4c582e9）
+
+正本は `src/discord/utils/interaction-error-response.util.ts` の `respondEphemeralError`:
+**replied→followUp(ephemeral) / deferred→editReply**（deferUpdate 由来で公開メッセージを守る場合のみ
+`deferredStrategy: 'followUp'`）**/ 未応答→reply(ephemeral)**。util は no-catch・no-log（失敗の扱いは呼び出し元）。
+
+- 既存の手書き実装（`deferUpdate → 無条件 followUp` 群等）は挙動が等価な限り置換必須ではないが、**新規コードは util を使う**
+- `CharacterEditMessageUpdaterService` の `channel.send` は「interaction 応答でなく共有 embed の復旧」という意図的例外
+- エラー通知は「通知先行 → `ErrorHandler.handleServiceError`（throw）後置」の順序を守る（CE-3）
+
+### 認可バーの経路間非対称（俯瞰#3 明記）
+
+上記 2026-07-12 メモの「REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel`」の束ねは
+不正確: **カテゴリ実効権限の追加検査・caller-holds・facade 結果型契約は REST 2 経路のみ**。
+`create-dice-channel`（`select-game-system.orchestrator`）は基底 `ManageChannels` のみで
+`guild.channels.create` を直呼びしている。統一（facade 経由化）は負債台帳の後続項目。
+
+---
+
 ## 📝 最新メモ（2026-07-12）
 
 ### Discord REST操作の契約を統一
@@ -28,7 +92,7 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 単数Embedと複数Embedはcontrollerで統合し、`#RRGGBB` はDTOで数値へ変換する。文字列チャンネル種別はmanagerでDiscord `ChannelType` へ変換する。`create-channel` の `thread` は通常チャンネルへ暗黙変換せず400とし、親チャンネルを持つ専用処理へ分離する。
 
-チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必須とする。呼び出しチャンネル限定の overwrite による付与は認可根拠にせず、REST の権限不足は403、Discord API・通信例外は500として分離する。`create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と overwrite で指定した各権限（allow/deny 全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠。parent 指定時はカテゴリ実効権限で判定し、`permissions: []` は overwrite 無指定扱い）。controller の権限検査の成功述語は `result?.hasPermission === true` のみの fail-closed。
+チャンネル作成を伴う REST `create-channel` / `post-character` とスラッシュコマンド `create-dice-channel` は、対象ギルドでのユーザーの基底権限 `ManageChannels` を必須とする。呼び出しチャンネル限定の overwrite による付与は認可根拠にせず、REST の権限不足は403、Discord API・通信例外は500として分離する。`create-channel` で permission overwrite を指定する場合（非空 `permissions`）は、さらに呼び出し元の `ManageRoles` と overwrite で指定した各権限（allow/deny 全キー）の保持を要求する（Discord ネイティブの overwrite 編集意味論に準拠。判定粒度は非対称: `ManageChannels`/`ManageRoles` は guild 基底 AND（parent 時）カテゴリ実効の両方＝意図的過剰制限、指定した各権限は parent 時カテゴリ実効のみ。`permissions: []` は overwrite 無指定扱い）。controller の権限検査の成功述語は `result?.hasPermission === true` のみの fail-closed。
 
 ---
 
