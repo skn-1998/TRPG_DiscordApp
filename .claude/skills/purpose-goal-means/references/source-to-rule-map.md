@@ -1,0 +1,23 @@
+# Source To Rule Map
+
+This map covers production classification behavior only. Evaluation cases, results, admission state, manifests, and exact-output rules are not production behavior.
+
+| ID | Production rule | Classification | Evidence and limits |
+| --- | --- | --- | --- |
+| `PGM-SOURCE-AUTHORITY` | Current-request evidence supplies case facts; MinoDriven controls Purpose-Goal-Means intent; supporting sources refine mechanics | External plus local precedence | MinoDriven purpose sources; NASA, GORE, SEI, and Eiffel do not supply user-domain facts |
+| `PGM-COMMON-CONTRACT` | Normalize Actor, Purpose, Context, Constraints, and Evidence once and preserve unsupported values as unknown | MinoDriven intent plus user-required local contract | The five-field schema and closed evidence boundary are local |
+| `PGM-PURPOSE` | Purpose requires attributable stakeholder state, aim, or target; retain purpose-shaped content with unknown Actor as an unresolved candidate; work requests, specifications, constraints, architecture, and code do not establish Purpose | Primary MinoDriven intent plus user-required Actor contract and local anti-invention | Purpose-driven architecture slides 24-31 and 58; candidate status is a local restraint |
+| `PGM-GOAL` | Goal is a concrete achievement or valid-behavior condition with context and explicit observability or an observability gap | MinoDriven plus requirements mechanics | MinoDriven slides 24-31; NASA requirements and SEI measurement refine trace and observation |
+| `PGM-MEANS` | Means is a method or tool for a Goal; candidate identity does not prove fit, selection, or implementation authority | Primary MinoDriven intent plus local restraint | Purpose-driven architecture and purpose-abstraction sources |
+| `PGM-CONSTRAINT` | Represent a binding condition as a Goal condition and keep authority, source, scope, and rationale as Constraint provenance; a condition/requirement label alone does not establish binding | Local operationalization of MinoDriven mapping plus anti-invention | MinoDriven maps constraints to Goal; the separate provenance view and binding-evidence test are local |
+| `PGM-CONTRACT-KINDS` | Treat supplied preconditions, postconditions, and invariants as Goal-condition kinds without designing the contract | MinoDriven plus Eiffel terminology | Purpose-driven architecture slide 49; Eiffel controls terminology only |
+| `PGM-TRACE` | Walk Purpose-Goal-Means links both ways; missing links are findings and partial trace remains partial | External traceability plus local anti-invention | NASA requirements management and GORE support traceability |
+| `PGM-ABSTRACTION-STOP` | Use why/how navigation only while it changes classification or handoff and evidence and authority remain available | Mino-inspired operationalization plus local anti-invention | MinoDriven purpose sources support Purpose-first navigation; the pinned `inspired-mino-design-skills` PGM document makes the stopping rule explicit |
+| `PGM-OBSERVABILITY` | Preserve supplied verification separately from achievement Means and never invent a method, oracle, or result | Requirements and measurement mechanics plus local restraint | NASA and SEI support verifiability and measurement |
+| `PGM-MEANS-DECISION` | Preserve an evidenced authority decision covering the Means, Goal, and scope; record version/time gaps when material; otherwise keep Means candidate | Local conservative decision rule | External sources support alternatives and authority but not this exact status procedure |
+| `PGM-GENERIC-ACTIVITY` | Do not classify a process verb as Purpose, Means, or designed-system Context without semantic evidence | Local anti-invention rule | No external source defines this exact operational rule |
+| `PGM-COHESION` | Record evidence-bounded fragmented same-purpose or mixed-purpose findings without redesign or unsupported impact claims | MinoDriven intent plus local restraint | Purpose-driven architecture slides 34-45 |
+| `PGM-BOUNDARY` | Perform classification only and hand quality, context, domain, code, routing, approval, persistence, and implementation work to its owner | User-required hierarchy plus Skill modularity | Agent Skills coherent-unit guidance supports the boundary; exact hierarchy is local |
+| `PGM-OUTPUT` | Return concise classification, traces, gaps, readiness, and handoffs without gates, admission, manifests, or exact serialization | User-required contract plus Skill guidance | OpenAI Skill Creator and Agent Skills support concise production instructions; the pinned Mino-inspired repository separates application Functions from suite maintenance and Evaluation |
+
+Use `source-ledger.md` to resolve sources and their limits. A row is traceability, not proof by itself.

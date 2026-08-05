@@ -1,0 +1,4 @@
+interface:
+  display_name: "Large File Refactor Review Loop"
+  short_description: "Phase-gated large-file refactoring"
+  default_prompt: "Use $large-file-refactor-review-loop to plan and execute a large-file refactor with phase reviews."

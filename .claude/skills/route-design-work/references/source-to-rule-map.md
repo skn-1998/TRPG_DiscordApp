@@ -1,0 +1,20 @@
+# Source To Rule Map
+
+This map covers production routing behavior only.
+
+| ID | Production rule | Classification | Evidence and limits |
+| --- | --- | --- | --- |
+| `RDW-PARENT-ONLY` | Classify, order, and contract work without performing or fabricating recipient methods | User-required hierarchy plus Skill modularity guidance | MinoDriven Modifius modular prompts; Agent Skills coherent-unit guidance; neither defines this exact hierarchy |
+| `RDW-COMMON-CONTRACT` | Normalize Actor, Purpose, Context, Constraints, and Evidence; preserve material unknowns; do not treat a request to discover stakeholder Purpose as evidence of that Purpose | MinoDriven intent plus user-required local contract | MinoDriven purpose/context sources support Purpose and Context; the five-field schema and conservative evidence rule are local |
+| `RDW-DIRECT` | Send one clearly owned method directly to the exact child; use parents only for ambiguity, composition, or returned-result coordination | User-required hierarchy plus Skill modularity | Agent Skills coherent-unit and composition guidance |
+| `RDW-COMPOSE` | Compose broad work from the smallest installed recipient set | External Skill architecture plus local hierarchy | MinoDriven Modifius calls multiple situational modules; Agent Skills and Anthropic describe composable Skills |
+| `RDW-ORDER` | Order purpose/context before dependent design, domain meaning before dependent code structure, and target behavior before refactoring; put requested practice-definition or evidence work before scaling only when scaling consumes it | External design evidence plus local orchestration | MinoDriven purpose/context; Evans DDD; Fowler Refactoring; Wenger-Trayner communities of practice |
+| `RDW-CAPABILITY` | Confirm installed metadata; report missing or unsupported capability without simulation or substitution; an installed routing parent returns only a child route or gap report and is not evidence that its child method exists | Local runtime safety | Current Skills metadata is the runtime fact; external sources do not define installation state |
+| `RDW-REVIEW-OWNERSHIP` | Select a review Skill by its declared concern rather than the verb review; do not add changeability review without a scenario-specific change concern | Local ownership correction from natural execution | Installed review metadata defines capability; external sources do not define this hierarchy rule |
+| `RDW-STEP` | Give every Step one recipient, minimal input and dependency, the recipient's artifact type, its explicit completion declaration, and one valid state; only the first eligible Step may be ready or blocked and every other incomplete Step is not-started; expose one report-level next Step without predicting child conclusions | User-required contract plus local workflow | Design by Contract is an analogy for explicit obligations, not the source of this Step schema; evidence restraint and proportionality are local |
+| `RDW-RETURN` | Complete a Step only from an actual output reference and the recipient's explicit completion declaration; do not reassess child semantics in the parent | Local ordered-workflow rule | Composable-Skill guidance is supportive; the lifecycle is local |
+| `RDW-AUTHORITY` | Do not invent evidence, reviewer identity, approval, or decision authority for consequential effects | User-required review quality plus local safety | External validation guidance supports review but does not assign local authority |
+| `RDW-PROGRESSIVE` | Keep runtime instructions concise and load detailed evidence only when needed | External Skill specification | OpenAI Skill Creator and Agent Skills progressive-disclosure guidance |
+| `RDW-OUTPUT` | Return a concise semantic route and stop without executing it, fixed gate serialization, or evaluation records | User-required contract plus external moderation guidance | Agent Skills recommends moderate detail and cutting instructions that do not add value |
+
+Use `references/source-ledger.md` to resolve the named sources and their limits. A map row is traceability, not proof by itself.

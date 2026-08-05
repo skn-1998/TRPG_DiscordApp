@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodexReviewResult",
+  "description": "Codex にコードレビューを委譲したときの構造化出力。--output-schema で指定して使う。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "findings"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "needs-fix"],
+      "description": "総合判定。severity=high の finding が 1 件でもあれば needs-fix にする"
+    },
+    "summary": {
+      "type": "string",
+      "description": "レビュー全体の要約（1〜3文）"
+    },
+    "findings": {
+      "type": "array",
+      "description": "個別の指摘。重大度の高い順に並べる。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "file", "line", "category", "issue", "recommendation"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "重大度"
+          },
+          "file": {
+            "type": "string",
+            "description": "対象ファイルの相対パス"
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "description": "該当行（不明なら null）"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["correctness", "security", "performance", "maintainability", "style", "test", "other"],
+            "description": "指摘の種類"
+          },
+          "issue": {
+            "type": "string",
+            "description": "何が問題か"
+          },
+          "recommendation": {
+            "type": "string",
+            "description": "推奨する修正内容"
+          }
+        }
+      }
+    }
+  }
+}

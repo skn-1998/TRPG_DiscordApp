@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coding Rules"
+  short_description: "Write and review readable, maintainable code and coding standards."
+  default_prompt: "Use $coding-rules to write or review code with readability, cognitive-load, changeability, and repository-scale maintainability checks."
