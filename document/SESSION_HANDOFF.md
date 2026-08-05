@@ -1160,6 +1160,65 @@ U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実
   通知/ERROR/イベント文言/最外周分岐・Fable が registry:140/refresh/modal/compact/
   discord.js InteractionResponses.js:284 を現物裏取り）。俯瞰#20 verdict へ訂正注記・
   #102 起票文の前提訂正済み。**I フェーズ完全終了 — compact 推奨タイミング**。
+- **push 完了（2026-08-06・ユーザー指示）**: origin/develop へ 203 コミット。ユーザー側で
+  M doc プール＋スキル群を先行コミット済み（`53211df`〜`959f961`・SESSION_HANDOFF tracked 化
+  = #58 完了）。CI（pnpm 11 初回）は gh CLI 不在のため未確認 — ユーザー確認待ち。
+  bash ハーネス破損が恒常化 → PowerShell から Git Bash 実体パス起動へ切替（メモリ記録済み）。
+- **J1 完了（2026-08-06・`62a84f3` +54/−36・4 ファイル）→ #102 完結**: modal 内層
+  （modal-handler:73-88）の ErrorHandler 撤去 = select 同型「通知＋原文 rethrow」へ。
+  refresh catch 通知（enhanced:173-176）を respondEphemeralError
+  （deferredStrategy:'followUp'）util 化。挙動差 = ERROR 5→4・error.occurred 文言全経路原文
+  （経路表更新 `03bef1d`）。spec は原例外 identity（rejects.toBe）＋通知→rethrow 順序
+  observeRejection 形へ強化・modal emit message 原文 pin 追加・refresh mock は deferUpdate で
+  deferred=true 再現。負の対照 = rethrow 握り潰しで 4 tests 赤。
+  検収 Fable 独立実行: diff 4 本実読・build 0・循環 0（563）・full **222/3051 全緑**（±0
+  検算一致）・eslint 4 本 0・modal-handler 内 ErrorHandler 残存 grep 0。
+  **ベースライン: 222 suites / 3051 tests・circular 563・HEAD `03bef1d`**。
+  次: **J2 = #103**（prompt-code-j2.txt: getSectionData/SECTION_NAMES/getSectionDisplayName を
+  embed.util へ移設 1 本化・buildFieldSelectMenu 第 3 switch 撤去＋EDITABLE_SECTION_TYPES
+  新設・'basic'→null pin 維持が罠・移設先は循環回避で embed.util 一択）発注。
+- **J2 完了（2026-08-06・`9a1f954` +116/−111・6 ファイル）→ #103 完結**: getSectionData/
+  SECTION_NAMES/getSectionDisplayName を embed.util（EmbedSectionType 定義所有者）へ移設
+  1 本化（byte 保存・re-export なし・modal-handler/section-editor 再配線）。
+  buildFieldSelectMenu 第 3 switch 撤去 → EDITABLE_SECTION_TYPES ガード＋正本参照
+  （'basic'/'back'→null・空→追加メニュー不変）。buildSectionedEmbeds リテラル 4 件を正本参照へ。
+  旧 util の「discord.js 非依存」ヘッダも実態へ更新（getSectionDisplayName 経由の透過依存を明記）。
+  spec 10 移設＋drift 固定 1 追加。負の対照 = 'item' 除去変異で drift spec 赤（SHA 一致確認）。
+  検収 Fable 独立実行: diff 6 本実読・build 0・循環 0（563 — 新循環なしの検証を兼ねる）・
+  full **222 suites / 3052 tests 全緑**（+1 検算一致）・eslint 6 本 error 0
+  （warning 2 は移設行の既存 assertion 由来）・旧定義残存 grep 0・MM 残渣 restore --staged
+  （numstat 0 = CRLF のみ）。
+  **ベースライン: 222 suites / 3052 tests・circular 563・HEAD `9a1f954`**。
+  現在: **俯瞰#21（3 フェーズ規律 = I3/J1/J2・二重）起動** — Codex review＋Opus 認知負荷
+  モード A 大粒度。対象コミット: `1d98569`/`62a84f3`/`9a1f954`（＋doc `95e92be`/`03bef1d`）。
+- **俯瞰#21 完了（2026-08-06・判定 needs-fix→J3 で Go 化）**: 正本 =
+  review-results/task-102/ov21-integration-verdict.md。事実矛盾なし・相補。両輪一致 =
+  **3 スライスの本番挙動は全て意図どおり・認知負荷 net delta 純減**（Opus 実測表: 同一責務
+  所有者 −9 実装・ERROR modal 5→4・イベント文言 2 種→1 種・過剰設計の芽 0）。
+  needs-fix 根拠 = spec 検出力の穴 2 Med（Codex C-1: アンカー pin が refresh 系のみで他 5
+  family の `^` 単独除去を検出不能／C-2: buildFieldSelectMenu 負例が 'basic' のみ）＋
+  J2 取りこぼし（Opus CL-3: buildSectionedEmbeds が同一ファイル正本 getSectionData を迂回・
+  Fable diff 実読で CONFIRMED）＋JSDoc 過剰一般化（Opus CL-4(a)）。
+  消化: **J3 発注済み（実行中）** = 5 family 衝突 pin＋'back'/未知値 null pin＋
+  data 引数 4 件正本参照化＋:256/:333 語彙正本化（Codex C-3）＋JSDoc 限定。
+  Fable doc 済み: README（custom-id/・handlers/ 追補・utils 依存注記実態化・
+  削除済み CharacterCreationService 行除去 — module exports 現物突合）・AI.test.md
+  歴史注記へ J2 追記（正本 = embed.util）。
+  起票: **#104**（[High] embed 独立 2〜3 系統 — 第 3 実装 characterThread/
+  character-display.service:204 は Fable 発見）・**#105**（セクション 9 列挙テーブル化・
+  CL-7 吸収）・**#106**（handleServiceError never 化 — 俯瞰#20 不採用への反証・30 呼び出し
+  検査義務）・**#107**（通知文言 5 複製）・**#108**（modal.submitted payload 疑義）。
+  Opus 輪は API 切断 1 回 → SendMessage 再開で完走（記録: 再開手順は有効）。
+- **J3 完了（2026-08-06・`0614e8c` +74/−12・spec 中心）→ 俯瞰#21 Go 化・J フェーズ完全終了**:
+  残り 5 family の衝突 pin（配列順で各 `^` 単独除去を個別検出）・'back'/未知値→null 負例・
+  buildSectionedEmbeds data 引数と :256/:333 語彙の正本参照化（挙動不変）・JSDoc 主張限定。
+  負の対照 2 変異（compact `^` 除去／guard 弱体化）とも赤・SHA 復元確認。
+  検収 Fable 独立実行: diff 実読・build 0・循環 0（563）・full **222 suites / 3059 tests
+  全緑**（+7 検算一致）・eslint error 0。doc 追従 `5b6aef1`（README 実態同期・
+  AI.test.md 正本追記）。**ベースライン: 222 suites / 3059 tests・circular 563・
+  HEAD `5b6aef1`**。push 済みは `959f961` まで — `62a84f3` 以降 6 コミットが未 push
+  （push はユーザー判断）。残 backlog は #104〜#108（高優先は #104 embed 2〜3 系統）。
+  **J フェーズ記録済み — compact 推奨タイミング**。
   (2) **CH-7 決着**: 本番 dispatch は findBestMatch→getMatchScore の1本。matches/matchPattern/
   findAllMatches/hasHandler は spec 専用の意味重複（live 1＋spec-only 2）→ 死蔵去就は #91 へ。
   台帳訂正を AI.refactor.md 俯瞰#5 節に反映済み。

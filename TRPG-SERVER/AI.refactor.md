@@ -1364,6 +1364,35 @@ Fable 全ゲート独立検収（build 0・循環 0・full suite 全緑・テス
     doc 追従 = AI.test.md 歴史注記 4 件（F-2・`95e92be`）。
     **I フェーズ総括: #100/#101 完結・コミット 4 本（`22dca0a`/`2251a60`/`1d98569`/`95e92be`）・
     ベースライン 222 suites / 3051 tests・circular 563 files**
+- **J フェーズ（2026-08-06・#102/#103 消化＋俯瞰#21 close-out）**:
+  - **J1（`62a84f3` +54/−36）— #102 完結**: modal 内層の ErrorHandler 撤去 = select 同型
+    「通知＋原文 rethrow」へ（ERROR 5→4・error.occurred 文言全経路原文）。refresh catch 通知を
+    respondEphemeralError（deferredStrategy:'followUp'）util 化。spec は原例外 identity＋
+    順序 observeRejection 形へ強化。経路表 doc 追従 `03bef1d`
+  - **J2（`9a1f954` +116/−111）— #103 完結**: getSectionData/SECTION_NAMES/
+    getSectionDisplayName を embed.util（EmbedSectionType 所有者）へ移設 1 本化・
+    buildFieldSelectMenu 第 3 switch 撤去（EDITABLE_SECTION_TYPES ガード）・
+    リテラル正本参照化。移設先は循環回避で embed.util 一択（逆方向は
+    embed.util→section-editor.util→embed-manager.service→embed.util の循環）。
+    spec 10 移設＋drift 固定 1。full 3052（+1）
+  - **俯瞰#21（3 フェーズ規律 = I3/J1/J2・二重・判定 needs-fix→J3 で Go 化）**: 正本 =
+    review-results/task-102/ov21-integration-verdict.md。両輪一致 = 本番挙動 3 スライス全て
+    意図どおり・**認知負荷 net delta 純減**（同一責務所有者 −9 実装・modal ERROR 5→4・
+    イベント文言 2 種→1 種・過剰設計の芽 0。Opus 実測表）。needs-fix = spec 検出力
+    （C-1 アンカー pin refresh 系のみ／C-2 guard 負例 basic のみ）＋J2 取りこぼし
+    （CL-3 buildSectionedEmbeds の正本迂回）＋JSDoc 過剰一般化（CL-4a）
+  - **J3（`0614e8c` +74/−12・spec 中心）— 俯瞰#21 close-out**: 残り 5 family の衝突 pin
+    （配列順で各 family の `^` 単独除去を個別検出する集合）・'back'/未知値→null 負例・
+    data 引数 4 件と :256/:333 語彙の正本参照化（挙動不変・byte 同一）・JSDoc 主張を
+    「characterId 抽出 6 family」へ限定＋別規則 2 種への導線。負の対照 2 変異とも赤。
+    doc 追従 `5b6aef1`（README 実態同期・AI.test.md 正本追記）
+  - 起票: **#104**（[High] embed 独立 2〜3 系統 — 第 3 実装 characterThread/
+    character-display.service:204 含む到達性実測→去就裁定）・**#105**（セクション 9 列挙の
+    記述テーブル化・CL-7 吸収）・**#106**（handleServiceError never 化 — 俯瞰#20 不採用への
+    反証・30 呼び出し検査義務）・**#107**（通知文言 5 複製）・**#108**（modal.submitted
+    payload のセッション ID 疑義）
+  - **J フェーズ総括: #102/#103 完結・コミット 5 本（`62a84f3`/`03bef1d`/`9a1f954`/
+    `0614e8c`/`5b6aef1`）・ベースライン 222 suites / 3059 tests・circular 563 files**
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
 第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・
