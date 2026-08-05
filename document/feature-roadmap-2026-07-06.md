@@ -101,6 +101,7 @@ Discord サーバー自体を常設の TRPG 卓にする運営基盤を取りに
 - **R2（争点収束）**: Claude 案に大筋賛成、修正 3 点 — (1) スレッド UI 前倒しは「見せ方・選び方」で止める、(2) HP/SAN± は更新境界（legacy resource update adapter）を先に切る条件付き、(3) Activity 読み取り専用 MVP は長期→中期後半へ繰り上げ。シークレットロールの 2 段階分割（ephemeral 短期／GM visibility 中期）と thin binding 案は Codex も賛成。
 - **不採用/保留**: プリセット本格ルールの現行語彙での作り込み（棚卸し#2 の実装候補 2 は design-v1 経由に置き換え）、user-dice Web 編集は palette/user-dice 名前空間統合（design-v1 Phase 3）と合流させるため単独では急がない。
 - **R3（差別化）**: ポジショニング「Discord-native campaign workspace」で合意。軸2（常設卓）・軸5（テンプレ配布）を最強と評価。session→campaign thin binding へ改訂、非同期プレイ支援（M7）を新規追加、イニシアチブは汎用手番トラッカーへ一般化、Wizard は「サーバー卓化」導線へ改名。盤面/BGM/カットイン/重い戦闘自動化は明示的に非スコープ化。外部確認: ココフォリア docs / Avrae / BCDice 公式。
+- **R4（結果連動エフェクト設計・2026-07-07）**: SAN/HP/MP 自動増減の機構設計を討論し骨子合意 → [character-sheet-proposals/c1-outcome-effects.md](character-sheet-proposals/c1-outcome-effects.md)。S4（±ボタンの adapter 境界）と M4（bcdice adapter）はこの機構の前提として位置づけ直し（実装順は c1 §実装順が正本）。既知ブロッカー: 現行 `cleanDiceExpression()` は `<=` 比較式を通せないため BCDice adapter が先行必須。
 
 ## 未決事項
 
