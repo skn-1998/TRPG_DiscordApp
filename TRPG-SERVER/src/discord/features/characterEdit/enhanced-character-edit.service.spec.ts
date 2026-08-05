@@ -201,6 +201,9 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       const interaction = createMockButtonInteraction({
         customId: 'character-refresh-char-123'
       })
+      ;(interaction.deferUpdate as jest.Mock).mockImplementation(async () => {
+        ;(interaction as unknown as { deferred: boolean }).deferred = true
+      })
       mockCharacterService.findOne.mockResolvedValue(character)
       jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
 
@@ -221,6 +224,9 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       const character = buildCharacter()
       const interaction = createMockButtonInteraction({
         customId: 'character-refresh-char-123'
+      })
+      ;(interaction.deferUpdate as jest.Mock).mockImplementation(async () => {
+        ;(interaction as unknown as { deferred: boolean }).deferred = true
       })
       mockCharacterService.findOne.mockResolvedValue(character)
       jest.spyOn(messageUpdater, 'updateExistingCharacterEditEmbed').mockRejectedValue(originalError)
@@ -380,11 +386,12 @@ describe('EnhancedCharacterEditService (characterization)', () => {
     })
 
     it('modalHandler がエラーのとき error.occurred を発行し HttpException を再スローする', async () => {
+      const originalError = new Error('modal boom')
       const interaction = createMockModalInteraction({
         customId: 'char-edit-status-hp-char-123',
         fields: { 'status-hp': '42' }
       })
-      mockModalHandler.handleModalSubmit.mockRejectedValue(new Error('modal boom'))
+      mockModalHandler.handleModalSubmit.mockRejectedValue(originalError)
 
       // 現挙動: ErrorHandler.handleServiceError が HttpException を再スローする
       await expect(service.handleModalSubmitInteraction(interaction)).rejects.toThrow(
@@ -395,7 +402,10 @@ describe('EnhancedCharacterEditService (characterization)', () => {
       // modal 経路では引き続き 'unknown' になる。
       expect(mockTypedEventService.emit).toHaveBeenCalledWith(
         'characterEdit.error.occurred',
-        expect.objectContaining({ characterId: 'unknown' })
+        expect.objectContaining({
+          characterId: 'unknown',
+          error: expect.objectContaining({ message: originalError.message })
+        })
       )
     })
   })

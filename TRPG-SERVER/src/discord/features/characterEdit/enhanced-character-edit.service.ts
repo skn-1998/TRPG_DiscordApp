@@ -170,9 +170,8 @@ export class EnhancedCharacterEditService implements OnModuleInit {
       await this.messageUpdater.updateExistingCharacterEditEmbed(character, interaction)
     } catch (error) {
       try {
-        await interaction.followUp({
-          content: 'エラーが発生しました。もう一度お試しください。',
-          flags: MessageFlags.Ephemeral
+        await respondEphemeralError(interaction, 'エラーが発生しました。もう一度お試しください。', {
+          deferredStrategy: 'followUp'
         })
       } catch (notificationError) {
         this.logger.warn('Failed to send final character refresh error response', notificationError)
