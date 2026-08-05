@@ -1005,6 +1005,8 @@ characterization spec を作成 → 緑確認 → 分割 → 再度緑、の順�
   ※歴史注記（2026-08-05）: `getSectionData` は I2 `2251a60` で `character-section-editor.util` の
   正本へ 1 本化（modal util 側は削除・modal service は正本を import）。`parseCreationCustomId` は
   H1-e `af2c95a` で `CharacterCreateCustomId.parseBasic` への委譲形になった。
+  さらに J2 `9a1f954`（2026-08-06）で正本を `utils/character-embed.util` へ再移設
+  （SECTION_NAMES/getSectionDisplayName とも。**現正本は embed.util**・消費者は直 import）。
   `readTextInput` で discord.js I/O 境界を分離。
 - **デッドコード削除**（characterization 緑のまま）: `sendSuccessResponse`（呼び出しゼロ）と、それに伴う未使用 import
   `ActionRowBuilder/ButtonBuilder/ButtonStyle`。重複していた private `getSectionData`/`parseCreationCustomId` は util へ集約。
