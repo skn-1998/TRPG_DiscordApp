@@ -1500,11 +1500,22 @@ restore --staged で収束済み（2026-08-04）。
   → ユーザー引継ぎ: Desktop 起動後 `docker compose -f docker-compose.prod.yml build app`＋
   dummy env run で確認（恒久化は #20 CI 追補と合流）。
   **N6b（trpg-remix-app 削除）は auto mode の権限クラシファイアが `git rm -r` を拒否**。
-  迂回せず停止（削除の最終判断はユーザーへ）。実施済み: workspace yaml から entry 削除・
-  Dockerfile の旧 manifest COPY 削除（いずれも未コミット・working tree）・
-  next-env.d.ts の `git rm --cached`（staged・ファイルは残存）。
+  迂回せず停止（削除の最終判断はユーザーへ）。
+- **docker 実測完了（2026-08-06・`32e0640` next-env 追跡解除＋`8ee77e5` Dockerfile 追補）**:
+  ユーザーの初回 build はエンジン rpc EOF で落ちた → 根因 2 つを特定・修復:
+  ① .wslconfig（memory=2GB・swap=1GB）の swap 置き場 C:\temp が不存在で swap 無効 →
+  並列 pnpm install ×2 が OOM（exit 137）。C:\temp 作成＋`wsl --shutdown` で swap 有効化。
+  ② base の manifest COPY に tools/static-analysis/package.json が欠け、COPY . . 後に
+  verifyDepsBeforeRun が「workspace structure has changed」で build 拒否（**旧 Dockerfile にも
+  潜在**・tools/ 追加後 docker 未再ビルドだった）。COPY 1 行追加（`8ee77e5`）。
+  検証結果: build/production 両 stage 緑（stage 分割の逐次 build で OOM 回避）・
+  dummy env run で GET / 200・**/character 307 /user/character（redirects が prod 実測で動作）**・
+  コンテナ内 wget 200（healthcheck 経路）。N6a コミットの「未実施」開示は本追補で解消。
+  検収メモ: `git commit --only` は working tree 状態を取るため index 限定削除
+  （rm --cached）を表現できない → staged がその 1 件のみを diff --cached で確認し plain commit。
   残る手順（ユーザー許可後）: ①trpg-remix-app/.env を trpg-next-app/.env へ移す（ユーザー）→
-  ②`git rm -r trpg-remix-app`＋`git rm -r .agents/skills/trpg-remix-frontend` →
+  ②`git rm -r trpg-remix-app`＋`git rm -r .agents/skills/trpg-remix-frontend`＋
+  workspace yaml から entry 削除＋Dockerfile の旧 manifest COPY 行削除 →
   ③`pnpm install`（lockfile から importer 除去）→ ④next chain＋server build＋check:circular 再検証 →
   ⑤N6b コミット → ⑥N6c doc 全面更新（Fable）→ ⑦最終大粒度レビュー（#120）。
 
