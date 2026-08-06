@@ -1432,6 +1432,14 @@ restore --staged で収束済み（2026-08-04）。
   CharacterSheetChange import は `import type`（server-only 越境なし）・quirk 全保存
   （hasInvalidNumber・disabled 条件・Alert 3 色・NaN Object.is spec pin つき）。
   **次: N5（#118・templates 一覧/編集/dice-preview の 3 ルート・fetcher 3 コンポーネント再設計）**。
+- **N5 設計フェーズ完了（2026-08-06・裁定 19〜23 = n5-design-notes.md）→ N5a Codex 委譲済み**:
+  実測 = ルート 3 本は薄く重量は component 3 本（Editor 587・List 224・Preview 198・全て
+  useFetcher）と utils（v3Template 301＋spec 664・dicePreview 86＋spec 121）。
+  **3 サブスライス分割**: N5a 一覧（v3Template wholesale・V2 型は types/v2.ts 新設・
+  api 残 5 関数・List→Server Actions 4 本・page soft 形）→ N5b dice-preview Route Handler
+  （401 JSON parity・status passthrough — Server Action では status 表現不能のため handler が正当。
+  #78 は Next で構造消滅）→ N5c editor＋preview（save/publish Actions・preview は
+  handler へ fetch）。旧 action の HTTP status 分岐は Server Action で表現不能 → 開示済み。
 
 ## 参照
 
