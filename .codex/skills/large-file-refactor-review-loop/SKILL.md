@@ -31,7 +31,7 @@ This skill operationalizes `refactoring-rules`. If a local phase habit conflicts
 - Do not introduce an abstraction after a single occurrence; prefer the Rule of Three unless the boundary already exists.
 - If a dependency must be added, document purpose, alternatives, security/operations impact, rollback, and why existing dependencies are insufficient.
 - Do not stage, commit, or push unless the user explicitly instructs it.
-- In `C:\workspace\dokcer-trpg-remix-app`, edit backend implementation and tests under `TRPG-SERVER/`, frontend under `trpg-remix-app/`, and skills under `.codex/skills/`. If a commit is explicitly requested, use exact pathspecs only; CRLF/formatter churn makes broad `git add` unsafe.
+- In `C:\workspace\dokcer-trpg-remix-app`, edit backend implementation and tests under `TRPG-SERVER/`, frontend under `trpg-next-app/`, and skills under `.codex/skills/`. If a commit is explicitly requested, use exact pathspecs only; CRLF/formatter churn makes broad `git add` unsafe.
 
 ## Workflow
 

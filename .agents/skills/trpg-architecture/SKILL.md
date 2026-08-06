@@ -4,9 +4,9 @@ description: >-
   この dokcer-trpg-remix-app モノレポ（Discord 連携の TRPG 支援ツール）の全体像・アーキテクチャ・
   ディレクトリ構成・技術スタック・作業ルールを説明するためのスキル。「このリポジトリ（プロジェクト/
   フォルダ）の構成を教えて」「アーキテクチャ／全体像を説明して」「どこに何があるの」「TRPG-SERVER と
-  trpg-remix-app の関係は？」「ドメイン構成は？」「依存関係・循環参照のルールは？」「オンボーディング
+  trpg-next-app の関係は？」「ドメイン構成は？」「依存関係・循環参照のルールは？」「オンボーディング
   したい」「どのドキュメントを見ればいい？」といった、構成理解・設計説明・案内を求める依頼で必ず使う。
-  バックエンドの domains/discord/events 構成とイベント駆動設計、フロントの Remix + Mantine 構成、
+  バックエンドの domains/discord/events 構成とイベント駆動設計、フロントの Next.js + Mantine 構成、
   正本ドキュメント(AI.*.md)の在り処を正確に答えたいときに参照する。個別機能の実装・バグ修正そのものが
   目的のときは不要（ただし着手前に全体像を掴みたい場合は使ってよい）。
 ---
@@ -24,7 +24,9 @@ description: >-
 マルチステージ + nginx リバースプロキシ）で動かす。主役は 2 パッケージ：
 
 - **TRPG-SERVER/** … NestJS 製バックエンド。**Discord ボット**と **Web API** の両方を担う。Port 3000。
-- **trpg-remix-app/** … Remix(Vite) + React + TypeScript の Web フロントエンド。Port 5173。
+- **trpg-next-app/** … Next.js 16(App Router) + React 19 + TypeScript の Web フロントエンド。
+  コンテナ内 Port 3000（local dev は 3100）。旧 trpg-remix-app は 2026-08 の Next 移行で撤去
+  （経緯 = `document/NEXT_MIGRATION_PLAN.md`）。
 
 補助：`nginx/`（リバースプロキシ/SSL, Port 80/443）、`e2e/`、`document/`（横断ドキュメント）、
 `docker-compose*.yml`、PowerShell エイリアス `docker-aliases.ps1`（`dcr`/`dcup`/`dcl`/`dch` 等）。
@@ -86,28 +88,29 @@ class-validator/transformer、Swagger。※package.json には pg/typeorm・dyna
 - `src/ARCHITECTURE.md`（最新の全体方針）が依存方向の正本：`features → domains → core → shared`、
   `@Global`/`forwardRef` 原則禁止、events/discord/domains/shared の責務境界を定義。
 
-## フロントエンド：trpg-remix-app（Remix）
+## フロントエンド：trpg-next-app（Next.js）
 
-Feature ベース構成。`app/` の主な構成：
+App Router + feature ベース構成。`app/` の主な構成：
 
 ```
 app/
-├── routes/      Remix フラットルーティング（_auth.login, _index, _user.*, character+, _nest-route.* 等）
-├── features/    機能単位（auth, character, characterTemplate, users, scenario, discord, mock）
-├── components/  再利用 UI（Elements/Layouts 等）
-├── lib/         API クライアント（api-client.ts / api-response.util.ts。axios で NestJS と通信、型安全レスポンス）
-├── store/       状態管理（Zustand + Immer）
-├── hooks/  config/  types/  styles/  utils/  static/
+├── (App Router ルート)  login, auth/callback(Route Handler), user/*, templates/*（page.tsx / route.ts）
+├── features/    機能単位（auth, character, characterTemplate, discord, users）。actions.ts = Server Actions
+├── components/  再利用 UI（Layouts 等）
+├── lib/         サーバ専用 API クライアント（api-client.server.ts / auth-guard.server.ts /
+│                api-response.util.ts。axios で NestJS と通信・jwt は cookies() 直読み）
+├── config/  styles/
 ```
 
-技術スタック（trpg-remix-app/AI.md より）: Remix v2(Vite) + React + TypeScript、**Mantine v7**（UI。
-Tailwind ではない点に注意）、**Zustand + Immer**（状態）、axios、fuse.js。
-テストは Jest（ユニット, 整備途上）/ Playwright（E2E）。テーマは `THEME.md`、規約は `document/coding-rules.md`。
-コマンド：`pnpm run dev` / `build` / `typecheck` / `test`。
+技術スタック（trpg-next-app/AI.md が正本）: Next.js 16(App Router) + React 19 + TypeScript、
+**Mantine 9**（UI。Tailwind ではない点に注意）、axios。状態は React ローカル state のみ。
+テストは Jest（server 層と純関数中心）。ブラウザから TRPG-SERVER を直接叩かず、
+通信は RSC / Server Action / Route Handler に限る（機械強制 = eslint 層規約）。
+コマンド：`pnpm run dev`（port 3100）/ `build` / `typecheck` / `lint` / `test`。
 
 ## 全体のデータフロー
 
-- Web：ブラウザ → nginx → Remix(loader/action) → `app/lib`(axios) → NestJS API(3000)
+- Web：ブラウザ → nginx → Next.js(RSC/Server Action/Route Handler) → `app/lib`(axios) → NestJS API(3000)
   → `domains/*` の Service → Repository → MongoDB。認証は Discord OAuth2 → JWT(Cookie)。
 - Discord：discord.js Gateway → `discord/interactions`(registry→handlers) または `commands`/`events`
   → `discord/features`（diceRoll は bcdice 利用）→ 必要に応じて `domains/*`。
@@ -120,10 +123,10 @@ Tailwind ではない点に注意）、**Zustand + Immer**（状態）、axios�
   `AI.development.md`、`AI.test.md`、`AI.types.md`、`AI.features.md`、`AI.character.md`；
   `src/ARCHITECTURE.md`（全体方針・依存方向の正本）、`src/discord/AI.discord.md`・`src/discord/DESIGN.md`、
   `src/events/AI.event.md`
-- フロントエンド: `trpg-remix-app/AI.md`、`AI.test.md`、`THEME.md`、`document/coding-rules.md`；
-  `app/features/*/AI.*.md`
+- フロントエンド: `trpg-next-app/AI.md`（サーバ境界・JWT・封筒・redirect 規約の 1 ページ正本）
 - 横断スナップショット: `document/`（`project-status.md`, `backend-trpg-server.md`,
-  `frontend-trpg-remix-app.md`, `interaction-registry.md`, `dice-roll-flow.md`, `open-issues-next.md`）
+  `NEXT_MIGRATION_PLAN.md`（移行計画・完了記録）, `interaction-registry.md`, `dice-roll-flow.md`,
+  `open-issues-next.md`。`frontend-trpg-remix-app.md` は旧 Remix 期の歴史資料）
 
 ## 回答のしかた
 - 聞かれた粒度に合わせる。「全体像」なら 2 パッケージ + データフローを簡潔に。「依存関係のルール」なら

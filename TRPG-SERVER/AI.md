@@ -80,8 +80,8 @@
 - **[AI.character.md](./AI.character.md)** - キャラクター型定義（AttributeValue 等）
 - **HTTP レスポンス封筒の正典は `packages/api-contract`**。`src/core/dto/api-response.dto.ts` の
   `SuccessResponse` / `ErrorResponse` は契約 interface を `implements` しており、
-  封筒フィールドを片側だけ変えると build が落ちる。運用手順は `trpg-remix-app/AI.md` の
-  「サーバ⇄フロント型契約体制」節が正本。
+  封筒フィールドを片側だけ変えると build が落ちる。フロント側の消費規約は
+  `trpg-next-app/AI.md` の「HTTP 封筒・エラー」節が正本（旧 trpg-remix-app は 2026-08 撤去）。
 
 **機能棚卸し・レビュー（現状スナップショット）**
 
@@ -110,7 +110,7 @@ TRPG-SERVERは、テーブルトークRPG（TRPG）をサポートするため�
 - **キャラクター管理**: TRPG用キャラクターの作成・編集・保存
 - **ダイスロール**: 各種ゲームシステムに対応した自動ダイスロール
 - **ユーザー認証**: Discord OAuth2による認証システム
-- **WebAPI**: フロントエンド（Remix）との連携
+- **WebAPI**: フロントエンド（Next.js・trpg-next-app）との連携
 
 ### 🛠️ **技術スタック概要**
 
@@ -586,7 +586,7 @@ export class CharacterChannelService {
 ## 🔗 **関連リンク**
 
 - **プロジェクトリポジトリ**: [Docker TRPG Remix App](https://github.com/your-repo/dokcer-trpg-remix-app)
-- **フロントエンド (Remix)**: [trpg-remix-app](../trpg-remix-app/)
+- **フロントエンド (Next.js)**: [trpg-next-app](../trpg-next-app/)（旧 Remix 版は 2026-08 撤去）
 - **APIドキュメント**: Swagger UI (http://localhost:3000/api)
 
 ---

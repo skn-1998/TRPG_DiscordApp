@@ -19,7 +19,7 @@ pnpm run static:duplication  -- --project <tsconfig.json>
 ```
 
 `--project` を差し替えれば、モノレポのどのパッケージでも解析できる
-（`TRPG-SERVER/tsconfig.json` / `trpg-remix-app/tsconfig.json` / `packages/*/tsconfig.json`）。
+（`TRPG-SERVER/tsconfig.json` / `trpg-next-app/tsconfig.json` / `packages/*/tsconfig.json`）。
 
 ## 構成
 
