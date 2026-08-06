@@ -18,9 +18,9 @@ import {
   CHARACTER_FIELD_EDIT_PARSE_PATTERN,
   CHARACTER_FIELD_ADD_PARSE_PATTERN
 } from '../custom-id/character-field.custom-id'
+import { isCharacterEditSectionType, type CharacterEditSectionType } from './character-section-descriptor'
 
-const SECTION_TYPES = ['status', 'parameter', 'skill', 'item', 'basic'] as const
-export type CharacterEditSectionType = (typeof SECTION_TYPES)[number]
+export type { CharacterEditSectionType }
 
 /**
  * characterEdit の customId からキャラクター ID を抽出する。
@@ -106,7 +106,7 @@ export function parseSectionSelectValue(selectedValue: string | undefined): {
  * 文字列を既知の sectionType に正規化する。未知の場合は 'basic'。
  */
 export function normalizeSectionType(value: string | undefined): CharacterEditSectionType {
-  return (SECTION_TYPES as readonly string[]).includes(value ?? '') ? (value as CharacterEditSectionType) : 'basic'
+  return isCharacterEditSectionType(value) ? value : 'basic'
 }
 
 /**

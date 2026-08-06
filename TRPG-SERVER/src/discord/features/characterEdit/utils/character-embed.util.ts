@@ -21,6 +21,14 @@ import {
 } from 'discord.js'
 import { AttributeValue, getDisplayNumber } from '../../../../core/types/attribute.types'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
+import {
+  EDITABLE_SECTION_DESCRIPTORS,
+  EDITABLE_SECTION_TYPES,
+  getSectionData,
+  getSectionDescriptor,
+  getSectionDisplayName as getDescriptorDisplayName,
+  type EmbedSectionType
+} from './character-section-descriptor'
 // P1-D slice1: customId 生成を feature-local 契約モジュールへ集約（byte-identical・挙動不変）
 import {
   CharacterSectionCustomId,
@@ -30,51 +38,16 @@ import {
   CharacterCreateCustomId
 } from '../custom-id'
 
-/**
- * Embed 分割タイプ
- */
-export type EmbedSectionType = 'status' | 'skill' | 'parameter' | 'basic' | 'item' | 'back'
-
-/**
- * フィールド編集メニューを持つセクション。basic/back は対象外。
- */
-export const EDITABLE_SECTION_TYPES = ['status', 'parameter', 'skill', 'item'] as const
-
-/**
- * Character から指定セクションのデータを取り出す（純粋・switch）。
- * 該当しないセクション（basic/back 等）は undefined。
- */
-export function getSectionData(
-  character: CharacterEntity,
-  sectionType: EmbedSectionType
-): Record<string, unknown> | undefined {
-  switch (sectionType) {
-    case 'status':
-      return character.status
-    case 'parameter':
-      return character.parameter
-    case 'skill':
-      return character.skill
-    case 'item':
-      return character.item
-    default:
-      return undefined
-  }
-}
-
-const SECTION_NAMES: Record<Exclude<EmbedSectionType, 'back'>, string> = {
-  status: 'ステータス',
-  parameter: 'パラメータ',
-  skill: 'スキル',
-  item: 'アイテム',
-  basic: '基本情報'
-}
+export { EDITABLE_SECTION_TYPES, getSectionData }
+export type { EmbedSectionType }
 
 /**
  * セクションタイプから日本語表示名を返す（純粋）。
+ * back の実行時 undefined と string 戻り値の型穴は既存 API 互換のため維持する。
  */
 export function getSectionDisplayName(sectionType: EmbedSectionType): string {
-  return SECTION_NAMES[sectionType as Exclude<EmbedSectionType, 'back'>]
+  const displayName = sectionType === 'back' ? undefined : getDescriptorDisplayName(sectionType)
+  return displayName as string
 }
 
 /**
@@ -252,9 +225,10 @@ export function buildFieldOptionDisplay(key: string, value: unknown): FieldOptio
  * 基本情報 Embed を構築する純粋関数。
  */
 export function buildBasicEmbed(character: CharacterEntity): EmbedBuilder {
+  const descriptor = getSectionDescriptor('basic')
   const embed = new EmbedBuilder()
-    .setTitle(`🏷️ ${character.characterName} - ${getSectionDisplayName('basic')}`)
-    .setColor('#3498db')
+    .setTitle(`${descriptor.emoji} ${character.characterName} - ${descriptor.displayName}`)
+    .setColor(descriptor.color)
     .setTimestamp()
 
   const fields: EmbedField[] = []
@@ -329,22 +303,12 @@ export function buildEditComponents(characterId: string): ActionRowBuilder<any>[
     .setCustomId(CharacterSectionCustomId.createEditSection(characterId))
     .setPlaceholder('編集するセクションを選択')
     .addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel('📊 ' + getSectionDisplayName('status'))
-        .setValue('status')
-        .setDescription('基本ステータスを編集'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('⚙️ ' + getSectionDisplayName('parameter'))
-        .setValue('parameter')
-        .setDescription('能力値やパラメータを編集'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('⚔️ ' + getSectionDisplayName('skill'))
-        .setValue('skill')
-        .setDescription('技能や特技を編集'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🎒 ' + getSectionDisplayName('item'))
-        .setValue('item')
-        .setDescription('装備品やアイテムを編集')
+      ...EDITABLE_SECTION_DESCRIPTORS.map((descriptor) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(`${descriptor.emoji} ${descriptor.displayName}`)
+          .setValue(descriptor.type)
+          .setDescription(descriptor.menuDescription)
+      )
     )
 
   const sectionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sectionSelectMenu)
@@ -376,33 +340,14 @@ export function buildSectionedEmbeds(character: CharacterEntity): {
 } {
   const embeds: EmbedBuilder[] = [
     buildBasicEmbed(character),
-    buildSectionEmbed(
-      '📊',
-      getSectionDisplayName('status'),
-      '#e74c3c',
-      character.characterName,
-      getSectionData(character, 'status')
-    ),
-    buildSectionEmbed(
-      '⚙️',
-      getSectionDisplayName('parameter'),
-      '#34495e',
-      character.characterName,
-      getSectionData(character, 'parameter')
-    ),
-    buildSectionEmbed(
-      '⚔️',
-      getSectionDisplayName('skill'),
-      '#9b59b6',
-      character.characterName,
-      getSectionData(character, 'skill')
-    ),
-    buildSectionEmbed(
-      '🎒',
-      getSectionDisplayName('item'),
-      '#f39c12',
-      character.characterName,
-      getSectionData(character, 'item')
+    ...EDITABLE_SECTION_DESCRIPTORS.map((descriptor) =>
+      buildSectionEmbed(
+        descriptor.emoji,
+        descriptor.displayName,
+        descriptor.color,
+        character.characterName,
+        getSectionData(character, descriptor.type)
+      )
     )
   ]
 
