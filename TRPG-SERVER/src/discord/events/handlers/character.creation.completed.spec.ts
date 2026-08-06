@@ -4,15 +4,6 @@ import { CharacterEmbedManagerService } from '../../features/characterEdit/servi
 import { DiscordClientService } from '../../services/discord-client.service'
 import { TypedEventService } from '../../../core/events/typed-event.service'
 
-// CharacterUIService は構築上 DI トークンとしてのみ必要で、本テストでは一切呼ばない。
-// 本体ファイルにスコープ外の既存型エラー（AttributeValue ドリフト等）があるため、
-// jest.mock で実体読み込みと型診断を回避してダミーのトークンを得る。
-jest.mock('../../features/characterEdit/services/character-ui.service', () => ({
-  CharacterUIService: class CharacterUIService {}
-}))
-
-const { CharacterUIService } = require('../../features/characterEdit/services/character-ui.service')
-
 /**
  * CharacterCreationCompletedHandler の現状挙動を固定するユニットテスト（T2c 後）
  *
@@ -28,7 +19,6 @@ const { CharacterUIService } = require('../../features/characterEdit/services/ch
  */
 describe('CharacterCreationCompletedHandler', () => {
   let handler: CharacterCreationCompletedHandler
-  let characterUIService: { [k: string]: jest.Mock }
   let embedManager: jest.Mocked<Pick<CharacterEmbedManagerService, 'createSectionedEmbeds'>>
   let discordClientService: jest.Mocked<Pick<DiscordClientService, 'getClient'>>
   let typedEventService: { emit: jest.Mock }
@@ -59,7 +49,6 @@ describe('CharacterCreationCompletedHandler', () => {
   beforeEach(async () => {
     jest.clearAllMocks()
 
-    characterUIService = {}
     embedManager = {
       createSectionedEmbeds: jest.fn().mockResolvedValue({ embeds: [], components: [] })
     }
@@ -72,7 +61,6 @@ describe('CharacterCreationCompletedHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         CharacterCreationCompletedHandler,
-        { provide: CharacterUIService, useValue: characterUIService },
         { provide: CharacterEmbedManagerService, useValue: embedManager },
         { provide: DiscordClientService, useValue: discordClientService },
         { provide: TypedEventService, useValue: typedEventService }

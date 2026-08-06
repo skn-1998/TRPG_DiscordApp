@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import { EventHandler, EventContext } from 'events/handlers/_shared/event-handler.base'
-import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
 import { EVENT_NAMES } from 'events/contracts'
@@ -10,9 +9,7 @@ import { TypedEventService } from 'src/core/events/typed-event.service'
  * character.update.completed 専用ハンドラー
  *
  * 🎯 責務:
- * - キャラクター更新完了時のDiscord UI更新
- * - チャンネルEmbedの更新
- * - 更新完了通知の送信
+ * - キャラクター更新完了時のスレッド表示更新
  *
  * 🏗️ 登録方式:
  * - discord 層へ移設し、OnModuleInit で TypedEventService に自己購読する
@@ -25,7 +22,6 @@ export class CharacterUpdateCompletedHandler
   implements OnModuleInit
 {
   constructor(
-    private readonly characterUIService: CharacterUIService,
     private readonly threadOrchestratorService: ThreadOrchestratorService,
     private readonly typedEventServiceLocal: TypedEventService
   ) {
@@ -73,20 +69,7 @@ export class CharacterUpdateCompletedHandler
   private async updateDiscordUI(event: CharacterUpdateCompletedEvent, _context?: EventContext): Promise<void> {
     const { character } = event
 
-    // 1. チャンネルが存在する場合、Embedを更新
-    if (character.discordChannelId) {
-      this.logger.debug(`Updating character embed in channel: ${character.discordChannelId}`)
-
-      try {
-        await this.characterUIService.updateCharacterEmbed(character.discordChannelId, character)
-        this.logger.debug(`✅ Character embed updated successfully`)
-      } catch (error) {
-        this.logger.warn(`⚠️ Character embed update failed: ${error instanceof Error ? error.message : String(error)}`)
-        // Embed更新の失敗は致命的ではないため、処理を続行
-      }
-    }
-
-    // 2. スレッドが存在する場合、Thread内のEmbedを更新
+    // スレッドが存在する場合、Thread内のEmbedを更新
     if (character.discordThreadId) {
       this.logger.debug(`Updating character thread display in thread: ${character.discordThreadId}`)
 

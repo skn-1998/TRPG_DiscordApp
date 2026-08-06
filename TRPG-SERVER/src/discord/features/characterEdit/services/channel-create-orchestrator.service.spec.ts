@@ -6,7 +6,6 @@ import { ChannelDetectionService } from './channel-detection.service'
 import { CharacterNotificationService } from './character-notification.service'
 import { TypedEventService } from '../../../../core/events/typed-event.service'
 import { DiscordClientService } from '../../../services/discord-client.service'
-import { CharacterUIService } from './character-ui.service'
 
 describe('ChannelCreateOrchestratorService', () => {
   let service: ChannelCreateOrchestratorService
@@ -48,8 +47,6 @@ describe('ChannelCreateOrchestratorService', () => {
     }))
   }
 
-  const mockCharacterUIService = {}
-
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -69,10 +66,6 @@ describe('ChannelCreateOrchestratorService', () => {
         {
           provide: DiscordClientService,
           useValue: mockDiscordClientService
-        },
-        {
-          provide: CharacterUIService,
-          useValue: mockCharacterUIService
         }
       ]
     }).compile()

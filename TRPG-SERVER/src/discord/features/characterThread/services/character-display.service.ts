@@ -7,7 +7,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common'
-import { EmbedBuilder, TextChannel, NewsChannel, ThreadChannel } from 'discord.js'
+import { EmbedBuilder } from 'discord.js'
 import { CharacterEntity } from '../../../../domains/character/models/character.entity'
 import { CharacterService } from '../../../../domains/character/character.service'
 import { ErrorHandler, ErrorContext } from '../../../../core/http/error-handler'
@@ -189,55 +189,5 @@ export class CharacterDisplayService {
    */
   isValidTabType(tabType: string): tabType is TabType {
     return ['basic', 'status', 'skills', 'items', 'desc'].includes(tabType)
-  }
-
-  // ============================================================================
-  // Character Thread 専用機能
-  // ============================================================================
-
-  /**
-   * Embed更新の直接実行
-   * features/内の他のサービスから使用
-   *
-   * E-3d: dead な embed 更新通知 emit（恒常購読者ゼロ）を撤去済み。embed 構築のみ行い何もしないゴースト。
-   */
-  async updateCharacterEmbed(character: CharacterEntity, channelId: string, tabType: TabType = 'basic'): Promise<void> {
-    try {
-      this.logger.log(`[CHARACTER-EMBED] Direct embed update: ${character.characterId} (channel: ${channelId})`)
-
-      this.buildCharacterEmbed(character, tabType)
-    } catch (error) {
-      this.logger.error(`[CHARACTER-EMBED] Direct embed update failed`, error)
-      throw error
-    }
-  }
-
-  /**
-   * チャンネルの既存Embedメッセージを検索
-   * DiscordEmbedHandlerServiceから統合（簡略化）
-   */
-  async findExistingCharacterEmbed(
-    channel: TextChannel | NewsChannel | ThreadChannel,
-    characterId: string
-  ): Promise<any> {
-    try {
-      // 最新100件のメッセージを検索
-      const messages = await channel.messages.fetch({ limit: 100 })
-
-      for (const message of messages.values()) {
-        if (message.embeds.length > 0) {
-          // Embedにキャラクター情報が含まれているかチェック
-          const embed = message.embeds[0]
-          if (embed.fields?.some((field) => field.name === 'キャラクターID' && field.value === characterId)) {
-            return message
-          }
-        }
-      }
-
-      return null
-    } catch (error) {
-      this.logger.error(`[CHARACTER-EMBED] Failed to find existing embed`, error)
-      return null
-    }
   }
 }

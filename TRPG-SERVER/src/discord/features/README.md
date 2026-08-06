@@ -26,7 +26,6 @@ TRPGサーバーのDiscord機能モジュール群のドキュメント。各機
   - `channel-create-orchestrator.service.ts` - チャンネル作成統合
   - `character-embed-manager.service.ts` - Discord Embed管理
   - `character-modal-handler.service.ts` - モーダル処理
-  - `character-ui.service.ts` - UI コンポーネント管理
 
 **アーキテクチャパターン**: Feature Module + Event-Driven Architecture
 

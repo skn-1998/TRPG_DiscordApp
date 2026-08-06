@@ -27,7 +27,7 @@ import { DiscordThreadCreateRequestedHandler } from './handlers/discord.thread.c
  * 📦 依存:
  * - CoreEventsModule(@Global): TypedEventService
  * - DiscordIntegrationModule: DiscordClientService
- * - CharacterEditModule: CharacterUIService / CharacterEmbedManagerService
+ * - CharacterEditModule: CharacterEmbedManagerService
  * - CharacterThreadFeatureModule: ThreadOrchestratorService
  *
  * 🧹 E-3f: キャラクター削除完了イベントの専用ハンドラーは

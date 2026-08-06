@@ -37,12 +37,10 @@ characterEdit/
 │   ├── modal-session-manager.service.ts      # CustomId 長さ制限対応のセッション管理
 │   ├── character-edit-event-emitter.service.ts # characterEdit.* イベント発行の集約
 │   ├── character-edit-message-updater.service.ts # 既存メッセージの探索・更新（refresh）
-│   ├── character-ui.service.ts               # チャンネル/メッセージの UI I/O
 │   ├── character-modal-handler.util.ts       # モーダル処理の純粋ロジック
 │   └── character-section-editor.util.ts      # セクション編集の純粋ロジック
 └── utils/                                    # 純粋関数群（DI 非依存）
     ├── character-embed.util.ts               # Embed/コンポーネント構築（discord.js Builder 依存）＋セクション正本（EDITABLE_SECTION_TYPES / getSectionData / SECTION_NAMES）
-    ├── character-ui.util.ts                  # Embed/SelectMenu データ構築・文言整形
     └── enhanced-character-edit.util.ts       # customId 解析・分岐判定（discord.js 非依存）
 ```
 
@@ -80,7 +78,6 @@ characterEdit/
 - `CharacterSectionEditorService`
 - `CharacterModalHandlerService`
 - `EnhancedCharacterEditService`
-- `CharacterUIService`
 
 > `CharacterEditEventEmitterService` と `CharacterEditMessageUpdaterService` は providers には登録されていますが
 > exports には含まれません（モジュール内部利用）。
