@@ -19,6 +19,9 @@ COPY trpg-next-app/package.json ./trpg-next-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
 COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
 COPY packages/api-contract/package.json ./packages/api-contract/package.json
+# tools/* も workspace importer（欠くと COPY . . 後に verifyDepsBeforeRun が
+# 「workspace structure has changed」で pnpm run を拒否する）
+COPY tools/static-analysis/package.json ./tools/static-analysis/package.json
 
 # 開発ステージ
 FROM base AS development
