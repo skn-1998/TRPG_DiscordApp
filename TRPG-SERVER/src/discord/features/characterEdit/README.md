@@ -40,7 +40,8 @@ characterEdit/
 │   ├── character-modal-handler.util.ts       # モーダル処理の純粋ロジック
 │   └── character-section-editor.util.ts      # セクション編集の純粋ロジック
 └── utils/                                    # 純粋関数群（DI 非依存）
-    ├── character-embed.util.ts               # Embed/コンポーネント構築（discord.js Builder 依存）＋セクション正本（EDITABLE_SECTION_TYPES / getSectionData / SECTION_NAMES）
+    ├── character-section-descriptor.ts       # セクション定義の正本（表示・編集可否・entity/DTO キー拘束）
+    ├── character-embed.util.ts               # Embed/コンポーネント構築（discord.js Builder 依存）
     └── enhanced-character-edit.util.ts       # customId 解析・分岐判定（discord.js 非依存）
 ```
 

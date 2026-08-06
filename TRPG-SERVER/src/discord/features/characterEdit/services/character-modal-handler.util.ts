@@ -5,12 +5,12 @@
  * discord.js / NestJS DI に依存せず、入力 → 出力の変換・解析・バリデーションのみを担う。
  * 副作用（reply/update・イベント発行・セッション取得）はサービス側に残す。
  */
-import { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
-import { AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
-import { AttributeValue } from '../../../../core/types/attribute.types'
-import { EmbedSectionType } from './character-embed-manager.service'
+import type { UpdateCharacterDto } from '../../../../domains/character/dto/update-character.dto'
+import type { AttributeValueDto } from '../../../../domains/character/dto/create-character.dto'
+import type { AttributeValue } from '../../../../core/types/attribute.types'
 import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
 import { CharacterCreateCustomId } from '../custom-id/character-create.custom-id'
+import { isEditableSectionType, type EmbedSectionType } from '../utils/character-section-descriptor'
 
 /**
  * フィールドデータ構造
@@ -181,16 +181,9 @@ export function buildUpdateData(
   sectionType: EmbedSectionType,
   sectionData: Record<string, unknown>
 ): UpdateCharacterDto | null {
-  switch (sectionType) {
-    case 'status':
-      return { status: sectionData as Record<string, AttributeValueDto> }
-    case 'parameter':
-      return { parameter: sectionData as Record<string, AttributeValueDto> }
-    case 'skill':
-      return { skill: sectionData as Record<string, AttributeValueDto> }
-    case 'item':
-      return { item: sectionData as Record<string, AttributeValueDto> }
-    default:
-      return null
+  if (!isEditableSectionType(sectionType)) {
+    return null
   }
+
+  return { [sectionType]: sectionData as Record<string, AttributeValueDto> }
 }
