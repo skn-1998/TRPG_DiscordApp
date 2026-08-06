@@ -1309,7 +1309,29 @@ jwt-token・response.interceptor・test-auth 等 = 2026-07-12 改善単位2〜7 
 での実行になるため、着手前ベースラインとの差分で判定する。
 sheet-engine-template-validation.service.spec.ts の MM 残渣（index のみ整形差）は
 restore --staged で収束済み（2026-08-04）。
-- ユーザー側 TODO: push → pnpm 11 初回 CI（T19 の cold-cache 初実証）
+- ユーザー側 TODO: ~~push~~（2026-08-06 完了 `959f961..f12ea17`）→ pnpm 11 CI 結果の確認
+
+## 2026-08-06 開始: Next.js 移行キャンペーン（現在の feature・タスク #112〜#120）
+
+ユーザー指示「Next移行で進めて」。**計画の正本 = `document/NEXT_MIGRATION_PLAN.md`**
+（読み順: 本節 → 計画書 → 該当フェーズの review-results/next-migration/）。
+
+- 方式 = **並行パッケージ `trpg-next-app` 新設**（Next 16.3.0 / React 19.2.8 /
+  Mantine 9.5.1）→ ルート毎移植 → N6 で compose/CI 切替・trpg-remix-app 撤去。
+  移行中は旧 app の feature 開発凍結
+- N0 完了（2026-08-06）: read-only インベントリ（Explore・実カウント）で旧記録
+  「12 ルート」を **17 ルート**へ訂正（実体 8＋redirect スタブ 5＋プレースホルダ 3＋
+  resource 1）。設計ガード「Remix API は route 層のみ」は**不遵守**（routes 外 12 ファイル・
+  等価物なし 5: useRouteLoaderData/useRevalidator/useNavigation/useFetcher×3）。
+  地雷 7 件（lib バレル→node:http が Client 流入・serverRequestContext 可変グローバル・
+  トップレベル初期化 throw・自作 env 二重機構ほか）を計画書 §3-3 に台帳化。
+  dead code 4 群（COC edit ツリー/gridTest/fuse+moji 経路/zustand・immer）は移植対象外
+- インベントリ報告の誤り 1 件を Fable 訂正: 「Next の layout は毎回サーバで実行される」は
+  誤り（soft nav で再実行されない）→ #72 per-page インライン検査の正本は Next でも維持
+  （計画書 §6-1）
+- フェーズ: N1 scaffold → N2 認証基盤 → N3 user 系 → **大粒度レビュー#1** → N4 sheet →
+  N5 templates → N6 切替・撤去 → **最終レビュー＋close**。受入ゲートは計画書 §5
+  （新 app 4 コマンド緑＋旧 app build 緑＝非破壊証明＋diff 実読）
 
 ## 参照
 
