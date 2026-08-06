@@ -1393,6 +1393,26 @@ Fable 全ゲート独立検収（build 0・循環 0・full suite 全緑・テス
     payload のセッション ID 疑義）
   - **J フェーズ総括: #102/#103 完結・コミット 5 本（`62a84f3`/`03bef1d`/`9a1f954`/
     `0614e8c`/`5b6aef1`）・ベースライン 222 suites / 3059 tests・circular 563 files**
+- **K フェーズ（2026-08-06・Med+ 消化ループ = #104/#105。ユーザー指示で継続中）**:
+  - **K1（`0848127` +17/−582・16 ファイル）— #104 完結**: 実測で embed 更新は
+    **4 系統**と判明（A=modal-handler の messageUpdater 編集 UI / B=CHARACTER_UPDATE_COMPLETED
+    購読の CharacterUIService サマリ / C=characterThread/character-display の死蔵 2 関数 /
+    D=同ハンドラ内スレッド表示更新）。裁定 = **B 全削除で A へ一本化＋C 死蔵 2 関数削除**
+    （D・イベント契約・emit サイト不変）。B は発火経路がレガシーキャラのモーダル保存のみ
+    （materialized は :151-154 で早期 return）・出力が AttributeValue へ String() 直呼びで
+    `[object Object]` 破損・固有情報ダミー 2 行・「キャラクター情報」を含む characterName で
+    A を誤上書きするリスク。C は自認コメント付き no-op＋本番呼び出しゼロ。
+    正本 = review-results/task-104/k1-measurement-and-ruling.md。
+    update.completed ハンドラは B ブロックのみ削除・spec は D 検証能力純減なし・
+    stale mock 2 件（前提再検証つき）・K1b（Opus・コメントのみ）で消滅クラス参照
+    コメント 6 件掃除。挙動差 = レガシーキャラ保存時の破損サマリ投稿停止のみ。
+    検収独立実行: diff 全実読・build 0・循環 0（**559**）・full **220/3042 全緑**
+    （−2 suites/−17 tests 検算一致）・eslint 9 本 0・CharacterUIService src grep 0。
+    prettier pre-commit hook が md 整形を混ぜて index 残渣 → restore --staged で解消
+    （HEAD⇄worktree 内容差分ゼロ）。
+    **ベースライン: 220 suites / 3042 tests・circular 559・HEAD `0848127`**
+  - 残: K2 = #105（記述テーブル化・設計 = review-results/task-105/k2-design-notes.md）→
+    俯瞰#22（ループ close の大粒度二重レビュー）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
 第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・

@@ -1139,6 +1139,11 @@ DiscordIntegrationServiceの削除により、以下の重要なメソッドが�
 2. **`character.update.completed.ts`** ✅
    - キャラクター更新完了時のDiscord UI更新
    - Embed更新、更新通知、ステータス表示更新
+   - **（2026-08-06 注記）** 本項の「Embed更新」はその後 CharacterUIService へ移管され、
+     #104/K1（`0848127`）で**削除済み**（出力破損・A 系統の劣化サブセットのため）。
+     現行ハンドラの責務はスレッド表示更新（ThreadOrchestratorService）のみ。
+     下記 DiscordUIService も削除済みで、本節は歴史記録。正本 = `discord/AI.discord.md`
+     最新メモ（2026-08-06）
 
 3. **`character.deletion.completed.ts`** ✅
    - キャラクター削除完了時のDiscord UI更新

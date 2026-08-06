@@ -1219,6 +1219,29 @@ U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実
   HEAD `5b6aef1`**。push 済みは `959f961` まで — `62a84f3` 以降 6 コミットが未 push
   （push はユーザー判断）。残 backlog は #104〜#108（高優先は #104 embed 2〜3 系統）。
   **J フェーズ記録済み — compact 推奨タイミング**。
+- **K フェーズ開始（2026-08-06・ユーザー指示「midium までが解消するまではこの実装レビュー
+  ループは続けて」）**: スコープ = #104 [High]＋#105 [Med]（＋ループ中に出る新規 Med+）。
+  #106〜#108 は Low/疑義で対象外。ループ完了時に俯瞰#22（大粒度二重）を実施して閉じる。
+- **K1 完了（2026-08-06・`0848127` +17/−582・16 ファイル）— #104 完結**: 実測の結論は
+  「2〜3 系統」ではなく **4 系統**（A=編集 UI messageUpdater / B=CharacterUIService 経由
+  サマリ / C=characterThread 死蔵 2 関数 / D=同ハンドラのスレッド表示更新）。裁定 =
+  **B 全削除で A へ一本化＋C の死蔵 2 関数削除・D とイベント契約は不変**。根拠 = B の唯一
+  発火はレガシーキャラのモーダル保存のみ・出力は現行データ形状で `[object Object]` 破損・
+  固有情報はダミー guildInfo 2 行・characterName 衝突で A を誤上書きするリスク。C は自認
+  コメント付き no-op ゴースト＋本番呼び出しゼロ（Fable 直接裏取り 3 点）。
+  正本 = review-results/task-104/k1-measurement-and-ruling.md（「無限に積まれる」初期報告の
+  過大表現も同所で訂正 — 実際は恒常 1 通＋自己編集）。
+  update.completed ハンドラは B ブロックのみ削除（系統 D・retry 契約・emit サイト不変）・
+  stale mock 2 件掃除・K1b 微修正ラウンド（Opus・コメントのみ）で消滅クラス参照コメント
+  4＋2 件を掃除（CharacterUIService は src 全域 grep 0）。
+  挙動差の開示: レガシーキャラ保存時の破損サマリ embed 投稿が止まるのみ。
+  検収 Fable 独立実行: diff 全実読（範囲一致・過剰実装なし）・build 0・循環 0
+  （**559** = 563−削除 4 ファイル）・full **220 suites / 3042 tests 全緑**（−2/−17 検算一致）・
+  eslint 9 本 error 0・pre-commit prettier hook の index 残渣は restore --staged で解消
+  （HEAD⇄worktree 内容差分ゼロ確認済み）。
+  **ベースライン: 220 suites / 3042 tests・circular 559・HEAD `0848127`**。
+  次: K2 = #105（セクション記述テーブル化・設計ノート = review-results/task-105/
+  k2-design-notes.md 済み）→ 俯瞰#22。
   (2) **CH-7 決着**: 本番 dispatch は findBestMatch→getMatchScore の1本。matches/matchPattern/
   findAllMatches/hasHandler は spec 専用の意味重複（live 1＋spec-only 2）→ 死蔵去就は #91 へ。
   台帳訂正を AI.refactor.md 俯瞰#5 節に反映済み。
