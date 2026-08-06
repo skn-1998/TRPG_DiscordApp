@@ -1374,6 +1374,21 @@ restore --staged で収束済み（2026-08-04）。
   移植ペア 5 組の新旧 diff 実読。観察: Codex はコメントを一貫して剥がす傾向 —
   大粒度レビュー#1 で load-bearing コメント喪失の有無を確認する。
   次: N3b（/user/character 一覧・gameSystem 分離・到達可能性実測つき）発注済み。
+- **N3b 完了（2026-08-06・`6b56189` 12 ファイル）— N3 完結**: Codex の到達可能性実測が
+  優秀 — **削除導線は hook 返却のみで UI/props 配線ゼロ＝完全死蔵**（deleteCharacter
+  呼び出し 0。#92 の裁定材料として実測供給・非移植）・Retry 分岐は到達不能
+  （catch が常に未認証形を伴う）・card クリック console.log は quirk 保存。
+  getCharacterListData = 旧 loader soft degrade 等価（spec 3 分岐）・再取得/Discord 投稿は
+  Server Action＋revalidatePath＋useTransition・gameSystem.ts は JSON import のみの
+  client-safe 最小化（barrel 不在 = 地雷 1 恒久解消・gameSystemList.json ハッシュ一致）。
+  検収 Fable 独立実行: 4 受入緑（5 suites/10）・旧 app build 緑・dev スモーク
+  （/user/character 307・/ 200）・CharacterCard/List/PageClient 新旧 diff 実読
+  （UI byte 級等価・aria-label 1 件のみ追加）・旧ルート JSX との突合で
+  CharacterPageClient の忠実性を確認。
+- **大粒度認知負荷レビュー #1 実施中（N1〜N3 俯瞰・必須ゲート）**: Codex adversarial
+  （prompt-review-n123.txt）＋Opus cognitive-load-review モード A 大粒度の二重。
+  重点 = ErrorEnvelope 復号の複製芽・jwt 読み取り分散・コメント剥離の損失監査・
+  旧 app との drift。**Med+ が出たら消化してから N4**（campaign 規約）。
 
 ## 参照
 
