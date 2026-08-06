@@ -1513,11 +1513,29 @@ restore --staged で収束済み（2026-08-04）。
   コンテナ内 wget 200（healthcheck 経路）。N6a コミットの「未実施」開示は本追補で解消。
   検収メモ: `git commit --only` は working tree 状態を取るため index 限定削除
   （rm --cached）を表現できない → staged がその 1 件のみを diff --cached で確認し plain commit。
-  残る手順（ユーザー許可後）: ①trpg-remix-app/.env を trpg-next-app/.env へ移す（ユーザー）→
-  ②`git rm -r trpg-remix-app`＋`git rm -r .agents/skills/trpg-remix-frontend`＋
-  workspace yaml から entry 削除＋Dockerfile の旧 manifest COPY 行削除 →
-  ③`pnpm install`（lockfile から importer 除去）→ ④next chain＋server build＋check:circular 再検証 →
-  ⑤N6b コミット → ⑥N6c doc 全面更新（Fable）→ ⑦最終大粒度レビュー（#120）。
+- **N6b 完了（2026-08-07・`e179640` 130 ファイル +260/−19,809）**: .env 移送＋`git rm -r` ×2 は
+  ユーザー実行（クラシファイア拒否のため）。Fable が workspace yaml entry 削除・Dockerfile 旧
+  manifest COPY 削除・`pnpm install`（lockfile −374 packages/−5,371 行・zustand/immer 消滅 =
+  #79 自然解消）を実施。未追跡残渣（trpg-remix-app/ の .env・node_modules・build）はディスク残存
+  （git 管理外・ユーザーがフォルダごと削除してよい）。
+  検収全緑: next chain（build 12 routes/tsc/lint/test 16 suites/173）・server build＋
+  check:circular（循環ゼロ）・**docker build/production 両 stage＋起動 smoke
+  （GET / 200・/character 307）を新 lockfile で再実測**。
+  docker 検収で新たな罠 2 つを実測・恒久対処: ① review-results/ が docker context に入っており
+  証跡書き込みの度に COPY . . キャッシュが飛び重 step が並列再実行 → 2GB WSL VM で next build が
+  SIGKILL（OOM）→ **.dockerignore へ review-results 追加**（N6b 同梱）。
+  ② `git commit --only` は working tree を取るため rm --cached（index 限定削除）を表現できない →
+  staged 内容を diff --cached で確認して plain commit。
+- **N6c 完了（2026-08-07・doc 全面更新 = Fable 直接実施）**: README.md（Remix→Next・ポート実態）・
+  document/README.md・project-status.md・open-issues-next.md（Remix 項目に消滅注記）・
+  frontend-trpg-remix-app.md（歴史資料ヘッダ）・NEXT_MIGRATION_PLAN.md（完了バナー）・
+  TRPG-SERVER/AI.md（封筒正本ポインタ → trpg-next-app/AI.md・関連リンク）・
+  スキル 9 本（trpg-architecture ×2 は front 節を App Router/Mantine 9/サーバ境界規約へ書換・
+  trpg-refactor ×2・code-comment-rules ×2・static-structure-audit（例と俯瞰#12 注記の Next 読替）・
+  large-file-refactor-review-loop・tools/static-analysis README）。
+  AI.refactor.md 等の経緯記録・TRPG-SERVER/docs/reviews・CLAUDE_HANDOFF は歴史として不変更
+  （残存 grep で意図的残置のみを確認済み）。
+  **次: #120 最終大粒度レビュー（二重・Opus read-only + Codex adversarial）→ campaign close**。
 
 ## 参照
 

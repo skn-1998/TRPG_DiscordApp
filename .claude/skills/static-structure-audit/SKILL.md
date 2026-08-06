@@ -69,7 +69,7 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
 固有オプション: `static:deps` は `--precise`（型チェッカ経由の精密参照解決。動的 `import()` を拾えるが約7倍遅い）、
 `static:duplication` は `--min-nodes <count>`（既定 20）。
 
-対象はモノレポのどのパッケージでもよい。`--project trpg-remix-app/tsconfig.json`、
+対象はモノレポのどのパッケージでもよい。`--project trpg-next-app/tsconfig.json`、
 `--project packages/sheet-engine/tsconfig.json` のように差し替える。**リポジトリルートを cwd に保つこと**
 （レポート内のパスが cwd 相対のため）。
 
@@ -189,8 +189,9 @@ pnpm run static:deps -- --project TRPG-SERVER/tsconfig.json
 
 ### 依存解析
 
-- **fanIn=1 のアンカー越し死蔵は不可視**（俯瞰#12 実測）: Remix の route ファイルは動的発見のため
-  fanIn=0 が死蔵の証拠にならず #59 で明示的に対象外とされた。その結果、**死蔵ルートだけが参照する**
+- **fanIn=1 のアンカー越し死蔵は不可視**（俯瞰#12 実測・旧 Remix 期の事例だが Next の
+  page.tsx/route.ts も同じく動的発見のため原理はそのまま当てはまる）: フレームワークが動的発見する
+  route ファイルは fanIn=0 が死蔵の証拠にならず #59 で明示的に対象外とされた。その結果、**死蔵ルートだけが参照する**
   支援モジュール（store 72行・corsApiWithJwt 62行）は fanIn=1 で生存判定され、俯瞰2回分
   トリアージから漏れた。route 層は「到達 URL 台帳 × product 側参照 grep × git 履歴」の
   手動トリアージを併走させ、ルート削除後に fanIn=0 へ落ちる連鎖まで追うこと

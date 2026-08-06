@@ -1,4 +1,9 @@
  # TRPG-Remix-App 現状まとめ
+
+ > **⚠️ 歴史資料（2026-08-06 注記）**: `trpg-remix-app` は Remix → Next.js 移行（N0〜N6・
+ > `document/NEXT_MIGRATION_PLAN.md`）の完了に伴い削除された。現行フロントエンドは
+ > `trpg-next-app`（正本 doc は `trpg-next-app/AI.md`）。本ファイルは削除時点の旧構成の
+ > 記録として残す。以下の記述は現状を反映していない。
  
  ## 役割と構成
  - Remix v2 + TypeScript

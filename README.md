@@ -1,6 +1,6 @@
 # TRPG アプリケーション - 最適化されたDocker構成
 
-このプロジェクトは、Remix（フロントエンド）とNestJS（バックエンド）を使用したTRPGアプリケーションです。Docker環境は最適化されており、開発環境と本番環境の両方に対応しています。
+このプロジェクトは、Next.js（フロントエンド・`trpg-next-app`）とNestJS（バックエンド）を使用したTRPGアプリケーションです。Docker環境は最適化されており、開発環境と本番環境の両方に対応しています。旧 Remix フロントエンド（`trpg-remix-app`）は 2026-08 の Next 移行で撤去済みです。
 
 ## 🚀 機能
 
@@ -69,7 +69,7 @@ dcupp
 
 ### サービス構成
 
-- **app**: Remix フロントエンドアプリケーション（Port: 5173）
+- **app**: Next.js フロントエンドアプリケーション（コンテナ内 Port: 3000・dev はホスト 3100 へ公開）
 - **nestjs**: NestJS バックエンドAPI（Port: 3000）
 - **nginx**: リバースプロキシとSSL終端（Port: 80, 443）
 
@@ -96,7 +96,7 @@ dcupp
 ### Docker関連
 - `docker-compose.yml`: 開発環境設定
 - `docker-compose.prod.yml`: 本番環境設定
-- `trpg-remix-app/Dockerfile`: Remixアプリ用マルチステージビルド
+- `trpg-next-app/Dockerfile`: Next.jsアプリ用マルチステージビルド
 - `TRPG-SERVER/Dockerfile`: NestJSサーバー用マルチステージビルド
 
 ### 環境変数
@@ -113,13 +113,13 @@ dcrs  # 依存関係を完全リセット
 サービスが起動しない場合は、ポートが使用中でないか確認してください：
 ```powershell
 netstat -an | findstr ":3000"
-netstat -an | findstr ":5173"
+netstat -an | findstr ":3100"
 ```
 
 ### ログの確認
 ```powershell
 dcl          # 全サービスのログ
-dcl app      # Remixアプリのログ
+dcl app      # Next.jsアプリのログ
 dcl nestjs   # NestJSサーバーのログ
 dcl nginx    # Nginxのログ
 ```
@@ -151,7 +151,7 @@ dcrp
 ### デバッグ
 各サービスのログをリアルタイムで確認できます：
 ```powershell
-dcl app    # Remixアプリケーション
+dcl app    # Next.jsアプリケーション
 dcl nestjs # NestJSサーバー
 ```
 

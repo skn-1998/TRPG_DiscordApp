@@ -2,7 +2,8 @@
  
  ## プロジェクト構成
  - **バックエンド**: `TRPG-SERVER`（NestJS + Discord Bot + API）
- - **フロントエンド**: `trpg-remix-app`（Remix + Mantine）
+ - **フロントエンド**: `trpg-next-app`（Next.js 16 App Router + React 19 + Mantine 9。
+   旧 `trpg-remix-app` は 2026-08 の Next 移行で撤去・経緯は `document/NEXT_MIGRATION_PLAN.md`）
  
  ## 直近の完了・安定状況（サーバー）
  - TypeScript型安全性 100% 達成（`TRPG-SERVER/AI.md`）
@@ -31,5 +32,5 @@
  ## 詳細参照先
  - サーバー全体: `TRPG-SERVER/AI.md`
  - サーバー運用/改善: `TRPG-SERVER/AI.development.md`
- - フロント全体: `trpg-remix-app/AI.md`
+ - フロント全体: `trpg-next-app/AI.md`
  - インタラクションRegistry: `document/interaction-registry.md`

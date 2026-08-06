@@ -1,8 +1,13 @@
 # NEXT_MIGRATION_PLAN — Remix → Next.js 移行キャンペーン計画（正本）
 
+> **✅ 完了（2026-08-06〜07）**: N0〜N6 全フェーズ完了。`trpg-remix-app` は N6b（`e179640`）で
+> 撤去され、現行フロントは `trpg-next-app`（正本 doc = `trpg-next-app/AI.md`）。
+> 以下は計画時点の記述であり、旧 app への参照は歴史記録。
+
 作成: 2026-08-06（N0）／作成者: Fable（司令塔）／実装: Codex・Opus へ委譲
-経緯の正本: `trpg-remix-app/AI.md` 末尾「フレームワーク移行検討記録」（2026-07-26 保留 →
-2026-08-06 ユーザー指示「Next移行で進めて」で着手）。進行状況は `document/SESSION_HANDOFF.md`。
+経緯の正本: 旧 `trpg-remix-app/AI.md` 末尾「フレームワーク移行検討記録」（2026-07-26 保留 →
+2026-08-06 ユーザー指示「Next移行で進めて」で着手・旧 doc は git 履歴参照）。
+進行状況は `document/SESSION_HANDOFF.md`。
 
 ## 1. 目的（確定済み・AI.md:1502-1505）
 

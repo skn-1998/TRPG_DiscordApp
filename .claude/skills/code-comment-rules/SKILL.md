@@ -2,7 +2,7 @@
 name: code-comment-rules
 description: >-
   Use when adding, reviewing, or refactoring code comments in the
-  dokcer-trpg-remix-app project (TRPG-SERVER / trpg-remix-app). Trigger on
+  dokcer-trpg-remix-app project (TRPG-SERVER / trpg-next-app). Trigger on
   requests about comment rules, missing comments, making code easier to
   understand, JSDoc/TSDoc, TODO/NOTE comments, explaining thresholds,
   documenting retries/timeouts, documenting project exceptions, or reviewing

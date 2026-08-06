@@ -28,7 +28,7 @@
  
  ## フロント（中優先度）
  - テスト基盤の整備（E2E/コンポーネント）
- - Remixローダー/アクションの整理
+ - ~~Remixローダー/アクションの整理~~（2026-08 の Next 移行で構造ごと消滅・`document/NEXT_MIGRATION_PLAN.md`）
  
  ## 運用メモ
  - コマンドは `pnpm` を使用（Windows/PowerShell）
