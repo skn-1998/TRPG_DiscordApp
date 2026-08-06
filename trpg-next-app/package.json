@@ -6,7 +6,7 @@
     "ensure:workspace-dist": "pnpm --filter \"trpg-next-app^...\" build",
     "build": "pnpm run ensure:workspace-dist && next build",
     "dev": "next dev -p 3100",
-    "start": "next start -p 3100",
+    "start": "next start",
     "typecheck": "pnpm run ensure:workspace-dist && tsc --noEmit",
     "lint": "eslint .",
     "test": "pnpm run ensure:workspace-dist && jest"
