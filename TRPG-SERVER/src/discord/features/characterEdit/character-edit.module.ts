@@ -20,7 +20,6 @@ import { ModalSessionManagerService } from './services/modal-session-manager.ser
 import { EnhancedCharacterEditService } from './enhanced-character-edit.service'
 import { CharacterEditEventEmitterService } from './services/character-edit-event-emitter.service'
 import { CharacterEditMessageUpdaterService } from './services/character-edit-message-updater.service'
-import { CharacterUIService } from './services/character-ui.service'
 
 // 🆕 Interaction Registry & Handlers（interactions core から feature 所有へ移管・§8）
 import { InteractionRegistryModule } from '../../interactions/registry/interaction-registry.module'
@@ -80,7 +79,6 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     CharacterEditEventEmitterService,
     CharacterEditMessageUpdaterService,
     EnhancedCharacterEditService,
-    CharacterUIService,
 
     // ============================================================================
     // 🆕 Interaction Handlers（registry 登録対象・interactions core から移管）
@@ -113,8 +111,7 @@ import { CharacterEditModalHandler } from './handlers/character-edit-modal.handl
     ModalSessionManagerService,
     CharacterSectionEditorService,
     CharacterModalHandlerService,
-    EnhancedCharacterEditService,
-    CharacterUIService
+    EnhancedCharacterEditService
 
     // ============================================================================
     // Legacy Services - Removed (EnhancedCharacterEditServiceに統合済み)

@@ -4,15 +4,13 @@
 //   - onModuleInit(): setTypedEventService + typedEventService.on(getEventName(), ...) による自己購読登録
 //   - getEventName() / getMaxRetries() の戻り値
 //   - handle(): updateDiscordUI を呼び、失敗時は再スロー
-//   - updateDiscordUI(private/handle 経由): discordChannelId / discordThreadId / updatedFields による
-//     呼び分けと、各 try/catch の個別失敗握り潰し（embed・thread・status はいずれも致命的でない）
-//   - shouldNotifyUpdate(private): importantFields 判定（型アサーション経由）
+//   - updateDiscordUI(private/handle 経由): discordThreadId による呼び分けと、
+//     Thread 更新失敗の握り潰し（致命的でない）
 //   - isRetryableError / getMaxRetries
-// 副作用境界は CharacterUIService・ThreadOrchestratorService・TypedEventService の 3 つ。
+// 副作用境界は ThreadOrchestratorService・TypedEventService の 2 つ。
 // 基底由来の this.logger は内部で new Logger されるため追加注入不要。
 
 import { Test } from '@nestjs/testing'
-import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { ThreadOrchestratorService } from 'discord/features/characterThread/services/thread-orchestrator.service'
 import { TypedEventService } from 'src/core/events/typed-event.service'
 import { CharacterUpdateCompletedEvent } from 'events/contracts/unified-event-contracts'
@@ -20,7 +18,6 @@ import { CharacterUpdateCompletedHandler } from './character.update.completed'
 
 describe('CharacterUpdateCompletedHandler', () => {
   let handler: CharacterUpdateCompletedHandler
-  let characterUIService: jest.Mocked<Pick<CharacterUIService, 'updateCharacterEmbed'>>
   let threadOrchestratorService: jest.Mocked<Pick<ThreadOrchestratorService, 'updateCharacterThreadDisplay'>>
   let typedEventService: jest.Mocked<Pick<TypedEventService, 'on'>>
 
@@ -43,9 +40,6 @@ describe('CharacterUpdateCompletedHandler', () => {
   }
 
   beforeEach(async () => {
-    characterUIService = {
-      updateCharacterEmbed: jest.fn().mockResolvedValue(undefined)
-    }
     threadOrchestratorService = {
       updateCharacterThreadDisplay: jest.fn().mockResolvedValue(undefined)
     }
@@ -56,7 +50,6 @@ describe('CharacterUpdateCompletedHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         CharacterUpdateCompletedHandler,
-        { provide: CharacterUIService, useValue: characterUIService },
         { provide: ThreadOrchestratorService, useValue: threadOrchestratorService },
         { provide: TypedEventService, useValue: typedEventService }
       ]
@@ -134,7 +127,7 @@ describe('CharacterUpdateCompletedHandler', () => {
   })
 
   describe('handle', () => {
-    it('channelId / threadId ありで embed とスレッド表示を更新し、正常完了する', async () => {
+    it('threadId ありでスレッド表示を更新し、正常完了する', async () => {
       // Arrange
       const event = buildEvent()
 
@@ -142,20 +135,6 @@ describe('CharacterUpdateCompletedHandler', () => {
       await handler.handle(event)
 
       // Assert
-      expect(characterUIService.updateCharacterEmbed).toHaveBeenCalledWith('ch-1', event.character)
-      expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
-    })
-
-    it('discordChannelId 無しのときは embed 更新を呼ばない', async () => {
-      // Arrange: channelId 無し、threadId のみ
-      const event = buildEvent({ discordChannelId: undefined })
-
-      // Act
-      await handler.handle(event)
-
-      // Assert
-      expect(characterUIService.updateCharacterEmbed).not.toHaveBeenCalled()
-      // threadId はあるのでスレッド更新は呼ばれる
       expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
     })
 
@@ -168,19 +147,6 @@ describe('CharacterUpdateCompletedHandler', () => {
 
       // Assert
       expect(threadOrchestratorService.updateCharacterThreadDisplay).not.toHaveBeenCalled()
-      // channelId はあるので embed 更新は呼ばれる
-      expect(characterUIService.updateCharacterEmbed).toHaveBeenCalledWith('ch-1', event.character)
-    })
-
-    it('embed 更新が失敗しても握り潰して後続処理を続行する', async () => {
-      // Arrange
-      characterUIService.updateCharacterEmbed.mockRejectedValue(new Error('embed boom'))
-      const event = buildEvent()
-
-      // Act & Assert: 再スローされない
-      await expect(handler.handle(event)).resolves.toBeUndefined()
-      // 後続のスレッド更新は実行される
-      expect(threadOrchestratorService.updateCharacterThreadDisplay).toHaveBeenCalledWith(event.character)
     })
 
     it('スレッド表示更新が失敗しても握り潰して正常終了する', async () => {

@@ -33,6 +33,7 @@ import { EventBusService } from 'events/bus/event-bus.service'
 ## 設定ファイル
 
 ### tsconfig.json
+
 ```json
 {
   "compilerOptions": {
@@ -55,6 +56,7 @@ import { EventBusService } from 'events/bus/event-bus.service'
 ```
 
 ### jest.config.js
+
 ```javascript
 module.exports = {
   moduleNameMapper: {
@@ -62,13 +64,13 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@domains/(.*)$': '<rootDir>/src/domains/$1',
     '^@discord/(.*)$': '<rootDir>/src/discord/$1',
-    
+
     // 絶対パス
     '^domains/(.*)$': '<rootDir>/src/domains/$1',
     '^discord/(.*)$': '<rootDir>/src/discord/$1',
     '^events/(.*)$': '<rootDir>/src/events/$1',
     '^shared/(.*)$': '<rootDir>/src/shared/$1',
-    
+
     // src/からの絶対パス
     '^src/(.*)$': '<rootDir>/src/$1'
   }
@@ -78,15 +80,15 @@ module.exports = {
 ## 使用例
 
 ### Before (相対パス)
+
 ```typescript
-import { CharacterUIService } from '../../../features/characterEdit/services/character-ui.service'
 import { DiscordClientService } from '../../services/discord-client.service'
 import { Character } from '../../../../../domains/character/models/character.model'
 ```
 
 ### After (絶対パス)
+
 ```typescript
-import { CharacterUIService } from 'discord/features/characterEdit/services/character-ui.service'
 import { DiscordClientService } from 'discord/services/discord-client.service'
 import { Character } from 'domains/character/models/character.model'
 ```
