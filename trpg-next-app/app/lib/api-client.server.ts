@@ -1,15 +1,17 @@
 import 'server-only'
 
+// TRPG-SERVER の 2xx は常に SuccessEnvelope。response.data.data の取り出しはこの不変条件に依存する。
 import axios, { AxiosHeaders } from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, RawAxiosHeaders } from 'axios'
 import http from 'node:http'
 import https from 'node:https'
-import { cookies } from 'next/headers'
 import { getServerDomain, isProduction } from '../config/env.server'
+import { readJwt } from './auth-guard.server'
 
 let axiosInstance: AxiosInstance | undefined
 
 function getApiBaseUrl(): string {
+  // localhost の IPv6 解決差を避け、TRPG-SERVER への接続を IPv4 に固定する。
   return getServerDomain().replace('://localhost', '://127.0.0.1')
 }
 
@@ -21,10 +23,11 @@ function getAxiosInstance(): AxiosInstance {
       headers: {
         'Content-Type': 'application/json'
       },
+      // Node.js の HTTP/HTTPS 接続も IPv4 に固定する。
       httpAgent: new http.Agent({ family: 4 }),
       httpsAgent: new https.Agent({
         family: 4,
-        rejectUnauthorized: isProduction()
+        rejectUnauthorized: isProduction() // development では自己署名証明書を許容する。
       })
     })
   }
@@ -32,11 +35,8 @@ function getAxiosInstance(): AxiosInstance {
   return axiosInstance
 }
 
-async function withAuthorization<Data>(
-  config: AxiosRequestConfig<Data> | undefined,
-  explicitJwt: string | undefined
-): Promise<AxiosRequestConfig<Data>> {
-  const jwt = explicitJwt === undefined ? (await cookies()).get('jwt')?.value : explicitJwt
+async function withAuthorization<Data>(config: AxiosRequestConfig<Data> | undefined): Promise<AxiosRequestConfig<Data>> {
+  const jwt = await readJwt()
 
   if (!jwt) {
     return config ?? {}
@@ -52,45 +52,40 @@ async function withAuthorization<Data>(
 
 async function get<ResponseData = unknown>(
   url: string,
-  config?: AxiosRequestConfig,
-  jwt?: string
+  config?: AxiosRequestConfig
 ): Promise<AxiosResponse<ResponseData>> {
-  return getAxiosInstance().get<ResponseData>(url, await withAuthorization(config, jwt))
+  return getAxiosInstance().get<ResponseData>(url, await withAuthorization(config))
 }
 
 async function post<ResponseData = unknown, RequestData = unknown>(
   url: string,
   data?: RequestData,
-  config?: AxiosRequestConfig<RequestData>,
-  jwt?: string
+  config?: AxiosRequestConfig<RequestData>
 ): Promise<AxiosResponse<ResponseData>> {
-  return getAxiosInstance().post<ResponseData>(url, data, await withAuthorization(config, jwt))
+  return getAxiosInstance().post<ResponseData>(url, data, await withAuthorization(config))
 }
 
 async function put<ResponseData = unknown, RequestData = unknown>(
   url: string,
   data?: RequestData,
-  config?: AxiosRequestConfig<RequestData>,
-  jwt?: string
+  config?: AxiosRequestConfig<RequestData>
 ): Promise<AxiosResponse<ResponseData>> {
-  return getAxiosInstance().put<ResponseData>(url, data, await withAuthorization(config, jwt))
+  return getAxiosInstance().put<ResponseData>(url, data, await withAuthorization(config))
 }
 
 async function patch<ResponseData = unknown, RequestData = unknown>(
   url: string,
   data?: RequestData,
-  config?: AxiosRequestConfig<RequestData>,
-  jwt?: string
+  config?: AxiosRequestConfig<RequestData>
 ): Promise<AxiosResponse<ResponseData>> {
-  return getAxiosInstance().patch<ResponseData>(url, data, await withAuthorization(config, jwt))
+  return getAxiosInstance().patch<ResponseData>(url, data, await withAuthorization(config))
 }
 
 async function remove<ResponseData = unknown>(
   url: string,
-  config?: AxiosRequestConfig,
-  jwt?: string
+  config?: AxiosRequestConfig
 ): Promise<AxiosResponse<ResponseData>> {
-  return getAxiosInstance().delete<ResponseData>(url, await withAuthorization(config, jwt))
+  return getAxiosInstance().delete<ResponseData>(url, await withAuthorization(config))
 }
 
 export const apiClient = {

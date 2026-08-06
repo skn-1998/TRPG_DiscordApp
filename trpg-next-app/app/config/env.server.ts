@@ -1,3 +1,5 @@
+import 'server-only'
+
 type NodeEnvironment = 'development' | 'production' | 'test'
 
 interface ServerEnvironment {

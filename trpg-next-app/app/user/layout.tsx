@@ -9,7 +9,7 @@ export default async function UserLayout({ children }: Readonly<{ children: Reac
   await requireJwt()
 
   try {
-    // root の soft-fail 認証状態とは別に、/user 配下の hard gate として再検証する。
+    // root の getAuthState とは別に /users を再取得し、/user 配下の hard gate を成立させる。
     await apiClient.get('/users')
   } catch {
     redirect('/login')
