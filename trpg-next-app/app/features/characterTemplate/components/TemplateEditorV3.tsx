@@ -39,6 +39,7 @@ import type {
   V3EditorFieldType
 } from '../types/v3'
 import {
+  createEditorSignature,
   createField,
   createSection,
   normalizeTemplateReferences,
@@ -69,9 +70,12 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [actionMessages, setActionMessages] = useState<string[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorActionData['intent'] | null>(null)
-  const lastSavedSignatureRef = useRef(createContentSignature(initialTemplate))
+  const lastSavedSignatureRef = useRef(
+    createEditorSignature(initialTemplate, stringifyTables(initialTemplate.tables))
+  )
   const pendingSignatureRef = useRef<string | null>(null)
   const templateRef = useRef(template)
+  const tablesTextRef = useRef(tablesText)
 
   const activeSection = useMemo(
     () => template.sections.find((section) => section.id === activeSectionId) ?? template.sections[0],
@@ -86,7 +90,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
   useEffect(() => {
     templateRef.current = template
-  }, [template])
+    tablesTextRef.current = tablesText
+  }, [tablesText, template])
 
   const buildPayload = useCallback((): CharacterSheetTemplateEntity => {
     const parsedTables = safeParseTables(tablesText)
@@ -104,7 +109,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           return
         }
 
-        const signature = createContentSignature(payload)
+        const signature = createEditorSignature(payload, tablesText)
         pendingSignatureRef.current = signature
         setLocalMessages([])
         setSaveState('saving')
@@ -120,9 +125,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         if (!actionResult.template) return
 
         const returned = actionResult.template
-        const currentSignature = createContentSignature(templateRef.current)
+        const currentSignature = createEditorSignature(templateRef.current, tablesTextRef.current)
         const pendingSignature = pendingSignatureRef.current
-        lastSavedSignatureRef.current = pendingSignature ?? createContentSignature(returned)
+        lastSavedSignatureRef.current =
+          pendingSignature ?? createEditorSignature(returned, stringifyTables(returned.tables))
         pendingSignatureRef.current = null
 
         if (pendingSignature && currentSignature !== pendingSignature) {
@@ -147,11 +153,11 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         setInFlightIntent(null)
       }
     },
-    [buildPayload, template.templateId]
+    [buildPayload, tablesText, template.templateId]
   )
 
   useEffect(() => {
-    const signature = createContentSignature(template)
+    const signature = createEditorSignature(template, tablesText)
     if (signature === lastSavedSignatureRef.current || saveState === 'conflict' || saveState === 'saving') return
     setSaveState('dirty')
 
@@ -160,18 +166,18 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     }, 1800)
 
     return () => window.clearTimeout(timeout)
-  }, [saveState, submitDraft, template])
+  }, [saveState, submitDraft, tablesText, template])
 
   useEffect(() => {
     try {
       localStorage.setItem(
         `ct.templateDraft.v3.${template.templateId}`,
-        JSON.stringify({ template, cachedAt: new Date().toISOString() })
+        JSON.stringify({ template, tablesText, cachedAt: new Date().toISOString() })
       )
     } catch {
       // 復旧キャッシュなので保存できなくてもサーバー draft の編集は継続する。
     }
-  }, [template])
+  }, [tablesText, template])
 
   const updateTemplate = (patch: Partial<CharacterSheetTemplateEntity>) => {
     setTemplate((current) => ({ ...current, ...patch }))
@@ -595,12 +601,6 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
       </SimpleGrid>
     </Stack>
   )
-}
-
-function createContentSignature(template: CharacterSheetTemplateEntity): string {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 旧実装どおりサーバー管理メタデータを signature から除外する。
-  const { draftRevision, updatedAt, createdAt, publishedAt, status, ...content } = template
-  return JSON.stringify(content)
 }
 
 function extractFieldId(value?: string): string | undefined {

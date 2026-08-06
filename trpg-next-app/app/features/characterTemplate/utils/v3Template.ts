@@ -231,6 +231,20 @@ export function stringifyTables(tables: LookupTable[]): string {
   return JSON.stringify(tables, null, 2)
 }
 
+export function createEditorSignature(template: CharacterSheetTemplateEntity, tablesText: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- サーバー管理メタデータと別 state の tables を signature から除外する。
+  const { draftRevision, updatedAt, createdAt, publishedAt, status, tables, ...content } = template
+  return JSON.stringify({ content, tablesText: normalizeTablesTextForSignature(tablesText) })
+}
+
+function normalizeTablesTextForSignature(tablesText: string): string {
+  try {
+    return `valid:${stringifyTables(safeParseTables(tablesText))}`
+  } catch {
+    return `invalid:${tablesText}`
+  }
+}
+
 /**
  * V2 migration 入力の消費表:
  * - template.schemaVersion: ガードで検査（V2 を表す 2 だけを受理）。

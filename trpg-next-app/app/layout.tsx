@@ -8,8 +8,8 @@ import { getAuthState } from './lib/auth-state.server'
 import theme from './theme'
 
 export const metadata: Metadata = {
-  title: 'New Remix App',
-  description: 'Welcome to Remix!'
+  title: 'TRPG アプリ',
+  description: 'TRPG のキャラクターシート作成・管理アプリ'
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

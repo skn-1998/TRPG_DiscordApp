@@ -10,7 +10,7 @@ interface ServerEnvironment {
 }
 
 const DEFAULT_SERVER_DOMAIN = 'http://127.0.0.1:3000'
-const DEFAULT_HOST_DOMAIN = 'http://127.0.0.1:5173'
+const DEFAULT_HOST_DOMAIN = 'http://127.0.0.1:3100'
 
 let validatedEnvironment: ServerEnvironment | undefined
 

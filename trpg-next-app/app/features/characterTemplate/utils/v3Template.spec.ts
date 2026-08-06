@@ -5,6 +5,7 @@ import type { CharacterSheetTemplateEntity, LookupTable, SheetSection, V3EditorF
 import {
   collectFieldIds,
   collectFieldUids,
+  createEditorSignature,
   createField,
   createSection,
   createStableUid,
@@ -430,6 +431,45 @@ describe('v3Template validation and JSON helpers', () => {
       '[\n  {\n    "id": "crit",\n    "rows": [\n      [\n        1,\n        "critical"\n      ]\n    ]\n  }\n]'
     )
     expect(() => safeParseTables('{"id":"crit"}')).toThrow('tables は JSON array で入力してください')
+  })
+
+  it('createEditorSignature は template が同一でも tables の内容差を検出する', () => {
+    const template = validTemplate()
+
+    expect(createEditorSignature(template, '[]')).not.toBe(
+      createEditorSignature(template, '[{"id":"crit","rows":[[1,"critical"]]}]')
+    )
+  })
+
+  it('createEditorSignature は tablesText の空白整形差を無視する', () => {
+    const template = validTemplate()
+    const tables: LookupTable[] = [{ id: 'crit', rows: [[1, 'critical']] }]
+    const compactTablesText = JSON.stringify(tables)
+    const formattedTablesText = stringifyTables(tables)
+
+    expect(createEditorSignature(template, compactTablesText)).toBe(
+      createEditorSignature(template, formattedTablesText)
+    )
+    expect(createEditorSignature(template, compactTablesText)).toBe(
+      createEditorSignature(validTemplate({ tables }), formattedTablesText)
+    )
+  })
+
+  it('createEditorSignature は invalid JSON でも throw せず決定的かつ valid JSON と異なる署名を返す', () => {
+    const template = validTemplate()
+    const invalidTablesText = '[{"id":"crit"}'
+
+    expect(() => createEditorSignature(template, invalidTablesText)).not.toThrow()
+    expect(createEditorSignature(template, invalidTablesText)).toBe(
+      createEditorSignature(template, invalidTablesText)
+    )
+    expect(createEditorSignature(template, invalidTablesText)).not.toBe(createEditorSignature(template, '[]'))
+  })
+
+  it('createEditorSignature は template の内容差を検出する', () => {
+    expect(createEditorSignature(validTemplate(), '[]')).not.toBe(
+      createEditorSignature(validTemplate({ name: 'Changed' }), '[]')
+    )
   })
 
   const acceptedV2Fixtures: Array<
