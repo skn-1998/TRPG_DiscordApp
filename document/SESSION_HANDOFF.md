@@ -1458,6 +1458,23 @@ restore --staged で収束済み（2026-08-04）。
   （--no-index diff ゼロ再確認）・route spec 6 分岐実読・
   **dev 実測で 401 JSON 契約を確認**（未認証 POST → 401
   {"status":401,"messages":["認証が必要です"]}・認証が body 検証に先行 = 旧同順）。
+- **N5c 完了 = N5（#118）完了（2026-08-06・`f091e00` 5 ファイル +1030/−5）**:
+  editor 632 行を旧と突合実読 — saveState 5 状態・autosave 1800ms・signature merge
+  （lastSaved/pending/templateRef）・localStorage・conflict reload・CRUD/JSX は行単位一致。
+  意図差分は裁定 22 の範囲のみ: fetcher.submit → await saveTemplateDraft（fetcher.data 監視
+  effect を await 直後へ移動・分岐同一）・inFlightIntent/actionMessages 明示化（保存ボタン
+  loading の旧 stale `fetcher.data?.intent` quirk は in-flight intent 判定へ正規化 = 開示済み）。
+  preview は fetch → N5b handler 消費・rollingFieldUid 全ボタンロック・fetcherPersist 構造消滅。
+  spec 追加 4 ケース（12 キー写像 pin・update→publish 順序 pin・409/非 409）実読。
+  検収: build/tsc/lint/test（16 suites/173 tests）緑・旧 app build 緑・dev 実測
+  （未認証 GET /templates/dummy-id/edit → 307 /login）。
+  **検収時の罠（N6 起票へ）**: 初回受入チェーンの `next build` が診断ゼロで型検査失敗 —
+  next-env.d.ts の参照が dev（`.next/dev/types`）と build（`.next/types`）でフリップし、
+  stale な生成型と組むと一過性失敗する。tsc 直叩き緑・build 再実行緑で解消。
+  next-env.d.ts は HEAD 復元してコミット外に維持（gitignore 化の裁定は N6）。
+  **次: N6（#119・配線切替＋Remix 撤去）**。起票済み候補: next-env.d.ts gitignore 裁定・
+  v3Template.ts の stale `../AI.types.md` コメント・UserPageNav inline style・
+  gameSystemList.json 247KB bundle・#78/#79 の close 処理。
 
 ## 参照
 

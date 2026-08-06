@@ -40,7 +40,9 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行先�
   （`isErrorEnvelope` / `errorEnvelopeMessages` / `getResponseStatus` — 旧 app と同名）。
   feature 内に復号を再実装しない（旧 app で #82 の分裂→統合の実害あり）
 - 新規 Server Action は `{ error: string | null }` を返す。追加データは同じオブジェクトに足す
-  （共有 generic 型は作らない — 大粒度レビュー#1 裁定）
+  （共有 generic 型は作らない — 大粒度レビュー#1 裁定）。
+  例外は `saveTemplateDraft`（editor の autosave/save/publish）のみ: 編集を継続するため
+  redirect せず `EditorActionData`（ok/intent/template/conflict/messages）を返す（n5 裁定 22）
 
 ## OAuth / redirect
 
