@@ -1404,6 +1404,16 @@ restore --staged で収束済み（2026-08-04）。
   JWT_COOKIE_NAME 正本化・~/ alias 削除、E = server-only 2 行・意図コメント復活・
   F8 削除・callback 3 分岐 spec＋api-client spec。
   **Med+ 全消化の検収が通るまで N4（#117）に進まない**（campaign 規約）。
+- **N3c 完了（2026-08-06・`1e482d7` 19 ファイル +397/−73）— レビュー#1 クローズ・#116 完了**:
+  Codex は初回、server-only 追加が既存 2 spec を壊す点で統制⑥どおり停止→範囲錠追補
+  （`jest.mock('server-only', ...)` 1 行×2・既存 .server spec の確立パターンを grep 裏取り）
+  で再委譲し完走。検収 Fable 独立実行: build/tsc/lint/test（8 suites/31 tests）緑・
+  旧 app build 緑・dev スモーク（/ 200・/login 200・/user 系 307・callback no-code 307）・
+  eslint 負の対照を自前 probe で独立再現（wire allowlist＋lib→features zone の 2 errors・
+  probe 削除済み）・api-response.util.ts は旧 app と 3 関数 byte 同一を実読確認・
+  'jwt' リテラルは JWT_COOKIE_NAME 定義＋spec pin のみ・explicitJwt/~/alias 残存ゼロ・
+  revalidatePath は character 側の意図的残置のみ（discord 側 F8 は削除）。
+  Med+ 12 件＋Low 同時消化すべて完了。**次: N4（#117・$id.sheet 最重量）**。
 
 ## 参照
 
