@@ -1385,10 +1385,25 @@ restore --staged で収束済み（2026-08-04）。
   （/user/character 307・/ 200）・CharacterCard/List/PageClient 新旧 diff 実読
   （UI byte 級等価・aria-label 1 件のみ追加）・旧ルート JSX との突合で
   CharacterPageClient の忠実性を確認。
-- **大粒度認知負荷レビュー #1 実施中（N1〜N3 俯瞰・必須ゲート）**: Codex adversarial
-  （prompt-review-n123.txt）＋Opus cognitive-load-review モード A 大粒度の二重。
-  重点 = ErrorEnvelope 復号の複製芽・jwt 読み取り分散・コメント剥離の損失監査・
-  旧 app との drift。**Med+ が出たら消化してから N4**（campaign 規約）。
+- **大粒度認知負荷レビュー #1 完了（2026-08-06）— 統合判定 needs-fix → N3c で消化**:
+  二重レビュー（Opus CL-1〜13・Codex F1〜9）は事実矛盾なし・相補。構造否定は両輪ゼロ
+  （概念純減 18→15・方針遵守 6 項目実測）。正本 =
+  `review-results/next-migration/ov1-integration-verdict.md`（Med+ 全 12 件 Fable 裏取り
+  CONFIRMED・消化計画 A〜E・見解相違 1 件裁定・Low 同時消化・見送り 3 件）。
+  裁定の要点: **307 統一と Action 失効 hard redirect は意図的変更として採用**（F4/F5・
+  spec pin と AI.md 開示で消化）・F1（dev OAuth が旧 app へ向く）は運用注記・
+  F8 revalidatePath は削除で旧挙動へ・Server Action 返却形は doc 1 行のみ（型導入否決）。
+- **N3c 消化ラウンド着手（2026-08-06）**: Fable が `trpg-next-app/AI.md` を新設
+  （消化 B: server-only 規則・requireJwt 理由・soft degrade 例外・Action 返却形 1 行・
+  封筒不変条件・OAuth 制約と /auth/callback hop・dev OAuth 運用注記・307/F5 裁定開示）。
+  Codex へ A/C/D/E を委譲（prompt-code-n3c.txt / run-n3c.sh）:
+  A = api-response.util.ts 復元（旧同名 3 export・ApiResponseUtil は YAGNI 非移植）＋
+  auth.service 縮約＋decoder spec、C = eslint 2 ルール移植（wire16 allowlist＋
+  lib→features zone・Vite 固有の namespace 禁止は非移植・負の対照 probe 必須）、
+  D = jwt 引数×5 と explicitJwt 分岐削除・requireJwt→Promise\<void\>・readJwt()/
+  JWT_COOKIE_NAME 正本化・~/ alias 削除、E = server-only 2 行・意図コメント復活・
+  F8 削除・callback 3 分岐 spec＋api-client spec。
+  **Med+ 全消化の検収が通るまで N4（#117）に進まない**（campaign 規約）。
 
 ## 参照
 
