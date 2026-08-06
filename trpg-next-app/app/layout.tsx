@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { ColorSchemeScript, MantineProvider } from '@mantine/core'
 import '@mantine/core/styles.css'
 import './globals.css'
+import { AppLayout } from './components/Layouts/AppLayout'
+import { getAuthState } from './lib/auth-state.server'
 import theme from './theme'
 
 export const metadata: Metadata = {
@@ -10,7 +12,9 @@ export const metadata: Metadata = {
   description: 'Welcome to Remix!'
 }
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const authState = await getAuthState()
+
   return (
     <html lang="ja">
       <head>
@@ -18,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       </head>
       <body>
         <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
-          {children}
+          <AppLayout authState={authState}>{children}</AppLayout>
         </MantineProvider>
       </body>
     </html>
