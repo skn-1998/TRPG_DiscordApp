@@ -1,0 +1,7 @@
+/.next/
+/coverage/
+/node_modules/
+/tsconfig.tsbuildinfo
+# Next dev が自動生成する AI 向けファイルは、この package の成果物として追跡しない。
+/AGENTS.md
+/CLAUDE.md
