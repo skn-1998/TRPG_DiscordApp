@@ -15,6 +15,8 @@ import {
   buildModalTitle,
   sanitizeDescriptionValue
 } from './character-section-editor.util'
+import { characterFieldSectionInfix } from '../custom-id/character-field.custom-id'
+import { EDITABLE_SECTION_TYPES } from '../utils/character-section-descriptor'
 
 describe('character-section-editor.util (pure functions)', () => {
   describe('extractFieldEditValues', () => {
@@ -150,6 +152,13 @@ describe('character-section-editor.util (pure functions)', () => {
       ['character-field-add-item-x', 'item']
     ])('%s -> %s', (customId, expected) => {
       expect(extractSectionFromCustomId(customId)).toBe(expected)
+    })
+
+    it('descriptor の全編集可能セクションを中置から抽出する', () => {
+      for (const sectionType of EDITABLE_SECTION_TYPES) {
+        const customId = `prefix${characterFieldSectionInfix(sectionType)}suffix`
+        expect(extractSectionFromCustomId(customId)).toBe(sectionType)
+      }
     })
 
     it('該当するセクション語が無ければ null', () => {

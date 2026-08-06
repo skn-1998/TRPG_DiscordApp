@@ -4,14 +4,13 @@
  * CharacterSectionEditorService から、副作用を持たない整形・分岐判定ロジックを切り出す。
  * NestJS DI や副作用に依存せず、引数と戻り値だけで完結する。
  *
- * 配置方針（ARCHITECTURE.md 準拠）:
+ * 配置方針（現状）:
  * - getDisplayNumber は core/types に依存する純ヘルパ（discord.js import 無し）。
- * - セクション表示名は ../utils/character-embed.util.ts の正本を参照する。
- * - EmbedSectionType 型に触れるためサービスと同じ characterEdit/services/ 配下に置く。
+ * - セクション表示名と編集可能セクションの正本は ../utils/character-section-descriptor.ts。
+ * - 既存 import path 互換のため、物理移設せず characterEdit/services/ の現配置を維持する。
  */
 
 import { getDisplayNumber, AttributeValue } from '../../../../core/types/attribute.types'
-import { EmbedSectionType } from './character-embed-manager.service'
 import {
   CHARACTER_FIELD_EDIT_CUSTOM_ID_PREFIX,
   CHARACTER_FIELD_ADD_CUSTOM_ID_PREFIX,
@@ -19,6 +18,8 @@ import {
 } from '../custom-id/character-field.custom-id'
 import { CharacterModalCustomId } from '../custom-id/character-modal.custom-id'
 import { getSectionDisplayName } from '../utils/character-embed.util'
+import { EDITABLE_SECTION_TYPES } from '../utils/character-section-descriptor'
+import type { EmbedSectionType } from '../utils/character-section-descriptor'
 
 /**
  * フィールド編集モーダルに流し込む既存値。
@@ -115,10 +116,10 @@ export function extractFieldEditValues(
  * 該当無しは null。
  */
 export function extractSectionFromCustomId(customId: string): EmbedSectionType | null {
-  if (customId.includes(characterFieldSectionInfix('status'))) return 'status'
-  if (customId.includes(characterFieldSectionInfix('parameter'))) return 'parameter'
-  if (customId.includes(characterFieldSectionInfix('skill'))) return 'skill'
-  if (customId.includes(characterFieldSectionInfix('item'))) return 'item'
+  for (const sectionType of EDITABLE_SECTION_TYPES) {
+    if (customId.includes(characterFieldSectionInfix(sectionType))) return sectionType
+  }
+
   return null
 }
 

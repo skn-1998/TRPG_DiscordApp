@@ -43,11 +43,12 @@ export type { EmbedSectionType }
 
 /**
  * セクションタイプから日本語表示名を返す（純粋）。
- * back の実行時 undefined と string 戻り値の型穴は既存 API 互換のため維持する。
+ * back と実行時の未知値は旧 SECTION_NAMES lookup と同じく undefined を返す。
+ * 公開上の string 戻り値型は既存 API 互換のため維持する。
  */
-export function getSectionDisplayName(sectionType: EmbedSectionType): string {
-  const displayName = sectionType === 'back' ? undefined : getDescriptorDisplayName(sectionType)
-  return displayName as string
+export function getSectionDisplayName(sectionType: EmbedSectionType): string
+export function getSectionDisplayName(sectionType: EmbedSectionType): string | undefined {
+  return sectionType === 'back' ? undefined : getDescriptorDisplayName(sectionType)
 }
 
 /**

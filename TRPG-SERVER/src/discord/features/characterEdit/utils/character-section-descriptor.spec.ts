@@ -3,6 +3,7 @@ import type { CharacterEntity } from '../../../../domains/character/models/chara
 import type { CharacterEditSectionType as ContractCharacterEditSectionType } from '../../../../events/contracts/unified-event-contracts'
 import {
   EDITABLE_SECTION_TYPES,
+  getSectionDisplayName,
   SECTION_DESCRIPTORS,
   type CharacterEditSectionType,
   type EditableSectionType
@@ -21,6 +22,13 @@ describe('character-section-descriptor', () => {
       skill: 'スキル',
       item: 'アイテム'
     })
+  })
+
+  it('実行時の未知値は throw せず undefined を返す', () => {
+    const getUnknownDisplayName = () => getSectionDisplayName('unknown' as never)
+
+    expect(getUnknownDisplayName).not.toThrow()
+    expect(getUnknownDisplayName()).toBeUndefined()
   })
 
   it('events の wire 契約 union と双方向に代入可能である', () => {

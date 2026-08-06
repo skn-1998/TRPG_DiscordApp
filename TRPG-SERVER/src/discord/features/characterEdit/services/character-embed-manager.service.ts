@@ -26,7 +26,7 @@ import {
   EmbedSectionType
 } from '../utils/character-embed.util'
 
-// 既存の import 互換のため re-export（型の正本は util 側）
+// 既存の import 互換のため re-export（型の正本は character-section-descriptor.ts）
 export { EmbedSectionType }
 
 @Injectable()
