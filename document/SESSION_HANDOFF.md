@@ -1242,6 +1242,23 @@ U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実
   **ベースライン: 220 suites / 3042 tests・circular 559・HEAD `0848127`**。
   次: K2 = #105（セクション記述テーブル化・設計ノート = review-results/task-105/
   k2-design-notes.md 済み）→ 俯瞰#22。
+- **K2 完了（2026-08-06・`dfe8761` +202/−104・6 ファイル）— #105 完結**:
+  character-section-descriptor.ts 新設 = 5 セクションの表示名/emoji/色/編集可否/メニュー
+  説明の単一正本（pure・discord.js 非依存・editable type は satisfies で
+  CharacterEntity∩UpdateCharacterDto キーへ型拘束 — セクション追加の欠落がコンパイル
+  エラー化）。embed.util は公開 API 不変の内部導出化（UI 出力 byte 不変・'back' の
+  旧挙動 undefined を wrapper で維持）・enhanced-character-edit.util 独自 union と
+  modal-handler.util 4 分岐 switch をテーブル参照化・contracts union は不変＋
+  新規 spec 4 本で drift 固定。負の対照 2 変異（ghost 行→TS2322／displayName 改変→
+  spec 赤）とも確認・SHA 復元済み。
+  検収 Fable 独立実行: diff 全実読・build 0・循環 0（**561**）・full **221 suites /
+  3046 tests 全緑**（+1/+4 検算一致）・eslint 5 本 0・旧列挙残存は spec pin のみ。
+  prettier hook の index 残渣 2 ファイルは restore --staged で解消。
+  指示書事故 1 件（統制ブロック定型の書き落とし → Codex が AI.refactor/AI.test を
+  直接編集・内容正確で受入）はメモリ delegation-prompt-must-name-invariants へ記録済み。
+  **ベースライン: 221 suites / 3046 tests・circular 561・HEAD `dfe8761`**。
+  **Med+ ループの実装は完了（#104/#105）— 次: 俯瞰#22（大粒度二重レビュー）で close 判定。
+  新規 Med+ が出れば消化を継続（ユーザー指示）**。
   (2) **CH-7 決着**: 本番 dispatch は findBestMatch→getMatchScore の1本。matches/matchPattern/
   findAllMatches/hasHandler は spec 専用の意味重複（live 1＋spec-only 2）→ 死蔵去就は #91 へ。
   台帳訂正を AI.refactor.md 俯瞰#5 節に反映済み。

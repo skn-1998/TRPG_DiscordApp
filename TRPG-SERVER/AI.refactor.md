@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-08-06 K2 characterEdit セクション descriptor 一本化（Task #105・未コミット）
+
+`status / parameter / skill / item / basic` の表示名・emoji・色・編集可否・メニュー説明を
+`character-section-descriptor.ts` の単一テーブルへ集約した。`CharacterEditSectionType` と
+`EditableSectionType` はテーブルから導出し、editable 行は `CharacterEntity` と
+`UpdateCharacterDto` 双方のキーに `satisfies` で拘束した。`character-embed.util.ts` の公開
+re-export、`enhanced-character-edit.util.ts` の型 re-export、`basic / back` の既存挙動は維持している。
+
+- safety net: 変更前 3 suites / 123 tests、変更後 focused 4 suites / 127 tests
+- 全量: **221 suites / 3046 tests**（ベースライン 220 / 3042 + 新規 spec 1 / 4）
+- build 成功、check:circular **561 files / 循環 0**、編集 TypeScript 5ファイルの eslint error 0
+- 負の対照: editable `ghost` 行で TS2322、displayName 改変で新規 spec 1件赤を確認
+- 復元: descriptor SHA-256 `948BD6EAC4F3C8A480E5485F062B92232F8DD21D1BE3B1FBF842B2C1CA674B52`
+
+---
+
 ## 2026-08-03 ts-morph 静的解析基盤の新設（tools/static-analysis・未コミット）
 
 リポジトリ直下に `tools/static-analysis/`（`@trpg/static-analysis`）を pnpm workspace パッケージとして
@@ -1411,8 +1427,22 @@ Fable 全ゲート独立検収（build 0・循環 0・full suite 全緑・テス
     prettier pre-commit hook が md 整形を混ぜて index 残渣 → restore --staged で解消
     （HEAD⇄worktree 内容差分ゼロ）。
     **ベースライン: 220 suites / 3042 tests・circular 559・HEAD `0848127`**
-  - 残: K2 = #105（記述テーブル化・設計 = review-results/task-105/k2-design-notes.md）→
-    俯瞰#22（ループ close の大粒度二重レビュー）
+  - **K2（`dfe8761` +202/−104・6 ファイル）— #105 完結**: character-section-descriptor.ts
+    新設（pure・satisfies で editable type を CharacterEntity∩UpdateCharacterDto キーへ拘束）。
+    embed.util は公開 API 不変の内部導出化（メニュー/embed/basic の byte 不変・'back' は
+    wrapper で旧挙動 undefined 維持）・enhanced-character-edit.util の独自 union と
+    modal-handler.util の 4 分岐 switch をテーブル参照化（両者 discord.js 非依存維持）・
+    contracts union は wire 契約として不変＋新規 spec 4 本で drift 固定（editable 4 値・
+    表示名 5 値・契約双方向代入・entity/DTO キー包含）。負の対照 = ghost 行→TS2322／
+    displayName 改変→spec 赤（SHA 復元確認）。詳細 = 本 doc 先頭 2026-08-06 K2 節
+    （Codex 記載・検収済み）。
+    検収独立実行: diff 全実読・build 0・循環 0（**561** = 559＋新規 2）・full
+    **221/3046 全緑**（+1/+4 検算一致）・eslint 5 本 0・旧列挙残存 grep = spec pin のみ。
+    指示書事故 1 件をメモリ記録（統制ブロックのファイル範囲錠・AI.*.md 条項の書き落とし →
+    Codex が AI doc を直接編集。内容正確につき受入）。
+    **ベースライン: 221 suites / 3046 tests・circular 561・HEAD `dfe8761`**
+  - 次: 俯瞰#22（ループ close の大粒度二重レビュー — 対象 K1 `0848127`＋K2 `dfe8761`）。
+    新規 Med+ が出れば消化してからループ終了（ユーザー指示）
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
 第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・
