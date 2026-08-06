@@ -2,8 +2,8 @@ import 'server-only'
 
 import type { SuccessEnvelope, UserProfileWire } from '@trpg/api-contract'
 import { cache } from 'react'
-import { cookies } from 'next/headers'
 import { apiClient } from './api-client.server'
+import { readJwt } from './auth-guard.server'
 
 export interface AuthState {
   user: UserProfileWire | null
@@ -11,6 +11,7 @@ export interface AuthState {
   hasValidJwt: boolean
 }
 
+// error を持たない logged-out 返却形は旧 app の認証状態契約を pin する。
 const loggedOutAuthState: AuthState = {
   user: null,
   isLoggedIn: false,
@@ -18,7 +19,8 @@ const loggedOutAuthState: AuthState = {
 }
 
 export const getAuthState = cache(async (): Promise<AuthState> => {
-  const jwt = (await cookies()).get('jwt')?.value
+  // requireJwt で redirect せず、JWT 不在時も未ログイン表示へ soft degrade する。
+  const jwt = await readJwt()
   if (!jwt) {
     return loggedOutAuthState
   }

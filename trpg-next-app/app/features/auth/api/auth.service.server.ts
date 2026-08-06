@@ -1,7 +1,10 @@
-import type { ErrorEnvelope, LoginDataWire, SuccessEnvelope } from '@trpg/api-contract'
+import 'server-only'
+
+import type { LoginDataWire, SuccessEnvelope } from '@trpg/api-contract'
 import axios from 'axios'
 import { getDiscordApplicationId, getHostDomain } from '../../../config/env.server'
 import { apiClient } from '../../../lib/api-client.server'
+import { errorEnvelopeMessages, isErrorEnvelope } from '../../../lib/api-response.util'
 
 interface JwtCookieOptions {
   httpOnly: true
@@ -11,38 +14,13 @@ interface JwtCookieOptions {
   maxAge: number
 }
 
-function isErrorEnvelope(value: unknown): value is ErrorEnvelope {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { success?: unknown }).success === false &&
-    typeof (value as { error?: unknown }).error === 'string'
-  )
-}
-
-function getErrorEnvelopeMessages(envelope: ErrorEnvelope): string[] {
-  const issueMessages = envelope.issues?.map((issue) => issue.message).filter(Boolean) ?? []
-  if (issueMessages.length > 0) return [...new Set(issueMessages)]
-
-  const causeMessage = envelope.cause?.message
-  if (Array.isArray(causeMessage) && causeMessage.every((message) => typeof message === 'string')) {
-    const causeMessages = causeMessage.filter(Boolean)
-    if (causeMessages.length > 0) return causeMessages
-  }
-
-  const detailMessages = envelope.details?.map((detail) => detail.message).filter(Boolean) ?? []
-  if (detailMessages.length > 0) return [...new Set(detailMessages)]
-
-  return [envelope.error || envelope.message]
-}
-
 function getLoginErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     const responseData: unknown = error.response?.data
 
     if (isErrorEnvelope(responseData)) {
-      return `HTTP ${status}: ${getErrorEnvelopeMessages(responseData).join(' / ')}`
+      return `HTTP ${status}: ${errorEnvelopeMessages(responseData).join(' / ')}`
     }
 
     if (responseData && typeof responseData === 'object' && 'message' in responseData) {
@@ -88,6 +66,6 @@ export function buildJwtCookieOptions(isProductionEnvironment: boolean): JwtCook
     secure: isProductionEnvironment,
     sameSite: isProductionEnvironment ? 'none' : 'lax',
     path: '/',
-    maxAge: 604800
+    maxAge: 604800 // 7 日
   }
 }

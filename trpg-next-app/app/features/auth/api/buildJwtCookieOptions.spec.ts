@@ -1,3 +1,5 @@
+jest.mock('server-only', () => ({}))
+
 jest.mock('../../../config/env.server', () => ({
   getDiscordApplicationId: jest.fn(),
   getHostDomain: jest.fn()

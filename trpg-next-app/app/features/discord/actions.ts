@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { requireJwt } from '../../lib/auth-guard.server'
 import {
   getDiscordServers,
@@ -35,11 +34,7 @@ export async function postCharacterToDiscord(characterId: string, guildId: strin
   await requireJwt()
 
   try {
-    const result = await postCharacterToDiscordRequest(characterId, guildId)
-    if (result.success) {
-      revalidatePath('/user/character')
-    }
-    return result
+    return await postCharacterToDiscordRequest(characterId, guildId)
   } catch {
     return {
       success: false,

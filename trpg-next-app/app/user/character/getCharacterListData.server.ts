@@ -1,8 +1,8 @@
 import 'server-only'
 
 import type { CharacterSummaryWire } from '@trpg/api-contract'
-import { cookies } from 'next/headers'
 import { getUserCharacterSummaries } from '../../features/character/api/character.service.server'
+import { readJwt } from '../../lib/auth-guard.server'
 
 interface CharacterListData {
   characters: CharacterSummaryWire[]
@@ -10,6 +10,7 @@ interface CharacterListData {
   isAuthenticated: boolean
 }
 
+// error フィールドを含む返却形は旧 app の character loader 契約を pin する。
 const failedCharacterListData: CharacterListData = {
   characters: [],
   error: 'Failed to load characters',
@@ -17,7 +18,8 @@ const failedCharacterListData: CharacterListData = {
 }
 
 export async function getCharacterListData(): Promise<CharacterListData> {
-  const jwt = (await cookies()).get('jwt')?.value
+  // requireJwt で redirect せず、JWT 不在時も空一覧へ soft degrade する。
+  const jwt = await readJwt()
   if (!jwt) {
     return failedCharacterListData
   }
