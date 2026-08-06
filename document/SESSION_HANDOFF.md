@@ -1424,6 +1424,14 @@ restore --staged で収束済み（2026-08-04）。
   Server Action saveSheet は {error, conflict?} 返却＋成功 redirect・sheet 無しは inline Alert
   簡略化・NumberInput は Mantine 9.5.1 実測で 7 系と同一意味論（NumberInputValue=number|string）・
   純関数（editableScalarFields/readEditableValue/deriveSheetChanges）を sheet-edit.ts へ抽出し spec pin。
+- **N4 完了（2026-08-06・`54fec55` 10 ファイル +636/−2）— #117 完了**: Codex 一発完走。
+  検収 Fable 独立実行: build（/user/character/[id]/sheet ルート生成確認）/tsc/lint/test
+  （11 suites/49 tests）緑・旧 app build 緑・dev スモーク（未認証 sheet 307→/login）・
+  v3.ts 新旧 byte 同一（--no-index 突合）・全 10 ファイル diff 実読。
+  実装の要点確認済み: redirect は try/catch 外（NEXT_REDIRECT 保護）・sheet-edit.ts の
+  CharacterSheetChange import は `import type`（server-only 越境なし）・quirk 全保存
+  （hasInvalidNumber・disabled 条件・Alert 3 色・NaN Object.is spec pin つき）。
+  **次: N5（#118・templates 一覧/編集/dice-preview の 3 ルート・fetcher 3 コンポーネント再設計）**。
 
 ## 参照
 
