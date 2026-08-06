@@ -1475,6 +1475,38 @@ restore --staged で収束済み（2026-08-04）。
   **次: N6（#119・配線切替＋Remix 撤去）**。起票済み候補: next-env.d.ts gitignore 裁定・
   v3Template.ts の stale `../AI.types.md` コメント・UserPageNav inline style・
   gameSystemList.json 247KB bundle・#78/#79 の close 処理。
+- **N6 設計フェーズ完了（2026-08-06・裁定 24〜32 = n6-design-notes.md）→ N6a Codex 委譲済み**:
+  **3 分割** = N6a 配線切替（Codex・旧 app 存置のまま Dockerfile 新設/compose ×2/nginx/
+  verify.yml/root package.json/redirects 5 本/start script/gitignore/stale コメント）→
+  N6b 削除（**Fable 実施** — git rm -r trpg-remix-app・workspace yaml・pnpm install lockfile 追随・
+  trpg-remix-frontend skill 削除・next-env.d.ts rm --cached）→ N6c doc 全面更新（Fable）。
+  主要裁定: コンテナ内 3000 統一（dev host 3100:3000・start script は既定 3000 へ）／
+  nginx は service 名参照へ（**pre-existing prod 欠陥開示**: default.conf が dev の
+  container_name TRPG-CLIENT:5173 を参照し prod では解決不能だった）＋ / に ws upgrade（HMR）／
+  redirects 5 本 307（旧 302 → 307 統一裁定・開示）／next-env.d.ts gitignore 化＋
+  **CI は build→typecheck 順へ**（clean checkout では next build が型宣言を生成してから
+  tsc の必要・N5c footgun の恒久対処）／rename しない（churn>益・記録のみ）。
+  **ops 注意点**: trpg-next-app/.env 不存在（実測）— compose 切替後は DISCORD_APPLICATIONID 必須
+  （env.server.ts throw）。ユーザーが trpg-remix-app/.env の内容を N6b 前に移すこと。
+  full stack up 検証は Atlas DNS 隔離で不能 → app イメージ単体 build＋dummy run で代替。
+- **N6a 完了（2026-08-06・`651de27` 10 ファイル +123/−23）→ N6b は権限ブロックで停止中**:
+  Codex は実装後 pnpm verifyDepsBeforeRun ゲート（package.json 編集で要 install）で統制⑥停止 →
+  Fable が `pnpm install`（lockfile 無変更・状態更新のみ）後に受入を独立実行:
+  クリーン相当チェーン（next-env.d.ts/.next 削除 → build 12 routes → tsc → lint →
+  test 16 suites/173）緑・旧 app build 緑・compose config 両方 exit 0・
+  **redirects 5 本を dev 実測（全て 307 → /user/character）**・全 diff 実読（裁定逸脱なし）。
+  **docker image build は環境ブロックで未実施**: Docker Desktop エンジン pipe 不在・起動要求後も
+  プロセス不成立（service Stopped・GUI/昇格が必要）・WSL も swap vhdx 欠落で不動。
+  → ユーザー引継ぎ: Desktop 起動後 `docker compose -f docker-compose.prod.yml build app`＋
+  dummy env run で確認（恒久化は #20 CI 追補と合流）。
+  **N6b（trpg-remix-app 削除）は auto mode の権限クラシファイアが `git rm -r` を拒否**。
+  迂回せず停止（削除の最終判断はユーザーへ）。実施済み: workspace yaml から entry 削除・
+  Dockerfile の旧 manifest COPY 削除（いずれも未コミット・working tree）・
+  next-env.d.ts の `git rm --cached`（staged・ファイルは残存）。
+  残る手順（ユーザー許可後）: ①trpg-remix-app/.env を trpg-next-app/.env へ移す（ユーザー）→
+  ②`git rm -r trpg-remix-app`＋`git rm -r .agents/skills/trpg-remix-frontend` →
+  ③`pnpm install`（lockfile から importer 除去）→ ④next chain＋server build＋check:circular 再検証 →
+  ⑤N6b コミット → ⑥N6c doc 全面更新（Fable）→ ⑦最終大粒度レビュー（#120）。
 
 ## 参照
 
