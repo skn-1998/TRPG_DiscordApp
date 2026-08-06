@@ -1245,8 +1245,10 @@ U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実
 - **K2 完了（2026-08-06・`dfe8761` +202/−104・6 ファイル）— #105 完結**:
   character-section-descriptor.ts 新設 = 5 セクションの表示名/emoji/色/編集可否/メニュー
   説明の単一正本（pure・discord.js 非依存・editable type は satisfies で
-  CharacterEntity∩UpdateCharacterDto キーへ型拘束 — セクション追加の欠落がコンパイル
-  エラー化）。embed.util は公開 API 不変の内部導出化（UI 出力 byte 不変・'back' の
+  CharacterEntity∩UpdateCharacterDto キーへ型拘束 — **descriptor に架空キーを書く方向**の
+  欠落は TS2322。entity/DTO へ追加して descriptor を忘れる逆方向は検出されない
+  = 俯瞰#22 F2 で訂正済み。K2 コミット文の「セクション追加時の欠落がコンパイル
+  エラーになる」は過剰主張）。embed.util は公開 API 不変の内部導出化（UI 出力 byte 不変・'back' の
   旧挙動 undefined を wrapper で維持）・enhanced-character-edit.util 独自 union と
   modal-handler.util 4 分岐 switch をテーブル参照化・contracts union は不変＋
   新規 spec 4 本で drift 固定。負の対照 2 変異（ghost 行→TS2322／displayName 改変→
@@ -1259,6 +1261,32 @@ U5（封筒統一・9eae435 まで）/ T19 `42f12fd` / T31 `7ef6819` / T30（実
   **ベースライン: 221 suites / 3046 tests・circular 561・HEAD `dfe8761`**。
   **Med+ ループの実装は完了（#104/#105）— 次: 俯瞰#22（大粒度二重レビュー）で close 判定。
   新規 Med+ が出れば消化を継続（ユーザー指示）**。
+- **俯瞰#22 完了（2026-08-06・統合判定 needs-fix→K3 で close）**: 正本 =
+  review-results/overview-22/ov22-integration-verdict.md。Opus（Go・実測 5 表）と
+  Codex（needs-fix・Med 2）は事実矛盾なく相補 — ユーザー指示「Med+ 解消まで継続」により
+  厳しい側を採用。Med 5 件全て Fable 裏取り CONFIRMED:
+  C-1 extractSectionFromCustomId の editable 4 値独立列挙（新セクションで modal 経路
+  silent null）／C-2 UI byte pin の穴（menu label/description・色 3/5 未固定）／
+  F1 未知値の失敗モード TypeError 化（cast 握り潰し・到達不能）／F2 satisfies 一方向の
+  過剰主張（記録訂正で消化・逆方向 closure は description が意図的 UI 外のため不採用）／
+  F3 stale 配置理由（section-editor.util:9-14・README:48-49）。
+  Low 3 件は起票: #109（re-export 鎖＋同名 2 契約）・#110（characterThread 5 サイト統合
+  裁定・tab 'status'→parameter 意味ずれの単独裁定つき）・#111（update.completed の
+  到達不能 retry 構造）。両輪一致の健全性: K1 残骸 0・D 検証能力純減なし・K2 挙動保存・
+  認知負荷 net 純減。
+- **K3 完了（2026-08-06・`c892fbf` +68/−22・8 ファイル）— 俯瞰#22 Med 消化・ループ close**:
+  C-1 = EDITABLE_SECTION_TYPES 走査導出化（受理範囲・表順保存）＋descriptor 全行追従の
+  completeness spec／C-2 = menu 4 option {label,value,description}＋embed 5 件
+  {title,color} の期待値ベタ書き完全一致 pin（独立 oracle）／F1 = overload 化で cast 撤去・
+  未知値→undefined 復元＋pin 2 本＋コメント実態化／F3 = descriptor import type 化・
+  正本コメント/README 訂正。負の対照 3 変異全て赤・SHA 復元確認。
+  検収 Fable 独立実行: diff 全実読・build 0・循環 0（561）・full **221 suites /
+  3051 tests 全緑**（+5 検算一致）・eslint error 0（warning 2 は既存行）。
+  **ベースライン: 221 suites / 3051 tests・circular 561・HEAD `c892fbf`**。
+  **Med+ 消化ループ（ユーザー指示）は close — #104 [High]・#105 [Med]・俯瞰#22 の
+  Med 5 件すべて消化済み。残 backlog は Low/疑義のみ（#94-#96/#106-#111 ほか）。
+  push はユーザー判断（`62a84f3` 以降 12 コミット未 push）。
+  K フェーズ記録済み — compact 推奨タイミング**。
   (2) **CH-7 決着**: 本番 dispatch は findBestMatch→getMatchScore の1本。matches/matchPattern/
   findAllMatches/hasHandler は spec 専用の意味重複（live 1＋spec-only 2）→ 死蔵去就は #91 へ。
   台帳訂正を AI.refactor.md 俯瞰#5 節に反映済み。
