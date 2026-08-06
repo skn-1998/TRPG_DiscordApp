@@ -16,6 +16,9 @@
 
 document
 e2e
+# ローカル証跡（コミット対象外）。context に入ると書き込みの度に COPY . . の
+# キャッシュが飛び、build/production の重複再実行 → 低メモリ VM で OOM を誘発する
+review-results
 
 *.log
 _eval_answer_tmp.md

@@ -1,4 +1,0 @@
-interface:
-  display_name: "TRPG Remix Frontend"
-  short_description: "TRPG Remix frontend design rules"
-  default_prompt: "Use $trpg-remix-frontend to guide frontend work in trpg-remix-app."
