@@ -1452,6 +1452,12 @@ restore --staged で収束済み（2026-08-04）。
   N5c 追補裁定は n5-design-notes.md 裁定 22 に記載済み（editor 実読完了・autosave 機構
   無変更移植・v3_fetcherPersist quirk は await 化で構造消滅・preview fetch の network
   例外分岐新設を開示）。
+- **N5b 完了（2026-08-06・`7e9960e` 4 ファイル +451）→ N5c Codex 委譲済み**:
+  検収 Fable 独立実行: build（/templates/dice-preview 生成）/tsc/lint/test
+  （16 suites/169 tests）緑・旧 app build 緑・dicePreview utils は新旧 byte 同一
+  （--no-index diff ゼロ再確認）・route spec 6 分岐実読・
+  **dev 実測で 401 JSON 契約を確認**（未認証 POST → 401
+  {"status":401,"messages":["認証が必要です"]}・認証が body 検証に先行 = 旧同順）。
 
 ## 参照
 
