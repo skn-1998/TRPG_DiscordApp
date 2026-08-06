@@ -123,7 +123,7 @@ postcss 系・zustand・immer を**すべて除外**できる（必要になっ�
 | — | **大粒度認知負荷レビュー #1**（N1〜N3 俯瞰・二重）— Med+ 消化まで N4 に進まない | |
 | N4 | `/user/character/:id/sheet`（最重量）: sheet-engine 連携・保存 Server Action・409 conflict 挙動維持・NumberInput の Mantine 9 意味論確認 | 表示・編集・保存・409 が dev で動作 |
 | N5 | templates 系 3 ルート＋fetcher 依存 3 コンポーネント再設計＋dice-preview Route Handler（401 JSON 契約維持）・spec #5 移植 | 一覧・編集・publish・preview ロール動作 |
-| N6 | 配線切替: Dockerfile・compose(.prod)・verify.yml・`redirects()` 5 本・**trpg-remix-app 削除**・#79 自然解消・doc 全面更新・rename 裁定 | compose build＋healthcheck 緑・CI 緑 |
+| N6 | 配線切替: Dockerfile・compose(.prod)・verify.yml・`redirects()` 5 本・**trpg-remix-app 削除**・#79 自然解消・doc 全面更新・rename 裁定 | compose build＋healthcheck 緑・CI 緑（※実態訂正 — 最終レビュー M8: N6 時点の受入は local 実測のみで CI に docker ゲートは無かった。最終レビュー消化で verify.yml に両 image の production build ジョブを追加。runtime healthcheck は env secrets が要るため CI 外＝local 実測が正のまま） |
 | — | **最終大粒度レビュー＋campaign close**（記録・compact 合図） | |
 
 ## 5. 横断ルール（全フェーズ共通）
