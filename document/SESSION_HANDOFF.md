@@ -1346,6 +1346,23 @@ restore --staged で収束済み（2026-08-04）。
   インベントリ誤り 2 件目の訂正: 旧 app の Mantine 実解決は 7.8.0 ではなく **7.17.8**
   （N1 以前から。install での変動なしを lock diff で確認）。
   次: N2（認証基盤 — env 機構・api-client 再設計・/login・ガード規約 Next 版）。
+- **N2 完了（2026-08-06・`d890f63` 12 ファイル）**: 設計裁定の正本 =
+  review-results/next-migration/n2-design-notes.md（裁定 6 件: callback hop 方式・
+  serverRequestContext 全廃・requireJwt 許可＝#72 Next 版・cookie domain 死に分岐の
+  非移植・env 遅延検証・旧 app 同一 import パス配置）。実装 = Codex（裁定からの逸脱なし・
+  axios 1.18.1 直依存追加は必要追随）。
+  検収 Fable 独立実行: 全 10 ファイル実読（LoginBtn は旧 login.tsx と UI 等価・
+  no-op hover のみ非移植・逆方向 import 解消を確認）・build/typecheck/lint/test
+  （3 suites/4）緑・旧 app build 緑・dev スモーク 3 点（/login 200＋OAuth URL・
+  /user 未認証 307→/login・callback code なし 307→/login）・lockfile は
+  trpg-next-app importer に閉包（server-only@0.0.1 のみ追加）。
+  開示済み挙動差: rejectUnauthorized 旧 !isDevelopment → 新 isProduction()
+  （NODE_ENV=test のみ差・開発系）。
+  **大粒度レビュー#1 への申し送り**: auth.service.server の ErrorEnvelope 復号
+  （getErrorEnvelopeMessages）は旧 app の api-response.util 系と同種ロジック —
+  N3〜N5 で復号実装が増えたら 1 本化スイープ必須（旧 app で #82/#86 の統合経緯あり）。
+  次: N3（user 系 — (user) layout・useAuth 再設計・Header/nav・character 一覧
+  soft degrade・プレースホルダ 3）。
 
 ## 参照
 
