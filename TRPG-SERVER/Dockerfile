@@ -14,10 +14,13 @@ WORKDIR /usr/src/app
 # install filter / build / dist COPY は実際に消費するパッケージのみ。
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
-COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
+COPY trpg-next-app/package.json ./trpg-next-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
 COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
 COPY packages/api-contract/package.json ./packages/api-contract/package.json
+# tools/* も workspace importer（欠くと COPY . . 後に verifyDepsBeforeRun が
+# 「workspace structure has changed」で pnpm run を拒否する）
+COPY tools/static-analysis/package.json ./tools/static-analysis/package.json
 
 # 開発ステージ
 FROM base AS development
