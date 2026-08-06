@@ -20,6 +20,28 @@ TRPGサーバーのDiscord統合機能に関するアーキテクチャと実装
 
 ---
 
+## 📝 最新メモ（2026-08-06）
+
+### キャラクター embed 更新の並存系統を 4→2 へ（#104/K1 `0848127`）
+
+実測で 4 系統が並存していた: **A**=modal-handler の messageUpdater（編集 UI・全キャラ）/
+**B**=CHARACTER_UPDATE_COMPLETED 購読で CharacterUIService が「キャラクター情報」title 検索→
+サマリを投稿（レガシーキャラ保存時のみ発火・AttributeValue へ String() 直呼びで
+`[object Object]` 破損）/ **C**=characterThread/character-display.service の
+updateCharacterEmbed（no-op ゴースト）＋findExistingCharacterEmbed（本番呼び出しゼロ）/
+**D**=同ハンドラ内の threadOrchestratorService スレッド表示更新。
+
+- **K1 で B 全削除（characterEdit/services/character-ui.service＋utils/character-ui.util）・
+  C の死蔵 2 関数削除**。現行は **A（編集 UI）と D（スレッド表示）の 2 系統のみ**
+- character.update.completed ハンドラの責務は「スレッド表示更新」のみに縮小。
+  emit サイト（modal-handler:342）・イベント契約・retry 契約は不変
+- 挙動差: レガシーキャラのモーダル保存時に破損サマリ embed の投稿/編集が止まる。
+  characterName に「キャラクター情報」を含む場合に B が A のメッセージを誤上書きする
+  潜在事故も消滅
+- 裁定と実測の正本: `review-results/task-104/k1-measurement-and-ruling.md`
+
+---
+
 ## 📝 最新メモ（2026-08-05）
 
 ### characterEdit エラー経路の実測表（俯瞰#20 CL-1(a)・#102/J1 `62a84f3` 反映済み）
