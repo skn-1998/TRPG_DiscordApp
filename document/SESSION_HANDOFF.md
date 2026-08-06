@@ -1440,6 +1440,18 @@ restore --staged で収束済み（2026-08-04）。
   （401 JSON parity・status passthrough — Server Action では status 表現不能のため handler が正当。
   #78 は Next で構造消滅）→ N5c editor＋preview（save/publish Actions・preview は
   handler へ fetch）。旧 action の HTTP status 分岐は Server Action で表現不能 → 開示済み。
+- **N5a 完了（2026-08-06・`16aa805` 11 ファイル +1682/−1）→ N5b Codex 委譲済み**:
+  検収 Fable 独立実行: build（/templates 生成）/tsc/lint/test（14 suites/152 tests）緑・
+  旧 app build 緑・dev スモーク（未認証 /templates 307→/login）・
+  **v3Template.ts/spec は新旧 --no-index diff で import 差分のみを確認**（335/721 行 —
+  設計メモの 301/664 は Measure-Object が空行を数えない計測誤り。Codex の指摘が正）・
+  全 11 ファイル diff 実読。エラー表示面（上部/modal）の写像・localStorage v2 移行導線・
+  autoFocus 例外の文脈保存を確認。
+  レビュー#2 スイープ候補メモ: 移植した v3Template.ts 冒頭コメントが旧 app の
+  `../AI.types.md` を参照（新 app に同 doc なし・stale pointer）。
+  N5c 追補裁定は n5-design-notes.md 裁定 22 に記載済み（editor 実読完了・autosave 機構
+  無変更移植・v3_fetcherPersist quirk は await 化で構造消滅・preview fetch の network
+  例外分岐新設を開示）。
 
 ## 参照
 
