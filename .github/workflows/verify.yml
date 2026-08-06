@@ -60,17 +60,18 @@ jobs:
       - name: Check circular dependencies
         run: pnpm --filter trpg-server --fail-if-no-match run check:circular
 
+      # next build が next-env.d.ts と .next/types を生成してから tsc を回す必要がある。
+      - name: Build frontend
+        run: pnpm --filter trpg-next-app --fail-if-no-match run build
+
       - name: Typecheck frontend
-        run: pnpm --filter trpg-remix-app --fail-if-no-match run typecheck
+        run: pnpm --filter trpg-next-app --fail-if-no-match run typecheck
 
       - name: Lint frontend
-        run: pnpm --filter trpg-remix-app --fail-if-no-match run lint
+        run: pnpm --filter trpg-next-app --fail-if-no-match run lint
 
       - name: Test frontend
-        run: pnpm --filter trpg-remix-app --fail-if-no-match run test
-
-      - name: Build frontend
-        run: pnpm --filter trpg-remix-app --fail-if-no-match run build
+        run: pnpm --filter trpg-next-app --fail-if-no-match run test
 
   lint-server:
     runs-on: ubuntu-latest

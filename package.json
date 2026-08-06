@@ -4,7 +4,7 @@
 		"build:contract": "pnpm --filter @trpg/api-contract build",
 		"build:engine": "pnpm --filter @trpg/sheet-engine build",
 		"build:projection": "pnpm --filter @trpg/sheet-projection build",
-		"check:contract-stack": "pnpm --filter @trpg/api-contract run build && pnpm --filter @trpg/api-contract run test && pnpm --filter trpg-server run build && pnpm --filter trpg-server run typecheck:test && pnpm --filter trpg-server run test -- --testPathPattern \"api-response|response.interceptor|http-exception.filter|auth.controller|user.controller|user-output.contract|character-wire.contract|character.controller.http\" && pnpm --filter trpg-remix-app run typecheck && pnpm --filter trpg-remix-app run lint && pnpm --filter trpg-remix-app run test",
+		"check:contract-stack": "pnpm --filter @trpg/api-contract run build && pnpm --filter @trpg/api-contract run test && pnpm --filter trpg-server run build && pnpm --filter trpg-server run typecheck:test && pnpm --filter trpg-server run test -- --testPathPattern \"api-response|response.interceptor|http-exception.filter|auth.controller|user.controller|user-output.contract|character-wire.contract|character.controller.http\" && pnpm --filter trpg-next-app run typecheck && pnpm --filter trpg-next-app run lint && pnpm --filter trpg-next-app run test",
 		"static:deps": "node tools/static-analysis/run.js dependencies",
 		"static:duplication": "node tools/static-analysis/run.js duplication",
 		"static:independence": "node tools/static-analysis/run.js independence",

@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: trpg-remix-app/Dockerfile
+      dockerfile: trpg-next-app/Dockerfile
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-CLIENT-PROD
     environment:
