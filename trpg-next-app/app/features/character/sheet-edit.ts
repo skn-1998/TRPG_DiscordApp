@@ -1,0 +1,50 @@
+import type { CharacterSheetTemplateEntity, SheetField } from '../characterTemplate/types/v3'
+import type { CharacterSheetChange } from './api/character.service.server'
+
+export type EditableScalarField = Extract<SheetField, { type: 'scalar' }> & {
+  valueType: 'number' | 'text'
+}
+
+export type EditorValue = string | number | undefined
+
+export function editableScalarFields(template: CharacterSheetTemplateEntity): EditableScalarField[] {
+  return template.sections.flatMap((section) =>
+    section.fields.filter(
+      (field): field is EditableScalarField =>
+        field.type === 'scalar' && (field.valueType === 'number' || field.valueType === 'text')
+    )
+  )
+}
+
+export function readEditableValue(field: EditableScalarField, values: Record<string, unknown>): EditorValue {
+  const raw = values[field.uid]
+  if (field.valueType === 'number' && field.parts) {
+    if (typeof raw === 'number') return raw
+    if (raw && typeof raw === 'object' && 'parts' in raw) {
+      const parts = (raw as { parts?: Record<string, unknown> }).parts
+      return typeof parts?.base === 'number' ? parts.base : undefined
+    }
+    return undefined
+  }
+  if (field.valueType === 'number') return typeof raw === 'number' ? raw : undefined
+  return typeof raw === 'string' ? raw : undefined
+}
+
+export function deriveSheetChanges(
+  fields: EditableScalarField[],
+  baseValues: Record<string, unknown>,
+  values: Record<string, EditorValue>
+): CharacterSheetChange[] {
+  return fields.flatMap((field) => {
+    const baseValue = readEditableValue(field, baseValues)
+    const newValue = values[field.uid]
+    if (Object.is(baseValue, newValue)) return []
+    return [
+      {
+        path: { fieldUid: field.uid, ...(field.parts ? { partsKey: 'base' } : {}) },
+        baseValue,
+        newValue
+      }
+    ]
+  })
+}
