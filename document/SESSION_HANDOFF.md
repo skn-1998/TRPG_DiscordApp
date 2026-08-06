@@ -1363,6 +1363,17 @@ restore --staged で収束済み（2026-08-04）。
   N3〜N5 で復号実装が増えたら 1 本化スイープ必須（旧 app で #82/#86 の統合経緯あり）。
   次: N3（user 系 — (user) layout・useAuth 再設計・Header/nav・character 一覧
   soft degrade・プレースホルダ 3）。
+- **N3a 完了（2026-08-06・`6ab091c` 17 ファイル・N3 は a/b 分割）**: 設計 = n3-design-notes.md
+  裁定 7〜9・12。getAuthState()（cache・非 throw）RSC 供給で useAuth 撤去・
+  logout Server Action 化（旧実装は front の httpOnly cookie を誰も消せない構造 —
+  修正として挙動変更を開示）・app/user/layout.tsx 合成 gate（Remix 親 gate 実行則と
+  Next layout 実行則の同型性で挙動保存）・Header/Footer/AppLayout/UserPageNav/
+  discordAvatar 等価移植（NavLink 素 href quirk 保存・Outlet context 消費者 0 で不採用）。
+  検収 Fable 独立実行: 4 受入緑（4 suites/7）・旧 app build 緑・dev スモーク 4 点
+  （/ 200 Header/Footer/未ログイン分岐・/user 307・/user/story 307・/login 200）・
+  移植ペア 5 組の新旧 diff 実読。観察: Codex はコメントを一貫して剥がす傾向 —
+  大粒度レビュー#1 で load-bearing コメント喪失の有無を確認する。
+  次: N3b（/user/character 一覧・gameSystem 分離・到達可能性実測つき）発注済み。
 
 ## 参照
 
