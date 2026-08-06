@@ -2,6 +2,13 @@
 
 ## 📋 **ドキュメント概要** **[最終更新: 2026-06-10]**
 
+> **2026-08-06 K2・characterEdit セクション descriptor drift 固定**:
+> `character-section-descriptor.spec.ts` を新設し、editable 4値の完全一致、5表示名の完全一致、
+> events wire union との双方向代入、editable type の `CharacterEntity` / `UpdateCharacterDto` キー包含を
+> **4 tests** で固定した。既存 spec は変更せず、変更前 focused 3 suites / 123 tests、変更後
+> 4 suites / 127 tests、全量 **221 suites / 3046 tests** が緑。負の対照は editable `ghost` 行で
+> tsc の TS2322、displayName 1件改変で当該 spec の赤化を確認し、SHA-256 一致後に復元後 test も再実行した。
+>
 > **2026-07-28 第3群-b・APP_FILTER 段階導入（D案）**: `GlobalExceptionFilter`（`BaseExceptionFilter` 継承・`src/core/http/global-exception.filter.ts`）を新設し、共有 `APP_GLOBAL_EXCEPTION_FILTER_PROVIDER` 1本を AppModule へ登録した。HttpException と http-errors（`isHttpError`。body-parser の 413/415 等 — Express エラー層は global filter しか通らない）は `super.catch()` 委譲で Nest 既定の直列化をバイト単位保存し（sheet 422 の issues[]・409 の conflicts[]・VP 400 の message 配列を含む）、**真に未知の例外のみ**固定文言の ErrorResponse 封筒 500 に変換する（raw message 非開示・requestId 付きログ・headersSent 時は end()・委譲分岐の二次例外は封筒へフォールスルー = 最終境界は throw しない）。
 > `global-exception.filter.spec.ts` を新設（18 tests・provider 経由の実 HTTP）: object/string/名前付き例外の pass-through、実 APP_PIPE 400 配列、Express エラー層 413、413×@UseFilters 貫通、解決順（controller filter 先勝ち・418）、非 Error throw 4種、hostile accessor object、headersSent 終端、logger 失敗、dev stack を固定。`app.module.spec.ts` に APP_FILTER graph 一意性＋`useGlobalFilters` 不在を追加。`non-finite-formula-save.reproduction.spec.ts` は createHttpApp とインライン両方に本番配線（AppConfigService stub＋APP_PIPE＋APP_FILTER）を追加し byte 予算契約テストが global filter 下で走るようにした（assert 無変更）。`auth.controller.http.spec.ts` / `character.controller.http.spec.ts` に global provider を登録し、既存 assert がそのまま「global を足しても 3 controller の封筒不変」を機械固定。`test/test-app.module.ts` にも filter を写した（第3群-a の pipe と対称）。
 > 変異 M1〜M11（provider 除去・2本目 APP_FILTER・HttpException 委譲除去・raw message 露出・useGlobalFilters 追加・isHttpError 委譲除去・headersSent ガード除去・診断抽出 try/catch 除去・委譲安全網除去）はすべて狙った spec が赤。
