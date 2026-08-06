@@ -1414,6 +1414,16 @@ restore --staged で収束済み（2026-08-04）。
   'jwt' リテラルは JWT_COOKIE_NAME 定義＋spec pin のみ・explicitJwt/~/alias 残存ゼロ・
   revalidatePath は character 側の意図的残置のみ（discord 側 F8 は削除）。
   Med+ 12 件＋Low 同時消化すべて完了。**次: N4（#117・$id.sheet 最重量）**。
+- **N4 設計フェーズ完了（2026-08-06・裁定 13〜18 = n4-design-notes.md）→ Codex 委譲済み**:
+  旧 sheet ルートは 191 行単一ファイル・依存 4 系統を実測。**要注意の実測 = /sheet-templates は
+  封筒なし**（ResponseInterceptor は controller 単位適用・sheet-template controller に無し →
+  `response.data` 直返しが正）。これに伴い **AI.md の「2xx は常に SuccessEnvelope」を
+  封筒化 4 controller スコープへ訂正**（`ai-md-claim-scoping` の再発防止・8 件目を未然回避）。
+  他の裁定: v3 型 55 行 wholesale 移植・sheetTemplateApi は N4 消費分のみ・
+  getCharacter の CustomError ラップ非移植（status 破壊側・新イディオム優先）・
+  Server Action saveSheet は {error, conflict?} 返却＋成功 redirect・sheet 無しは inline Alert
+  簡略化・NumberInput は Mantine 9.5.1 実測で 7 系と同一意味論（NumberInputValue=number|string）・
+  純関数（editableScalarFields/readEditableValue/deriveSheetChanges）を sheet-edit.ts へ抽出し spec pin。
 
 ## 参照
 
