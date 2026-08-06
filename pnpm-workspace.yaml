@@ -1,6 +1,7 @@
 packages:
   - "TRPG-SERVER"
   - "trpg-remix-app"
+  - "trpg-next-app"
   - "packages/*"
   - "tools/*"
 minimumReleaseAge: 1440
