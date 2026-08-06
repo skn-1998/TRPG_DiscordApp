@@ -11,10 +11,8 @@ RUN npm install -g pnpm@11.5.1
 WORKDIR /usr/src/app
 
 # manifest COPY は lockfile の全 importer に必要（frozen-lockfile 検証のため）。
-# trpg-remix-app/package.json は N6b の旧 app 削除時に Fable が外す。
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY TRPG-SERVER/package.json ./TRPG-SERVER/package.json
-COPY trpg-remix-app/package.json ./trpg-remix-app/package.json
 COPY trpg-next-app/package.json ./trpg-next-app/package.json
 COPY packages/sheet-engine/package.json ./packages/sheet-engine/package.json
 COPY packages/sheet-projection/package.json ./packages/sheet-projection/package.json
