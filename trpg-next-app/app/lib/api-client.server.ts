@@ -1,6 +1,7 @@
 import 'server-only'
 
-// TRPG-SERVER の 2xx は常に SuccessEnvelope。response.data.data の取り出しはこの不変条件に依存する。
+// TRPG-SERVER の 2xx は controller 単位で SuccessEnvelope と bare entity に分かれる。
+// unwrap の要否は呼び出し側が endpoint ごとに選ぶ（対応表は AI.md）。
 import axios, { AxiosHeaders } from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, RawAxiosHeaders } from 'axios'
 import http from 'node:http'
