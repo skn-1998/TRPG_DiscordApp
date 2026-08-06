@@ -11,6 +11,9 @@ services:
       - app_root_node_modules:/usr/src/app/node_modules
       - app_node_modules:/usr/src/app/trpg-next-app/node_modules
       - sheet_engine_node_modules:/usr/src/app/packages/sheet-engine/node_modules
+      # app は @trpg/api-contract にも依存する。volume で覆わないと bind mount 側
+      # （ホストの packages/api-contract/node_modules）が container を汚染する（最終レビュー L10）。
+      - api_contract_node_modules:/usr/src/app/packages/api-contract/node_modules
       - app_next_cache:/usr/src/app/trpg-next-app/.next  # Next生成物用ボリューム
     ports:
       - "3100:3000"

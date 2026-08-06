@@ -73,6 +73,22 @@ jobs:
       - name: Test frontend
         run: pnpm --filter trpg-next-app --fail-if-no-match run test
 
+  # N6b で削除済み manifest を COPY し続けた server Dockerfile 破損（最終レビュー H1）を
+  # ローカル/ CI とも検出できなかったため、両 image の production stage build をゲート化する。
+  # runtime healthcheck（compose up）は env secrets が要るため CI 外（ローカル実測が正）。
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build frontend image (production)
+        run: docker build -f trpg-next-app/Dockerfile --target production .
+
+      - name: Build server image (production)
+        run: docker build -f TRPG-SERVER/Dockerfile --target production .
+
   lint-server:
     runs-on: ubuntu-latest
     timeout-minutes: 10

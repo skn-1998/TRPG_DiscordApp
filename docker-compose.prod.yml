@@ -7,8 +7,13 @@ services:
     container_name: TRPG-CLIENT-PROD
     environment:
       NODE_ENV: production
-      SERVER_DOMAIN: https://nginx.io/api
+      # server-to-server は nginx を経由せず直結する。旧値 https://nginx.io/api は
+      # prod ネットワークに存在しない名前（service は nginx・container は nginx.io-prod）で、
+      # かつ production では自己署名証明書が rejectUnauthorized に弾かれる（最終レビュー C-H1/M6）。
+      SERVER_DOMAIN: http://nestjs:3000
       HOST_DOMAIN: https://localhost
+      # env.server.ts が必須 throw するため未指定だと healthcheck 不通→nginx も起動しない。
+      DISCORD_APPLICATIONID: ${DISCORD_APPLICATIONID:?DISCORD_APPLICATIONID is required}
     ports:
       - "3001:3000"  # 本番アプリは3000ポートで動作
     healthcheck:
@@ -27,8 +32,10 @@ services:
       dockerfile: TRPG-SERVER/Dockerfile
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-SERVER-PROD
+    # NOTE: DB / Discord 系の env（MONGODB_URI 等）は未配線。.env* は .dockerignore で
+    # image に入らないため、本番起動には compose 外からの供給が必要（最終レビュー消化で起票済み）。
     environment:
-      NODE_ENV: production  
+      NODE_ENV: production
       FRONTEND_URL: https://localhost
       PORT: 3000
       DOCKER_ENV: true
