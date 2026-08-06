@@ -1441,8 +1441,21 @@ Fable 全ゲート独立検収（build 0・循環 0・full suite 全緑・テス
     指示書事故 1 件をメモリ記録（統制ブロックのファイル範囲錠・AI.*.md 条項の書き落とし →
     Codex が AI doc を直接編集。内容正確につき受入）。
     **ベースライン: 221 suites / 3046 tests・circular 561・HEAD `dfe8761`**
-  - 次: 俯瞰#22（ループ close の大粒度二重レビュー — 対象 K1 `0848127`＋K2 `dfe8761`）。
-    新規 Med+ が出れば消化してからループ終了（ユーザー指示）
+  - **俯瞰#22（二重・統合判定 needs-fix→K3 で close）**: 正本 =
+    review-results/overview-22/ov22-integration-verdict.md。Opus Go ⇄ Codex needs-fix は
+    事実矛盾なし・相補（ユーザー指示により厳しい側採用）。Med 5 = C-1 extract 4 値独立列挙・
+    C-2 UI byte pin 穴・F1 未知値 TypeError 化・F2 satisfies 一方向の過剰主張
+    （ai-md-claim-scoping 7 例目・記録訂正で消化）・F3 stale 配置理由。
+    Low 起票 = #109/#110/#111。健全性は両輪一致（K1 残骸 0・D 純減なし・K2 挙動保存・
+    認知負荷 net 純減: 複製 9→2[characterEdit 内]・追加タスク編集サイト 9→2）
+  - **K3（`c892fbf` +68/−22・8 ファイル）— Med 4 件消化・ループ close**: C-1 走査導出化＋
+    completeness spec／C-2 menu・embed 完全一致 pin（期待値ベタ書き = 独立 oracle）／
+    F1 overload 化で cast 撤去・未知値 undefined 復元＋pin 2／F3 import type 化＋
+    正本コメント/README 訂正。負の対照 3 変異赤・SHA 復元。検収独立実行: build 0・
+    循環 0（561）・full **221/3051 全緑**（+5 検算一致）・eslint error 0。
+    **K フェーズ総括: #104/#105＋俯瞰#22 Med 完済・コミット 6 本（`0848127`/`048abd9`/
+    `dfe8761`/`2d06bde`/`c892fbf`＋記録）・ベースライン 221 suites / 3051 tests・
+    circular 561 files・Med+ 消化ループ close**
 
 fable-rules の3フェーズ規律による大粒度認知負荷レビュー。対象は M2/M3 `507cfcb`・
 第3群-a `7b9f3d9`・第3群-b `1206a3e`+`fd710ba` ＋ 並行分（`ff3e8d6`/`93adb16`/`ebd23ea`・
