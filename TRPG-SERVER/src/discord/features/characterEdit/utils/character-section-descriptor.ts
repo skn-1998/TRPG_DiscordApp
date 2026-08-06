@@ -92,15 +92,14 @@ export function isEditableSectionType(value: string): value is EditableSectionTy
 
 export function getSectionDescriptor<T extends CharacterEditSectionType>(
   type: T
-): Extract<CharacterSectionDescriptor, { readonly type: T }> {
-  return SECTION_DESCRIPTORS.find((descriptor) => descriptor.type === type) as Extract<
-    CharacterSectionDescriptor,
-    { readonly type: T }
-  >
+): Extract<CharacterSectionDescriptor, { readonly type: T }>
+export function getSectionDescriptor(type: CharacterEditSectionType): CharacterSectionDescriptor | undefined {
+  return SECTION_DESCRIPTORS.find((descriptor) => descriptor.type === type)
 }
 
-export function getSectionDisplayName(sectionType: CharacterEditSectionType): string {
-  return getSectionDescriptor(sectionType).displayName
+export function getSectionDisplayName(sectionType: CharacterEditSectionType): string
+export function getSectionDisplayName(sectionType: CharacterEditSectionType): string | undefined {
+  return getSectionDescriptor(sectionType)?.displayName
 }
 
 /** basic/back は編集データを持たないため undefined を返す。 */

@@ -45,8 +45,8 @@ characterEdit/
     └── enhanced-character-edit.util.ts       # customId 解析・分岐判定（discord.js 非依存）
 ```
 
-> `character-modal-handler.util.ts` と `character-section-editor.util.ts` は対応するサービスと密接なため
-> `services/` 配下に置かれています（`Character` / `EmbedSectionType` 型に触れるため。詳細は各ファイル冒頭コメント参照）。
+> `character-modal-handler.util.ts` と `character-section-editor.util.ts` は、従来の型依存を理由とする
+> 配置制約は解消済みです。既存 import path 互換のため物理移設せず、`services/` の現配置を維持しています。
 
 ### 設計原則
 

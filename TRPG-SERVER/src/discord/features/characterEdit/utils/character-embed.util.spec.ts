@@ -34,6 +34,10 @@ describe('character-embed.util', () => {
     ] as const)('%s -> %s', (section, expected) => {
       expect(getSectionDisplayName(section)).toBe(expected)
     })
+
+    it('back は旧 lookup と同じく undefined', () => {
+      expect(getSectionDisplayName('back')).toBeUndefined()
+    })
   })
 
   describe('getSectionData', () => {
@@ -311,6 +315,18 @@ describe('character-embed.util', () => {
         label: '📋 簡易表示'
       })
     })
+
+    it('セクション選択メニューの表示を完全一致で固定する', () => {
+      const menuRow = buildEditComponents('char-1234')[0].toJSON() as any
+      const menu = menuRow.components[0]
+
+      expect(menu.options).toEqual([
+        { label: '📊 ステータス', value: 'status', description: '基本ステータスを編集' },
+        { label: '⚙️ パラメータ', value: 'parameter', description: '能力値やパラメータを編集' },
+        { label: '⚔️ スキル', value: 'skill', description: '技能や特技を編集' },
+        { label: '🎒 アイテム', value: 'item', description: '装備品やアイテムを編集' }
+      ])
+    })
   })
 
   describe('buildSectionedEmbeds', () => {
@@ -326,6 +342,18 @@ describe('character-embed.util', () => {
       ])
       // ダイスロールボタン行は現状空のため components は2行
       expect(components).toHaveLength(2)
+    })
+
+    it('5つのembedのタイトルと色を完全一致で固定する', () => {
+      const { embeds } = buildSectionedEmbeds(buildCharacter())
+
+      expect(embeds.map((embed) => ({ title: embed.toJSON().title, color: embed.toJSON().color }))).toEqual([
+        { title: '🏷️ テスト太郎 - 基本情報', color: 3447003 },
+        { title: '📊 テスト太郎 - ステータス', color: 15158332 },
+        { title: '⚙️ テスト太郎 - パラメータ', color: 3426654 },
+        { title: '⚔️ テスト太郎 - スキル', color: 10181046 },
+        { title: '🎒 テスト太郎 - アイテム', color: 15965202 }
+      ])
     })
   })
 
