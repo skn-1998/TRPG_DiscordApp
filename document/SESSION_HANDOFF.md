@@ -1536,6 +1536,39 @@ restore --staged で収束済み（2026-08-04）。
   AI.refactor.md 等の経緯記録・TRPG-SERVER/docs/reviews・CLAUDE_HANDOFF は歴史として不変更
   （残存 grep で意図的残置のみを確認済み）。
   **次: #120 最終大粒度レビュー（二重・Opus read-only + Codex adversarial）→ campaign close**。
+- **#120 完了（2026-08-07・campaign close）**: 二重レビュー完走（Opus 260k tokens / Codex
+  gpt-5.6-sol xhigh）。統合判定の正本 = `review-results/next-migration/final-review-verdict.md`。
+  要旨: 事実矛盾なし・相互補完（Opus のみ検出: H1 Dockerfile 破損ほか／Codex のみ検出:
+  tables 編集のデータ喪失 C-H2・OAuth state 欠如ほか）。**両者一致の「stub 3 枚無ガード」は
+  過大主張**（user/layout.tsx:9 の requireJwt＋/users hard gate を両者とも見落とし — Fable 実測で
+  訂正。一致≠裏取りの実例としてメモリ反映済み）。
+  即消化: H1（`2aa1294`）／C-H2＋M-5＋L-2＋M-3 doc-in-code = **Codex FR1 スライス**
+  （createEditorSignature 純関数化＋spec 4 本・table-only 編集が dirty/autosave/復旧 cache に
+  乗る・再整形ループ防止の正規化つき。Fable 独立検収: 範囲 6 ファイル一致・diff 実読・
+  build/tsc/lint/jest 16 suites 177 tests 全緑を再実行）／prod compose nestjs 直結＋
+  DISCORD_APPLICATIONID 必須化（fail-fast を config で実証・dummy 値で構文 PROD_OK）／
+  verify.yml に docker-build ジョブ（両 image production build — GH runner 初回実行は次 push 時）／
+  dev compose に api-contract volume（L10）／AI.md 一括訂正 8 項（redirect 3 系統・UI 受入無しの
+  明示・bare 3 controller・action 返却形全量表・二段ゲート・state 未実装開示・spec fixture 許容・
+  移行期 policy 終了）／計画書 N6 受入行の実態訂正（M8）。
+  残余は #121〜#130 へ起票（復号一本化・client テスト基盤・OAuth state・prod nestjs env・
+  auth 3 信号・editor 残債・bare 負のアサーション・248KB payload・dice validator・Low batch）。
+  L11 credential 疑義は別セッション chip（task_dedfbb73）のまま。
+  **Next 移行 campaign（N0〜N6＋最終レビュー）はこれで close。**
+- （旧記録・経緯）#120 中間時点の Opus verdict = close NOT YET
+  （High 4・Med 8・Low 11）。blocking: **H1 = TRPG-SERVER/Dockerfile:17 が削除済み
+  trpg-remix-app/package.json を COPY → server イメージ build 不能（N6b 起因・Fable 裏取り済み・
+  trpg-next-app＋tools manifest へ修正適用済み・base stage 緑・dev stage full build 検証中）**／
+  H2 = AI.md の UI 受入根拠（旧 app 目視突合）が旧 app 削除で消滅・client 13 コンポーネント spec 0／
+  H4 = AI.md「307 統一」の過大主張（Server Action 経由 redirect は Next 仕様で 303・実測 8 サイト
+  未計測）＝ claim-scoping 8 例目／M8 = 計画書の N6 受入「compose build＋healthcheck・CI」が CI に
+  未実装。主要 Med: M1 封筒バレ側の負のアサーション欠如／M3 Server Action 形の未記載例外 2／
+  M4 requireJwt 例外 4 実 1 記載・stub 3 枚無ガード／M6 prod compose の SERVER_DOMAIN が
+  service 名不整合（pre-existing）＋ M7 DISCORD_APPLICATIONID 未配線（prod smoke は env 経路を
+  構造的に踏まない 2 アサーションだった開示含む）。
+  **L11 = TRPG-SERVER/rest.http（tracked）に非プレースホルダの credential らしき 1 行
+  （205 文字・値未読）→ 別セッション chip 発行済み（task_dedfbb73・ローテーション案内含む）**。
+  統合判定は Codex 側到着後（相互矛盾突合 → 消化スライス設計）。
 
 ## 参照
 
