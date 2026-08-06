@@ -1332,6 +1332,20 @@ restore --staged で収束済み（2026-08-04）。
 - フェーズ: N1 scaffold → N2 認証基盤 → N3 user 系 → **大粒度レビュー#1** → N4 sheet →
   N5 templates → N6 切替・撤去 → **最終レビュー＋close**。受入ゲートは計画書 §5
   （新 app 4 コマンド緑＋旧 app build 緑＝非破壊証明＋diff 実読）
+- **N1 完了（2026-08-06・`0d47420` 15 ファイル）**: trpg-next-app 新設（Next 16.3.0 /
+  React 19.2.8 / Mantine 9.5.1・App Router・dark 固定 layout・theme/generateColors 移植・
+  / ページ移植〔認証 TODO(N2) 暫定〕・dev ポート 3100 暫定）。Codex 実装＋Opus 微修正
+  ラウンド（agentRules: false で dev の AGENTS.md/CLAUDE.md 自動生成を停止 — 外来
+  CLAUDE.md の文脈混入防止・負の対照つき実証／.gitignore へ tsbuildinfo）。
+  検収 Fable 独立実行: 新 app build/typecheck/lint/test 緑・旧 app build＋test 緑
+  （7 suites/159）・**server full suite 221/3051 全緑**（lockfile の ts-jest optional peer
+  再解決 29/30.0→30.4.1 が全 importer に及んだため実測 — jest 本体 29.7.0 不変・無害を実証）・
+  dev / HTTP 200＋描画確認。**Mantine 7.17.8⇄9.5.1 の darken/lighten パレット出力等価を
+  跨バージョン実測**（spec pin と三者一致）。theme/generateColors は字面書き換え移植
+  （意味等価を diff 実読で確認・コメント除去は許容判断）。
+  インベントリ誤り 2 件目の訂正: 旧 app の Mantine 実解決は 7.8.0 ではなく **7.17.8**
+  （N1 以前から。install での変動なしを lock diff で確認）。
+  次: N2（認証基盤 — env 機構・api-client 再設計・/login・ガード規約 Next 版）。
 
 ## 参照
 
