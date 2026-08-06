@@ -15,7 +15,9 @@ jest.mock('../character/api/character.service.server', () => ({
 jest.mock('./api/sheetTemplateApi.server', () => ({
   createSheetTemplate: jest.fn(),
   deleteSheetTemplate: jest.fn(),
-  extractApiErrorMessages: jest.fn()
+  extractApiErrorMessages: jest.fn(),
+  publishSheetTemplate: jest.fn(),
+  updateSheetTemplate: jest.fn()
 }))
 
 import { redirect } from 'next/navigation'
@@ -24,9 +26,12 @@ import { createCharacterFromTemplate } from '../character/api/character.service.
 import {
   createSheetTemplate,
   deleteSheetTemplate,
-  extractApiErrorMessages
+  extractApiErrorMessages,
+  publishSheetTemplate,
+  updateSheetTemplate
 } from './api/sheetTemplateApi.server'
-import { createCharacter, createTemplate, deleteTemplate } from './actions'
+import { createCharacter, createTemplate, deleteTemplate, saveTemplateDraft } from './actions'
+import type { CharacterSheetTemplateEntity } from './types/v3'
 
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
@@ -34,6 +39,28 @@ const mockedCreateCharacterFromTemplate = jest.mocked(createCharacterFromTemplat
 const mockedCreateSheetTemplate = jest.mocked(createSheetTemplate)
 const mockedDeleteSheetTemplate = jest.mocked(deleteSheetTemplate)
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
+const mockedPublishSheetTemplate = jest.mocked(publishSheetTemplate)
+const mockedUpdateSheetTemplate = jest.mocked(updateSheetTemplate)
+
+const template: CharacterSheetTemplateEntity = {
+  templateId: 'template-1',
+  name: '探索者テンプレート',
+  version: '1.2.3',
+  schemaVersion: 3,
+  gameSystemId: 'Cthulhu7th',
+  tags: ['CoC', '探索者'],
+  visibility: 'unlisted',
+  authorDiscordUserId: 'discord-user-1',
+  forkedFrom: { templateId: 'source-template', version: '1.0.0' },
+  license: 'CC BY 4.0',
+  sections: [{ id: 'basic', label: '基本情報', fields: [] }],
+  tables: [{ id: 'job', rows: [{ key: 'detective', result: '探偵' }] }],
+  settings: { rounding: 'ceil' },
+  status: 'draft',
+  draftRevision: 7,
+  createdAt: '2026-08-01T00:00:00.000Z',
+  updatedAt: '2026-08-06T00:00:00.000Z'
+}
 
 beforeEach(() => {
   mockedRequireJwt.mockResolvedValue(undefined)
@@ -97,5 +124,78 @@ describe('characterTemplate actions', () => {
     await expect(createTemplate()).resolves.toEqual({ error: '名前は必須です / 値が不正です' })
     expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
     expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('saveTemplateDraft の save 成功時は全キーを update へ渡し publish しない', async () => {
+    const updated = { ...template, draftRevision: 8 }
+    mockedUpdateSheetTemplate.mockResolvedValue(updated)
+
+    await expect(saveTemplateDraft('template-1', 'save', template)).resolves.toEqual({
+      ok: true,
+      intent: 'save',
+      template: updated
+    })
+
+    expect(mockedRequireJwt).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateSheetTemplate).toHaveBeenCalledWith('template-1', {
+      draftRevision: 7,
+      name: '探索者テンプレート',
+      version: '1.2.3',
+      schemaVersion: 3,
+      gameSystemId: 'Cthulhu7th',
+      tags: ['CoC', '探索者'],
+      visibility: 'unlisted',
+      forkedFrom: { templateId: 'source-template', version: '1.0.0' },
+      license: 'CC BY 4.0',
+      sections: [{ id: 'basic', label: '基本情報', fields: [] }],
+      tables: [{ id: 'job', rows: [{ key: 'detective', result: '探偵' }] }],
+      settings: { rounding: 'ceil' }
+    })
+    expect(mockedPublishSheetTemplate).not.toHaveBeenCalled()
+  })
+
+  it('saveTemplateDraft の publish 成功時は update 後の publish entity を返す', async () => {
+    const updated = { ...template, draftRevision: 8 }
+    const published = { ...updated, status: 'published' as const, publishedAt: '2026-08-06T01:00:00.000Z' }
+    mockedUpdateSheetTemplate.mockResolvedValue(updated)
+    mockedPublishSheetTemplate.mockResolvedValue(published)
+
+    await expect(saveTemplateDraft('template-1', 'publish', template)).resolves.toEqual({
+      ok: true,
+      intent: 'publish',
+      template: published
+    })
+
+    expect(mockedUpdateSheetTemplate).toHaveBeenCalledTimes(1)
+    expect(mockedPublishSheetTemplate).toHaveBeenCalledWith('template-1')
+    expect(mockedUpdateSheetTemplate.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedPublishSheetTemplate.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('saveTemplateDraft の 409 は conflict true と抽出メッセージを返す', async () => {
+    const error = { response: { status: 409 } }
+    mockedUpdateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['draftRevision が競合しました'])
+
+    await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
+      ok: false,
+      intent: 'autosave',
+      conflict: true,
+      messages: ['draftRevision が競合しました']
+    })
+  })
+
+  it('saveTemplateDraft の 409 以外は conflict false と抽出メッセージを返す', async () => {
+    const error = { response: { status: 400 } }
+    mockedUpdateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['version が不正です'])
+
+    await expect(saveTemplateDraft('template-1', 'save', template)).resolves.toEqual({
+      ok: false,
+      intent: 'save',
+      conflict: false,
+      messages: ['version が不正です']
+    })
   })
 })
