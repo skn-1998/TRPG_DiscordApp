@@ -31,9 +31,11 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行先�
 
 ## HTTP 封筒・エラー
 
-- **2xx は常に SuccessEnvelope**（server の http-exception.filter が全経路で status を明示するため。
-  `response.data.data` 取り出しはこの不変条件に依存）。失敗は 4xx/5xx＋ErrorEnvelope で
-  axios reject に入る
+- 封筒化は **controller 単位**（server の ResponseInterceptor は auth / user / character /
+  character-sheet に適用・`response-interceptor-application.spec.ts` が pin）。これらの 2xx は
+  常に SuccessEnvelope で `response.data.data` 取り出しはこの不変条件に依存する。
+  **/sheet-templates は封筒なし**（bare entity — template service は `response.data` を直接返す）。
+  失敗は全経路 4xx/5xx＋ErrorEnvelope（GlobalExceptionFilter）で axios reject に入る
 - ErrorEnvelope の復号・status 抽出の正本は `app/lib/api-response.util.ts`
   （`isErrorEnvelope` / `errorEnvelopeMessages` / `getResponseStatus` — 旧 app と同名）。
   feature 内に復号を再実装しない（旧 app で #82 の分裂→統合の実害あり）
