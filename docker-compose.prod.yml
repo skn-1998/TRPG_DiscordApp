@@ -32,10 +32,18 @@ services:
       dockerfile: TRPG-SERVER/Dockerfile
       target: production  # 本番環境用のステージを指定
     container_name: TRPG-SERVER-PROD
-    # NOTE: DB / Discord 系の env（MONGODB_URI 等）は未配線。.env* は .dockerignore で
-    # image に入らないため、本番起動には compose 外からの供給が必要（最終レビュー消化で起票済み）。
+    # 必須 env の正本は TRPG-SERVER/src/config/schemas/environment.schema.ts の
+    # REQUIRED_VARIABLES（6 変数）。.env* は .dockerignore で image に入らないため
+    # compose 外から供給する（例: docker compose --env-file TRPG-SERVER/.env -f docker-compose.prod.yml up）。
+    # 欠落は compose 段階で fail-fast させる（app 側 DISCORD_APPLICATIONID と同方式・#124）。
     environment:
       NODE_ENV: production
+      TOKEN: ${TOKEN:?TOKEN is required}
+      DISCORD_APPLICATIONID: ${DISCORD_APPLICATIONID:?DISCORD_APPLICATIONID is required}
+      DISCORD_SECRET: ${DISCORD_SECRET:?DISCORD_SECRET is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      MONGODB_URI: ${MONGODB_URI:?MONGODB_URI is required}
+      DISCORD_TOKEN_ENCRYPTION_KEY: ${DISCORD_TOKEN_ENCRYPTION_KEY:?DISCORD_TOKEN_ENCRYPTION_KEY is required}
       FRONTEND_URL: https://localhost
       PORT: 3000
       DOCKER_ENV: true
