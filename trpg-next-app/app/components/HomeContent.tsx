@@ -10,7 +10,7 @@ interface HomeContentProps {
 }
 
 export function HomeContent({ authState }: HomeContentProps) {
-  const { user, isLoggedIn } = authState
+  const { user } = authState
 
   return (
     <Container size="md" py="xl">
@@ -25,7 +25,7 @@ export function HomeContent({ authState }: HomeContentProps) {
           </Text>
         </div>
 
-        {isLoggedIn && user ? (
+        {user ? (
           <Stack gap="md">
             <Title order={2}>おかえりなさい、{user.name}さん！</Title>
             <Group grow>

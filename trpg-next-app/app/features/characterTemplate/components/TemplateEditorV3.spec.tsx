@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { saveTemplateDraft } from '../actions'
 import type { CharacterSheetTemplateEntity, LookupTable } from '../types/v3'
-import { TemplateEditorV3 } from './TemplateEditorV3'
+import { AUTOSAVE_DEBOUNCE_MS, TemplateEditorV3 } from './TemplateEditorV3'
 
 jest.mock('../actions', () => ({
   saveTemplateDraft: jest.fn()
@@ -33,6 +33,7 @@ const initialTemplate: CharacterSheetTemplateEntity = {
 
 const editedTables: LookupTable[] = [{ id: 'luck', rows: [['01', '大成功']] }]
 const editedTablesText = JSON.stringify(editedTables, null, 2)
+const reEditedTablesText = JSON.stringify([{ id: 'luck', rows: [['02', '成功']] }], null, 2)
 const mockedSaveTemplateDraft = jest.mocked(saveTemplateDraft)
 
 function renderEditor() {
@@ -47,7 +48,7 @@ function editTables() {
   fireEvent.change(screen.getByLabelText('tables'), { target: { value: editedTablesText } })
 }
 
-async function advanceAutosave(milliseconds = 1800) {
+async function advanceAutosave(milliseconds = AUTOSAVE_DEBOUNCE_MS) {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(milliseconds)
   })
@@ -56,10 +57,7 @@ async function advanceAutosave(milliseconds = 1800) {
 describe('TemplateEditorV3 autosave', () => {
   beforeEach(() => {
     jest.useFakeTimers()
-    localStorage.clear()
-    mockedSaveTemplateDraft.mockImplementation(async (_templateId, intent, payload) => ({
-      ok: true,
-      intent,
+    mockedSaveTemplateDraft.mockImplementation(async (_templateId, _intent, payload) => ({
       template: { ...payload, draftRevision: payload.draftRevision + 1 }
     }))
   })
@@ -88,19 +86,9 @@ describe('TemplateEditorV3 autosave', () => {
 
     editTables()
     await advanceAutosave()
-    await advanceAutosave(3600)
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 2)
 
     expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
-  })
-
-  it('tables の編集内容を recovery cache に保持する', () => {
-    renderEditor()
-
-    editTables()
-
-    const cached = localStorage.getItem(`ct.templateDraft.v3.${initialTemplate.templateId}`)
-    expect(cached).not.toBeNull()
-    expect(JSON.parse(cached as string)).toEqual(expect.objectContaining({ tablesText: editedTablesText }))
   })
 
   it('autosave の reject を表示し、tables の編集内容を保持する', async () => {
@@ -111,7 +99,25 @@ describe('TemplateEditorV3 autosave', () => {
     editTables()
     await advanceAutosave()
 
-    expect(screen.getByText(saveError.message)).toBeTruthy()
+    expect(
+      screen.getByText('保存リクエストの送信に失敗しました。ネットワークを確認して再試行してください。')
+    ).toBeTruthy()
     expect((screen.getByLabelText('tables') as HTMLTextAreaElement).value).toBe(editedTablesText)
+  })
+
+  it('template のない失敗応答後も再編集で autosave を再実行する', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({ conflict: false, messages: ['保存に失敗しました'] })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+
+    expect(screen.getByText('保存に失敗しました')).toBeTruthy()
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
   })
 })

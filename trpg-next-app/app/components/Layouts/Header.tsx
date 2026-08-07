@@ -16,7 +16,7 @@ interface HeaderProps {
 export function Header({ authState, toggle }: HeaderProps) {
   const theme = useMantineTheme()
   const router = useRouter()
-  const { isLoggedIn, hasValidJwt, user } = authState
+  const { user } = authState
 
   const handleLogout = async () => {
     try {
@@ -60,7 +60,7 @@ export function Header({ authState, toggle }: HeaderProps) {
       </Group>
 
       <Group gap="md">
-        {isLoggedIn && hasValidJwt && user ? (
+        {user ? (
           <Menu shadow="md" width={200}>
             <Menu.Target>
               <Avatar

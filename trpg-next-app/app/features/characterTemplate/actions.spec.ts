@@ -135,8 +135,6 @@ describe('characterTemplate actions', () => {
     mockedUpdateSheetTemplate.mockResolvedValue(updated)
 
     await expect(saveTemplateDraft('template-1', 'save', template)).resolves.toEqual({
-      ok: true,
-      intent: 'save',
       template: updated
     })
 
@@ -165,8 +163,6 @@ describe('characterTemplate actions', () => {
     mockedPublishSheetTemplate.mockResolvedValue(published)
 
     await expect(saveTemplateDraft('template-1', 'publish', template)).resolves.toEqual({
-      ok: true,
-      intent: 'publish',
       template: published
     })
 
@@ -183,8 +179,6 @@ describe('characterTemplate actions', () => {
     mockedExtractApiErrorMessages.mockReturnValue(['draftRevision が競合しました'])
 
     await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
-      ok: false,
-      intent: 'autosave',
       conflict: true,
       messages: ['draftRevision が競合しました']
     })
@@ -196,8 +190,6 @@ describe('characterTemplate actions', () => {
     mockedExtractApiErrorMessages.mockReturnValue(['version が不正です'])
 
     await expect(saveTemplateDraft('template-1', 'save', template)).resolves.toEqual({
-      ok: false,
-      intent: 'save',
       conflict: false,
       messages: ['version が不正です']
     })
