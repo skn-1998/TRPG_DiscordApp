@@ -3,12 +3,7 @@ import 'server-only'
 import type { LoginDataWire, SuccessEnvelope } from '@trpg/api-contract'
 import { getDiscordApplicationId, getHostDomain } from '../../../config/env.server'
 import { apiClient } from '../../../lib/api-client.server'
-import {
-  errorEnvelopeMessages,
-  getResponseStatus,
-  getUpstreamResponse,
-  isErrorEnvelope
-} from '../../../lib/api-response.util'
+import { extractApiErrorMessages, getResponseStatus } from '../../../lib/api-response.util'
 
 interface JwtCookieOptions {
   httpOnly: true
@@ -28,29 +23,6 @@ interface OauthStateCookieOptions {
 
 export const OAUTH_STATE_COOKIE_NAME = 'oauth_state'
 
-function getLoginErrorMessage(error: unknown): string {
-  const upstreamResponse = getUpstreamResponse(error)
-  if (upstreamResponse) {
-    const { data: responseData, status } = upstreamResponse
-    if (isErrorEnvelope(responseData)) {
-      return `HTTP ${status}: ${errorEnvelopeMessages(responseData).join(' / ')}`
-    }
-
-    if (responseData && typeof responseData === 'object' && 'message' in responseData) {
-      return `HTTP ${status}: ${String(responseData.message)}`
-    }
-  }
-
-  const status = getResponseStatus(error)
-  if (status !== undefined) return `HTTP ${status}: Request failed`
-
-  if (error instanceof Error) {
-    return error.message
-  }
-
-  return 'Unknown Error'
-}
-
 export function generateDiscordAuthUrl(state: string): string {
   const redirectUri = `${getHostDomain()}/login`
   const params = new URLSearchParams({
@@ -69,9 +41,14 @@ export async function loginOrRegisterUser(code: string): Promise<LoginDataWire> 
     const response = await apiClient.post<SuccessEnvelope<LoginDataWire>, { code: string }>('/auth/login', { code })
     return response.data.data
   } catch (error: unknown) {
-    const message = getLoginErrorMessage(error)
-    console.error(`Login request failed: ${message}`)
-    throw new Error(message, { cause: error })
+    const messages = extractApiErrorMessages(error).join(' / ')
+    const status = getResponseStatus(error)
+    if (status !== undefined) {
+      console.error(`Login request failed (HTTP ${status}): ${messages}`)
+    } else {
+      console.error(`Login request failed: ${messages}`)
+    }
+    throw new Error(messages, { cause: error })
   }
 }
 

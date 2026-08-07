@@ -1,4 +1,4 @@
-// この import は engine のビルド済み dist を読む。engine の src 変更時は `ensure:workspace-dist` 込みの `pnpm test` を使うこと（`ensure:workspace-dist` を前置しない入口（現状 `test:watch` / `test:coverage`）では stale dist で偽の緑になり得る）。
+// この import は engine のビルド済み dist を読む。現存の `pnpm test` は `ensure:workspace-dist` を前置するが、素の `pnpm exec jest` 直叩きは stale dist で偽の緑になり得る。
 import { SHEET_RESERVED_ID_VALUES, validatePublishTemplate } from '@trpg/sheet-engine'
 import type { Template } from '../types/v2'
 import type { CharacterSheetTemplateEntity, LookupTable, SheetSection, V3EditorFieldType } from '../types/v3'
