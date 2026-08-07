@@ -119,23 +119,27 @@ describe('TrackRangePolicy', () => {
   })
 
   it.each([
-    ['同じ合計を異なるparts表現で維持', { parts: { base: 12 } }, { parts: { base: 6, other: 6 } }, false],
-    ['既存違反の縮小', 12, 11, false],
-    ['既存違反の拡大', 12, 13, true],
-    ['範囲内からの新規逸脱', 8, 11, true],
-    ['max側からmin側への逸脱', 12, -1, true],
-    ['min側からmax側への逸脱', -2, 11, true],
-    ['partsでmax側からmin側への逸脱', { parts: { base: 12 } }, { parts: { base: -1 } }, true],
-    ['partsでmin側からmax側への逸脱', { parts: { base: -2 } }, { parts: { base: 11 } }, true]
-  ])('%sを判定表どおり扱う', (_caseName, currentValue, nextValue, rejects) => {
+    ['既存違反の拡大', 12, 13],
+    ['範囲内からの新規逸脱', 8, 11],
+    ['max側からmin側への逸脱', 12, -1],
+    ['min側からmax側への逸脱', -2, 11],
+    ['partsでmax側からmin側への逸脱', { parts: { base: 12 } }, { parts: { base: -1 } }],
+    ['partsでmin側からmax側への逸脱', { parts: { base: -2 } }, { parts: { base: 11 } }]
+  ])('%sを判定表どおり拒否する', (_caseName, currentValue, nextValue) => {
     const policy = new TrackRangePolicy(trackTemplate())
     const action = () => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
 
-    if (rejects) {
-      expect(action).toThrow(UnprocessableEntityException)
-    } else {
-      expect(action).not.toThrow()
-    }
+    expect(action).toThrow(UnprocessableEntityException)
+  })
+
+  it.each([
+    ['同じ合計を異なるparts表現で維持', { parts: { base: 12 } }, { parts: { base: 6, other: 6 } }],
+    ['既存違反の縮小', 12, 11]
+  ])('%sを判定表どおり許可する', (_caseName, currentValue, nextValue) => {
+    const policy = new TrackRangePolicy(trackTemplate())
+    const action = () => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
+
+    expect(action).not.toThrow()
   })
 
   it('max依存値とtrack値を同時更新し、next bounds内へ縮小する更新を許可する', () => {

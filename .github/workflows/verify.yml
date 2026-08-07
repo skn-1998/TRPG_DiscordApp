@@ -92,8 +92,9 @@ jobs:
   lint-server:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # 既存 error 6件（jest/no-conditional-expect 等）が残るため赤くなる。
-    # branch protection の required checks には含めないこと。6件を解消したら required へ昇格させる。
+    # 既存 error は 2026-08-08 の FR2 で全消化（jest/no-conditional-expect の最後の 2 件）。
+    # error 0 のため branch protection の required checks へ昇格可（GitHub 設定はユーザー操作）。
+    # warning 約 94 件は残存許容（--max-warnings は課していない）。
     steps:
       - name: Checkout
         uses: actions/checkout@v6
