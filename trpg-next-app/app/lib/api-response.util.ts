@@ -9,7 +9,15 @@ export function isErrorEnvelope(data: unknown): data is ErrorEnvelope {
   )
 }
 
+export function getUpstreamResponse(error: unknown): { status: number; data: unknown } | null {
+  if (!error || typeof error !== 'object' || !('response' in error)) return null
+  const response = (error as { response?: { status?: unknown; data?: unknown } }).response
+  if (!response || typeof response.status !== 'number' || response.data === undefined) return null
+  return { status: response.status, data: response.data }
+}
+
 export function getResponseStatus(error: unknown): number | undefined {
+  // status 専用の寛容な reader として、response.data の有無は問わない。
   if (error && typeof error === 'object' && 'response' in error) {
     const status = (error as { response?: { status?: unknown } }).response?.status
     return typeof status === 'number' ? status : undefined
@@ -32,4 +40,27 @@ export function errorEnvelopeMessages(data: ErrorEnvelope): string[] {
 
   if (data.error.length > 0) return [data.error]
   return [data.message]
+}
+
+export function extractApiErrorMessages(error: unknown): string[] {
+  const upstreamResponse = getUpstreamResponse(error)
+  if (upstreamResponse) {
+    const { data } = upstreamResponse
+    if (isErrorEnvelope(data)) {
+      return errorEnvelopeMessages(data)
+    }
+
+    if (data && typeof data === 'object' && 'message' in data) {
+      const message = (data as { message?: unknown }).message
+      if (Array.isArray(message)) return message.map(String)
+      if (typeof message === 'string')
+        return message
+          .split(';')
+          .map((part) => part.trim())
+          .filter(Boolean)
+    }
+  }
+
+  if (error instanceof Error) return [error.message]
+  return ['リクエストの処理中にエラーが発生しました']
 }

@@ -6,7 +6,7 @@ import {
 } from '../../features/characterTemplate/utils/dicePreview'
 import type { DicePreviewActionError } from '../../features/characterTemplate/utils/dicePreview'
 import { apiClient } from '../../lib/api-client.server'
-import { errorEnvelopeMessages, isErrorEnvelope } from '../../lib/api-response.util'
+import { errorEnvelopeMessages, getUpstreamResponse, isErrorEnvelope } from '../../lib/api-response.util'
 import { readJwt } from '../../lib/auth-guard.server'
 
 const DICE_PREVIEW_PATH = '/dice-roll/preview'
@@ -88,11 +88,4 @@ async function readJsonBody(request: Request): Promise<unknown> {
   } catch {
     return undefined
   }
-}
-
-function getUpstreamResponse(error: unknown): { status: number; data: unknown } | null {
-  if (!error || typeof error !== 'object' || !('response' in error)) return null
-  const response = (error as { response?: { status?: unknown; data?: unknown } }).response
-  if (!response || typeof response.status !== 'number' || response.data === undefined) return null
-  return { status: response.status, data: response.data }
 }

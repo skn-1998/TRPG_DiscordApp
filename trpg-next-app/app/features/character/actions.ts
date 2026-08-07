@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireJwt } from '../../lib/auth-guard.server'
-import { getResponseStatus } from '../../lib/api-response.util'
-import { extractApiErrorMessages } from '../characterTemplate/api/sheetTemplateApi.server'
+import { extractApiErrorMessages, getResponseStatus } from '../../lib/api-response.util'
 import {
   getUserCharacterSummaries,
   saveCharacterSheet,
@@ -20,7 +19,7 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
     return { error: null }
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : 'Failed to load characters'
+      error: extractApiErrorMessages(error).join(' / ')
     }
   }
 }

@@ -1,10 +1,14 @@
 import 'server-only'
 
 import type { LoginDataWire, SuccessEnvelope } from '@trpg/api-contract'
-import axios from 'axios'
 import { getDiscordApplicationId, getHostDomain } from '../../../config/env.server'
 import { apiClient } from '../../../lib/api-client.server'
-import { errorEnvelopeMessages, isErrorEnvelope } from '../../../lib/api-response.util'
+import {
+  errorEnvelopeMessages,
+  getResponseStatus,
+  getUpstreamResponse,
+  isErrorEnvelope
+} from '../../../lib/api-response.util'
 
 interface JwtCookieOptions {
   httpOnly: true
@@ -25,10 +29,9 @@ interface OauthStateCookieOptions {
 export const OAUTH_STATE_COOKIE_NAME = 'oauth_state'
 
 function getLoginErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const status = error.response?.status
-    const responseData: unknown = error.response?.data
-
+  const upstreamResponse = getUpstreamResponse(error)
+  if (upstreamResponse) {
+    const { data: responseData, status } = upstreamResponse
     if (isErrorEnvelope(responseData)) {
       return `HTTP ${status}: ${errorEnvelopeMessages(responseData).join(' / ')}`
     }
@@ -36,9 +39,10 @@ function getLoginErrorMessage(error: unknown): string {
     if (responseData && typeof responseData === 'object' && 'message' in responseData) {
       return `HTTP ${status}: ${String(responseData.message)}`
     }
-
-    return `HTTP ${status}: ${error.response?.statusText || 'Request failed'}`
   }
+
+  const status = getResponseStatus(error)
+  if (status !== undefined) return `HTTP ${status}: Request failed`
 
   if (error instanceof Error) {
     return error.message
