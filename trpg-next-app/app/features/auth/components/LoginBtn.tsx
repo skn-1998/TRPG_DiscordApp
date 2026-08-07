@@ -40,8 +40,6 @@ export function LoginBtn({ authStartUrl }: LoginBtnProps) {
           <Button
             component="a"
             href={authStartUrl}
-            target="_blank"
-            rel="noreferrer"
             size="lg"
             radius="xl"
             fullWidth

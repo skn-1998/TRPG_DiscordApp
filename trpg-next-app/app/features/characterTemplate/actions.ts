@@ -17,9 +17,9 @@ import type {
 } from './types/v3'
 import { normalizeTemplateReferences } from './utils/v3Template'
 
+export type EditorIntent = 'autosave' | 'save' | 'publish'
+
 export type EditorActionData = {
-  ok: boolean
-  intent: 'autosave' | 'save' | 'publish'
   template?: CharacterSheetTemplateEntity
   conflict?: boolean
   messages?: string[]
@@ -101,7 +101,7 @@ export async function createCharacter(input: {
 
 export async function saveTemplateDraft(
   templateId: string,
-  intent: 'autosave' | 'save' | 'publish',
+  intent: EditorIntent,
   payload: CharacterSheetTemplateEntity
 ): Promise<EditorActionData> {
   await requireJwt()
@@ -111,14 +111,12 @@ export async function saveTemplateDraft(
 
     if (intent === 'publish') {
       const published = await publishSheetTemplate(templateId)
-      return { ok: true, intent, template: published }
+      return { template: published }
     }
 
-    return { ok: true, intent, template: updated }
+    return { template: updated }
   } catch (error) {
     return {
-      ok: false,
-      intent,
       conflict: getResponseStatus(error) === 409,
       messages: extractApiErrorMessages(error)
     }

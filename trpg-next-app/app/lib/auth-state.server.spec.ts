@@ -36,9 +36,7 @@ describe('getAuthState', () => {
     mockJwtCookie()
 
     await expect(getAuthState()).resolves.toEqual({
-      user: null,
-      isLoggedIn: false,
-      hasValidJwt: false
+      user: null
     })
     expect(mockedApiGet).not.toHaveBeenCalled()
   })
@@ -55,9 +53,7 @@ describe('getAuthState', () => {
     } as never)
 
     await expect(getAuthState()).resolves.toEqual({
-      user,
-      isLoggedIn: true,
-      hasValidJwt: true
+      user
     })
     expect(mockedApiGet).toHaveBeenCalledWith('/users')
   })
@@ -67,9 +63,7 @@ describe('getAuthState', () => {
     mockedApiGet.mockRejectedValue(new Error('Unauthorized'))
 
     await expect(getAuthState()).resolves.toEqual({
-      user: null,
-      isLoggedIn: false,
-      hasValidJwt: false
+      user: null
     })
   })
 })

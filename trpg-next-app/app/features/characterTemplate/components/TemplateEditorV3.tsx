@@ -29,7 +29,7 @@ import {
   IconTrash
 } from '@tabler/icons-react'
 import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
-import { saveTemplateDraft, type EditorActionData } from '../actions'
+import { saveTemplateDraft, type EditorIntent } from '../actions'
 import type {
   CharacterSheetTemplateEntity,
   LookupTable,
@@ -56,6 +56,8 @@ interface TemplateEditorV3Props {
   initialTemplate: CharacterSheetTemplateEntity
 }
 
+export const AUTOSAVE_DEBOUNCE_MS = 1800
+
 export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [template, setTemplate] = useState<CharacterSheetTemplateEntity>(initialTemplate)
   const [activeSectionId, setActiveSectionId] = useState(initialTemplate.sections[0]?.id ?? '')
@@ -69,7 +71,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [localMessages, setLocalMessages] = useState<TemplateValidationMessage[]>([])
   const [actionMessages, setActionMessages] = useState<string[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
-  const [inFlightIntent, setInFlightIntent] = useState<EditorActionData['intent'] | null>(null)
+  const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
   const lastSavedSignatureRef = useRef(
     createEditorSignature(initialTemplate, stringifyTables(initialTemplate.tables))
   )
@@ -99,22 +101,31 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   }, [tablesText, template])
 
   const submitDraft = useCallback(
-    async (intent: EditorActionData['intent']) => {
+    async (intent: EditorIntent) => {
+      let payload: CharacterSheetTemplateEntity
       try {
-        const payload = buildPayload()
+        payload = buildPayload()
         const localErrors = validateLocalTemplate(payload)
         if (localErrors.length > 0) {
           setLocalMessages(localErrors.map((message) => ({ message })))
           setSaveState('dirty')
           return
         }
+      } catch (error) {
+        setLocalMessages([
+          { message: error instanceof Error ? error.message : '保存 payload の作成に失敗しました' }
+        ])
+        setSaveState('dirty')
+        return
+      }
 
-        const signature = createEditorSignature(payload, tablesText)
-        pendingSignatureRef.current = signature
-        setLocalMessages([])
-        setSaveState('saving')
-        setInFlightIntent(intent)
+      const signature = createEditorSignature(payload, tablesText)
+      pendingSignatureRef.current = signature
+      setLocalMessages([])
+      setSaveState('saving')
+      setInFlightIntent(intent)
 
+      try {
         const actionResult = await saveTemplateDraft(template.templateId, intent, payload)
         setActionMessages(actionResult.messages ?? [])
 
@@ -122,7 +133,11 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           setSaveState('conflict')
           return
         }
-        if (!actionResult.template) return
+        if (!actionResult.template) {
+          pendingSignatureRef.current = null
+          setSaveState('dirty')
+          return
+        }
 
         const returned = actionResult.template
         const currentSignature = createEditorSignature(templateRef.current, tablesTextRef.current)
@@ -144,10 +159,9 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         setTemplate(returned)
         setTablesText(stringifyTables(returned.tables))
         setSaveState('saved')
-      } catch (error) {
-        setLocalMessages([
-          { message: error instanceof Error ? error.message : '保存 payload の作成に失敗しました' }
-        ])
+      } catch {
+        pendingSignatureRef.current = null
+        setLocalMessages([{ message: '保存リクエストの送信に失敗しました。ネットワークを確認して再試行してください。' }])
         setSaveState('dirty')
       } finally {
         setInFlightIntent(null)
@@ -163,21 +177,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
     const timeout = window.setTimeout(() => {
       void submitDraft('autosave')
-    }, 1800)
+    }, AUTOSAVE_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeout)
   }, [saveState, submitDraft, tablesText, template])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        `ct.templateDraft.v3.${template.templateId}`,
-        JSON.stringify({ template, tablesText, cachedAt: new Date().toISOString() })
-      )
-    } catch {
-      // 復旧キャッシュなので保存できなくてもサーバー draft の編集は継続する。
-    }
-  }, [tablesText, template])
 
   const updateTemplate = (patch: Partial<CharacterSheetTemplateEntity>) => {
     setTemplate((current) => ({ ...current, ...patch }))
