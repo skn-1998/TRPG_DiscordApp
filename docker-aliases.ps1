@@ -20,25 +20,24 @@ function Docker-Rebuild-Prod {
 }
 Set-Alias -Name dcrp -Value Docker-Rebuild-Prod
 
-# Docker依存関係リセット関数（Viteキャッシュ込み）
+# Docker依存関係リセット関数（compose 宣言の named volume は down -v が全削除する）
 function Docker-Reset {
     Write-Host "=== Docker依存関係リセット開始 ===" -ForegroundColor Yellow
     docker-compose down -v
-    docker volume rm trpg-app-node-modules trpg-nestjs-node-modules trpg-app-vite-cache -f
     docker-compose build --no-cache
     docker-compose up -d
     Write-Host "=== 依存関係リセット完了！ ===" -ForegroundColor Yellow
 }
 Set-Alias -Name dcrs -Value Docker-Reset
 
-# Viteキャッシュクリア関数
-function Docker-Clear-Vite-Cache {
-    Write-Host "=== Viteキャッシュクリア開始 ===" -ForegroundColor Cyan
-    docker exec TRPG-CLIENT sh -c "rm -rf node_modules/.vite"
+# Next キャッシュ（.next volume の中身）クリア関数
+function Docker-Clear-Next-Cache {
+    Write-Host "=== Next キャッシュクリア開始 ===" -ForegroundColor Cyan
+    docker exec TRPG-CLIENT sh -c "rm -rf trpg-next-app/.next/*"
     docker restart TRPG-CLIENT
-    Write-Host "=== Viteキャッシュクリア完了！ ===" -ForegroundColor Cyan
+    Write-Host "=== Next キャッシュクリア完了！ ===" -ForegroundColor Cyan
 }
-Set-Alias -Name dcvc -Value Docker-Clear-Vite-Cache
+Set-Alias -Name dcnc -Value Docker-Clear-Next-Cache
 
 # Docker基本的な再起動関数
 function Docker-Restart {
@@ -83,23 +82,23 @@ function Docker-Health {
 }
 Set-Alias -Name dch -Value Docker-Health
 
-# Remixアプリの起動時間測定
-function Docker-Remix-Timing {
-    Write-Host "=== Remix起動時間測定開始 ===" -ForegroundColor Yellow
+# Next アプリ（TRPG-CLIENT）の起動時間測定
+function Docker-Next-Timing {
+    Write-Host "=== Next 起動時間測定開始 ===" -ForegroundColor Yellow
     $startTime = Get-Date
     docker restart TRPG-CLIENT
-    
+
     Write-Host "ヘルスチェック完了を待機中..." -ForegroundColor Yellow
     do {
         Start-Sleep -Seconds 5
         $status = docker inspect TRPG-CLIENT --format '{{.State.Health.Status}}'
     } while ($status -ne "healthy")
-    
+
     $endTime = Get-Date
     $duration = $endTime - $startTime
-    Write-Host "=== Remix起動完了！所要時間: $($duration.TotalSeconds) 秒 ===" -ForegroundColor Green
+    Write-Host "=== Next 起動完了！所要時間: $($duration.TotalSeconds) 秒 ===" -ForegroundColor Green
 }
-Set-Alias -Name dcrt-timing -Value Docker-Remix-Timing
+Set-Alias -Name dcrt-timing -Value Docker-Next-Timing
 
 # Dockerシステム完全クリーンアップ関数
 function Docker-Clean {
@@ -126,6 +125,6 @@ Write-Host "  dcup  : 開発環境起動" -ForegroundColor White
 Write-Host "  dcupp : 本番環境起動" -ForegroundColor White
 Write-Host "  dcl   : ログ表示 (dcl [サービス名])" -ForegroundColor White
 Write-Host "  dch   : ヘルスチェック確認" -ForegroundColor White
-Write-Host "  dcvc  : Viteキャッシュクリア" -ForegroundColor Cyan
-Write-Host "  dcrt-timing : Remix起動時間測定" -ForegroundColor Cyan
+Write-Host "  dcnc  : Next キャッシュクリア" -ForegroundColor Cyan
+Write-Host "  dcrt-timing : Next 起動時間測定" -ForegroundColor Cyan
 Write-Host "  dcc   : 完全クリーンアップ" -ForegroundColor White 

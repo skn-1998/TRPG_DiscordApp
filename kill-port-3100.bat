@@ -1,23 +1,23 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo ポート3000使用プロセス終了ツール
+echo ポート3100使用プロセス終了ツール
 echo ========================================
 echo.
 
-REM ポート3000を使用しているプロセスを検索
-echo ポート3000を使用しているプロセスを検索中...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do (
+REM ポート3100を使用しているプロセスを検索
+echo ポート3100を使用しているプロセスを検索中...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3100 ^| findstr LISTENING') do (
     set PID=%%a
     goto :found
 )
 
-echo ポート3000を使用しているプロセスは見つかりませんでした。
+echo ポート3100を使用しているプロセスは見つかりませんでした。
 goto :end
 
 :found
 echo.
-echo 発見: PID %PID% がポート3000を使用しています
+echo 発見: PID %PID% がポート3100を使用しています
 echo プロセスを終了しています...
 taskkill /F /PID %PID%
 
