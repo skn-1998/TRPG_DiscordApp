@@ -4,10 +4,10 @@ import { Button, Container, Paper, Stack, Text, ThemeIcon, Title } from '@mantin
 import { IconBrandDiscord } from '@tabler/icons-react'
 
 interface LoginBtnProps {
-  discordAuthUrl: string
+  authStartUrl: string
 }
 
-export function LoginBtn({ discordAuthUrl }: LoginBtnProps) {
+export function LoginBtn({ authStartUrl }: LoginBtnProps) {
   return (
     <Container size="xs" mt={80}>
       <Paper
@@ -39,7 +39,7 @@ export function LoginBtn({ discordAuthUrl }: LoginBtnProps) {
 
           <Button
             component="a"
-            href={discordAuthUrl}
+            href={authStartUrl}
             target="_blank"
             rel="noreferrer"
             size="lg"

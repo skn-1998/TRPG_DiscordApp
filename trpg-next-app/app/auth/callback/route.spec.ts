@@ -10,12 +10,17 @@ jest.mock('../../config/env.server', () => ({
 
 jest.mock('../../features/auth/api/auth.service.server', () => ({
   buildJwtCookieOptions: jest.fn(),
-  loginOrRegisterUser: jest.fn()
+  loginOrRegisterUser: jest.fn(),
+  OAUTH_STATE_COOKIE_NAME: 'oauth_state'
 }))
 
 import { cookies } from 'next/headers'
 import { isProduction } from '../../config/env.server'
-import { buildJwtCookieOptions, loginOrRegisterUser } from '../../features/auth/api/auth.service.server'
+import {
+  buildJwtCookieOptions,
+  loginOrRegisterUser,
+  OAUTH_STATE_COOKIE_NAME
+} from '../../features/auth/api/auth.service.server'
 import { JWT_COOKIE_NAME } from '../../lib/auth-guard.server'
 import { GET } from './route'
 
@@ -23,7 +28,10 @@ const mockedCookies = jest.mocked(cookies)
 const mockedIsProduction = jest.mocked(isProduction)
 const mockedBuildJwtCookieOptions = jest.mocked(buildJwtCookieOptions)
 const mockedLoginOrRegisterUser = jest.mocked(loginOrRegisterUser)
+const mockedCookieGet = jest.fn()
 const mockedCookieSet = jest.fn()
+const mockedCookieDelete = jest.fn()
+const oauthState = 'pinned-oauth-state'
 const cookieOptions = {
   httpOnly: true as const,
   secure: false,
@@ -33,24 +41,26 @@ const cookieOptions = {
 }
 
 beforeEach(() => {
-  mockedCookies.mockResolvedValue({ set: mockedCookieSet } as never)
+  mockedCookieGet.mockReturnValue({ value: oauthState })
+  mockedCookies.mockResolvedValue({ get: mockedCookieGet, set: mockedCookieSet, delete: mockedCookieDelete } as never)
   mockedBuildJwtCookieOptions.mockReturnValue(cookieOptions)
 })
 
 describe('GET /auth/callback', () => {
   it('code がなければ 307 で /login へ戻し、cookie を設定しない', async () => {
-    const response = await GET(new Request('http://localhost:3100/auth/callback'))
+    const response = await GET(new Request(`http://localhost:3100/auth/callback?state=${oauthState}`))
 
     expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toBe('http://localhost:3100/login')
     expect(mockedLoginOrRegisterUser).not.toHaveBeenCalled()
     expect(mockedCookieSet).not.toHaveBeenCalled()
+    expect(mockedCookieDelete).toHaveBeenCalledWith(OAUTH_STATE_COOKIE_NAME)
   })
 
   it('交換に成功すれば 307 で /user へ進み、正本の名前と属性で JWT cookie を設定する', async () => {
     mockedLoginOrRegisterUser.mockResolvedValue({ token: 'issued-token' } as never)
 
-    const response = await GET(new Request('http://localhost:3100/auth/callback?code=x'))
+    const response = await GET(new Request(`http://localhost:3100/auth/callback?code=x&state=${oauthState}`))
 
     expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toBe('http://localhost:3100/user')
@@ -58,6 +68,7 @@ describe('GET /auth/callback', () => {
     expect(mockedIsProduction).toHaveBeenCalled()
     expect(mockedBuildJwtCookieOptions).toHaveBeenCalledWith(false)
     expect(mockedCookieSet).toHaveBeenCalledWith(JWT_COOKIE_NAME, 'issued-token', cookieOptions)
+    expect(mockedCookieDelete).toHaveBeenCalledWith(OAUTH_STATE_COOKIE_NAME)
   })
 
   it.each([
@@ -66,10 +77,31 @@ describe('GET /auth/callback', () => {
   ])('%s なら 307 で /login へ戻し、cookie を設定しない', async (_caseName, arrangeFailure) => {
     arrangeFailure()
 
-    const response = await GET(new Request('http://localhost:3100/auth/callback?code=x'))
+    const response = await GET(new Request(`http://localhost:3100/auth/callback?code=x&state=${oauthState}`))
 
     expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toBe('http://localhost:3100/login')
     expect(mockedCookieSet).not.toHaveBeenCalled()
+    expect(mockedCookieDelete).toHaveBeenCalledWith(OAUTH_STATE_COOKIE_NAME)
+  })
+
+  it('query state がなければ 307 で /login へ戻し、code を交換せず state cookie を削除する', async () => {
+    const response = await GET(new Request('http://localhost:3100/auth/callback?code=x'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('Location')).toBe('http://localhost:3100/login')
+    expect(mockedLoginOrRegisterUser).not.toHaveBeenCalled()
+    expect(mockedCookieSet).not.toHaveBeenCalled()
+    expect(mockedCookieDelete).toHaveBeenCalledWith(OAUTH_STATE_COOKIE_NAME)
+  })
+
+  it('state が一致しなければ 307 で /login へ戻し、code を交換せず state cookie を削除する', async () => {
+    const response = await GET(new Request('http://localhost:3100/auth/callback?code=x&state=unexpected-state'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('Location')).toBe('http://localhost:3100/login')
+    expect(mockedLoginOrRegisterUser).not.toHaveBeenCalled()
+    expect(mockedCookieSet).not.toHaveBeenCalled()
+    expect(mockedCookieDelete).toHaveBeenCalledWith(OAUTH_STATE_COOKIE_NAME)
   })
 })

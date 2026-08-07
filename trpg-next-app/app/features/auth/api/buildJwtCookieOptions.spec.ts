@@ -11,7 +11,7 @@ jest.mock('../../../lib/api-client.server', () => ({
   }
 }))
 
-import { buildJwtCookieOptions } from './auth.service.server'
+import { buildJwtCookieOptions, buildOauthStateCookieOptions } from './auth.service.server'
 
 describe('buildJwtCookieOptions', () => {
   it('production の全 cookie 属性を固定する', () => {
@@ -31,6 +31,28 @@ describe('buildJwtCookieOptions', () => {
       sameSite: 'lax',
       path: '/',
       maxAge: 604800
+    })
+  })
+})
+
+describe('buildOauthStateCookieOptions', () => {
+  it('production の全 cookie 属性を固定する', () => {
+    expect(buildOauthStateCookieOptions(true)).toEqual({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 600
+    })
+  })
+
+  it('development の全 cookie 属性を固定する', () => {
+    expect(buildOauthStateCookieOptions(false)).toEqual({
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 600
     })
   })
 })
