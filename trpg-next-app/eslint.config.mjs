@@ -53,7 +53,8 @@ export default defineConfig([
               from: './app/features',
               message: 'lib 層は features に依存しない（層規約・server #31 の front 版）'
             },
-            // 許可する feature 間の有向辺: character→characterTemplate / characterTemplate→character / character→discord。
+            // 以下 5 zone は feature 間依存を宣言辺のみに固定する列挙（新 feature 追加時は zone を 1 本足す）。
+            // 許可辺は except に現れる 3 本だけ: character→characterTemplate / characterTemplate→character / character→discord。
             {
               target: './app/features/auth',
               from: './app/features',

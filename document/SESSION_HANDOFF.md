@@ -1570,6 +1570,113 @@ restore --staged で収束済み（2026-08-04）。
   （205 文字・値未読）→ 別セッション chip 発行済み（task_dedfbb73・ローテーション案内含む）**。
   統合判定は Codex 側到着後（相互矛盾突合 → 消化スライス設計）。
 
+## 2026-08-08 開始: FR 消化 campaign（#121〜#130・優先順・必要性再裁定つき）
+
+ユーザー指示: 「順番に行っちゃって。ただ本当に必要なのかは再判断して。低に関しては特に
+オーバーの可能性が高い」— 高→中→低の順で消化し、各項目に YAGNI 再裁定ゲートを掛ける。
+低優先 3 件は縮小 or 見送りの方向（最終裁定は完了報告で全件開示）。
+
+- **前段（campaign 外）**: CI 初回実行で lint-server の既知赤を確認 → 残存 error 2 件
+  （jest/no-conditional-expect）を FR2 スライスで消化し `f161c0a` を push 済み。
+  lint-server は required 昇格可能になった（GitHub 設定はユーザー操作）
+- **#123 完了（S1・`c08ba56`）**: OAuth CSRF state 導入。/auth/start（新設 Route Handler）が
+  state 発行＋oauth_state cookie（httpOnly・lax・600s）→ /login hop が転送 → callback が
+  照合前に無条件削除（single-use）・三者一致時のみ code 交換。redirect_uri と jwt cookie 契約は
+  不変。検収: build/tsc/lint/jest 17 suites 182 tests 全緑を Fable 再実行。AI.md の state 記述を
+  実装済みへ更新（未コミット・campaign 末尾で docs commit 予定）
+- **#124 配線部分 完了（未コミット）**: prod compose nestjs へ必須 6 env
+  （environment.schema.ts の REQUIRED_VARIABLES 実測: TOKEN/DISCORD_APPLICATIONID/
+  DISCORD_SECRET/JWT_SECRET/MONGODB_URI/DISCORD_TOKEN_ENCRYPTION_KEY）を
+  `${VAR:?required}` で fail-fast 配線。dummy 値で `config` PROD_OK。full-stack smoke は
+  DNS 隔離のため本機では実測不能（ユーザー環境でのみ可）と裁定
+- **#121 実行中（S2・Codex）**: 復号 4 変種の一本化。設計: dice-preview の getUpstreamResponse を
+  正準 reader として lib へ昇格・extractApiErrorMessages を lib へ移設・sites 5-7 を正本経由へ・
+  eslint に feature↔feature 禁止 zone。守り: dice-preview/route.spec.ts は編集禁止のまま全緑が
+  受入条件。意図的文言変更 2 件（discord 固定 JP→復号 join・auth statusText 簡約）を許容
+- **#121 完了（S2・`c71e230`）**: 復号 4 変種→lib 正本 1 本
+  （getUpstreamResponse を正準 reader に昇格・extractApiErrorMessages 移設・
+  character 生文字列漏れ / discord 握り潰しを正本経由へ・auth statusText 簡約）。
+  **設計ラウンド 1 回**: Codex が統制⑥で正しく停止 — feature↔feature 全面禁止 zone は
+  実在 3 辺（character→characterTemplate 型共有・characterTemplate→character 作成フロー・
+  character→discord 投稿）で成立せず＝**レビュー両者の zone 処方が過大**だった。
+  Fable 裁定で「宣言済み有向辺のみ許可」方式へ変更（許可辺の正本 = AI.md・except 無断追加禁止）。
+  getResponseStatus は data 不問の寛容 reader として維持（既存 spec が pin）。
+  守り: dice-preview/route.spec.ts 差分ゼロで全緑。検収: build/tsc/lint/jest 17 suites
+  185 tests 全緑を Fable 再実行
+- **低群 正式裁定**: #128 見送り（bundle 一回コストに codegen 維持費は過剰）・
+  #129 見送り→#74 着手時に同時裁定（タスク description へ記録済み）・
+  #130 は縮小実施（読者を誤導する嘘コメント・壊れた dev ツール残骸のみ。
+  C-L1 export 縮小/C-L3 dead click/postCharacterToDiscord 正規化/requireJwt lint/
+  clean-checkout typecheck は YAGNI で落とす）
+- **#122 完了（S3・`6522b09`）**: jsdom client テスト基盤。testEnvironment node 維持＋
+  ts-jest `jsx: 'react-jsx'` override＋setupFilesAfterEnv（window ガード付き matchMedia/
+  ResizeObserver polyfill）＋TemplateEditorV3.spec.tsx（docblock jsdom・4 ケース: tables 編集→
+  autosave payload／保存後再発火なし／recovery cache 書込／reject 表示＋編集保持）。
+  devDeps 3 本は minimumReleaseAge 通過。検収: 範囲 5 ファイル一致・diff 実読・
+  build/tsc/lint/jest 18 suites 189 tests 全緑を Fable 再実行。
+  **検収での発見**: 現行 submitDraft catch は `error instanceof Error ? error.message : 固定文言`
+  （transport 失敗で raw message 露出）— S5 の B-2 指示書へ正確な現状として反映済み。
+  spec の reject ケース（error.message 期待）と mock の ok/intent は S5 で追随更新が必要
+  （指示書に明記済み）
+- S5/S6 指示書 準備済み: `prompt-code-fr125-126.txt`＋`run-fr125.sh`（#125 auth 単一正本化＋
+  #126 縮小 M2/M5/L2-cache 削除・9 ファイル錠）／`prompt-code-fr127-130.txt`＋`run-fr127.sh`
+  （#127 bare 3 controller 負のアサーション＋#130 縮小コメント 5 箇所真実化 — 現物確認済み:
+  bundle 理由虚偽・test:watch 不存在・trpg-remix-app パス 4 箇所）
+- **#130 縮小の Fable 分 完了（`d8ee04d`）**: start-dev.bat → trpg-next-app／
+  kill-port-3000 → 3100 改名（ホスト待受実態）／docker-aliases.ps1 の死 volume rm 削除・
+  dcvc→dcnc（.next）・Remix 表記一掃／ローカル pre-commit hook の inert trpg-remix-app 撤去
+  （版管理外）。README・skill 言及（dcr/dcup/dcl/dch）は現状と整合済みを確認
+- **大粒度認知負荷レビュー #2 完了（3 スライスゲート・判定正本 =
+  review-results/next-migration/cognitive-load-review-2-fr-verdict.md）**: High 1・Med 5・Low 3。
+  最重要 = CL-1（非 409 サーバ失敗の `{template なし}` 応答で TemplateEditorV3 が saving 固着・
+  autosave 恒久停止。S5-B1 の ok 削除前に :125 の遷移修正が必須 — Fable 実読で確定、
+  ただし「脱出はリロードのみ」は過大で手動保存で復帰可）。裁定: CL-1/CL-2a(LoginBtn _blank)/
+  CL-8(debounce 定数) → S5 指示書へ吸収済み・CL-3(22 行 ladder 削除)/CL-2b(callback warn ラベル)
+  → S6 指示書へ吸収済み・CL-4(AI.md テスト節)/CL-6(claim 縮小＋eslint コメント) → Fable 実施済み・
+  CL-5(cookie 名移設) 見送り（churn>gain）・CL-7 起票（#131）・CL-9 → #76 合流。
+  S5/S6 計画自体への異議なし
+- **S5 実行中（Codex・prompt-code-fr125-126.txt 改訂版）**: #125 AuthState 単一正本化＋
+  #126 縮小（B-1 ok/intent 削除・B-2 catch 分割・B-2b saving 固着修正・B-2c debounce 定数・
+  B-3 localStorage cache 削除）＋LoginBtn _blank 除去。10 ファイル錠。
+  起動時の教訓: Bash tool 直接起動は既知 EOF 破損（exit 2）→ PowerShell 経由
+  `& bash.exe <wrapper>` が正
+- **S5 完了（#125＋#126 縮小＋レビュー消化・`7c6ba98` 10 ファイル +69/−86）**:
+  AuthState {user} 単一化・/user layout probe→getAuthState 統合（dedupe で /users 2→1）・
+  ok/intent 削除＋EditorIntent 独立・catch 分割（transport は固定文言・raw message 非表示）・
+  **CL-1 saving 固着修正**（dirty 遷移＋pendingSignature 破棄＋再編集で autosave 再開の
+  回帰テスト）・LoginBtn _blank 除去・AUTOSAVE_DEBOUNCE_MS 定数化・localStorage cache 削除。
+  検収: 範囲 10 ファイル錠と完全一致・diff 全実読（負の対照差し替えなし）・
+  build/tsc/lint/test 18 suites 189 tests 全緑を Fable 独立再実行
+- **S6 round 1 完了→fix round 実行中**: 実装 8 ファイルは完了（A 負のアサーション it 1 件・
+  B コメント 5 箇所・C-1/C-2）だが、Codex は server 受入が既知の間欠 V8 crash
+  （exit 3221225477・ensure:workspace-dist の並列 tsc）で落ちて統制⑥停止 → Fable が受入を
+  分割自走（server focused 6 tests 緑・engine 136 緑・lint-server 0 err）した際に
+  **front tsc で実 blocking を検出**: C-2 が複合 guard を rejectionReason 変数経由に分解した
+  ため narrowing が壊れ `loginOrRegisterUser(code)` が TS2345（⑥停止で front 受入未到達の
+  未検出汚染）。fix round（prompt-code-fr127-fix.txt・callback/route.ts 1 ファイル錠・
+  guard 復元＋ラベル計算を分岐内へ）を起動済み。教訓はメモリ
+  delegation-prompt-must-name-invariants に追記済み（形の処方が narrowing を壊す／
+  ⑥停止ラウンドは停止点以後の受入を Fable が必ず自走）
+- **S6 完了（#127＋#130 縮小＋auth 残債・`a0acb4d` 8 ファイル +33/−39・fix round 1 回）**:
+  bare 3 controller の負のアサーション（封筒不変条件の両面機械固定）・嘘コメント 5 箇所真実化・
+  getLoginErrorMessage 削除（status ログ可視性維持）・callback 失敗 4 経路 warn ラベル。
+  検収: 範囲一致・diff 全実読・受入 7 コマンド（server lint/focused 6 tests・engine 136・
+  front build/tsc/lint/test 18 suites 189 tests）を Fable 分割自走で全緑。
+  **環境知見**: 間欠 V8 crash（exit 3221225477）は NODE_OPTIONS=--max-old-space-size=4096 で
+  安定回避できた（eslint 3 連続 crash → heap 拡大で即緑。heap 圧起因と判明）
+
+## FR 消化 campaign 完了（2026-08-07）
+
+#121〜#130 全消化。最終裁定: 実施 7（#121/#122/#123/#124/#125/#126縮小/#127/#130縮小）・
+見送り 2（#128 YAGNI・CL-5 cookie 名移設）・繰延 2（#129→#74・CL-9→#76・CL-7→#131 起票）。
+レビュー#2（3 スライスゲート）の High 1 件（saving 固着）は S5 で即消化。
+campaign コミット: `c08ba56`(#123) `8a1b960`(#124) `c71e230`(#121) `f161c0a`(lint 前段・push 済み)
+`6522b09`(#122) `d8ee04d`(#130 tooling) `7c6ba98`(#125/#126) `a0acb4d`(#127/#130 comments) ＋
+docs commit。**push はユーザー指示待ち**（f161c0a まで push 済み・以降 7+1 コミット未 push）。
+ユーザー側残タスク: lint-server の required 昇格・prod compose full-stack smoke
+（--env-file TRPG-SERVER/.env・本機は DNS 隔離で不能）・trpg-remix-app/ 残渣削除（任意）・
+rest.http credential 対応（chip task_dedfbb73）
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）
