@@ -1,5 +1,11 @@
 import type { ErrorEnvelope } from '@trpg/api-contract'
-import { errorEnvelopeMessages, getResponseStatus, isErrorEnvelope } from './api-response.util'
+import {
+  errorEnvelopeMessages,
+  extractApiErrorMessages,
+  getResponseStatus,
+  getUpstreamResponse,
+  isErrorEnvelope
+} from './api-response.util'
 
 const baseEnvelope: ErrorEnvelope = {
   success: false,
@@ -94,5 +100,57 @@ describe('getResponseStatus', () => {
     expect(getResponseStatus({})).toBeUndefined()
     expect(getResponseStatus(null)).toBeUndefined()
     expect(getResponseStatus('error')).toBeUndefined()
+  })
+})
+
+describe('getUpstreamResponse', () => {
+  it('number の status と定義済み data があれば構造化して返す', () => {
+    expect(getUpstreamResponse({ response: { status: 429, data: null } })).toEqual({ status: 429, data: null })
+  })
+
+  it('status または data が欠けた応答と response を持たない値は null を返す', () => {
+    expect(getUpstreamResponse({ response: { status: 400 } })).toBeNull()
+    expect(getUpstreamResponse({ response: { status: '400', data: {} } })).toBeNull()
+    expect(getUpstreamResponse({})).toBeNull()
+    expect(getUpstreamResponse(null)).toBeNull()
+  })
+})
+
+describe('extractApiErrorMessages', () => {
+  it('ErrorEnvelope は共通復号の優先順位で issues を返す', () => {
+    const error = {
+      response: {
+        status: 400,
+        data: {
+          success: false,
+          message: 'エラーが発生しました',
+          timestamp: 1,
+          error: '入力内容が不正です',
+          issues: [{ message: '名前は必須です' }]
+        }
+      }
+    }
+
+    expect(extractApiErrorMessages(error)).toEqual(['名前は必須です'])
+  })
+
+  it('legacy message 配列は各要素を文字列化して返す', () => {
+    const error = { response: { status: 400, data: { message: ['名前は必須です', 42] } } }
+
+    expect(extractApiErrorMessages(error)).toEqual(['名前は必須です', '42'])
+  })
+
+  it("legacy message 文字列は ';' で分割し、空白と空要素を除く", () => {
+    const error = { response: { status: 400, data: { message: ' 名前は必須です ; ; タグが不正です ' } } }
+
+    expect(extractApiErrorMessages(error)).toEqual(['名前は必須です', 'タグが不正です'])
+  })
+
+  it('Error インスタンスは message を返す', () => {
+    expect(extractApiErrorMessages(new Error('接続に失敗しました'))).toEqual(['接続に失敗しました'])
+  })
+
+  it('unknown はフォールバック文言を返す', () => {
+    expect(extractApiErrorMessages(Symbol('unknown'))).toEqual(['リクエストの処理中にエラーが発生しました'])
   })
 })

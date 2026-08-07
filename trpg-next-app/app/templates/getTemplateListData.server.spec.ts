@@ -1,15 +1,16 @@
 jest.mock('server-only', () => ({}))
 
 jest.mock('../features/characterTemplate/api/sheetTemplateApi.server', () => ({
-  extractApiErrorMessages: jest.fn(),
   getSheetTemplateSummaries: jest.fn()
 }))
 
-import {
-  extractApiErrorMessages,
-  getSheetTemplateSummaries
-} from '../features/characterTemplate/api/sheetTemplateApi.server'
+jest.mock('../lib/api-response.util', () => ({
+  extractApiErrorMessages: jest.fn()
+}))
+
+import { getSheetTemplateSummaries } from '../features/characterTemplate/api/sheetTemplateApi.server'
 import type { CharacterSheetTemplateSummary } from '../features/characterTemplate/types/v3'
+import { extractApiErrorMessages } from '../lib/api-response.util'
 import { getTemplateListData } from './getTemplateListData.server'
 
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)

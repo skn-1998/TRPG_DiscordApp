@@ -8,6 +8,11 @@ jest.mock('../../lib/auth-guard.server', () => ({
   requireJwt: jest.fn()
 }))
 
+jest.mock('../../lib/api-response.util', () => ({
+  ...jest.requireActual('../../lib/api-response.util'),
+  extractApiErrorMessages: jest.fn()
+}))
+
 jest.mock('../character/api/character.service.server', () => ({
   createCharacterFromTemplate: jest.fn()
 }))
@@ -15,18 +20,17 @@ jest.mock('../character/api/character.service.server', () => ({
 jest.mock('./api/sheetTemplateApi.server', () => ({
   createSheetTemplate: jest.fn(),
   deleteSheetTemplate: jest.fn(),
-  extractApiErrorMessages: jest.fn(),
   publishSheetTemplate: jest.fn(),
   updateSheetTemplate: jest.fn()
 }))
 
 import { redirect } from 'next/navigation'
+import { extractApiErrorMessages } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { createCharacterFromTemplate } from '../character/api/character.service.server'
 import {
   createSheetTemplate,
   deleteSheetTemplate,
-  extractApiErrorMessages,
   publishSheetTemplate,
   updateSheetTemplate
 } from './api/sheetTemplateApi.server'

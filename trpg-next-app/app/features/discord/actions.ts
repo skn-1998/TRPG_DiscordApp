@@ -1,6 +1,7 @@
 'use server'
 
 import { requireJwt } from '../../lib/auth-guard.server'
+import { extractApiErrorMessages } from '../../lib/api-response.util'
 import {
   getDiscordServers,
   postCharacterToDiscord as postCharacterToDiscordRequest
@@ -18,10 +19,10 @@ export async function loadDiscordServers(): Promise<{
       servers: response.guilds.map((guild) => ({ value: guild.id, label: guild.name })),
       error: null
     }
-  } catch {
+  } catch (error) {
     return {
       servers: [],
-      error: 'サーバー一覧の取得に失敗しました'
+      error: extractApiErrorMessages(error).join(' / ')
     }
   }
 }
@@ -35,10 +36,10 @@ export async function postCharacterToDiscord(characterId: string, guildId: strin
 
   try {
     return await postCharacterToDiscordRequest(characterId, guildId)
-  } catch {
+  } catch (error) {
     return {
       success: false,
-      error: 'キャラクターの投稿中にエラーが発生しました'
+      error: extractApiErrorMessages(error).join(' / ')
     }
   }
 }

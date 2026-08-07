@@ -1,10 +1,8 @@
 import 'server-only'
 
-import {
-  extractApiErrorMessages,
-  getSheetTemplateSummaries
-} from '../features/characterTemplate/api/sheetTemplateApi.server'
+import { getSheetTemplateSummaries } from '../features/characterTemplate/api/sheetTemplateApi.server'
 import type { CharacterSheetTemplateSummary } from '../features/characterTemplate/types/v3'
+import { extractApiErrorMessages } from '../lib/api-response.util'
 
 interface TemplateListData {
   summaries: CharacterSheetTemplateSummary[]
