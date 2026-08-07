@@ -17,6 +17,14 @@ export async function GET(request: Request): Promise<NextResponse> {
   cookieStore.delete(OAUTH_STATE_COOKIE_NAME)
 
   if (!code || !state || !storedState || state !== storedState) {
+    const rejectionReason = !code
+      ? 'missing code'
+      : !state
+        ? 'missing state'
+        : !storedState
+          ? 'missing state cookie'
+          : 'state mismatch'
+    console.warn(`OAuth callback rejected: ${rejectionReason}`)
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

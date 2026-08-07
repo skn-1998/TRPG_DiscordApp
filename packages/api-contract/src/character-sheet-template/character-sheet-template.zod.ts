@@ -31,7 +31,7 @@ export const sheetTemplateForkedFromSchema = z.object({
  * z.date() のため HTTP wire を parse できず、.passthrough() で未知キーも許容する。
  * フロントエンドで import・parse しないこと。
  * wire 型は @trpg/api-contract 内に S4 で新設予定の character.wire.ts を使う
- * （front から使う場合は trpg-remix-app/eslint.config.js の allowImportNames への追加が必要）。
+ * （front から使う場合は trpg-next-app/eslint.config.mjs の no-restricted-imports（`@trpg/api-contract` の allowImportNames）への追加が必要）。
  */
 export const characterSheetTemplateEntitySchema = z.object({
   templateId: z.string().min(1),

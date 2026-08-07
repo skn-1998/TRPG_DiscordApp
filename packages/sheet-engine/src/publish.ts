@@ -41,7 +41,7 @@ const RESERVED_IDS = new Set([
   'other',
   ...KNOWN_FUNCTIONS,
 ]);
-// engine 内の runtime 参照は無いが削除不可。front の ID 規則複製の drift 等価テスト（trpg-remix-app/app/features/characterTemplate/utils/v3Template.spec.ts）が唯一の consumer。
+// engine 内の runtime 参照は無いが削除不可。front の ID 規則複製の drift 等価テスト（trpg-next-app/app/features/characterTemplate/utils/v3Template.spec.ts）が唯一の consumer。
 export const SHEET_RESERVED_ID_VALUES: readonly string[] = Object.freeze([...RESERVED_IDS]);
 // 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
 // inferCallType は二重発行防止の停止マーカーを投げ、catch は前段発行済みの場合だけ握る（fail closed）。

@@ -1,7 +1,10 @@
 import { INTERCEPTORS_METADATA } from '@nestjs/common/constants'
 import { AuthController } from '../../domains/auth/auth.controller'
 import { CharacterController } from '../../domains/character/character.controller'
+import { CharacterSheetTemplateController } from '../../domains/character-sheet-template/character-sheet-template.controller'
+import { DicePreviewController } from '../../domains/dice-roll/dice-preview/dice-preview.controller'
 import { UserController } from '../../domains/user/user.controller'
+import { DiscordController } from '../../discord/discord.controller'
 import { CharacterSheetController } from '../../features/character-sheet/character-sheet.controller'
 import { ResponseInterceptor } from './response.interceptor'
 import { SKIP_RESPONSE_WRAPPER_KEY } from './skip-response-wrapper.decorator'
@@ -21,6 +24,12 @@ describe('ResponseInterceptor application', () => {
 
   it('CharacterSheetController に ResponseInterceptor が適用される', () => {
     expect(getInterceptors(CharacterSheetController)).toContain(ResponseInterceptor)
+  })
+
+  it('bare response controller に ResponseInterceptor が適用されていない', () => {
+    expect(getInterceptors(CharacterSheetTemplateController)).not.toContain(ResponseInterceptor)
+    expect(getInterceptors(DiscordController)).not.toContain(ResponseInterceptor)
+    expect(getInterceptors(DicePreviewController)).not.toContain(ResponseInterceptor)
   })
 
   it('Discord OAuth の redirect handler は封筒化をスキップする', () => {

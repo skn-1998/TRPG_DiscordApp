@@ -8,8 +8,8 @@ import type {
   V3EditorFieldType
 } from '../types/v3'
 
-// `@trpg/sheet-engine` と同じ ID 規則を bundle 増加回避のため意図的に複製している。
-// 型定義は `../types/v2`・`../types/v3` に分割済みで、drift 検出は `./v3Template.spec.ts` を参照。
+// `@trpg/sheet-engine` は ID pattern を export せず、SHEET_RESERVED_ID_VALUES のみ公開するため同じ規則を複製している。
+// 型定義は `../types/v2`・`../types/v3` に分割済みで、pattern の drift は `./v3Template.spec.ts` の等価テストが pin する。
 const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/
 const SECTION_ID_PATTERN = FIELD_ID_PATTERN
 export const RESERVED_IDS: ReadonlySet<string> = new Set([
