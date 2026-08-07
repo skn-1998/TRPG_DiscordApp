@@ -1,25 +1,25 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo Remixアプリ開発サーバー起動
+echo Next アプリ開発サーバー起動 (port 3100)
 echo ========================================
 echo.
 
 REM バッチファイルのディレクトリパスを取得
 set "SCRIPT_DIR=%~dp0"
-set "REMIX_APP_DIR=%SCRIPT_DIR%trpg-remix-app"
+set "NEXT_APP_DIR=%SCRIPT_DIR%trpg-next-app"
 
 REM ディレクトリの存在確認
-if not exist "%REMIX_APP_DIR%" (
-    echo [エラー] trpg-remix-app ディレクトリが見つかりません: %REMIX_APP_DIR%
+if not exist "%NEXT_APP_DIR%" (
+    echo [エラー] trpg-next-app ディレクトリが見つかりません: %NEXT_APP_DIR%
     pause
     exit /b 1
 )
 
-REM trpg-remix-appディレクトリに移動
-cd /d "%REMIX_APP_DIR%"
+REM trpg-next-appディレクトリに移動
+cd /d "%NEXT_APP_DIR%"
 if errorlevel 1 (
-    echo [エラー] ディレクトリへの移動に失敗しました: %REMIX_APP_DIR%
+    echo [エラー] ディレクトリへの移動に失敗しました: %NEXT_APP_DIR%
     pause
     exit /b 1
 )
@@ -40,4 +40,3 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-
