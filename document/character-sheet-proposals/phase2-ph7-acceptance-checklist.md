@@ -13,7 +13,7 @@
 | 0-1 | `pnpm install`（リポジトリルート） | workspace 化後の初回は必須 |
 | 0-2 | `TRPG-SERVER` で `pnpm run start:dev` 起動、BOOT ログ確認 | §6 の Claude ログと同等になること |
 | 0-3 | backfill 実行: `pnpm run backfill:template-pin`（**dry-run が既定**）→ 件数確認 → `--execute` | G-2 対応。ロールバックは `--rollback` |
-| 0-4 | front 起動（`trpg-remix-app` で `pnpm run dev`）、`/templates` から legacy-coc テンプレートが公開済みであることを確認 | シード未投入なら legacy-coc シードを publish |
+| 0-4 | front 起動（`trpg-next-app` で `pnpm run dev` — dev サーバは port 3100）、`http://127.0.0.1:3100/templates` から legacy-coc テンプレートが公開済みであることを確認 | シード未投入なら legacy-coc シードを publish。旧 `trpg-remix-app` は N6b（`e179640`・2026-08-07）で撤去済み |
 | 0-5 | テスト用に (A) legacy キャラ（backfill 前から存在・sheet なし）、(B) テンプレ由来キャラ（Web の from-template 作成）を各1体用意 | 3状態モデルの legacy-pinned / materialized に対応 |
 
 ## 1. G-1: ロール経路（palette / resource）
