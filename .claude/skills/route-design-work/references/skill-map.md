@@ -34,6 +34,12 @@ Cross-cutting installed review capability:
 
 - `review-changeability`: scenario-specific change-propagation and modifiability review
 
+Cross-cutting installed execution-context capability:
+
+- `loop-ledger-design`: snapshot ledger carrying settled decisions, invariants and how each is enforced, open human decision points, and runnable verification commands across repeated AI-delegation work
+
+This capability is deliberately placed outside the category tree. It designs the execution context of delegated work, not the software itself, so no design category owns it. It also has no category parent: a parent whose only job is to route to one child adds a hop without adding ordering, which the direct-invocation rule already forbids. Route to it directly or not at all.
+
 The map is intentionally conservative. A planned or evidence-needed child is unavailable and must not be simulated. An installed parent may report the gap but does not become a substitute for the missing child method.
 
 ## Parent Ownership

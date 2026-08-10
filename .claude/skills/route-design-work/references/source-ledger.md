@@ -86,8 +86,30 @@ Use primary and official sources first. The hierarchy is a local implementation 
 - Etienne and Beverly Wenger-Trayner, "Introduction to communities of practice"
   https://www.wenger-trayner.com/introduction-to-communities-of-practice/
 
+## Execution Context And Agent Loops
+
+Sources for `loop-ledger-design` and for `RDW-EXECUTION-CONTEXT`. They establish why delegated work needs a persistent execution context and what a delegated task description must carry. None of them defines this hierarchy's ledger sections, placement, or cross-cutting status; those remain local governance.
+
+- Anthropic, "Effective context engineering for AI agents", published 2025-09-29
+  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+  Use for: structured note-taking as memory persisting outside the context window, compaction and its fidelity limits, sub-agent context isolation returning distilled summaries, just-in-time retrieval through lightweight identifiers, and long-horizon task patterns.
+
+- Anthropic, "Building effective agents"
+  https://www.anthropic.com/engineering/building-effective-agents
+  Use for: the workflow versus agent distinction, human checkpoints and explicit stopping conditions, environmental feedback as ground truth, agent-computer interface clarity, and the caution against adding complexity before a simpler solution has failed.
+
+- Anthropic, "Best practices for Claude Code"
+  https://code.claude.com/docs/en/best-practices
+  Use for: giving the agent a check it can run and requiring evidence over asserted success, the deterministic-hook versus advisory-instruction contrast, pruning an over-specified instruction file, scoping investigation, and adversarial review together with its over-engineering caveat. The former `www.anthropic.com/engineering/claude-code-best-practices` URL redirects here.
+
+- Anthropic, "How we built our multi-agent research system"
+  https://www.anthropic.com/engineering/multi-agent-research-system
+  Use for: the elements a subagent task description must carry (objective, output format, tool and source guidance, clear task boundaries), scaling effort to request complexity, observed coordination failures such as duplicated work and gaps, the limited parallelism of coding work, and resuming stateful agents from external memory.
+
 ## Source Policy
 
 Do not use Qiita or Zenn. Do not inherit evidence from them through quotations or links inside an otherwise accepted source. Record unsupported architecture choices as local governance.
 
 GitHub snapshots above were resolved and checked on 2026-07-12 or, for `inspired-mino-design-skills`, pinned and assessed on 2026-07-15. Re-check source claims before adopting behavior from a later revision.
+
+Sources under "Execution Context And Agent Loops" were resolved and checked on 2026-08-09.

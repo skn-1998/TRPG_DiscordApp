@@ -55,10 +55,13 @@ Category ownership:
 - `refactoring`: debt priority and behavior-preserving restructuring
 - `organization`: design learning and validated knowledge scaling
 - matching review Skill: review a supplied artifact for its declared concern
+- `loop-ledger-design`: cross-cutting execution-context ledger for repeated AI-delegation work; not a design category and not a category parent
 
 `skill-creator` owns the decision and workflow to create or revise a Skill. When it needs category placement evidence, this parent returns only the existing design-capability route and gaps. Skill creation, names, trigger thresholds, files, commands, examples, and authoring acceptance are not Steps in this route.
 
 Route only concerns requested now. Match a review Skill by its declared concern, not by the generic verb "review". In particular, use `review-changeability` only for scenario-specific change propagation or modifiability review; do not add it to a class-responsibility or design review unless that concern is requested.
+
+Route a Step to `loop-ledger-design` only when the request asks to establish or audit the shared execution context that repeated AI-delegation work will read from: which decisions are settled, which invariants must survive and how each is currently enforced, which decisions stay with a human, and which verification commands actually exist. A request to implement, to delegate, or to "let AI do it" is not that request. Most design routes need no such Step; omit it unless that execution-context concern is stated.
 
 An installed routing parent does not imply that its planned children exist. Whenever the Recipient is a category parent, use this interface regardless of the user's eventual goal:
 
@@ -85,6 +88,7 @@ Order only dependencies that affect later meaning or acceptance:
 - resolve domain purpose, model applicability, language, or invariants before code structure when they determine responsibilities
 - establish target responsibilities and observable behavior before behavior-preserving restructuring when they are unclear
 - put another requested practice-definition or evidence-producing Step before organization scaling only when the scaling decision consumes that result; otherwise let `design-knowledge-scaling` qualify supplied evidence
+- place `loop-ledger-design` after the design Steps whose settled decisions and invariants the ledger records, and before the delegated execution it governs; when no such design Step is requested, it carries no design dependency and may come first
 
 Do not add generic research, review, approval, persistence, or implementation Steps. Include one only when requested or required by supplied governance; never invent its owner or authority.
 
