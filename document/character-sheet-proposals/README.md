@@ -28,9 +28,12 @@
 
 | 案 | ファイル | 一言でいうと |
 |----|---------|-------------|
+| **台帳** | [design-ledger.md](design-ledger.md) | **ループエンジニアリング用 設計台帳（2026-08-08）** — 確定裁定・不変条件（機械固定/規約頼み）・実装ギャップマトリクス・既知バグ候補 L-1〜L-13・未決事項/決定点・ワークキューを 1 箇所に集約。**Codex adversarial 監査 round1〜3 収束済み（round3 pass・reviewed at `ee013820`・証跡 = `review-results/design-ledger-review/`）** |
 | 調査 | [trpg-system-survey.md](trpg-system-survey.md) | **14 系統の TRPG を棚卸しし、5 セクションと AttributeValue の充足性を検証**（結論: どちらも汎用正本としては不足。構造パターン P1〜P14 を定義） |
 | **設計** | [design-v1.md](design-v1.md) | **Codex との討論 2 ラウンドを経て確定した具体設計 v1**（schema v3・式エンジン・ドメイン境界・palette・Phase 分割・争点決着表・討論記録） |
-| **設計** | [design-v1-ui.md](design-v1-ui.md) | **UI 三面設計（エディタ／作成フォーム／Discord hub）を同討論プロトコルで確定**（DiscordProjectionViewModel 正本化・署名付き roll proof・ephemeral パネル・決着表 U1〜U13） |
+| **設計** | [design-v1-ui.md](design-v1-ui.md) | **UI 三面設計（エディタ／作成フォーム／Discord hub）を同討論プロトコルで確定**（DiscordProjectionViewModel 正本化・署名付き roll proof・ephemeral パネル・決着表 U1〜U16。v1.1/v1.2 = U14 レイアウトヒント・U15 ブロック/上限/ポイントプール＋追補 H-1〜H-18・v1.3 = SM-1〜17 共通契約・v1.4 = U16 シート公開設定） |
+| 検証 | [u14-u15-verification-matrix.md](u14-u15-verification-matrix.md) | **U14/U15 の検証観点マトリクス（2026-08-09）** — 観点 V1〜V9 × 要素の全セル走査で穴 H-1〜H-18 を検出・裁定。**Codex adversarial 監査 round1〜3 収束済み（round3 pass・証跡 = `review-results/u14-u15-design-review/`）** |
+| 検証 | [screen-state-matrix.md](screen-state-matrix.md) | **画面×状態マトリクス（2026-08-09）** — 三面 UI の画面 S0〜S8 × 状態 G1〜G9 を走査し未定義状態 SM-1〜SM-17 を裁定（design-v1-ui v1.3 追補に固定・未決なし。SM-7 は 2026-08-09 ユーザー裁定で v1 非実装に確定）。**Codex adversarial 監査 round1〜4 収束済み（round4 pass・証跡 = `review-results/screen-state-review/`）** |
 | **監査** | [field-sufficiency-audit.md](field-sufficiency-audit.md) | **schema v3 の充足性再精査**（52 エージェント×約40システム＋Codex レッドチーム）。真ギャップ 4＋復活 4 を確定し design-v1 **v1.2** へ反映（TrackField min/resetTo・notation 文法 §2.1・明文化 §2.2・when/declare 予約） |
 | 参照 | [encoding-cookbook.md](encoding-cookbook.md) | **エンコード集** — 「書けないのでは」37 主張の正準エンコード（破れ 4 件は注記）＋非自明レシピ 79 件。テンプレート作者/実装者向けリファレンス |
 | A1 | [a1-extend-current-sections.md](a1-extend-current-sections.md) | 現行 AttributeSection（5セクション）を温存し formula を足す最小変更案 |
@@ -57,7 +60,8 @@
 ## 現時点の所感（決定ではない）
 
 - 本命は **A2 ＋ B1〜B4 の組み合わせ**。フロントに式エンジン・エディタ・ギャラリーの mock 資産が既にあり
-  （`trpg-remix-app/app/features/characterTemplate/`）、「Excel のように」の体感（式・レイアウト・型付き項目）と
+  （記述当時は `trpg-remix-app/app/features/characterTemplate/`。Next 移行後の現行実体は
+  `trpg-next-app/app/features/characterTemplate/`）、「Excel のように」の体感（式・レイアウト・型付き項目）と
   Discord 連携の折り合いが最も取りやすい。
 - **A1 は A2 への第一増分**として価値がある（テンプレート pin と formula 追加だけ先行し、既存経路を無傷に保つ）。
 - **A4 は単独案というより A2 に「フィールドの意味役割（role）」として取り込む**のが現実的（詳細は B4）。
@@ -116,8 +120,8 @@
 ## 関連する既存資産
 
 - [document/phase0-character-sheet.md](../phase0-character-sheet.md) … Phase 0 設計（`CharacterSheetTemplate` 型の初案 §4.1.3、description/式の二重用リスク §5）
-- `trpg-remix-app/app/features/characterTemplate/AI.{feature,types}.md` … V3 現況の正本（B4 で V3 向けに全面改稿）。旧 V2 DSL 資料の AI.{ui,api,security}.md は B4（`32be7b4`）で削除済み — 参照は git 履歴 `dbd45e5` 以前
-- mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は V3 server draft（`trpg-remix-app/app/routes/templates.tsx` / `templates_.$id.edit.tsx`）
+- 旧 `trpg-remix-app/.../characterTemplate/AI.{feature,types}.md`（B4 で V3 向けに全面改稿した V3 現況の正本）は N6b の trpg-remix-app 撤去（`e179640`・2026-08-07）で**移設されずに削除済み** — 参照は git 履歴 `e179640^` 以前。旧 V2 DSL 資料の AI.{ui,api,security}.md は B4（`32be7b4`）で削除済み — 参照は git 履歴 `dbd45e5` 以前。現行の front 正本 doc は `trpg-next-app/AI.md`（実装規約）、V3 型定義の実体は `trpg-next-app/app/features/characterTemplate/types/v3.ts`
+- mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は Next 移行後 `trpg-next-app/app/templates/page.tsx`（一覧）/ `app/templates/[id]/edit/page.tsx`（エディタ）
 - `TRPG-SERVER/src/core/types/attribute.types.ts` … AttributeValue / AttributeSection（現行の正本）
 - `TRPG-SERVER/src/domains/character/` … character ドメイン（設計ガイド: `.claude/skills/trpg-domain-character/SKILL.md`）
 - `TRPG-SERVER/docs/reviews/feature-inventory-2026-06-05.md` … 実コード根拠の機能棚卸し（Discord 側の消費実態）
