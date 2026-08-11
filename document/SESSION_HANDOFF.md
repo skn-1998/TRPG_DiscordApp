@@ -2220,8 +2220,37 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   projection 28/28〔25＋3〕・server hub 22/22・build 成功。design-v1-ui §3.5 SM-11 の
   「唯一の発生源」文言を訂正済み（構造的発生源 = publish 閉鎖 SM-A／退化系発生源 =
   projection 一括被覆 SM-B の二層記述へ）。
-  **次にやること**: docs コミット → **大粒度 #11（E3+SM-A+SM-B/R2・二重）** →
-  SM-C resolve 分離 →
+  **大粒度 #11 走行中（Codex 返着 needs-fix・Opus 走行中）**: Codex high =
+  countGroupActions は builder の第 3 条件（customId 100 文字予算・channelId 長の実行時文脈）を
+  見られず「select に残るが panel 0 件」が残存（20 桁 channelId＋75 文字 key で実測）。
+  処方箋 = counter 削除・**builder の実生成結果を group 生存/page 数の正本に**（所有者 2→1 純減）。
+  Codex medium = server op 層が要求 delta を現 palette 宣言と突合しない（spec:1193 が未宣言 -3 の
+  成功を固定＝暗黙契約化・stale button から未宣言 delta 適用可）。#15d(e) partsKey 語彙検査と
+  同クラス。他 = sweep 4 系健全・変異 3 種赤・全ゲート緑・editor 1,147 行（+145）は
+  resolver 局所化を優先し finding 化せず。
+  **大粒度 #11 突合裁定完了（big11-integration.md・2026-08-12）**: counter×builder 不一致は
+  **両者独立収束**（Opus は SESSION_HANDOFF の Codex 記録を読む前に probe 済みと申告）・
+  severity は Opus の到達性実測（materializer は key≤35→customId≤82 で現行生成経路は
+  予算 100 に到達不能・永続 schema に key 上限なし = 外部注入のみ）を採用し防御深度の欠落と裁定。
+  Opus 単独採用 = M-2 describeIssuePath の throw 経路（label 欠落/非 string 8/8 node kind で
+  TypeError → 検証レポート全損。コミット d4302e1「throw 経路なし」の反証 — メモリ
+  verify-claims 第 19 例へ記録済み）・M-4 PublishWarning.path への表示ラベル上書き・
+  L-1 isRenderableResourceDelta 純間接参照。台帳 B-18 新設（resolver 一意性×sections 語彙）。
+  記録のみ = L-2 fieldId/path 非対称（server 構造化 path 返却スライスで再訪）・
+  editor 1,147 行は分割しない裁定（両者一致: 分割は純減にならない）・
+  コミット文言反証 2 件（872b861「符号化各 1 箇所」= 2/3・8078b06「唯一の発生源」）は
+  履歴書換せず本記録で訂正。
+  **修正 3 レーン全消化・コミット済み（2026-08-12）**:
+  SM-B-R3 = ce7bd7d（builder 実生成正本化・top-level 関数 30→28・projection 29/29・
+  server hub 22/22）／E3-R3 = 6dc601b（displayName 非 string ガード・warning 表示型分離・
+  front 322/322）／SM-OP = a063ae5（宣言 delta 突合 :568 の 1 箇所・focused 99/99・
+  build＋循環ゼロ・**server full suite 3056/3059 — 赤 3 は既知の L-2 再現 spec のみ**
+  〔ユーザー裁定待ち・§6-1 優先 2。SM-OP 起因の赤ゼロを確認〕）。
+  検収教訓: `cmd | tail` が again exit を隠した（メモリ既録の罠・full suite の Exit 1 を
+  notification の exit 0 が偽装）— 判定は必ず末尾の Exit status 行か pipefail で。
+  **大粒度 #11 クローズ**。
+  **次にやること**: docs コミット → SM-C resolve 分離（resolveForCreate/resolvePinnedRevision・
+  character-sheet-template.service 実測 → 指示書）→ SM-D 409 currentRevision → SM-E canMutate →
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
