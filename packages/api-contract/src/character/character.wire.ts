@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import { z } from 'zod'
 import {
   attributeSectionSchema,
   attributeValueSchema,
@@ -122,6 +122,38 @@ export interface SaveCharacterSheetResultWire {
   noOp: boolean
   appliedChanges: number
 }
+
+/**
+ * PUT /character/:id/sheet の真の競合時に ErrorEnvelope.cause へ載る直列化形。
+ * cause は server filter が deny 集合（message/statusCode/error/issues）以外の body キーを通す汎用 pass-through。
+ * 将来の診断キーを許容しつつ既知の競合契約だけを返すため、外側は .strip() とする。
+ */
+export const sheetMergeConflictSchema = z
+  .object({
+    characterId: z.string(),
+    conflicts: z
+      .array(
+        z
+          .object({
+            path: z
+              .object({
+                fieldUid: z.string(),
+                partsKey: z.string().optional()
+              })
+              .strict(),
+            // z.unknown() 単体は欠落も受理するため、wire に常在する3値は必須に固定する。
+            current: z.unknown().nonoptional(),
+            base: z.unknown().nonoptional(),
+            yours: z.unknown().nonoptional()
+          })
+          .strict()
+      )
+      .min(1),
+    currentRevision: z.number().int().nonnegative()
+  })
+  .strip()
+
+export type SheetMergeConflictWire = z.infer<typeof sheetMergeConflictSchema>
 
 /**
  * POST /character/from-template について front が消費する保証面。

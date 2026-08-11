@@ -6,7 +6,7 @@ declare const __dirname: string
 const path = require('path') as { join: (...paths: string[]) => string }
 
 describe('@trpg/api-contract public exports', () => {
-  it('型シンボルの公開面を39名に固定する', () => {
+  it('型シンボルの公開面を41名に固定する', () => {
     const indexPath = path.join(__dirname, 'index.ts')
     const program = ts.createProgram([indexPath], {
       moduleResolution: ts.ModuleResolutionKind.Node10
@@ -49,6 +49,7 @@ describe('@trpg/api-contract public exports', () => {
       'ErrorEnvelope',
       'LoginDataWire',
       'SaveCharacterSheetResultWire',
+      'SheetMergeConflictWire',
       'SuccessEnvelope',
       'UserProfileWire',
       'attributeSectionSchema',
@@ -64,6 +65,7 @@ describe('@trpg/api-contract public exports', () => {
       'dicePreviewResponseSchema',
       'materializedCharacterEntitySchema',
       'saveSheetMaterializedPayloadSchema',
+      'sheetMergeConflictSchema',
       'sheetTemplateForkedFromSchema',
       'sheetTemplateSettingsSchema',
       'sheetTemplateStatusSchema',
@@ -71,10 +73,10 @@ describe('@trpg/api-contract public exports', () => {
     ])
   })
 
-  it('ランタイム値の公開面を17名に固定する', () => {
+  it('ランタイム値の公開面を18名に固定する', () => {
     // require('./index') は ts-jest がソースを解決する。
     // これはソース公開面の値/型区分の証人であり、dist 成果物の検証は build が担う。
-    // 39 − 17 = 型のみ22（既存20＋dice preview request/response型2）を不変条件とする。
+    // 41 − 18 = 型のみ23（既存22＋sheet merge conflict型1）を不変条件とする。
     const runtimeExportNames = Object.keys(require('./index'))
       .filter((name) => name !== '__esModule')
       .sort()
@@ -93,6 +95,7 @@ describe('@trpg/api-contract public exports', () => {
       'dicePreviewResponseSchema',
       'materializedCharacterEntitySchema',
       'saveSheetMaterializedPayloadSchema',
+      'sheetMergeConflictSchema',
       'sheetTemplateForkedFromSchema',
       'sheetTemplateSettingsSchema',
       'sheetTemplateStatusSchema',
