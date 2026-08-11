@@ -2282,9 +2282,42 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   受理集合は実装者・レビュアが**独立に engine 実測して全一致**・16 ケース同値 spec が
   drift 検出器。空キーは parts:true で engine 受理へ揃えて緩和（下流無害を到達実測）。
   レビュー pass（findings 0・変異 6 本赤）。台帳 #11 行へ消化状況を追記済み。
-  **次の大粒度 #12**: SM-C／SM-D1／SM-G の 3 スライス消化で期限到達 — 対象 =
-  resolve 分離＋409 currentRevision＋partsKey 語彙（すべて operation/template service 周辺・
-  隣接 = instantiation・filter・engine value-input 境界）。二重（Codex＋Opus）で実施する。
+  **大粒度 #12 走行中（Codex 返着 needs-fix・Opus 走行中）**: Codex medium =
+  **publish が UNSAFE キー（prototype 等）を宣言 partsKey id として受理**（実測:
+  partsKeys:[{id:'prototype'}] が publish 緑 → value-input は reserved 拒否・操作層 422 =
+  公開済みが提示するキーを誰も保存できない drift。SM-G 同値 spec は publish を通らないため
+  盲点）。処方箋 = validateScalarPartsKeys で UNSAFE_PARTS_KEYS を再利用し publish 拒否＋
+  「publish 成功の宣言キーは下流受理」境界 spec。他 sweep 健全 = 包含 operation⊆engine 16/16・
+  status 集合再宣言 0（repository CAS の 1 件は責務別で意図的除外）・409 3 族とも定義 1・
+  operation.service 累積影響は saveSheet 同時保持 8/11 横ばい・エディタ提示⊆操作層は
+  **不成立**（宣言 id 無加工候補化 — publish 修正で上流閉鎖）。
+  **大粒度 #12 突合完了（2026-08-12・big12-integration.md）**: Opus も needs-fix で返着し、
+  F1 が Codex medium と**独立収束**（すり抜けは `prototype` 1 語と特定 — __proto__ は
+  ID_PATTERN・constructor は RESERVED_IDS が既閉。機構 = UNSAFE 3 値の二重定義:
+  publish.ts:46 UNSAFE_UID_KEYS ⇔ value-input.ts:14 UNSAFE_PARTS_KEYS に drift テスト無し。
+  front 提示 3 兄弟関数の濾過非対称〔table 列無濾過／popover 宣言 = base/other のみ／
+  自由 = UNSAFE〕も実測）。裁定 = **B12-FIX（engine 1 レーン）発行済み・走行中**
+  （prompt-b12-fix.md: validateScalarPartsKeys へ UNSAFE 拒否＋UNSAFE_UID_KEYS を
+  UNSAFE_PARTS_KEYS import へ一本化〔uid メッセージ不変〕＋3 キー回帰＋層間境界 spec）。
+  繰延べ = renderer/editor の提示濾過（D-R2 接続時条件へ台帳追記済み — 書込は操作層 422＋
+  materialize 再検証の二層で fail-noisy 済み・対象は既存公開データ防御のみ）。
+  記録のみ = F2 409 status 判別（SM-D2 前提）・F3 非 draft 補集合形の fail-open
+  （台帳 §2-2 B-19 新設・書換は YAGNI）・F4 同値 spec の track 未被覆（probe 一致・欠陥でない）。
+  Opus scope-check の SESSION_HANDOFF mtime 変化は Fable 自身の並行更新で汚染ではない。
+  **B12-FIX 返着・Fable 独立検収まで完了（2026-08-12）**: 本体差分は指示どおり最小
+  （UNSAFE_UID_KEYS 削除→UNSAFE_PARTS_KEYS import 一本化・uid メッセージ不変・
+  validateScalarPartsKeys へ拒否 1 分岐・truncateIssueInput 様式踏襲）。spec は
+  publish 3 キー it.each 回帰＋phase2-engine の層間境界 spec（JSON.parse で own __proto__
+  生成・実 publish＋実 safeParse 突合）。red-green 証跡あり（prototype 修正前赤）。
+  Fable 独立再実行 = engine 519（515＋4）・projection 29・front 322 全緑 exit 0。
+  **B12-FIX 完了・コミット済み（fd4c8be・2026-08-12）**: Opus レビュー pass
+  （blocking 0・low 4 は big12-integration.md へ起票 — Low-1 uid 機構コメント復元は
+  次の publish.ts スライスへ・Low-4 UNSAFE_PARTS_KEYS の ReadonlySet 化は次の
+  value-input スライスへ折込。判別力の変異実測 = publish 検査削除 4 赤・literal drift 2 赤・
+  uid 意味不変 = HEAD 並置 12 ケース diff 0）。**大粒度 #12 クローズ**。
+  次 = SM-D2 委譲（設計前提は prompt-sm-d2-draft.md に固定済み:
+  409 cause 実測形・原子的拒否ゆえ mine は全 dirty 再送・conflicts ⊆ 提出 path・
+  D2a 契約＋action 層／D2b editor 状態機械の 2 分割）。
   **その後**: SM-D2（front theirs/mine 状態機械＋契約 schema）→ SM-E canMutate →
   SM-F SM-1 原子性 → front 系（SM-8/SM-14）。
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
