@@ -54,6 +54,7 @@ export interface UpdateSheetTemplateRequest extends Partial<CreateSheetTemplateR
 }
 
 export interface TemplateValidationMessage {
+  code?: string
   fieldId?: string
   path?: string
   message: string
