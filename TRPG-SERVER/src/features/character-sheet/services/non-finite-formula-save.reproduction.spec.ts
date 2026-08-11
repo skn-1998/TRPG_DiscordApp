@@ -139,7 +139,7 @@ describe('non-finite formula save reproduction', () => {
     resolvedTemplate: CharacterSheetTemplateEntity = template
   ): CharacterSheetOperationService => {
     const templateService = {
-      resolvePublished: jest.fn().mockResolvedValue(resolvedTemplate)
+      resolvePinnedRevision: jest.fn().mockResolvedValue(resolvedTemplate)
     }
     return new CharacterSheetOperationService(
       repository as unknown as CharacterRepository,

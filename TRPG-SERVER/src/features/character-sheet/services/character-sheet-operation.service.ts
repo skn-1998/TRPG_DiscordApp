@@ -414,7 +414,7 @@ export class CharacterSheetOperationService {
 
   private async resolvePinnedTemplate(character: CharacterEntity): Promise<CharacterSheetTemplateEntity> {
     const sheet = this.requireSheet(character)
-    return this.templateService.resolvePublished(sheet.templateId, sheet.templateVersion, character.discordUserId)
+    return this.templateService.resolvePinnedRevision(sheet.templateId, sheet.templateVersion, character.discordUserId)
   }
 
   private requireSheet(character: CharacterEntity): NonNullable<CharacterEntity['sheet']> {

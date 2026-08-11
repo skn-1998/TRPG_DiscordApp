@@ -7,7 +7,9 @@ import {
 } from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
+import { CharacterSheetTemplateRepository } from '../../../domains/character-sheet-template/repositories/character-sheet-template.repository'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
+import type { TemplateValidationPort } from '../../../domains/character-sheet-template/validation/template-validation.port'
 import { CharacterSheetOperationService, HubProjectionPreparationError } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
@@ -118,7 +120,7 @@ describe('CharacterSheetOperationService', () => {
     setHubState: jest.Mock
     saveSheetMaterialized: jest.Mock
   }
-  let templateService: { resolvePublished: jest.Mock }
+  let templateService: { resolvePinnedRevision: jest.Mock }
   let materializer: { validateInputValues: jest.Mock; materialize: jest.Mock }
   let service: CharacterSheetOperationService
 
@@ -194,6 +196,26 @@ describe('CharacterSheetOperationService', () => {
     ...overrides
   })
 
+  const makeDeprecatedPinnedOperationService = (): CharacterSheetOperationService => {
+    const templateRepository = {
+      findById: jest.fn().mockResolvedValue({ ...template, status: 'deprecated' })
+    }
+    const validationPort: TemplateValidationPort = {
+      validateForSave: jest.fn(),
+      validateForPublish: jest.fn()
+    }
+    const pinnedTemplateService = new CharacterSheetTemplateService(
+      templateRepository as unknown as CharacterSheetTemplateRepository,
+      validationPort
+    )
+
+    return new CharacterSheetOperationService(
+      repository as unknown as CharacterRepository,
+      pinnedTemplateService,
+      materializer as unknown as SheetMaterializerService
+    )
+  }
+
   beforeEach(() => {
     current = makeCharacter()
     repository = {
@@ -225,7 +247,7 @@ describe('CharacterSheetOperationService', () => {
           }
         )
     }
-    templateService = { resolvePublished: jest.fn().mockResolvedValue(template) }
+    templateService = { resolvePinnedRevision: jest.fn().mockResolvedValue(template) }
     materializer = {
       validateInputValues: jest.fn(),
       materialize: jest.fn().mockImplementation((input) => ({
@@ -240,6 +262,45 @@ describe('CharacterSheetOperationService', () => {
       templateService as unknown as CharacterSheetTemplateService,
       materializer as unknown as SheetMaterializerService
     )
+  })
+
+  describe('deprecated pin regression', () => {
+    it('deprecated テンプレートを pin したキャラクターの saveSheet が成功する', async () => {
+      const pinnedService = makeDeprecatedPinnedOperationService()
+
+      await expect(
+        pinnedService.saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 5, newValue: 6 }]
+        })
+      ).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+    })
+
+    it('deprecated テンプレートを pin したキャラクターの applyResourceDelta が成功する', async () => {
+      const pinnedService = makeDeprecatedPinnedOperationService()
+
+      await expect(
+        pinnedService.applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: 1,
+          interaction: { id: 'interaction-deprecated-pin' }
+        })
+      ).resolves.toEqual(expect.objectContaining({ noOp: false, effectiveDelta: 1, revision: 2 }))
+    })
+
+    it('deprecated テンプレートを pin したキャラクターの getHubCharacter 投影が成功する', async () => {
+      current = makeCharacter({ discordThreadId: 'thread-1' })
+      const pinnedService = makeDeprecatedPinnedOperationService()
+
+      await expect(pinnedService.getHubCharacter('character-1')).resolves.toEqual(
+        expect.objectContaining({
+          characterId: 'character-1',
+          resolvedResourceValues: { 'uid-hp': 8 }
+        })
+      )
+    })
   })
 
   describe('hub thin API', () => {
@@ -257,7 +318,7 @@ describe('CharacterSheetOperationService', () => {
 
     it('thread未確定のpoll snapshotではresource値を解決しない', async () => {
       await expect(service.getHubCharacter('character-1')).resolves.toBe(current)
-      expect(templateService.resolvePublished).not.toHaveBeenCalled()
+      expect(templateService.resolvePinnedRevision).not.toHaveBeenCalled()
     })
 
     it('hub noneはthread確定後もpublication CASまでテンプレートを解決しない', async () => {
@@ -265,12 +326,12 @@ describe('CharacterSheetOperationService', () => {
         discordThreadId: 'thread-1',
         hub: { status: 'none', pendingRevision: 1, appliedRevision: 0 }
       })
-      templateService.resolvePublished.mockRejectedValue(
+      templateService.resolvePinnedRevision.mockRejectedValue(
         new ConflictException('sheet template must be published at the requested version')
       )
 
       await expect(service.getHubCharacter('character-1')).resolves.toBe(current)
-      expect(templateService.resolvePublished).not.toHaveBeenCalled()
+      expect(templateService.resolvePinnedRevision).not.toHaveBeenCalled()
     })
 
     it('activeかつpending>appliedかつ429のretryAt到来済みだけをworker候補にする', async () => {
@@ -325,7 +386,7 @@ describe('CharacterSheetOperationService', () => {
     it('publishing時のresource値解決失敗を握り潰さずcallerへ返す', async () => {
       const resolutionError = new ConflictException('published template is deprecated')
       repository.setHubState.mockResolvedValue(current)
-      templateService.resolvePublished.mockRejectedValue(resolutionError)
+      templateService.resolvePinnedRevision.mockRejectedValue(resolutionError)
 
       await expect(
         service.setHubState('character-1', { status: 'none' }, { status: 'publishing', opId: 'op-1' })
@@ -333,7 +394,7 @@ describe('CharacterSheetOperationService', () => {
     })
 
     it('formula max=10・parts合計12のhub resource値を10へクランプする', async () => {
-      templateService.resolvePublished.mockResolvedValue(makeFormulaMaxTemplate())
+      templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         discordThreadId: 'thread-1',
         sheet: {
@@ -380,7 +441,7 @@ describe('CharacterSheetOperationService', () => {
         valueType: 'text',
         role: { kind: 'resource', deltas: [-1, 1] }
       }
-      templateService.resolvePublished.mockResolvedValue({
+      templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
           {
@@ -405,7 +466,7 @@ describe('CharacterSheetOperationService', () => {
     })
 
     it('max依存値を縮小して保存した直後のhub resource値を新maxへクランプする', async () => {
-      templateService.resolvePublished.mockResolvedValue(makeFormulaMaxTemplate())
+      templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         discordThreadId: 'thread-1',
         sheet: {
@@ -460,7 +521,7 @@ describe('CharacterSheetOperationService', () => {
         { status: 'active', messageId: 'message-1' },
         { status: 'error', errorCode: 'PROJECTION_FAILED' }
       )
-      expect(templateService.resolvePublished).not.toHaveBeenCalled()
+      expect(templateService.resolvePinnedRevision).not.toHaveBeenCalled()
     })
 
     it('最新hubがcatch-up済みならerrorへ遷移しない', async () => {
@@ -634,7 +695,7 @@ describe('CharacterSheetOperationService', () => {
           }
         ]
       }
-      templateService.resolvePublished.mockResolvedValue(hpByConTemplate)
+      templateService.resolvePinnedRevision.mockResolvedValue(hpByConTemplate)
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -670,7 +731,7 @@ describe('CharacterSheetOperationService', () => {
       ['plain number', 999],
       ['parts total', { parts: { base: 999, other: 0 } }]
     ])('formula maxを外れる新規track書き込みを422にする: %s', async (_caseName, newValue) => {
-      templateService.resolvePublished.mockResolvedValue(makeFormulaMaxTemplate())
+      templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -994,7 +1055,7 @@ describe('CharacterSheetOperationService', () => {
     })
 
     it('minとmaxが同じ縮退trackでは境界方向を特定しない', async () => {
-      templateService.resolvePublished.mockResolvedValue({
+      templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
           {
@@ -1071,7 +1132,7 @@ describe('CharacterSheetOperationService', () => {
         max: { formula: '{status.hp}' },
         style: 'gauge' as const
       }
-      templateService.resolvePublished.mockResolvedValue({
+      templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
           {
@@ -1330,7 +1391,7 @@ describe('CharacterSheetOperationService', () => {
     })
 
     it('formula max範囲外のlegacy partsは±1で巨大な逆向きdeltaを作らず、実効値不変を返す', async () => {
-      templateService.resolvePublished.mockResolvedValue(makeFormulaMaxTemplate())
+      templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -1417,7 +1478,7 @@ describe('CharacterSheetOperationService', () => {
         style: 'gauge' as const,
         role: { kind: 'resource' as const, deltas: [-1, 1] }
       }
-      templateService.resolvePublished.mockResolvedValue({
+      templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
           {

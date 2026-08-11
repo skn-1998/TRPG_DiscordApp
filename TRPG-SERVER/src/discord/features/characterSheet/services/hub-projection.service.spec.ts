@@ -120,7 +120,7 @@ describe('HubProjectionService', () => {
     }
     const operations = new CharacterSheetOperationService(
       { findById: jest.fn().mockResolvedValue(sourceCharacter) } as unknown as CharacterRepository,
-      { resolvePublished: jest.fn().mockResolvedValue(template) } as unknown as CharacterSheetTemplateService,
+      { resolvePinnedRevision: jest.fn().mockResolvedValue(template) } as unknown as CharacterSheetTemplateService,
       {} as SheetMaterializerService
     )
 

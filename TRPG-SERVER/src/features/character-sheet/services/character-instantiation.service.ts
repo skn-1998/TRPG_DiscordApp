@@ -26,7 +26,7 @@ export class CharacterInstantiationService {
   ) {}
 
   async instantiate(input: InstantiateCharacterInput): Promise<InstantiateCharacterResult> {
-    const template = await this.templateService.resolvePublished(
+    const template = await this.templateService.resolveForCreate(
       input.templateId,
       input.templateVersion,
       input.requesterDiscordUserId

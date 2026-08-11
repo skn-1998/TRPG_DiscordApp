@@ -152,7 +152,7 @@ describe('CharacterInstantiationService', () => {
   }
 
   function createDependencies() {
-    const templateService = { resolvePublished: jest.fn().mockResolvedValue(template) }
+    const templateService = { resolveForCreate: jest.fn().mockResolvedValue(template) }
     const characterRepository = { createMaterializedCharacter: jest.fn().mockResolvedValue(created) }
     const characterIdService = { generateUniqueCharacterId: jest.fn().mockResolvedValue('char-1') }
     const diceExecutionService = {
@@ -185,7 +185,7 @@ describe('CharacterInstantiationService', () => {
 
     const result = await dependencies.service.instantiate(instantiateInput)
 
-    expect(dependencies.templateService.resolvePublished).toHaveBeenCalledWith('template-1', '1.0.0', 'user-1')
+    expect(dependencies.templateService.resolveForCreate).toHaveBeenCalledWith('template-1', '1.0.0', 'user-1')
     expect(dependencies.sheetMaterializer.validateInputValues).toHaveBeenCalledWith(template, {})
     expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('3d6*5', 'DiceBot')
     expect(dependencies.sheetMaterializer.materialize).toHaveBeenCalledWith({
@@ -217,7 +217,7 @@ describe('CharacterInstantiationService', () => {
       appliedInteractionIds: []
     })
 
-    const resolveOrder = dependencies.templateService.resolvePublished.mock.invocationCallOrder[0]
+    const resolveOrder = dependencies.templateService.resolveForCreate.mock.invocationCallOrder[0]
     const validateOrder = dependencies.sheetMaterializer.validateInputValues.mock.invocationCallOrder[0]
     const diceOrder = dependencies.diceExecutionService.executeEvaluatedDiceRoll.mock.invocationCallOrder[0]
     const materializeOrder = dependencies.sheetMaterializer.materialize.mock.invocationCallOrder[0]
@@ -279,7 +279,7 @@ describe('CharacterInstantiationService', () => {
         }
       ]
     }
-    dependencies.templateService.resolvePublished.mockResolvedValue(rollOnCreateTrackTemplate)
+    dependencies.templateService.resolveForCreate.mockResolvedValue(rollOnCreateTrackTemplate)
     dependencies.diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue({
       total: 15,
       details: '(1D20) ＞ 15'
@@ -304,7 +304,7 @@ describe('CharacterInstantiationService', () => {
     ]
   ])('新規作成の範囲外trackを422にしてinsertしない: %s', async (_caseName, resolvedTemplate, values) => {
     const dependencies = createDependencies()
-    dependencies.templateService.resolvePublished.mockResolvedValue(resolvedTemplate)
+    dependencies.templateService.resolveForCreate.mockResolvedValue(resolvedTemplate)
 
     await expect(dependencies.service.instantiate({ ...instantiateInput, values })).rejects.toBeInstanceOf(
       UnprocessableEntityException
@@ -317,7 +317,7 @@ describe('CharacterInstantiationService', () => {
 
   it('version/published 解決失敗時は後続処理も insert も実行しない', async () => {
     const dependencies = createDependencies()
-    dependencies.templateService.resolvePublished.mockRejectedValue(
+    dependencies.templateService.resolveForCreate.mockRejectedValue(
       new ConflictException('sheet template must be published at the requested version')
     )
 

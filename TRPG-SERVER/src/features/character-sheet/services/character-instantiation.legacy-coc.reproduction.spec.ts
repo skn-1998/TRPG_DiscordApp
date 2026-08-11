@@ -63,7 +63,7 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
   }
 
   function createService() {
-    const templateService = { resolvePublished: jest.fn().mockResolvedValue(publishedLegacyCocTemplate) }
+    const templateService = { resolveForCreate: jest.fn().mockResolvedValue(publishedLegacyCocTemplate) }
     const characterRepository = {
       createMaterializedCharacter: jest
         .fn()
