@@ -7,7 +7,7 @@ import {
   NotFoundException,
   UnprocessableEntityException
 } from '@nestjs/common'
-import { clampDelta, EPSILON, evaluateTemplate } from '@trpg/sheet-engine'
+import { clampDelta, EPSILON, evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
 import type {
@@ -489,11 +489,19 @@ export class CharacterSheetOperationService {
     if (field.type !== 'track' && field.type !== 'scalar') {
       throw new UnprocessableEntityException(`field ${path.fieldUid} is not an input field (${field.type})`)
     }
-    if (path.partsKey !== undefined && !allowsParts(field)) {
+    const partsKey = path.partsKey
+    if (partsKey === undefined) return field
+    if (!allowsParts(field)) {
       throw new UnprocessableEntityException(`field ${path.fieldUid} does not allow parts`)
     }
-    if (path.partsKey !== undefined && path.partsKey.length === 0) {
-      throw new UnprocessableEntityException(`field ${path.fieldUid} has an empty parts key`)
+    if (UNSAFE_PARTS_KEYS.has(partsKey)) {
+      throw new UnprocessableEntityException(`field ${path.fieldUid} parts.${partsKey} is reserved`)
+    }
+    if (field.type === 'scalar' && field.parts !== true && field.partsKeys !== undefined) {
+      const declaredPartsKeys = new Set<string>([...RESERVED_PARTS_KEY_IDS, ...field.partsKeys.map(({ id }) => id)])
+      if (!declaredPartsKeys.has(partsKey)) {
+        throw new UnprocessableEntityException(`field ${path.fieldUid} parts.${partsKey} is not declared`)
+      }
     }
     return field
   }
