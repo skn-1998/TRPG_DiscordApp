@@ -294,7 +294,7 @@ export class CharacterSheetOperationService {
         }
       }
 
-      const paletteEntry = this.findResourcePaletteEntry(current.palette ?? [], input.paletteKey)
+      const paletteEntry = this.findResourcePaletteEntry(current.palette ?? [], input.paletteKey, input.delta)
       const engineTemplate = toEngineTemplate(template)
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
       const field = this.findTopLevelField(engineTemplate, paletteEntry.fieldRef.uid)
@@ -561,10 +561,11 @@ export class CharacterSheetOperationService {
 
   private findResourcePaletteEntry(
     palette: CharacterPaletteEntry[],
-    paletteKey: string
+    paletteKey: string,
+    delta: number
   ): Extract<CharacterPaletteEntry, { kind: 'resource' }> {
     const entry = palette.find((candidate) => candidate.key === paletteKey)
-    if (entry === undefined || entry.kind !== 'resource') {
+    if (entry === undefined || entry.kind !== 'resource' || !entry.deltas.includes(delta)) {
       throw new NotFoundException('resource palette entry not found')
     }
     return entry
