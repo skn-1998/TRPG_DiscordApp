@@ -4,6 +4,7 @@ import {
   DISCORD_EMBED_TOTAL_MAX_LENGTH,
   HUB_GROUP_ID_MAX_LENGTH,
   HUB_PANEL_CUSTOM_ID_PREFIX,
+  ROLL_PALETTE_CUSTOM_ID_PREFIX,
   canonicalizeResourceDelta,
   createDiscordProjectionViewModel,
   createEphemeralPanel,
@@ -352,18 +353,70 @@ describe('@trpg/sheet-projection', () => {
     expect(result.warnings).toContainEqual(expect.objectContaining({ code: 'embed-truncated' }))
   })
 
-  it('invalid keyと100文字超customIdは警告してcomponentを除外する', () => {
+  it('invalid keyと100文字超customIdのgroupをselect/browserから除外し、警告を一度ずつ返す', () => {
     const invalid = { ...roll(1), key: 'bad-key' }
     const overBudget = { ...roll(2), key: 'a'.repeat(90) }
+    const result = createDiscordProjectionViewModel(input([invalid, overBudget]))
+    const browser = createGroupBrowser({ channelId: input([]).channelId, palette: [invalid, overBudget] })
     const panel = createEphemeralPanel({
       channelId: input([]).channelId,
       palette: [invalid, overBudget],
       groupId: 'group',
     })
+
+    expect(result.hub.groupSelect).toBeUndefined()
+    expect(browser.options).toEqual([])
     expect(panel.actions).toEqual([])
-    expect(panel.warnings.map((warning) => warning.code)).toEqual(
-      expect.arrayContaining(['invalid-custom-id-part', 'custom-id-budget-exceeded'])
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'invalid-custom-id-part', path: 'palette.bad-key.key' }),
+        expect.objectContaining({ code: 'custom-id-budget-exceeded', path: `palette.${overBudget.key}.customId` }),
+        expect.objectContaining({ code: 'empty-group-omitted', path: 'group.group' }),
+      ])
     )
+    expect(result.warnings.filter(({ code }) => code === 'invalid-custom-id-part')).toHaveLength(1)
+    expect(result.warnings.filter(({ code }) => code === 'custom-id-budget-exceeded')).toHaveLength(1)
+    expect(result.warnings.filter(({ code }) => code === 'empty-group-omitted')).toHaveLength(1)
+  })
+
+  it('roll customIdは100文字ならgroupとpageに残り、104文字なら除外される', () => {
+    const channelId = input([]).channelId
+    const atLimitKey = 'a'.repeat(
+      DISCORD_CUSTOM_ID_MAX_LENGTH - ROLL_PALETTE_CUSTOM_ID_PREFIX.length - channelId.length - 1
+    )
+    const overLimitKey = 'b'.repeat(atLimitKey.length + 4)
+    const pageBoundaryPalette = [
+      ...Array.from({ length: 19 }, (_, index) => roll(index, 'pageboundary')),
+      { ...roll(19, 'pageboundary'), key: atLimitKey },
+      { ...roll(20, 'pageboundary'), key: overLimitKey },
+      { ...roll(21, 'overonly'), key: `c${overLimitKey.slice(1)}` },
+    ]
+    const panelCustomId = jest.spyOn(customId, 'createHubPanelCustomId')
+
+    const result = createDiscordProjectionViewModel(input(pageBoundaryPalette))
+    const browser = createGroupBrowser({ channelId, palette: pageBoundaryPalette })
+    const boundaryPanel = createEphemeralPanel({
+      channelId,
+      palette: pageBoundaryPalette,
+      groupId: 'pageboundary',
+    })
+    const omittedPanel = createEphemeralPanel({
+      channelId,
+      palette: pageBoundaryPalette,
+      groupId: 'overonly',
+    })
+
+    expect(customId.createRollPaletteCustomId(channelId, atLimitKey)).toHaveLength(100)
+    expect(customId.createRollPaletteCustomId(channelId, overLimitKey)).toHaveLength(104)
+    expect(result.hub.groupSelect?.options).toEqual([{ label: 'pageboundary', value: 'pageboundary' }])
+    expect(browser.options).toEqual([{ label: 'pageboundary', value: 'pageboundary' }])
+    expect(boundaryPanel.actions).toHaveLength(20)
+    expect(boundaryPanel.actions.some(({ paletteKey }) => paletteKey === atLimitKey)).toBe(true)
+    expect(boundaryPanel.actions.some(({ paletteKey }) => paletteKey === overLimitKey)).toBe(false)
+    expect(boundaryPanel.page.totalPages).toBe(1)
+    expect(omittedPanel.actions).toEqual([])
+    expect(panelCustomId).toHaveBeenCalledWith(channelId, 'pageboundary', 1)
+    expect(panelCustomId).not.toHaveBeenCalledWith(channelId, 'pageboundary', 2)
   })
 
   it('roll customId生成失敗の警告は既存のcodeとpathを維持する', () => {
