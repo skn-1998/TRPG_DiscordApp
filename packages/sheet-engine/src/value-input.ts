@@ -10,7 +10,7 @@ export interface PartsValueInput {
 export type SheetValueInput = number | string | boolean | PartsValueInput;
 
 export const RESERVED_PARTS_KEY_IDS = Object.freeze(['base', 'other'] as const);
-// publish.ts の UNSAFE_UID_KEYS と同じ prototype 汚染面を parts key 境界でも封止する。
+// publish の uid / partsKey 宣言と value-input の parts key 入力が共有する prototype 汚染面を封止する。
 export const UNSAFE_PARTS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const finiteNumberSchema = z.number().refine(Number.isFinite, 'must be a finite number');
 const partsValueSchema = z.strictObject({

@@ -1,4 +1,12 @@
-import { buildValueInputSchema, clampDelta, EPSILON, evaluateTemplate, validatePublishTemplate } from '..';
+import {
+  buildValueInputSchema,
+  clampDelta,
+  EPSILON,
+  evaluateTemplate,
+  RESERVED_PARTS_KEY_IDS,
+  UNSAFE_PARTS_KEYS,
+  validatePublishTemplate,
+} from '..';
 import { LIST_ROW_LIMIT } from '../evaluator';
 import { baseTemplate } from './test-utils';
 
@@ -249,6 +257,68 @@ describe('buildValueInputSchema', () => {
   it('keeps publish acceptance and declared-parts input acceptance aligned', () => {
     expect(validatePublishTemplate(template).ok).toBe(true);
     expect(schema.safeParse({ uid_declared: { parts: { base: 1, career: 2 } } }).success).toBe(true);
+  });
+
+  it('keeps publish and value-input acceptance aligned for declared, built-in, and unsafe parts keys', () => {
+    const declaredIds = ['career', 'hobby', 'skill_bonus'];
+    const publishedTemplate = baseTemplate({
+      sections: [{
+        id: 'matrix',
+        label: 'Matrix',
+        fields: [{
+          type: 'scalar',
+          id: 'score',
+          uid: 'uid_matrix_score',
+          label: 'Score',
+          valueType: 'number',
+          partsKeys: declaredIds.map((id) => ({ id, label: id })),
+        }],
+      }],
+    });
+    const publishResult = validatePublishTemplate(publishedTemplate);
+    const publishedSchema = buildValueInputSchema(publishedTemplate);
+    const rejectedAcceptedKeys = [...declaredIds, ...RESERVED_PARTS_KEY_IDS].filter((key) => {
+      const parts = JSON.parse(`{"${key}":1}`) as Record<string, unknown>;
+      return !publishedSchema.safeParse({ uid_matrix_score: { parts } }).success;
+    });
+
+    expect(publishResult.issues).toEqual([]);
+    expect(rejectedAcceptedKeys).toEqual([]);
+
+    const unsafeBoundaryResults = [...UNSAFE_PARTS_KEYS].map((id) => {
+      const unsafeTemplate = baseTemplate({
+        sections: [{
+          id: 'matrix',
+          label: 'Matrix',
+          fields: [{
+            type: 'scalar',
+            id: 'score',
+            uid: 'uid_matrix_score',
+            label: 'Score',
+            valueType: 'number',
+            partsKeys: [{ id, label: 'Unsafe' }],
+          }],
+        }],
+      });
+      const publishIssues = validatePublishTemplate(unsafeTemplate).issues;
+      const parts = JSON.parse(`{"${id}":1}`) as Record<string, unknown>;
+      const inputResult = buildValueInputSchema(unsafeTemplate).safeParse({ uid_matrix_score: { parts } });
+
+      return {
+        id,
+        publishRejected: publishIssues.some((issue) => issue.path === 'matrix.score.partsKeys.0.id'
+          && issue.message === `partsKey id is reserved: ${id}`),
+        inputRejected: !inputResult.success && inputResult.error.issues.some((issue) =>
+          issue.path.join('.') === `uid_matrix_score.parts.${id}`
+          && issue.message === `field uid_matrix_score parts.${id} is reserved`),
+      };
+    });
+
+    expect(unsafeBoundaryResults).toEqual([...UNSAFE_PARTS_KEYS].map((id) => ({
+      id,
+      publishRejected: true,
+      inputRejected: true,
+    })));
   });
 
   it('rejects the same overflowing parts sum that the evaluator rejects', () => {

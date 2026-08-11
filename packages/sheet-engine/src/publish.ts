@@ -6,7 +6,9 @@ import { isNotationFragment } from './notation';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, canonicalFieldPath, refKey, resolveRefPath } from './template-index';
 import { isSimpleField, resolveGridSpan, resolveSectionLayout } from './layout-resolver';
-import { RESERVED_PARTS_KEY_IDS } from './value-input';
+// publish の uid / partsKey 宣言と value-input の入力キー検査は同じ prototype 汚染面を持つ。
+// 両境界を UNSAFE_PARTS_KEYS で封止し、許可語彙の drift を防ぐ。
+import { RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from './value-input';
 import {
   ExpressionValueType,
   FieldRole,
@@ -41,9 +43,6 @@ const MAX_ISSUE_MESSAGE_LENGTH = 512;
 const SECTION_LAYOUT_PRESETS = new Set<unknown>(SHEET_SECTION_LAYOUT_PRESETS);
 const SECTION_GRID_COLUMNS = new Set<unknown>(SHEET_SECTION_GRID_COLUMNS);
 const FIELD_LAYOUT_SPANS = new Set<unknown>(SHEET_FIELD_LAYOUT_SPANS);
-// evaluator は uid を plain object の state.values / rowState.values に書き込む。
-// `__proto__` 代入による prototype 差替えを publish 境界で封止する。
-const UNSAFE_UID_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
@@ -66,7 +65,7 @@ const FUNCTION_CALL_ISSUE_ALREADY_REPORTED = new Error('function call issue alre
 const uidSchema = z.string()
   .min(1, 'uid must not be empty')
   .max(MAX_UID_LENGTH, `uid must be ${MAX_UID_LENGTH} characters or fewer`)
-  .refine((uid) => !UNSAFE_UID_KEYS.has(uid), {
+  .refine((uid) => !UNSAFE_PARTS_KEYS.has(uid), {
     error: (issue) => `uid is reserved: ${String(issue.input)}`,
   });
 const labelSchema = z.string().max(MAX_LABEL_LENGTH, `label must be ${MAX_LABEL_LENGTH} characters or fewer`);
@@ -581,6 +580,9 @@ function validateScalarPartsKeys(
   for (const [index, partsKey] of field.partsKeys.entries()) {
     const idPath = `${path}.partsKeys.${index}.id`;
     validateId(idPath, partsKey.id, issues);
+    if (UNSAFE_PARTS_KEYS.has(partsKey.id)) {
+      issues.push({ path: idPath, message: `partsKey id is reserved: ${truncateIssueInput(partsKey.id)}` });
+    }
     if (seenIds.has(partsKey.id)) {
       issues.push({ path: idPath, message: `partsKey id must be unique within field: ${truncateIssueInput(partsKey.id)}` });
     }
