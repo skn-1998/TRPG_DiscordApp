@@ -2260,10 +2260,27 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   同一 3 件のみ）・build＋循環ゼロ・resolvePublished 残存 0 を grep 確認。レビュー pass
   （findings 0・hub none→publishing は既存 materialized の pin 投影 = pin 用で正・
   deprecated 除去変異 4 spec 赤・legacy-coc diff は rename 1 行 numstat 実測）。
-  **次にやること**: SM-D 409 currentRevision（SM-15・api-contract＋server＋front の跨ぎ —
-  conflict payload 型の drift pin 有無を実測してコミット原子性を判定してから指示書化）→
-  SM-E canMutate → SM-F SM-1 原子性 → front 系（SM-8/SM-14）→ 残 = #15d(e) partsKey 語彙（SM-G）。
-  台帳 §6-1 #11 行へ消化状況追記は SM-D 以降まとめて行う。
+  **SM-D 調査完了 → SM-D1 委譲中（prompt-sm-d1.md / run-sm-d1）**: 実測 = conflict payload の
+  正本は operation.service:114-119（private interface・api-contract に schema なし）・
+  **front は 409 payload を読まずに捨てている**（actions.ts:36-41 で固定文言化・theirs/mine
+  ダイアログ未実装・baseRevision は prop 直読みで state 化が必要）・跨ぎ drift pin なし
+  （赤くなるのは filter spec の封筒完全一致 1 本のみ）・SM-15 の対象 = sheet.revision
+  （CharacterSheetEditClient）で TemplateEditorV3 の draftRevision conflict は別語彙・対象外。
+  スライス分割裁定 = SM-D1（server 純加算: mergeConflict へ currentRevision・mine 再送前提の
+  spec 固定）→ SM-D2（front theirs/mine 状態機械＋契約 schema を**消費者と同時に**導入 —
+  死んだ抽象の先行を避ける）。retryConflict 系 409 は対象外。
+  **SM-D1 完了・コミット済み（77168ff・2026-08-12）**: 検収 = focused 73/73 独立確認・
+  レビュー pass（findings 0・currentRevision=0 変異 2 spec 赤・並行更新時の mine 再送は
+  新 payload 409 で再提示 = SM-15 整合を実測）。
+  **キュー #11 の消化状況**: SM-A（8078b06）・SM-B+R2+R3（872b861/ce7bd7d）・SM-OP（a063ae5）・
+  SM-C（5d6f1d9）・SM-D1（77168ff）消化。**スライス数 3 到達 → 次の大粒度 #12 は
+  SM-C/SM-D1＋次スライスの後**（大粒度 #11 が SM-B-R3/E3-R3/SM-OP を検収済みのため、
+  #12 の起点は SM-C から数える）。
+  **次にやること**: SM-D2（front theirs/mine 状態機械＋契約 schema・要スライス設計 —
+  CharacterSheetEditClient の state 化・per-path ダイアログ・dirty 解除、大きめ）
+  または先に小さい SM-G（#15d(e) partsKey 語彙検査・server op 層・SM-OP と同型）→
+  SM-E canMutate → SM-F SM-1 原子性 → front 系（SM-8/SM-14）。
+  台帳 §6-1 #11 行へ消化状況追記は次の docs コミットで行う。
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
