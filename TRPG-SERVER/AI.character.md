@@ -505,6 +505,9 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   素の代入では検出不能 — 必要になったら IsExact へ昇格
 - DEFAULT_AST_NODE_LIMIT 256 の2宣言（publish/evaluator）は現状維持＋相互参照コメント
   （1行定数の共有に import 辺を増やさない・U3 と同型の裁定）。値を変えるときは必ず両方
+  **→ 2026-08-11 大粒度 #5（review-results/impl-u15/）で上書き**: 2 宣言の値乖離が publish
+  通過⇔runtime 対応を静かに壊す実測（上方迂回穴）を受け、evaluator 単一宣言＋publish import へ
+  一本化した。本行の旧裁定は失効（Opus 再レビューが decision-record-drift として検出・突合済み）
 - palette 上限 512 は api-contract 内で1本化・server materializer とは同値要求コメントで連結
   （パッケージ跨ぎの定数統合はしない）。TABLE_ROW_LIMIT=512・SOFT_CAP=128 との一致は
   偶然 — 統合禁止

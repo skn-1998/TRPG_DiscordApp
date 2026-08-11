@@ -1678,6 +1678,441 @@ docs commit。**push はユーザー指示待ち**（f161c0a まで push 済み�
 （--env-file TRPG-SERVER/.env・本機は DNS 隔離で不能）・trpg-remix-app/ 残渣削除（任意）・
 rest.http credential 対応（chip task_dedfbb73）
 
+## 2026-08-11 開始: キャラシート v1 実装ループ（キュー #9〜#12・進行中）
+
+U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を受けた実装フェーズ。
+**入口 = design-v1-ui.md §3.6 実装境界表・台帳 = design-ledger.md（2026-08-11 監査・補修済み:
+節0 基準 `1b23430a`・§2-2 に B-13〜B-16 追加・SM-16 は #11 所掌・§2-5 にキュー別検収コマンド）**。
+運転 = fable-rules（粒度は小さく: 1 スライス = 1 層 × 1 機能・ユーザー指示 2026-08-11）。
+
+- **9-S1 完了・検収済み（未コミット）**: sheet-engine の U14 layout 型＋publish 検証＋
+  **publish warnings チャネル新設**（PublishWarning/required warnings・ok 不変。実装前は機構自体が
+  存在せず Codex が正しく停止→裁定で新設許可）。test:engine 152 緑・レビュー pass
+  （low 1 = `SheetSectionLayout | unknown` false affordance → 9-S2 先頭タスクへ繰越）。
+  副産物: H-9 の旧記述「enum 外なら publish エラー」と §5 U14 決着の矛盾を検出し design-v1-ui を修正。
+  証跡 = `review-results/impl-u14/`（prompt/run/acceptance-s1.md）
+- **9-S2 完了・検収済み（未コミット）**: `normalizeTemplateLayout()`（正当 grid のみ・複雑 4 型非付与・
+  legacy/不正素通し）＋**package ルート共有 JSON fixture**（fixtures/layout-normalization.json・5 ケース）。
+  test:engine 157 緑。レビュー needs-fix（fixture 固定力・共有境界）→ round2 で解消。
+  発見: 式 normalizer の実体は front の `normalizeTemplateReferences()`（v3Template.ts:126・server 呼び出しゼロ）
+  → layout normalizer は呼び出し元ゼロのため **9-S3 = front 適用スライス**（buildPayload / V2 import /
+  migration の persist 系 3 サイトに適用・preview は renderer 既定に委ねる）。
+  大粒度レビュー繰越議題: preset 語彙の 2 複製の正本化。証跡 = acceptance-s2.md
+- **9-S3 完了・検収済み（未コミット）**: persist 系 3 サイトに reference→layout の順で適用＋
+  **H-15 解釈一致テスト**（front spec が共有 JSON fixture 5 ケースを engine expected と突合）。
+  preview は非適用（保存時正規化の原則）。check:contract-stack exit 0（front 195 tests）。
+  証跡 = acceptance-s3.md
+- **大粒度認知負荷レビュー #1 完了**（run-bigreview-1b・初回 rc=66 = sandbox helper 故障で
+  --no-sandbox 再実行）: medium 1 = preset 語彙 3 宣言の正本化（S2 の条件「consumer 増加時」が成立）
+  → **統合スライス 9-S3b 実施中**（types.ts の readonly tuple へ 3→1・spec/fixture は独立オラクル維持）。
+  low 1 = **columns/span 許容値・既定値の正本化は renderer スライス冒頭で実施**（繰越タスク・忘れ禁止）。
+  放置裁定（実測つき）= 合成順 3 箇所（helper 化はホップ増）・isRecord 2 定義・U14 判定二重（意図的契約差）
+- **9-S3b 完了・検収済み（未コミット）**: preset 語彙を types.ts の readonly tuple 1 本へ（3→1・+7/-3・
+  挙動不変 = 157 tests 期待値変更ゼロ・contract-stack exit 0）。
+  文書矛盾の 3 箇所目（§2 v1.1 :139「Zod で拒否」）も検出・修正。証跡 = acceptance-s3b.md
+- **9-S4 完了・検収済み（未コミット）**: ①columns/span/既定値の正本化（宣言 7→4・照合ホップ 0）
+  ②TemplateFormRenderer 骨格（103 行・stack のみ・複雑 4 型 placeholder・評価器非接続）＋
+  B-11 zone 追加（負例拒否実証）。レビュー pass。証跡 = acceptance-s4.md
+- **9-S5 完了・検収済み（未コミット）**: DOM 契約 4 属性で退化を機械固定＋grid 実描画
+  （engine 正本 5 export 消費・リテラル再宣言ゼロ・判定順 = 語彙検証→既定値→clamp）。
+  spec 6→16 tests。レビュー **pass・findings 0**。証跡 = acceptance-s5.md
+- **9-S6 完了・検収済み（未コミット）**: table 実描画（semantic table・th=ラベル正本・複雑 4 型 colSpan=2・
+  H-16 は #10 送り・spec 16→22）。小粒度レビュー medium 1（aria-labelledby に空白入り uid で
+  accessible name が壊れる — publish 通過と Testing Library 破壊を実証）→ round2 で
+  `TableFieldRow` 分離＋`useId()` 化＋regression spec。独立検収 = focused 23/23（既存 22 期待値不変）・
+  contract-stack 218 緑・差分は characterSheet/ のみ。証跡 = acceptance-s6.md
+- **大粒度レビュー #2 完了**（run-bigreview-2）: 三者判定差 = 意図的契約差で統合不要（小粒度と一致・
+  判定表 6 行の突合つき）・述語/DOM 語彙/spec helper は健全。medium 1 = **TemplatePreviewV3 統合の
+  裁定材料が確定 → 台帳 §5-2 に D-R1 として登録（ユーザー決定待ち）**。
+  レビュー推奨 = 案(a) 統合（挙動差 7 点の characterization 前提・時期 = S8 前の専用スライス）。
+  **D-R1 が決まるまで 9-S8（エディタ UI）に着手しない。9-S7 は独立・先行可**
+- **9-S7 完了・検収済み（未コミット）**: モバイル固定折り畳み（:137-138）を CSS Modules で実装
+  （インライン style 廃止・spec は機構断言へ置換・DOM 契約期待値不変）。round1 は委譲先の自己検収
+  全緑のまま **Fable の実ブラウザ実測で CONFIRMED バグ**（media query 内 grid 折り畳みが詳細度
+  0,2,0 < 0,3,0 で不発・jest/jsdom/build は盲目 → メモリ css-responsive-blind-to-all-green-gates）。
+  round2 で同詳細度化＋不変条件コメント。検収 = 実ブラウザ両方向（375px 全 grid 2 列・span2 全幅／
+  1280px 3/4 列不変）＋23/23＋contract-stack 218 緑。小粒度レビュー pass（レビュアー独自 Playwright
+  実測も一致・low 1 = カスケード順コメント未記載 → 次スライス task 0）。証跡 = acceptance-s7.md
+- **9-S9a 完了・検収済み（未コミット）**: 9-S9（検証タブ警告）3 分割の第 1 段 = レイアウト解決
+  （resolveSectionLayout/resolveGridSpan/isSimpleField）を engine layout-resolver.ts へ純移動・
+  renderer 46 行純減・task 0 = S7 low の CSS コメント消化。理由 = :141 の意味警告 3 種は
+  「レンダラの解決結果」への警告で、publish 再実装は解決セマンティクス 2 複製 drift になるため。
+  レビュー medium 1（stack preset が両 spec 未固定）→ round2 で spec 3 ケース追加。
+  検収 = engine 172/172・renderer 23/23 期待値不変（純移動の証明）・contract-stack 218。
+  純移動は正規化比較 6/6 一致・isRecord 3 定義は意図的分離裁定。
+  **Mode B 条件付き Go: S9b 検収で publish の resolver 実 import を必ず確認**（未消費なら抽出根拠が
+  崩れる）。normalizer との統合は out-of-scope（素通し哲学は意図的契約差）。証跡 = acceptance-s9a.md
+- **9-S9b 完了・検収済み（未コミット）**: publish が resolver を実 import（9-S9a Mode B 条件充足）し
+  `validateResolvedLayoutWarnings` 独立 pass で意味警告 3 コード発行（outside-grid／span-clamped／
+  table-complex-demoted。セクション直下のみ・二重発行禁止・凍結 2 関数不変・ok/issues 不変）。
+  レビュー medium 1（複合境界・警告順序の spec 固定不足・実装挙動自体は 5 意地悪入力すべて設計どおり）
+  → round2 で複合 5 ケースを完全配列一致で固定＋既存 assert 強化。検収 = engine 192/192・
+  contract-stack 218・差分 engine 3 ファイルのみ。grid 内複雑型 span の沈黙は :141 帰結として
+  spec 固定済み。証跡 = acceptance-s9b.md
+- **大粒度認知負荷レビュー #3 完了**（run-bigreview-3・needs-fix）: medium 1 = columns=5 変更タスクで
+  無防護の手動同期点 3 箇所（CSS セレクタ 2 ブロック＋publish 範囲文言。renderer spec は CSS Modules
+  全面 mock のため CSS 退化を検出不能）。low = GRID_FIELD_TYPES⇔isSimpleField の分類 2 表現／
+  S9c 実装制約（front に code→message switch を作らない）／台帳への oracle 責務差追記。
+  三者契約の維持・並行実装ゼロ・isRecord 分離妥当は確認。
+  **裁定**: medium＋low#2 → 統合スライス 9-S10・low#3 → S9c の実装制約・low#4＋isRecord 理由 →
+  台帳 §2-3 へ追記済み（isRecord 意図的局在・4 oracle 独立の 2 行）
+- **9-S10 完了・検収済み（未コミット）**（大粒度 #3 統合スライス）: ①publish 範囲文言を tuple 導出
+  ②CSS 同期 Invariant コメント ③CSS セレクタ集合⇔tuple の drift spec ④GRID_FIELD_TYPES 削除
+  （分類 owner 2→1）。レビュー medium 1＋low 3（split の 2 個目 @media 破棄・DEFAULT 結合・
+  昇順暗黙前提・type 3 回読み — 全 CONFIRMED）→ round2 +7/-4 で全消化（toHaveLength(2) loud failure・
+  設計規則導出・Math.min/max・1 回読み）。検収 = engine 192/192 期待値不変・contract-stack 219・
+  renderer 24/24。columns=5 タスクの無防護同期点 3→0（残る手動 2 箇所は drift spec が赤くして誘導）。
+  証跡 = acceptance-s10.md
+- **9-S9c 完了・検収済み（未コミット）**: TemplateEditorV3 の検証フローに警告表示（独立 state＋
+  黄 Alert・配列順 `[path] message`・catch クリア・publish 非ブロック）。制約遵守 = warning
+  code/message literal は editor/spec とも 0 件（spec は engine 実行で期待値生成）。レビュー
+  **pass・findings 0**（normalize 前後の警告一致・同一 message の path 区別を実測検証）。
+  検収 = focused 11/11・contract-stack 221/221。証跡 = acceptance-s9c.md
+- **【大粒度 #4 high で訂正】#9 の残りは「S8 のみ」ではない**: TemplateFormRenderer は
+  production consumer 0 件の未接続の島（spec のみ）。実 runtime 経路 = TemplatePreviewV3（preview 面
+  = D-R1 所掌）と CharacterSheetEditClient（作成・編集面 = **D-R2 新設**・character→characterSheet の
+  AI.md 辺＋eslint except が必要でユーザー裁定待ち）。**両面の配線と regression 通過まで U14 を
+  完了扱いにしない**（台帳 §5-2 D-R2）
+- **キュー #10 U15 開始・10-S1 実装完了・レビュー中**: U15 schema 語彙（blocks/pools/blockId/
+  max/partsKeys・parts?: boolean 不変更）＋zod 形状検証（**U15 構造系はエラー = U14 layout 警告とは
+  方針が異なる**・§3.6 Publish 行）＋語彙級 3 規則（parts×partsKeys 同時拒否・base/other 予約・
+  partsKeys id 重複）。副産物の一元化 = scalarFieldSchema 抽出（relation attrs のインライン複製解消）・
+  numberOrFormulaSchema（track.max と共通）・RESERVED_PARTS_KEY_IDS⊂RESERVED_IDS。
+  レビュー high 1（重複 partsKey id の診断増幅 — 1 MiB id で message 1 MB・実測）＋medium 1
+  （SURVIVED 変異 4 種）→ round2 で truncateIssueInput 適用＋spec 6 件。台帳 §2-4 へ
+  「新設 message も truncateIssueInput 必須」転記文を追加（根本原因 = 転記漏れ）。
+  検収 = engine 216/216・contract-stack 221。**10-S1 完了・検収済み**。証跡 =
+  review-results/impl-u15/acceptance-s1.md
+- **大粒度 #4 完了**（run-bigreview-4・needs-fix）: high = 上記の未接続 renderer 追跡誤り
+  （→ D-R2 登録・handoff 訂正）。medium = publish.ts 増築停止の兆候（1069 行・validateField
+  引数 10/制御点 14）→ **S2 の構造制約**: task 0 で table 検証を兄弟関数へ分割・S2/S3 の追加は
+  section loop から呼ぶ**平坦な兄弟関数**にし validateField/validatePublishTemplate を太らせない・
+  context 型や新レイヤー禁止。健全側 = 警告パイプライン owner 3/hop 9・front literal 0 維持・
+  H-17 文書矛盾なし・base/other 共有は意図的一本化と裁定・§3.6 他 4 行は実装照合済み
+- **10-S2 完了・検収済み（未コミット）**: 参照整合 5 規則＋H-6＋SM-3（section-empty/block-empty）。
+  レビュー high 1（nested blockId 不在参照の素通り = H-10 違反）→ round2 で
+  validateFieldBlockReferences 再帰＋境界 9 ケース完全配列固定。確定意味論 = `scope: []` は空集合・
+  blockId は nested でも参照解決必須だが block-empty 所属判定は直下のみ・blocks 未宣言＋scope 省略 ok。
+  構造制約遵守を実測確認（validatePublishTemplate 44→39 行・validateField 不変・H-6 二重走査は
+  現分離が正と裁定）。検収 = engine 239/239・contract-stack 221。証跡 = acceptance-s2.md
+- **10-S3 完了・検収済み（未コミット）**: max/cap/total の式検証（track.max と同一経路・H-13・
+  H-6 正当位置のみ・detectCycles 新ノードなし）。レビュー high 1 = validateFormula 共有発行点の
+  raw 反響（1 MiB で issue 1,048,606 文字 ×2・**既存増幅を S3 新入口が顕在化**）→ round2 で
+  両発行点一括 truncate（既存経路も同時封止）＋1 MiB 回帰 3 件。検収 = engine 258/258・
+  contract-stack 221。証跡 = acceptance-s3.md。
+  **S5+（制約評価 API）への宿題（レビュー裁定）**: max 式の自己参照は publish 通過（track.max と
+  整合）— **current-value 意味論を評価 API の受入ケースへ含める**。別セクション参照・
+  sum(list subfield) の cap も通過 = 評価側の仕様確認対象
+- **10-S4 は停止条件で正しく中断 → D-R3 新設＋10-S4a へ分割**: 委譲先が実測つきで検出 —
+  evaluator は list 行を無制限取込（AST 1 でも 10,001 行で step 超過）のため、行数の裁定なしに
+  H-18 不変条件「publish 通過物は必ず完走」の健全な上界は構成不能。**D-R3 として台帳 §5-2 に登録**
+  （(a) list 行数上限新設／(b) 不変条件を静的部分へスコープ縮小＋H-18 文言修正／(c) 行 computed
+  一律拒否=実質不可。ブロック対象 = H-18 完全達成宣言と 10-S4 クローズ）。
+- **10-S4a 完了・検収済み（未コミット）**: 静的集約上界（list 除外・D-R3 注記）・
+  既定値 2 種の evaluator 単一宣言化（**台帳 B-2 解消**）・publish options の上方迂回封止
+  （astNodeLimit/evaluationStepLimit とも既定値 cap・NaN/Infinity ガード — 小粒度 high＋
+  大粒度 #5 high を round2/round3 で消化）・回帰一式＋bench:h18。
+  上界の健全性は反証に耐えた（CoC 級含め measured>estimated なし）。
+  検収 = engine 272/272・contract-stack 221・bench 再現。証跡 = acceptance-s4a.md。
+  **残件 10-S4b = D-R3 裁定後の行反復項追加**
+- **10-S5a 完了・検収済み（未コミット）**: 制約評価 API コア（H-7 :270-283）—
+  `evaluateConstraint` = `{status: ok|indeterminate|error, value?}`・2 段階決定的判定
+  （欠落検査先行 = indeterminate＞error）・閉包は template から静的構築（computed 推移＋
+  lookup 引数・未選択 if 分岐含む）・自己参照 max = current-value（S3 宿題の裁定を受入ケース化）。
+  小粒度レビュー high 2（実測 CONFIRMED）を round2 で消化: ①存在判定を **own-property かつ
+  非 nullish** 化（nullish entry の ok/value=0 を封止。null list container = 0 行・null row =
+  indeterminate。キー family 非対称の疑義自体は反証）②number リテラル source に
+  Number.isFinite（NaN/±Infinity → error）。JSDoc に value の永続/投影/書戻し禁止契約。
+  共有 fixture constraint-evaluation.json（4 系＋nullish＋非有限 source・将来 H-12 参照）・
+  constraint-evaluator.spec.ts（alias×nullish×list-row 全組合せ・distinct uid/path/id template）。
+  検収 = engine **334/334**（既存 291 期待値変更なし）・contract-stack 221。証跡 = acceptance-s5a.md。
+  **持ち越しノート（low）**: AST 子走査の形が 5 箇所（visitAst/publish 3 走査/countAstNodes）—
+  次の AST 語彙拡張時に子ノード列挙の単一 owner 化を再評価。
+  **→ Opus 二重レビュー（opus-review-s5a.md・needs-fix）→ round3 消化済み・再受入完了**:
+  high = track 欠落検査漏れ（未入力 track が ok/0 → 誤超過警告 G1）→ isRawNumberInputField =
+  track＋number scalar へ拡張（roll/boolean は意図的除外を JSDoc 固定）。medium = count 過剰依存
+  → tracksRawValue フラグで値非依存化／nullish source TypeError → isFormulaConstraintSource
+  ガードで error 縮退（parse/解決失敗も error に統一・成文化）／fixture 1e400 round-trip 劣化 →
+  sourceRaw マーカー化＋同値回帰（14→20 件）。内部メモ局所化（公開 closure 3 フィールド）・
+  ConstraintSource を types.ts へ移設（4 箇所型参照化）・ok/value へ表示専用 TSDoc・固定力回帰
+  （相互 computed・row computed・roll/boolean 縮退）。
+  round3 検収 = engine **360/360**（343＋17・既存期待値変更なし）・contract-stack 221・
+  差分 4 ファイルのみ。**構造統合（AST 一本化・isRecord 5 本・alias 読取共有）と :279 閉包構築
+  タイミングの仕様文言整合 = 大粒度 #6 議題**。
+  Codex レビューとの矛盾なし（track/count は Codex 未走査領域 = 二重化が機能した初実例）
+- **10-S5b round2 消化済み・受入完了**: limit 経路の throw を境界捕捉（displayValue/over のみ
+  省略・module 全滅封止）・累積和の非有限化寄与 skip・scope:[] warnings 完全配列固定・
+  resolveNumberValue の barrel 非公開化（index.ts を evaluator 明示 5 symbol export へ）。
+  検収 = engine **365/365**・contract-stack 221。証跡 = acceptance-s5b.md
+- **Opus 横断再レビュー完了（2026-08-11・ユーザー依頼）**: 5 面レビュー＋所見別反証の 2 段
+  （22 エージェント）。**確定 5 / 反証 12 / 未検証 3（Fable 裁定済み）**。
+  正本 = review-results/impl-loop-opus-full/integration.md（＋digest.json）。確定 → 修正スライス:
+  **FIX-A**（partsKeys/blocks/pools の id 規約・label 接続・H-16 異 label エラー・H-6 非 scalar
+  素通り＋task 0 = 大粒度 #5 の layout 検証統合 8→7）→ **FIX-B**（診断 path の単一 choke point
+  封止 = 台帳 #33 前倒し）→ **FIX-C**（list コンテナ直接参照の publish 拒否 = H-18 実反例）→
+  **FIX-D**（columns 検査の grid 限定・降格警告の可視化）。**FIX-E**（front drift spec 強化 =
+  M1 詳細度/M2 値変異の検知）は並行。主要反証 = H-15 span 噴出（到達経路ゼロ・9-S8 前に裁定要）・
+  block-empty 非対称（H-6 設計どおり）・publish O(F²)（ループ以前から・台帳へ性能候補記録）。
+  AI.character.md:506 の俯瞰#10 旧裁定（既定値 2 宣言維持）へ失効注記済み。
+  **FIX-A 実装完了・Fable 検収緑・小粒度レビュー委譲中**: task 0 = layout 検証統合（兄弟 8→7・
+  入口 4 チャンク）＋ partsKeys/blocks/pools id の validateId 接続・label の
+  labelSchema/nonBlank 接続・H-16 ブロック内異 label エラー・H-6 非 scalar 素通り封止
+  （track.max のみ例外）。engine **396/396**（365＋31）・contract-stack 221・差分 2 ファイルを
+  独立再実行で確認。既存 assert 変更 3 件 = reserved メッセージ文言の共通化のみ。
+  **FIX-E 実装完了・Fable 検収緑・小粒度レビュー委譲中**: spec のみで詳細度検査
+  （[data-*] 属性数比較）＋ mobile collapse 厳密値 pin ＋ M1〜M4 mutation 回帰（no-op 自己検査つき）＋
+  table 行 a11y（NumberInput/Checkbox/Select の aria-labelledby）。contract-stack **226/226**
+  （221→226）独立確認。**検収疑義注入 = 詳細度カウントが class を無視する簡易実装の穴**
+  （class 落とし変異の素通り有無を実測させる）。
+  **FIX-A 小粒度レビュー pass → 受入クローズ**（acceptance-fixa.md。low 2 件 =
+  H-16 境界の exact 未固定・H-6 hasOwnProperty 境界未固定 → FIX-B task 0 へ持ち越し）。
+  **FIX-B 実装完了・Fable 検収緑・小粒度レビュー委譲中**: 唯一の return 直前（:197-200）で
+  issues/warnings 全 path を truncateIssueInput（131 文字・Zod 分岐も被覆・49 発行サイトの
+  判断を単一出口へ集約）。倍率実測 = 1 MiB section.id で **×16.97 → ×0.0037**・最大 path 131。
+  task 0 = H-16 5 境界＋H-6 4 境界の exact 固定。engine **407/407**（396＋11）・
+  contract-stack 226 を独立再実行。既存期待値変更 = 閾値超過だった 150 文字 uid path 1 件のみ。
+  以降順序: FIX-C → FIX-D → 大粒度 #6（Codex＋Opus 二重。cadence 注記: 2026-08-11 の
+  Opus 横断再レビューが面 5 で俯瞰相当を実施済みのため、#6 は FIX 群完了後に
+  delta＋構造議題を扱う）。
+  **FIX-E round2 消化済み・受入クローズ**（acceptance-fixe.md）: 小粒度レビュー high =
+  検収疑義的中（詳細度カウントが class 無視・class 脱落 6 変異素通り・実ブラウザ 500px で
+  mobile override 無効化を実測）→ 詳細度を全成分 tuple 辞書式比較へ・class 脱落 M5〜M8 追加
+  （修正前 detector 全素通り→修正後全検知の対照実測）・low = 厳密 pin の空白結合 →
+  値の空白正規化。contract-stack **231/231** 独立確認。
+  **FIX-B round2 消化済み・受入クローズ**（acceptance-fixb.md）: 出口で path（131）＋
+  message（backstop 512）の二重封止・発生源 sweep（notation/lookup/dice 系を追加封止）・
+  ok=false → resolvedRefs 空の契約化（消費者なし確認済み）・surrogate 安全切詰め。
+  倍率 = path 系 ×16.97→×0.0037・message 系 ×15.99→×0.0058。engine **413/413**・
+  contract-stack 231 独立確認・既存期待値変更なし。**台帳 #33 はエンジン層ほぼ消化**
+  （server 側連結挙動が残スコープ）。
+  **FIX-C 受入クローズ**（acceptance-fixc.md）: レビュー pass — 追加反証 12 ケースで
+  「ok=true かつ throw」0 件・未 catch 経路 0 件・parentList 誤爆なし・認知負荷申告どおり。
+  engine **418/418**・contract-stack 231。H-18 の型レベル反例は publish で停止。
+  **FIX-D 受入クローズ — Opus 横断再レビュー確定所見 C1〜C5 全消化完了**
+  （acceptance-fixd.md）: レビュー pass — preset×columns 30 組で resolver と
+  normalize→resolve 30/30 一致・警告存続/併存を実測・pin 変更 5 件すべて正当・
+  認知負荷減（if 4→3・選択点 5→4）。engine 425・contract-stack 233。
+  low 1 = front spec のパラメータ化テスト名が 2/4 で実挙動と矛盾 →
+  **次の front スライス task 0 へ登録**（名称変更のみ・要限定許可）。
+  **大粒度 #6 完了（Codex＋Opus 二重・新体制初回）**: 統合判定 = bigreview6-integration.md
+  （Codex = run-bigreview6-codex・Opus = opus-bigreview6.md）。9 議題中 6 一致・**2 衝突は
+  実測の強い Opus 側を採用**（#2 alias 読取 = 統合〔'constructor' prototype 漏れの欠陥勾配が
+  「意図差」前提を反証〕・#7 publish.spec 分割 = 現状維持〔分割は実行時間を 1ms も減らさず
+  真因は #4 重複 — **大粒度 #5 の分割ゲートを上書き**〕）・**1 権限補正**（#6 で Codex の
+  「D-R3(b) 正本化」処方はユーザー裁定の先取りとして棄却・材料追記のみ）。
+  **Opus high = H-18 第二の破れ**: 注釈経路が計量チャネル外（estimate 9,909・ok=true で実測
+  612,909 step・evaluateConstraint 毎回 10,000 新規予算 = 非共有を 5 連続 ok で直接証明）→
+  **D-R3 へ決定材料として追記済み**（裁定前コード変更禁止・現本番露出 0）。
+  文書系消化済み（Fable 直接）: design-v1-ui :276-280（track 拡張の追記＋:279 を「評価時構築」へ
+  正本訂正・実測併記）・台帳 §2-3（isRecord 5 定義・H-6 述語 4 符号化・AST 実数 7＋2）・
+  D-R3 行。スライス計画: **BIG6-S1 受入済み**（RESERVED_IDS へ 'constructor'＋理由コメント・
+  front v3Template 同期＋集合等価 spec。engine 428/428・contract-stack 235 独立確認・差分 15 行。
+  大粒度 #6 所見の消化ラウンドとして扱い小粒度レビュー省略 — S3 のような挙動変更スライスは
+  レビュー必須で実施）→ **BIG6-S2 受入済み**（normalizeLimitOption 私有 1 本化 :146-149・
+  正規化 5 ケースを 2-field 軽量化・1,024×11 結合回帰へ上方指定を接続維持。
+  **engine suite 37.1s→14.1s（Fable 実測）**・428/428・bench:h18 完全再現
+  〔9,999 pass/10,010 reject/11,264 reject・estimated=measured〕・差分 2 ファイル 42 行）→
+  **BIG6-S4 受入済み**（コメント・命名一括: H-6/H-7 述語意図〔annotation-runtime :244 /
+  constraint-evaluator :165〕・estimate 削除不可マーカー＋H-18 JSDoc 意味論〔publish :231/:240・
+  Opus high の文書化分〕・warning 所有権相互参照〔annotation-runtime :6 / types :172〕・
+  source→origin・ResolvedNumberScalar/numberScalars 改名〔spec 8 箇所追随〕。
+  挙動変更なし・差分 47 行・旧名残存 0 を grep 実測。engine 428/428・contract-stack 235/235
+  を Fable 独立再実行で確認。大粒度 #6 消化ラウンドとして小粒度レビュー省略）→
+  **BIG6-S3 受入済み**（alias 読取の template-index 1 本化 = fieldCandidateKeys/
+  readAliasedValue/canonicalFieldPath の 3 helper・evaluator readRaw/readRowFieldValue を
+  own＋非 nullish 化〔**挙動変更**・characterization 13 件で新旧対比固定〕・annotation-runtime/
+  constraint-evaluator の候補キー生成置換。小粒度レビュー needs-fix〔high 3 / medium 1〕→
+  round2 で全消化: ①fieldsByUid 逆引きの重複 UID draft 罠 → canonicalFieldPath〔走査中
+  sectionId から構築〕＋回帰 spec ②own 化の constraint/H-6 波及 = **Fable 裁定「許容」・台帳
+  §2-3 記録済み**〔旧 ?? 連鎖と H-7 own 判定の内部矛盾解消・publish 境界が実 id 遮断・
+  plain object 契約明文化・Proxy 非対応〕③④ spec 固定。engine 441/441・contract-stack
+  235/235 を Fable 独立再実行で確認）→ **大粒度 #7 二重レビュー完了・統合裁定済み**
+  （Codex needs-fix〔medium 1/low 1〕＋Opus needs-fix〔blocking 3〕。突合 = big7-integration.md・
+  証跡 = opus-big7.md / run-big7-codex。**一致採用**: F1 constraint-evaluator の twin readers
+  〔readRawValue 非 own＋hasOwnNonNullishEntry・:176 コメント偽・継承 list 容器で evaluator と
+  実測分岐〕・F7 負の対照ゼロ。**矛盾は Opus 実測採用**: F2 canonicalFieldPath 採用 2/11
+  〔publish.ts:185,186,310,613＋standalone-roll:41 の生リテラルを Fable grep で確定〕。
+  **Opus 単独採用**: F3 uid:'constructor' publish 通過〔uidSchema 長さのみ・Fable 実読確認〕・
+  F8 superset ガード無し。**却下**: F4 isRecord×5 再提起〔§2-3 確定済み〕・F13 Proxy 注記削除。
+  **記録のみ**: F5 layout preset 3 実装・F6 validateField 引数 10・F9/F10/F11 → 台帳 §6 #13 へ
+  登録済み。S2 完全達成・YAGNI 合格・characterization 相互重複なしは両者一致）→
+  **BIG7-FIXA 受入済み**（F1 = readRawValue／hasOwnNonNullishEntry 削除・3 読取サイト全部
+  readAliasedValue 経由〔:179 field / :181 list 容器 / :185 row subField〕・:176 コメント真化。
+  F7 = RED→GREEN 証跡つき characterization 3 件〔実装者が指定 fixture の判別力不足を検出し
+  レビュー実測の欠落 row 系へ正しく差し替え — 継承 list＋欠落 row が判別ケース〕。
+  F8 = default export＋削除不可マーカーで barrel 非公開のまま 9 種 field 行列 spec。
+  engine 455/455・contract-stack 235/235 を Fable 独立再実行。nit: constraint-evaluator :169
+  マーカー文中「named export 化」が default export の実態と不整合 — 合同レビューで文言修正）→
+  **BIG7-FIXB 受入済み**（F2 = canonicalFieldPath 5 箇所置換〔:191 hoist・:317・:620・
+  standalone-roll〕・2 セグメント生リテラル残存 0 を Fable grep 確認。F3 = UNSAFE_UID_KEYS
+  Set＋refine『uid is reserved:』・拒否 3＋受理 2 spec。F12' マーカー更新。engine 460/460・
+  contract-stack 235/235 を Fable 独立再実行）→ **合同小粒度レビュー pass**（Low 2 =
+  マーカー文言のみ。変異検証 = own 判定を外すと characterization 3 件全滅・置換 5 箇所は
+  49 入力 UTF-8 比較で不一致 0・field/table 両 uid の拒否動作確認・認知負荷 = 所有 9→5 純減）→
+  micro round でコメント 2 行消化 → **大粒度 #7 クローズ**（受入記録 = acceptance-big7.md。
+  最終状態: engine 460/460・contract-stack 235/235・alias 読取所有 1・canonical path 所有 1・
+  H-6/H-7 superset は spec で機械固定・publish 境界 = id RESERVED_IDS＋uid 汚染キー 3 種封止。
+  残債は台帳 §6 #13）。**#10 U15 renderer 系に着手**（3 分割: R0 = H-17 ブロック構造 →
+  R1 = evaluateAnnotationRuntime 配線〔cap 表示・警告・予算バー・pool〕→ R2 = parts 系
+  〔H-11 ポップオーバー・H-16 table 列展開・H-14〕。**D-R2 非抵触を確認済み** — D-R2 の所掌は
+  character→characterSheet の consumer 配線・U14 完了宣言で、renderer 内部拡張は対象外。
+  各スライスに consumer 接続禁止を明記）。**U15-R0 実装受入済み・小粒度レビュー委譲中**
+  （blocks 非空時のみ renderBlockGroups 分岐・既定ブロック先頭無見出し・first-win Map・
+  不在 blockId 既定合流・preset ブロック毎再適用。持込条件消化 = it.each rename
+  〔canonical layout 表現へ・アサーション不変〕＋警告所有権不変条件を指示書注入。
+  front 239/239〔235＋4〕・engine 460/460 を Fable 独立再実行。小粒度レビュー needs-fix
+  〔high 1 / medium 2〕→ round2 で全消化: ①空宣言ブロック非表示（SM-3・design-v1-ui :406-407
+  実読裏取り・`.filter(group.fields.length > 0)`・3 preset spec）②pre-slice DOM を inline
+  snapshot 固定（stack preset・動的 id 混入なし）③block 経路の controlled 契約 spec。
+  front 243/243〔239＋4〕・engine 460/460 を Fable 独立再実行 — **U15-R0 受入済み**）→
+  **U15-R1a 委譲中**（engine 層: SectionAnnotationRuntime へ `blocks: AnnotationBlockRuntime[]`
+  追加 — H-17 の「ブロック見出し・cap 表示」に必要なブロック単位 cap 解決が現 API に無い
+  ギャップを Fable が実読確認〔limits は field 単位・全 field が独自 max を持つ/空ブロックでは
+  cap がどこにも現れない〕。cap 宣言ブロックのみエントリ・AnnotationPoolRuntime と同形 union・
+  first-win 一致・per-field 経路不変・evaluateConstraint +cap ブロック数の計量増を報告義務化
+  〔D-R3 隣接〕。**実装受入済み**: 467/467〔460＋7〕・243/243・型は Pool 同形 union・
+  first-win 直後評価を Fable 実読。**レビュー pass**〔Go・Low 1 = blockIds/blocks の役割分担
+  TSDoc 2 行 — writer lock 解放後の消化ラウンドへキュー。per-field 同値性・既存挙動不変・
+  変異 3 種検出を確認済み〕）→ **R1b 実装委譲中**（front 面のみ。
+  R1b = useMemo 配線・見出し cap Badge〔ok のみ表示・非 ok 沈黙〕・field-over-limit 文言
+  renderer 著述・pool 予算バー〔ok=Progress＋残り・超過 danger・非 ok 沈黙〕・構造 skew 警告
+  6 コードは検証タブ所掌で非表示・R0 snapshot 不変ゲート。**実装受入済み**: front 250/250
+  〔243＋7〕・engine 467/467・snapshot 未更新で通過 = annotation 無関係 DOM 不変の直接証明。
+  **小粒度レビュー = needs-fix〔high 2 / medium 1 / low 1〕**: ①重複 sectionId で
+  annotationsBySectionId Map が last-win 越境〔重複 section id は publish 通過 — Fable 経路
+  裏取り: 一意性ゲートは canonical path と uid のみ。台帳 §6 #14 へ publish 側裁定を登録〕
+  ②重複 fieldUid で over-limit 文言 Map が last-win〔publish は uid 一意強制 = draft 限定・
+  draft-safe 契約上有効〕③spec 補強〔displayValue 省略時 undefined 混入・構造 skew 非表示の
+  固定〕④useMemo 参照契約は記録のみ〔D-R2 行へ接続時条件を記録済み〕。
+  round2 で全消化: ①index 対応 join〔annotationRuntime.sections[sectionIndex]・React key に
+  index 併記〕②曖昧 uid 沈黙〔buildOverLimitMessages 内局所化〕③spec 4 件 ④TSDoc 2 行。
+  front 254/254〔250＋4〕・engine 467/467 を Fable 独立再実行 — **R1b 受入済み・R1 クローズ**。
+  **Fable 検収で残存エッジ 1 件検出**: over-limit ゲーティングが warnings の sectionId 文字列
+  一致のまま → 重複 section id＋section 跨ぎ同一 fieldUid の draft 複合病理で非超過 field に
+  自己矛盾文言が出うる — 単独裁定せず大粒度 #8 の種問いへ）→
+  **大粒度 #8 完了・統合裁定済み**（Codex needs-fix〔medium 2/low 2〕＋Opus needs-fix
+  〔blocking 1＋major 3〕= big8-integration.md / opus-big8.md / run-big8-codex。
+  **種問いは両者独立に同一実測で確定**〔非超過 field に自己矛盾超過文言・负の対照つき〕。
+  対処の相違は **Opus 案 B-3 採用**〔AnnotationLimitRuntime/PoolRuntime の ok 分岐へ engine
+  判定済み `over: boolean` — Codex 案の「pool の remaining<0 と対称」は当の pool 側が H-12
+  唯一の逸脱と実測された当該物のため根拠にならない。B-3 は F2/F10/F15 同時解消・warnings
+  引数消滅〕。**一致採用**: remaining 非有限→error 退化〔-MAX_VALUE 実測〕・grouping を
+  engine の blockIds/fieldBlocks へ寄せる〔renderer first-win Map 2 個削除・raw は label のみ〕。
+  **Opus 単独採用**: F4 空セクション全体スキップ〔SM-3・pool 浮遊バー含む〕・F5 到達不能
+  widen 除去・F7 コメント。**却下**: Opus F11 snapshot 削除〔toBe 対と主張が別物 — 混同。
+  唯一の pre-slice oracle として維持〕。**確定裁定**: F8 数値反復は導出関係の正しい帰結 =
+  仕様として維持・spec 固定。**記録**: 台帳 §6 #15〔H-13 符号の穴・scope pool 配置・
+  F13/F15 保留〕＋ D-R3 行へ計量値追記〔median 1.864ms/p95 2.135ms — 「現状明文化」案の
+  実測補強〕。**BIG8-FIXA 受入済み**〔over 両系＋remaining 非有限→error 退化〔pool-over
+  非発火セット〕＋TSDoc。round2 = constraint-evaluator.spec の 1 expectation 限定許可
+  〔実装者が境界停止して許可要請 — 正しい停止〕。engine 470/470・254 独立確認〕→
+  **BIG8-FIXB 受入済み**〔over 消費で warnings がフォーム経路から消滅・grouping を
+  blockIds＋fieldBlocks[index] へ移行〔同数同順を engine 実読で確認・意図コメント化〕・
+  空セクション全体スキップ・F5 widen 除去・F7 コメント・spec 8 件〔F1 P2/P3/P4・沈黙
+  it.each・F8 pin・空 section・pool error 沈黙〕。front 262/262〔254＋8〕・engine 470/470
+  独立確認・R0 snapshot 不変〕→ 合同小粒度レビュー needs-fix〔medium 1 = 空セクション
+  skip 後の index 保持を固定する spec 欠落 — 1 section 構成では filter→map の index 詰め
+  変異を検出不能〕→ micro round で回帰 spec 追加〔空＋非空 2 section・後続の超過文言表示・
+  両変異の検出机上確認〕→ **大粒度 #8 クローズ**（受入記録 = acceptance-big8.md。
+  最終状態: engine 470/470・front 263/263。到達構造 = 超過判定所有 engine 2 箇所のみ
+  〔renderer H-12 逸脱 0〕・warnings チャネルのフォーム経路消滅〔join 欠陥クラス構造的
+  不存在〕・H-10 grouping の engine 単一所有・SM-3 完全化・remaining 非有限 error 退化。
+  残債 = 台帳 §6 #14/#15）。**U15-R2 は 3 分割で着手**（仕様再読の結果: ①表示値 =
+  Σ(入力 parts) は base/other 暗黙キー込み〔:255・:241-244〕のため renderer の可視セル合算は
+  意味的誤り＋parts 合算第 3 実装化 → engine 先行が必要 ②Web diff 契約〔:245-248〕=
+  宣言キーごとの個別 {fieldUid, partsKey} 変更必須・whole-parts 一括書込禁止 → renderer の
+  onChange 契約拡張が要る。**R2a 受入済み・レビュー pass〔findings 0〕**〔engine:
+  fieldBlocks エントリへ displayValue?: number — number scalar のみ・resolveNumberValue
+  再利用で新規合算ゼロ・base/other 込み Σ=29 のレビュー実測・省略規則 limits 同型・
+  engine 476/476〔470＋6〕独立確認。max あり field の重複評価 +1 は D-R3 隣接の意図された
+  重複として記録〕→ **R2b 実装受入済み・小粒度レビュー委譲中**〔table: H-16。実装 =
+  table 単位 first-seen union・label first-win・宣言キーのみ NumberInput・合計 =
+  displayValue 素通し・parts:true 縮退・colSpan 維持・onPartsChange 個別 emit
+  〔whole-parts 経路ゼロ申告〕・.tableScroll CSS。front 268/268〔263＋5〕独立確認・
+  **H-14 CSS は Fable 実ブラウザ検収済み**〔モバイル 375px: scroller 339/776 で内部横
+  スクロール成立・body 非溢れ — scratchpad/h14-scroll-check.html・css-responsive メモリ
+  履行〕。レビュー観点 = union 範囲の H-17 直交漏れ・非 number-scalar への partsKeys draft・
+  per-key セルの a11y ラベル・0 の falsy 誤 skip・base 込み差分 pin の変異検出力。
+  レビュー needs-fix〔medium 2/low 1〕→ round2 で全消化: parts:true 併存 draft の union 除外
+  〔isNumberScalar ガード込み〕・sentinel displayValue=42 の raw 再合算変異検出 spec
+  〔部分和 {5..35} と非一致〕・0 emit spec。front 271/271〔268＋3〕独立確認 —
+  **R2b クローズ**〕→ **R2c 実装受入済み・小粒度レビュー委譲中**〔H-11: grid parts =
+  合計＋PartsEditorPopover〔grid/table parts:true 共有・base 行編集・other 表示専用
+  data-parts-readonly・新キー UI なし — 設計未規定 3 点は台帳 §6 #15b 登録済み〕・
+  useState は Popover 開閉のみ〔フォームデータは props 経由 — 妥当性はレビュー判定〕・
+  front 276/276〔271＋5〕独立確認・CSS 変更なし・既存期待値変更 0。レビュー観点 =
+  local state へのデータ複製有無・raw の汚染キー/非数値の draft-safe・other の入力経路ゼロ・
+  フォーカス開閉 a11y。**レビュー needs-fix〔medium 2/low 1〕→ round2 委譲中**:
+  ①キーボード導線 ②grid 非 parts 境界 fixture ③外部 values 更新＋prototype キー spec →
+  round2 で全消化〔withinPortal=false 採用・state 追加ゼロ・Escape/Enter/Space・spec 3 件・
+  front 279/279〔276＋3〕独立確認 — **R2c クローズ**〕→ **大粒度 #9 二重レビュー委譲中**
+  〔R2a/R2b/R2c・Codex＋Opus。観点 = parts 表示 3 経路の重複実測・per-key emit 契約一貫性・
+  H-12 全数再監査・withinPortal=false×.tableScroll の相互作用〔行内 Popover の overflow
+  クリップ — Opus に scratchpad 再現を指示〕・displayValue 二重計算の drift 可能性〕。
+  **Codex 側完了 = needs-fix〔high 1/medium 2/low 3〕**: high = value-input.ts:134
+  `allowsParts` が宣言モード（partsKeys）非認識 → publish 可能な partsKeys テンプレートの
+  parts 入力を runtime 境界 3 箇所〔materializer×2・server writable-path×1〕で拒否する実測
+  〔design :247-248 の「parts || partsKeys へ拡張（実装変更点）」の未実装分と整合〕。
+  medium = ①finite-sum の value-input/evaluator drift〔MAX_VALUE×2 で schema 受理・evaluator
+  拒否 — §2-3「責務差で意図的」裁定との突合が要る〕②partsKeys:[] 空宣言が plain scalar へ
+  落ち onChange 経路になる。low = 多列/実ブラウザ未固定・GridPartsField 1-caller wrapper・
+  fixture 複製。renderer 面 pass〔raw 読取 1・whole-parts 0・合算 0・Popover 共有妥当〕。
+  **Opus 側完了 = needs-fix〔blocking 3〕・証跡 = opus-big9.md**: H1 = 空入力 undefined emit に
+  下流受け皿なし〔SheetChangeDto @IsDefined・server writePathValue も undefined 代入で
+  evaluator throw — clear の意味は設計未規定・D-R2 配線前に裁定必須〕。H2 = Mantine 途中入力
+  文字列（'-'等）を undefined へ潰し**負値の逐次入力が実ブラウザで不能**（H-5 喪失・
+  fireEvent 一括 spec では検出不能）。H3 = **台帳 #15b(b) の前提が誤り** — stack の宣言
+  partsKeys field は base 昇格でなく whole-field 書込（parts 全消失経路・sheet-edit :44 は
+  field.parts のみ partsKey:'base'）。H4 = モバイル Popover width 280 固定で viewport 227px
+  超過（withinPortal は無関係と対照実験で確定）。M1 = .tableScroll クリップ懸念は**実測で
+  否定**。M2-M5・L1-L6・spec 漏れ 5 系は opus-big9.md 参照。
+  **big9 統合裁定完了（big9-integration.md・2026-08-11）**: 保存経路欠陥群〔Codex high＋
+  Opus H1/H3〕を統合し **v1 = 数値のみ emit**（undefined・途中文字列を emit しない → H2 同時
+  解消・clear は 0 入力代替・D-R2 配線時に clear UX 再裁定の留保）。**stack 宣言 parts も
+  合計＋Popover へ**（#15b(b) 撤回 — whole-field 実測が前提を反証）。finite-sum は §2-3 の
+  精緻化として value-input へ追加（失敗様式 false は維持）。partsKeys .min(1)・H4 =
+  width="target"・M1 棄却確定。**台帳訂正済み**: #15b 全面改訂〔(b) 訂正＋(d) 数値のみ emit〕・
+  #15c 新設〔M2・非 parts 行 colSpan・M1 否定・spec 保留〕・H-6 述語 5 符号化・isRecord 6 定義。
+  **design H-10 skew 表へ M4 の 1 行追記済み**（parts:true＋partsKeys 併存 = parts:true 優先）。
+  **BIG9-FIXA（engine）委譲中**〔bgxqpjq0u・prompt-big9-fixa-code.txt: value-input 宣言モード
+  認識＋宣言キー制限＋有限和検査＋publish .min(1)＋L3 assert＋整合 spec〕→ 検収後
+  **BIG9-FIXB（renderer）直列**〔数値のみ emit・stack→Popover・width="target"・field 単位
+  宣言判定・M5 意図コメント＋同値 spec・GridPartsField 統合・sentinel helper〕→ 合同小粒度
+  レビュー → **Fable 実ブラウザ検収**〔逐次 '-4' 入力・モバイル Popover 幅〕。消化後 →
+  U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）
+- **10-S5b 実装完了・小粒度レビュー委譲中**: ブロック/上限/プールの runtime 注釈評価 —
+  annotation-runtime.ts 新設（evaluateAnnotationRuntime・警告 8 コード構造化データのみ・
+  publish.ts/types.ts 不変・evaluator は resolveNumberValue export 1 行）。
+  実装者申告 = engine 343/343（既存 334 期待値変更なし・新規 9 境界）・diff 452 行
+  （目安 300 超過を申告 — レビューで YAGNI 監査）。Fable 独立再実行 = engine 343/343 確認済み。
+  **小粒度レビュー結果（needs-fix）**: 注入疑義①が high CONFIRMED — 不正 parts の max 付き
+  field 1 つで evaluateAnnotationRuntime 全体が throw（H-10「fail しない」違反・全 section 全滅）。
+  追加 medium = 各 entry 有限でも累積和が Infinity になり ok で公開される（MAX_VALUE×2 実測）。
+  疑義② path 乖離は反証（section 直下は template-index と同形を実測・alias 3 実装の統合は
+  拡大しない = 大粒度 #6 議題）・疑義③ scope:[] 警告は弁護可能と裁定（spec で完全配列固定へ）。
+  low = resolveNumberValue が barrel wildcard で package 外公開（非公開化へ）。
+  **round2 指示書作成済み（prompt-s5b-round2.txt）— S5a round3 と同一ファイル衝突回避のため
+  round3 完了後に委譲する（直列化）**。
+  プロンプト = prompt-s5b-code.txt / prompt-s5b-review.txt
+- **大粒度 #5 完了**（run-bigreview-5・needs-fix）: high = **astNodeLimit にも同じ上方迂回穴**
+  （257 AST・NaN・Infinity の 4 プローブ全通過を実測。DEFAULT_AST_NODE_LIMIT の 2 宣言も
+  evaluator export へ一本化せよ・B-2 台帳更新要）→ **round2 完了後に round3 で消化・10-S5 前必須**。
+  medium#1 = section loop 8 兄弟 250 行/50 制御点 → **次に publish.ts を触るスライスの task 0** =
+  validateSectionLayout＋validateResolvedLayoutWarnings の統合（8→7）＋入口 4 チャンク化
+  （再帰 3 系と H-18 走査は統合禁止 — 責務・到達契約が異なる）。
+  medium#2 = publish.spec.ts 1,428 行 → **S5 の spec は constraint-evaluator.spec.ts として新設**・
+  U15 完了前に publish-u15/-layout-warnings/-h18 の 3 分割（既存 helper 維持・約 798 行へ）。
+  健全側 = path 規約一貫・truncate 網羅・D-R1/2/3 のブロック対象は台帳と 3/3 一致・
+  parse 二重は単一 owner のため結合なしと裁定
+- 保留分: 9-S8（エディタ UI）と preview 統合スライス =〔**D-R1 ユーザー裁定待ち**〕。
+  #11 SM（SM-16 resolve 分離含む）→ #12 U16 は #10 後。
+  次回大粒度 #6 = 大粒度 #5 以降 3 スライス完了時点（S5a 済 → S5b → 次の 1 本の後）。
+  **2026-08-11 ユーザー決定: 二重レビュー（Codex＋Opus）を大粒度レビューとコミット前
+  全体検収でも必須化**（fable-rules へ反映済み）。適用初回 = 10-S5a へ Opus read-only
+  レビューを遡及実施中（prompt-s5a-opus-review.txt・結果は opus-review-s5a.md へ保存予定）
+- 未コミット: sheet-engine 3 ファイル＋document 3 件（ledger/design-v1-ui/本ファイル）。
+  コミットはユーザー指示時（pathspec でスライス単位）
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

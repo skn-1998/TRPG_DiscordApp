@@ -9,7 +9,7 @@
 
 ---
 
-## 0. 現在地（2026-08-08 実測）
+## 0. 現在地（2026-08-11 実測・基準 commit `1b23430a`）
 
 | 項目 | 状態 |
 |---|---|
@@ -17,7 +17,7 @@
 | Phase 2（hub・palette・Discord ±・worker） | **実装完了・受入未了**。PH-7 実機受入（D-3・ユーザー実施）の全 16 チェック項目が `☐` のまま（`phase2-ph7-acceptance-checklist.md`） |
 | Phase 3 | **未着工**。`phase3-goal-contract.md` は DRAFT v0.9。着工前提 = D-3 通過（I3-3）＋決定点 D-P3-1〜4 のユーザー決定 |
 | 本番 DB（2026-07-30 read-only 実測・`review-results/task28-23-data-survey/`） | シートテンプレート **0 件**・materialized キャラ **0 件** ⇒ **2026-07-30 時点の観測では DB 上の移行対象なし**。ただし published 構造不変契約・front の `@trpg/api-contract`/`@trpg/sheet-engine` 依存・wire/契約 spec の互換制約は**残る**。破壊的変更の前には**再計測＋人間承認**（過去のスナップショットを現在値扱いしない — round1 H3） |
-| git（**生成時刻つき診断 — 検収条件に使わない**） | 2026-08-08 round1 時点: HEAD `ee013820`（台帳登録＋L-2 実証）・origin/develop へ ahead 2・L-9 修正 4 ファイルが未コミットの M 状態・untracked `?? trpg-remix-app/`（旧 app 残渣）。**この行は同日中にも陳腐化する**（実際に作成当日 HEAD が 2 回動いた）。検収はスライス開始時と終了時の `git status --short` 比較で行う（round1 H9） |
+| git（**生成時刻つき診断 — 検収条件に使わない**） | 2026-08-11 時点: HEAD `1b23430a`（U14〜U16/SM 設計確定 `7a79246d`＋doc 追随＋skills を push 済み・origin/develop と一致）・作業ツリーは untracked `?? trpg-remix-app/`（旧 app 残渣・**ユーザー裁定で削除しない**・コミット対象外）を除きクリーン。**この行は同日中にも陳腐化する**。検収はスライス開始時と終了時の `git status --short` 比較で行う（round1 H9） |
 | stale worktree | `.claude/worktrees/` に 3 本残存。**repo ルートで `grep -r` すると旧版 spec がヒットして誤読する**（実際に監査中も発生） |
 
 ---
@@ -154,7 +154,7 @@
 | # | 結合 | 防波堤 |
 |---|---|---|
 | B-1 | palette 上限 512 の 2 宣言（api-contract `PALETTE_MAX_ENTRIES` ⇔ materializer `PALETTE_HARD_CAP`） | コメントのみ。値 drift は未固定 |
-| B-2 | `DEFAULT_AST_NODE_LIMIT=256` の 2 宣言（publish.ts ⇔ evaluator.ts） | 相互参照コメント。**変えるときは必ず両方** |
+| B-2 | **解消（2026-08-12・10-S4a round3）**: `DEFAULT_AST_NODE_LIMIT` と `DEFAULT_STEP_LIMIT` は evaluator.ts の単一宣言を publish が import する形へ一本化。さらに publish の options（astNodeLimit/evaluationStepLimit）は**既定値で上方 cap**（上方指定は publish 通過⇔runtime 完走の対応を壊すため。回帰 spec 固定済み） | 宣言の複製を復活させない。cap を外す場合は「予算を publish 成果物へ固定し全 runtime 境界へ同値伝播」の設計裁定が必要（大粒度 #5 high の条件） |
 | B-3 | `—`(U+2014) の 2 定義（palette-label ⇔ projection） | 結合コメント。片側変更で suffix 剥離が黙って壊れる |
 | B-4 | front の ID_PATTERN/RESERVED_IDS 複製 | 挙動等価テストは **top-level id のみ**（itemFields/attrs のネスト id は非目標・Task #50） |
 | B-5 | server DTO ⇄ api-contract interface の同形は「S5 で機械固定**予定**」のまま未実装 | コメントを「固定済み」と誤読しない |
@@ -162,6 +162,10 @@
 | B-9/B-10 | **欠番（round1 で REFUTED）**: `$literal` と `findByChannelId` の `.select()` はどちらも spec 固定済みと判明 → **§2-1 へ移動** | — |
 | B-11 | front eslint zone は 5 feature の**列挙で fail-open**（新 feature には zone を 1 本足す） | `trpg-next-app/AI.md` |
 | B-12 | **allow-list の更新漏れ側だけが未固定**: api-contract に新しい公開型を追加しても `allowImportNames` は自動追随しない（足し忘れは front から import 不可として現れる）。既存 16 名の機械強制は §2-1 へ移動（round2 で分類訂正） | 追加時に `trpg-next-app/eslint.config.mjs:17-34` へ 1 行足す規約のみ |
+| B-13 | **所有者の存在は DB 非強制**: `discordUserId` は Mongoose 上 `required:false, default:''`（`character.model.ts:30-31`）。「全キャラに所有者がいる」は作成経路（JWT 注入）の規約頼みで、**空文字所有者の文書が型・永続化の両層で表現可能**（2026-08-11 台帳監査で追加） | #11/#12 の owner 判定・fixture はこの前提で書く。空文字にマッチする恒真クエリを作らない。安全方向は fail-closed（空文字 owner は誰の owner-scoped read にも一致しない） |
+| B-14 | **`characterSheetStateSchema` は `.strict()` 4 項目**（`character.zod.ts:27-34`）で、repository が書込時に parse（`character.repository.ts:129,145`）。**Mongoose（`@Prop({type:Object})`）は通るが Zod 境界で実行時 throw するねじれ** | #12 の visibility も #10 で sheet にキーを足す場合も、api-contract・persistence・materializer を**同時に**更新する（§3.6 Schema 行が正本） |
+| B-15 | **sheet-engine publish の template schema は全域 `.passthrough()`**（`publish.ts:58-99`・`sections[].layout` は `z.unknown()`）。未知キー・綴り違いは**黙って受理され全緑のまま素通り** — 検証は明示的にコード化した分のみ効く。これは**意図的設計**（§1-4: field 直下 secret の単独拒絶 不採用の裁定） | #9/#10 で「堅牢化」として `.strict()` 化するのは禁止。新フィールド（layout/blocks/partsKeys/pools）の検証は明示的に追加する |
+| B-16 | **Character @Schema ⇔ CharacterEntity の同期はコメント頼み**（`character.model.ts:14-17`）で、zod parse 境界は materialized create/save/template pin の **3 経路のみ**（`character.repository.ts:129,145,177`） | #12 が新設する visibility 単項更新に parse/検証境界を必ず置く（`$set` 直書きの素通り経路を作らない） |
 
 ### 2-3. 統合禁止の二重実装（「重複だから」と 1 本化しない）
 
@@ -171,6 +175,39 @@
 - characterThread の `skillName (skillLevel)` 書式は palette ラベルと別機能・対象外
 - `allowsParts` は engine 正本・server は re-export shim（複製を作らない）
 - feature 側 `types/character-sheet.types.ts` は type-only re-export のみ（正本は character.entity.ts）
+- `isRecord` の **6 定義**（layout-resolver / layout-normalizer / publish / constraint-evaluator /
+  annotation-runtime / **TemplateFormRenderer〔front・初のパッケージ跨ぎ〕**）は**意図的局在** —
+  本体 byte 一致の 1 行 unknown 境界述語で、共有すると consumer に file hop を足すだけ
+  （大粒度 #3 裁定・#6 で 5 定義・#9 で 6 定義へ再確認・2026-08-11）
+- **H-6 述語（セクション直下 number scalar）の 5 符号化** —
+  annotation-runtime.isNumberScalar / constraint-evaluator.isRawNumberInputField（**track を含む
+  superset = 意図差**: H-7 生入力欠落判定対象）/ publish インライン 3 箇所 / value-input /
+  **TemplateFormRenderer〔front・初のパッケージ跨ぎ・大粒度 #9 M5〕**。統合不可（track 有無の
+  フラグ引数が生えて分岐が戻る）。engine 側は field-predicates.spec が H-6/H-7 実集合を固定済み・
+  front 側は意図コメント＋engine 定義との同値 spec を付す（BIG9-FIXB）。
+  委譲時は片側だけの変更を禁止と名指しする（大粒度 #6・#9・2026-08-11）
+- **raw 値の alias 読取は own＋非 nullish first-win（uid → `${sectionId}.${fieldId}` → id）で
+  全経路統一 — 正本 = template-index.readAliasedValue / fieldCandidateKeys**（BIG6-S3・2026-08-11
+  Fable 裁定）。旧 evaluator は `??` 連鎖でプロトタイプ鎖上の値も読め、H-7 の own 判定と内部矛盾
+  していた。統一によりプロトタイプ鎖入力では evaluateConstraint の status・H-6/H-7 警告の発火が
+  旧実装から変わるが**許容**（publish 境界の RESERVED_IDS『constructor』と ID_PATTERN が実 id を
+  遮断済み・本番露出 0・characterization spec で新挙動を固定）。入力は plain/JSON object 前提・
+  Proxy 非対応。**annotation-runtime の path は走査中 sectionId から構築**（fieldsByUid 逆引きは
+  重複 UID draft で別 section の path を掴む — round2 で復元・回帰 spec あり）。
+  大粒度 #7 で constraint-evaluator 内の twin（readRawValue = 非 own・hasOwnNonNullishEntry）を
+  検出 → BIG7-FIXA で readAliasedValue へ完全集約。**uid は publish で prototype 汚染キー 3 種
+  （__proto__/constructor/prototype）のみ拒否**（BIG7-FIXB。RESERVED_IDS 全体は uid へ適用しない
+  — uid 名前空間は式識別子と無関係で過剰拒否になる。大粒度 #7 統合裁定 = big7-integration.md）
+- **parts 合算の 2 実装は責務差で意図的**（evaluator:544 = 評価・非有限で throw ／
+  value-input:106 = 入力境界検査・false 返し）— 統合しない（大粒度 #7 記録・2026-08-11）
+- **AST 子走査の実数 = 完全 7 本＋部分 2 本**（countAstNodes / evalAst / collectRefs /
+  validateFunctionCalls / inferExpressionType / walk / visitAst ＋ dice 系 binary 限定 2）。
+  子ノード列挙のみの単一 owner は walk として既存（caller 1）。統合は context 搬送・戻り値の
+  差で純減しない — **発火条件 = AstNode union に variant が増えたとき**に再評価
+  （大粒度 #6 で本数訂正・2026-08-11。旧記録の「3 本」「5 箇所」は目減りした誤記）
+- U14 の 4 テスト系統は**責務の異なる独立 oracle** — 共有 fixture=保存正規化・resolver spec=解決値・
+  renderer spec=DOM 契約・publish spec=warning の code/path/順序。入力族が重なっても削減・
+  共有期待値生成の対象にしない（大粒度 #3・2026-08-11 裁定）
 
 ### 2-4. 委譲で壊れやすい急所（プロンプト定型文）
 
@@ -187,12 +224,22 @@
   （等価テストが唯一の consumer。static:deps の死蔵判定は裁定に使わない）。
 - convertUpdateDtoToCharacter の allow-list を簡略化しない（characterId/discordUserId 不変の唯一の防御）。
 - findByChannelId の .select() 列挙から語を落とさない（S-1 実バグ）。
+- publish の issue/warning message へユーザー入力を反響させるときは必ず truncateIssueInput() で
+  制限する（診断増幅ガード publish.ts:29-31 の適用対象は既存 path だけでなく**新設 message も**。
+  10-S1 で 1 MiB id → 1 MB message の実害を検出済み）。
 - レビュー・調査エージェントは読み取り専用（emit プローブ・lint --fix・stash 禁止）。
 - 検収はスライス開始時に `git status --short` を記録し、終了時との差分が意図した変更のみで
   あることを確認する（恒久例外の文字列固定はしない。既知 untracked は都度列挙し所有を確認）。
 - 通常 suite に「裁定待ちの意図的に赤い spec」を混ぜない（full-suite 緑ゲートが壊れ、
   後続の委譲が期待値改変で「修復」する危険）。裁定待ちの再現 spec は it.failing 化 or
   隔離 config で分離する。
+- 【#9〜#12 新機能】sheet-engine publish の .passthrough() を .strict() 化しない（意図的設計・B-15）。
+  新フィールドの検証は明示的に追加した分だけが効く。
+- 【#9〜#12 新機能】character.sheet へキーを足すときは api-contract characterSheetStateSchema
+  （.strict()）・persistence・materializer を同時更新する（片側だけだと repository parse で
+  実行時 throw・B-14）。
+- 【#9〜#12 新機能】所有者判定は「discordUserId は DB 非強制（default ''）」の前提で書く（B-13）。
+  新設の書込経路には parse/検証境界を必ず置く（B-16）。
 ```
 
 ### 2-5. 検収コマンド（実在するもののみ）
@@ -204,6 +251,8 @@
 | TRPG-SERVER: `pnpm build` → `pnpm run check:circular`（"No circular dependency found!"）→ full jest | サーバ検収（マージ前は全 suite 必須） |
 | `pnpm run static:deps` 等 | 実測用。**死蔵判定を削除の根拠にしない**（誤検出既知） |
 | 環境: 間欠 V8 crash（exit 3221225477）は `NODE_OPTIONS=--max-old-space-size=4096` で回避・まず再試行 | SESSION_HANDOFF L1665-1666 |
+
+**キュー行との対応**（2026-08-11 監査で追加）: #9 = `test:engine`（schema/publish）＋`check:contract-stack`（renderer 到達時）／#10 = `test:engine` 主・**H-18 ベンチ script は未作成 — 着手スライスで新設が検収手段の一部**／#11 = TRPG-SERVER 検収一式（build→check:circular→full jest）＋`check:contract-stack`（409 wire 変更時）／#12 = `check:contract-stack`（api-contract→server→front を跨ぐため）
 
 ---
 
@@ -284,6 +333,9 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | C1 確定 | 結果連動エフェクト（`chk_`）の v1.x 採用 | c1 実装着手 |
 | README 未決 5 | 公開ギャラリー未認証閲覧（Phase 4） | 認可設計 |
 | README 未決 10〜14 | selectedRow／Discord トグル／relation live 参照／FATE 型 resetTo／declare | v1.x 拡張 |
+| **D-R1** | **TemplatePreviewV3 統合の裁定**（2026-08-11 大粒度レビュー #2）: (a) AI.md へ理由付き有向辺 characterTemplate→characterSheet を追加し eslint except 同期・preview を state/evaluator/dice の wrapper 化して入力描画を TemplateFormRenderer へ委譲（**レビュー推奨**。挙動差 7 点の characterization が前提・費用 = 4 非 test artifacts＋cross-feature hop 0→1・便益 = scalar widget 編集先 2→1・S8 で layout 再複製回避）／(b) 統合見送り・重複容認＋scalar 4 valueType の共有部分を両 component で固定し二者更新を受入条件化 | **統合スライスと 9-S8（エディタ UI）の着手**（9-S7 モバイル折り畳みは独立・先行可） |
+| **D-R2** | **U14 renderer の作成・編集面への配線裁定**（2026-08-11 大粒度レビュー #4 high）: TemplateFormRenderer は production consumer **0 件**（spec のみ）で、実 runtime 経路 CharacterSheetEditClient（`app/features/character/`・sheet page 配下）は layout 非消費の独自描画。配線には **AI.md へ有向辺 character→characterSheet 追加＋eslint characterSheet zone の except へ './character' 追記**が必要（現 zone は characterSheet 自身のみ許可 — D-R1 と同類のモジュール境界裁定）。レビュー勧告 = TemplateFormRenderer を controlled renderer として接続し**第三の描画実装を作らない**・接続後に route/component regression 通過まで U14 完了扱い禁止。**接続時条件（U15-R1b レビュー Low・2026-08-11）**: values は immutable 更新・無関係な親 render では参照を安定させる（annotation useMemo の deps = [template, values] が参照同一性前提。毎 render 新 object だと D-R3 未計量経路が毎打鍵で再評価される）・接続時に annotation 評価時間を計量する | **U14 の feature 完了宣言**（#10 U15 の engine 系スライスは非依存・続行可。preview 面は D-R1 が所掌） |
+| **D-R3** | **H-18 不変条件と list 行数の設計ギャップ**（2026-08-12・10-S4 委譲先が停止条件で正しく検出）: H-18（design-v1-ui :328-338）は「publish 通過物は step 予算 10,000 内で必ず評価完走」＋「最悪コストに list 行の反復評価を含める」を要求するが、**行数は runtime データで無制限**（evaluator.ts:61 は全行取込・実測 = AST 1 でも 10,001 行で step 超過）。行 computed が 1 個でもあれば静的上界は無限になり不変条件は現状定義のまま**達成不能**。選択肢: (a) **list 行数上限を新設**（TABLE_ROW_LIMIT=512 の list 版・保存/評価境界で cap → publish 指標に rowCap×行 AST 項を追加できる）／(b) **不変条件のスコープを静的部分へ縮める**（行反復分は評価時 step 超過の既存退化に委ね、H-18 の文言を修正）／(c) 行 computed の一律拒否（CoC 技能リストが典型ユースケースのため実質不可）。**静的部分の集約上界＋1,024×11 回帰は (a)(b) 共通部分として先行実装**（10-S4a）。**第二のギャップ（2026-08-11 大粒度 #6・Opus 実測）: 注釈経路が計量チャネル外** — estimate は注釈式を静的加算するが、H-7 表示評価は evaluateConstraint ごとに**既定 10,000 の新規予算**を取得し（constraint-evaluator の evaluateExpression 呼び出しが limit 未指定）、共有されない。publish 通過反例 = computed 20×201 node＋全参照 max 注釈 150＋pool total 1 → estimate 9,909・ok=true・evaluateAnnotationRuntime 1 回で**含意 612,909 step / 287ms**（5 連続 evaluateConstraint 5/5 ok = 非共有の直接証明）。さらに track.max は server TrackRangePolicy が別呼出しで評価・track.resetTo は評価系なし（C-1）。**裁定には「注釈経路へ予算を伝播するか・注釈数×閉包サイズを静的指標へ加算するか・現状（呼出し毎予算）を仕様として明文化するか」を含める**こと。裁定前のコード変更禁止（現時点の本番露出 = 0・renderer 配線で顕在化）。**追加決定材料（2026-08-11 大粒度 #8・Codex 実測）**: 現実規模 template（6 sections・120 fields・156 constraints）の evaluateAnnotationRuntime 1 回 = **median 1.864ms / p95 2.135ms**（500 回試行）— renderer は useMemo 配線済みで毎 values 変更ごとに 1 回。実測上「現状を仕様として明文化」案の負荷面の障害は無い。接続時条件（values 参照安定）は D-R2 行に記録済み | **H-18 不変条件の完全達成宣言と 10-S4 のクローズ**（10-S4a 静的上界・10-S5+ 評価 API・renderer 系は非依存で続行可） |
 | 運用 | 未 push 8 コミットの push／lint-server required 昇格／rest.http credential（chip task_dedfbb73）／U4 ベンチ | — |
 
 ### 5-3. タスク番号の注意
@@ -307,10 +359,15 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | 6 | **裁定資料の作成**: #42（save が publish 規則を全適用する結合）→ #43（dice 判定二重走査）→ #44（参照エラー二重発行・first-error 裁定が先）→ #46（row-level resultType 削除） | 裁定→実装の 2 段 |
 | 7 | **#33**（formula/notation/lookup rows の残存増幅・理論 50MB 級・validateId path echo） | DoS 面。優先度引き上げ余地 |
 | 8 | 確認系: #48 完了確認／GAP-B 現況／L-10 削除／L-6 実行時ガード追加 | 小粒 |
-| 9 | **U14 レイアウトヒント実装**（schema v3 optional 追加 → TemplateFormRenderer の 3 プリセット描画 → エディタ UI → 検証タブ警告の順。仕様正本 = `design-v1-ui.md` §2 v1.1 追記 2026-08-09） | 新機能（バグ修正でない）。L 系より後段で可・設計裁定は完了済みで人間決定は不要 |
+| 9 | **U14 レイアウトヒント実装**（schema v3 optional 追加 → **publish 検証（preset キー有無の U14 判定・legacy 無視＋警告 = H-9）** → TemplateFormRenderer の 3 プリセット描画（**実装先 = trpg-next-app・新規作成**）→ エディタ UI → 検証タブ警告 → **保存時 canonical 正規化（columns→2・span→1 = H-15）＋ canonical fixture 3 系（Test）**。仕様正本 = `design-v1-ui.md` §2 v1.1 追記＋追補 H-9/H-15・**索引 = §3.6**（Publish/Save/Renderer/Test 行を必ず読む — 2026-08-11 監査で工程脱落を補正） | 新機能（バグ修正でない）。L 系より後段で可・設計裁定は完了済みで人間決定は不要 |
 | 10 | **U15 ブロック・上限・プール実装**（schema: blocks/blockId/max/partsKeys{id,label}/pools → engine: 制約評価 API（表示専用・synthetic node は v1 対象外）→ renderer: ブロック見出し・内訳入力・予算バー・警告 → エディタ UI → 検証タブ警告。仕様正本 = `design-v1-ui.md` §2 v1.2 追記＋追補 H-1〜H-18） | 新機能。parts 列展開のみ U14 table に依存・他は独立。監査は round1〜3 収束済み（pass）。**着手前に §3.6 v1 実装境界表を読む**（v1 必須／延期／非実装の唯一の索引）。実測確定事項 = H-7 制約評価 API 設計・H-18 の不変条件検証（publish 通過物が step 予算内で完走するかのベンチ） |
-| 11 | **SM 画面×状態 共通契約の実装項目**（409 payload に `currentRevision` 追加／`resolveForCreate`・`resolvePinnedRevision` 分離／resource deltas min1＋既存データの防御的除外／ephemeral `canMutate`＋`no-authorized-actions`＋owner/non-owner fixture／SM-1 proof 原子性（4 不変条件・単一プロトコル）／SM-8 の 5 要素／SM-14 データ 4 状態。仕様正本 = `design-v1-ui.md` §3.5・索引 = §3.6） | #9/#10 と並行可。**SM-7（エディタのモバイル）は v1 非実装で確定**（2026-08-09 ユーザー裁定・追加裁定不要）。SM-6 の再構築 CTA 活性化は L-4 裁定（§5-2）に依存 | 
-| 12 | **U16 シート公開設定の実装**（schema: `sheet.visibility`＝api-contract `.strict()` への追加必須・persistence・materializer 素通し・repository read 境界の正規化 → save: 専用 enum DTO＋所有者条件付き単項更新 → summary read model（DTO/wire/projection select＋mapper）→ renderer: トグル＋Discord 非連動注記・一覧バッジ・編集導線。仕様正本 = `design-v1-ui.md` §2 v1.4・索引 = §3.6 の Schema/Save（U16）/Renderer（U16）/Test 行） | #9/#10/#11 と並行可・依存なし。**公開読取経路は作らない**（fail-closed・拘束条件は §2 v1.4）。監査 round1〜3 収束済み（pass） | 
+| 11 | **SM 画面×状態 共通契約の実装項目**（409 payload に `currentRevision` 追加／`resolveForCreate`・`resolvePinnedRevision` 分離／resource deltas min1＋既存データの防御的除外／ephemeral `canMutate`＋`no-authorized-actions`＋owner/non-owner fixture／SM-1 proof 原子性（4 不変条件・単一プロトコル）／SM-8 の 5 要素／SM-14 データ 4 状態。仕様正本 = `design-v1-ui.md` §3.5・索引 = §3.6） | #9/#10 と並行可。**SM-16 の resolve 分離は本行が所掌**（§3.5 の旧記載「#10 と同キュー」は 2026-08-11 監査で本行へ一本化・二重実装防止）。**SM-7（エディタのモバイル）は v1 非実装で確定**（2026-08-09 ユーザー裁定・追加裁定不要）。SM-6 の再構築 CTA 活性化は L-4 裁定（§5-2）に依存 |
+| 12 | **U16 シート公開設定の実装**（schema: `sheet.visibility`＝api-contract `.strict()` への追加必須・persistence・materializer 素通し・repository read 境界の正規化 → save: 専用 enum DTO＋所有者条件付き単項更新 → summary read model（DTO/wire/projection select＋mapper）→ renderer: トグル＋Discord 非連動注記・一覧バッジ・編集導線。仕様正本 = `design-v1-ui.md` §2 v1.4・索引 = §3.6 の Schema/Save（U16）/Renderer（U16）/Test 行） | #9/#10/#11 と並行可・依存なし。**公開読取経路は作らない**（fail-closed・拘束条件は §2 v1.4）。監査 round1〜3 収束済み（pass） |
+| 13 | **大粒度 #7 残債（記録済み・低優先）**: (a) layout preset 判定 3 実装＋集合機構 3 方式＋`SECTION_LAYOUT_PRESETS` 二重定義・`GRID_COLUMNS` 名 drift・三者一致 spec なし（layout-resolver:17-22 / layout-normalizer:46-50 / publish:593+596） (b) validateField 位置引数 10 の ValidationContext 化 (c) F9/F10（[uid,id,id] 潰れ・2 キー版未命名）・F11（正規化テスト非対称） | 出典 = big7-integration.md。renderer キュー（#10 残り）より後段。(a) は U14 隣接なので renderer 配線時に再評価 |
+| 14 | **publish は section id の重複を拒否しない**（U15-R1b レビューで検出・2026-08-11 Fable 経路裏取り: 一意性ゲートは canonical path と uid のみ〔publish.ts:176/:529〕— field id が異なれば同名 section 2 個が ok:true で通過し published データに到達しうる）。拒否を追加するか許容を仕様化するかの裁定が要る。renderer 側は R1b round2 で index 対応 join にして越境済み | 新規 publish 拒否 = 挙動変更（B-15 の passthrough 意図と別軸）。エディタが section id をどう生成するかの実測とセットで裁定 |
+| 15b | **U15-R2c の v1 保守裁定（2026-08-11・大粒度 #9 で (b) を訂正）**: (a) parts:true の**新キー追加 UI なし**（H-11 に追加手段の言及なし。実運用で問題になれば裁定） (b) **〔訂正〕stack の parts 宣言 field も合計＋Popover へ**（BIG9-FIXB）— 旧記載「stack = base 昇格の現行維持」は前提誤り: sheet-edit :44 は `field.parts` のときのみ partsKey:'base' で、**宣言型は whole-field 書込 = parts オブジェクト全消失経路**（大粒度 #9 Opus H3 実測・spec:1280-1290 が固定していた） (c) popover の other 行は**表示のみ**（Discord 書込チャネル維持） (d) **emit は数値のみ**（undefined・途中入力文字列を emit しない — clear は 0 入力代替。H1〔@IsDefined 下流〕/H2〔負値逐次入力〕の v1 解。D-R2 配線時に clear UX を再裁定） | 出典 = big9-integration.md |
+| 15c | **大粒度 #9 の記録・裁定枠**: (a) table 宣言キー行は base/other 不可視のまま合計に算入（M2 — 合計が見えている列の和と一致しない UX。読み取り専用 Popover 案は次期） (b) parts 列のある表に**非 parts number scalar 行**が来ると colSpan 結合で合計列が消える（H-16「持たないキーは空欄」との整合未裁定） (c) .tableScroll の Popover クリップ懸念は**実測で否定**（M1・hideDetached 挙動は妥当）(d) sentinel fixture・多列 colSpan・実ブラウザ E2E の spec 拡充は保留 | 出典 = big9-integration.md |
+| 15 | **大粒度 #8 の設計の穴（記録・裁定枠）**: (a) **H-13 は max/cap/total の符号を縛らない** — 負の有限 total/consumed で「バー 0%＋超過 5」「残り 14/10」の直感矛盾表示（実測・算術的には真値。publish で負 total を弾くのは挙動変更） (b) **scope 付き pool の予算バー配置が設計未規定**（v1 は section 冒頭固定 — どのブロックの予算か視覚帰属なし。エディタ/プレビュー系で再裁定） (c) F13/F15 保留（props object 化は両レビュア実測で便益不足・data 属性粒度不揃い） | 出典 = big8-integration.md。非有限 remaining は BIG8-FIXA で error 退化済み（こちらは消化済み） |
 
 ### 6-2. 決定後に解禁される本流（D-P3-1〜4 の決定後）
 

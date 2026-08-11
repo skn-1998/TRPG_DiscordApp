@@ -136,7 +136,8 @@ flowchart LR
   レンダラは未知・不整合なヒントで壊れず、必ず stack 相当へ退化できる。
 - **モバイルは固定折り畳みルール**（作者はモバイル用指定を持たない）: grid → 最大 2 列（span≥2 は全幅）／
   table → 自コンテナ内の横スクロール／stack → そのまま。
-- **レイアウト起因の publish ブロックはゼロ**: enum 外の値だけ Zod で拒否。
+- **レイアウト起因の publish ブロックはゼロ**: enum 外・範囲外の値も**警告のみで無視**
+  （旧記述「enum 外の値だけ Zod で拒否」は決着表と矛盾のため 2026-08-11 修正。H-9 改・9-S1 実装と整合）。
   「grid 以外での span 指定」「table 内の複雑フィールド降格」「span > columns の clamp」は検証タブに警告表示のみ。
 - エディタ UI: セクションヘッダにプリセット選択（grid 時のみ列数ステッパー）、フィールド詳細に span 選択
   （grid 時のみ表示・選択肢は 1〜columns−1 ＋ 全幅）。効果は入力プレビューへ即時反映。
@@ -273,9 +274,15 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   写像も永続もしない**（投影・永続に載るのは基本評価の値だけ）。制約結果が基本評価の値を
   上書き・無効化することはない（一方向）。v1 は制約評価から基本評価へ書き戻す経路自体を持たない。
   **判定は 2 段階で決定的**: (1) **評価前の欠落検査が先** — 制約ごとの依存閉包に生入力が存在しない
-  number scalar が 1 つでもあれば **indeterminate**（式は評価しない。∴ indeterminate ＞ error の優先）。
+  **生入力数値フィールド（number scalar・track）**が 1 つでもあれば **indeterminate**（式は評価しない。
+  ∴ indeterminate ＞ error の優先。roll / boolean は意図的除外: roll 未入力 → error・boolean 未入力 →
+  falsy 分岐 — 既存 evaluator 意味論に従う。旧記述「number scalar」は track 漏れが silent 0 を生む
+  実測により 2026-08-11 S5a round3 で拡張）。
   (2) 欠落がない場合のみ評価を実行し、実行時エラー（lookup 不一致・非有限・step 超過）を **error** とする。
-  **依存閉包は制約ごとに publish 時へ構築**する: computed ノードを経由して推移的に辿り、
+  **依存閉包は制約ごとに評価時へ構築**する（入力は publish 済みテンプレート。旧記述「publish 時へ構築」は
+  2026-08-11 大粒度 #6 で実装側へ正本訂正 — 実測: 閉包構築込みで約 10〜24µs/回・閉包による template
+  刈り込みで直接評価より 24% 速く、publish 時化は閉包 artifact の永続と version 整合の新規不変条件を
+  要求し便益 0）: computed ノードを経由して推移的に辿り、
   **lookup の引数式も閉包に含める**（評価全体の平坦な resolvedRefs は使わない）。
   UI は indeterminate を「—」表示・警告抑制、error は警告表示して隠さない。
   既存 computed の「未入力→0」意味論（`evaluator.ts` numberOrZero）は**不変更**。
@@ -287,7 +294,9 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   field 側の追加は全て新規 optional プロパティ（partsKeys の別プロパティ化を含む）で既存型を変えない。
   ただし **`section.layout` は既に `unknown`（`types.ts:27`・`publish.ts` の `z.unknown()`）として
   任意値を受理している**ため、U14 型へ単純に狭めると既存の任意 layout 値を publish で拒否しうる。
-  規則: **`layout` が `preset` キーを持つときのみ U14 として検証**（値が enum 外なら publish エラー）。
+  規則: **`layout` が `preset` キーを持つときのみ U14 として検証**（値が enum 外・範囲外でも
+  **警告のみで無視** — §5 決着表 U14「レイアウト起因の publish ブロックなし」が上位。
+  旧記述「enum 外なら publish エラー」は決着表と矛盾していたため 9-S1 実装時に修正・2026-08-11）。
   `preset` を持たない値は**未知の legacy 注釈として無視し stack 扱い＋警告**（データ移行なし）。
   保存時 canonical 化（H-15）は U14 形式にのみ適用する。legacy 値・不正 preset・正当 preset の
   3 系を fixture で固定してから schema を狭める。
@@ -303,6 +312,7 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   | pool.scope 内に不在 blockId が混在 | **実在する blockId のみで合算**（全部不在なら消費 0） | あり |
   | pool.partsKey を宣言する field が scope 内に皆無 | 消費 0 | あり |
   | id 重複（blocks / pools / partsKeys） | 最初の定義を採用 | あり |
+  | `parts: true` と `partsKeys` の併存 | **parts: true（自由キー）を優先**し宣言キー制限を適用しない | なし（publish は併存を拒否しない・大粒度 #9 M4 で明文化） |
 - **grid セル内の parts 宣言フィールドは合計値のみ表示**（H-11。内訳はフォーカス時ポップオーバー編集）。
 - **予算バー・残り・超過警告・制約評価は sheet-engine 共通ロジック**（H-12 改・round1 #11）:
   利用面は **(1) エディタプレビュー・(2) フォーム・server materialize の三者**（契約2 の対象）。
@@ -468,7 +478,9 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   `resolvePinnedRevision`（既存 pin キャラの保存・hub 投影・再 materialize 用。published に加え
   **deprecated も許可**・draft 不可・version 一致必須）。現行実装は保存・hub 投影も
   `resolvePublished` を通し deprecated を 409 にするため、このままでは pin キャラの保存・hub 更新が
-  壊れる（版 pin 原則違反）— 分離は U15 実装と同じキュー（§6-1 #10）で行う。
+  壊れる（版 pin 原則違反）— 分離は SM 実装キュー（§6-1 **#11**）で行う
+  （旧記載「#10 と同じキュー」は台帳監査 2026-08-11 で #11 へ一本化。実装対象が
+  `character-sheet-template.service` の resolve 経路＝#11 の他項目と同層のため）。
   キャラページの templateVersion バッジに「テンプレートは削除済み」注記。
   migrate との統合は Phase 3 M3-3（pinned revision の再生契約と migrate/rebuild を同時確定）。
 - **SM-17 legacy キャラクター**: `CharacterState`（legacy-unpinned / legacy-pinned / materialized）を
@@ -484,7 +496,7 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
 | 層 | v1 で実装する | 延期（v1.1 候補） | 非実装（v1 に入れない） |
 |---|---|---|---|
 | **Schema** | `section.layout {preset, columns}`・`field.layout {span}`・`section.blocks{id,label,cap}`・`field.blockId`・`scalar.max`・`scalar.partsKeys[{id,label}]`・`section.pools{id,label,total,partsKey,scope}`・**`sheet.visibility 'private'\|'public'`（U16）**: `CharacterSheetState`・api-contract `characterSheetStateSchema`（現行 `.strict()` 4 項目のため**追加必須** — 素通しでは parse 拒否）／persistence schema（`character.model`）／materializer は入出力で素通し保持（現行は 4 項目のみ再構築＝実装変更点）／**読込正規化の責任者 = repository の read 境界**（全 read 経路共通・lean 読取は default 補完なしのため Mongoose default に依存しない・round2 #2）／**summary read model**: `CharacterSummaryDto`・`CharacterSummaryWire`・repository の projection select＋mapper に visibility を追加（S0 公開バッジのデータ経路・round2 #1）。読込は欠落・未知値→private、更新 DTO は private/public 以外を 422 拒否（`unlisted` は将来予約） | partsKeys の `formula`（H-3 改） | schemaVersion bump・`parts` の型変更・座標 layout・ブレークポイント別指定 |
-| **Publish** | enum 検証／`layout` は `preset` キーの有無で U14 判定（legacy は無視＋警告・H-9）／id 重複・不在参照は publish エラー（H-10）／max・cap・total は number 必須（H-13）／`parts:true` と `partsKeys` の同時指定拒否／`base`・`other` 予約（H-1）／数値系注釈はセクション直下 number scalar のみ（H-6）／resource `deltas` min 1／空セクション・空ブロックは警告のみ（SM-3）／**不変条件「publish 通過物は step 予算内で完走」＋実測由来の集約コスト上限 1 個（H-18 改）** | 個別配列の上限 7 個（H-18 改） | `when` 解禁（H-4）・秘匿系・enforce（超過のハード拒否）・schemaVersion bump |
+| **Publish** | enum 検証（**layout 系の enum・範囲違反は警告のみ・ブロックしない** — §5 U14 決着が上位・H-9 改 2026-08-11。U15 の構造参照系は従来どおりエラー）／`layout` は `preset` キーの有無で U14 判定（legacy は無視＋警告・H-9）／id 重複・不在参照は publish エラー（H-10）／max・cap・total は number 必須（H-13）／`parts:true` と `partsKeys` の同時指定拒否／`base`・`other` 予約（H-1）／数値系注釈はセクション直下 number scalar のみ（H-6）／resource `deltas` min 1（SM-11）／空セクション・空ブロックは警告のみ（SM-3）／**不変条件「publish 通過物は step 予算内で完走」＋実測由来の集約コスト上限 1 個（H-18 改）** | 個別配列の上限 7 個（H-18 改） | `when` 解禁（H-4）・秘匿系・enforce（超過のハード拒否）・schemaVersion bump |
 | **Engine** | 制約評価 API `{status, value?}`（**ok のみ value・表示比較専用で永続/投影しない**・H-7）／欠落検査先行（indeterminate ＞ error）／制約ごとの依存閉包（computed・lookup 引数を含む）／max・cap の適用は parts 合計後（H-2）・優先は field.max＞block.cap／pool 消費と残りの算出（負値 parts 込み・H-5）／実行時 skew の退化規則表（H-10）／sheet-engine 共通・server materialize も同一実装（H-12） | synthetic node・status 伝播（formula parts と同時に延期・H-3 改） | 丸めの自動適用（`settings.rounding` は式で明示・H-8）・`{pool.*.remaining}` の式参照 |
 | **Save（U16）** | `sheet.visibility` の保存（既定 private・**値の diff 保存とは別の専用操作**・所有者のみ）。専用 enum DTO＋所有者条件付きの単項更新（値の materialize 経路に混ぜない）。公開読取 API・共有リンク・検索掲載は作らない | — | 非所有者 read の公開化（U16 拘束条件）・コピー/フォーク |
 | **Save** | 宣言キーごとの個別 `{fieldUid, partsKey}` diff（一括書込禁止・H-1）／parts 判定を `parts \|\| partsKeys` へ拡張／**保存時 canonical 正規化（layout の columns→2・span→1 補完・H-15）**／409 payload に `currentRevision`＋theirs-mine 状態機械（SM-15）／SM-1 の 4 不変条件＋単一プロトコル／SM-8 の 5 要素／**`resolveForCreate` と `resolvePinnedRevision` の分離（SM-16）** | 自動 backoff・Retry-After・jitter（SM-8）／transaction 必須化（SM-1） | required 検査（SM-12）・creation draft のサーバー保持（SM-2） |
@@ -499,7 +511,7 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
 | 式評価・検証 | `packages/sheet-engine`（design-v1 確定） | (1)(2)(3=サーバー) |
 | **DiscordProjectionViewModel 算出**（行分割・fallback・embed truncation・warnings・customId budget） | `packages/sheet-projection`（新設・純 TS） | (1) Discord プレビュー / サーバー materializer・builder |
 | **golden fixtures**（入力 → ViewModel スナップショット） | `packages/sheet-projection/fixtures` | 両側の jest が共有参照 |
-| `TemplateFormRenderer`（controlled） | `trpg-remix-app/app/features/characterSheet/` | (1) 入力プレビュー / (2) 作成・編集 |
+| `TemplateFormRenderer`（controlled） | `trpg-next-app/app/features/characterSheet/`（**未実装・新規作成**。旧記載の trpg-remix-app は N6b で撤去済み — 台帳監査 2026-08-11 追随） | (1) 入力プレビュー / (2) 作成・編集 |
 | Discord component builder（ButtonBuilder 等・ViewModel を機械的に組むだけ） | `TRPG-SERVER/src/discord/features/*` | (3) のみ |
 | hub 更新キュー・失敗分類 | `TRPG-SERVER/src/discord/features/*`（palette/values 書き戻しは features/character-sheet 経由） | (3) |
 
