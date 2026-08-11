@@ -1,5 +1,5 @@
 import { AstNode } from './ast';
-import { evaluateExpression } from './evaluator';
+import { evaluateExpression, LIST_ROW_LIMIT } from './evaluator';
 import { parseExpression } from './parser';
 import {
   buildTemplateIndex,
@@ -181,7 +181,7 @@ function isRawNumberDependencyMissing(
   const rawRows = readAliasedValue(rawValues, dependency.listKeys);
   // Nullish or non-array list containers mean zero rows, matching the shared evaluator contract.
   const rows = Array.isArray(rawRows) ? rawRows : [];
-  return rows.some((row) =>
+  return rows.slice(0, LIST_ROW_LIMIT).some((row) =>
     !isRecord(row) || readAliasedValue(row, dependency.subFieldKeys) === undefined);
 }
 

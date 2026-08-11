@@ -1,11 +1,12 @@
 import {
   DEFAULT_AST_NODE_LIMIT,
   DEFAULT_STEP_LIMIT,
-  estimateStaticEvaluationSteps,
   evaluateTemplate,
   SheetTemplate,
   validatePublishTemplate,
 } from '..';
+import { LIST_ROW_LIMIT } from '../evaluator';
+import { estimateStaticEvaluationSteps } from '../publish';
 import { baseTemplate, issueMessages } from './test-utils';
 
 declare const Buffer: {
@@ -1907,6 +1908,14 @@ describe('H-18 static aggregate evaluation bound', () => {
     });
   }
 
+  function listTemplate(rowFormula: string): SheetTemplate {
+    return baseTemplate({ sections: [{ id: 'main', label: 'Main', fields: [{
+      type: 'list', id: 'items', uid: 'main.items', label: 'Items', itemFields: [{
+        type: 'computed', id: 'cost', uid: 'items.cost', label: 'Cost', resultType: 'number', formula: rowFormula,
+      }],
+    }] }] });
+  }
+
   it('caps an upward option and rejects the measured 1,024 x 11 AST counterexample on both boundaries', () => {
     const template = computedTemplate(1_024);
 
@@ -1961,7 +1970,7 @@ describe('H-18 static aggregate evaluation bound', () => {
     expect(estimated).toBeGreaterThanOrEqual(measuredMinimum);
   });
 
-  it('counts computed, max/resetTo, cap, and total formulas once and connects the option limit', () => {
+  it('excludes independently-budgeted annotations and unevaluated track.resetTo from the shared estimate', () => {
     const threeNodes = '1 + 2';
     const template = baseTemplate({ sections: [{
       id: 'main',
@@ -1983,31 +1992,33 @@ describe('H-18 static aggregate evaluation bound', () => {
       ],
     }] });
 
-    expect(estimateStaticEvaluationSteps(template)).toBe(18);
-    expect(validatePublishTemplate(template, { evaluationStepLimit: 18 }).ok).toBe(true);
-    expect(validatePublishTemplate(template, { evaluationStepLimit: 17 }).issues).toEqual([{
-      path: '$', message: 'Static evaluation step limit exceeded: 18 > 17',
+    expect(estimateStaticEvaluationSteps(template)).toBe(3);
+    expect(validatePublishTemplate(template, { evaluationStepLimit: 3 }).ok).toBe(true);
+    expect(validatePublishTemplate(template, { evaluationStepLimit: 2 }).issues).toEqual([{
+      path: '$', message: 'Static evaluation step limit exceeded: 3 > 2',
     }]);
   });
 
-  it('excludes list-row computed repetition pending the D-R3 decision', () => {
-    const template = baseTemplate({
-      sections: [{
-        id: 'main',
-        label: 'Main',
-        fields: [{
-          type: 'list',
-          id: 'items',
-          uid: 'main.items',
-          label: 'Items',
-          itemFields: [{
-            type: 'computed', id: 'cost', uid: 'items.cost', label: 'Cost', resultType: 'number', formula,
-          }],
-        }],
-      }],
+  it('rejects a heavy row formula and accepts a light one at the default row cap', () => {
+    const heavy = listTemplate(Array.from({ length: 11 }, () => '1').join(' + '));
+    const light = listTemplate(Array.from({ length: 10 }, () => '1').join(' + '));
+
+    expect(estimateStaticEvaluationSteps(heavy)).toBe(LIST_ROW_LIMIT * 21);
+    expect(validatePublishTemplate(heavy).issues).toContainEqual({
+      path: '$',
+      message: `Static evaluation step limit exceeded: ${LIST_ROW_LIMIT * 21} > ${DEFAULT_STEP_LIMIT}`,
     });
+    expect(estimateStaticEvaluationSteps(light)).toBe(LIST_ROW_LIMIT * 19);
+    expect(validatePublishTemplate(light).ok).toBe(true);
+  });
+
+  it('counts zero row steps for a list without row formulas', () => {
+    const template = baseTemplate({ sections: [{ id: 'main', label: 'Main', fields: [{
+      type: 'list', id: 'items', uid: 'main.items', label: 'Items', itemFields: [{
+        type: 'scalar', id: 'cost', uid: 'items.cost', label: 'Cost', valueType: 'number',
+      }],
+    }] }] });
 
     expect(estimateStaticEvaluationSteps(template)).toBe(0);
-    expect(validatePublishTemplate(template, { evaluationStepLimit: 1 }).ok).toBe(true);
   });
 });

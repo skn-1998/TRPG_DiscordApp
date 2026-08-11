@@ -1,4 +1,5 @@
 import { evaluateTemplate, validatePublishTemplate } from '..';
+import { LIST_ROW_LIMIT } from '../evaluator';
 import { baseTemplate } from './test-utils';
 
 describe('evaluator row formulas and aggregates', () => {
@@ -52,6 +53,21 @@ describe('evaluator row formulas and aggregates', () => {
     expect(evaluated.values['totals.weight']).toEqual({ type: 'number', value: 17 });
     expect(evaluated.values['totals.carried']).toEqual({ type: 'number', value: 1 });
     expect(evaluated.values['totals.rows']).toEqual({ type: 'number', value: 2 });
+  });
+
+  it('defensively evaluates only the first LIST_ROW_LIMIT rows from skewed stored input', () => {
+    const rows = Array.from({ length: LIST_ROW_LIMIT + 1 }, (_, index) => ({
+      name: `Item ${index}`, carried: true, weight: index,
+    }));
+
+    const evaluated = evaluateTemplate(inventoryTemplate, {
+      values: { 'main.bonus': 0, 'main.items': rows },
+    });
+
+    expect(evaluated.rows['main.items']).toHaveLength(LIST_ROW_LIMIT);
+    expect(evaluated.rows['main.items'][LIST_ROW_LIMIT - 1]['items.weight'])
+      .toEqual({ type: 'number', value: LIST_ROW_LIMIT - 1 });
+    expect(evaluated.values['totals.rows']).toEqual({ type: 'number', value: LIST_ROW_LIMIT });
   });
 
   it('rejects external formulas that try to reference an individual row value', () => {

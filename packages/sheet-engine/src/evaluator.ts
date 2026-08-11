@@ -25,6 +25,8 @@ import {
 export const DEFAULT_AST_NODE_LIMIT = 256;
 // evaluator が既定 runtime 上限の唯一の宣言元で、publish はこの定数を import して共有する。
 export const DEFAULT_STEP_LIMIT = 10_000;
+// publish.ts の DEFAULT_TABLE_ROW_LIMIT も現在 512 だが、用途と変更理由が異なるため統合しない。
+export const LIST_ROW_LIMIT = 512;
 export const EPSILON = 1e-9;
 
 type RowState = {
@@ -129,7 +131,8 @@ export function evaluateExpression(
 function readListRows(state: EvalState, list: ListField): RowState[] {
   const raw = readRaw(state, list);
   const rows = Array.isArray(raw) ? raw : [];
-  return rows.map((row) => {
+  // 保存境界は list 値そのものを全拒否し、評価境界だけが保存済みデータの skew に備えて先頭行へ防御退化する。
+  return rows.slice(0, LIST_ROW_LIMIT).map((row) => {
     const rawRow = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
     const rowState: RowState = { list, raw: rawRow, values: {}, evaluating: new Set() };
     for (const field of list.itemFields) {

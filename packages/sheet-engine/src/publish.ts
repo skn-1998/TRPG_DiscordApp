@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AstNode, countAstNodes } from './ast';
 import { assertArity } from './arity';
-import { DEFAULT_AST_NODE_LIMIT, DEFAULT_STEP_LIMIT } from './evaluator';
+import { DEFAULT_AST_NODE_LIMIT, DEFAULT_STEP_LIMIT, LIST_ROW_LIMIT } from './evaluator';
 import { isNotationFragment } from './notation';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, canonicalFieldPath, refKey, resolveRefPath } from './template-index';
@@ -27,6 +27,7 @@ import {
   SheetTemplate,
 } from './types';
 
+// evaluator.ts の LIST_ROW_LIMIT も現在 512 だが、lookup table と入力 list は別予算なので統合しない。
 const DEFAULT_TABLE_ROW_LIMIT = 512;
 // publish 境界で診断増幅（実測 100KB〜1.2MB 応答）を発生源で止める上限。裸の z.string() に戻さないこと。
 // 根拠: エディタ生成 uid は最大45文字（section.id 最大32 + '_' + random 12）・canonical path 写し規約は最大131文字（4セグメント: section.list.relation.attr）・応答封筒予算 4,096 bytes
@@ -35,6 +36,7 @@ const MAX_LABEL_LENGTH = 128;
 const MAX_ID_LENGTH = 32;
 const MAX_CANONICAL_FIELD_PATH_LENGTH = MAX_ID_LENGTH * 4 + 3;
 // 各発行元で切り詰めた echo の合成や将来の発行漏れを出口で封止する backstop。入力断片の上限とは分けて維持する。
+// 他の 512 定数との値一致は偶然であり、診断文字数予算なので統合しない。
 const MAX_ISSUE_MESSAGE_LENGTH = 512;
 const SECTION_LAYOUT_PRESETS = new Set<unknown>(SHEET_SECTION_LAYOUT_PRESETS);
 const SECTION_GRID_COLUMNS = new Set<unknown>(SHEET_SECTION_GRID_COLUMNS);
@@ -160,7 +162,10 @@ function normalizeLimitOption(requested: number | undefined, max: number): numbe
  * `resolvedRefs` are returned only for a valid template. Invalid templates always return an empty
  * array so callers never receive references derived from an unpublishable shape.
  */
-export function validatePublishTemplate(template: unknown, options: PublishValidationOptions = {}): PublishValidationResult {
+export function validatePublishTemplate(
+  template: unknown,
+  options: PublishValidationOptions = {},
+): PublishValidationResult {
   // --- 1. 構造検証を先に確定し、後段を SheetTemplate 前提に限定する ---
   const issues: PublishIssue[] = [];
   const warnings: PublishWarning[] = [];
@@ -196,6 +201,7 @@ export function validatePublishTemplate(template: unknown, options: PublishValid
     }
 
     // --- 4. template 横断の実行量・循環を検証して結果を確定する ---
+    // 保存境界は list 値を全拒否し、見積もりだけが評価境界の先頭 LIST_ROW_LIMIT 行と一致する。
     validateStaticEvaluationStepLimit(sheet, evaluationStepLimit, issues);
     detectCycles(sheet, issues);
   } else {
@@ -229,20 +235,18 @@ function validateStaticEvaluationStepLimit(
 }
 
 /**
- * Estimates the conservative step upper bound for formulas evaluated without list-row repetition.
+ * Estimates the conservative step upper bound for formulas evaluated by evaluateTemplate.
  *
- * evalAst increments once per visited AST node. After excluding visits originating from list
- * itemFields, global computed fields are memoized, if evaluates only one branch, and sum/count do
- * not visit their ref argument through evalAst. countAstNodes counts those skipped nodes too, so the
- * remaining static runtime steps are at most this sum for publish-valid templates.
- * この和が上界を与えるのは evaluateTemplate が評価する computed 分のみ。
- * scalar max / block cap / pool total は H-7 表示評価（evaluateConstraint）が別の
- * evaluateTemplate 呼び出しで各自既定 10,000 の新規予算を得る。
- * track.max の式は server の TrackRangePolicy が別呼び出しで評価する。
- * track.resetTo の式を評価する実行系は存在しない（C-1）。
- * 注釈経路の予算集約は D-R3 裁定待ち（design-ledger §5-2）。
- * NOTE: H-18 の静的部分のみ・list 行反復の扱いは D-R3 裁定待ち（design-ledger §5-2）。
- * 「publish 通過物は必ず完走」を達成済みとはせず、list itemFields の式をこの指標から除外する。
+ * evalAst increments once per visited AST node. Global computed fields are memoized, and row
+ * computed fields are evaluated once per imported row. Each list therefore contributes its row
+ * formula cost multiplied by LIST_ROW_LIMIT. if evaluates only one branch and sum/count skip their
+ * ref argument in evalAst; countAstNodes includes those skipped nodes, so this remains an upper bound.
+ * LIST_ROW_LIMIT（512）倍が上界なのは readListRows の slice に依存し、evaluator.spec.ts:58 が固定する。
+ * 保存境界では value-input が list 値そのものを受理せず、この倍率は skewed stored input への防御上限である。
+ *
+ * D-R3（2026-08-12）により max / cap / pool total 等の注釈式は evaluateConstraint の
+ * 呼び出しごとに既定 10,000 の独立予算を得る仕様であり、共有見積もりには加算しない。
+ * track.max は server の TrackRangePolicy が別呼び出しで評価し、track.resetTo の評価系は未実装（C-1）。
  */
 // engine 内 runtime 参照は validateStaticEvaluationStepLimit の 1 件のみだが export は削除不可。publish spec と scripts/h18-bench.ts が直接 consume する。
 export function estimateStaticEvaluationSteps(template: SheetTemplate): number {
@@ -251,29 +255,20 @@ export function estimateStaticEvaluationSteps(template: SheetTemplate): number {
     for (const field of section.fields) {
       steps += estimateStaticFieldSteps(field);
     }
-    for (const block of section.blocks ?? []) {
-      steps += countFormulaSteps(block.cap);
-    }
-    for (const pool of section.pools ?? []) {
-      steps += countFormulaSteps(pool.total);
-    }
   }
   return steps;
 }
 
 function estimateStaticFieldSteps(field: SheetField): number {
-  if (field.type === 'list') return 0;
+  if (field.type === 'list') {
+    const rowSteps = field.itemFields.reduce(
+      (sum, itemField) => sum + estimateStaticFieldSteps(itemField),
+      0,
+    );
+    return LIST_ROW_LIMIT * rowSteps;
+  }
   if (field.type === 'computed') return countFormulaSteps({ formula: field.formula });
-
-  let steps = field.type === 'scalar' ? countFormulaSteps(field.max) : 0;
-  if (field.type === 'track') {
-    steps += countFormulaSteps(field.max);
-    steps += countFormulaSteps(field.resetTo);
-  }
-  if (field.type === 'relation') {
-    steps += (field.attrs ?? []).reduce((sum, attr) => sum + estimateStaticFieldSteps(attr), 0);
-  }
-  return steps;
+  return 0;
 }
 
 function countFormulaSteps(value: unknown): number {

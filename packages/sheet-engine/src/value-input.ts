@@ -178,6 +178,7 @@ function hasOutOfRangeNumericTrackParts(
 }
 
 function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValueInput> | undefined {
+  // list 値の保存受理は v1 非対応（全拒否）。受理を導入する将来スライスで LIST_ROW_LIMIT の保存側 cap と行内容検証（itemFields 準拠・UNSAFE キー封止）をセットで設計する — D-R3-IMPL-R2 差し戻し
   if (field.type === 'track') {
     return isPartsValue(value) ? partsValueSchema : finiteNumberSchema;
   }

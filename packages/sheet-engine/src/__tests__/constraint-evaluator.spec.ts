@@ -5,6 +5,7 @@ import {
   evaluateConstraint,
   SheetTemplate,
 } from '..';
+import { LIST_ROW_LIMIT } from '../evaluator';
 import { baseTemplate } from './test-utils';
 
 type ConstraintFixture = {
@@ -246,6 +247,14 @@ describe('evaluateConstraint dependency closure boundaries', () => {
       .toEqual({ status: 'indeterminate' });
   });
 
+  it('ignores a missing list subfield beyond LIST_ROW_LIMIT like the shared evaluator', () => {
+    const rows = Array.from({ length: LIST_ROW_LIMIT }, () => ({ 'amount-uid': 1 }));
+
+    expect(evaluateConstraint({ formula: 'sum({section.items.amount})' }, aliasTemplate, {
+      'list-uid': [...rows, {}],
+    })).toEqual({ status: 'ok', value: LIST_ROW_LIMIT });
+  });
+
   it('stops mutually-referential computed fields with error', () => {
     const template = baseTemplate({ sections: [{ id: 'derived', label: 'Derived', fields: [
       { type: 'computed', id: 'a', uid: 'derived.a', label: 'A', resultType: 'number', formula: '{derived.b}' },
@@ -297,6 +306,28 @@ describe('evaluateConstraint dependency closure boundaries', () => {
     }));
     const template = baseTemplate({ sections: [{ id: 'derived', label: 'Derived', fields }] });
     expect(evaluateConstraint({ formula: '{derived.c59}' }, template, {})).toEqual({ status: 'error' });
+  });
+
+  it('gives each constraint evaluation a fresh default step budget', () => {
+    // D-R3 裁定: 独立予算は仕様であり、評価全体での共有化と publish 見積もりへの加算は却下された。
+    // 45 閉包 × 201 node は実測 9,043/10,000 step（余裕 957）。
+    // この余裕は load-bearing で、予算共有へ変異すると 2 回目が必ず失敗する。
+    const terms = Array.from({ length: 100 }, () => '1').join(' + ');
+    const fields = Array.from({ length: 45 }, (_, index) => ({
+      type: 'computed' as const,
+      id: `c${index}`,
+      uid: `derived.c${index}`,
+      label: `C${index}`,
+      resultType: 'number' as const,
+      formula: index === 0 ? terms : `{derived.c${index - 1}} + ${terms}`,
+    }));
+    const template = baseTemplate({ sections: [{ id: 'derived', label: 'Derived', fields }] });
+
+    const results = Array.from({ length: 3 }, () => (
+      evaluateConstraint({ formula: '{derived.c44}' }, template, {})
+    ));
+
+    expect(results).toEqual(Array.from({ length: 3 }, () => ({ status: 'ok', value: 4_500 })));
   });
 
   it.each([
