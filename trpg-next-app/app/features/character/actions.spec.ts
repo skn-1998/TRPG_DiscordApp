@@ -62,8 +62,87 @@ describe('saveSheet', () => {
     expect(mockedRedirect).toHaveBeenCalledWith('/user/character')
   })
 
-  it('409 は conflict true と競合文言を返す', async () => {
+  it('409 mergeConflict は parse 済みの競合情報を返す', async () => {
+    // Fixture source: TRPG-SERVER/src/features/character-sheet/services/
+    // character-sheet-operation.service.spec.ts の「決定表4」と、同 feature の
+    // character-sheet-http-exception.filter.spec.ts「409 conflicts」が固定する実 wire。
+    const cause = {
+      characterId: 'character-1',
+      conflicts: [
+        {
+          path: { fieldUid: 'uid-score', partsKey: 'base' },
+          current: 5,
+          base: 3,
+          yours: 7
+        }
+      ],
+      currentRevision: 4
+    }
+    mockedSaveCharacterSheet.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          message: 'リクエストの処理に失敗しました',
+          timestamp: 1,
+          error: 'sheet changes conflict with the current revision',
+          cause
+        }
+      }
+    })
+
+    await expect(saveSheet('character-1', { baseRevision: 0, changes: [] })).resolves.toEqual({
+      error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+      conflict: true,
+      mergeConflict: cause
+    })
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('409 retryConflict の cause は mergeConflict schema に合致せず汎用文言へ fail-back する', async () => {
+    mockedSaveCharacterSheet.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          message: 'リクエストの処理に失敗しました',
+          timestamp: 1,
+          error: 'sheet changed repeatedly; refetch the latest revision and retry',
+          cause: { characterId: 'character-1', refetchRequired: true }
+        }
+      }
+    })
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。',
+      conflict: true
+    })
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('data のない 409 は現行の固定文言と conflict true を返す', async () => {
     mockedSaveCharacterSheet.mockRejectedValue({ response: { status: 409 } })
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。',
+      conflict: true
+    })
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('409 の cause が malformed なら現行の固定文言へ fail-back する', async () => {
+    mockedSaveCharacterSheet.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          message: 'リクエストの処理に失敗しました',
+          timestamp: 1,
+          error: 'sheet changes conflict with the current revision',
+          cause: { characterId: 'character-1', conflicts: [], currentRevision: -1 }
+        }
+      }
+    })
 
     await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
       error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。',

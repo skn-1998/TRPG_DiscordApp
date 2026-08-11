@@ -28,11 +28,14 @@ export default defineConfig([
                 'DiscordGuildWire',
                 'DiscordGuildsPayloadWire',
                 'SaveCharacterSheetResultWire',
+                'SheetMergeConflictWire',
                 'UserProfileWire',
                 'dicePreviewRequestSchema',
-                'dicePreviewResponseSchema'
+                'dicePreviewResponseSchema',
+                'sheetMergeConflictSchema'
               ],
-              message: '永続化スキーマは front で使用禁止。公開済み wire 型と dice preview 契約だけを使用する'
+              message:
+                '永続化スキーマは front で使用禁止。公開済み wire 型・dice preview 契約・sheet merge conflict 契約だけを使用する'
             }
           ],
           patterns: [

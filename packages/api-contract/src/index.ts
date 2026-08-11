@@ -13,8 +13,10 @@ export type {
   CharacterTemplatePinWire,
   CharacterWire,
   CreateCharacterFromTemplateResultWire,
-  SaveCharacterSheetResultWire
+  SaveCharacterSheetResultWire,
+  SheetMergeConflictWire
 } from './character/character.wire'
+export { sheetMergeConflictSchema } from './character/character.wire'
 export {
   attributeSectionSchema,
   attributeValueSchema,

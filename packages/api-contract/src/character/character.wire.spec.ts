@@ -1,16 +1,18 @@
 import type { z } from 'zod'
 import type { characterEntitySchema } from './character.zod'
-import type {
-  CharacterAttributeValueWire,
-  CharacterDeleteResultWire,
-  CharacterHubWire,
-  CharacterPaletteEntryWire,
-  CharacterSheetStateWire,
-  CharacterSummaryWire,
-  CharacterTemplatePinWire,
-  CharacterWire,
-  CreateCharacterFromTemplateResultWire,
-  SaveCharacterSheetResultWire
+import {
+  sheetMergeConflictSchema,
+  type CharacterAttributeValueWire,
+  type CharacterDeleteResultWire,
+  type CharacterHubWire,
+  type CharacterPaletteEntryWire,
+  type CharacterSheetStateWire,
+  type CharacterSummaryWire,
+  type CharacterTemplatePinWire,
+  type CharacterWire,
+  type CreateCharacterFromTemplateResultWire,
+  type SaveCharacterSheetResultWire,
+  type SheetMergeConflictWire
 } from './character.wire'
 
 /**
@@ -96,6 +98,22 @@ type SaveCharacterSheetResultWireShape = Assert<
   >
 >
 
+type SheetMergeConflictWireShape = Assert<
+  IsExact<
+    SheetMergeConflictWire,
+    {
+      characterId: string
+      conflicts: Array<{
+        path: { fieldUid: string; partsKey?: string }
+        current: unknown
+        base: unknown
+        yours: unknown
+      }>
+      currentRevision: number
+    }
+  >
+>
+
 type CreateCharacterFromTemplateResultWireRequiredKeys = Exclude<
   keyof CreateCharacterFromTemplateResultWire,
   OptionalKeys<CreateCharacterFromTemplateResultWire>
@@ -123,6 +141,7 @@ type CharacterWireAnyKeys = AssertNever<AnyKeys<CharacterWire>>
 type CharacterSummaryWireAnyKeys = AssertNever<AnyKeys<CharacterSummaryWire>>
 type CharacterDeleteResultWireAnyKeys = AssertNever<AnyKeys<CharacterDeleteResultWire>>
 type SaveCharacterSheetResultWireAnyKeys = AssertNever<AnyKeys<SaveCharacterSheetResultWire>>
+type SheetMergeConflictWireAnyKeys = AssertNever<AnyKeys<SheetMergeConflictWire>>
 type CreateCharacterFromTemplateResultWireAnyKeys = AssertNever<AnyKeys<CreateCharacterFromTemplateResultWire>>
 type CharacterHubWireAnyKeys = AssertNever<AnyKeys<CharacterHubWire>>
 type CharacterSheetStateWireAnyKeys = AssertNever<AnyKeys<CharacterSheetStateWire>>
@@ -138,5 +157,70 @@ type CharacterAttributeValueWireAnyKeys = AssertNever<AnyKeys<CharacterAttribute
 describe('character wire key contract', () => {
   it('コンパイル時のキー集合・any 混入固定を通過する', () => {
     expect(true).toBe(true)
+  })
+})
+
+describe('sheetMergeConflictSchema', () => {
+  const validConflict = {
+    characterId: 'character-1',
+    conflicts: [
+      {
+        path: { fieldUid: 'uid-score', partsKey: 'base' },
+        current: 5,
+        base: 3,
+        yours: 7
+      }
+    ],
+    currentRevision: 4
+  }
+
+  it('cause の将来追加キーを許容し、契約外キーは出力から除外する', () => {
+    expect(
+      sheetMergeConflictSchema.safeParse({
+        diagnostic: 'x',
+        ...validConflict
+      })
+    ).toEqual({ success: true, data: validConflict })
+  })
+
+  it('conflicts が空配列なら拒否する', () => {
+    expect(sheetMergeConflictSchema.safeParse({ ...validConflict, conflicts: [] }).success).toBe(false)
+  })
+
+  it('currentRevision が負数なら拒否する', () => {
+    expect(sheetMergeConflictSchema.safeParse({ ...validConflict, currentRevision: -1 }).success).toBe(false)
+  })
+
+  it('conflict の path が欠落していれば拒否する', () => {
+    expect(
+      sheetMergeConflictSchema.safeParse({
+        ...validConflict,
+        conflicts: [{ current: 5, base: 3, yours: 7 }]
+      }).success
+    ).toBe(false)
+  })
+
+  it('conflict に余剰キーがあれば拒否する', () => {
+    expect(
+      sheetMergeConflictSchema.safeParse({
+        ...validConflict,
+        conflicts: [{ ...validConflict.conflicts[0], extra: 1 }]
+      }).success
+    ).toBe(false)
+  })
+
+  it('conflict の current が欠落していれば拒否する', () => {
+    expect(
+      sheetMergeConflictSchema.safeParse({
+        ...validConflict,
+        conflicts: [
+          {
+            path: { fieldUid: 'uid-score', partsKey: 'base' },
+            base: 3,
+            yours: 7
+          }
+        ]
+      }).success
+    ).toBe(false)
   })
 })
