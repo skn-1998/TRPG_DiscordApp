@@ -2318,6 +2318,32 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   次 = SM-D2 委譲（設計前提は prompt-sm-d2-draft.md に固定済み:
   409 cause 実測形・原子的拒否ゆえ mine は全 dirty 再送・conflicts ⊆ 提出 path・
   D2a 契約＋action 層／D2b editor 状態機械の 2 分割）。
+  **SM-D2a 委譲済み・走行中（prompt-sm-d2a.md）**: api-contract へ mergeConflict cause
+  schema（zod 値 export・dicePreviewRequestSchema precedent）＋公開面 2 pin 更新
+  （index.spec export 一覧・eslint allowImportNames = B-12）＋actions.ts の 409 構造化
+  （malformed cause は現行固定文言へ fail-back・retryConflict は theirs/mine 対象外）＋
+  CJS 跨ぎ void 0 検出の runtime smoke。CharacterSheetEditClient と server は不触。
+  **SM-D2a 返着・Fable 独立検収まで完了**: schema の path 形 {fieldUid, partsKey?} は
+  server 型（operation.service.ts:35-38）と一致を裏取り・fixture 出典（決定表 4 =
+  operation.service.spec.ts:928・filter spec「409 conflicts」:147-167）の実在確認済み。
+  独立ゲート = 契約 build 0・契約 test 20/20・front 324（322＋2）・eslint 0。
+  **Opus レビュー = needs-fix（medium 4・証拠品質のみ・happy path 欠陥なし。証跡 =
+  opus-review-sm-d2a.md）→ 修正ラウンド D2a-R2 委譲済み・走行中**: F1 = strip の根拠が虚偽
+  （filter は message を deny・実 cause に message は載り得ない — **Fable 指示書起因**・
+  メモリ verify-claims 例 #20 記録済み）／F2 = refetchRequired 分岐は byte 同一 no-op → 削除／
+  F3 = bare-409（data なし）被覆の退行 → 復元／F4 = 内側 .strict() と .nonoptional() が
+  未 pin → 2 ケース追加／F6 = eslint message 文言。**裁定済み（レビュー内で確定・再議論不要）**:
+  strictness 混在は keep（外 = 汎用 pass-through ゆえ .strip() 正・内 = closed literal ゆえ
+  .strict() 正・precedent = dicePreviewResponseSchema）・CJS 跨ぎ void 0 は本スライスで閉鎖
+  （front jest は moduleNameMapper なし = Next と同一 dist を実行・ensure:workspace-dist 先行）。
+  F5（server payload ⇔ 契約の機械結合ゼロ）は台帳 B-5 へ追記済み。
+  **SM-D2a 完了・コミット済み（9c8dbb3・2026-08-12）**: R2 で 5 所見全消化を Fable 実査
+  （strip 根拠コメント訂正・no-op 分岐削除で fallback 返却 2→1 箇所・bare-409 復元・
+  strict/nonoptional の pin 2 追加・eslint 文言）。独立ゲート = 契約 22（20＋2）・
+  front 325（324＋1）・eslint 0。次 = SM-D2b（editor 状態機械）委譲。
+  D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
+  theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
+  server 決定表 2 で通る = SM-15 と一対一）。
   **その後**: SM-D2（front theirs/mine 状態機械＋契約 schema）→ SM-E canMutate →
   SM-F SM-1 原子性 → front 系（SM-8/SM-14）。
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
