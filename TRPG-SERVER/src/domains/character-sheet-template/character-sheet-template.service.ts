@@ -68,21 +68,32 @@ export class CharacterSheetTemplateService {
     return template
   }
 
-  async resolvePublished(
+  async resolveForCreate(
     templateId: string,
     version: string,
     ownerDiscordUserId: string
   ): Promise<CharacterSheetTemplateEntity> {
-    const template = await this.findExisting(templateId)
-    this.assertOwner(template, ownerDiscordUserId)
+    return this.resolveOwnedRevision(
+      templateId,
+      version,
+      ownerDiscordUserId,
+      ['published'],
+      'sheet template for create must be published at the requested version'
+    )
+  }
 
-    // Phase 2 は templateId ごとに単一バージョンのみを保持する。
-    // 複数バージョン共存は Phase 4 の repository/schema 変更で扱う。
-    if (template.status !== 'published' || template.version !== version) {
-      throw new ConflictException('sheet template must be published at the requested version')
-    }
-
-    return template
+  async resolvePinnedRevision(
+    templateId: string,
+    version: string,
+    ownerDiscordUserId: string
+  ): Promise<CharacterSheetTemplateEntity> {
+    return this.resolveOwnedRevision(
+      templateId,
+      version,
+      ownerDiscordUserId,
+      ['published', 'deprecated'],
+      'pinned sheet template revision must be published or deprecated at the requested version'
+    )
   }
 
   async update(
@@ -179,6 +190,25 @@ export class CharacterSheetTemplateService {
     if (!template) {
       throw new NotFoundException('sheet template not found')
     }
+    return template
+  }
+
+  private async resolveOwnedRevision(
+    templateId: string,
+    version: string,
+    ownerDiscordUserId: string,
+    allowedStatuses: readonly CharacterSheetTemplateEntity['status'][],
+    conflictMessage: string
+  ): Promise<CharacterSheetTemplateEntity> {
+    const template = await this.findExisting(templateId)
+    this.assertOwner(template, ownerDiscordUserId)
+
+    // Phase 2 は templateId ごとに単一バージョンのみを保持する。
+    // 複数バージョン共存は Phase 4 の repository/schema 変更で扱う。
+    if (!allowedStatuses.includes(template.status) || template.version !== version) {
+      throw new ConflictException(conflictMessage)
+    }
+
     return template
   }
 
