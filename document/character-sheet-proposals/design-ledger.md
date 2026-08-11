@@ -167,13 +167,20 @@
 | B-14 | **`characterSheetStateSchema` は `.strict()` 4 項目**（`character.zod.ts:27-34`）で、repository が書込時に parse（`character.repository.ts:129,145`）。**Mongoose（`@Prop({type:Object})`）は通るが Zod 境界で実行時 throw するねじれ** | #12 の visibility も #10 で sheet にキーを足す場合も、api-contract・persistence・materializer を**同時に**更新する（§3.6 Schema 行が正本） |
 | B-15 | **sheet-engine publish の template schema は全域 `.passthrough()`**（`publish.ts:58-99`・`sections[].layout` は `z.unknown()`）。未知キー・綴り違いは**黙って受理され全緑のまま素通り** — 検証は明示的にコード化した分のみ効く。これは**意図的設計**（§1-4: field 直下 secret の単独拒絶 不採用の裁定） | #9/#10 で「堅牢化」として `.strict()` 化するのは禁止。新フィールド（layout/blocks/partsKeys/pools）の検証は明示的に追加する |
 | B-16 | **Character @Schema ⇔ CharacterEntity の同期はコメント頼み**（`character.model.ts:14-17`）で、zod parse 境界は materialized create/save/template pin の **3 経路のみ**（`character.repository.ts:129,145,177`） | #12 が新設する visibility 単項更新に parse/検証境界を必ず置く（`$set` 直書きの素通り経路を作らない） |
+| B-17 | **editor の clear（spread）は own key＋`undefined` を残し、publish の max/partsKeys 検査は `hasOwnProperty` 判定**（publish.ts:456,463）。非 scalar field に own `max: undefined` が付くと誤 issue 2 件。現状は max/partsKeys 入力が scalar+number にゲートされ field type 変更 UI も無いため**到達不能**（大粒度 #10 Opus L2・own-undefined 8 形の publish 受理は実測済み） | field type 変更 UI を足すスライスは、clear を「key ごと削除」へ揃えるか publish 側を nullish 判定へ変える裁定を先に行う |
 
 ### 2-3. 統合禁止の二重実装（「重複だから」と 1 本化しない）
 
 - `isPartsValue` engine 版（緩・非公開）⇔ server 版（厳格）— 真理値が割れる入力は仕様
 - 一意性検査の 3 層（front v3Template / engine publish / server projection-key-validation）
-- `TABLE_ROW_LIMIT=512`・palette cap 512・SOFT_CAP=128 の**値一致は偶然 — 統合禁止**
+- `TABLE_ROW_LIMIT=512`・palette cap 512・SOFT_CAP=128・**LIST_ROW_LIMIT=512（evaluator・D-R3）**・
+  MAX_ISSUE_MESSAGE_LENGTH=512 の**値一致は偶然 — 統合禁止**（LIST_ROW_LIMIT は公開 options
+  差し替え不可 = 撤去済み listRowLimit を再導入しない・大粒度 #10）
 - characterThread の `skillName (skillLevel)` 書式は palette ラベルと別機能・対象外
+- **editor の行編集 UI 3 実装**（blocks/pools/partsKeys の id+label+削除行・byte 一致行 ×3 含む）は
+  generic 化しない — 共通化には reorder/disabled/追加フィールドの 3 変動軸を持つ新 component が必要で
+  新抽象の追加になる（大粒度 #10 で Codex/Opus とも No-Go 一致・2026-08-12）。
+  ただし remount 契約の分岐は禁止: ConstraintInput の mode は value から導出し useState を復活させない（E2-R2）
 - `allowsParts` は engine 正本・server は re-export shim（複製を作らない）
 - feature 側 `types/character-sheet.types.ts` は type-only re-export のみ（正本は character.entity.ts）
 - `isRecord` の **6 定義**（layout-resolver / layout-normalizer / publish / constraint-evaluator /
@@ -369,7 +376,7 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | 15b | **U15-R2c の v1 保守裁定（2026-08-11・大粒度 #9 で (b) を訂正）**: (a) parts:true の**新キー追加 UI なし**（H-11 に追加手段の言及なし。実運用で問題になれば裁定） (b) **〔訂正〕stack の parts 宣言 field も合計＋Popover へ**（BIG9-FIXB）— 旧記載「stack = base 昇格の現行維持」は前提誤り: sheet-edit :44 は `field.parts` のときのみ partsKey:'base' で、**宣言型は whole-field 書込 = parts オブジェクト全消失経路**（大粒度 #9 Opus H3 実測・spec:1280-1290 が固定していた） (c) popover の other 行は**表示のみ**（Discord 書込チャネル維持） (d) **emit は数値のみ・Select の null（deselect）も emit しない**（undefined・途中入力文字列・null を emit しない — clear/deselect は v1 no-op。H1〔@IsDefined 下流〕/H2〔負値逐次入力〕/F5〔allowDeselect 既定 true〕の v1 解。**実測済み残差**: clear 後は表示 ''×モデル旧値の無言乖離が blur でも復帰しない〔react-number-format が prop 不変時に内部 state を上書きしない・データ破壊なし・FIXB 実ブラウザ実測〕— D-R2 配線時に clear UX（blur resync vs 削除 op）とセットで再裁定） | 出典 = big9-integration.md・big9-fixb-integration.md |
 | 15d | **FIXA 二重レビュー裁定（2026-08-11・big9-fixa-integration.md）**: (a) parts 検査は**生 value.parts の own entries** が対象（zod z.record は own __proto__ を黙って落とし、下流へは元参照が渡る — 検査対象と実データを分離させない） (b) **UNSAFE parts key（__proto__/constructor/prototype）は全モードで input 拒否**（publish UNSAFE_UID_KEYS の parts キー面延長） (c) 方向規律 = **fail-open（input 受理×runtime 拒否）は全閉鎖・fail-closed（逆）は許容して記録** — evaluator/annotation-runtime が数値特殊キーを受理する残差は到達 producer なし（input 遮断後）で本体不変 (d) base/other 予約は package 内 1 定義（旧 = publish:41 と value-input:85 の二重リテラル） (e) server op 層の partsKey 語彙検査（partsKey:'__proto__' の無言 no-op × appliedChanges+=1 — Opus F5・既存機構）は SM キュー #11 の裁定枠へ | 消化 = FIXA-R2 |
 | 15c | **大粒度 #9 の記録・裁定枠**: (a) table 宣言キー行は base/other 不可視のまま合計に算入（M2 — 合計が見えている列の和と一致しない UX。読み取り専用 Popover 案は次期） (b) parts 列のある表に**非 parts number scalar 行**が来ると colSpan 結合で合計列が消える（H-16「持たないキーは空欄」との整合未裁定） (c) .tableScroll の Popover クリップ懸念は**実測で否定**（M1・hideDetached 挙動は妥当）(d) sentinel fixture・多列 colSpan・実ブラウザ E2E の spec 拡充は保留 (e) **table 内 parts:true の合計トリガ × width="target" は 55px dropdown/38px 入力になる**（FIXB 実ブラウザ実測・溢れはなし = H4 閉鎖済み。min-width clamp は H4 再設計を伴うため D-R2 隣接の裁定枠） | 出典 = big9-integration.md・big9-fixb-integration.md |
-| 16 | **D-R3 消化スライス（決定 2026-08-12・正本 = design-v1-ui H-18 更新済み）**: engine 層 1 スライス — ①LIST_ROW_LIMIT（既定 512・単一定数＋options 差し替え・表上限と統合しない）②保存境界 = 超過拒否・評価境界 = 先頭 N 行のみの防御退化（H-10 skew と同格）③publish 見積もりへ「行上限 × 行内式コスト」項を追加 ④注釈式の独立予算（evaluateConstraint ごと新規 10,000）を spec で固定 ⑤publish.ts H-18 JSDoc の D-R3 保留マーカー解消 | 公開境界の変更を含むため二重レビュー対象 |
+| 16 | **〔消化済み 2026-08-12・commit 5ba01e6〕D-R3 実装**: LIST_ROW_LIMIT 512・評価/欠落検査とも先頭 512 行へ一様化・**保存境界は list 値全拒否のまま**（round1 の無検証受理新設は R2 差し戻し — 受理導入は将来スライスで行内容検証〔itemFields 準拠・UNSAFE キー封止〕とセット）・見積もり行項＋行項 0 pin・**listRowLimit 公開オプションは撤去**（二重レビュー Opus F3: 行上限を設定しない見積もり倍率・caller 0・YAGNI — 再導入しない）・独立予算 pin（9,043 step/回・余裕 957 が load-bearing）・h18-bench に list ケース。記録: nested list は見積もり二乗になるが独立拒否（list inside list）が先行するため無害・重複診断のみ | H-18 完全達成宣言可。残 = 台帳 #15d(e) の server op 層 partsKey 語彙検査（SM #11） |
 | 15 | **大粒度 #8 の設計の穴（記録・裁定枠）**: (a) **H-13 は max/cap/total の符号を縛らない** — 負の有限 total/consumed で「バー 0%＋超過 5」「残り 14/10」の直感矛盾表示（実測・算術的には真値。publish で負 total を弾くのは挙動変更） (b) **scope 付き pool の予算バー配置が設計未規定**（v1 は section 冒頭固定 — どのブロックの予算か視覚帰属なし。エディタ/プレビュー系で再裁定） (c) F13/F15 保留（props object 化は両レビュア実測で便益不足・data 属性粒度不揃い） | 出典 = big8-integration.md。非有限 remaining は BIG8-FIXA で error 退化済み（こちらは消化済み） |
 
 ### 6-2. 決定後に解禁される本流（D-P3-1〜4 の決定後）
