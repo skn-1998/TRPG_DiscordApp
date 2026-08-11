@@ -1517,6 +1517,41 @@ describe('relation attr and role when validation', () => {
   });
 });
 
+describe('publish resource role validation', () => {
+  function resourceTemplate(deltas: number[]): SheetTemplate {
+    return baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'scalar',
+          id: 'hp',
+          uid: 'main.hp',
+          label: 'HP',
+          valueType: 'number',
+          role: { kind: 'resource', deltas },
+        }],
+      }],
+    });
+  }
+
+  it('rejects a resource role with no deltas', () => {
+    const result = validatePublishTemplate(resourceTemplate([]));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'sections.0.fields.0.role.deltas',
+      message: 'deltas must contain at least one entry',
+    });
+  });
+
+  it('accepts a resource role with decrement and increment deltas', () => {
+    expect(validatePublishTemplate(resourceTemplate([-1, 1]))).toEqual(
+      expect.objectContaining({ ok: true, issues: [] }),
+    );
+  });
+});
+
 describe('publish schema uid and label length limits', () => {
   function templateWithUid(uid: string) {
     return baseTemplate({
