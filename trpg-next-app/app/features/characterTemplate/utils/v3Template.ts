@@ -1,3 +1,4 @@
+import { normalizeTemplateLayout } from '@trpg/sheet-engine'
 import type { Template } from '../types/v2'
 import type {
   CharacterSheetTemplateEntity,
@@ -16,6 +17,7 @@ export const RESERVED_IDS: ReadonlySet<string> = new Set([
   'row',
   'values',
   'parts',
+  'constructor',
   'base',
   'other',
   'floor',
@@ -334,7 +336,7 @@ export function migrateV2TemplateToCreateRequest(template: Template): CreateShee
     tables: [],
     settings: { rounding: 'floor' }
   }
-  return normalizeTemplateReferences(draft)
+  return normalizeTemplateLayout(normalizeTemplateReferences(draft))
 }
 
 type CreateSheetTemplateDraft = {

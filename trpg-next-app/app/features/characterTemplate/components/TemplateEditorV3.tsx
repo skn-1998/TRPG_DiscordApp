@@ -28,7 +28,12 @@ import {
   IconRocket,
   IconTrash
 } from '@tabler/icons-react'
-import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
+import {
+  normalizeTemplateLayout,
+  type PublishWarning,
+  validatePublishTemplate,
+  validateStandaloneRollNotations
+} from '@trpg/sheet-engine'
 import { saveTemplateDraft, type EditorIntent } from '../actions'
 import type {
   CharacterSheetTemplateEntity,
@@ -69,6 +74,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [newFieldType, setNewFieldType] = useState<V3EditorFieldType>('text')
   const [tablesText, setTablesText] = useState(stringifyTables(initialTemplate.tables))
   const [localMessages, setLocalMessages] = useState<TemplateValidationMessage[]>([])
+  const [publishWarnings, setPublishWarnings] = useState<PublishWarning[]>([])
   const [actionMessages, setActionMessages] = useState<string[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
@@ -97,7 +103,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
   const buildPayload = useCallback((): CharacterSheetTemplateEntity => {
     const parsedTables = safeParseTables(tablesText)
-    return normalizeTemplateReferences({ ...template, tables: parsedTables })
+    return normalizeTemplateLayout(normalizeTemplateReferences({ ...template, tables: parsedTables }))
   }, [tablesText, template])
 
   const submitDraft = useCallback(
@@ -257,8 +263,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         message: issue.message
       }))
       setLocalMessages([...localErrors, ...publishErrors])
+      setPublishWarnings(publishResult.warnings)
     } catch (error) {
       setLocalMessages([{ message: error instanceof Error ? error.message : '検証に失敗しました' }])
+      setPublishWarnings([])
     }
   }
 
@@ -328,6 +336,18 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
               <Text key={`${message.message}-${index}`} size="sm">
                 {message.fieldId ? `[${message.fieldId}] ` : ''}
                 {message.message}
+              </Text>
+            ))}
+          </Stack>
+        </Alert>
+      )}
+
+      {publishWarnings.length > 0 && (
+        <Alert color="yellow" icon={<IconAlertCircle size={16} />} title="検証警告">
+          <Stack gap={4}>
+            {publishWarnings.map((warning, index) => (
+              <Text key={`${warning.code}-${warning.path}-${index}`} size="sm">
+                [{warning.path}] {warning.message}
               </Text>
             ))}
           </Stack>

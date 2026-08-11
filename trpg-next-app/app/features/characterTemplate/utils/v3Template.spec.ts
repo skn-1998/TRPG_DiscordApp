@@ -387,6 +387,7 @@ describe('v3Template validation and JSON helpers', () => {
   // 集合等価は予約語集合の差をすべて捕捉する。捕捉しないのは「同じ集合が同じように適用されるか」で、それは下の等価テスト（固定標本 ∪ engine 予約語 × section/field）が担う。
   // front 未検査の list.itemFields / relation.attrs のネスト id と、受理真偽のみの比較で reject 理由を検証しない点は非目標。ネスト id は Task #50 で扱う。
   it('front と sheet-engine の予約語集合が一致する', () => {
+    expect(RESERVED_IDS.has('constructor')).toBe(true)
     expect([...RESERVED_IDS].sort()).toEqual([...SHEET_RESERVED_ID_VALUES].sort())
   })
 

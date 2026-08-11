@@ -3,6 +3,7 @@ export type RoundingMode = 'floor' | 'ceil' | 'round';
 export type ScalarValueType = 'number' | 'text' | 'boolean' | 'select';
 export type ComputedResultType = 'number' | 'text' | 'boolean' | 'dice';
 export type ExpressionValueType = 'number' | 'text' | 'boolean' | 'dice';
+export type ConstraintSource = number | { formula: string };
 
 export interface SheetTemplate {
   templateId: string;
@@ -25,6 +26,18 @@ export interface SheetSection {
   label: string;
   fields: SheetField[];
   layout?: unknown;
+  blocks?: Array<{ id: string; label: string; cap?: ConstraintSource }>;
+  pools?: Array<{ id: string; label: string; total: ConstraintSource; partsKey: string; scope?: string[] }>;
+}
+
+export const SHEET_SECTION_LAYOUT_PRESETS = ['stack', 'grid', 'table'] as const;
+export const SHEET_SECTION_GRID_COLUMNS = [2, 3, 4] as const;
+export const SHEET_FIELD_LAYOUT_SPANS = [1, 2, 3, 'full'] as const;
+export const DEFAULT_SHEET_SECTION_GRID_COLUMNS: typeof SHEET_SECTION_GRID_COLUMNS[number] = 2;
+export const DEFAULT_SHEET_FIELD_LAYOUT_SPAN: typeof SHEET_FIELD_LAYOUT_SPANS[number] = 1;
+
+export interface SheetFieldLayout {
+  span?: typeof SHEET_FIELD_LAYOUT_SPANS[number];
 }
 
 export interface FieldBase {
@@ -35,6 +48,8 @@ export interface FieldBase {
   role?: FieldRole;
   visibleTo?: 'public' | 'owner' | 'gm';
   when?: string;
+  layout?: SheetFieldLayout;
+  blockId?: string;
 }
 
 export type FieldRole =
@@ -46,6 +61,8 @@ export interface ScalarField extends FieldBase {
   type: 'scalar';
   valueType: ScalarValueType;
   parts?: boolean;
+  max?: ConstraintSource;
+  partsKeys?: Array<{ id: string; label: string }>;
   options?: Array<{ label: string; value: string }>;
 }
 
@@ -64,7 +81,7 @@ export interface RollField extends FieldBase {
 export interface TrackField extends FieldBase {
   type: 'track';
   min?: number;
-  max: number | { formula: string };
+  max: ConstraintSource;
   style: 'gauge' | 'checkboxes';
   thresholds?: Array<{ at: number; label: string }>;
   resetOn?: 'scene' | 'session' | 'rest';
@@ -140,9 +157,26 @@ export interface PublishIssue {
   message: string;
 }
 
+export type PublishWarningCode =
+  | 'block-empty'
+  | 'layout-legacy-ignored'
+  | 'layout-invalid-ignored'
+  | 'layout-span-outside-grid'
+  | 'layout-span-clamped'
+  | 'layout-table-complex-demoted'
+  | 'section-empty';
+
+export interface PublishWarning {
+  code: PublishWarningCode;
+  path: string;
+  // message は engine が著述し UI が素通し描画（annotation-runtime の AnnotationRuntimeWarning とは所有権が逆）。
+  message: string;
+}
+
 export interface PublishValidationResult {
   ok: boolean;
   issues: PublishIssue[];
+  warnings: PublishWarning[];
   resolvedRefs: ResolvedRef[];
 }
 

@@ -24,6 +24,25 @@ export interface TemplateIndex {
   tablesById: Map<string, SheetTemplate['tables'][number]>;
 }
 
+export function fieldCandidateKeys(uid: string, path: string, id: string): string[] {
+  return [uid, path, id];
+}
+
+export function canonicalFieldPath(sectionId: string, fieldId: string): string {
+  return `${sectionId}.${fieldId}`;
+}
+
+export function readAliasedValue(record: Record<string, unknown>, keys: readonly string[]): unknown {
+  // Inputs must be plain/JSON objects. Exotic objects such as Proxy are unsupported because
+  // own-property checks depend on getOwnPropertyDescriptor semantics.
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const value = record[key];
+    if (value != null) return value;
+  }
+  return undefined;
+}
+
 export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
   const index: TemplateIndex = {
     fieldsByUid: new Map(),
@@ -35,7 +54,7 @@ export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
 
   for (const section of template.sections) {
     for (const field of section.fields) {
-      const path = `${section.id}.${field.id}`;
+      const path = canonicalFieldPath(section.id, field.id);
       const locator: FieldLocator = { section, field, path };
       index.fieldsByUid.set(field.uid, locator);
       index.fieldsByPath.set(path, locator);
@@ -43,10 +62,11 @@ export function buildTemplateIndex(template: SheetTemplate): TemplateIndex {
       if (field.type === 'list') {
         index.listsByUid.set(field.uid, locator as FieldLocator & { field: ListField });
         for (const subField of field.itemFields) {
-          index.listSubFieldsByPath.set(`${section.id}.${field.id}.${subField.id}`, {
+          const subFieldPath = `${path}.${subField.id}`;
+          index.listSubFieldsByPath.set(subFieldPath, {
             list: field,
             field: subField,
-            path: `${section.id}.${field.id}.${subField.id}`,
+            path: subFieldPath,
             listPath: path,
           });
           // Short list paths are normalized by UI code before save; published

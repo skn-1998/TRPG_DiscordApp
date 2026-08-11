@@ -2,7 +2,15 @@ import { AstNode, countAstNodes } from './ast';
 import { assertArity } from './arity';
 import { isPartsValue } from './parts-value';
 import { parseExpression } from './parser';
-import { buildTemplateIndex, isComputedField, refKey, resolveRefPath, TemplateIndex } from './template-index';
+import {
+  buildTemplateIndex,
+  fieldCandidateKeys,
+  isComputedField,
+  readAliasedValue,
+  refKey,
+  resolveRefPath,
+  TemplateIndex,
+} from './template-index';
 import {
   EvaluationInput,
   EvaluationResult,
@@ -14,9 +22,9 @@ import {
   SheetTemplate,
 } from './types';
 
-// publish.ts にも同じ既定値がある。変更時は publish 受理と評価限界が分裂しないよう両方を揃える。
-const DEFAULT_AST_NODE_LIMIT = 256;
-const DEFAULT_STEP_LIMIT = 10_000;
+export const DEFAULT_AST_NODE_LIMIT = 256;
+// evaluator が既定 runtime 上限の唯一の宣言元で、publish はこの定数を import して共有する。
+export const DEFAULT_STEP_LIMIT = 10_000;
 export const EPSILON = 1e-9;
 
 type RowState = {
@@ -138,13 +146,16 @@ function readFieldValue(state: EvalState, field: SheetField): RuntimeValue {
 }
 
 function readRowFieldValue(field: SheetField, rawRow: Record<string, unknown>): RuntimeValue {
-  const raw = rawRow[field.uid] ?? rawRow[field.id];
+  const raw = readAliasedValue(rawRow, [field.uid, field.id]);
   return coerceFieldValue(field, raw);
 }
 
 function readRaw(state: EvalState, field: SheetField): unknown {
   const locator = state.index.fieldsByUid.get(field.uid);
-  return state.input[field.uid] ?? (locator ? state.input[locator.path] : undefined) ?? state.input[field.id];
+  return readAliasedValue(
+    state.input,
+    fieldCandidateKeys(field.uid, locator?.path ?? field.id, field.id),
+  );
 }
 
 function coerceFieldValue(field: SheetField, raw: unknown): RuntimeValue {
@@ -519,7 +530,7 @@ function numberOrZero(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function resolveNumberValue(fieldUid: string, value: unknown): number {
+export function resolveNumberValue(fieldUid: string, value: unknown): number {
   if (!isPartsValue(value)) {
     return numberOrZero(value);
   }

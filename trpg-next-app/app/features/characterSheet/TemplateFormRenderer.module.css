@@ -1,0 +1,65 @@
+/* Invariant: columns / span セレクタの列挙は packages/sheet-engine/src/types.ts の canonical tuple と手動同期する。語彙変更時は本ファイルの全セレクタと drift spec を更新する。 */
+.fieldContainer {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fieldContainer[data-layout-mode='stack'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+}
+
+.fieldContainer[data-layout-mode='grid'] {
+  display: grid;
+  gap: var(--mantine-spacing-sm);
+}
+
+.fieldContainer[data-layout-mode='grid'][data-grid-columns='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fieldContainer[data-layout-mode='grid'][data-grid-columns='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fieldContainer[data-layout-mode='grid'][data-grid-columns='4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.gridField[data-grid-span='1'] {
+  grid-column: span 1;
+}
+
+.gridField[data-grid-span='2'] {
+  grid-column: span 2;
+}
+
+.gridField[data-grid-span='3'] {
+  grid-column: span 3;
+}
+
+.gridField[data-grid-span='full'] {
+  grid-column: 1 / -1;
+}
+
+/* 48em = Mantine sm。Mantine theme 変更時は同期する。 */
+@media (max-width: 47.999em) {
+  /* media query 内の上書きはデスクトップ側ルールと同詳細度以上で書き、同詳細度ならデスクトップ規則より後に置く（media query は詳細度に無関係） */
+  .fieldContainer[data-layout-mode='grid'][data-grid-columns='2'],
+  .fieldContainer[data-layout-mode='grid'][data-grid-columns='3'],
+  .fieldContainer[data-layout-mode='grid'][data-grid-columns='4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gridField[data-grid-span='2'],
+  .gridField[data-grid-span='3'],
+  .gridField[data-grid-span='full'] {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { normalizeTemplateLayout } from '@trpg/sheet-engine'
 import { extractApiErrorMessages, getResponseStatus } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { createCharacterFromTemplate } from '../character/api/character.service.server'
@@ -53,7 +54,7 @@ export async function importV2Template(
   await requireJwt()
 
   const requestBody = payload.sections
-    ? normalizeTemplateReferences({ ...payload, sections: payload.sections })
+    ? normalizeTemplateLayout(normalizeTemplateReferences({ ...payload, sections: payload.sections }))
     : payload
 
   let created

@@ -9,6 +9,9 @@ export interface PartsValueInput {
 
 export type SheetValueInput = number | string | boolean | PartsValueInput;
 
+export const RESERVED_PARTS_KEY_IDS = Object.freeze(['base', 'other'] as const);
+// publish.ts の UNSAFE_UID_KEYS と同じ prototype 汚染面を parts key 境界でも封止する。
+export const UNSAFE_PARTS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const finiteNumberSchema = z.number().refine(Number.isFinite, 'must be a finite number');
 const partsValueSchema = z.strictObject({
   parts: z.record(z.string(), finiteNumberSchema),
@@ -54,6 +57,10 @@ export function buildValueInputSchema(
         continue;
       }
 
+      const declaredPartsKeysValid = validateDeclaredPartsKeys(field, uid, value, context);
+      const finitePartsSumValid = validateFinitePartsSum(uid, value, context);
+      if (!declaredPartsKeysValid || !finitePartsSumValid) continue;
+
       const result = schema.safeParse(value);
       if (result.success) {
         validateTrackPartsRange(field, uid, result.data, context);
@@ -68,6 +75,67 @@ export function buildValueInputSchema(
       }
     }
   }) as z.ZodType<Record<string, SheetValueInput>>;
+}
+
+function validateDeclaredPartsKeys(
+  field: SheetField,
+  uid: string,
+  value: unknown,
+  context: z.RefinementCtx,
+): boolean {
+  if (!isPartsValue(value)) return true;
+  const parts = value.parts;
+  if (typeof parts !== 'object' || parts === null || Array.isArray(parts)) return true;
+
+  let valid = true;
+  const declaredKeys = field.type === 'scalar' && field.parts !== true && field.partsKeys !== undefined
+    ? new Set([...RESERVED_PARTS_KEY_IDS, ...field.partsKeys.map(({ id }) => id)])
+    : undefined;
+  for (const key of Object.keys(parts)) {
+    if (UNSAFE_PARTS_KEYS.has(key)) {
+      context.addIssue({
+        code: 'custom',
+        path: [uid, 'parts', key],
+        message: `field ${uid} parts.${key} is reserved`,
+      });
+      valid = false;
+      continue;
+    }
+    if (declaredKeys === undefined || declaredKeys.has(key)) continue;
+    context.addIssue({
+      code: 'custom',
+      path: [uid, 'parts', key],
+      message: `field ${uid} parts.${key} is not declared`,
+    });
+    valid = false;
+  }
+  return valid;
+}
+
+function validateFinitePartsSum(
+  uid: string,
+  value: unknown,
+  context: z.RefinementCtx,
+): boolean {
+  if (!isPartsValue(value)) return true;
+  const parts = value.parts;
+  if (typeof parts !== 'object' || parts === null || Array.isArray(parts)) return true;
+
+  let total = 0;
+  // evaluator.ts:543 と同じく、宣言拒否済みキーも含む全 own entry を逐次加算し、非有限化時に打ち切る。
+  for (const part of Object.values(parts)) {
+    // 個別値の型・有限性は後続 schema に任せ、キー単位 issue を維持する。
+    if (typeof part !== 'number' || !Number.isFinite(part)) return true;
+    total += part;
+    if (Number.isFinite(total)) continue;
+    context.addIssue({
+      code: 'custom',
+      path: [uid, 'parts'],
+      message: `field ${uid} parts sum must be finite`,
+    });
+    return false;
+  }
+  return true;
 }
 
 function validateTrackPartsRange(
@@ -131,5 +199,7 @@ function inputSchemaFor(field: SheetField, value: unknown): z.ZodType<SheetValue
 
 export function allowsParts(field: SheetField): field is Extract<SheetField, { type: 'track' | 'scalar' }> {
   return field.type === 'track'
-    || (field.type === 'scalar' && field.valueType === 'number' && field.parts === true);
+    || (field.type === 'scalar'
+      && field.valueType === 'number'
+      && (field.parts === true || field.partsKeys !== undefined));
 }
