@@ -784,7 +784,14 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
 
-    it('決定表4: 真の競合は path/current/base/yours を含む409にする', async () => {
+    it('決定表4: 真の競合は保存済み revision と path/current/base/yours を含む409にする', async () => {
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          revision: 4
+        }
+      })
+      const expectedCurrentRevision = current.sheet!.revision
       const promise = service.saveSheet({
         characterId: 'character-1',
         baseRevision: 0,
@@ -794,6 +801,7 @@ describe('CharacterSheetOperationService', () => {
       await expect(promise).rejects.toMatchObject({
         response: {
           characterId: 'character-1',
+          currentRevision: expectedCurrentRevision,
           conflicts: [
             {
               path: { fieldUid: 'uid-score', partsKey: 'base' },
@@ -806,6 +814,52 @@ describe('CharacterSheetOperationService', () => {
       })
       await expect(promise).rejects.toBeInstanceOf(ConflictException)
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('mine は conflict の currentRevision と current を base にして再送すると保存できる', async () => {
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          revision: 4
+        }
+      })
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 0,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 3, newValue: 7 }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse() as {
+        currentRevision: number
+        conflicts: Array<{
+          path: { fieldUid: string; partsKey?: string }
+          current: unknown
+          yours: unknown
+        }>
+      }
+      const conflictEntry = payload.conflicts[0]!
+
+      await expect(
+        service.saveSheet({
+          characterId: 'character-1',
+          baseRevision: payload.currentRevision,
+          changes: [
+            {
+              path: conflictEntry.path,
+              baseValue: conflictEntry.current,
+              newValue: conflictEntry.yours
+            }
+          ]
+        })
+      ).resolves.toEqual(
+        expect.objectContaining({
+          noOp: false,
+          revision: payload.currentRevision + 1
+        })
+      )
     })
 
     it('非重複 parts 変更は先行保存後の最新値へ自動マージする', async () => {

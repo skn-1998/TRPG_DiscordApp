@@ -219,7 +219,7 @@ export class CharacterSheetOperationService {
       }
 
       if (conflicts.length > 0) {
-        throw this.mergeConflict(input.characterId, conflicts)
+        throw this.mergeConflict(input.characterId, sheet.revision, conflicts)
       }
       if (appliedChanges === 0) {
         return {
@@ -636,11 +636,16 @@ export class CharacterSheetOperationService {
     }
   }
 
-  private mergeConflict(characterId: string, conflicts: MergeConflictPayload[]): ConflictException {
+  private mergeConflict(
+    characterId: string,
+    currentRevision: number,
+    conflicts: MergeConflictPayload[]
+  ): ConflictException {
     return new ConflictException({
       message: 'sheet changes conflict with the current revision',
       characterId,
-      conflicts
+      conflicts,
+      currentRevision
     })
   }
 

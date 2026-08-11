@@ -149,6 +149,7 @@ describe('CharacterSheetHttpExceptionFilter', () => {
         new ConflictException({
           message: 'sheet changes conflict with the current revision',
           characterId,
+          currentRevision: 2,
           conflicts: [
             {
               path: { fieldUid: 'uid-hp' },
@@ -162,6 +163,7 @@ describe('CharacterSheetHttpExceptionFilter', () => {
       error: 'sheet changes conflict with the current revision',
       cause: {
         characterId,
+        currentRevision: 2,
         conflicts: [
           {
             path: { fieldUid: 'uid-hp' },
