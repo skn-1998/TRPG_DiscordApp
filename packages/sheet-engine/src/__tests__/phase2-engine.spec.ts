@@ -1,4 +1,4 @@
-import { buildValueInputSchema, clampDelta, EPSILON, evaluateTemplate } from '..';
+import { buildValueInputSchema, clampDelta, EPSILON, evaluateTemplate, validatePublishTemplate } from '..';
 import { baseTemplate } from './test-utils';
 
 describe('parts-aware value resolution', () => {
@@ -74,6 +74,10 @@ describe('buildValueInputSchema', () => {
         label: 'Main',
         fields: [
           { type: 'scalar', id: 'score', uid: 'uid_score', label: 'Score', valueType: 'number', parts: true },
+          {
+            type: 'scalar', id: 'declared', uid: 'uid_declared', label: 'Declared', valueType: 'number',
+            partsKeys: [{ id: 'career', label: 'Career' }],
+          },
           { type: 'scalar', id: 'plain', uid: 'uid_plain', label: 'Plain', valueType: 'number' },
           { type: 'scalar', id: 'name', uid: 'uid_name', label: 'Name', valueType: 'text' },
           { type: 'scalar', id: 'active', uid: 'uid_active', label: 'Active', valueType: 'boolean' },
@@ -95,6 +99,27 @@ describe('buildValueInputSchema', () => {
     ],
   });
   const schema = buildValueInputSchema(template);
+  const coexistingDraftSchema = buildValueInputSchema(baseTemplate({
+    sections: [{
+      id: 'main',
+      label: 'Main',
+      fields: [{
+        type: 'scalar', id: 'both', uid: 'uid_both', label: 'Both', valueType: 'number',
+        parts: true, partsKeys: [{ id: 'career', label: 'Career' }],
+      }],
+    }],
+  }));
+  const unsafePartsVectors = [
+    { mode: 'declared', inputSchema: schema, uid: 'uid_declared' },
+    { mode: 'free', inputSchema: schema, uid: 'uid_score' },
+    { mode: 'track', inputSchema: schema, uid: 'uid_hp' },
+    { mode: 'coexisting draft', inputSchema: coexistingDraftSchema, uid: 'uid_both' },
+  ].flatMap(({ mode, inputSchema, uid }) =>
+    ['__proto__', 'constructor', 'prototype'].flatMap((key) => [
+      { mode, inputSchema, uid, key, valueKind: 'number', partValue: 7 },
+      { mode, inputSchema, uid, key, valueKind: 'non-number', partValue: 'x' },
+    ]),
+  );
 
   it('accepts field-matching scalar, parts, track, text, boolean, and select values', () => {
     expect(schema.safeParse({
@@ -138,6 +163,80 @@ describe('buildValueInputSchema', () => {
         expect.objectContaining({ path: ['uid_plain', 'parts'], message: 'field uid_plain does not allow parts' }),
       ]));
     }
+  });
+
+  it.each([
+    ['declared keys plus base and other', 'uid_declared', { base: 1, other: 2, career: 3 }],
+    ['an arbitrary key when parts is true', 'uid_score', { base: 1, custom: 2 }],
+  ])('accepts %s', (_case, uid, parts) => {
+    expect(schema.safeParse({ [uid]: { parts } }).success).toBe(true);
+  });
+
+  it('rejects an undeclared key in declaration mode', () => {
+    const result = schema.safeParse({ uid_declared: { parts: { base: 1, career: 2, unknown: 3 } } });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(expect.objectContaining({
+        path: ['uid_declared', 'parts', 'unknown'],
+        message: 'field uid_declared parts.unknown is not declared',
+      }));
+    }
+  });
+
+  it.each(unsafePartsVectors)(
+    'rejects own $key with a $valueKind value in $mode parts mode using a key-level issue',
+    ({ inputSchema, uid, key, partValue }) => {
+      const parts = JSON.parse(`{"${key}":${JSON.stringify(partValue)}}`) as Record<string, unknown>;
+      const result = inputSchema.safeParse({ [uid]: { parts } });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(expect.objectContaining({
+          path: [uid, 'parts', key],
+          message: `field ${uid} parts.${key} is reserved`,
+        }));
+        expect(result.error.issues.some((issue) => issue.message.includes('expected record'))).toBe(false);
+      }
+    },
+  );
+
+  it('rejects a JSON-parsed own __proto__ key that zod record parsing used to drop', () => {
+    const parts = JSON.parse('{"__proto__":7}') as Record<string, unknown>;
+
+    expect(Object.keys(parts)).toEqual(['__proto__']);
+    expect(schema.safeParse({ uid_score: { parts } }).success).toBe(false);
+  });
+
+  it('checks finite sum across declaration-rejected own keys', () => {
+    const max = Number.MAX_VALUE;
+    const parts = JSON.parse(`{"__proto__":${max},"a":${max}}`) as Record<string, unknown>;
+    const result = schema.safeParse({ uid_declared: { parts } });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: ['uid_declared', 'parts', '__proto__'] }),
+        expect.objectContaining({ path: ['uid_declared', 'parts', 'a'] }),
+        expect.objectContaining({
+          path: ['uid_declared', 'parts'],
+          message: 'field uid_declared parts sum must be finite',
+        }),
+      ]));
+    }
+  });
+
+  it('keeps publish acceptance and declared-parts input acceptance aligned', () => {
+    expect(validatePublishTemplate(template).ok).toBe(true);
+    expect(schema.safeParse({ uid_declared: { parts: { base: 1, career: 2 } } }).success).toBe(true);
+  });
+
+  it('rejects the same overflowing parts sum that the evaluator rejects', () => {
+    const value = { parts: { left: Number.MAX_VALUE, right: Number.MAX_VALUE } };
+
+    expect(schema.safeParse({ uid_score: value }).success).toBe(false);
+    expect(() => evaluateTemplate(template, { values: { uid_score: value } }))
+      .toThrow('field uid_score parts sum must be finite');
   });
 
   it.each([

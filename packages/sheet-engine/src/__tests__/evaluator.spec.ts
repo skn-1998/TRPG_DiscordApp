@@ -116,6 +116,121 @@ describe('evaluator row formulas and aggregates', () => {
   });
 });
 
+describe('evaluator aliased raw-value ownership', () => {
+  const scalarTemplate = baseTemplate({
+    sections: [{
+      id: 'main',
+      label: 'Main',
+      fields: [{ type: 'scalar', id: 'score', uid: 'score-uid', label: 'Score', valueType: 'number' }],
+    }],
+  });
+  const rowTemplate = baseTemplate({
+    sections: [{
+      id: 'main',
+      label: 'Main',
+      fields: [{
+        type: 'list',
+        id: 'items',
+        uid: 'items-uid',
+        label: 'Items',
+        itemFields: [
+          { type: 'scalar', id: 'amount', uid: 'amount-uid', label: 'Amount', valueType: 'number' },
+        ],
+      }],
+    }],
+  });
+
+  it('intentionally ignores inherited aliases after BIG6-S3 introduced own-value checks', () => {
+    const values = Object.create({ 'score-uid': 5 }) as Record<string, unknown>;
+
+    expect(evaluateTemplate(scalarTemplate, { values }).values['score-uid'])
+      .toEqual({ type: 'number', value: 0 });
+  });
+
+  it('ignores an inherited path alias after BIG6-S3 introduced own-value checks', () => {
+    const values = Object.create({ 'main.score': 5 }) as Record<string, unknown>;
+
+    expect(evaluateTemplate(scalarTemplate, { values }).values['score-uid'])
+      .toEqual({ type: 'number', value: 0 });
+  });
+
+  it('uses a later own path instead of an earlier inherited uid after BIG6-S3', () => {
+    const values = Object.assign(Object.create({ 'score-uid': 5 }), { 'main.score': 7 });
+
+    expect(evaluateTemplate(scalarTemplate, { values }).values['score-uid'])
+      .toEqual({ type: 'number', value: 7 });
+  });
+
+  it('ignores numeric properties added to Object.prototype during BIG6-S3 evaluation', () => {
+    const key = 'score-uid';
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, key);
+    Object.defineProperty(Object.prototype, key, { configurable: true, value: 5, writable: true });
+
+    try {
+      expect(evaluateTemplate(scalarTemplate).values['score-uid'])
+        .toEqual({ type: 'number', value: 0 });
+    } finally {
+      if (originalDescriptor === undefined) Reflect.deleteProperty(Object.prototype, key);
+      else Object.defineProperty(Object.prototype, key, originalDescriptor);
+    }
+  });
+
+  it.each([null, undefined])('skips an own nullish uid value %p and reads the next alias', (uidValue) => {
+    expect(evaluateTemplate(scalarTemplate, {
+      values: { 'score-uid': uidValue, 'main.score': 7, score: 9 },
+    }).values['score-uid']).toEqual({ type: 'number', value: 7 });
+  });
+
+  it('keeps own non-nullish falsy values as first-win aliases', () => {
+    const template = baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [
+          { type: 'scalar', id: 'score', uid: 'score-uid', label: 'Score', valueType: 'number' },
+          { type: 'scalar', id: 'name', uid: 'name-uid', label: 'Name', valueType: 'text' },
+          { type: 'scalar', id: 'active', uid: 'active-uid', label: 'Active', valueType: 'boolean' },
+        ],
+      }],
+    });
+    const evaluated = evaluateTemplate(template, {
+      values: {
+        'score-uid': 0,
+        'main.score': 1,
+        'name-uid': '',
+        'main.name': 'fallback',
+        'active-uid': false,
+        'main.active': true,
+      },
+    });
+
+    expect(evaluated.values['score-uid']).toEqual({ type: 'number', value: 0 });
+    expect(evaluated.values['name-uid']).toEqual({ type: 'text', value: '' });
+    expect(evaluated.values['active-uid']).toEqual({ type: 'boolean', value: false });
+  });
+
+  it('intentionally ignores an inherited row alias after BIG6-S3 introduced own-value checks', () => {
+    const inheritedRow = Object.create({ 'amount-uid': 5 }) as Record<string, unknown>;
+
+    expect(evaluateTemplate(rowTemplate, { values: { 'items-uid': [inheritedRow] } }).rows['items-uid'][0]['amount-uid'])
+      .toEqual({ type: 'number', value: 0 });
+  });
+
+  it('keeps the own row uid as first-win when the own id is also present', () => {
+    const row = { 'amount-uid': 1, amount: 2 };
+
+    expect(evaluateTemplate(rowTemplate, { values: { 'items-uid': [row] } }).rows['items-uid'][0]['amount-uid'])
+      .toEqual({ type: 'number', value: 1 });
+  });
+
+  it('falls back from an own null row uid to a non-nullish own id', () => {
+    const row = { 'amount-uid': null, amount: 2 };
+
+    expect(evaluateTemplate(rowTemplate, { values: { 'items-uid': [row] } }).rows['items-uid'][0]['amount-uid'])
+      .toEqual({ type: 'number', value: 2 });
+  });
+});
+
 describe('evaluator cycle detection', () => {
   it('detects direct and indirect computed cycles', () => {
     const direct = baseTemplate({

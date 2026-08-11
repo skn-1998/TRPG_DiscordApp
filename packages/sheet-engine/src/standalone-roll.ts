@@ -1,5 +1,6 @@
 import type { PublishIssue, SheetField, SheetTemplate } from './types';
 import { parseExpression } from './parser';
+import { canonicalFieldPath } from './template-index';
 
 // 個数は TRPG-SERVER/src/discord/services/dice/dice-calculation.service.ts の MAX_DICE_COUNT（100）、
 // 面数は TRPG-SERVER/src/discord/services/dice/dice-orchestrator.service.ts:135 の 1000 と揃える。
@@ -38,7 +39,7 @@ export function validateStandaloneRollNotations(template: SheetTemplate): Publis
 
   for (const section of template.sections) {
     for (const field of section.fields) {
-      collectStandaloneRollIssues(field, `${section.id}.${field.id}`, issues);
+      collectStandaloneRollIssues(field, canonicalFieldPath(section.id, field.id), issues);
     }
   }
 

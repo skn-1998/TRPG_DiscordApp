@@ -34,8 +34,8 @@ import {
   publishSheetTemplate,
   updateSheetTemplate
 } from './api/sheetTemplateApi.server'
-import { createCharacter, createTemplate, deleteTemplate, saveTemplateDraft } from './actions'
-import type { CharacterSheetTemplateEntity } from './types/v3'
+import { createCharacter, createTemplate, deleteTemplate, importV2Template, saveTemplateDraft } from './actions'
+import type { CharacterSheetTemplateEntity, CreateSheetTemplateRequest } from './types/v3'
 
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
@@ -88,6 +88,57 @@ describe('characterTemplate actions', () => {
       settings: { rounding: 'floor' }
     })
     expect(mockedRedirect).toHaveBeenCalledWith('/templates/template-1/edit')
+  })
+
+  it('importV2Template は式参照の後に layout を正規化して create する', async () => {
+    const payload: CreateSheetTemplateRequest = {
+      name: 'V2 移行',
+      sections: [
+        {
+          id: 'status',
+          label: 'ステータス',
+          layout: { preset: 'grid' },
+          fields: [
+            { id: 'hp', uid: 'uid_hp', label: 'HP', type: 'scalar', valueType: 'number' },
+            {
+              id: 'double_hp',
+              uid: 'uid_double_hp',
+              label: 'HP x2',
+              type: 'computed',
+              resultType: 'number',
+              formula: '{hp} * 2',
+              layout: {}
+            }
+          ]
+        }
+      ]
+    }
+    mockedCreateSheetTemplate.mockResolvedValue({ templateId: 'template-2' } as never)
+
+    await importV2Template(payload)
+
+    expect(mockedCreateSheetTemplate).toHaveBeenCalledWith({
+      ...payload,
+      sections: [
+        {
+          ...payload.sections?.[0],
+          layout: { preset: 'grid', columns: 2 },
+          fields: [
+            { id: 'hp', uid: 'uid_hp', label: 'HP', type: 'scalar', valueType: 'number', layout: { span: 1 } },
+            {
+              id: 'double_hp',
+              uid: 'uid_double_hp',
+              label: 'HP x2',
+              type: 'computed',
+              resultType: 'number',
+              formula: '{status.hp} * 2',
+              layout: { span: 1 }
+            }
+          ]
+        }
+      ]
+    })
+    expect(mockedRedirect).toHaveBeenCalledWith('/templates/template-2/edit')
   })
 
   it('createCharacter は trim 後の characterName が空なら旧必須文言を返す', async () => {

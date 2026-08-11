@@ -1,0 +1,171 @@
+[
+  {
+    "name": "canonical U14 grid",
+    "input": {
+      "sections": [
+        {
+          "id": "main",
+          "layout": { "preset": "grid" },
+          "fields": [
+            { "type": "scalar", "id": "hp" },
+            { "type": "computed", "id": "max_hp", "layout": {} },
+            { "type": "roll", "id": "check", "layout": { "span": 2 } },
+            { "type": "track", "id": "resource" },
+            { "type": "list", "id": "inventory" },
+            { "type": "relation", "id": "ally" },
+            { "type": "tag", "id": "conditions" }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "sections": [
+        {
+          "id": "main",
+          "layout": { "preset": "grid", "columns": 2 },
+          "fields": [
+            { "type": "scalar", "id": "hp", "layout": { "span": 1 } },
+            { "type": "computed", "id": "max_hp", "layout": { "span": 1 } },
+            { "type": "roll", "id": "check", "layout": { "span": 2 } },
+            { "type": "track", "id": "resource" },
+            { "type": "list", "id": "inventory" },
+            { "type": "relation", "id": "ally" },
+            { "type": "tag", "id": "conditions" }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "canonical U14 stack remains unchanged",
+    "input": {
+      "sections": [
+        {
+          "id": "profile",
+          "layout": { "preset": "stack" },
+          "fields": [{ "type": "scalar", "id": "name" }]
+        }
+      ]
+    },
+    "expected": {
+      "sections": [
+        {
+          "id": "profile",
+          "layout": { "preset": "stack" },
+          "fields": [{ "type": "scalar", "id": "name" }]
+        }
+      ]
+    }
+  },
+  {
+    "name": "canonical U14 table remains unchanged",
+    "input": {
+      "sections": [
+        {
+          "id": "skills",
+          "layout": { "preset": "table" },
+          "fields": [{ "type": "scalar", "id": "spot_hidden" }]
+        }
+      ]
+    },
+    "expected": {
+      "sections": [
+        {
+          "id": "skills",
+          "layout": { "preset": "table" },
+          "fields": [{ "type": "scalar", "id": "spot_hidden" }]
+        }
+      ]
+    }
+  },
+  {
+    "name": "legacy layout",
+    "input": {
+      "sections": [
+        {
+          "id": "legacy",
+          "layout": { "direction": "row" },
+          "fields": [{ "type": "scalar", "id": "hp" }]
+        }
+      ]
+    },
+    "expected": {
+      "sections": [
+        {
+          "id": "legacy",
+          "layout": { "direction": "row" },
+          "fields": [{ "type": "scalar", "id": "hp" }]
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid U14 values",
+    "input": {
+      "sections": [
+        {
+          "id": "invalid_preset",
+          "layout": { "preset": "cards" },
+          "fields": [{ "type": "scalar", "id": "hp" }]
+        },
+        {
+          "id": "invalid_span",
+          "layout": { "preset": "grid", "columns": 2 },
+          "fields": [
+            { "type": "scalar", "id": "hp", "layout": { "span": 0 } }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "sections": [
+        {
+          "id": "invalid_preset",
+          "layout": { "preset": "cards" },
+          "fields": [{ "type": "scalar", "id": "hp" }]
+        },
+        {
+          "id": "invalid_span",
+          "layout": { "preset": "grid", "columns": 2 },
+          "fields": [
+            { "type": "scalar", "id": "hp", "layout": { "span": 0 } }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "grid with invalid columns uses canonical defaults",
+    "input": {
+      "sections": [{
+        "id": "invalid_grid_columns",
+        "layout": { "preset": "grid", "columns": 5 },
+        "fields": [{ "type": "scalar", "id": "hp" }]
+      }]
+    },
+    "expected": {
+      "sections": [{
+        "id": "invalid_grid_columns",
+        "layout": { "preset": "grid", "columns": 2 },
+        "fields": [{ "type": "scalar", "id": "hp", "layout": { "span": 1 } }]
+      }]
+    }
+  },
+  {
+    "name": "table with invalid columns keeps its preset",
+    "input": {
+      "sections": [{
+        "id": "invalid_table_columns",
+        "layout": { "preset": "table", "columns": 5 },
+        "fields": [{ "type": "scalar", "id": "skill" }]
+      }]
+    },
+    "expected": {
+      "sections": [{
+        "id": "invalid_table_columns",
+        "layout": { "preset": "table", "columns": 5 },
+        "fields": [{ "type": "scalar", "id": "skill" }]
+      }]
+    }
+  }
+]

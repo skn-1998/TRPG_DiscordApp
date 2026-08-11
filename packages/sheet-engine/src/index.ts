@@ -1,6 +1,16 @@
+export * from './annotation-runtime';
 export * from './ast';
 export * from './clamp';
-export * from './evaluator';
+export * from './constraint-evaluator';
+export {
+  DEFAULT_AST_NODE_LIMIT,
+  DEFAULT_STEP_LIMIT,
+  EPSILON,
+  evaluateExpression,
+  evaluateTemplate,
+} from './evaluator';
+export * from './layout-normalizer';
+export * from './layout-resolver';
 export * from './notation';
 export * from './parser';
 export * from './publish';
