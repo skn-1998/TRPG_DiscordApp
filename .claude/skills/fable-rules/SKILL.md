@@ -87,7 +87,10 @@ Fable 自身はレビュー本文を書かない。実施者:
   `git stash` / `reset` / `checkout` / `add` と `--fix` 付き lint script の実行禁止、lint 確認は
   `pnpm exec eslint`（--fix なし）。理由: 実害事例あり（メモリ `review-agents-must-be-readonly`）
 - **Codex `--mode review`**（adversarial・schema 構造化・証跡は `review-results/<topic>/`）
-- 重要フェーズとマージ前は両方の**二重レビュー**
+- **二重レビュー（Codex＋Opus 両方）が必須の地点**（2026-08-11 ユーザー決定で拡張）:
+  重要フェーズ（共有 API・複数面が乗る基盤ロジック等）・**大粒度認知負荷レビュー（3 フェーズ毎）**・
+  **コミット前の全体検収**・マージ前。二重化の目的は同一観点の再実行ではなく独立視点の交差
+  （一方の前提を他方の実測が反証した実例あり — メモリ `cross-review-contradiction-check`）
 
 ## 大粒度認知負荷レビュー（必須・定期）
 
@@ -100,7 +103,8 @@ Fable 自身はレビュー本文を書かない。実施者:
 - 範囲: 直近フェーズ群が触った機能全体＋隣接モジュール（ファイル単位ではなく機能横断で俯瞰する）
 - 方式: cognitive-load-review モード A の大粒度（同種ロジック・同種定数・同種メッセージ生成を
   grep 実測し、複製数とホップ数を数える）＋ review-changeability の reuse & duplication sweep。
-  両者の指摘が一致した重複は統合確度が高い
+  両者の指摘が一致した重複は統合確度が高い。
+  **実施体制は Codex＋Opus の二重**（2026-08-11 ユーザー決定。片方のみで済ませない）
 - 検出したら: 「1 本化で純減」する統合フェーズを計画に差し込む。新しい抽象・層の追加で「解決」しない
 
 ## compact と状況 doc の徹底（auto-compact 500k・手動 compact 廃止）
