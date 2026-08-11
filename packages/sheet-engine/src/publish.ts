@@ -76,7 +76,7 @@ const nonBlankLabelSchema = labelSchema.refine((label) => label.trim().length > 
 
 const roleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rollable'), notation: z.string(), group: z.string().optional(), secret: z.boolean().optional() }).passthrough(),
-  z.object({ kind: z.literal('resource'), deltas: z.array(z.number()), secret: z.boolean().optional() }).passthrough(),
+  z.object({ kind: z.literal('resource'), deltas: z.array(z.number()).min(1, 'deltas must contain at least one entry'), secret: z.boolean().optional() }).passthrough(),
   z.object({ kind: z.literal('profile'), secret: z.boolean().optional() }).passthrough(),
 ]);
 
