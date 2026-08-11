@@ -4,12 +4,16 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
+  Autocomplete,
   Badge,
   Button,
   Card,
   Divider,
   Group,
+  MultiSelect,
+  NumberInput,
   Paper,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -30,6 +34,7 @@ import {
 } from '@tabler/icons-react'
 import {
   normalizeTemplateLayout,
+  type ConstraintSource,
   type PublishWarning,
   validatePublishTemplate,
   validateStandaloneRollNotations
@@ -63,6 +68,305 @@ interface TemplateEditorV3Props {
 
 export const AUTOSAVE_DEBOUNCE_MS = 1800
 
+type ConstraintInputMode = 'number' | 'formula'
+
+interface ConstraintInputProps {
+  label: string
+  value?: ConstraintSource
+  required?: boolean
+  onChange: (value: ConstraintSource | undefined) => void
+}
+
+function ConstraintInput({ label, value, required = false, onChange }: ConstraintInputProps) {
+  const mode: ConstraintInputMode = typeof value === 'object' ? 'formula' : 'number'
+
+  return (
+    <Group grow align="end">
+      <Stack gap={4}>
+        <Text size="sm" fw={500}>
+          {label} 入力方式
+        </Text>
+        <SegmentedControl
+          aria-label={`${label} 入力方式`}
+          data={[
+            { value: 'number', label: 'number' },
+            { value: 'formula', label: 'formula' }
+          ]}
+          value={mode}
+          onChange={(nextMode) => {
+            const constraintMode = nextMode as ConstraintInputMode
+            onChange(constraintMode === 'formula' ? { formula: '' } : required ? 0 : undefined)
+          }}
+        />
+      </Stack>
+      {mode === 'number' ? (
+        <NumberInput
+          label={label}
+          value={typeof value === 'number' ? value : ''}
+          onChange={(nextValue) =>
+            onChange(typeof nextValue === 'number' ? nextValue : required ? 0 : undefined)
+          }
+        />
+      ) : (
+        <TextInput
+          label={`${label} formula`}
+          value={typeof value === 'object' ? value.formula : ''}
+          onChange={(event) => onChange({ formula: event.currentTarget.value })}
+        />
+      )}
+    </Group>
+  )
+}
+
+type SectionBlock = NonNullable<SheetSection['blocks']>[number]
+type SectionPool = NonNullable<SheetSection['pools']>[number]
+
+interface SectionBlocksInputProps {
+  value?: SectionBlock[]
+  onChange: (value: SectionBlock[] | undefined) => void
+}
+
+function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
+  const updateBlock = (index: number, patch: Partial<SectionBlock>) => {
+    onChange(value.map((block, currentIndex) => (currentIndex === index ? { ...block, ...patch } : block)))
+  }
+
+  const removeBlock = (index: number) => {
+    const nextValue = value.filter((_, currentIndex) => currentIndex !== index)
+    onChange(nextValue.length > 0 ? nextValue : undefined)
+  }
+
+  const moveBlock = (index: number, offset: -1 | 1) => {
+    const nextIndex = index + offset
+    const block = value[index]
+    const target = value[nextIndex]
+    if (!block || !target) return
+    const nextValue = [...value]
+    nextValue[index] = target
+    nextValue[nextIndex] = block
+    onChange(nextValue)
+  }
+
+  return (
+    <Stack gap="xs">
+      <Text fw={500}>blocks</Text>
+      {value.map((block, index) => (
+        <Paper key={index} withBorder p="sm" radius="sm">
+          <Stack gap="xs">
+            <Group grow align="end">
+              <TextInput
+                label={`blocks ${index + 1} id`}
+                value={block.id}
+                onChange={(event) => updateBlock(index, { id: event.currentTarget.value })}
+              />
+              <TextInput
+                label={`blocks ${index + 1} label`}
+                value={block.label}
+                onChange={(event) => updateBlock(index, { label: event.currentTarget.value })}
+              />
+              <Group gap={4} grow={false} wrap="nowrap">
+                <Button
+                  aria-label={`blocks ${index + 1} を上へ`}
+                  variant="subtle"
+                  disabled={index === 0}
+                  onClick={() => moveBlock(index, -1)}
+                >
+                  ↑
+                </Button>
+                <Button
+                  aria-label={`blocks ${index + 1} を下へ`}
+                  variant="subtle"
+                  disabled={index === value.length - 1}
+                  onClick={() => moveBlock(index, 1)}
+                >
+                  ↓
+                </Button>
+                <Button
+                  aria-label={`blocks ${index + 1} を削除`}
+                  color="red"
+                  variant="subtle"
+                  onClick={() => removeBlock(index)}
+                >
+                  <IconTrash size={16} />
+                </Button>
+              </Group>
+            </Group>
+            <ConstraintInput
+              label={`blocks ${index + 1} cap`}
+              value={block.cap}
+              onChange={(cap) => updateBlock(index, { cap })}
+            />
+          </Stack>
+        </Paper>
+      ))}
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={16} />}
+        onClick={() => onChange([...value, { id: '', label: '' }])}
+      >
+        block 追加
+      </Button>
+    </Stack>
+  )
+}
+
+interface SectionPoolsInputProps {
+  section: SheetSection
+  onChange: (value: SectionPool[] | undefined) => void
+}
+
+function SectionPoolsInput({ section, onChange }: SectionPoolsInputProps) {
+  const value = section.pools ?? []
+  const declaredPartsKeys = section.fields.flatMap((field) =>
+    field.type === 'scalar' ? (field.partsKeys ?? []).map((partKey) => partKey.id) : []
+  )
+  const partsKeyOptions = [...new Set(declaredPartsKeys.filter(Boolean))]
+  // フィールド詳細の blockId 候補と同じ導出。片側だけ変更しない。
+  const blockOptions = [...new Set((section.blocks ?? []).map((block) => block.id).filter(Boolean))]
+
+  const updatePool = (index: number, patch: Partial<SectionPool>) => {
+    onChange(value.map((pool, currentIndex) => (currentIndex === index ? { ...pool, ...patch } : pool)))
+  }
+
+  const removePool = (index: number) => {
+    const nextValue = value.filter((_, currentIndex) => currentIndex !== index)
+    onChange(nextValue.length > 0 ? nextValue : undefined)
+  }
+
+  return (
+    <Stack gap="xs">
+      <Text fw={500}>pools</Text>
+      {value.map((pool, index) => (
+        <Paper key={index} withBorder p="sm" radius="sm">
+          <Stack gap="xs">
+            <Group grow align="end">
+              <TextInput
+                label={`pools ${index + 1} id`}
+                value={pool.id}
+                onChange={(event) => updatePool(index, { id: event.currentTarget.value })}
+              />
+              <TextInput
+                label={`pools ${index + 1} label`}
+                value={pool.label}
+                onChange={(event) => updatePool(index, { label: event.currentTarget.value })}
+              />
+              <Button
+                aria-label={`pools ${index + 1} を削除`}
+                color="red"
+                variant="subtle"
+                onClick={() => removePool(index)}
+              >
+                <IconTrash size={16} />
+              </Button>
+            </Group>
+            <ConstraintInput
+              label={`pools ${index + 1} total`}
+              value={pool.total}
+              required
+              onChange={(total) => updatePool(index, { total })}
+            />
+            <Group grow align="end">
+              <Autocomplete
+                label={`pools ${index + 1} partsKey`}
+                data={partsKeyOptions}
+                value={pool.partsKey}
+                onChange={(partsKey) => updatePool(index, { partsKey })}
+              />
+              <MultiSelect
+                label={`pools ${index + 1} scope`}
+                data={blockOptions}
+                value={pool.scope ?? []}
+                onChange={(scope) => updatePool(index, { scope: scope.length > 0 ? scope : undefined })}
+              />
+            </Group>
+            {pool.scope && pool.scope.length > 0 && (
+              <Button
+                aria-label={`pools ${index + 1} scope clear`}
+                size="xs"
+                variant="subtle"
+                onClick={() => updatePool(index, { scope: undefined })}
+              >
+                scope を全解除
+              </Button>
+            )}
+          </Stack>
+        </Paper>
+      ))}
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={16} />}
+        onClick={() => onChange([...value, { id: '', label: '', total: 0, partsKey: '' }])}
+      >
+        pool 追加
+      </Button>
+    </Stack>
+  )
+}
+
+interface PartsKeysInputProps {
+  value?: Array<{ id: string; label: string }>
+  disabled: boolean
+  onChange: (value: Array<{ id: string; label: string }> | undefined) => void
+}
+
+function PartsKeysInput({ value = [], disabled, onChange }: PartsKeysInputProps) {
+  const updatePartKey = (index: number, patch: Partial<{ id: string; label: string }>) => {
+    onChange(value.map((partKey, currentIndex) => (currentIndex === index ? { ...partKey, ...patch } : partKey)))
+  }
+
+  const removePartKey = (index: number) => {
+    const nextValue = value.filter((_, currentIndex) => currentIndex !== index)
+    onChange(nextValue.length > 0 ? nextValue : undefined)
+  }
+
+  return (
+    <Stack gap="xs">
+      <Text fw={500}>partsKeys</Text>
+      {disabled && (
+        <Text size="sm" c="orange">
+          parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。
+        </Text>
+      )}
+      {value.map((partKey, index) => (
+        <Group key={index} grow align="end" wrap="nowrap">
+          <TextInput
+            label={`partsKeys ${index + 1} id`}
+            value={partKey.id}
+            disabled={disabled}
+            onChange={(event) => updatePartKey(index, { id: event.currentTarget.value })}
+          />
+          <TextInput
+            label={`partsKeys ${index + 1} label`}
+            value={partKey.label}
+            disabled={disabled}
+            onChange={(event) => updatePartKey(index, { label: event.currentTarget.value })}
+          />
+          <Button
+            aria-label={`partsKeys ${index + 1} を削除`}
+            color="red"
+            variant="subtle"
+            disabled={disabled}
+            onClick={() => removePartKey(index)}
+          >
+            <IconTrash size={16} />
+          </Button>
+        </Group>
+      ))}
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={16} />}
+        disabled={disabled}
+        onClick={() => onChange([...value, { id: '', label: '' }])}
+      >
+        parts キー追加
+      </Button>
+    </Stack>
+  )
+}
+
 export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [template, setTemplate] = useState<CharacterSheetTemplateEntity>(initialTemplate)
   const [activeSectionId, setActiveSectionId] = useState(initialTemplate.sections[0]?.id ?? '')
@@ -90,8 +394,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     [activeSectionId, template.sections]
   )
   const selectedField = useMemo(
-    () => template.sections.flatMap((section) => section.fields).find((field) => field.uid === selectedFieldUid),
-    [selectedFieldUid, template.sections]
+    () => activeSection?.fields.find((field) => field.uid === selectedFieldUid),
+    [activeSection, selectedFieldUid]
   )
 
   const isSaving = inFlightIntent !== null
@@ -424,7 +728,14 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
               </Button>
             </Group>
 
-            <Tabs mt="md" value={activeSection?.id ?? ''} onChange={(value) => value && setActiveSectionId(value)}>
+            <Tabs
+              mt="md"
+              value={activeSection?.id ?? ''}
+              onChange={(value) => {
+                if (!value) return
+                setActiveSectionId(value)
+              }}
+            >
               <Tabs.List>
                 {template.sections.map((section) => (
                   <Tabs.Tab key={section.id} value={section.id}>
@@ -462,6 +773,18 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     削除
                   </Button>
                 </Group>
+
+                <Divider />
+
+                <SectionBlocksInput
+                  value={activeSection.blocks}
+                  onChange={(blocks) => updateSection(activeSection.id, { blocks })}
+                />
+
+                <SectionPoolsInput
+                  section={activeSection}
+                  onChange={(pools) => updateSection(activeSection.id, { pools })}
+                />
 
                 <Divider />
 
@@ -544,7 +867,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       updateField(selectedField.uid, { label: event.currentTarget.value } as Partial<SheetField>)
                     }
                   />
-                </SimpleGrid>
+                  </SimpleGrid>
                 <Textarea
                   label="description"
                   value={selectedField.description ?? ''}
@@ -553,7 +876,32 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       description: event.currentTarget.value || undefined
                     } as Partial<SheetField>)
                   }
+                  />
+                {/* SectionPoolsInput の blockOptions と同じ導出。片側だけ変更しない。 */}
+                <Autocomplete
+                  label="blockId"
+                  data={[...new Set((activeSection?.blocks ?? []).map((block) => block.id).filter(Boolean))]}
+                  value={selectedField.blockId ?? ''}
+                  onChange={(blockId) =>
+                    updateField(selectedField.uid, {
+                      blockId: blockId || undefined
+                    })
+                  }
                 />
+                {selectedField.type === 'scalar' && selectedField.valueType === 'number' && (
+                  <>
+                    <ConstraintInput
+                      label="max"
+                      value={selectedField.max}
+                      onChange={(max) => updateField(selectedField.uid, { max })}
+                    />
+                    <PartsKeysInput
+                      value={selectedField.partsKeys}
+                      disabled={selectedField.parts === true}
+                      onChange={(partsKeys) => updateField(selectedField.uid, { partsKeys })}
+                    />
+                  </>
+                )}
                 {selectedField.type === 'scalar' && selectedField.valueType === 'select' && (
                   <Textarea
                     label="options"

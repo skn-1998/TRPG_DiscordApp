@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import { MantineProvider } from '@mantine/core'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import layoutNormalizationCases from '@trpg/sheet-engine/fixtures/layout-normalization.json'
 import { validatePublishTemplate } from '@trpg/sheet-engine'
 import { saveTemplateDraft } from '../actions'
@@ -60,6 +60,30 @@ function renderEditor(template = initialTemplate) {
     </MantineProvider>
   )
 }
+
+function templateWithField(field: SheetField): CharacterSheetTemplateEntity {
+  return {
+    ...initialTemplate,
+    sections: [{ id: 'test', label: 'test', fields: [field] }]
+  }
+}
+
+function templateWithSection(section: SheetSection): CharacterSheetTemplateEntity {
+  return { ...initialTemplate, sections: [section] }
+}
+
+const blockIdFieldCases: Array<[string, SheetField]> = [
+  ['text', { id: 'text', uid: 'uid_text', label: 'text', type: 'scalar', valueType: 'text' }],
+  [
+    'computed',
+    { id: 'computed', uid: 'uid_computed', label: 'computed', type: 'computed', resultType: 'number', formula: '0' }
+  ],
+  ['roll', { id: 'roll', uid: 'uid_roll', label: 'roll', type: 'roll', notation: '1d100' }],
+  ['track', { id: 'track', uid: 'uid_track', label: 'track', type: 'track', max: 10, style: 'gauge' }],
+  ['list', { id: 'list', uid: 'uid_list', label: 'list', type: 'list', itemFields: [] }],
+  ['relation', { id: 'relation', uid: 'uid_relation', label: 'relation', type: 'relation' }],
+  ['tag', { id: 'tag', uid: 'uid_tag', label: 'tag', type: 'tag' }]
+]
 
 function toPersistableSections(sections: LayoutFixtureSection[]): SheetSection[] {
   return sections.map((section) => ({
@@ -233,5 +257,398 @@ describe('TemplateEditorV3 publish validation warnings', () => {
 
     expect(publishResult.warnings).toEqual([])
     expect(screen.queryByText('検証警告')).toBeNull()
+  })
+})
+
+describe('TemplateEditorV3 field annotations', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    mockedSaveTemplateDraft.mockImplementation(async (_templateId, _intent, payload) => ({
+      template: { ...payload, draftRevision: payload.draftRevision + 1 }
+    }))
+  })
+
+  afterEach(() => {
+    cleanup()
+    jest.useRealTimers()
+  })
+
+  it.each(blockIdFieldCases)('%s field の blockId を set/clear する', async (_fieldType, field) => {
+    renderEditor(
+      templateWithSection({
+        id: 'test',
+        label: 'test',
+        blocks: [{ id: 'combat', label: '戦闘' }],
+        fields: [field]
+      })
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'blockId' }), { target: { value: 'combat' } })
+    await advanceAutosave()
+
+    const setField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(setField?.blockId).toBe('combat')
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'blockId' }), { target: { value: '' } })
+    await advanceAutosave()
+
+    const clearedField = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]
+    expect(clearedField?.blockId).toBeUndefined()
+    expect(JSON.stringify(clearedField)).not.toContain('blockId')
+  })
+
+  it('blockId 候補は field が属する section の block id のみにする', () => {
+    renderEditor({
+      ...initialTemplate,
+      sections: [
+        {
+          id: 'first',
+          label: 'first',
+          blocks: [
+            { id: 'combat', label: '戦闘' },
+            { id: 'social', label: '交渉' }
+          ],
+          fields: [{ id: 'first_field', uid: 'uid_first', label: 'first field', type: 'scalar', valueType: 'text' }]
+        },
+        {
+          id: 'second',
+          label: 'second',
+          blocks: [{ id: 'foreign', label: '別セクション' }],
+          fields: [{ id: 'second_field', uid: 'uid_second', label: 'second field', type: 'scalar', valueType: 'text' }]
+        }
+      ]
+    })
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'blockId' }))
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['combat', 'social'])
+    expect(screen.queryByRole('option', { name: 'foreign' })).toBeNull()
+  })
+
+  it('section タブ切替時に field 詳細を閉じ、元のタブへ戻ると復元する', () => {
+    renderEditor({
+      ...initialTemplate,
+      sections: [
+        {
+          id: 'first',
+          label: 'first',
+          fields: [{ id: 'first_field', uid: 'uid_first', label: 'first field', type: 'scalar', valueType: 'text' }]
+        },
+        {
+          id: 'second',
+          label: 'second',
+          fields: [{ id: 'second_field', uid: 'uid_second', label: 'second field', type: 'scalar', valueType: 'text' }]
+        }
+      ]
+    })
+
+    expect(screen.getByText('フィールド詳細')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('tab', { name: 'second' })[0]!)
+    expect(screen.queryByText('フィールド詳細')).toBeNull()
+    fireEvent.click(screen.getAllByRole('tab', { name: 'first' })[0]!)
+    expect(screen.getByText('フィールド詳細')).toBeTruthy()
+    expect(screen.getByDisplayValue('first_field')).toBeTruthy()
+  })
+
+  it('number scalar の max を number/formula で set/clear する', async () => {
+    renderEditor(
+      templateWithField({ id: 'score', uid: 'uid_score', label: 'score', type: 'scalar', valueType: 'number' })
+    )
+
+    fireEvent.change(screen.getByLabelText('max'), { target: { value: '99' } })
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({ max: 99 })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'formula' }))
+    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '{ability.edu}' } })
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
+      max: { formula: '{ability.edu}' }
+    })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'number' }))
+    await advanceAutosave()
+    const clearedField = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]?.fields[0]
+    expect((clearedField as { max?: unknown }).max).toBeUndefined()
+    expect(JSON.stringify(clearedField)).not.toContain('max')
+  })
+
+  it('非 required の formula を空にしても入力欄を維持し、式を打ち直せる', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'score',
+        uid: 'uid_score',
+        label: 'score',
+        type: 'scalar',
+        valueType: 'number',
+        max: { formula: '{ability.edu}' }
+      })
+    )
+
+    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '' } })
+    expect(screen.getByLabelText('max formula')).toBeTruthy()
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
+      max: { formula: '' }
+    })
+
+    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '{ability.dex} * 2' } })
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
+      max: { formula: '{ability.dex} * 2' }
+    })
+  })
+
+  it.each([
+    ['text scalar', { id: 'text', uid: 'uid_text', label: 'text', type: 'scalar', valueType: 'text' }],
+    ['computed', { id: 'computed', uid: 'uid_computed', label: 'computed', type: 'computed', resultType: 'number', formula: '0' }]
+  ] as Array<[string, SheetField]>)('%s には max/partsKeys を表示しない', (_fieldType, field) => {
+    renderEditor(templateWithField(field))
+
+    expect(screen.queryByLabelText('max')).toBeNull()
+    expect(screen.queryByText('partsKeys')).toBeNull()
+  })
+
+  it('partsKeys の id/label 行を追加・編集し、最終行の削除で property を落とす', async () => {
+    renderEditor(
+      templateWithField({ id: 'score', uid: 'uid_score', label: 'score', type: 'scalar', valueType: 'number' })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'parts キー追加' }))
+    fireEvent.change(screen.getByLabelText('partsKeys 1 id'), { target: { value: 'career' } })
+    fireEvent.change(screen.getByLabelText('partsKeys 1 label'), { target: { value: '職業' } })
+    expect(screen.queryByLabelText('partsKeys 1 formula')).toBeNull()
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
+      partsKeys: [{ id: 'career', label: '職業' }]
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'partsKeys 1 を削除' }))
+    await advanceAutosave()
+
+    const clearedField = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]
+    expect((clearedField as { partsKeys?: unknown }).partsKeys).toBeUndefined()
+    expect(JSON.stringify(clearedField)).not.toContain('partsKeys')
+  })
+
+  it('parts:true の number scalar では partsKeys 編集を無効化する', () => {
+    renderEditor(
+      templateWithField({
+        id: 'score',
+        uid: 'uid_score',
+        label: 'score',
+        type: 'scalar',
+        valueType: 'number',
+        parts: true
+      })
+    )
+
+    expect(screen.getByText('parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'parts キー追加' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('TemplateEditorV3 section blocks and pools', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    mockedSaveTemplateDraft.mockImplementation(async (_templateId, _intent, payload) => ({
+      template: { ...payload, draftRevision: payload.draftRevision + 1 }
+    }))
+  })
+
+  afterEach(() => {
+    cleanup()
+    jest.useRealTimers()
+  })
+
+  it('blocks を追加・編集・並べ替えし、cap と最終行の clear で property を落とす', async () => {
+    renderEditor(templateWithSection({ id: 'test', label: 'test', fields: [] }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'block 追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'block 追加' }))
+    fireEvent.change(screen.getByLabelText('blocks 1 id'), { target: { value: 'combat' } })
+    fireEvent.change(screen.getByLabelText('blocks 1 label'), { target: { value: '戦闘' } })
+    fireEvent.change(screen.getByLabelText('blocks 1 cap'), { target: { value: '80' } })
+    fireEvent.change(screen.getByLabelText('blocks 2 id'), { target: { value: 'social' } })
+    fireEvent.change(screen.getByLabelText('blocks 2 label'), { target: { value: '交渉' } })
+    const secondCapMode = screen.getByLabelText('blocks 2 cap 入力方式')
+    fireEvent.click(within(secondCapMode).getByRole('radio', { name: 'formula' }))
+    fireEvent.change(screen.getByLabelText('blocks 2 cap formula'), { target: { value: '{ability.edu}' } })
+    fireEvent.click(screen.getByRole('button', { name: 'blocks 2 を上へ' }))
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.blocks).toEqual([
+      { id: 'social', label: '交渉', cap: { formula: '{ability.edu}' } },
+      { id: 'combat', label: '戦闘', cap: 80 }
+    ])
+
+    const firstCapMode = screen.getByLabelText('blocks 1 cap 入力方式')
+    fireEvent.click(within(firstCapMode).getByRole('radio', { name: 'number' }))
+    await advanceAutosave()
+    const clearedCap = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.blocks?.[0]
+    expect(clearedCap?.cap).toBeUndefined()
+    expect(JSON.stringify(clearedCap)).not.toContain('cap')
+
+    fireEvent.click(screen.getByRole('button', { name: 'blocks 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'blocks 1 を削除' }))
+    await advanceAutosave()
+    const clearedBlocksSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
+    expect(clearedBlocksSection?.blocks).toBeUndefined()
+    expect(JSON.stringify(clearedBlocksSection)).not.toContain('blocks')
+  })
+
+  it('number の cap を formula に切り替えて式を保存する', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'test',
+        label: 'test',
+        blocks: [{ id: 'combat', label: '戦闘', cap: 80 }],
+        fields: []
+      })
+    )
+
+    const capMode = screen.getByLabelText('blocks 1 cap 入力方式')
+    fireEvent.click(within(capMode).getByRole('radio', { name: 'formula' }))
+    const formulaInput = screen.getByLabelText('blocks 1 cap formula')
+    expect(formulaInput).toBeTruthy()
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.blocks?.[0]?.cap).toEqual({ formula: '' })
+
+    fireEvent.change(formulaInput, { target: { value: '{ability.edu}' } })
+    await advanceAutosave()
+
+    const savedBlock = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.blocks?.[0]
+    expect(savedBlock?.cap).toEqual({ formula: '{ability.edu}' })
+    expect(JSON.stringify(savedBlock)).toContain('"formula":"{ability.edu}"')
+  })
+
+  it('pool 先頭行の削除後も生き残る total の formula と値を保持する', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'test',
+        label: 'test',
+        fields: [],
+        pools: [
+          { id: 'numeric', label: '数値', total: 10, partsKey: 'career' },
+          { id: 'formula', label: '式', total: { formula: '{x}' }, partsKey: 'career' }
+        ]
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'pools 1 を削除' }))
+
+    const formulaInput = screen.getByLabelText('pools 1 total formula') as HTMLInputElement
+    expect(formulaInput.value).toBe('{x}')
+    await advanceAutosave()
+
+    const savedPool = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.pools?.[0]
+    expect(savedPool?.total).toEqual({ formula: '{x}' })
+    expect(JSON.stringify(savedPool)).toContain('"formula":"{x}"')
+  })
+
+  it('partsKey/scope の選択肢と自由入力を反映し、scope/pools clear 後も total を保持する', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'test',
+        label: 'test',
+        blocks: [
+          { id: 'combat', label: '戦闘' },
+          { id: 'social', label: '交渉' }
+        ],
+        fields: [
+          {
+            id: 'score',
+            uid: 'uid_score',
+            label: 'score',
+            type: 'scalar',
+            valueType: 'number',
+            partsKeys: [
+              { id: 'career', label: '職業' },
+              { id: 'hobby', label: '趣味' }
+            ]
+          }
+        ]
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'pool 追加' }))
+    fireEvent.change(screen.getByLabelText('pools 1 id'), { target: { value: 'career_pool' } })
+    fireEvent.change(screen.getByLabelText('pools 1 label'), { target: { value: '職業ポイント' } })
+    const totalMode = screen.getByLabelText('pools 1 total 入力方式')
+    fireEvent.click(within(totalMode).getByRole('radio', { name: 'formula' }))
+    fireEvent.change(screen.getByLabelText('pools 1 total formula'), {
+      target: { value: '{ability.edu} * 2' }
+    })
+
+    const partsKeyInput = screen.getByRole('combobox', { name: 'pools 1 partsKey' })
+    fireEvent.focus(partsKeyInput)
+    const partsKeyOptions = screen.getAllByRole('option').map((option) => option.textContent)
+    expect(partsKeyOptions).toEqual(['career', 'hobby'])
+    expect(partsKeyOptions).not.toContain('base')
+    expect(partsKeyOptions).not.toContain('other')
+    fireEvent.change(partsKeyInput, { target: { value: 'custom' } })
+
+    const scopeInput = screen.getByRole('combobox', { name: 'pools 1 scope' })
+    fireEvent.click(scopeInput)
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['combat', 'social'])
+    fireEvent.click(screen.getByRole('option', { name: 'combat' }))
+    fireEvent.click(screen.getByRole('option', { name: 'social' }))
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.pools).toEqual([
+      {
+        id: 'career_pool',
+        label: '職業ポイント',
+        total: { formula: '{ability.edu} * 2' },
+        partsKey: 'custom',
+        scope: ['combat', 'social']
+      }
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'pools 1 scope clear' }))
+    fireEvent.change(screen.getByLabelText('pools 1 total formula'), { target: { value: '' } })
+    await advanceAutosave()
+    const clearedPool = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.pools?.[0]
+    expect(clearedPool?.total).toEqual({ formula: '' })
+    expect(clearedPool?.scope).toBeUndefined()
+    expect(JSON.stringify(clearedPool)).not.toContain('scope')
+
+    fireEvent.click(screen.getByRole('button', { name: 'pools 1 を削除' }))
+    await advanceAutosave()
+    const clearedPoolsSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
+    expect(clearedPoolsSection?.pools).toBeUndefined()
+    expect(JSON.stringify(clearedPoolsSection)).not.toContain('pools')
+  })
+
+  it('MultiSelect で scope をすべて外すと property を落とす', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'test',
+        label: 'test',
+        blocks: [
+          { id: 'combat', label: '戦闘' },
+          { id: 'social', label: '交渉' }
+        ],
+        fields: [],
+        pools: [
+          {
+            id: 'career_pool',
+            label: '職業ポイント',
+            total: 10,
+            partsKey: 'career',
+            scope: ['combat', 'social']
+          }
+        ]
+      })
+    )
+
+    const scopeInput = screen.getByRole('combobox', { name: 'pools 1 scope' })
+    fireEvent.keyDown(scopeInput, { key: 'Backspace' })
+    fireEvent.keyDown(scopeInput, { key: 'Backspace' })
+    await advanceAutosave()
+
+    const savedPool = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.pools?.[0]
+    expect(savedPool?.scope).toBeUndefined()
+    expect(JSON.stringify(savedPool)).not.toContain('scope')
   })
 })
