@@ -1,4 +1,4 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import * as sheetEngine from '@trpg/sheet-engine'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
@@ -1136,6 +1136,13 @@ describe('CharacterSheetOperationService', () => {
     })
 
     it('effectiveDelta=0 でも interaction id を同一saveに記録する', async () => {
+      current = {
+        ...current,
+        palette: (current.palette ?? []).map((entry) =>
+          entry.kind === 'resource' ? { ...entry, deltas: [...entry.deltas, 0] } : entry
+        )
+      }
+
       const result = await service.applyResourceDelta({
         channelId: 'channel-1',
         paletteKey: 'resource-hp',
@@ -1179,7 +1186,64 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
     })
 
-    it('範囲外legacy partsへの-3は保存しつつ実効値がmaxのまま変わらないと返す', async () => {
+    it('未宣言deltaはresource palette entry not foundとして保存しない', async () => {
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: {
+            ...current.sheet!.values,
+            'uid-hp': { parts: { base: 999, buff: 0, temp: 0, other: 0 } }
+          }
+        }
+      })
+
+      const failure = await service
+        .applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: -3,
+          interaction: { id: 'interaction-undeclared-legacy-high' }
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(NotFoundException)
+      expect((failure as NotFoundException).message).toBe('resource palette entry not found')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('宣言集合変更後のstale deltaはresource palette entry not foundとして保存しない', async () => {
+      current = {
+        ...current,
+        palette: (current.palette ?? []).map((entry) => (entry.kind === 'resource' ? { ...entry, deltas: [1] } : entry))
+      }
+
+      const failure = await service
+        .applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: -1,
+          interaction: { id: 'interaction-stale-delta' }
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(NotFoundException)
+      expect((failure as NotFoundException).message).toBe('resource palette entry not found')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('宣言済みdeltaは従来どおり適用して保存する', async () => {
+      const result = await service.applyResourceDelta({
+        channelId: 'channel-1',
+        paletteKey: 'resource-hp',
+        delta: -1,
+        interaction: { id: 'interaction-declared-delta' }
+      })
+
+      expect(result).toEqual(expect.objectContaining({ noOp: false, effectiveDelta: -1 }))
+      expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
+    })
+
+    it('範囲外legacy partsへの宣言済み-5は保存しつつ実効値がmaxのまま変わらないと返す', async () => {
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -1193,14 +1257,14 @@ describe('CharacterSheetOperationService', () => {
       const result = await service.applyResourceDelta({
         channelId: 'channel-1',
         paletteKey: 'resource-hp',
-        delta: -3,
-        interaction: { id: 'interaction-legacy-high' }
+        delta: -5,
+        interaction: { id: 'interaction-declared-legacy-high' }
       })
 
       expect(result).toEqual(
         expect.objectContaining({
           noOp: false,
-          effectiveDelta: -3,
+          effectiveDelta: -5,
           beforeEffectiveValue: 10,
           afterEffectiveValue: 10,
           atBound: 'max'
@@ -1210,7 +1274,7 @@ describe('CharacterSheetOperationService', () => {
         'character-1',
         expect.objectContaining({
           values: expect.objectContaining({
-            'uid-hp': { parts: { base: 999, buff: 0, temp: 0, other: -3 } }
+            'uid-hp': { parts: { base: 999, buff: 0, temp: 0, other: -5 } }
           })
         }),
         1
@@ -1232,7 +1296,10 @@ describe('CharacterSheetOperationService', () => {
             ...current.sheet!.values,
             'uid-hp': { parts: { base: -999, buff: 0, temp: 0, other: 0 } }
           }
-        }
+        },
+        palette: (current.palette ?? []).map((entry) =>
+          entry.kind === 'resource' ? { ...entry, deltas: [...entry.deltas, 3] } : entry
+        )
       })
 
       const result = await service.applyResourceDelta({
