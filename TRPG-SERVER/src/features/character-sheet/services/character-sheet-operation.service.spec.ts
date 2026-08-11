@@ -9,6 +9,7 @@ import { CharacterRepository } from '../../../domains/character/repositories/cha
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateRepository } from '../../../domains/character-sheet-template/repositories/character-sheet-template.repository'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
+import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import type { TemplateValidationPort } from '../../../domains/character-sheet-template/validation/template-validation.port'
 import { CharacterSheetOperationService, HubProjectionPreparationError } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
@@ -82,6 +83,63 @@ describe('CharacterSheetOperationService', () => {
     settings: { rounding: 'floor' },
     draftRevision: 1
   }
+
+  type PartsKeyMode = 'declared' | 'parts:true'
+
+  const partsKeyAcceptanceCases: ReadonlyArray<{
+    mode: PartsKeyMode
+    partsKey: string
+    accepted: boolean
+  }> = [
+    { mode: 'declared', partsKey: 'career', accepted: true },
+    { mode: 'declared', partsKey: 'undeclared', accepted: false },
+    { mode: 'declared', partsKey: 'base', accepted: true },
+    { mode: 'declared', partsKey: 'other', accepted: true },
+    { mode: 'declared', partsKey: '__proto__', accepted: false },
+    { mode: 'declared', partsKey: 'constructor', accepted: false },
+    { mode: 'declared', partsKey: 'prototype', accepted: false },
+    { mode: 'declared', partsKey: '', accepted: false },
+    { mode: 'parts:true', partsKey: 'career', accepted: true },
+    { mode: 'parts:true', partsKey: 'undeclared', accepted: true },
+    { mode: 'parts:true', partsKey: 'base', accepted: true },
+    { mode: 'parts:true', partsKey: 'other', accepted: true },
+    { mode: 'parts:true', partsKey: '__proto__', accepted: false },
+    { mode: 'parts:true', partsKey: 'constructor', accepted: false },
+    { mode: 'parts:true', partsKey: 'prototype', accepted: false },
+    { mode: 'parts:true', partsKey: '', accepted: true }
+  ]
+
+  const makePartsKeyTemplate = (mode: PartsKeyMode): CharacterSheetTemplateEntity => ({
+    ...template,
+    sections: [
+      {
+        id: 'status',
+        label: 'Status',
+        fields: [
+          mode === 'declared'
+            ? {
+                id: 'score',
+                uid: 'uid-score',
+                label: 'Score',
+                type: 'scalar',
+                valueType: 'number',
+                partsKeys: [{ id: 'career', label: 'Career' }]
+              }
+            : {
+                id: 'score',
+                uid: 'uid-score',
+                label: 'Score',
+                type: 'scalar',
+                valueType: 'number',
+                parts: true
+              }
+        ]
+      }
+    ]
+  })
+
+  const makeOwnParts = (partsKey: string, value: number): Record<string, number> =>
+    JSON.parse(`{${JSON.stringify(partsKey)}:${value}}`) as Record<string, number>
 
   const makeFormulaMaxTemplate = (): CharacterSheetTemplateEntity => ({
     ...template,
@@ -596,6 +654,89 @@ describe('CharacterSheetOperationService', () => {
         1
       )
     })
+
+    it("partsKey='__proto__' は422で拒否し、値の書き込みも保存もしない", async () => {
+      const before = current.sheet!.values['uid-score']
+
+      const promise = service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [{ path: { fieldUid: 'uid-score', partsKey: '__proto__' }, baseValue: undefined, newValue: 1 }]
+      })
+
+      await expect(promise).rejects.toMatchObject({ status: 422 })
+      expect(current.sheet!.values['uid-score']).toEqual(before)
+      expect(materializer.materialize).not.toHaveBeenCalled()
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('宣言モードの undeclared partsKey は422で拒否し、保存しない', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makePartsKeyTemplate('declared'))
+
+      const promise = service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [{ path: { fieldUid: 'uid-score', partsKey: 'undeclared' }, baseValue: undefined, newValue: 1 }]
+      })
+
+      await expect(promise).rejects.toMatchObject({ status: 422 })
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('宣言モードの declared partsKey は適用して保存する', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makePartsKeyTemplate('declared'))
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: { ...current.sheet!.values, 'uid-score': { parts: { career: 0 } } }
+        }
+      })
+
+      await expect(
+        service.saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'career' }, baseValue: 0, newValue: 1 }]
+        })
+      ).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+      expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(partsKeyAcceptanceCases)(
+      'engine入力境界と操作層のpartsKey受理を一致させる: $mode / "$partsKey"',
+      async ({ mode, partsKey, accepted }) => {
+        const partsKeyTemplate = makePartsKeyTemplate(mode)
+        templateService.resolvePinnedRevision.mockResolvedValue(partsKeyTemplate)
+        current = makeCharacter({
+          sheet: {
+            ...current.sheet!,
+            values: { ...current.sheet!.values, 'uid-score': { parts: {} } }
+          }
+        })
+
+        const engineAccepted = sheetEngine
+          .buildValueInputSchema(toEngineTemplate(partsKeyTemplate))
+          .safeParse({ 'uid-score': { parts: makeOwnParts(partsKey, 1) } }).success
+        expect(engineAccepted).toBe(accepted)
+
+        const operation = service.saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey }, baseValue: undefined, newValue: 1 }]
+        })
+
+        if (engineAccepted) {
+          await expect(operation).resolves.toEqual(
+            expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 })
+          )
+          expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
+          return
+        }
+
+        await expect(operation).rejects.toMatchObject({ status: 422 })
+        expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+      }
+    )
 
     it("plain number は partsKey='base' の current として比較して parts へ昇格する", async () => {
       current = makeCharacter({
