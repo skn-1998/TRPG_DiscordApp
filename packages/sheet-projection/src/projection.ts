@@ -90,10 +90,6 @@ function isRenderableCustomIdPart(value: string): boolean {
   return SAFE_PROJECTION_ID_PATTERN.test(value)
 }
 
-function isRenderableResourceDelta(canonicalDelta: string | null): canonicalDelta is string {
-  return canonicalDelta !== null
-}
-
 function validateIdPart(value: string, path: string, warnings: ProjectionWarning[]): boolean {
   if (isRenderableCustomIdPart(value)) return true
   warnings.push({
@@ -153,20 +149,19 @@ function hashGroupId(value: string): string {
   return `g${(hash >>> 0).toString(36)}`
 }
 
-function countGroupActions(palette: readonly ProjectionPaletteEntry[], group: string): number {
-  return palette.reduce((count, entry) => {
-    if (entry.group !== group || !isRenderableCustomIdPart(entry.key)) return count
-    if (entry.kind === 'roll') return count + 1
-    return count + entry.deltas.filter((delta) => isRenderableResourceDelta(canonicalizeResourceDelta(delta))).length
-  }, 0)
-}
-
 function createGroupReferences(
   palette: readonly ProjectionPaletteEntry[],
+  channelId: string,
   warnings: ProjectionWarning[]
 ): GroupReference[] {
+  const discardedWarnings: ProjectionWarning[] = []
   const sources = [...new Set(palette.map((entry) => entry.group))].filter((source) => {
-    if (countGroupActions(palette, source) > 0) return true
+    const hasActions = palette.some((entry) => {
+      if (entry.group !== source) return false
+      if (entry.kind === 'roll') return buildRollButton(entry, channelId, discardedWarnings) !== undefined
+      return buildResourceButtons(entry, channelId, discardedWarnings).length > 0
+    })
+    if (hasActions) return true
     const firstEntry = palette.find((entry) => entry.group === source)
     const fallback = firstEntry?.fieldRef.uid.split('.')[0] || firstEntry?.key || 'group'
     warnings.push({
@@ -340,7 +335,7 @@ function buildResourceButtons(
   const buttons: DiscordButtonModel[] = []
   for (const delta of entry.deltas) {
     const canonicalDelta = canonicalizeResourceDelta(delta)
-    if (!isRenderableResourceDelta(canonicalDelta)) {
+    if (canonicalDelta === null) {
       warnings.push({
         code: 'invalid-custom-id-part',
         message: `palette.${entry.key}.deltas contains a value without a canonical decimal customId representation; the action was omitted`,
@@ -415,7 +410,7 @@ function buildGroupSelect(
 ): Result<DiscordGroupSelectModel | undefined> {
   const warnings: ProjectionWarning[] = []
   if (!validateChannelId(channelId, warnings)) return { value: undefined, warnings }
-  const groups = createGroupReferences(palette, warnings)
+  const groups = createGroupReferences(palette, channelId, warnings)
   if (groups.length === 0) return { value: undefined, warnings }
   const menuCustomId = createHubGroupSelectCustomId(channelId)
   // validateChannelId above makes null unreachable; keep fail-closed.
@@ -455,9 +450,17 @@ function collectProjectionWarnings(input: DiscordProjectionInput): ProjectionWar
     if (entry.kind === 'roll') buildRollButton(entry, input.channelId, warnings)
     else buildResourceButtons(entry, input.channelId, warnings)
   }
-  const groups = createGroupReferences(input.palette, warnings)
+  const groups = createGroupReferences(input.palette, input.channelId, warnings)
+  const discardedWarnings: ProjectionWarning[] = []
   for (const group of groups) {
-    const actionCount = countGroupActions(input.palette, group.source)
+    const actionCount = input.palette
+      .filter((entry) => entry.group === group.source)
+      .reduce((count, entry) => {
+        if (entry.kind === 'roll') {
+          return count + (buildRollButton(entry, input.channelId, discardedWarnings) === undefined ? 0 : 1)
+        }
+        return count + buildResourceButtons(entry, input.channelId, discardedWarnings).length
+      }, 0)
     const lastPage = Math.max(1, Math.ceil(actionCount / PANEL_ACTIONS_PER_PAGE))
     acceptGeneratedCustomId(
       createHubPanelCustomId(input.channelId, group.id, lastPage),
@@ -547,7 +550,9 @@ function panelPageNavigation(
 
 export function createEphemeralPanel(input: EphemeralPanelInput): EphemeralPanelViewModel {
   const warnings: ProjectionWarning[] = []
-  const group = createGroupReferences(input.palette, warnings).find((candidate) => candidate.id === input.groupId)
+  const group = createGroupReferences(input.palette, input.channelId, warnings).find(
+    (candidate) => candidate.id === input.groupId
+  )
   const idsValid =
     validateChannelId(input.channelId, warnings) &&
     validateIdPart(input.groupId, 'groupId', warnings) &&
@@ -600,7 +605,7 @@ function browserPageNavigation(
 export function createGroupBrowser(input: GroupBrowserInput): GroupBrowserViewModel {
   const warnings: ProjectionWarning[] = []
   const channelValid = validateChannelId(input.channelId, warnings)
-  const groups = createGroupReferences(input.palette, warnings)
+  const groups = createGroupReferences(input.palette, input.channelId, warnings)
   const totalPages = Math.max(1, Math.ceil(groups.length / GROUP_BROWSER_PAGE_SIZE))
   const currentPage = clampPage(input.page, totalPages)
   const pageGroups = groups.slice(
