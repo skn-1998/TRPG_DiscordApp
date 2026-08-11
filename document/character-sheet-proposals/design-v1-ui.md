@@ -312,7 +312,7 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   | pool.scope 内に不在 blockId が混在 | **実在する blockId のみで合算**（全部不在なら消費 0） | あり |
   | pool.partsKey を宣言する field が scope 内に皆無 | 消費 0 | あり |
   | id 重複（blocks / pools / partsKeys） | 最初の定義を採用 | あり |
-  | `parts: true` と `partsKeys` の併存 | **parts: true（自由キー）を優先**し宣言キー制限を適用しない | なし（publish は併存を拒否しない・大粒度 #9 M4 で明文化） |
+  | `parts: true` と `partsKeys` の併存 | **parts: true（自由キー）を優先**し宣言キー制限を適用しない | なし（publish は併存を『parts and partsKeys must not be specified together』で拒否〔:581〕— 本行の規則は draft プレビュー限定で発火。大粒度 #9 M4・FIXA レビューで実測訂正） |
 - **grid セル内の parts 宣言フィールドは合計値のみ表示**（H-11。内訳はフォーカス時ポップオーバー編集）。
 - **予算バー・残り・超過警告・制約評価は sheet-engine 共通ロジック**（H-12 改・round1 #11）:
   利用面は **(1) エディタプレビュー・(2) フォーム・server materialize の三者**（契約2 の対象）。

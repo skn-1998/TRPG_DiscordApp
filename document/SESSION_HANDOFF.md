@@ -2074,12 +2074,40 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   width="target"・M1 棄却確定。**台帳訂正済み**: #15b 全面改訂〔(b) 訂正＋(d) 数値のみ emit〕・
   #15c 新設〔M2・非 parts 行 colSpan・M1 否定・spec 保留〕・H-6 述語 5 符号化・isRecord 6 定義。
   **design H-10 skew 表へ M4 の 1 行追記済み**（parts:true＋partsKeys 併存 = parts:true 優先）。
-  **BIG9-FIXA（engine）委譲中**〔bgxqpjq0u・prompt-big9-fixa-code.txt: value-input 宣言モード
-  認識＋宣言キー制限＋有限和検査＋publish .min(1)＋L3 assert＋整合 spec〕→ 検収後
-  **BIG9-FIXB（renderer）直列**〔数値のみ emit・stack→Popover・width="target"・field 単位
-  宣言判定・M5 意図コメント＋同値 spec・GridPartsField 統合・sentinel helper〕→ 合同小粒度
-  レビュー → **Fable 実ブラウザ検収**〔逐次 '-4' 入力・モバイル Popover 幅〕。消化後 →
-  U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）
+  **BIG9-FIXA 検収通過（2026-08-11）**: engine 482/482〔476＋6〕・contract-stack 全緑
+  〔front 279/279〕を Fable 独立再実行で確認。スポット読み一致〔allowsParts 拡張 :170・
+  宣言キー制限は parts!==true 時のみ = H-10 新行と整合・有限和 false 返し・publish .min(1)〕。
+  **ユーザー指示でコミットまでタスク化（2026-08-11）**: docs レーン 3 コミット済み
+  〔.gitignore trpg-remix-app ignore = df31c40・docs 裁定群 = 4bfc04b・fable-rules 二重
+  レビュー明文化 = 81638bc〕。残レーン = engine〔FIXA 二重レビュー通過後・tree 検証つき〕→
+  front〔FIXB 検収＋レビュー＋実ブラウザ後〕。push は指示範囲外。
+  **FIXA 二重レビュー = 両 needs-fix・同一根本原因へ独立到達**〔zod z.record が own __proto__ を
+  黙って落とし検査対象と下流実データが乖離 — 受理集合が三面で割れる 8 反例。統合 =
+  big9-fixa-integration.md: 生 parts 検査・UNSAFE parts key 全モード拒否・fail-open 全閉鎖/
+  fail-closed 許容記録・base/other 1 定義化・helper 分割。Opus が H-10 追記の「publish は併存を
+  拒否しない」を反証 → 訂正済み＋verify-claims メモリ 17 例目〕→ **FIXA-R2 検収通過**
+  〔engine 508/508〔482＋26〕・front 283/283 独立確認・24 特殊キーベクタ全拒否・スポット読み一致〕。
+  **FIXB 検収通過**〔283/283〔279＋4〕・emit ガード 3 経路・数値のみ emit・stack→Popover〕→
+  **FIXB 二重レビュー**〔Codex pass/low 1・Opus needs-fix F1-F10〕＋ **Fable 実ブラウザ検収完了**
+  〔scratchpad/fixb-harness・実物バンドル: H2 逐次 '-4' PASS・H4 モバイル溢れなし PASS・H3 実物
+  確認。F2 clear 無言乖離と F3 55px dropdown を実測確定 → D-R2 議題へ記録〕→ 統合 =
+  big9-fixb-integration.md → **BIG9-FIXB-R2 検収通過（2026-08-12）**〔engine 508/508 不変・
+  front 289/289〔283＋6〕独立確認。F1 同期コメント＋allowsParts 関係 spec・併存 pin・
+  F4 UNSAFE_PARTS_KEYS export 化＋Popover 除外反転・F5 Select null 非 emit・F9 base 重複行
+  解消・F6/F8/F10 全消化〕— **大粒度 #9 クローズ**（blocking 3＋high 1 を含む全 findings 消化・
+  実ブラウザ検収込み）。
+  **コミット完了（ユーザー指示 2026-08-11「git commit までをタスク化」）**: df31c40 chore
+  〔.gitignore trpg-remix-app〕→ 4bfc04b docs → 81638bc skills → **ae9345a sheet-engine＋front
+  一体コミット**〔33 files +6428/-90〕→ 最終 docs コミット（本更新）。push は指示範囲外・未実施。
+  **当初は engine/front を 2 コミットへ分割したが worktree 隔離検証で中間 tree が赤と実測**
+  （v3Template.spec の front⇔engine 予約語集合一致 pin 3 件 — RESERVED_IDS 'constructor' が
+  engine 単独 tree で割れる。跨ぎ drift pin が設計どおり分割を拒否した形）→ 未 push のため
+  soft reset で 1 コミットへ squash。教訓: `cmd | tail` は exit を隠す — 検証チェーンは pipefail。
+  **次にやること**: U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）→ キュー #11 SM
+  （SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
+  **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
+  table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・D-R3〔1.864ms 計測済み〕・
+  #14 dup section id・#15 系〕
 - **10-S5b 実装完了・小粒度レビュー委譲中**: ブロック/上限/プールの runtime 注釈評価 —
   annotation-runtime.ts 新設（evaluateAnnotationRuntime・警告 8 コード構造化データのみ・
   publish.ts/types.ts 不変・evaluator は resolveNumberValue export 1 行）。
