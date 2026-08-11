@@ -350,7 +350,61 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     }
   ]
 
+  const missingLabelCases: Array<{
+    name: string
+    template: CharacterSheetTemplateEntity
+    expectedPath: string
+    expectedLocation: string
+  }> = [
+    {
+      name: 'section',
+      template: templateWithSection({ id: 'skills', fields: [field] } as unknown as SheetSection),
+      expectedPath: 'sections.0.label',
+      expectedLocation: 'skills'
+    },
+    {
+      name: 'field',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        fields: [
+          { id: 'skill', uid: 'uid_skill', type: 'scalar', valueType: 'number' } as unknown as SheetField
+        ]
+      }),
+      expectedPath: 'sections.0.fields.0.label',
+      expectedLocation: 'sections.0.fields.0.label'
+    },
+    {
+      name: 'block',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        blocks: [{ id: 'combat' }],
+        fields: [{ ...field, blockId: 'combat' }]
+      } as unknown as SheetSection),
+      expectedPath: 'sections.0.blocks.0.label',
+      expectedLocation: '技能 / blocks 1 (combat)'
+    }
+  ]
+
   it.each(cases)('$name を validator 実出力から位置表示する', ({ template, expectedPath, expectedLocation }) => {
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find((issue) => issue.path === expectedPath)
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(within(errorAlert as HTMLElement).getByText(`[${expectedLocation}] ${publishIssue!.message}`)).toBeTruthy()
+  })
+
+  it.each(missingLabelCases)('$name label が欠落しても id または raw path で位置表示する', ({
+    template,
+    expectedPath,
+    expectedLocation
+  }) => {
     const publishResult = validatePublishTemplate(toSheetTemplate(template))
     const publishIssue = publishResult.issues.find((issue) => issue.path === expectedPath)
 

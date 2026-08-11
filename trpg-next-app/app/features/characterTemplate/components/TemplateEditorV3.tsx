@@ -35,7 +35,6 @@ import {
 import {
   normalizeTemplateLayout,
   type ConstraintSource,
-  type PublishWarning,
   validatePublishTemplate,
   validateStandaloneRollNotations
 } from '@trpg/sheet-engine'
@@ -378,7 +377,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [newFieldType, setNewFieldType] = useState<V3EditorFieldType>('text')
   const [tablesText, setTablesText] = useState(stringifyTables(initialTemplate.tables))
   const [localMessages, setLocalMessages] = useState<TemplateValidationMessage[]>([])
-  const [publishWarnings, setPublishWarnings] = useState<PublishWarning[]>([])
+  const [publishWarnings, setPublishWarnings] = useState<TemplateValidationMessage[]>([])
   const [actionMessages, setActionMessages] = useState<string[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
@@ -569,8 +568,9 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
       setLocalMessages([...localErrors, ...publishErrors])
       setPublishWarnings(
         publishResult.warnings.map((warning) => ({
-          ...warning,
-          path: describeIssuePath(warning.path, payload)
+          code: warning.code,
+          path: describeIssuePath(warning.path, payload),
+          message: warning.message
         }))
       )
     } catch (error) {
@@ -985,7 +985,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 function describeIssuePath(path: string, template: CharacterSheetTemplateEntity): string {
   const segments = path.split('.')
   const interpretationCandidates: string[] = []
-  const displayName = (entry: { id: string; label: string }) => entry.label.trim() || entry.id
+  const displayName = (entry: { id: string; label: string }) =>
+    typeof entry.label === 'string' ? entry.label.trim() || entry.id : entry.id
   const resolveFieldPath = (
     section: SheetSection,
     field: SheetField,
