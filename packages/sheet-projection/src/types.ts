@@ -35,6 +35,7 @@ export type ProjectionWarningCode =
   | 'pinned-button-limit-exceeded'
   | 'group-select-overflow'
   | 'group-id-normalized'
+  | 'empty-group-omitted'
   | 'invalid-custom-id-part'
   | 'custom-id-budget-exceeded'
   | 'empty-label-fallback'
