@@ -2249,8 +2249,21 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   検収教訓: `cmd | tail` が again exit を隠した（メモリ既録の罠・full suite の Exit 1 を
   notification の exit 0 が偽装）— 判定は必ず末尾の Exit status 行か pipefail で。
   **大粒度 #11 クローズ**。
-  **次にやること**: docs コミット → SM-C resolve 分離（resolveForCreate/resolvePinnedRevision・
-  character-sheet-template.service 実測 → 指示書）→ SM-D 409 currentRevision → SM-E canMutate →
+  **SM-C 設計完了・委譲中（prompt-sm-c.md / run-sm-c）**: 調査実測 = resolve は
+  resolvePublished 1 本（template.service:71・:81 で draft/deprecated/version を単一 409）・
+  production 呼び出し 2 箇所のみ（instantiation:29 = 作成／operation:415 resolvePinnedTemplate =
+  保存:190・delta:279・hub:427 の共通ハブ）。分離 = resolveForCreate（published のみ）／
+  resolvePinnedRevision（**deprecated 許可**・draft 不可・version 一致）。本命回帰 =
+  deprecated pin キャラの save/delta/hub 成功（修正前赤の確認必須）。モック名追従 5 spec。
+  **legacy-coc.reproduction（L-2 既知赤 3）は rename 以外変更禁止・赤 3 件同一維持を受入条件化**。
+  **SM-C 完了・コミット済み（5d6f1d9・2026-08-12）**: 検収 = focused 96/99（赤 = 既知 L-2 の
+  同一 3 件のみ）・build＋循環ゼロ・resolvePublished 残存 0 を grep 確認。レビュー pass
+  （findings 0・hub none→publishing は既存 materialized の pin 投影 = pin 用で正・
+  deprecated 除去変異 4 spec 赤・legacy-coc diff は rename 1 行 numstat 実測）。
+  **次にやること**: SM-D 409 currentRevision（SM-15・api-contract＋server＋front の跨ぎ —
+  conflict payload 型の drift pin 有無を実測してコミット原子性を判定してから指示書化）→
+  SM-E canMutate → SM-F SM-1 原子性 → front 系（SM-8/SM-14）→ 残 = #15d(e) partsKey 語彙（SM-G）。
+  台帳 §6-1 #11 行へ消化状況追記は SM-D 以降まとめて行う。
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
