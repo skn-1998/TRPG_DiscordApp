@@ -2276,11 +2276,17 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   SM-C（5d6f1d9）・SM-D1（77168ff）消化。**スライス数 3 到達 → 次の大粒度 #12 は
   SM-C/SM-D1＋次スライスの後**（大粒度 #11 が SM-B-R3/E3-R3/SM-OP を検収済みのため、
   #12 の起点は SM-C から数える）。
-  **次にやること**: SM-D2（front theirs/mine 状態機械＋契約 schema・要スライス設計 —
-  CharacterSheetEditClient の state 化・per-path ダイアログ・dirty 解除、大きめ）
-  または先に小さい SM-G（#15d(e) partsKey 語彙検査・server op 層・SM-OP と同型）→
-  SM-E canMutate → SM-F SM-1 原子性 → front 系（SM-8/SM-14）。
-  台帳 §6-1 #11 行へ消化状況追記は次の docs コミットで行う。
+  **SM-G 完了・コミット済み（df77159・2026-08-12）**: 操作層 partsKey 語彙検査 —
+  UNSAFE 全モード 422・宣言モードは base/other＋宣言 id（engine 定数 import・再宣言 0）。
+  __proto__ の無言の嘘（成功・appliedChanges+=1・値不変）を characterization で確認後 422 化。
+  受理集合は実装者・レビュアが**独立に engine 実測して全一致**・16 ケース同値 spec が
+  drift 検出器。空キーは parts:true で engine 受理へ揃えて緩和（下流無害を到達実測）。
+  レビュー pass（findings 0・変異 6 本赤）。台帳 #11 行へ消化状況を追記済み。
+  **次の大粒度 #12**: SM-C／SM-D1／SM-G の 3 スライス消化で期限到達 — 対象 =
+  resolve 分離＋409 currentRevision＋partsKey 語彙（すべて operation/template service 周辺・
+  隣接 = instantiation・filter・engine value-input 境界）。二重（Codex＋Opus）で実施する。
+  **その後**: SM-D2（front theirs/mine 状態機械＋契約 schema）→ SM-E canMutate →
+  SM-F SM-1 原子性 → front 系（SM-8/SM-14）。
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
