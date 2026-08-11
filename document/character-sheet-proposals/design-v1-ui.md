@@ -466,9 +466,12 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   その場合のみ embed 単体で成立（ボタン・select なし。Web リンクボタンも v1 では出さない =
   HubViewModel の契約を拡張しない）。**resource エントリのみのテンプレでは通常どおり
   group select と ± が生成される**（実投影の挙動が正）。
-  **resource の `deltas` は publish で 1 件以上を必須**とする（空配列は構造として拒否 =
-  0-action group の唯一の発生源を塞ぐ。現行 Zod は min なし = 実装変更点）。既存 published データに
-  空 deltas が残る場合は防御的に当該 group を select から除外＋警告（H-10 の skew 退化と同格）。
+  **resource の `deltas` は publish で 1 件以上を必須**とする（空配列の構造的発生源を publish で
+  閉鎖。**実装済み 2026-08-12 = SM-A・8078b06**。旧記載「0-action group の唯一の発生源」は
+  SM-B レビュー実測で反証 — 無効 roll キーのみ・非正準 delta のみの group も button 生成防御で
+  0 アクションになる）。projection 側は**実生成可能アクション数 0 の group を select/browser から
+  防御的に除外＋警告**（`empty-group-omitted`・退化系発生源を一括被覆。空 deltas 含む。
+  H-10 の skew 退化と同格。**実装済み 2026-08-12 = SM-B/R2**）。
 - **SM-12 未入力の意味論（層別）**: **基本評価 / materialize** では number→0・boolean→false・
   text/select→''・list→行 0（現行 evaluator の canonical）。**制約評価（H-7）**では依存する生入力の
   欠落 = indeterminate「—」（0 に潰さない）。required の概念は導入しない: 未入力のまま作成可・
