@@ -2186,8 +2186,42 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   責務分離 ok（actionMessages 正規表現はサーバ自由文専用）。
   **U15 キューの現況**: エディタ UI（E1/E2 = 2ee02fe）・検証位置表示（E3 = d4302e1）消化。
   残 = renderer 配線（D-R2 待ち）・右ペインタブ化（D-R1 待ち）・9-S8 preset UI（D-R1 待ち）。
-  **次にやること**: キュー #11 SM のスライス設計（§3.5 実測 → 第 1 スライス委譲。
-  台帳 #15d(e) の server op 層 partsKey 語彙検査を含む）→
+  **キュー #11 SM 開始（2026-08-12）**: スライス分割案 = SM-A deltas min1（engine・委譲中）→
+  SM-B 空 deltas の防御的除外＋警告（server projection）→ SM-C resolve 分離
+  （resolveForCreate/resolvePinnedRevision・character-sheet-template.service）→
+  SM-D 409 currentRevision（api-contract＋server＋front SM-15）→ SM-E canMutate＋
+  no-authorized-actions（SM-5/SM-11 projection）→ SM-F SM-1 proof 原子性 →
+  SM-G partsKey 語彙検査（#15d(e)）→ front 系（SM-8 5 要素・SM-14 4 状態）。
+  順序は独立性優先・server 系はスライス着手時に AI.md/service 実測で再設計する。
+  **SM-A 完了・コミット済み（8078b06・2026-08-12）**: publish deltas min1。
+  検収 = engine 515/515〔513＋2〕・front 319/319 独立再実行・レビュー pass（findings 0・
+  4 宣言経路〔field role/rowRole/itemFields/attrs〕すべてに min1 が効くことを実測・
+  下限の符号化は production 1 箇所のみ・server は単純コピーで重複なし）。
+  **SM-B 設計完了・委譲中（Codex code・review-results/impl-sm/prompt-sm-b.md / run-sm-b）**:
+  調査エージェント実測（証跡 = 本 handoff 直下＋prompt-sm-b.md）に基づく Fable 裁定 —
+  配置点 = sheet-projection createGroupReferences（:148）1 箇所（select/warnings/panel/browser
+  4 経路の共通点）・除外条件 = group の action 数 0（roll 混在 group は残す・action 数計算は
+  :434-437 から内部ヘルパへ抽出し二重符号化回避）・警告 = invalid-custom-id-part 同形の
+  ProjectionWarning 新 code・panel の stale customId は既存 title フォールバック退化を採用
+  （案内 UI は SM-E）。記録 = createEphemeralPanel は uniqueWarnings 未適用で panel 経路の
+  warning は logger に出ない（既存ギャップ・SM-E 隣接で裁定）。
+  受入 = test:projection（基準 22）＋trpg-server の hub 3 spec ＋ build:projection。
+  **SM-B 検収通過（projection 25/25・server hub 22/22・action 数符号化 1 箇所を確認）→
+  小粒度レビュー needs-fix（medium 1）→ SM-B-R2 委譲中（prompt-sm-b-r2.md / run-sm-b-r2）**:
+  レビュー実測で SM-11 の前提「空 deltas = 0-action group の唯一の発生源」が**反証** —
+  無効 roll キーのみ・非正準 delta（-0/1e21/1e-7）のみの group も button 生成防御で
+  0 アクションになり select に死に選択肢が残る。裁定 = 実生成可能アクション数基準へ
+  （renderability 述語を builder と counter の共有内部関数へ抽出・符号化 1 箇所）。
+  R2 通過後に design-v1-ui §3.5 SM-11 の「唯一の発生源」文言を Fable が訂正する（doc レーン）。
+  観点 3 は白 = warning は ViewModel 内 2 経路生成だが uniqueWarnings＋logger 側 code@path
+  重複排除で実害なし。
+  **SM-B-R2 検収通過 → コミット済み（872b861・2026-08-12）**: renderability 述語 2 本を
+  builder/counter で共有（:89/:93・使用 :98/:158/:160/:343・符号化各 1 箇所を grep 確認）・
+  projection 28/28〔25＋3〕・server hub 22/22・build 成功。design-v1-ui §3.5 SM-11 の
+  「唯一の発生源」文言を訂正済み（構造的発生源 = publish 閉鎖 SM-A／退化系発生源 =
+  projection 一括被覆 SM-B の二層記述へ）。
+  **次にやること**: docs コミット → **大粒度 #11（E3+SM-A+SM-B/R2・二重）** →
+  SM-C resolve 分離 →
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
