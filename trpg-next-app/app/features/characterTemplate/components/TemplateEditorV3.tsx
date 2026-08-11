@@ -563,11 +563,16 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
       const publishResult = validatePublishTemplate(sheetTemplate)
       const standaloneRollIssues = validateStandaloneRollNotations(sheetTemplate)
       const publishErrors = [...publishResult.issues, ...standaloneRollIssues].map((issue) => ({
-        fieldId: extractFieldId(issue.path),
+        path: describeIssuePath(issue.path, payload),
         message: issue.message
       }))
       setLocalMessages([...localErrors, ...publishErrors])
-      setPublishWarnings(publishResult.warnings)
+      setPublishWarnings(
+        publishResult.warnings.map((warning) => ({
+          ...warning,
+          path: describeIssuePath(warning.path, payload)
+        }))
+      )
     } catch (error) {
       setLocalMessages([{ message: error instanceof Error ? error.message : '検証に失敗しました' }])
       setPublishWarnings([])
@@ -635,10 +640,13 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           <Stack gap={4}>
             {[
               ...localMessages,
-              ...actionMessages.map((message) => ({ message, fieldId: extractFieldId(message) }))
+              ...actionMessages.map<TemplateValidationMessage>((message) => ({
+                message,
+                fieldId: message.match(/field ([a-z][a-z0-9_]{0,31})/)?.[1]
+              }))
             ].map((message, index) => (
               <Text key={`${message.message}-${index}`} size="sm">
-                {message.fieldId ? `[${message.fieldId}] ` : ''}
+                {message.path ? `[${message.path}] ` : message.fieldId ? `[${message.fieldId}] ` : ''}
                 {message.message}
               </Text>
             ))}
@@ -974,12 +982,149 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   )
 }
 
-function extractFieldId(value?: string): string | undefined {
-  if (!value) return undefined
-  const bracket = value.match(/field ([a-z][a-z0-9_]{0,31})/)
-  if (bracket) return bracket[1]
-  const path = value.match(/sections\.\d+\.fields\.\d+\.([a-zA-Z0-9_]+)/)
-  return path?.[1]
+function describeIssuePath(path: string, template: CharacterSheetTemplateEntity): string {
+  const segments = path.split('.')
+  const interpretationCandidates: string[] = []
+  const displayName = (entry: { id: string; label: string }) => entry.label.trim() || entry.id
+  const resolveFieldPath = (
+    section: SheetSection,
+    field: SheetField,
+    remainingSegments: string[],
+    fieldLabels = [displayName(section), displayName(field)]
+  ): string[] => {
+    const location = fieldLabels.join(' / ')
+    if (remainingSegments.length === 0) return [location]
+
+    const [segment, fieldKey] = remainingSegments
+    const resolvedLocations: string[] = []
+    const nestedFields = field.type === 'list' ? field.itemFields : field.type === 'relation' ? (field.attrs ?? []) : []
+
+    for (const nestedField of nestedFields.filter((candidate) => candidate.id === segment)) {
+      resolvedLocations.push(
+        ...resolveFieldPath(section, nestedField, remainingSegments.slice(1), [
+          ...fieldLabels,
+          displayName(nestedField)
+        ])
+      )
+    }
+
+    const collectionKind = field.type === 'list' ? 'itemFields' : field.type === 'relation' ? 'attrs' : undefined
+    if (segment === collectionKind) {
+      if (remainingSegments.length === 1) resolvedLocations.push(location)
+      if (fieldKey !== undefined) {
+        const nestedFieldCandidates: SheetField[] = []
+        if (/^\d+$/.test(fieldKey)) {
+          const nestedField = nestedFields[Number(fieldKey)]
+          if (nestedField) nestedFieldCandidates.push(nestedField)
+        }
+        nestedFieldCandidates.push(...nestedFields.filter((candidate) => candidate.id === fieldKey))
+        for (const nestedField of nestedFieldCandidates) {
+          resolvedLocations.push(
+            ...resolveFieldPath(section, nestedField, remainingSegments.slice(2), [
+              ...fieldLabels,
+              displayName(nestedField)
+            ])
+          )
+        }
+      }
+      return resolvedLocations
+    }
+
+    if (segment === 'partsKeys') {
+      if (field.type !== 'scalar' || field.partsKeys === undefined) return resolvedLocations
+      if (remainingSegments.length === 1) return [...resolvedLocations, location]
+
+      const partsKeyIndex = /^\d+$/.test(fieldKey ?? '') ? Number(fieldKey) : Number.NaN
+      const partsKey = Number.isInteger(partsKeyIndex) ? field.partsKeys[partsKeyIndex] : undefined
+      if (!partsKey) return resolvedLocations
+      if (
+        remainingSegments.length === 2 ||
+        (remainingSegments.length === 3 && (remainingSegments[2] === 'id' || remainingSegments[2] === 'label'))
+      ) {
+        resolvedLocations.push(`${location} / partsKeys ${partsKeyIndex + 1}`)
+      }
+      return resolvedLocations
+    }
+
+    let propertyValue: unknown = field
+    for (const property of remainingSegments) {
+      if (Array.isArray(propertyValue)) {
+        if (!/^\d+$/.test(property)) {
+          propertyValue = undefined
+          break
+        }
+        propertyValue = propertyValue[Number(property)]
+      } else if (
+        typeof propertyValue === 'object' &&
+        propertyValue !== null &&
+        Object.prototype.hasOwnProperty.call(propertyValue, property)
+      ) {
+        propertyValue = (propertyValue as Record<string, unknown>)[property]
+      } else {
+        propertyValue = undefined
+        break
+      }
+    }
+    if (propertyValue !== undefined) resolvedLocations.push(location)
+    return resolvedLocations
+  }
+
+  for (const section of template.sections.filter((candidate) => candidate.id === segments[0])) {
+    for (const field of section.fields.filter((candidate) => candidate.id === segments[1])) {
+      interpretationCandidates.push(...resolveFieldPath(section, field, segments.slice(2)))
+    }
+  }
+
+  if (segments[0] === 'sections') {
+    const sectionKey = segments[1]
+    const sectionCandidates: SheetSection[] = []
+    if (/^\d+$/.test(sectionKey ?? '')) {
+      const section = template.sections[Number(sectionKey)]
+      if (section) sectionCandidates.push(section)
+    }
+    sectionCandidates.push(...template.sections.filter((candidate) => candidate.id === sectionKey))
+
+    for (const section of sectionCandidates) {
+      const sectionLabel = displayName(section)
+      const locationKind = segments[2]
+      if (locationKind === 'id' || locationKind === 'label' || locationKind === 'layout') {
+        interpretationCandidates.push(sectionLabel)
+      } else if (locationKind === 'fields') {
+        if (segments.length === 3) {
+          interpretationCandidates.push(sectionLabel)
+          continue
+        }
+
+        const fieldKey = segments[3]
+        const fieldCandidates: SheetField[] = []
+        if (/^\d+$/.test(fieldKey ?? '')) {
+          const field = section.fields[Number(fieldKey)]
+          if (field) fieldCandidates.push(field)
+        }
+        fieldCandidates.push(...section.fields.filter((candidate) => candidate.id === fieldKey))
+        for (const field of fieldCandidates) {
+          interpretationCandidates.push(...resolveFieldPath(section, field, segments.slice(4)))
+        }
+      } else if ((locationKind === 'blocks' || locationKind === 'pools') && segments.length >= 4) {
+        const locationKey = segments[3]
+        const locations = section[locationKind] ?? []
+        const locationCandidates: Array<{ location: (typeof locations)[number]; index: number }> = []
+        if (/^\d+$/.test(locationKey ?? '')) {
+          const index = Number(locationKey)
+          const location = locations[index]
+          if (location) locationCandidates.push({ location, index })
+        }
+        for (const [index, location] of locations.entries()) {
+          if (location.id === locationKey) locationCandidates.push({ location, index })
+        }
+        for (const { location, index } of locationCandidates) {
+          interpretationCandidates.push(`${sectionLabel} / ${locationKind} ${index + 1} (${displayName(location)})`)
+        }
+      }
+    }
+  }
+
+  return interpretationCandidates.length === 1 ? interpretationCandidates[0] : path
 }
 
 function parseOptions(value: string): Array<{ label: string; value: string }> {

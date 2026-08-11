@@ -3,7 +3,7 @@
 import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import layoutNormalizationCases from '@trpg/sheet-engine/fixtures/layout-normalization.json'
-import { validatePublishTemplate } from '@trpg/sheet-engine'
+import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
 import { saveTemplateDraft } from '../actions'
 import type { CharacterSheetTemplateEntity, LookupTable, SheetField, SheetSection } from '../types/v3'
 import { toSheetTemplate } from '../utils/v3Template'
@@ -214,16 +214,17 @@ describe('TemplateEditorV3 publish validation warnings', () => {
     const warningTemplate: CharacterSheetTemplateEntity = {
       ...initialTemplate,
       sections: [
-        { id: 'legacy', label: 'legacy', fields: [], layout: { direction: 'row' } },
+        { id: 'legacy', label: '旧レイアウト', fields: [], layout: { direction: 'row' } },
         {
           id: 'stack',
-          label: 'stack',
+          label: '技能',
           layout: { preset: 'stack' },
+          blocks: [{ id: 'combat', label: '戦闘' }],
           fields: [
             {
               id: 'value',
               uid: 'uid_value',
-              label: 'value',
+              label: '技能値',
               type: 'scalar',
               valueType: 'number',
               layout: { span: 2 }
@@ -233,7 +234,12 @@ describe('TemplateEditorV3 publish validation warnings', () => {
       ]
     }
     const publishResult = validatePublishTemplate(toSheetTemplate(warningTemplate))
-    const warningLines = publishResult.warnings.map(({ path, message }) => `[${path}] ${message}`)
+    const warningLines = [
+      '[旧レイアウト] section layout without preset is ignored',
+      '[旧レイアウト] section has no fields',
+      '[技能 / 技能値] field layout span is ignored outside grid',
+      '[技能 / blocks 1 (戦闘)] declared block has no fields: combat'
+    ]
 
     renderEditor(warningTemplate)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
@@ -242,6 +248,12 @@ describe('TemplateEditorV3 publish validation warnings', () => {
     const alertText = warningAlert?.textContent ?? ''
     const renderedPositions = warningLines.map((line) => alertText.indexOf(line))
     expect(publishResult.ok).toBe(true)
+    expect(publishResult.warnings.map(({ path }) => path)).toEqual([
+      'sections.legacy.layout',
+      'sections.legacy.fields',
+      'stack.value.layout.span',
+      'sections.stack.blocks.0'
+    ])
     expect(publishResult.warnings.length).toBeGreaterThan(1)
     expect(renderedPositions.every((position) => position >= 0)).toBe(true)
     expect(renderedPositions).toEqual([...renderedPositions].sort((left, right) => left - right))
@@ -257,6 +269,295 @@ describe('TemplateEditorV3 publish validation warnings', () => {
 
     expect(publishResult.warnings).toEqual([])
     expect(screen.queryByText('検証警告')).toBeNull()
+  })
+})
+
+describe('TemplateEditorV3 publish validation issue locations', () => {
+  afterEach(cleanup)
+
+  const field = {
+    id: 'skill',
+    uid: 'uid_skill',
+    label: '技能値',
+    type: 'scalar',
+    valueType: 'number'
+  } satisfies SheetField
+
+  const cases: Array<{
+    name: string
+    template: CharacterSheetTemplateEntity
+    expectedPath: string
+    expectedLocation: string
+  }> = [
+    {
+      name: 'blocks の意味検証 id path',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        blocks: [{ id: 'Bad', label: '戦闘' }],
+        fields: [{ ...field, blockId: 'Bad' }]
+      }),
+      expectedPath: 'sections.skills.blocks.0.id',
+      expectedLocation: '技能 / blocks 1 (戦闘)'
+    },
+    {
+      name: 'pools の意味検証 id path',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        pools: [{ id: 'career', label: '職業ポイント', total: 100, partsKey: 'career' }],
+        fields: [field]
+      }),
+      expectedPath: 'sections.skills.pools.0.partsKey',
+      expectedLocation: '技能 / pools 1 (職業ポイント)'
+    },
+    {
+      name: 'field label の Zod index path',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        fields: [{ ...field, label: '' }]
+      }),
+      expectedPath: 'sections.0.fields.0.label',
+      expectedLocation: '技能 / skill'
+    },
+    {
+      name: 'partsKeys の意味検証 field path',
+      template: templateWithSection({
+        id: 'skills',
+        label: '技能',
+        fields: [
+          {
+            ...field,
+            partsKeys: [
+              { id: 'career', label: '職業' },
+              { id: 'career', label: '趣味' }
+            ]
+          }
+        ]
+      }),
+      expectedPath: 'skills.skill.partsKeys.1.id',
+      expectedLocation: '技能 / 技能値 / partsKeys 2'
+    },
+    {
+      name: '解決不能 path',
+      template: {
+        ...templateWithSection({ id: 'skills', label: '技能', fields: [field] }),
+        settings: { rounding: 'nearest' } as unknown as CharacterSheetTemplateEntity['settings']
+      },
+      expectedPath: 'settings.rounding',
+      expectedLocation: 'settings.rounding'
+    }
+  ]
+
+  it.each(cases)('$name を validator 実出力から位置表示する', ({ template, expectedPath, expectedLocation }) => {
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find((issue) => issue.path === expectedPath)
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(within(errorAlert as HTMLElement).getByText(`[${expectedLocation}] ${publishIssue!.message}`)).toBeTruthy()
+  })
+
+  it('数字 section id と同じ index が解決可能なら raw path に fallback する', () => {
+    const template: CharacterSheetTemplateEntity = {
+      ...initialTemplate,
+      sections: [
+        {
+          id: 'other',
+          label: '別セクション',
+          blocks: [{ id: 'other_block', label: '別ブロック' }],
+          fields: [
+            {
+              id: 'other_field',
+              uid: 'uid_other_field',
+              label: '別フィールド',
+              type: 'scalar',
+              valueType: 'number',
+              blockId: 'other_block'
+            }
+          ]
+        },
+        {
+          id: '0',
+          label: '数字IDセクション',
+          blocks: [{ id: 'Bad', label: '数字IDブロック' }],
+          fields: [
+            {
+              id: 'skill',
+              uid: 'uid_skill_numeric',
+              label: '技能値',
+              type: 'scalar',
+              valueType: 'number',
+              blockId: 'Bad'
+            }
+          ]
+        }
+      ]
+    }
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find((issue) => issue.path === 'sections.0.blocks.0.id')
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(
+      within(errorAlert as HTMLElement).getByText(`[sections.0.blocks.0.id] ${publishIssue!.message}`)
+    ).toBeTruthy()
+  })
+
+  it('sections id の canonical field と wrapper section が衝突したら raw path に fallback する', () => {
+    const template: CharacterSheetTemplateEntity = {
+      ...initialTemplate,
+      sections: [
+        {
+          id: 'sections',
+          label: '本来のセクション',
+          layout: { preset: 'stack' },
+          fields: [
+            {
+              id: 'target',
+              uid: 'uid_sections_target',
+              label: '本来のフィールド',
+              type: 'scalar',
+              valueType: 'number',
+              layout: { span: 2 }
+            }
+          ]
+        },
+        {
+          id: 'target',
+          label: '衝突先セクション',
+          fields: [
+            {
+              id: 'other',
+              uid: 'uid_target_other',
+              label: '別フィールド',
+              type: 'scalar',
+              valueType: 'number'
+            }
+          ]
+        }
+      ]
+    }
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishWarning = publishResult.warnings.find((warning) => warning.path === 'sections.target.layout.span')
+
+    expect(publishWarning).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const warningAlert = screen.getByText('検証警告').closest('[role="alert"]')
+    expect(warningAlert).not.toBeNull()
+    expect(
+      within(warningAlert as HTMLElement).getByText(`[sections.target.layout.span] ${publishWarning!.message}`)
+    ).toBeTruthy()
+  })
+
+  it('list itemField の standalone roll issue を nested field まで位置表示する', () => {
+    const template = templateWithSection({
+      id: 'main',
+      label: 'メイン',
+      fields: [
+        {
+          id: 'items',
+          uid: 'uid_items',
+          label: '所持品',
+          type: 'list',
+          itemFields: [
+            {
+              id: 'broken',
+              uid: 'uid_items_broken',
+              label: '壊れたロール',
+              type: 'roll',
+              notation: 'not-a-roll'
+            }
+          ]
+        }
+      ]
+    })
+    const standaloneIssues = validateStandaloneRollNotations(toSheetTemplate(template))
+    const standaloneIssue = standaloneIssues.find((issue) => issue.path === 'main.items.broken.notation')
+
+    expect(standaloneIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(
+      within(errorAlert as HTMLElement).getByText(`[メイン / 所持品 / 壊れたロール] ${standaloneIssue!.message}`)
+    ).toBeTruthy()
+  })
+
+  it('relation attr の partsKeys issue を nested field と index まで位置表示する', () => {
+    const template = templateWithSection({
+      id: 'main',
+      label: 'メイン',
+      fields: [
+        {
+          id: 'owner',
+          uid: 'uid_owner',
+          label: '所有者',
+          type: 'relation',
+          attrs: [
+            {
+              id: 'luck',
+              uid: 'uid_owner_luck',
+              label: '幸運',
+              type: 'scalar',
+              valueType: 'number',
+              partsKeys: [
+                { id: 'career', label: '職業' },
+                { id: 'career', label: '趣味' }
+              ]
+            }
+          ]
+        }
+      ]
+    })
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find((issue) => issue.path === 'main.owner.luck.partsKeys.1.id')
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(
+      within(errorAlert as HTMLElement).getByText(
+        `[メイン / 所有者 / 幸運 / partsKeys 2] ${publishIssue!.message}`
+      )
+    ).toBeTruthy()
+  })
+
+  it('空白だけの block label は block id へ fallback する', () => {
+    const template = templateWithSection({
+      id: 'skills',
+      label: '技能',
+      blocks: [{ id: 'combat', label: '   ' }],
+      fields: [{ ...field, blockId: 'combat' }]
+    })
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find((issue) => issue.path === 'sections.0.blocks.0.label')
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(
+      within(errorAlert as HTMLElement).getByText(`[技能 / blocks 1 (combat)] ${publishIssue!.message}`)
+    ).toBeTruthy()
   })
 })
 
