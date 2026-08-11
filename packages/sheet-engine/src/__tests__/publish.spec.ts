@@ -3,6 +3,7 @@ import {
   DEFAULT_STEP_LIMIT,
   evaluateTemplate,
   SheetTemplate,
+  UNSAFE_PARTS_KEYS,
   validatePublishTemplate,
 } from '..';
 import { LIST_ROW_LIMIT } from '../evaluator';
@@ -312,6 +313,17 @@ describe('publish U15 vocabulary validation', () => {
     ['duplicate id', { partsKeys: [{ id: 'career', label: 'Career' }, { id: 'career', label: 'Duplicate' }] }, 'partsKey id must be unique within field: career'],
   ])('rejects %s', (_case, fieldPatch, message) => {
     expect(issueMessages(u15Template({}, fieldPatch))).toContain(message);
+  });
+
+  it.each([...UNSAFE_PARTS_KEYS])('rejects unsafe declared partsKey id %s', (id) => {
+    const result = validatePublishTemplate(u15Template({}, {
+      partsKeys: [{ id, label: 'Unsafe' }],
+    }));
+
+    expect(result.issues).toContainEqual({
+      path: 'skills.skill.partsKeys.0.id',
+      message: `partsKey id is reserved: ${id}`,
+    });
   });
 
   it.each([
