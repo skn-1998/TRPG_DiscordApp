@@ -1,0 +1,23 @@
+{
+  "characterName": "レガシー探索者",
+  "templateVersion": "1.0.0",
+  "channelId": "123456789012345678",
+  "palette": [
+    {
+      "key": "legacyhp",
+      "kind": "resource",
+      "deltas": [],
+      "label": "HP",
+      "group": "空リソース",
+      "fieldRef": { "uid": "legacy.hp" }
+    },
+    {
+      "key": "spot",
+      "kind": "roll",
+      "notation": "1d100<=65",
+      "label": "目星",
+      "group": "skills",
+      "fieldRef": { "uid": "legacy.spot" }
+    }
+  ]
+}

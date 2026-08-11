@@ -86,8 +86,16 @@ function labelOrFallback(
   return fallback
 }
 
+function isRenderableCustomIdPart(value: string): boolean {
+  return SAFE_PROJECTION_ID_PATTERN.test(value)
+}
+
+function isRenderableResourceDelta(canonicalDelta: string | null): canonicalDelta is string {
+  return canonicalDelta !== null
+}
+
 function validateIdPart(value: string, path: string, warnings: ProjectionWarning[]): boolean {
-  if (SAFE_PROJECTION_ID_PATTERN.test(value)) return true
+  if (isRenderableCustomIdPart(value)) return true
   warnings.push({
     code: 'invalid-custom-id-part',
     message: `${path} must match ${CUSTOM_ID_SAFE_TOKEN_SOURCE}; the related component was omitted`,
@@ -145,11 +153,29 @@ function hashGroupId(value: string): string {
   return `g${(hash >>> 0).toString(36)}`
 }
 
+function countGroupActions(palette: readonly ProjectionPaletteEntry[], group: string): number {
+  return palette.reduce((count, entry) => {
+    if (entry.group !== group || !isRenderableCustomIdPart(entry.key)) return count
+    if (entry.kind === 'roll') return count + 1
+    return count + entry.deltas.filter((delta) => isRenderableResourceDelta(canonicalizeResourceDelta(delta))).length
+  }, 0)
+}
+
 function createGroupReferences(
   palette: readonly ProjectionPaletteEntry[],
   warnings: ProjectionWarning[]
 ): GroupReference[] {
-  const sources = [...new Set(palette.map((entry) => entry.group))]
+  const sources = [...new Set(palette.map((entry) => entry.group))].filter((source) => {
+    if (countGroupActions(palette, source) > 0) return true
+    const firstEntry = palette.find((entry) => entry.group === source)
+    const fallback = firstEntry?.fieldRef.uid.split('.')[0] || firstEntry?.key || 'group'
+    warnings.push({
+      code: 'empty-group-omitted',
+      message: `group ${JSON.stringify(source || fallback)} has no palette actions and was omitted`,
+      path: `group.${source || fallback}`,
+    })
+    return false
+  })
   const isReusableGroupId = (source: string): boolean =>
     SAFE_PROJECTION_ID_PATTERN.test(source) && source.length <= HUB_GROUP_ID_MAX_LENGTH
   const reserved = new Set(sources.filter(isReusableGroupId))
@@ -314,7 +340,7 @@ function buildResourceButtons(
   const buttons: DiscordButtonModel[] = []
   for (const delta of entry.deltas) {
     const canonicalDelta = canonicalizeResourceDelta(delta)
-    if (canonicalDelta === null) {
+    if (!isRenderableResourceDelta(canonicalDelta)) {
       warnings.push({
         code: 'invalid-custom-id-part',
         message: `palette.${entry.key}.deltas contains a value without a canonical decimal customId representation; the action was omitted`,
@@ -431,9 +457,7 @@ function collectProjectionWarnings(input: DiscordProjectionInput): ProjectionWar
   }
   const groups = createGroupReferences(input.palette, warnings)
   for (const group of groups) {
-    const actionCount = input.palette
-      .filter((entry) => entry.group === group.source)
-      .reduce((count, entry) => count + (entry.kind === 'roll' ? 1 : entry.deltas.length), 0)
+    const actionCount = countGroupActions(input.palette, group.source)
     const lastPage = Math.max(1, Math.ceil(actionCount / PANEL_ACTIONS_PER_PAGE))
     acceptGeneratedCustomId(
       createHubPanelCustomId(input.channelId, group.id, lastPage),

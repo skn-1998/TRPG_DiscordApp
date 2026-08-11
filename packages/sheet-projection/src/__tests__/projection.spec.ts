@@ -19,6 +19,7 @@ declare const require: (path: string) => unknown
 
 const goldenInput = require('../../fixtures/hub-basic.input.json') as DiscordProjectionInput
 const goldenExpected = require('../../fixtures/hub-basic.expected.json')
+const emptyDeltasInput = require('../../fixtures/hub-empty-deltas.input.json') as DiscordProjectionInput
 
 function roll(index: number, group = 'group'): ProjectionPaletteEntry {
   return {
@@ -75,6 +76,138 @@ describe('@trpg/sheet-projection', () => {
     expect(select?.options).toHaveLength(25)
     expect(select?.options[24]).toEqual({ label: 'その他…', value: GROUP_SELECT_MORE_VALUE })
     expect(select?.hasMore).toBe(true)
+  })
+
+  it('空deltas resourceのみのgroupをselectとbrowserから除外し、warningとstale panel fallbackを返す', () => {
+    const result = createDiscordProjectionViewModel(emptyDeltasInput)
+    const browser = createGroupBrowser({
+      channelId: emptyDeltasInput.channelId,
+      palette: emptyDeltasInput.palette,
+    })
+    const staleGroupId = 'gfafz1b'
+    const panel = createEphemeralPanel({
+      channelId: emptyDeltasInput.channelId,
+      palette: emptyDeltasInput.palette,
+      groupId: staleGroupId,
+    })
+
+    expect(result.hub.groupSelect?.options).toEqual([{ label: 'skills', value: 'skills' }])
+    expect(result.hub.embed.fields).toEqual([{ name: 'HP', value: '—', inline: true }])
+    expect(browser.options).toEqual([{ label: 'skills', value: 'skills' }])
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: 'empty-group-omitted',
+        path: 'group.空リソース',
+        message: expect.stringContaining('omitted'),
+      })
+    ])
+    expect(panel).toEqual(
+      expect.objectContaining({
+        title: staleGroupId,
+        actions: [],
+      })
+    )
+  })
+
+  it('rollと空deltas resourceが混在するgroupはroll actionを保ち、warningを出さない', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      { key: 'empty', kind: 'resource', deltas: [], label: 'Empty', group: 'mixed', fieldRef: { uid: 'empty' } },
+      roll(1, 'mixed'),
+    ]
+    const result = createDiscordProjectionViewModel(input(palette))
+    const browser = createGroupBrowser({ channelId: input([]).channelId, palette })
+    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'mixed' })
+
+    expect(result.hub.groupSelect?.options).toEqual([{ label: 'mixed', value: 'mixed' }])
+    expect(browser.options).toEqual([{ label: 'mixed', value: 'mixed' }])
+    expect(panel.actions.map((action) => action.paletteKey)).toEqual(['r1'])
+    expect(result.warnings).toEqual([])
+  })
+
+  it('全groupが空deltas resourceのみならgroup selectを生成しない', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      { key: 'hp', kind: 'resource', deltas: [], label: 'HP', group: 'health', fieldRef: { uid: 'hp' } },
+      { key: 'mp', kind: 'resource', deltas: [], label: 'MP', group: 'magic', fieldRef: { uid: 'mp' } },
+    ]
+    const result = createDiscordProjectionViewModel(input(palette))
+
+    expect(result.hub.groupSelect).toBeUndefined()
+    expect(result.warnings.map(({ code, path }) => ({ code, path }))).toEqual([
+      { code: 'empty-group-omitted', path: 'group.health' },
+      { code: 'empty-group-omitted', path: 'group.magic' },
+    ])
+  })
+
+  it('無効roll keyのみのgroupをselectとbrowserから除外し、warningを返す', () => {
+    const palette = [{ ...roll(1, 'invalid-roll'), key: 'bad-key' }]
+    const result = createDiscordProjectionViewModel(input(palette))
+    const browser = createGroupBrowser({ channelId: input([]).channelId, palette })
+
+    expect(result.hub.groupSelect).toBeUndefined()
+    expect(browser.options).toEqual([])
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'invalid-custom-id-part', path: 'palette.bad-key.key' }),
+        expect.objectContaining({ code: 'empty-group-omitted', path: 'group.invalid-roll' }),
+      ])
+    )
+  })
+
+  it('非正準deltaのみのresource groupをselectとbrowserから除外し、warningを返す', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      {
+        key: 'hp',
+        kind: 'resource',
+        deltas: [-0, 1e21, 1e-7],
+        label: 'HP',
+        group: 'noncanonical-resource',
+        fieldRef: { uid: 'hp' },
+      },
+    ]
+    const result = createDiscordProjectionViewModel(input(palette))
+    const browser = createGroupBrowser({ channelId: input([]).channelId, palette })
+
+    expect(result.hub.groupSelect).toBeUndefined()
+    expect(browser.options).toEqual([])
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'invalid-custom-id-part', path: 'palette.hp.deltas' }),
+        expect.objectContaining({ code: 'empty-group-omitted', path: 'group.noncanonical-resource' }),
+      ])
+    )
+  })
+
+  it('有効・無効action混在groupは除外せず、有効actionだけを表示する', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      roll(1, 'mixedrenderability'),
+      { ...roll(2, 'mixedrenderability'), key: 'bad-key' },
+      {
+        key: 'hp',
+        kind: 'resource',
+        deltas: [-0, -1, 1e21, 1],
+        label: 'HP',
+        group: 'mixedrenderability',
+        fieldRef: { uid: 'hp' },
+      },
+    ]
+    const result = createDiscordProjectionViewModel(input(palette))
+    const browser = createGroupBrowser({ channelId: input([]).channelId, palette })
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'mixedrenderability',
+    })
+
+    expect(result.hub.groupSelect?.options).toEqual([
+      { label: 'mixedrenderability', value: 'mixedrenderability' },
+    ])
+    expect(browser.options).toEqual([{ label: 'mixedrenderability', value: 'mixedrenderability' }])
+    expect(panel.actions.map(({ paletteKey, delta }) => [paletteKey, delta])).toEqual([
+      ['r1', undefined],
+      ['hp', -1],
+      ['hp', 1],
+    ])
+    expect(result.warnings).not.toContainEqual(expect.objectContaining({ code: 'empty-group-omitted' }))
   })
 
   it('unsafe group labelは決定的なsafe keyへ変換し、panelで元groupを解決する', () => {
