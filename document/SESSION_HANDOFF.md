@@ -2109,10 +2109,68 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   加算・行内 computed 拒否・参照深さ制限は却下（台帳 §1-4 に理由つき記録。深さは
   トポロジカル 1 回評価で非増幅・循環は publish＋評価の二重防御済み）。design-v1-ui H-18 を
   確定文言へ更新・台帳 §5-2 の D-R3 行クローズ・§6-1 #16 に消化スライス登録済み。
-  **D-R3-IMPL 委譲中**〔run-dr3-impl-code: LIST_ROW_LIMIT・保存 loud/評価 defensive・
-  publish 見積もり行項・独立予算 pin spec・H-18 JSDoc 解消〕→ 検収 → 二重レビュー
-  （公開境界変更のため）→ コミットはユーザー許可済み方針に従い検収後。
-  **次にやること**: D-R3-IMPL 検収 → U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）→
+  **D-R3-IMPL round1 = Fable 検収 blocking → R2 差し戻しで解消（2026-08-12）**: round1 が
+  保存境界へ「行内容無検証（z.unknown）の list 受理」を新設していた — 従来は
+  「not an input field」で list 値**全拒否**（inputSchemaFor に list 分岐なし）だったものを
+  cap の副作用として開放しており、保存受理×評価 throw の fail-open 再導入。R2 で受理を撤回し
+  全拒否へ復元（512 行でも拒否の負方向 spec つき）・H-18 に「保存境界は list 値不受理・
+  受理導入は将来スライスで行内容検証とセット」を追記。維持 = evaluator 防御 cap・publish
+  見積もり行項（listRowLimit options は下方クランプ・上方のみ許可の実装者裁量 — レビューで検証）・
+  独立予算 pin spec・JSDoc。**検収通過**〔engine 515/515〔508＋7〕・front 289/289 独立確認・
+  残骸 grep 0〕。**D-R3 二重レビュー完了 → 統合裁定（dr3-impl-integration.md）→ R3 委譲中**:
+  Codex M1 = 欠落検査の全行走査（評価は先頭 512 なのに欠落検査だけ 513 行目を見る境界不均一 →
+  constraint-evaluator 限定許可で slice 化）・両者一致 = コメント虚偽 2 箇所・Opus F3 =
+  **listRowLimit 公開オプション撤去**（行上限を設定しない見積もり倍率・production caller 0・
+  YAGNI）・Opus F2 = h18-bench が支配項（512×行項）を測らない → list ケース追加。low 群 =
+  コメント配置・行項 0 pin 復元・独立予算 spec の load-bearing 記録（実測 9,043 step/回・
+  余裕 957）・JSDoc 追記・spec タイトル。確認済み = round1 残骸 0・B-2 不変（11 組合せで
+  緩め経路なし）・見積もり上界 4 系成立。
+  **U15-E1 検収通過**〔front 301/301〔289＋12〕独立確認・diff 2 ファイル +262・スポット読み一致
+  （clear = property 省略・parts:true 無効化・formula 欄なし・D-R1 領域不可侵）〕→
+  **E1 レビュー pass**〔low 1 = as Partial キャスト 3 箇所 → E2 項目 0 へ畳み込み〕。
+  **R3 検収通過 → D-R3 分コミット済み（5ba01e6・2026-08-12）**: engine 513/513〔515−4＋2〕・
+  front 301/301 独立確認・残骸 grep 0・constraint-evaluator :184 slice 化スポット確認。
+  台帳 §6-1 #16 を消化済みへ更新。5ba01e6 は worktree 隔離検証 VERIFY_ALL_GREEN（pipefail）。
+  **U15-E2 検収通過（2026-08-12）**: front 303/303〔301＋2〕独立確認・diff 2 ファイル
+  +598/-1（E1+E2 累積）・E1 low のキャスト 3 箇所除去確認（as Partial カウント 10→7 =
+  E1 前基準）・ConstraintInput で number/formula 切替を共通化・patch 形は property 省略規約
+  （total のみ必須維持 = {formula:""} 残置）。
+  **大粒度認知負荷レビュー #10 完了（2026-08-12・二重・両者 needs-fix）**: 突合と裁定 =
+  review-results/impl-u15/big10-integration.md。採用 4 件で **U15-E2-R2 委譲中（Codex code・
+  prompt-u15-e2-r2.md / run-u15-e2-r2）**: A1 base/other 候補削除（publish が構造的拒否 —
+  Fable 指示書起因ミス・メモリ verify-claims 第 18 例）／A2 ConstraintInput の mode useState 廃止
+  = value から導出（H1 cap 切替不能＋H2 pool 行削除で式が数値上書き保存されるデータ破壊の根本修正。
+  契約変更裁定済み: 非 required cap の formula 切替は {formula:''} を書く = total と統一）／
+  A3 blockId 自 section 候補＋タブ切替で選択解除（別 section の blockId 書込可を実測）／
+  A4 scope 空クリア経路 spec。No-Go 一致 = 行編集 UI 3 複製の generic 化（台帳 §2-3 へ登録済み）。
+  Fable doc 消化済み = design-v1-ui H-18 :352 訂正・台帳 §2-3 LIST_ROW_LIMIT・§2-2 B-17
+  （own-undefined×hasOwnProperty・現状到達不能）。E3 へ持込 = blocks/pools issue の chip 語彙欠落
+  （extractFieldId が field path のみ）。
+  **E2-R2 Fable 検収通過（2026-08-12）**: front 308/308〔303＋5〕・engine 513/513 独立再実行・
+  diff 範囲 = editor 2 ファイルのみ・スポット読み一致（mode 導出化 :81・useState 0・
+  typeof key 撤去・selectedField は activeSection 内検索へ :399・候補 = 宣言済みのみ :228・
+  H1 spec が裁定契約 {formula:''} を :485 で固定）。実装者申告 = 回帰 2 本の修正前赤確認済み。
+  留意 = :116 は `(formula || required)` 解釈で、非 required の式欄を空にすると number へ
+  自動復帰（安全方向だが要レビュー確認）。
+  **E2-R2 二重レビュー完了（両者 needs-fix）→ 突合裁定 = r2-review-integration.md →
+  U15-E2-R3 委譲中（Codex code・prompt-u15-e2-r3.md / run-u15-e2-r3）**:
+  F1 :116 の `(formula||required)` 解釈で非 required の式が空経由編集で数値断片として
+  無言永続化（両者一致 high・Opus 実測 cap 0.2。formula 分岐は常に {formula}・clear は
+  number 切替経由へ・誤契約を固定する既存 spec 2 本〔max clear・cap clear〕書換）／
+  F2 タブ切替の明示解除 :740 削除 = activeSection 内導出へ一本化（処方箋対立を Opus 案で裁定:
+  M4 緑実測＋認知負荷優先＋片道 spec が M3 検出器化。タブ往復で選択復元の UX を spec 固定）／
+  F3 dead key 2 個削除（M9 緑）／F4 scope 候補順序 assert／F5 total ?? 0 削除（M11 緑・到達不能）／
+  F6 blockOptions 2 箇所相互参照コメント。記録のみ = I-1 行削除時の検索語持ち越し（実害なし）・
+  I-2 blockId 自由入力の他 section id（publish 拒否 = fail-noisy）。
+  認知負荷 = R2 で最大同時保持 9→9 横ばい（T1 -2 を T2/T3 +1 ずつが相殺）・F1-F3 処置後見込み 8。
+  **R3 Fable 検収通過（2026-08-12）**: front 309/309〔308＋1〕・engine 513/513 独立再実行・
+  スポット読み一致（:114 常時 {formula}・タブ解除は deleteField の 1 箇所のみ・dead key 0・
+  ?? 0 撤去・相互参照コメント :225/:880・F1 回帰 spec = 空→欄維持→{formula:''}→打ち直し・
+  タブ往復復元 spec・max/cap clear は number 切替経由へ書換）。実装者申告 = 修正前赤 1 本確認。
+  → **front レーンコミット済み（2ee02fe・E1+E2+R2+R3 一括・editor 2 ファイル・
+  +770/-5）**。未 push（push はタスク範囲外・運用判断待ち）。
+  **次にやること**: E3（検証タブ・chip 語彙 = blocks/pools issue の
+  extractFieldId 未対応を含む）→
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
