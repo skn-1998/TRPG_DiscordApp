@@ -74,3 +74,6 @@ review-results/
 # スキル持ち出し用エクスポート（正本は .claude/skills と .codex/skills）
 portable-skills-*/
 portable-skills-*.zip
+
+# Next 移行時の旧 Remix app 残骸（追跡 0・node_modules/build/coverage 込み。削除はユーザー判断）
+/trpg-remix-app/
