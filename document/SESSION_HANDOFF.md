@@ -2103,11 +2103,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   （v3Template.spec の front⇔engine 予約語集合一致 pin 3 件 — RESERVED_IDS 'constructor' が
   engine 単独 tree で割れる。跨ぎ drift pin が設計どおり分割を拒否した形）→ 未 push のため
   soft reset で 1 コミットへ squash。教訓: `cmd | tail` は exit を隠す — 検証チェーンは pipefail。
-  **次にやること**: U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）→ キュー #11 SM
-  （SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
+  **D-R3 ユーザー裁定（2026-08-12）**: 前半 = (a) LIST_ROW_LIMIT 新設・512 仮置き（表上限と
+  同形の単一定数・変更容易を確認済み。上げ = 公開済み再検算・下げ = データ移行の注意を H-18 に
+  記録）・後半 = 注釈式の独立予算（式ごと既定 10,000）を仕様として明文化。共有予算化・見積もり
+  加算・行内 computed 拒否・参照深さ制限は却下（台帳 §1-4 に理由つき記録。深さは
+  トポロジカル 1 回評価で非増幅・循環は publish＋評価の二重防御済み）。design-v1-ui H-18 を
+  確定文言へ更新・台帳 §5-2 の D-R3 行クローズ・§6-1 #16 に消化スライス登録済み。
+  **D-R3-IMPL 委譲中**〔run-dr3-impl-code: LIST_ROW_LIMIT・保存 loud/評価 defensive・
+  publish 見積もり行項・独立予算 pin spec・H-18 JSDoc 解消〕→ 検収 → 二重レビュー
+  （公開境界変更のため）→ コミットはユーザー許可済み方針に従い検収後。
+  **次にやること**: D-R3-IMPL 検収 → U15 renderer 残り = エディタ UI・検証タブ（台帳 #10 行）→
+  キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
-  table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・D-R3〔1.864ms 計測済み〕・
-  #14 dup section id・#15 系〕
+  table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
 - **10-S5b 実装完了・小粒度レビュー委譲中**: ブロック/上限/プールの runtime 注釈評価 —
   annotation-runtime.ts 新設（evaluateAnnotationRuntime・警告 8 コード構造化データのみ・
   publish.ts/types.ts 不変・evaluator は resolveNumberValue export 1 行）。
