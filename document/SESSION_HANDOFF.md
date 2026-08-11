@@ -2168,9 +2168,26 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   ?? 0 撤去・相互参照コメント :225/:880・F1 回帰 spec = 空→欄維持→{formula:''}→打ち直し・
   タブ往復復元 spec・max/cap clear は number 切替経由へ書換）。実装者申告 = 修正前赤 1 本確認。
   → **front レーンコミット済み（2ee02fe・E1+E2+R2+R3 一括・editor 2 ファイル・
-  +770/-5）**。未 push（push はタスク範囲外・運用判断待ち）。
-  **次にやること**: E3（検証タブ・chip 語彙 = blocks/pools issue の
-  extractFieldId 未対応を含む）→
+  +770/-5）**。docs レーンも 9b65f27 でコミット済み（tree クリーン）。未 push
+  （push はタスク範囲外・運用判断待ち）。
+  **U15-E3 Fable 検収通過（2026-08-12）**: 検証結果の位置特定表示 —
+  describeIssuePath resolver 1 本（:985）を issues/warnings 両 Alert へ適用（:566/:573）・
+  fallback = raw path・throw 経路なし。front 314/314〔309＋5〕・engine 513/513 独立再実行。
+  spec は validatePublishTemplate 実出力経由で path 語彙を pin（warnings 4 path・
+  issues 5 ケース = blocks id 形/pools/zod index 形/partsKeys 意味形/解決不能 fallback）。
+  実測語彙 = zod index 形 `sections.0.fields.0.label`・意味検証 `sections.<id>.blocks.0.id`・
+  field 系意味検証 `<sectionId>.<fieldId>.partsKeys.1.id`・warning `sections.<id>.blocks.0`。
+  **E3 小粒度レビュー（needs-fix・G1 曖昧 path 誤解決／G2 nested 潰れ／G3 空白ラベル）→
+  E3-R2 消化 → Fable 検収通過 → コミット済み（d4302e1・2026-08-12）**: 解釈候補を
+  両語彙で列挙し**一意のときだけラベル化**（同一対象の重複候補も raw fallback = 保守方向）・
+  itemFields/attrs 再帰・label.trim()||id。front 319/319〔314＋5〕・engine 513/513 独立再実行。
+  回帰 spec 5 本は修正前赤を実装者確認。レビュー確認済み = raw 化変異で 5 spec 赤・
+  意図的 raw fallback 対象の列挙（$・top-level・collection-level・tables/settings）・
+  責務分離 ok（actionMessages 正規表現はサーバ自由文専用）。
+  **U15 キューの現況**: エディタ UI（E1/E2 = 2ee02fe）・検証位置表示（E3 = d4302e1）消化。
+  残 = renderer 配線（D-R2 待ち）・右ペインタブ化（D-R1 待ち）・9-S8 preset UI（D-R1 待ち）。
+  **次にやること**: キュー #11 SM のスライス設計（§3.5 実測 → 第 1 スライス委譲。
+  台帳 #15d(e) の server op 層 partsKey 語彙検査を含む）→
   キュー #11 SM（SM-16 解決分割・台帳 #15d(e) の op 層 partsKey 語彙検査を含む）→ #12 U16。
   **ユーザー決定待ち（台帳 §5-2）**: D-R1・D-R2〔renderer 配線 — clear UX（F2 無言乖離実測済み）・
   table Popover 幅の床（F3）・モバイル Drawer 化を議題に含む〕・#14 dup section id・#15 系〕
