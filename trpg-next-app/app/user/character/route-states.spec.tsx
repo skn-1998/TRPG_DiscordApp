@@ -2,7 +2,7 @@
 
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE } from '../../features/character/components/CharacterDataLoadError'
+import { GENERIC_DATA_LOAD_ERROR_MESSAGE } from '../../components/DataLoadError'
 import CharacterError from './error'
 import CharacterLoading from './loading'
 
@@ -19,7 +19,7 @@ describe('character route states', () => {
       </MantineProvider>
     )
 
-    expect(screen.getByText(GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE)).toBeTruthy()
+    expect(screen.getByText(GENERIC_DATA_LOAD_ERROR_MESSAGE)).toBeTruthy()
     expect(document.body.textContent ?? '').not.toContain(rawErrorMessage)
     fireEvent.click(screen.getByRole('button', { name: '再試行' }))
     expect(retry).toHaveBeenCalledTimes(1)
