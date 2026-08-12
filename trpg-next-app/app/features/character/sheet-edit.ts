@@ -3,8 +3,6 @@ import type { CharacterSheetChange } from './api/character.service.server'
 
 export const GENERIC_SHEET_CONFLICT_MESSAGE = '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
 export const GENERIC_SHEET_NETWORK_ERROR_MESSAGE = '通信に失敗しました。接続を確認して、もう一度お試しください。'
-export const GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE =
-  'データの取得に失敗しました。接続を確認して、再試行してください。'
 
 export type EditableScalarField = Extract<SheetField, { type: 'scalar' }> & {
   valueType: 'number' | 'text'

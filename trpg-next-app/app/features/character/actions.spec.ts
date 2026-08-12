@@ -37,7 +37,7 @@ beforeEach(() => {
 
 describe('refreshCharacterList', () => {
   it("取得失敗時は抽出したメッセージを ' / ' で連結する", async () => {
-    const error = new Error('Request failed')
+    const error = { response: { status: 400 } }
     mockedGetUserCharacterSummaries.mockRejectedValue(error)
     mockedExtractApiErrorMessages.mockReturnValue(['認証に失敗しました', '再ログインしてください'])
 
@@ -45,6 +45,17 @@ describe('refreshCharacterList', () => {
       error: '認証に失敗しました / 再ログインしてください'
     })
     expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
+  it('response のないネットワーク断は内部情報を含まない定型文を返す', async () => {
+    const error = new Error('connect ECONNREFUSED 127.0.0.1:3000')
+    mockedGetUserCharacterSummaries.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['connect ECONNREFUSED 127.0.0.1:3000'])
+
+    await expect(refreshCharacterList()).resolves.toEqual({
+      error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
   })
 })
 

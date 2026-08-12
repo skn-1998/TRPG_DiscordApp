@@ -36,7 +36,6 @@ describe('getCharacterListData', () => {
 
     await expect(getCharacterListData()).resolves.toEqual({
       characters: [],
-      error: 'Failed to load characters',
       isAuthenticated: false
     })
     expect(mockedApiGet).not.toHaveBeenCalled()
@@ -55,7 +54,6 @@ describe('getCharacterListData', () => {
 
     await expect(getCharacterListData()).resolves.toEqual({
       characters: [character],
-      error: null,
       isAuthenticated: true
     })
     expect(mockedApiGet).toHaveBeenCalledWith('/character/summaries')
@@ -67,7 +65,6 @@ describe('getCharacterListData', () => {
 
     await expect(getCharacterListData()).resolves.toEqual({
       characters: [],
-      error: 'Failed to load characters',
       isAuthenticated: false
     })
   })
@@ -78,7 +75,6 @@ describe('getCharacterListData', () => {
 
     await expect(getCharacterListData()).resolves.toEqual({
       characters: [],
-      error: 'Failed to load characters',
       isAuthenticated: false
     })
   })

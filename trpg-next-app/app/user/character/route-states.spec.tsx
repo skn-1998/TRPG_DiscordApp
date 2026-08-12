@@ -2,7 +2,7 @@
 
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE } from '../../features/character/sheet-edit'
+import { GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE } from '../../features/character/components/CharacterDataLoadError'
 import CharacterError from './error'
 import CharacterLoading from './loading'
 
@@ -11,17 +11,19 @@ afterEach(cleanup)
 describe('character route states', () => {
   it('定型エラーと手動再試行を表示し、生のエラー文言は表示しない', () => {
     const reset = jest.fn()
+    const retry = jest.fn()
     const rawErrorMessage = 'connect ECONNREFUSED internal-api:3000'
     render(
       <MantineProvider>
-        <CharacterError error={new Error(rawErrorMessage)} reset={reset} />
+        <CharacterError error={new Error(rawErrorMessage)} reset={reset} retry={retry} />
       </MantineProvider>
     )
 
     expect(screen.getByText(GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE)).toBeTruthy()
     expect(document.body.textContent ?? '').not.toContain(rawErrorMessage)
     fireEvent.click(screen.getByRole('button', { name: '再試行' }))
-    expect(reset).toHaveBeenCalledTimes(1)
+    expect(retry).toHaveBeenCalledTimes(1)
+    expect(reset).not.toHaveBeenCalled()
   })
 
   it('一覧スケルトンを表示する', () => {
