@@ -2558,6 +2558,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   eslint 0・typecheck 緑。
   **次 = キュー #12 U16（シート公開設定）の第 1 スライス設計**。
   大粒度 #15 は U16 第 1 スライス後（SM-14b・SM-8b・U16-1 の 3 本）。
+  **U16 スライス分割を確定・U16-a 委譲済み・走行中（prompt-u16-a.md）**:
+  a = 語彙導入（契約 characterSheetStateSchema へ required 追加・server 型正本・
+  read 境界 normalizer 専用 1 関数を repository normalize 合成点 2 箇所へ・
+  materializer/materializeOrThrow の明示コピー素通し・新規作成 private 固定・
+  fixture 追随）→ b = summary read model（select+inline mapper+DTO/Wire+
+  runtimeKeys の 4 点セット）→ c = 保存専用操作（enum DTO・422・所有者単項更新）→
+  d = renderer（トグル＋注記・一覧バッジ・編集導線）。
+  事前実測は Explore 委譲（characterSheetStateSchema:27-34 の .strict() 4 項目・
+  normalizeCharacter(s):35-47 が summaries 以外の全経路を被覆・
+  sheet-materializer:73-79 と operation:585-594 の 4 キー再構築・
+  summaries は独立 mapper で別スライス・DiscordProjectionInput は
+  visibility 非受領を型で確認）。required 化裁定の理由 = optional だと
+  front まで undefined が漏れる（cross-package runtime 盲点メモリと同根）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
