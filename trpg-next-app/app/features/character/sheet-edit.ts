@@ -32,11 +32,11 @@ export function readEditableValue(field: EditableScalarField, values: Record<str
 
 export function deriveSheetChanges(
   fields: EditableScalarField[],
-  baseValues: Record<string, unknown>,
+  baseline: Record<string, EditorValue>,
   values: Record<string, EditorValue>
 ): CharacterSheetChange[] {
   return fields.flatMap((field) => {
-    const baseValue = readEditableValue(field, baseValues)
+    const baseValue = baseline[field.uid]
     const newValue = values[field.uid]
     if (Object.is(baseValue, newValue)) return []
     return [

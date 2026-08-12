@@ -1,13 +1,19 @@
 'use client'
 
-import { Alert, Button, Card, Container, Group, NumberInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Card, Container, Group, NumberInput, Radio, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle, IconArrowLeft, IconDeviceFloppy } from '@tabler/icons-react'
-import type { CharacterWire } from '@trpg/api-contract'
+import type { CharacterWire, SheetMergeConflictWire } from '@trpg/api-contract'
 import Link from 'next/link'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
 import { saveSheet } from '../actions'
-import { deriveSheetChanges, editableScalarFields, readEditableValue, type EditorValue } from '../sheet-edit'
+import {
+  deriveSheetChanges,
+  editableScalarFields,
+  readEditableValue,
+  type EditableScalarField,
+  type EditorValue
+} from '../sheet-edit'
 
 interface CharacterSheetEditClientProps {
   character: CharacterWire
@@ -17,29 +23,117 @@ interface CharacterSheetEditClientProps {
 interface SheetActionData {
   error: string | null
   conflict?: boolean
+  mergeConflict?: SheetMergeConflictWire
+}
+
+type ConflictResolution = 'theirs' | 'mine'
+
+interface EditorConflict {
+  id: string
+  field: EditableScalarField
+  current: EditorValue
+}
+
+interface ConflictPanelState {
+  payload: SheetMergeConflictWire
+  conflicts: EditorConflict[]
+  selections: Record<string, ConflictResolution>
+}
+
+const GENERIC_CONFLICT_MESSAGE = '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
+
+function createEditorValues(
+  fields: EditableScalarField[],
+  rawValues: Record<string, unknown>
+): Record<string, EditorValue> {
+  return Object.fromEntries(fields.map((field) => [field.uid, readEditableValue(field, rawValues)]))
+}
+
+function readConflictCurrent(field: EditableScalarField, current: unknown): EditorValue {
+  if (field.valueType === 'number') return typeof current === 'number' ? current : undefined
+  return typeof current === 'string' ? current : undefined
+}
+
+function createConflictPanel(
+  payload: SheetMergeConflictWire,
+  fields: EditableScalarField[]
+): ConflictPanelState | null {
+  const fieldsByUid = new Map(fields.map((field) => [field.uid, field]))
+  const conflicts = payload.conflicts.flatMap<EditorConflict>((conflict, index) => {
+    const field = fieldsByUid.get(conflict.path.fieldUid)
+    if (!field) return []
+    return [{
+      id: `${conflict.path.fieldUid}:${conflict.path.partsKey ?? ''}:${index}`,
+      field,
+      current: readConflictCurrent(field, conflict.current)
+    }]
+  })
+  return conflicts.length > 0 ? { payload, conflicts, selections: {} } : null
+}
+
+function formatEditorValue(value: EditorValue): string {
+  return value === undefined ? '未入力' : value === '' ? '空文字' : String(value)
 }
 
 export function CharacterSheetEditClient({ character, template }: CharacterSheetEditClientProps) {
   const fields = useMemo(() => editableScalarFields(template), [template])
-  const baseValues = character.sheet!.values
-  const [values, setValues] = useState<Record<string, EditorValue>>(() =>
-    Object.fromEntries(fields.map((field) => [field.uid, readEditableValue(field, baseValues)]))
+  const initialBaseValues = character.sheet!.values
+  const [baseline, setBaseline] = useState<Record<string, EditorValue>>(() =>
+    createEditorValues(fields, initialBaseValues)
   )
+  const [baseRevision, setBaseRevision] = useState(character.sheet!.revision)
+  const [values, setValues] = useState<Record<string, EditorValue>>(() => createEditorValues(fields, initialBaseValues))
   const [actionData, setActionData] = useState<SheetActionData | null>(null)
+  const [conflictPanel, setConflictPanel] = useState<ConflictPanelState | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const hasInvalidNumber = fields.some((field) => field.valueType === 'number' && values[field.uid] === '')
-  const changes = deriveSheetChanges(fields, baseValues, values)
+  const changes = deriveSheetChanges(fields, baseline, values)
+  const hasCompleteConflictSelection = conflictPanel?.conflicts.every(({ id }) => conflictPanel.selections[id]) ?? false
+
+  const presentSaveResult = (result: SheetActionData) => {
+    if (result.mergeConflict) {
+      const nextPanel = createConflictPanel(result.mergeConflict, fields)
+      if (nextPanel) {
+        setConflictPanel(nextPanel)
+        setActionData(null)
+        return
+      }
+      setActionData({ error: GENERIC_CONFLICT_MESSAGE, conflict: true })
+    } else {
+      setActionData(result)
+    }
+    setConflictPanel(null)
+  }
+
+  const saveChanges = (revision: number, nextChanges: typeof changes) => {
+    startTransition(async () => {
+      const result = await saveSheet(character.characterId, { baseRevision: revision, changes: nextChanges })
+      presentSaveResult(result)
+    })
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    startTransition(async () => {
-      const result = await saveSheet(character.characterId, {
-        baseRevision: character.sheet!.revision,
-        changes
-      })
-      setActionData(result)
-    })
+    saveChanges(baseRevision, changes)
+  }
+
+  const handleConflictApply = () => {
+    if (!conflictPanel || !hasCompleteConflictSelection) return
+    const nextBaseline = { ...baseline }
+    const nextValues = { ...values }
+    for (const conflict of conflictPanel.conflicts) {
+      nextBaseline[conflict.field.uid] = conflict.current
+      if (conflictPanel.selections[conflict.id] === 'theirs') nextValues[conflict.field.uid] = conflict.current
+    }
+    const nextRevision = conflictPanel.payload.currentRevision
+    const nextChanges = deriveSheetChanges(fields, nextBaseline, nextValues)
+    setBaseline(nextBaseline)
+    setBaseRevision(nextRevision)
+    setValues(nextValues)
+    setConflictPanel(null)
+    setActionData(null)
+    if (nextChanges.length > 0) saveChanges(nextRevision, nextChanges)
   }
 
   return (
@@ -49,7 +143,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
           <div>
             <Title order={2}>{character.characterName} のシート編集</Title>
             <Text size="sm" c="dimmed">
-              {template.name} v{character.sheet!.templateVersion} / revision {character.sheet!.revision}
+              {template.name} v{character.sheet!.templateVersion} / revision {baseRevision}
             </Text>
           </div>
           <Button
@@ -61,6 +155,50 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
             一覧へ
           </Button>
         </Group>
+
+        {conflictPanel && (
+          <Card withBorder radius="md" p="lg" role="region" aria-label="保存競合">
+            <Stack gap="md">
+              <div>
+                <Title order={3}>保存競合</Title>
+                <Text size="sm" c="dimmed">項目ごとに採用する値を選んでください。他の項目は引き続き編集できます。</Text>
+              </div>
+              {conflictPanel.conflicts.map((conflict) => (
+                <Card key={conflict.id} withBorder radius="sm" p="md">
+                  <Stack gap="xs">
+                    <Text fw={600}>{conflict.field.label}</Text>
+                    <Text size="sm">相手の値: {formatEditorValue(conflict.current)}</Text>
+                    <Text size="sm">自分の値: {formatEditorValue(values[conflict.field.uid])}</Text>
+                    <Radio.Group
+                      label={`${conflict.field.label} の解決方法`}
+                      value={conflictPanel.selections[conflict.id] ?? ''}
+                      onChange={(resolution) => setConflictPanel((current) =>
+                        current?.payload === conflictPanel.payload
+                          ? { ...current, selections: { ...current.selections, [conflict.id]: resolution as ConflictResolution } }
+                          : current
+                      )}
+                    >
+                      <Group mt="xs">
+                        <Radio value="theirs" label="相手の値を採用 (theirs)" />
+                        <Radio value="mine" label="自分の値を採用 (mine)" />
+                      </Group>
+                    </Radio.Group>
+                  </Stack>
+                </Card>
+              ))}
+              <Group justify="flex-end">
+                <Button
+                  type="button"
+                  onClick={handleConflictApply}
+                  disabled={!hasCompleteConflictSelection}
+                  loading={isPending}
+                >
+                  選択を適用
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
+        )}
 
         {actionData?.error && (
           <Alert
@@ -94,9 +232,10 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                       label={field.label}
                       description={field.description}
                       value={typeof values[field.uid] === 'string' ? values[field.uid] : ''}
-                      onChange={(event) =>
-                        setValues((current) => ({ ...current, [field.uid]: event.currentTarget.value }))
-                      }
+                      onChange={(event) => {
+                        const value = event.currentTarget.value
+                        setValues((current) => ({ ...current, [field.uid]: value }))
+                      }}
                     />
                   )
                 )}

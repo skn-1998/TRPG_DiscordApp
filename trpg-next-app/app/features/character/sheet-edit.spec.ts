@@ -103,7 +103,7 @@ describe('deriveSheetChanges', () => {
 
   it("parts 付き field の変更には partsKey: 'base' を付ける", () => {
     expect(
-      deriveSheetChanges([partsField], { 'main.score': { parts: { base: 10, buff: 2 } } }, { 'main.score': 11 })
+      deriveSheetChanges([partsField], { 'main.score': 10 }, { 'main.score': 11 })
     ).toEqual([
       {
         path: { fieldUid: 'main.score', partsKey: 'base' },
@@ -116,8 +116,8 @@ describe('deriveSheetChanges', () => {
   it.each([
     ['undefined から値', {}, { 'main.name': '探索者' }],
     ['値から undefined', { 'main.name': '探索者' }, { 'main.name': undefined }]
-  ] as const)('%s への遷移を変更として返す', (_caseName, baseValues, values) => {
-    expect(deriveSheetChanges([textField], baseValues, values as Record<string, EditorValue>)).toHaveLength(1)
+  ] as const)('%s への遷移を変更として返す', (_caseName, baseline, values) => {
+    expect(deriveSheetChanges([textField], baseline, values as Record<string, EditorValue>)).toHaveLength(1)
   })
 
   it('Object.is で同値になる NaN は変更に含めない', () => {
