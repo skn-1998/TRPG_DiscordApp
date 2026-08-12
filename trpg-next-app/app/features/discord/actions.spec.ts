@@ -20,6 +20,9 @@ import { getDiscordServers, postCharacterToDiscord as postCharacterToDiscordRequ
 import { loadDiscordServers, postCharacterToDiscord } from './actions'
 
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
+const actualExtractApiErrorMessages = jest.requireActual<typeof import('../../lib/api-response.util')>(
+  '../../lib/api-response.util'
+).extractApiErrorMessages
 const mockedGetDiscordServers = jest.mocked(getDiscordServers)
 const mockedPostCharacterToDiscordRequest = jest.mocked(postCharacterToDiscordRequest)
 const mockedRequireJwt = jest.mocked(requireJwt)
@@ -41,6 +44,18 @@ describe('discord actions', () => {
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
   })
 
+  it('サーバー一覧取得時は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedGetDiscordServers.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(loadDiscordServers()).resolves.toEqual({
+      servers: [],
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
   it('キャラクター投稿時の response のないネットワーク断は内部情報を含まない定型文を返す', async () => {
     const error = new Error('connect ECONNREFUSED internal-api:3000')
     mockedPostCharacterToDiscordRequest.mockRejectedValue(error)
@@ -51,5 +66,17 @@ describe('discord actions', () => {
       error: GENERIC_NETWORK_ERROR_MESSAGE
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  it('キャラクター投稿時は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedPostCharacterToDiscordRequest.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(postCharacterToDiscord('character-1', 'guild-1')).resolves.toEqual({
+      success: false,
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
   })
 })

@@ -48,8 +48,9 @@ export async function createTemplate(): Promise<{ error: string | null }> {
     })
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 
@@ -70,8 +71,9 @@ export async function importV2Template(
     created = await createSheetTemplate(requestBody)
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 
@@ -85,8 +87,9 @@ export async function deleteTemplate(templateId: string): Promise<{ error: strin
     await deleteSheetTemplate(templateId)
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 
@@ -109,8 +112,9 @@ export async function createCharacter(input: {
     await createCharacterFromTemplate({ ...input, characterName })
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 

@@ -27,6 +27,9 @@ import { refreshCharacterList, saveSheet } from './actions'
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
+const actualExtractApiErrorMessages = jest.requireActual<typeof import('../../lib/api-response.util')>(
+  '../../lib/api-response.util'
+).extractApiErrorMessages
 const mockedGetUserCharacterSummaries = jest.mocked(getUserCharacterSummaries)
 const mockedSaveCharacterSheet = jest.mocked(saveCharacterSheet)
 
@@ -55,6 +58,17 @@ describe('refreshCharacterList', () => {
       error: GENERIC_NETWORK_ERROR_MESSAGE
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  it('API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedGetUserCharacterSummaries.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(refreshCharacterList()).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
   })
 })
 
@@ -185,6 +199,18 @@ describe('saveSheet', () => {
       retryable: true
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  it('API の message が空でも定型文を返し、5xx の再試行可分類を維持する', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedSaveCharacterSheet.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE,
+      retryable: true
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
   })
 
   it.each([
