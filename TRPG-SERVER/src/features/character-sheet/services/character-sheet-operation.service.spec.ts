@@ -718,38 +718,57 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
     })
 
-    it.each(partsKeyAcceptanceCases)(
-      'engine入力境界と操作層のpartsKey受理を一致させる: $mode / "$partsKey"',
-      async ({ mode, partsKey, accepted }) => {
-        const partsKeyTemplate = makePartsKeyTemplate(mode)
-        templateService.resolvePinnedRevision.mockResolvedValue(partsKeyTemplate)
-        current = makeCharacter({
-          sheet: {
-            ...current.sheet!,
-            values: { ...current.sheet!.values, 'uid-score': { parts: {} } }
-          }
-        })
-
-        const engineAccepted = sheetEngine
-          .buildValueInputSchema(toEngineTemplate(partsKeyTemplate))
-          .safeParse({ 'uid-score': { parts: makeOwnParts(partsKey, 1) } }).success
-        expect(engineAccepted).toBe(accepted)
-
-        const operation = service.saveSheet({
-          characterId: 'character-1',
-          baseRevision: 1,
-          changes: [{ path: { fieldUid: 'uid-score', partsKey }, baseValue: undefined, newValue: 1 }]
-        })
-
-        if (engineAccepted) {
-          await expect(operation).resolves.toEqual(
-            expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 })
-          )
-          expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
-          return
+    // partsKey 受理の層間一致は、ケース表 partsKeyAcceptanceCases を受理系/拒否系に分けて検証する。
+    // （1 本の it.each に畳むと期待値が if 分岐に入り jest/no-conditional-expect に触れるため）
+    const arrangePartsKeyCase = (mode: PartsKeyMode): CharacterSheetTemplateEntity => {
+      const partsKeyTemplate = makePartsKeyTemplate(mode)
+      templateService.resolvePinnedRevision.mockResolvedValue(partsKeyTemplate)
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: { ...current.sheet!.values, 'uid-score': { parts: {} } }
         }
+      })
+      return partsKeyTemplate
+    }
 
-        await expect(operation).rejects.toMatchObject({ status: 422 })
+    const engineAcceptsPartsKey = (partsKeyTemplate: CharacterSheetTemplateEntity, partsKey: string): boolean =>
+      sheetEngine
+        .buildValueInputSchema(toEngineTemplate(partsKeyTemplate))
+        .safeParse({ 'uid-score': { parts: makeOwnParts(partsKey, 1) } }).success
+
+    it.each(partsKeyAcceptanceCases.filter((testCase) => testCase.accepted))(
+      'engine入力境界と操作層のpartsKey受理を一致させる(受理): $mode / "$partsKey"',
+      async ({ mode, partsKey }) => {
+        const partsKeyTemplate = arrangePartsKeyCase(mode)
+
+        expect(engineAcceptsPartsKey(partsKeyTemplate, partsKey)).toBe(true)
+
+        await expect(
+          service.saveSheet({
+            characterId: 'character-1',
+            baseRevision: 1,
+            changes: [{ path: { fieldUid: 'uid-score', partsKey }, baseValue: undefined, newValue: 1 }]
+          })
+        ).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+        expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it.each(partsKeyAcceptanceCases.filter((testCase) => !testCase.accepted))(
+      'engine入力境界と操作層のpartsKey受理を一致させる(拒否): $mode / "$partsKey"',
+      async ({ mode, partsKey }) => {
+        const partsKeyTemplate = arrangePartsKeyCase(mode)
+
+        expect(engineAcceptsPartsKey(partsKeyTemplate, partsKey)).toBe(false)
+
+        await expect(
+          service.saveSheet({
+            characterId: 'character-1',
+            baseRevision: 1,
+            changes: [{ path: { fieldUid: 'uid-score', partsKey }, baseValue: undefined, newValue: 1 }]
+          })
+        ).rejects.toMatchObject({ status: 422 })
         expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
       }
     )
