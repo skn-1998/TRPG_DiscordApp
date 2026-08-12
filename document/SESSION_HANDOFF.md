@@ -2370,6 +2370,40 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   Fable 最終ゲート = front 334（325＋9）全緑。
   次 = SM-E（ephemeral canMutate＋no-authorized-actions・owner/non-owner fixture・
   SM-5/SM-11 系）。SM-E 完了時点で大粒度 #13（D2a・D2b・SM-E の 3 スライス）。
+  **SM-E 委譲済み・走行中（prompt-sm-e.md）**: projection = EphemeralPanelInput へ
+  canMutate **必須**追加（optional 既定は fail-open のため不可）・resource 除外・
+  no-authorized-actions の発火は「除外前 ≥1 ∧ 除外後 0」に限定（canMutate=true の
+  既存 0 件経路は不変）・文言は仕様の文字列そのまま。server = 2 handler
+  （hub-group-select:44・hub-panel-navigation:29）で毎 interaction 判定・
+  **B-13 空文字 owner fail-closed 必須**・findByChannelId select に discordUserId が
+  含まれるか実測して pin spec（repository.spec:465 系）と同時更新。
+  hub 投影・group browser は U9 viewer 中立のまま不触。
+  **SM-E 返着・Fable 独立検収まで完了**: diff +220/−12（予算内）・findByChannelId は
+  既に discordUserId を投影済み（select pin と一致・変更不要を実測報告 —
+  台帳 B-13 の「投影不足」の懸念は現行コードでは非該当）。独立ゲート = projection 32
+  （29＋3）・server focused 82＋repository 43（jest がフラグ文字列をパターンに含めた
+  ため単独再実行で確認）・engine 519 回帰なし。
+  **Fable 実査の設計論点 1 件をレビューへ付託**: resource 除外が
+  `action !== 'resource'` の deny-list で、将来の変異系 action 追加時に非所有者へ
+  素通りする fail-open 構造（keep 'roll' の allow-list なら fail-closed）。
+  **Opus レビュー = needs-fix（medium 2・low 2・全て機械的。証跡 = opus-review-sm-e.md）
+  → R2 委譲済み・走行中**: F-1 = deny-list 論点は採用（allow-list 化は今日の挙動と
+  完全同値を実測 — actions 到達 action は roll/resource の 2 値のみ）／F-2 = fail-closed
+  ガードは変異生存（判別 spec ゼロ）＋前置項は型上到達不能 → 兄弟実装と同語彙の
+  1 行比較へ縮約（'' / undefined owner は素の === で false = B-13 充足）／
+  F-4 = owner 0 件経路の status 未 pin → 1 行追加／F-5 = 文言 2 箇所配置の裁定を
+  台帳 §2-3 へ記録済み。記録訂正: 「server focused 82」の内訳 = repository 43 を含む
+  3 suite 合計（レビュアの 2 suite 39 と両立・以後 suite 内訳を添える）。
+  **SM-E 完了・コミット済み（196e629・2026-08-12）**: R2 消化を実査（allow-list 化・
+  判定式 1 行化・status pin・red-green 2 件）・独立ゲート = projection 32・
+  server focused 82（hub-panel 7・custom-id 32・repository 43）・engine 519。
+  **コミット時の事故 2 件（復旧済み・メモリ記録済み）**: (1) `-m "..."` 内の
+  バッククォート式が bash のコマンド置換に食われ、式が欠落したメッセージで
+  コミット成立 → quoted here-doc（`-F - <<'MSG'`）で amend 修復（196e629 が正）。
+  以後コミットメッセージは here-doc で渡す。(2) index 残渣 MM の 3 例目
+  （worktree==HEAD・staged が整形変異）→ 対象限定 restore --staged で解消。
+  **次 = 大粒度 #13**（D2a 9c8dbb3／D2b 4d864ed／SM-E 196e629 横断・
+  Codex＋Opus 二重・cognitive-load モード A＋reuse sweep）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
