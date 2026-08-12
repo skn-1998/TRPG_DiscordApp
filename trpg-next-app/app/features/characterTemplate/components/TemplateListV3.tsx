@@ -26,10 +26,9 @@ import { isV2LocalTemplate, migrateV2TemplateToCreateRequest } from '../utils/v3
 
 interface TemplateListV3Props {
   summaries: CharacterSheetTemplateSummary[]
-  error?: string | null
 }
 
-export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
+export function TemplateListV3({ summaries }: TemplateListV3Props) {
   const [legacyTemplates, setLegacyTemplates] = useState<Template[]>([])
   const [legacyReadError, setLegacyReadError] = useState<string | null>(null)
   const [creationTemplate, setCreationTemplate] = useState<CharacterSheetTemplateSummary | null>(null)
@@ -96,9 +95,9 @@ export function TemplateListV3({ summaries, error }: TemplateListV3Props) {
           </form>
         </Group>
 
-        {(error || listActionError || createCharacterError) && (
+        {(listActionError || createCharacterError) && (
           <Alert color="red" icon={<IconAlertCircle size={16} />} title="テンプレート一覧の処理に失敗しました">
-            {error ?? listActionError ?? createCharacterError}
+            {listActionError ?? createCharacterError}
           </Alert>
         )}
 

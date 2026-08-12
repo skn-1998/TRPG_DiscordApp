@@ -2,7 +2,11 @@
 
 import { redirect } from 'next/navigation'
 import { normalizeTemplateLayout } from '@trpg/sheet-engine'
-import { extractApiErrorMessages, getResponseStatus } from '../../lib/api-response.util'
+import {
+  extractApiErrorMessages,
+  GENERIC_NETWORK_ERROR_MESSAGE,
+  getResponseStatus
+} from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { createCharacterFromTemplate } from '../character/api/character.service.server'
 import {
@@ -42,7 +46,10 @@ export async function createTemplate(): Promise<{ error: string | null }> {
       settings: { rounding: 'floor' }
     })
   } catch (error) {
-    return { error: extractApiErrorMessages(error).join(' / ') }
+    const status = getResponseStatus(error)
+    return {
+      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+    }
   }
 
   redirect(`/templates/${created.templateId}/edit`)
@@ -61,7 +68,10 @@ export async function importV2Template(
   try {
     created = await createSheetTemplate(requestBody)
   } catch (error) {
-    return { error: extractApiErrorMessages(error).join(' / ') }
+    const status = getResponseStatus(error)
+    return {
+      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+    }
   }
 
   redirect(`/templates/${created.templateId}/edit`)
@@ -73,7 +83,10 @@ export async function deleteTemplate(templateId: string): Promise<{ error: strin
   try {
     await deleteSheetTemplate(templateId)
   } catch (error) {
-    return { error: extractApiErrorMessages(error).join(' / ') }
+    const status = getResponseStatus(error)
+    return {
+      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+    }
   }
 
   redirect('/templates')
@@ -94,7 +107,10 @@ export async function createCharacter(input: {
   try {
     await createCharacterFromTemplate({ ...input, characterName })
   } catch (error) {
-    return { error: extractApiErrorMessages(error).join(' / ') }
+    const status = getResponseStatus(error)
+    return {
+      error: status === undefined ? GENERIC_NETWORK_ERROR_MESSAGE : extractApiErrorMessages(error).join(' / ')
+    }
   }
 
   redirect('/user/character')
@@ -117,9 +133,10 @@ export async function saveTemplateDraft(
 
     return { template: updated }
   } catch (error) {
+    const status = getResponseStatus(error)
     return {
-      conflict: getResponseStatus(error) === 409,
-      messages: extractApiErrorMessages(error)
+      conflict: status === 409,
+      messages: status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     }
   }
 }

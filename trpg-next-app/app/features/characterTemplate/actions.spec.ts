@@ -25,7 +25,7 @@ jest.mock('./api/sheetTemplateApi.server', () => ({
 }))
 
 import { redirect } from 'next/navigation'
-import { extractApiErrorMessages } from '../../lib/api-response.util'
+import { extractApiErrorMessages, GENERIC_NETWORK_ERROR_MESSAGE } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { createCharacterFromTemplate } from '../character/api/character.service.server'
 import {
@@ -172,13 +172,22 @@ describe('characterTemplate actions', () => {
   })
 
   it("API 失敗時は抽出したメッセージを ' / ' で連結する", async () => {
-    const error = new Error('Bad Request')
+    const error = { response: { status: 400 } }
     mockedCreateSheetTemplate.mockRejectedValue(error)
     mockedExtractApiErrorMessages.mockReturnValue(['名前は必須です', '値が不正です'])
 
     await expect(createTemplate()).resolves.toEqual({ error: '名前は必須です / 値が不正です' })
     expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
     expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('createTemplate の network 断は定型文を返し、生メッセージを抽出しない', async () => {
+    const error = new Error('connect ECONNREFUSED internal-api:3000')
+    mockedCreateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue([error.message])
+
+    await expect(createTemplate()).resolves.toEqual({ error: GENERIC_NETWORK_ERROR_MESSAGE })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
   })
 
   it('saveTemplateDraft の save 成功時は全キーを update へ渡し publish しない', async () => {
@@ -244,5 +253,17 @@ describe('characterTemplate actions', () => {
       conflict: false,
       messages: ['version が不正です']
     })
+  })
+
+  it('saveTemplateDraft の network 断は定型文を返し、生メッセージを抽出しない', async () => {
+    const error = new Error('connect ECONNREFUSED internal-api:3000')
+    mockedUpdateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue([error.message])
+
+    await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
+      conflict: false,
+      messages: [GENERIC_NETWORK_ERROR_MESSAGE]
+    })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
   })
 })

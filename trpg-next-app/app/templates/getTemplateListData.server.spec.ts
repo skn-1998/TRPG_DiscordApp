@@ -1,19 +1,19 @@
 jest.mock('server-only', () => ({}))
 
+jest.mock('next/navigation', () => ({
+  redirect: jest.fn()
+}))
+
 jest.mock('../features/characterTemplate/api/sheetTemplateApi.server', () => ({
   getSheetTemplateSummaries: jest.fn()
 }))
 
-jest.mock('../lib/api-response.util', () => ({
-  extractApiErrorMessages: jest.fn()
-}))
-
+import { redirect } from 'next/navigation'
 import { getSheetTemplateSummaries } from '../features/characterTemplate/api/sheetTemplateApi.server'
 import type { CharacterSheetTemplateSummary } from '../features/characterTemplate/types/v3'
-import { extractApiErrorMessages } from '../lib/api-response.util'
 import { getTemplateListData } from './getTemplateListData.server'
 
-const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
+const mockedRedirect = jest.mocked(redirect)
 const mockedGetSheetTemplateSummaries = jest.mocked(getSheetTemplateSummaries)
 
 const summary: CharacterSheetTemplateSummary = {
@@ -33,20 +33,31 @@ describe('getTemplateListData', () => {
     mockedGetSheetTemplateSummaries.mockResolvedValue([summary, null, undefined] as never)
 
     await expect(getTemplateListData()).resolves.toEqual({
-      summaries: [summary],
-      error: null
+      summaries: [summary]
     })
   })
 
-  it('取得に失敗しても throw せず空一覧と連結した error を返す', async () => {
-    const error = new Error('Unauthorized')
-    mockedGetSheetTemplateSummaries.mockRejectedValue(error)
-    mockedExtractApiErrorMessages.mockReturnValue(['認証に失敗しました', '再ログインしてください'])
+  it.each([401, 403])('%i なら login へ redirect する', async (status) => {
+    const authError = { response: { status } }
+    mockedGetSheetTemplateSummaries.mockRejectedValue(authError)
 
-    await expect(getTemplateListData()).resolves.toEqual({
-      summaries: [],
-      error: '認証に失敗しました / 再ログインしてください'
-    })
-    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+    await expect(getTemplateListData()).rejects.toBe(authError)
+    expect(mockedRedirect).toHaveBeenCalledWith('/login')
+  })
+
+  it('network 断なら取得失敗セルへ渡すため throw する', async () => {
+    const networkError = new Error('connect ECONNREFUSED 127.0.0.1:3000')
+    mockedGetSheetTemplateSummaries.mockRejectedValue(networkError)
+
+    await expect(getTemplateListData()).rejects.toBe(networkError)
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('5xx なら取得失敗セルへ渡すため throw する', async () => {
+    const serverError = { response: { status: 503 } }
+    mockedGetSheetTemplateSummaries.mockRejectedValue(serverError)
+
+    await expect(getTemplateListData()).rejects.toBe(serverError)
+    expect(mockedRedirect).not.toHaveBeenCalled()
   })
 })

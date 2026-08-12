@@ -1,12 +1,12 @@
 import 'server-only'
 
+import { redirect } from 'next/navigation'
 import { getSheetTemplateSummaries } from '../features/characterTemplate/api/sheetTemplateApi.server'
 import type { CharacterSheetTemplateSummary } from '../features/characterTemplate/types/v3'
-import { extractApiErrorMessages } from '../lib/api-response.util'
+import { getResponseStatus } from '../lib/api-response.util'
 
 interface TemplateListData {
   summaries: CharacterSheetTemplateSummary[]
-  error: string | null
 }
 
 function isTemplateSummary(
@@ -18,8 +18,10 @@ function isTemplateSummary(
 export async function getTemplateListData(): Promise<TemplateListData> {
   try {
     const summaries = (await getSheetTemplateSummaries()).filter(isTemplateSummary)
-    return { summaries, error: null }
+    return { summaries }
   } catch (error) {
-    return { summaries: [], error: extractApiErrorMessages(error).join(' / ') }
+    const status = getResponseStatus(error)
+    if (status === 401 || status === 403) redirect('/login')
+    throw error
   }
 }

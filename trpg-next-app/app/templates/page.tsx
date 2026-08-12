@@ -6,5 +6,5 @@ export default async function TemplatesPage() {
   await requireJwt()
 
   const templateListData = await getTemplateListData()
-  return <TemplateListV3 summaries={templateListData.summaries} error={templateListData.error} />
+  return <TemplateListV3 summaries={templateListData.summaries} />
 }
