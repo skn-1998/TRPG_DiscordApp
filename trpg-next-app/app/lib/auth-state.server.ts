@@ -3,15 +3,22 @@ import 'server-only'
 import type { SuccessEnvelope, UserProfileWire } from '@trpg/api-contract'
 import { cache } from 'react'
 import { apiClient } from './api-client.server'
+import { getResponseStatus } from './api-response.util'
 import { readJwt } from './auth-guard.server'
 
 export interface AuthState {
   user: UserProfileWire | null
+  degradedByInfraFailure?: true
 }
 
 // 認証状態は user の有無を単一の正本とする。
 const loggedOutAuthState: AuthState = {
   user: null
+}
+
+const infraDegradedAuthState: AuthState = {
+  user: null,
+  degradedByInfraFailure: true
 }
 
 export const getAuthState = cache(async (): Promise<AuthState> => {
@@ -27,8 +34,13 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
     return {
       user: response.data.data
     }
-  } catch {
-    // 共通 layout と公開ページは、認証検証に失敗しても未ログイン表示で描画を継続する。
-    return loggedOutAuthState
+  } catch (error) {
+    const status = getResponseStatus(error)
+    if (status === 401 || status === 403) {
+      return loggedOutAuthState
+    }
+
+    // 公開面の soft degrade を保ちつつ、保護領域だけが infrastructure failure を識別できるようにする。
+    return infraDegradedAuthState
   }
 })

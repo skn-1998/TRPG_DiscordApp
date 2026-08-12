@@ -37,8 +37,11 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
 - /user 配下は**二段ゲート**: `user/layout.tsx` が `requireJwt()`＋`getAuthState()` の user null
   判定（= /users probe。react cache 済みなので root layout と同一リクエスト内で dedupe され
   probe は 1 回 — #125）で hard gate を持ち（layout はツリー進入時には必ず実行される）、
-  データを扱う page が個別に `requireJwt()` を重ねる。認証状態の返却形は `{ user }` のみ
-  （3 信号 isLoggedIn/hasValidJwt は #125 で削除 — 常に連動し 8 状態中 2 状態しか生成されなかった）。stub 3 枚（gameManager / story / discordBotCombination）は現状 layout gate のみ
+  データを扱う page が個別に `requireJwt()` を重ねる。認証状態の返却形は `{ user,
+  degradedByInfraFailure?: true }`。JWT なし・401/403 はフラグなしの `user:null`、network 断・5xx
+  等はフラグありの `user:null` とし、公開面はフラグを無視して soft degrade、`/user` layout
+  だけが throw して root error 境界へ渡す（3 信号 isLoggedIn/hasValidJwt は #125 で削除 —
+  常に連動し 8 状態中 2 状態しか生成されなかった）。stub 3 枚（gameManager / story / discordBotCombination）は現状 layout gate のみ
   （静的文字列でデータ露出ゼロ — 最終レビューは両実施者とも layout gate を見落として
   「無ガード」と過大判定・Fable 実測で訂正）。**stub に実装を入れる際は page 先頭の
   `requireJwt()` が必須**。page 単位の機械 enforcement（lint/spec）は起票済み（M4）

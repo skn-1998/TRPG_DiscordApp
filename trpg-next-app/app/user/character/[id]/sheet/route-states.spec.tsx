@@ -25,8 +25,8 @@ jest.mock('../../../../lib/auth-guard.server', () => ({
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { redirect } from 'next/navigation'
+import { GENERIC_DATA_LOAD_ERROR_MESSAGE } from '../../../../components/DataLoadError'
 import { getCharacter } from '../../../../features/character/api/character.service.server'
-import { GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE } from '../../../../features/character/components/CharacterDataLoadError'
 import { getSheetTemplate } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
 import { requireJwt } from '../../../../lib/auth-guard.server'
 import CharacterSheetError from './error'
@@ -51,7 +51,7 @@ describe('character sheet route states', () => {
       </MantineProvider>
     )
 
-    expect(screen.getByText(GENERIC_CHARACTER_DATA_LOAD_ERROR_MESSAGE)).toBeTruthy()
+    expect(screen.getByText(GENERIC_DATA_LOAD_ERROR_MESSAGE)).toBeTruthy()
     expect(document.body.textContent ?? '').not.toContain(rawErrorMessage)
     fireEvent.click(screen.getByRole('button', { name: '再試行' }))
     expect(retry).toHaveBeenCalledTimes(1)

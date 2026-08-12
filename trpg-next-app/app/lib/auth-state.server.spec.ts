@@ -58,12 +58,32 @@ describe('getAuthState', () => {
     expect(mockedApiGet).toHaveBeenCalledWith('/users')
   })
 
-  it('jwt の検証に失敗しても throw せず logged-out 形を返す', async () => {
+  it.each([401, 403])('%i は認証失格としてフラグなしの logged-out 形を返す', async (status) => {
     mockJwtCookie('invalid-jwt')
-    mockedApiGet.mockRejectedValue(new Error('Unauthorized'))
+    mockedApiGet.mockRejectedValue({ response: { status } })
 
     await expect(getAuthState()).resolves.toEqual({
       user: null
+    })
+  })
+
+  it('response のない network 断は infrastructure failure として分類する', async () => {
+    mockJwtCookie('valid-jwt')
+    mockedApiGet.mockRejectedValue(new Error('Network Error'))
+
+    await expect(getAuthState()).resolves.toEqual({
+      user: null,
+      degradedByInfraFailure: true
+    })
+  })
+
+  it('503 は infrastructure failure として分類する', async () => {
+    mockJwtCookie('valid-jwt')
+    mockedApiGet.mockRejectedValue({ response: { status: 503 } })
+
+    await expect(getAuthState()).resolves.toEqual({
+      user: null,
+      degradedByInfraFailure: true
     })
   })
 })

@@ -8,8 +8,12 @@ import { getAuthState } from '../lib/auth-state.server'
 export default async function UserLayout({ children }: Readonly<{ children: ReactNode }>) {
   await requireJwt()
 
-  const { user } = await getAuthState()
+  const { user, degradedByInfraFailure } = await getAuthState()
   if (!user) {
+    if (degradedByInfraFailure) {
+      throw new Error('認証状態を取得できませんでした')
+    }
+
     redirect('/login')
   }
 
