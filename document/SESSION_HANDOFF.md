@@ -2705,6 +2705,22 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   partsKeys 拡張 = H3 残債）→ S6（後片付け・完了宣言＋大粒度 #17）**。
   記録 = page.tsx の template fetch は templateVersion 無視（SM-16 front ギャップ）・
   TFR 'use client' 無し（S6 検討）。
+  **S1（TFR 内部整理）= 実装済み・Fable 検収通過（2026-08-13・未コミット）**:
+  isPresentablePartsKey 1 本へ 3 サイト統一（reserved＋UNSAFE・自由モードの base/other
+  専用行は不変）＋headingLevel prop（既定 2・block +1）。front 462 全緑・eslint/tsc 0。
+  Fable 独立変異 2 種（UNSAFE 除外除去→2 pin 赤・h2 固定→heading pin 赤）＋負の対照緑。
+  **S2（annotation step bench）= 実装済み・Fable 検収通過（Opus 委譲・未コミット）**:
+  scripts/annotation-bench.ts＋bench:annotation。ベンチは Fable 再実行で byte 一致再現・
+  engine 519 全緑。**重要所見 = case 3 予算超過**: 静的予算満杯 template ＋ 256 node 注釈式で
+  実 step 10,255 > 独立予算 10,000（publish は注釈式を静的見積もりに加算しない設計のため
+  構造的に超えうる・超過時は evaluateConstraint が error へ fail-safe 退化・hang なし・
+  最悪 ~4.4ms/回で打鍵毎再評価も予算内）。レビューで反証確認中 → 妥当なら台帳へ記録。
+  **S2 起動の教訓**: codex_run.sh は同一 tree に writer 1 本のロック（並行 code 委譲不可）
+  → S2 は Opus サブエージェントへ切替えて並行維持。
+  **S5 スコープ精緻化**: S4 は sheet-edit.ts 不変・onPartsChange は 'base' のみ
+  （現行パリティ）。select/boolean の永続化＋宣言 partsKeys 書込は S5 へ
+  （S4 の select/boolean は「表示されるが永続しない」暫定 — 完了宣言前に S5 で解消）。
+  S3+S4 指示書 = prompt-dr2-s3s4-code.txt 作成済み・S1/S2 レビュー消化＋コミット後に起動。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
