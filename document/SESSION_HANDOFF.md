@@ -2587,12 +2587,20 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   使うかどうか・どこで使うかは検討事項。**動機（ユーザー裁定）= (1) ネスト不変更新の
   煩雑さ (2) 状態共有/prop drilling。対象範囲 = front 全体の標準方針（採用時は
   新規実装の標準＋既存の移行順序も決める）。進め方 = Fable が調査して推奨を出し
-  ユーザーが最終判断。**調査 2 面を Opus 並行委譲中**（read-only・証跡 =
-  review-results/state-mgmt-study/）: A = 現状実測（ネスト更新の実カウント・
-  prop drilling 実測・状態 4 分類・spec の実装依存度）／B = 技術制約と負荷評価
-  （Next App Router × zustand の per-request 制約・immer 単独 vs zustand+immer vs
-  現状維持の 3 案を認知負荷モード B で比較・spec 互換・段階導入コスト）。
-  返着後 = Fable 突合 → 推奨ドキュメント作成 → ユーザー判断 → 台帳 §5-2 へ決定を記録。
+  ユーザーが最終判断。**調査完了・推奨提示済み・ユーザー採否待ち（2026-08-12）**:
+  調査 A（現状実測）＋ B（技術制約・負荷評価）＋追加測定 B2-plain（構造変更を
+  immer 無しで行った場合の負荷分離）が返着。Fable 裏取り 3 点成立
+  （useTransition 4 ファイル・エディタ本体に無し／zustand・immer import 0／
+  jest resetModules 未設定）。3 レンズ反証レビュー（数値転記・実コード突合・
+  論理整合、計 181 項目）で blocking 4 件含む指摘を全件反映済み。
+  **推奨文書 = document/state-management-zustand-immer.md**（証跡 =
+  review-results/state-mgmt-study/ の result-a-summary / result-b / result-b2-plain）。
+  推奨骨子: (1) zustand 標準採用は見送り（動機 2 実需要 0・確定コスト最大。
+  再評価トリガー = 離れた共有の実需要発生時、その際はコンポーネント所有 Provider 形）
+  (2) produce を setState に入れるだけの案は不採用（負荷純増を実測）
+  (3) テンプレートエディタ限定で連鎖畳み構造変更＋immer をセット採用（将来スライス・
+  次点 = 構造変更のみ。シート編集クライアントは対象外。着手前に凍結不変条件を
+  台帳 2-2 へ登録）。**次 = ユーザー採否 → 文書の決定記録節と台帳 §5-2 へ記録**。
   大粒度 #15 と U16-b 以降はこの決着まで保留。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
