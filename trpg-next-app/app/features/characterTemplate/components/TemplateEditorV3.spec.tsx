@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 
 import { MantineProvider } from '@mantine/core'
+import type { DependencyList } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import layoutNormalizationCases from '@trpg/sheet-engine/fixtures/layout-normalization.json'
 import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
@@ -169,6 +170,36 @@ describe('TemplateEditorV3 autosave', () => {
       'autosave',
       expect.objectContaining({ tables: editedTables })
     )
+  })
+
+  it('draft 更新後の template state を Immer auto-freeze で凍結する', () => {
+    const reactModule = jest.requireActual<typeof import('react')>('react')
+    const originalUseMemo = reactModule.useMemo
+    let updatedTemplateState: object | undefined
+    // Test intent: payload は再構築されるため、render が参照する実 state を既存の memo 境界で捕捉する。
+    const useMemoSpy = jest.spyOn(reactModule, 'useMemo').mockImplementation(<T,>(
+      factory: () => T,
+      dependencies: DependencyList
+    ): T => {
+      const candidate = dependencies[1]
+      if (typeof candidate === 'object' && candidate !== null && 'templateId' in candidate) {
+        updatedTemplateState = candidate
+      }
+      return originalUseMemo(factory, dependencies)
+    })
+
+    try {
+      const isolatedTemplate = JSON.parse(JSON.stringify(initialTemplate)) as CharacterSheetTemplateEntity
+      renderEditor(isolatedTemplate)
+      updatedTemplateState = undefined
+
+      fireEvent.change(screen.getByLabelText('テンプレート名'), { target: { value: '凍結確認' } })
+
+      expect(updatedTemplateState).toBeDefined()
+      expect(Object.isFrozen(updatedTemplateState)).toBe(true)
+    } finally {
+      useMemoSpy.mockRestore()
+    }
   })
 
   it.each(layoutFixtures)('$name を共有 fixture どおり autosave payload に正規化する', async ({ input, expected }) => {
