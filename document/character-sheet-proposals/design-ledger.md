@@ -402,9 +402,10 @@ front の消化区分（round1 H8 で「Phase 3 と独立」の過大判定を�
 - **独立着手可（既契約の未消化・Phase 3 スコープ外）**: キャラシート画面への computed ライブ表示（三面契約「同一評価器」の未消化。TemplatePreviewV3 の実証済みパターン移植）
 - **D-P3-1 決定後（Phase 3 の G3-1/M3-2 の対象 — 独立着手しない）**: track UI・list 編集 UI・lookup table グリッドエディタ等のブロック UI（`V3EditorFieldType` の蓋を開ける変更は Phase 3 契約の範囲内）
 
-### 6-3. ループ運転規則（fable-rules 準拠＋2026-08-04 運用変更）
+### 6-3. ループ運転規則（fable-rules 準拠＋2026-08-04・2026-08-12 運用変更）
 
 - Fable はコード・レビュー本文を書かず Opus/Codex へ委譲。委譲プロンプトには **§2-4 の不変条件定型文＋変更範囲＋触らない範囲＋検収コマンド＋stop 条件**を必ず含める
+- **コード委譲には code-comment-rules 準拠のコメント記載を必須で指示する**（2026-08-12 ユーザー決定・正本 = fable-rules 実装フェーズの統制）。Why/Invariant/Boundary/Exception/External contract/Test intent を書き、what コメント禁止は維持
 - 認知負荷レビューは全フェーズ必須。**大粒度俯瞰は feature 完了時のみ**（3 フェーズ毎は廃止）。low 所見は起票のみで処理義務なし
 - レビュー・調査エージェントは読み取り専用。検収はスライス開始/終了の `git status --short` 差分比較（恒久例外の文字列固定はしない — round1 H9）
 - feature 完了時は `document/SESSION_HANDOFF.md` 全面更新が必須ゲート

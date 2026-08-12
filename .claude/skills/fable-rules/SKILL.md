@@ -60,6 +60,10 @@ description: >-
 - 委譲先の選択: 既定は Codex（codex-delegate-e2e・`--mode code`・バックグラウンド・rc で完了判定）。
   会話文脈が濃い小修正や Codex 不調時は Opus サブエージェント（Agent tool・model: opus）
 - ドメインコードを触る指示書には該当 `trpg-domain-*` スキルの禁止事項を注入する（trpg-refactor の委譲プロンプトの型）
+- **コード委譲の指示書には `code-comment-rules` 準拠のコメント記載を必須で指示する**（2026-08-12 ユーザー決定）。
+  対象 = 新規・変更コードの Why / Invariant / Boundary / Exception / External contract / Test intent。
+  what コメント（命名・型・直後のコードで分かること）の禁止は従来どおり維持し、量ではなく
+  「未来の読者が前提を短時間で掴めるか」で検収する。コメントが薄い成果物は差し戻し対象
 
 ## レビューの実施方式（最重要軸 = 認知負荷）
 
