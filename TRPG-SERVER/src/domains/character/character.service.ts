@@ -13,7 +13,7 @@ import { AttributeValue, AttributeSection, isAttributeSection } from '../../core
 
 const MATERIALIZED_SECTION_WRITE_MESSAGE =
   'materialized character sections must be updated via PUT /character/:id/sheet'
-const SHEET_VISIBILITY_VALIDATION_MESSAGE = 'sheet.visibility は private または public を指定してください'
+const SHEET_VISIBILITY_VALIDATION_MESSAGE = `sheet.visibility は ${characterSheetVisibilitySchema.options.join(' または ')} を指定してください`
 const PROJECTED_SECTION_KEYS = ['status', 'skill', 'parameter', 'item', 'description'] as const
 
 /**

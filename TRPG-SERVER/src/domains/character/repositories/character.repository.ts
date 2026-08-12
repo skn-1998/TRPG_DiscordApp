@@ -196,6 +196,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
   ): Promise<CharacterEntity | null> {
     const character = await this.characterModel
       .findOneAndUpdate(
+        // `sheet: { $exists: true }` は null にも一致し、nested $set が失敗するため templateId で判定する。
         { characterId, discordUserId, 'sheet.templateId': { $exists: true } },
         { $set: { 'sheet.visibility': visibility } },
         { new: true }
