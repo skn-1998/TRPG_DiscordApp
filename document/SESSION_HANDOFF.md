@@ -2582,6 +2582,18 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
   （design-ledger）と本ファイルへ反映してから、大粒度 #15 の起動可否を再判断する
   （設計更新が直近 3 スライスの面に触るならレビュー依頼文の前提を更新すること）。
+  **【設計更新の内容 = 状態管理（2026-08-12）】ユーザー決定:
+  zustand 5.0.14 / immer 11.1.16 を導入する（= 済 `98694f5`・production 使用 0 のまま）。
+  使うかどうか・どこで使うかは検討事項。**動機（ユーザー裁定）= (1) ネスト不変更新の
+  煩雑さ (2) 状態共有/prop drilling。対象範囲 = front 全体の標準方針（採用時は
+  新規実装の標準＋既存の移行順序も決める）。進め方 = Fable が調査して推奨を出し
+  ユーザーが最終判断。**調査 2 面を Opus 並行委譲中**（read-only・証跡 =
+  review-results/state-mgmt-study/）: A = 現状実測（ネスト更新の実カウント・
+  prop drilling 実測・状態 4 分類・spec の実装依存度）／B = 技術制約と負荷評価
+  （Next App Router × zustand の per-request 制約・immer 単独 vs zustand+immer vs
+  現状維持の 3 案を認知負荷モード B で比較・spec 互換・段階導入コスト）。
+  返着後 = Fable 突合 → 推奨ドキュメント作成 → ユーザー判断 → 台帳 §5-2 へ決定を記録。
+  大粒度 #15 と U16-b 以降はこの決着まで保留。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
