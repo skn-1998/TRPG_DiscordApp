@@ -2340,7 +2340,36 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   **SM-D2a 完了・コミット済み（9c8dbb3・2026-08-12）**: R2 で 5 所見全消化を Fable 実査
   （strip 根拠コメント訂正・no-op 分岐削除で fallback 返却 2→1 箇所・bare-409 復元・
   strict/nonoptional の pin 2 追加・eslint 文言）。独立ゲート = 契約 22（20＋2）・
-  front 325（324＋1）・eslint 0。次 = SM-D2b（editor 状態機械）委譲。
+  front 325（324＋1）・eslint 0。
+  **SM-D2b 委譲済み・走行中（prompt-sm-d2b.md）**: baseline（EditorValue レベル）＋
+  baseRevision の state 化・非モーダル競合パネル（SM-15「表示中も編集継続可」のため
+  Modal 不採用）・theirs/mine とも baseline[uid]=current・適用後 dirty 残があれば
+  baseRevision=currentRevision で自動再送・再送 409 は新 payload で再提示・
+  未知 fieldUid conflict は除外し全件除外なら汎用文言へ退化。
+  CharacterSheetEditClient.spec.tsx 新設（RTL precedent 2 本あり）。
+  actions/契約/server 不触・diff 目安 300 行。
+  **D2b 返着・Fable 実査＋独立ゲートまで完了**: 差分 +324/−23（超過 47 行 = 新設 RTL
+  spec 162 行由来・申告あり）。設計どおり（baseline/baseRevision state・payload 同一性
+  ガードで選択状態を局所化・未知 fieldUid 除外→全除外で汎用文言退化・header の
+  revision 表示も state 追随）。独立ゲート = front 332（325＋7）・eslint 0。
+  **Fable 検収で検出した懸念 1 件をレビューへ付託**: 成功時 redirect 経路で action の
+  await が undefined を resolve する場合、旧 setActionData(undefined) は無害だが
+  新 presentSaveResult(result) は result.mergeConflict で TypeError になり得る
+  （Next の redirect() throw 挙動の確定が要る）。Opus read-only レビュー走行中。
+  大粒度 cadence: #12 起点からのスライス数 = D2a・D2b の 2（B12-FIX は修正レーンで
+  非算入）→ 次の 1 スライス（SM-E 見込み）後に大粒度 #13。
+  **D2b Opus レビュー = pass（blocking 0・証跡 = opus-review-sm-d2b.md）**:
+  Fable 付託の redirect 懸念は**一次証拠つき棄却**（Next 16.3.0 は redirect で
+  promise を reject → presentSaveResult 不到達・optional chaining 化は死んだ防御）。
+  SM-15 逐条全充足・変異 8 中 5 killed。生存 3 のうち 2 = spec 被覆漏れ（F-2 baseRevision
+  state 更新・F-3 パネル表示中の再 409 置換 — SM-15 中核条項）→ **R2 委譲済み・走行中**
+  （spec 2 ケース追加のみ・production 不触・red-green 必須）。F-1（hasInvalidNumber ×
+  undefined の無言ブロック・機構は既存）= 台帳 15e へ起票・F-4/F-5 = info 起票のみ。
+  **SM-D2b 完了・コミット済み（4d864ed・2026-08-12）→ SM-D2 クローズ**: R2 は spec
+  2 ケースのみ・red-green 証跡あり・production は SHA-256 一致で無変更を確認。
+  Fable 最終ゲート = front 334（325＋9）全緑。
+  次 = SM-E（ephemeral canMutate＋no-authorized-actions・owner/non-owner fixture・
+  SM-5/SM-11 系）。SM-E 完了時点で大粒度 #13（D2a・D2b・SM-E の 3 スライス）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
