@@ -132,8 +132,27 @@ export async function saveTemplateDraft(
     const updated = await updateSheetTemplate(templateId, toUpdateRequest(payload))
 
     if (intent === 'publish') {
-      const published = await publishSheetTemplate(templateId)
-      return { template: published }
+      try {
+        const published = await publishSheetTemplate(templateId)
+        return { template: published }
+      } catch (error) {
+        const status = getResponseStatus(error)
+        if (status === 409) {
+          return {
+            conflict: true,
+            messages: extractApiErrorMessages(error)
+          }
+        }
+
+        const extracted = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
+        // 「template あり ∧ messages 非空」を部分成功（draft は保存済み・publish leg だけ失敗）として
+        // 編集画面へ伝える。messages を空にすると保存成功と区別できなくなる
+        return {
+          template: updated,
+          messages: extracted.length > 0 ? extracted : [GENERIC_NETWORK_ERROR_MESSAGE],
+          retryable: status === undefined || status === 429 || (status >= 500 && status < 600)
+        }
+      }
     }
 
     return { template: updated }
