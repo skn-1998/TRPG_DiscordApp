@@ -101,6 +101,7 @@ describe('non-finite formula save reproduction', () => {
       templateId: template.templateId,
       templateVersion: template.version,
       revision: 1,
+      visibility: 'private',
       values: {
         'uid-numerator': 1,
         'uid-denominator': 1
@@ -492,6 +493,7 @@ describe('non-finite formula save reproduction', () => {
           templateId: multiFailureTemplate.templateId,
           templateVersion: multiFailureTemplate.version,
           revision: 1,
+          visibility: 'private',
           values: {
             'uid-numerator': 1,
             'uid-denominator': 0
@@ -554,6 +556,7 @@ describe('non-finite formula save reproduction', () => {
           templateId: amplifiedTemplate.templateId,
           templateVersion: amplifiedTemplate.version,
           revision: 1,
+          visibility: 'private',
           values: {
             'uid-numerator': 1,
             'uid-denominator': 0

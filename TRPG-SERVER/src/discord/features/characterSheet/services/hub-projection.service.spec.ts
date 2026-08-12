@@ -1,3 +1,4 @@
+import * as sheetProjection from '@trpg/sheet-projection'
 import type { CharacterSheetTemplateEntity } from '../../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import type { CharacterSheetTemplateService } from '../../../../domains/character-sheet-template/character-sheet-template.service'
 import type { CharacterRepository } from '../../../../domains/character/repositories/character.repository'
@@ -7,6 +8,14 @@ import {
 } from '../../../../features/character-sheet/services/character-sheet-operation.service'
 import type { SheetMaterializerService } from '../../../../features/character-sheet/services/sheet-materializer.service'
 import { HubProjectionService } from './hub-projection.service'
+
+jest.mock('@trpg/sheet-projection', () => {
+  const actual = jest.requireActual<typeof import('@trpg/sheet-projection')>('@trpg/sheet-projection')
+  return {
+    ...actual,
+    createDiscordProjectionViewModel: jest.fn(actual.createDiscordProjectionViewModel)
+  }
+})
 
 describe('HubProjectionService', () => {
   const character = (overrides: Partial<HubProjectionCharacter> = {}): HubProjectionCharacter => ({
@@ -20,6 +29,7 @@ describe('HubProjectionService', () => {
       templateId: 'template-1',
       templateVersion: '1.0.0',
       revision: 1,
+      visibility: 'private',
       values: { 'uid-hp': { parts: { base: 999 } } }
     },
     palette: [
@@ -36,6 +46,29 @@ describe('HubProjectionService', () => {
     ...overrides
   })
 
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('sheet visibility を DiscordProjectionInput へ渡さない', () => {
+    const createProjection = jest.mocked(sheetProjection.createDiscordProjectionViewModel)
+
+    new HubProjectionService().create(
+      character({
+        sheet: {
+          templateId: 'template-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          visibility: 'public',
+          values: { 'uid-hp': 10 }
+        }
+      })
+    )
+
+    expect(createProjection).toHaveBeenCalledTimes(1)
+    expect(createProjection.mock.calls[0][0]).not.toHaveProperty('visibility')
+  })
+
   it('formula max=10・parts合計12でもfeature境界の実効値10を表示する', () => {
     const projection = new HubProjectionService().create(
       character({
@@ -43,6 +76,7 @@ describe('HubProjectionService', () => {
           templateId: 'template-1',
           templateVersion: '1.0.0',
           revision: 1,
+          visibility: 'private',
           values: { 'uid-limit': 10, 'uid-hp': { parts: { base: 12 } } }
         }
       })
@@ -65,6 +99,7 @@ describe('HubProjectionService', () => {
         templateId: 'template-1',
         templateVersion: '1.0.0',
         revision: 1,
+        visibility: 'private',
         values: { 'uid-limit': 10, 'uid-hp': { parts: { base: 12 } } }
       },
       palette: [
@@ -140,6 +175,7 @@ describe('HubProjectionService', () => {
           templateId: 'template-1',
           templateVersion: '1.0.0',
           revision: 2,
+          visibility: 'private',
           values: { 'uid-limit': 5, 'uid-hp': { parts: { base: 8 } } }
         },
         palette: [

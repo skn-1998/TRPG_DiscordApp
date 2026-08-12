@@ -70,6 +70,7 @@ export class CharacterInstantiationService {
           templateId: template.templateId,
           templateVersion: template.version,
           revision: 1,
+          visibility: 'private',
           values
         }
       })

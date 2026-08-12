@@ -51,6 +51,7 @@ describe('CharacterInstantiationService', () => {
       templateId: 'template-1',
       templateVersion: '1.0.0',
       revision: 1,
+      visibility: 'private',
       values: { 'uid-dex': 55 }
     },
     computedCache: { 'uid-dex-half': 27 },
@@ -180,7 +181,7 @@ describe('CharacterInstantiationService', () => {
     }
   }
 
-  it('published version 解決、入力検査、roll、materialize、単一 insert の順に実行する', async () => {
+  it('新規 sheet を private 固定で materialize し、単一 insert まで順に実行する', async () => {
     const dependencies = createDependencies()
 
     const result = await dependencies.service.instantiate(instantiateInput)
@@ -194,6 +195,7 @@ describe('CharacterInstantiationService', () => {
         templateId: 'template-1',
         templateVersion: '1.0.0',
         revision: 1,
+        visibility: 'private',
         values: { 'uid-dex': 55 }
       }
     })
@@ -230,6 +232,7 @@ describe('CharacterInstantiationService', () => {
     expect(result.rollOnCreateResults).toEqual([
       { uid: 'uid-dex', notation: '3d6*5', total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
     ])
+    expect(result.materialized.sheet.visibility).toBe('private')
     expect(result.character).toBe(created)
     expect(result.materialized).toBe(materialized)
   })

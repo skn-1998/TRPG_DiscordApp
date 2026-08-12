@@ -232,6 +232,7 @@ describe('CharacterSheetOperationService', () => {
       templateId: 'template-1',
       templateVersion: '1.0.0',
       revision: 1,
+      visibility: 'private',
       values: {
         'uid-hp': { parts: { base: 8, buff: 0, temp: 0, other: 0 } },
         'uid-score': { parts: { base: 5, buff: 0, temp: 0, other: 0 } },
@@ -653,6 +654,21 @@ describe('CharacterSheetOperationService', () => {
         }),
         1
       )
+    })
+
+    it('値 diff の materialize で public visibility を保持する', async () => {
+      current = makeCharacter({ sheet: { ...makeCharacter().sheet!, visibility: 'public' } })
+
+      await service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [{ path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 5, newValue: 7 }]
+      })
+
+      expect(materializer.materialize).toHaveBeenCalledWith(
+        expect.objectContaining({ sheet: expect.objectContaining({ visibility: 'public' }) })
+      )
+      expect(current.sheet?.visibility).toBe('public')
     })
 
     it("partsKey='__proto__' は422で拒否し、値の書き込みも保存もしない", async () => {

@@ -588,6 +588,7 @@ export class CharacterSheetOperationService {
           templateId: sheet.templateId,
           templateVersion: sheet.templateVersion,
           revision: sheet.revision + 1,
+          visibility: sheet.visibility,
           values
         },
         existingPalette: current.palette ?? []

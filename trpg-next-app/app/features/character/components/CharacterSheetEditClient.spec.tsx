@@ -22,6 +22,7 @@ const character: CharacterWire = {
     templateId: 'template-1',
     templateVersion: '1.0.0',
     revision: 1,
+    visibility: 'private',
     values: { 'main.hp': 10, 'main.name': '初期名' }
   }
 }

@@ -16,7 +16,13 @@ describe('resolveCharacterState', () => {
   it('sheet があれば materialized', () => {
     expect(
       resolveCharacterState({
-        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: {} }
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          visibility: 'private',
+          values: {}
+        }
       })
     ).toBe('materialized')
   })
@@ -24,7 +30,13 @@ describe('resolveCharacterState', () => {
   it('sheet と templatePin が両方あっても sheet を優先して materialized', () => {
     expect(
       resolveCharacterState({
-        sheet: { templateId: 'tpl-1', templateVersion: '2.0.0', revision: 2, values: {} },
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '2.0.0',
+          revision: 2,
+          visibility: 'private',
+          values: {}
+        },
         templatePin: { templateId: 'legacy-coc', templateVersion: '1.0.0', pinnedBy: 'backfill' }
       })
     ).toBe('materialized')

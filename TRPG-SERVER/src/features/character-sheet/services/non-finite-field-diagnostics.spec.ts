@@ -29,6 +29,7 @@ describe('non-finite field diagnostics', () => {
         templateId: template.templateId,
         templateVersion: template.version,
         revision: 1,
+        visibility: 'private',
         values
       }
     })

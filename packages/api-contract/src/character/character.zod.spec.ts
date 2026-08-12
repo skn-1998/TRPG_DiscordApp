@@ -18,7 +18,13 @@ describe('character Zod schemas', () => {
         discordUserId: 'u1',
         discordChannelId: 'ch1',
         ...canonicalSections,
-        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: { hp: 10 } },
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          visibility: 'private',
+          values: { hp: 10 }
+        },
         computedCache: { hpHalf: 5 },
         palette: [],
         hub: { status: 'none' },
@@ -53,7 +59,13 @@ describe('character Zod schemas', () => {
       discordUserId: 'u1',
       discordChannelId: 'ch1',
       ...canonicalSections,
-      sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: {} },
+      sheet: {
+        templateId: 'tpl-1',
+        templateVersion: '1.0.0',
+        revision: 1,
+        visibility: 'private',
+        values: {}
+      },
       computedCache: {},
       palette: [],
       hub: { status: 'none' },
@@ -71,8 +83,36 @@ describe('character Zod schemas', () => {
       discordUserId: 'u1',
       discordChannelId: 'ch1',
       ...canonicalSections,
-      sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: {} },
+      sheet: {
+        templateId: 'tpl-1',
+        templateVersion: '1.0.0',
+        revision: 1,
+        visibility: 'private',
+        values: {}
+      },
       templatePin: { templateId: 'legacy-coc', templateVersion: '1.0.0', pinnedBy: 'backfill' },
+      computedCache: {},
+      palette: [],
+      hub: { status: 'none' },
+      appliedInteractionIds: []
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it.each([
+    ['欠落', undefined],
+    ['unlisted', 'unlisted'],
+    ['未知値', 'friends']
+  ])('character sheet visibility の%sを拒否する', (_caseName, visibility) => {
+    const result = materializedCharacterEntitySchema.safeParse({
+      characterId: 'c1',
+      characterName: 'Alice',
+      gameSystemId: 'coc7',
+      discordUserId: 'u1',
+      discordChannelId: 'ch1',
+      ...canonicalSections,
+      sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, visibility, values: {} },
       computedCache: {},
       palette: [],
       hub: { status: 'none' },

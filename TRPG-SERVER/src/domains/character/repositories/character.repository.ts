@@ -15,6 +15,7 @@ import { assertCharacterHubTransition } from '../models/character.entity'
 import { CharacterSummaryDto } from '../dto/character-summary.dto'
 import { AttributeSection, isAttributeSection } from '../../../core/types/attribute.types'
 import { normalizePersistedCharacterAttributes } from '../mappers/character-attribute.mapper'
+import { normalizePersistedCharacterSheet } from '../mappers/character-sheet-read.mapper'
 import {
   materializedCharacterEntitySchema,
   saveSheetMaterializedPayloadSchema,
@@ -33,13 +34,14 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
   ) {}
 
   private normalizeCharacter(character: CharacterEntity | null): CharacterEntity | null {
-    return character ? normalizePersistedCharacterAttributes(character) : null
+    if (character === null) return null
+    return normalizePersistedCharacterSheet(normalizePersistedCharacterAttributes(character))
   }
 
   private normalizeCharacters(characters: CharacterEntity[]): CharacterEntity[] {
     let changed = false
     const normalized = characters.map((character) => {
-      const result = normalizePersistedCharacterAttributes(character)
+      const result = normalizePersistedCharacterSheet(normalizePersistedCharacterAttributes(character))
       changed ||= result !== character
       return result
     })
@@ -118,7 +120,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     const prepared = this.prepareLegacyWrite(entity)
     const createdCharacter = new this.characterModel(prepared)
     const saved = await createdCharacter.save()
-    return normalizePersistedCharacterAttributes(saved.toObject())
+    return this.normalizeCharacter(saved.toObject())!
   }
 
   /**
@@ -129,7 +131,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     materializedCharacterEntitySchema.parse(entity)
     const createdCharacter = new this.characterModel(entity)
     const saved = await createdCharacter.save()
-    return normalizePersistedCharacterAttributes(saved.toObject())
+    return this.normalizeCharacter(saved.toObject())!
   }
 
   /**
