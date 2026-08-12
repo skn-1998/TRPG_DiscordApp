@@ -417,6 +417,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [tablesText, setTablesText] = useState(stringifyTables(initialTemplate.tables))
   const [validationMessages, setValidationMessages] = useState<TemplateValidationMessage[]>([])
   const [publishWarnings, setPublishWarnings] = useState<TemplateValidationMessage[]>([])
+  const [hasRunValidation, setHasRunValidation] = useState(false)
+  const [activeRightPaneTab, setActiveRightPaneTab] = useState<string | null>('input-preview')
   const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
@@ -749,6 +751,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
       setValidationMessages([{ message: error instanceof Error ? error.message : '検証に失敗しました' }])
       setPublishWarnings([])
     }
+    setHasRunValidation(true)
+    // 検証は作者が明示的に起こす操作であり、結果を見に行くところまでが期待動作。
+    // 問題なしも結果なので、成功・失敗を問わず結果面へ切り替える。
+    setActiveRightPaneTab('validation-results')
   }
 
   const dirtyMessage =
@@ -816,23 +822,24 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         )}
       </Alert>
 
-      {(validationMessages.length > 0 || activeSaveFailure !== null) && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} title="検証/保存エラー">
+      {/* Invariant: 保存失敗の詳細と手動再試行は右ペインのタブ状態に依存させない。
+          自動保存はどの面を見ていても失敗しうるため、到達性はここでの常時表示が担う。 */}
+      {activeSaveFailure !== null && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />} title="保存エラー">
           <Stack gap={4}>
-            {[
-              ...validationMessages,
-              ...(activeSaveFailure?.messages ?? []).map<TemplateValidationMessage>((message) => ({
-                message,
-                fieldId: message.match(/field ([a-z][a-z0-9_]{0,31})/)?.[1]
-              }))
-            ].map((message, index) => (
-              <Text key={`${message.message}-${index}`} size="sm">
-                {message.path ? `[${message.path}] ` : message.fieldId ? `[${message.fieldId}] ` : ''}
-                {message.message}
-              </Text>
-            ))}
+            {activeSaveFailure.messages.map((message, index) => {
+              // サーバーのメッセージは対象を「field {id}」と本文に埋めて返す。
+              // 検証エラーの [位置] 表記に合わせ、読み取れたときだけ位置として前置する。
+              const fieldId = message.match(/field ([a-z][a-z0-9_]{0,31})/)?.[1]
+              return (
+                <Text key={`${message}-${index}`} size="sm">
+                  {fieldId ? `[${fieldId}] ` : ''}
+                  {message}
+                </Text>
+              )
+            })}
             {/* conflict 中の再送は同じ draftRevision で必ず 409 になるため、出口は再読み込みだけにする。 */}
-            {activeSaveFailure?.kind === 'retryable' && saveState !== 'conflict' && (
+            {activeSaveFailure.kind === 'retryable' && saveState !== 'conflict' && (
               <Button
                 mt={4}
                 size="xs"
@@ -844,18 +851,6 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 再試行
               </Button>
             )}
-          </Stack>
-        </Alert>
-      )}
-
-      {publishWarnings.length > 0 && (
-        <Alert color="yellow" icon={<IconAlertCircle size={16} />} title="検証警告">
-          <Stack gap={4}>
-            {publishWarnings.map((warning, index) => (
-              <Text key={`${warning.code}-${warning.path}-${index}`} size="sm">
-                [{warning.path}] {warning.message}
-              </Text>
-            ))}
           </Stack>
         </Alert>
       )}
@@ -1218,9 +1213,58 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         </Stack>
 
         <Card withBorder radius="md" p="md">
-          <TemplatePreviewV3
-            template={{ ...template, tables: parseTablesOrKeepCurrent(tablesText, template.tables) }}
-          />
+          <Tabs value={activeRightPaneTab} onChange={setActiveRightPaneTab}>
+            <Tabs.List>
+              <Tabs.Tab value="input-preview">入力プレビュー</Tabs.Tab>
+              <Tabs.Tab value="validation-results">検証結果</Tabs.Tab>
+            </Tabs.List>
+
+            <Tabs.Panel value="input-preview" pt="md">
+              <TemplatePreviewV3
+                template={{ ...template, tables: parseTablesOrKeepCurrent(tablesText, template.tables) }}
+              />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="validation-results" pt="md">
+              <Stack gap="md">
+                {/* 検証前は結果が空なのが正常。validationMessages / publishWarnings は
+                    runValidation でしか非空にならないため、未実行かどうかだけで案内を出し分ける。 */}
+                {!hasRunValidation && <Text c="dimmed">検証を実行してください</Text>}
+
+                {/* 空の面では「問題なし」と「押せていない」を区別できないため、通過も明示する。 */}
+                {hasRunValidation && validationMessages.length === 0 && publishWarnings.length === 0 && (
+                  <Alert color="green" icon={<IconCheck size={16} />}>
+                    問題は見つかりませんでした
+                  </Alert>
+                )}
+
+                {validationMessages.length > 0 && (
+                  <Alert color="red" icon={<IconAlertCircle size={16} />} title="検証エラー">
+                    <Stack gap={4}>
+                      {validationMessages.map((message, index) => (
+                        <Text key={`${message.message}-${index}`} size="sm">
+                          {message.path ? `[${message.path}] ` : ''}
+                          {message.message}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </Alert>
+                )}
+
+                {publishWarnings.length > 0 && (
+                  <Alert color="yellow" icon={<IconAlertCircle size={16} />} title="検証警告">
+                    <Stack gap={4}>
+                      {publishWarnings.map((warning, index) => (
+                        <Text key={`${warning.code}-${warning.path}-${index}`} size="sm">
+                          [{warning.path}] {warning.message}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </Alert>
+                )}
+              </Stack>
+            </Tabs.Panel>
+          </Tabs>
         </Card>
       </SimpleGrid>
     </Stack>
