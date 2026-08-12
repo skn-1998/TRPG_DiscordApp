@@ -4,6 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import layoutNormalizationCases from '@trpg/sheet-engine/fixtures/layout-normalization.json'
 import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
+import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveTemplateDraft } from '../actions'
 import type { CharacterSheetTemplateEntity, LookupTable, SheetField, SheetSection } from '../types/v3'
 import { toSheetTemplate } from '../utils/v3Template'
@@ -184,14 +185,56 @@ describe('TemplateEditorV3 autosave', () => {
     editTables()
     await advanceAutosave()
 
-    expect(
-      screen.getByText('保存リクエストの送信に失敗しました。ネットワークを確認して再試行してください。')
-    ).toBeTruthy()
+    expect(screen.getByText(GENERIC_NETWORK_ERROR_MESSAGE)).toBeTruthy()
+    expect(screen.getByText('保存されていません。再試行するか、編集を続けると自動保存を再開します。')).toBeTruthy()
     expect((screen.getByLabelText('tables') as HTMLTextAreaElement).value).toBe(editedTablesText)
   })
 
+  it('保存失敗後は同じ内容を時間経過だけで再送しない', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['一時的に保存できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 3)
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('保存失敗中は待機案内を出さず、再編集後の autosave 成功で通常系へ戻す', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['一時的に保存できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+
+    expect(screen.getByText('保存されていません。再試行するか、編集を続けると自動保存を再開します。')).toBeTruthy()
+    expect(screen.queryByText('未保存の変更があります。autosave を待機中です。')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
+
+    expect(screen.getByText('未保存の変更があります。autosave を待機中です。')).toBeTruthy()
+
+    await advanceAutosave()
+
+    expect(screen.getByText('保存しました。')).toBeTruthy()
+    expect(screen.queryByText('保存されていません。再試行するか、編集を続けると自動保存を再開します。')).toBeNull()
+  })
+
   it('template のない失敗応答後も再編集で autosave を再実行する', async () => {
-    mockedSaveTemplateDraft.mockResolvedValueOnce({ conflict: false, messages: ['保存に失敗しました'] })
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['保存に失敗しました'],
+      retryable: true
+    })
     renderEditor()
 
     editTables()
@@ -204,6 +247,96 @@ describe('TemplateEditorV3 autosave', () => {
     await advanceAutosave()
 
     expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+  })
+
+  it('retryable 失敗の手動再試行は編集後の最新内容を即時送信する', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['一時的に保存できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(mockedSaveTemplateDraft).toHaveBeenLastCalledWith(
+      initialTemplate.templateId,
+      'autosave',
+      expect.objectContaining({ tables: [{ id: 'luck', rows: [['02', '成功']] }] })
+    )
+  })
+
+  it('publish の retryable 失敗は publish intent のまま再試行する', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['一時的に publish できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(mockedSaveTemplateDraft.mock.calls.map(([, intent]) => intent)).toEqual(['publish', 'publish'])
+  })
+
+  it('422 の恒久エラーには再試行ボタンも再試行の案内も出さない', async () => {
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      conflict: false,
+      messages: ['入力値が不正です'],
+      retryable: false
+    })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+
+    expect(screen.getByText('入力値が不正です')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
+    expect(
+      screen.getByText('保存されていません。エラー内容を修正して編集を続けると自動保存を再開します。')
+    ).toBeTruthy()
+    expect(screen.queryByText(/再試行するか/)).toBeNull()
+    expect(screen.queryByText('未保存の変更があります。autosave を待機中です。')).toBeNull()
+  })
+
+  it('保存中の編集は並行送信せず、完了後に最新内容を autosave する', async () => {
+    let resolveFirstSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
+    mockedSaveTemplateDraft.mockImplementationOnce(
+      () =>
+        new Promise<Awaited<ReturnType<typeof saveTemplateDraft>>>((resolve) => {
+          resolveFirstSave = resolve
+        })
+    )
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+    const firstPayload = mockedSaveTemplateDraft.mock.calls[0]?.[2]
+    if (!firstPayload) throw new Error('first autosave payload was not captured')
+
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveFirstSave({ template: { ...firstPayload, draftRevision: firstPayload.draftRevision + 1 } })
+    })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].tables).toEqual([{ id: 'luck', rows: [['02', '成功']] }])
   })
 })
 

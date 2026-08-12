@@ -38,6 +38,7 @@ import {
   validatePublishTemplate,
   validateStandaloneRollNotations
 } from '@trpg/sheet-engine'
+import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveTemplateDraft, type EditorIntent } from '../actions'
 import type {
   CharacterSheetTemplateEntity,
@@ -379,12 +380,16 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [localMessages, setLocalMessages] = useState<TemplateValidationMessage[]>([])
   const [publishWarnings, setPublishWarnings] = useState<TemplateValidationMessage[]>([])
   const [actionMessages, setActionMessages] = useState<string[]>([])
+  const [retryableIntent, setRetryableIntent] = useState<EditorIntent | null>(null)
+  // failedSignatureRef による autosave 抑止を render へ伝える（ref は render から参照できない）
+  const [saveFailed, setSaveFailed] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
   const lastSavedSignatureRef = useRef(
     createEditorSignature(initialTemplate, stringifyTables(initialTemplate.tables))
   )
   const pendingSignatureRef = useRef<string | null>(null)
+  const failedSignatureRef = useRef<string | null>(null)
   const templateRef = useRef(template)
   const tablesTextRef = useRef(tablesText)
 
@@ -411,6 +416,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
   const submitDraft = useCallback(
     async (intent: EditorIntent) => {
+      setRetryableIntent(null)
+
       let payload: CharacterSheetTemplateEntity
       try {
         payload = buildPayload()
@@ -444,6 +451,9 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         }
         if (!actionResult.template) {
           pendingSignatureRef.current = null
+          failedSignatureRef.current = signature
+          setSaveFailed(true)
+          setRetryableIntent(actionResult.retryable ? intent : null)
           setSaveState('dirty')
           return
         }
@@ -454,6 +464,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         lastSavedSignatureRef.current =
           pendingSignature ?? createEditorSignature(returned, stringifyTables(returned.tables))
         pendingSignatureRef.current = null
+        failedSignatureRef.current = null
+        setSaveFailed(false)
 
         if (pendingSignature && currentSignature !== pendingSignature) {
           setTemplate((current) => ({
@@ -470,7 +482,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
         setSaveState('saved')
       } catch {
         pendingSignatureRef.current = null
-        setLocalMessages([{ message: '保存リクエストの送信に失敗しました。ネットワークを確認して再試行してください。' }])
+        failedSignatureRef.current = signature
+        setSaveFailed(true)
+        setRetryableIntent(intent)
+        setLocalMessages([{ message: GENERIC_NETWORK_ERROR_MESSAGE }])
         setSaveState('dirty')
       } finally {
         setInFlightIntent(null)
@@ -481,8 +496,15 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
   useEffect(() => {
     const signature = createEditorSignature(template, tablesText)
-    if (signature === lastSavedSignatureRef.current || saveState === 'conflict' || saveState === 'saving') return
+    if (
+      signature === lastSavedSignatureRef.current ||
+      signature === failedSignatureRef.current ||
+      saveState === 'conflict' ||
+      saveState === 'saving'
+    )
+      return
     setSaveState('dirty')
+    setSaveFailed(false)
 
     const timeout = window.setTimeout(() => {
       void submitDraft('autosave')
@@ -579,6 +601,14 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     }
   }
 
+  // 保存失敗後は同一内容の autosave が抑止されるため「待機中」とは案内しない。
+  // 恒久失敗（retryable でない）では再試行ボタンを出さないので、その案内もしない
+  const dirtyMessage = saveFailed
+    ? retryableIntent
+      ? '保存されていません。再試行するか、編集を続けると自動保存を再開します。'
+      : '保存されていません。エラー内容を修正して編集を続けると自動保存を再開します。'
+    : '未保存の変更があります。autosave を待機中です。'
+
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="start">
@@ -624,7 +654,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           : saveState === 'saving'
             ? '保存中...'
             : saveState === 'dirty'
-              ? '未保存の変更があります。autosave を待機中です。'
+              ? dirtyMessage
               : saveState === 'saved'
                 ? '保存しました。'
                 : '編集できます。'}
@@ -650,6 +680,18 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 {message.message}
               </Text>
             ))}
+            {retryableIntent && (
+              <Button
+                mt={4}
+                size="xs"
+                variant="light"
+                color="red"
+                leftSection={<IconRefresh size={14} />}
+                onClick={() => void submitDraft(retryableIntent)}
+              >
+                再試行
+              </Button>
+            )}
           </Stack>
         </Alert>
       )}
