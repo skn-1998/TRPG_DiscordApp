@@ -20,6 +20,10 @@ interface TemplateFormRendererProps {
   onChange?: (fieldUid: string, value: unknown) => void
   onPartsChange?: (fieldUid: string, partsKey: string, value: number) => void
   /**
+   * 呼び出し側のページ構造に section 見出しの階層を合わせる。既定値 2 は従来の h2 構造を維持する。
+   */
+  headingLevel?: 2 | 3
+  /**
    * 呼び出し側が field 単位で描画を差し替える controlled 拡張点。既定描画を defaultNode として渡して呼ぶので、
    * 差し替えない field は defaultNode をそのまま返す。未指定なら全 field が既定描画のまま（既存呼び出し側は無影響）。
    * 例外: table layout の parts 列は行構造ごと parts 専用に組むため、この差し替えを経由しない。
@@ -42,8 +46,10 @@ export function TemplateFormRenderer({
   values,
   onChange,
   onPartsChange,
+  headingLevel = 2,
   renderField
 }: TemplateFormRendererProps) {
+  const blockHeadingLevel = headingLevel === 2 ? 3 : 4
   const annotationRuntime = useMemo(
     () => evaluateAnnotationRuntime(template, values),
     [template, values]
@@ -60,7 +66,7 @@ export function TemplateFormRenderer({
 
         return (
           <Stack component="section" gap="sm" key={`${section.id}:${sectionIndex}`}>
-            <Title order={2}>{section.label}</Title>
+            <Title order={headingLevel}>{section.label}</Title>
             {renderSectionPools(section, annotations)}
             {annotations.blockIds.length > 0
               ? renderBlockGroups(
@@ -72,7 +78,8 @@ export function TemplateFormRenderer({
                 onPartsChange,
                 renderField,
                 annotations,
-                overLimitMessages
+                overLimitMessages,
+                blockHeadingLevel
               )
               : renderFieldContainer(fields, layout, values, onChange, onPartsChange, renderField, overLimitMessages)}
           </Stack>
@@ -91,7 +98,8 @@ function renderBlockGroups(
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
   renderFieldOverride: TemplateFormRendererProps['renderField'],
   annotations: SectionAnnotationRuntime,
-  overLimitMessages: ReadonlyMap<string, string>
+  overLimitMessages: ReadonlyMap<string, string>,
+  blockHeadingLevel: 3 | 4
 ) {
   const blockLabels = new Map<string, string>()
   for (const block of section.blocks ?? []) {
@@ -130,10 +138,10 @@ function renderBlockGroups(
           return (
             <Stack gap="xs" key={blockId}>
               {cap === undefined ? (
-                <Title order={3}>{label}</Title>
+                <Title order={blockHeadingLevel}>{label}</Title>
               ) : (
                 <Group gap="xs">
-                  <Title order={3}>{label}</Title>
+                  <Title order={blockHeadingLevel}>{label}</Title>
                   <Badge data-block-cap={cap}>上限 {cap}</Badge>
                 </Group>
               )}
@@ -408,6 +416,7 @@ function buildTablePartColumns(fields: RenderFieldEntry[]): PartDefinition[] {
   for (const { field } of fields) {
     if (!isNumberScalar(field) || field.parts === true) continue
     for (const part of field.partsKeys ?? []) {
+      if (!isPresentablePartsKey(part.id)) continue
       if (!columns.has(part.id)) columns.set(part.id, part)
     }
   }
@@ -509,17 +518,18 @@ function PartsEditorPopover({
 
 function buildPopoverPartRows(field: ScalarField, value: unknown): PartDefinition[] {
   if (field.parts !== true) {
-    return (field.partsKeys ?? []).filter(({ id }) => !isReservedPartsKey(id))
+    return (field.partsKeys ?? []).filter(({ id }) => isPresentablePartsKey(id))
   }
   if (!isRecord(value) || !isRecord(value.parts)) return []
 
   return Object.keys(value.parts)
-    .filter((partsKey) => !isReservedPartsKey(partsKey) && !UNSAFE_PARTS_KEYS.has(partsKey))
+    .filter(isPresentablePartsKey)
     .map((partsKey) => ({ id: partsKey, label: partsKey }))
 }
 
-function isReservedPartsKey(partsKey: string) {
-  return RESERVED_PARTS_KEY_IDS.some((reservedKey) => reservedKey === partsKey)
+function isPresentablePartsKey(partsKey: string) {
+  // publish 上流は B12-FIX で reserved / UNSAFE 宣言を拒否するため、修正前の公開データだけをここで防御する。
+  return !RESERVED_PARTS_KEY_IDS.some((reservedKey) => reservedKey === partsKey) && !UNSAFE_PARTS_KEYS.has(partsKey)
 }
 
 function hasPartKey(value: unknown, partsKey: string) {

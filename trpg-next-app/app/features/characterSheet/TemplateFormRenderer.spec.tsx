@@ -467,6 +467,22 @@ describe('TemplateFormRenderer', () => {
     ])
   })
 
+  it('headingLevel=3 では section を h3、block を h4 にする', () => {
+    render(
+      <MantineProvider>
+        <TemplateFormRenderer
+          headingLevel={3}
+          template={createBlockedTemplate({ preset: 'stack' })}
+          values={{}}
+        />
+      </MantineProvider>
+    )
+
+    expect(screen.getByRole('heading', { level: 3, name: 'ブロック' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 4, name: '能力値' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 4, name: '技能' })).toBeTruthy()
+  })
+
   it('grid をブロックごとのコンテナに分け、canonical columns を各コンテナへ維持する', () => {
     renderForm({}, undefined, createBlockedTemplate({ preset: 'grid', columns: 4 }))
 
@@ -1025,6 +1041,53 @@ describe('TemplateFormRenderer', () => {
     expect(onPartsChange).toHaveBeenNthCalledWith(2, 'uid_skill', 'career', 0)
     expect(onPartsChange).toHaveBeenCalledTimes(2)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('B12-FIX 前の reserved / UNSAFE 宣言キーを table 列と宣言型 Popover 行に提示しない', async () => {
+    const partsKeys = [
+      { id: '__proto__', label: '危険キー' },
+      { id: 'base', label: '予約キー' },
+      { id: 'career', label: '職業' }
+    ]
+    const targetTemplate: SheetTemplate = {
+      ...template,
+      sections: [
+        {
+          id: 'table-defense',
+          label: 'テーブル防御',
+          layout: { preset: 'table' },
+          fields: [{
+            id: 'table-skill', uid: 'uid_table_skill', label: 'テーブル技能', type: 'scalar', valueType: 'number',
+            partsKeys
+          }]
+        },
+        {
+          id: 'popover-defense',
+          label: 'Popover 防御',
+          layout: { preset: 'stack' },
+          fields: [{
+            id: 'popover-skill', uid: 'uid_popover_skill', label: 'Popover 技能', type: 'scalar', valueType: 'number',
+            partsKeys
+          }]
+        }
+      ]
+    }
+
+    // 旧公開データが残っても、一般の列・行列挙だけを閉じて専用 base 行を維持する境界を固定する。
+    renderForm({}, undefined, targetTemplate, jest.fn())
+
+    const tablePartKeys = Array.from(document.querySelectorAll<HTMLElement>('thead [data-parts-key]'))
+      .map((header) => header.dataset.partsKey)
+    expect(tablePartKeys).toEqual(['career'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Popover 技能: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'Popover 技能: base' })
+    const popover = document.querySelector('[data-parts-popover="uid_popover_skill"]') as HTMLElement
+    expect(Array.from(popover.querySelectorAll<HTMLInputElement>('input')).map((input) => input.getAttribute('aria-label')))
+      .toEqual(['Popover 技能: base', 'Popover 技能: 職業'])
+    expect(baseInput).toBeTruthy()
+    expect(popover.querySelector('[data-parts-key="__proto__"]')).toBeNull()
+    expect(popover.querySelector('[data-parts-key="base"]')).toBe(baseInput)
   })
 
   it('table の parts:true は canonical キーを編集せず engine 合計だけを表示する', () => {
