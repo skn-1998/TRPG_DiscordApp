@@ -2508,11 +2508,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   auth-state 旧 pin を分類形 6 spec へ置き換え＋layout 分岐 3 spec＋root smoke 1。
   独立ゲート = front 24/24 suites・368/368 tests（+7）・eslint 0（AI.md の
   設定対象外 warning のみ）・typecheck 緑。AI.md の AuthState 契約も実装者が更新。
-  **大粒度 #14 二重レビュー走行中（prompt-big14.md・Codex review＋Opus read-only）**:
-  ミッション = status 分類の複数箇所実装の grep 実測と drift 仕分け・
-  SM-8a 5 要素×競合パネル生存規則の干渉・4 状態×route のセル網羅表・
-  代表変更タスクのホップ実カウント。返着後に Fable 突合 → 採用所見を
-  BIG14-FIX として消化 → SM-14b へ。
+  **大粒度 #14 二重レビュー = 返着・突合済み（big14-integration.md が正本）**:
+  Codex M3/L1・Opus H1/M5/L4。独立収束 = 401/403 述語と join helper の
+  1 本化はどちらも No-Go（現状維持で確定）・discord 露出・定数名 drift・
+  root loading セル。**最重要 = Opus O-F1[high]: 競合パネル表示中の保存が
+  未解決競合 path を同梱し server 原子的判定で必ず 409 → SM-15「他 path の
+  編集・保存は継続可」が実効していない**（payload 実測）。C-M1=O-F2
+  （fail-back の旧パネル残存・寿命不統一 → 両経路とも破棄で統一）・O-F3
+  （3 点同時成立の pin）・O-F4（baseRevision は server で情報値・判定は
+  per-path CAS → コメント＋台帳）・O-F6+O-F7（一覧 401/403 の redirect 化と
+  到達不能 soft degrade 分岐の削除 = 純減）・C-M2（app/loading.tsx）を採用。
+  O-F8（枠差 = Next 構造制約）・O-F9（GET への 422 分類 = YAGNI）は却下。
+  **BIG14-FIX-A（状態機械群）委譲済み・走行中（prompt-big14-fix-a.md）**。
+  返着後 FIX-B（露出・一貫性・セル = prompt-big14-fix-b.md）→ SM-14b へ。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
