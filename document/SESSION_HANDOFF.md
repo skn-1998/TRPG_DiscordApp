@@ -2594,9 +2594,16 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   小粒度レビュー = blocking/high 無し・F-2 spec と成功経路 spec は変異実測で検出力確認・
   認知負荷純減 5→2。A2 裁定 = conflict 中の再試行ボタン非表示＋成功経路署名 spec 追加。
   検収 = front 29/410 全緑＋eslint 0 を Fable 再実行）→
-  **FIX-C**（C-1/F-4 publish 部分成功境界 = 偽 409・C-2 submitDraft single-flight）。
+  **FIX-C/C2 = 済（8d6e907）→ 大粒度 #15 クローズ（2026-08-12）**（C-1/F-4 publish
+  部分成功境界 = 偽 409 解消〔update 成功時は常に更新済み template を返す部分成功 outcome・
+  409 conflict フロー不変・跨ぎ契約は両端コメント〕・C-2 submitDraft の ref 同期
+  single-flight＋両ボタン in-flight 無効化。小粒度レビュー = blocking 無し・
+  single-flight/偽 409/intent 伝播とも変異実証済み・C2 で intent 伝播 spec 復元＋
+  等価変異解消。検収 = front 29/416 全緑＋eslint 0 を Fable 再実行。
+  記録のみ = F-4 編集レース中の publish 失敗は表示寿命 0〔内容アドレス表示の帰結〕・
+  F-5 retryable 述語重複は #14 裁定面。証跡 = big15-integration.md）。
   F-8（sheet.visibility 無名 union×3・mapper 述語の型ゲート欠如）= U16-c へ折込。
-  その後 U16-b（summary read model）→ c（保存専用操作）→ d（renderer）。
+  **次 = U16-b（summary read model）→ c（保存専用操作）→ d（renderer）→ 大粒度 #16**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
