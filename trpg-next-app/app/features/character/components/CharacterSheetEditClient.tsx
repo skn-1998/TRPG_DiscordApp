@@ -10,6 +10,7 @@ import { saveSheet } from '../actions'
 import {
   deriveSheetChanges,
   editableScalarFields,
+  GENERIC_SHEET_CONFLICT_MESSAGE,
   readEditableValue,
   type EditableScalarField,
   type EditorValue
@@ -20,11 +21,7 @@ interface CharacterSheetEditClientProps {
   template: CharacterSheetTemplateEntity
 }
 
-interface SheetActionData {
-  error: string | null
-  conflict?: boolean
-  mergeConflict?: SheetMergeConflictWire
-}
+type SheetActionData = Awaited<ReturnType<typeof saveSheet>>
 
 type ConflictResolution = 'theirs' | 'mine'
 
@@ -35,12 +32,10 @@ interface EditorConflict {
 }
 
 interface ConflictPanelState {
-  payload: SheetMergeConflictWire
+  currentRevision: number
   conflicts: EditorConflict[]
   selections: Record<string, ConflictResolution>
 }
-
-const GENERIC_CONFLICT_MESSAGE = '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
 
 function createEditorValues(
   fields: EditableScalarField[],
@@ -50,6 +45,7 @@ function createEditorValues(
 }
 
 function readConflictCurrent(field: EditableScalarField, current: unknown): EditorValue {
+  // readEditableValue と似るが、field 全体の values レコードではなく conflict path 単位の値を読む。
   if (field.valueType === 'number') return typeof current === 'number' ? current : undefined
   return typeof current === 'string' ? current : undefined
 }
@@ -68,7 +64,7 @@ function createConflictPanel(
       current: readConflictCurrent(field, conflict.current)
     }]
   })
-  return conflicts.length > 0 ? { payload, conflicts, selections: {} } : null
+  return conflicts.length > 0 ? { currentRevision: payload.currentRevision, conflicts, selections: {} } : null
 }
 
 function formatEditorValue(value: EditorValue): string {
@@ -99,11 +95,11 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
         setActionData(null)
         return
       }
-      setActionData({ error: GENERIC_CONFLICT_MESSAGE, conflict: true })
-    } else {
-      setActionData(result)
+      setActionData({ error: GENERIC_SHEET_CONFLICT_MESSAGE, conflict: true })
+      setConflictPanel(null)
+      return
     }
-    setConflictPanel(null)
+    setActionData(result)
   }
 
   const saveChanges = (revision: number, nextChanges: typeof changes) => {
@@ -122,11 +118,12 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     if (!conflictPanel || !hasCompleteConflictSelection) return
     const nextBaseline = { ...baseline }
     const nextValues = { ...values }
+    // deriveSheetChanges により、1 uid あたりの partsKey は 'base' 一択なので field 単位で書き込む。
     for (const conflict of conflictPanel.conflicts) {
       nextBaseline[conflict.field.uid] = conflict.current
       if (conflictPanel.selections[conflict.id] === 'theirs') nextValues[conflict.field.uid] = conflict.current
     }
-    const nextRevision = conflictPanel.payload.currentRevision
+    const nextRevision = conflictPanel.currentRevision
     const nextChanges = deriveSheetChanges(fields, nextBaseline, nextValues)
     setBaseline(nextBaseline)
     setBaseRevision(nextRevision)
@@ -173,7 +170,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                       label={`${conflict.field.label} の解決方法`}
                       value={conflictPanel.selections[conflict.id] ?? ''}
                       onChange={(resolution) => setConflictPanel((current) =>
-                        current?.payload === conflictPanel.payload
+                        current?.conflicts === conflictPanel.conflicts
                           ? { ...current, selections: { ...current.selections, [conflict.id]: resolution as ConflictResolution } }
                           : current
                       )}

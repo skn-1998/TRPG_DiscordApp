@@ -1,6 +1,8 @@
 import type { CharacterSheetTemplateEntity, SheetField } from '../characterTemplate/types/v3'
 import type { CharacterSheetChange } from './api/character.service.server'
 
+export const GENERIC_SHEET_CONFLICT_MESSAGE = '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
+
 export type EditableScalarField = Extract<SheetField, { type: 'scalar' }> & {
   valueType: 'number' | 'text'
 }

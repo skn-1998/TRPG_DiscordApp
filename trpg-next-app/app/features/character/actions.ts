@@ -15,6 +15,7 @@ import {
   saveCharacterSheet,
   type CharacterSheetChange
 } from './api/character.service.server'
+import { GENERIC_SHEET_CONFLICT_MESSAGE } from './sheet-edit'
 
 export async function refreshCharacterList(): Promise<{ error: string | null }> {
   await requireJwt()
@@ -45,7 +46,7 @@ export async function saveSheet(
         const mergeConflict = sheetMergeConflictSchema.safeParse(upstreamResponse.data.cause)
         if (mergeConflict.success) {
           return {
-            error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+            error: null,
             conflict: true,
             mergeConflict: mergeConflict.data
           }
@@ -53,7 +54,7 @@ export async function saveSheet(
       }
 
       return {
-        error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。',
+        error: GENERIC_SHEET_CONFLICT_MESSAGE,
         conflict: true
       }
     }
