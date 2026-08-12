@@ -58,7 +58,7 @@ export default defineConfig([
               message: 'lib 層は features に依存しない（層規約・server #31 の front 版）'
             },
             // 以下 6 zone は feature 間依存を宣言辺のみに固定する列挙（新 feature 追加時は zone を 1 本足す）。
-            // 許可辺は except に現れる 4 本だけ: character→characterTemplate / characterTemplate→character / character→discord / characterTemplate→characterSheet。
+            // 許可辺は except に現れる 5 本だけ: character→characterTemplate / characterTemplate→character / character→discord / characterTemplate→characterSheet / character→characterSheet。
             {
               target: './app/features/auth',
               from: './app/features',
@@ -83,7 +83,7 @@ export default defineConfig([
             {
               target: './app/features/character',
               from: './app/features',
-              except: ['./character', './characterTemplate', './discord'],
+              except: ['./character', './characterTemplate', './discord', './characterSheet'],
               message:
                 'feature 間の直接依存は宣言済みの辺のみ（許可辺の正本は AI.md）。共有ロジックは app/lib へ（#121）'
             },

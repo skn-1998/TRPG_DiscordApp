@@ -18,12 +18,14 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
 - **feature 間の直接依存は宣言済みの有向辺のみ**（eslint import/no-restricted-paths で機械固定 —
   #121。ただし zone は現 6 feature の**列挙**であり fail-open: **新しい feature ディレクトリを
   作るときは zone を 1 本足す**こと。足さないとその feature への辺は自由なまま lint が緑になる）。
-  許可辺は 4 本: ① character → characterTemplate（`types/v3` の型共有 — シートは
+  許可辺は 5 本: ① character → characterTemplate（`types/v3` の型共有 — シートは
   テンプレート実体を編集モデルに使う）② characterTemplate → character
   （`createCharacterFromTemplate` — テンプレート画面からのキャラ作成はどこに置いても跨ぐ
   本質的フロー）③ character → discord（キャラカードの Discord 投稿ボタン）④
   characterTemplate → characterSheet（`TemplatePreviewV3` がシート入力と同じ field widget を
-  `TemplateFormRenderer` へ委譲し、scalar widget の実装を一元化するため）。
+  `TemplateFormRenderer` へ委譲し、scalar widget の実装を一元化するため）⑤
+  character → characterSheet（D-R2 裁定、2026-08-12 ユーザー — シート編集面の入力描画正本を
+  `TemplateFormRenderer` に一本化し、第三の描画実装を作らないため）。
   新しい辺が必要になったら「lib へ移す」を先に検討し、辺の追加はここへ理由つきで記録してから
   eslint の except に足す（無断で except を増やさない）
 
