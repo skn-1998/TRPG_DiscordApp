@@ -25,11 +25,10 @@ export async function loadDiscordServers(): Promise<{
     }
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
       servers: [],
-      error: status === undefined
-        ? GENERIC_NETWORK_ERROR_MESSAGE
-        : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 }
@@ -45,11 +44,10 @@ export async function postCharacterToDiscord(characterId: string, guildId: strin
     return await postCharacterToDiscordRequest(characterId, guildId)
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
       success: false,
-      error: status === undefined
-        ? GENERIC_NETWORK_ERROR_MESSAGE
-        : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 }

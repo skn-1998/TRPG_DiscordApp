@@ -27,10 +27,9 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
     return { error: null }
   } catch (error) {
     const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined
-        ? GENERIC_NETWORK_ERROR_MESSAGE
-        : extractApiErrorMessages(error).join(' / ')
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
     }
   }
 }
@@ -68,10 +67,9 @@ export async function saveSheet(
         conflict: true
       }
     }
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
     return {
-      error: status === undefined
-        ? GENERIC_NETWORK_ERROR_MESSAGE
-        : extractApiErrorMessages(error).join(' / '),
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE,
       retryable: status === undefined || status === 429 || (status >= 500 && status < 600)
     }
   }

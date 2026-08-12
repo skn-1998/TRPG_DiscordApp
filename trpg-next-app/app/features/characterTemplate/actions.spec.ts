@@ -185,6 +185,46 @@ describe('characterTemplate actions', () => {
     expect(mockedRedirect).not.toHaveBeenCalled()
   })
 
+  it('createTemplate は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedCreateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(createTemplate()).resolves.toEqual({ error: GENERIC_NETWORK_ERROR_MESSAGE })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
+  it('importV2Template は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedCreateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(importV2Template({ name: 'V2 移行' })).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
+  it('deleteTemplate は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedDeleteSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(deleteTemplate('template-1')).resolves.toEqual({ error: GENERIC_NETWORK_ERROR_MESSAGE })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
+  it('createCharacter は API の message が空でも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedCreateCharacterFromTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(
+      createCharacter({ templateId: 'template-1', templateVersion: '1.0.0', characterName: '探索者' })
+    ).resolves.toEqual({ error: GENERIC_NETWORK_ERROR_MESSAGE })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+
   it('createTemplate の network 断は定型文を返し、生メッセージを抽出しない', async () => {
     const error = new Error('connect ECONNREFUSED internal-api:3000')
     mockedCreateSheetTemplate.mockRejectedValue(error)
