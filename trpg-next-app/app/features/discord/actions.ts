@@ -1,7 +1,11 @@
 'use server'
 
 import { requireJwt } from '../../lib/auth-guard.server'
-import { extractApiErrorMessages } from '../../lib/api-response.util'
+import {
+  extractApiErrorMessages,
+  GENERIC_NETWORK_ERROR_MESSAGE,
+  getResponseStatus
+} from '../../lib/api-response.util'
 import {
   getDiscordServers,
   postCharacterToDiscord as postCharacterToDiscordRequest
@@ -20,9 +24,12 @@ export async function loadDiscordServers(): Promise<{
       error: null
     }
   } catch (error) {
+    const status = getResponseStatus(error)
     return {
       servers: [],
-      error: extractApiErrorMessages(error).join(' / ')
+      error: status === undefined
+        ? GENERIC_NETWORK_ERROR_MESSAGE
+        : extractApiErrorMessages(error).join(' / ')
     }
   }
 }
@@ -37,9 +44,12 @@ export async function postCharacterToDiscord(characterId: string, guildId: strin
   try {
     return await postCharacterToDiscordRequest(characterId, guildId)
   } catch (error) {
+    const status = getResponseStatus(error)
     return {
       success: false,
-      error: extractApiErrorMessages(error).join(' / ')
+      error: status === undefined
+        ? GENERIC_NETWORK_ERROR_MESSAGE
+        : extractApiErrorMessages(error).join(' / ')
     }
   }
 }

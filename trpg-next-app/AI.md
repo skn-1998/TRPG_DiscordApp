@@ -32,8 +32,7 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   set/delete は `/auth/callback` と `logout` のみ（属性は `buildJwtCookieOptions` — spec で pin 済み）
 - **保護 page は処理の先頭で `requireJwt()` を明示的に呼ぶ**。理由: Next の layout は
   soft navigation で再実行されず、親 layout の gate は子を守れない（旧 #72 規約の Next 版。
-  旧 `_user.user.tsx:7-9` と同根）。例外: `/user/character` は意図的に呼ばない
-  （soft degrade 維持 — n3-design-notes 裁定 10）
+  旧 `_user.user.tsx:7-9` と同根）
 - /user 配下は**二段ゲート**: `user/layout.tsx` が `requireJwt()`＋`getAuthState()` の user null
   判定（= /users probe。react cache 済みなので root layout と同一リクエスト内で dedupe され
   probe は 1 回 — #125）で hard gate を持ち（layout はツリー進入時には必ず実行される）、
@@ -120,5 +119,5 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   （matchMedia / ResizeObserver）の polyfill は `jest.setup.ts` に集約する — spec 内に書かない
 - UI の自動受入は最小限: `'use client'` 13 コンポーネント中 spec ありは TemplateEditorV3 の
   1 件（autosave 4 ケース）。残 12 件は spec 0。render を伴う受入ゲートとしては薄い前提で扱う
-- 純関数・server ロジックは spec で契約 pin（OAuth URL・cookie 属性・soft degrade 形・
+- 純関数・server ロジックは spec で契約 pin（OAuth URL・cookie 属性・認証失敗時の redirect・
   callback status・editor 署名など）

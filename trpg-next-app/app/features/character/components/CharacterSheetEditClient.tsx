@@ -7,12 +7,12 @@ import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
+import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveSheet } from '../actions'
 import {
   deriveSheetChanges,
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
-  GENERIC_SHEET_NETWORK_ERROR_MESSAGE,
   readEditableValue,
   type EditableScalarField,
   type EditorValue
@@ -126,7 +126,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
         presentSaveResult(result)
       } catch (error) {
         unstable_rethrow(error)
-        setActionData({ error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE, retryable: true })
+        setActionData({ error: GENERIC_NETWORK_ERROR_MESSAGE, retryable: true })
       }
     })
   }
