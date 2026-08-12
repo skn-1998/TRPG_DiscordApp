@@ -474,7 +474,7 @@ describe('TemplateEditorV3 autosave', () => {
 
     expect(screen.getByText('未保存の変更があります。autosave を待機中です。')).toBeTruthy()
     expect(screen.queryByText('一時的に保存できません')).toBeNull()
-    expect(screen.queryByText('検証/保存エラー')).toBeNull()
+    expect(screen.queryByText('検証エラー')).toBeNull()
     expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
 
     await advanceAutosave()
@@ -707,6 +707,74 @@ describe('TemplateEditorV3 autosave', () => {
   })
 })
 
+describe('TemplateEditorV3 validation tabs', () => {
+  afterEach(cleanup)
+
+  const validationErrorTemplate = templateWithSection({
+    id: 'skills',
+    label: '技能',
+    fields: [{ id: 'skill', uid: 'uid_skill', label: '', type: 'scalar', valueType: 'number' }]
+  })
+
+  it('検証ボタン押下で検証結果タブへ自動切替する', () => {
+    renderEditor(validationErrorTemplate)
+
+    // Test intent: 非 active panel 内の文字列ではなく選択状態を測り、自動切替の欠落を検出する。
+    // 既存の検証 14 ケースは keepMounted で panel が DOM に残るためタブ状態に依存せず通る。
+    // 自動切替を検出できるのはこの pin だけ。
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    expect(screen.getByRole('tab', { name: '検証結果', selected: true })).toBeTruthy()
+    expect(screen.getByText('検証エラー')).toBeTruthy()
+  })
+
+  it('初期表示では入力プレビューが active で検証 Alert を DOM に出さない', () => {
+    renderEditor(validationErrorTemplate)
+
+    expect(screen.getByRole('tab', { name: '入力プレビュー', selected: true })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '検証結果', selected: false })).toBeTruthy()
+    expect(screen.queryByText('検証エラー')).toBeNull()
+    expect(screen.queryByText('検証警告')).toBeNull()
+  })
+
+  it('検証後にプレビューへ戻っても検証結果を保持する', () => {
+    renderEditor(validationErrorTemplate)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+    expect(screen.getByText('検証エラー')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: '入力プレビュー' }))
+    expect(screen.getByRole('tab', { name: '入力プレビュー', selected: true })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '検証結果' }))
+
+    expect(screen.getByRole('tab', { name: '検証結果', selected: true })).toBeTruthy()
+    expect(screen.getByText('検証エラー')).toBeTruthy()
+  })
+
+  // Test intent: 保存失敗の詳細と手動再試行はタブの外（全幅領域）が所有する。
+  // 非 active panel を除外する role クエリで測るため、再試行ボタンをタブ内へ戻すと赤になる。
+  it('保存失敗中は入力プレビュータブが active のままでも再試行ボタンへ到達できる', async () => {
+    // Test prerequisite: 再試行も失敗させ、押下が到達したことを送信回数と intent で確認できる状態にする。
+    mockedSaveTemplateDraft.mockResolvedValue({
+      conflict: false,
+      messages: ['一時的に保存できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    })
+
+    expect(screen.getByRole('tab', { name: '入力プレビュー', selected: true })).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(mockedSaveTemplateDraft.mock.calls.map(([, intent]) => intent)).toEqual(['save', 'save'])
+  })
+})
+
 describe('TemplateEditorV3 publish validation warnings', () => {
   afterEach(cleanup)
 
@@ -757,7 +825,7 @@ describe('TemplateEditorV3 publish validation warnings', () => {
     expect(publishResult.warnings.length).toBeGreaterThan(1)
     expect(renderedPositions.every((position) => position >= 0)).toBe(true)
     expect(renderedPositions).toEqual([...renderedPositions].sort((left, right) => left - right))
-    expect(screen.queryByText('検証/保存エラー')).toBeNull()
+    expect(screen.queryByText('検証エラー')).toBeNull()
     expect((screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
@@ -895,7 +963,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(within(errorAlert as HTMLElement).getByText(`[${expectedLocation}] ${publishIssue!.message}`)).toBeTruthy()
   })
@@ -912,7 +980,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(within(errorAlert as HTMLElement).getByText(`[${expectedLocation}] ${publishIssue!.message}`)).toBeTruthy()
   })
@@ -960,7 +1028,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(
       within(errorAlert as HTMLElement).getByText(`[sections.0.blocks.0.id] ${publishIssue!.message}`)
@@ -1044,7 +1112,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(
       within(errorAlert as HTMLElement).getByText(`[メイン / 所持品 / 壊れたロール] ${standaloneIssue!.message}`)
@@ -1084,7 +1152,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(
       within(errorAlert as HTMLElement).getByText(
@@ -1107,7 +1175,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     renderEditor(template)
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
-    const errorAlert = screen.getByText('検証/保存エラー').closest('[role="alert"]')
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(
       within(errorAlert as HTMLElement).getByText(`[技能 / blocks 1 (combat)] ${publishIssue!.message}`)
