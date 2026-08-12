@@ -63,6 +63,7 @@ describe('SheetMaterializerService', () => {
         templateId: targetTemplate.templateId,
         templateVersion: targetTemplate.version,
         revision: 1,
+        visibility: 'private',
         values
       },
       existingPalette
@@ -90,6 +91,21 @@ describe('SheetMaterializerService', () => {
 
   beforeEach(() => {
     service = new SheetMaterializerService()
+  })
+
+  it('入力 sheet の public visibility を materialize 出力へ保持する', () => {
+    const result = service.materialize({
+      template,
+      sheet: {
+        templateId: template.templateId,
+        templateVersion: template.version,
+        revision: 1,
+        visibility: 'public',
+        values: { 'uid-str': 60 }
+      }
+    })
+
+    expect(result.sheet.visibility).toBe('public')
   })
 
   it('T-1: validateInputValues は computed uid と未知 uid を field-level 422 で拒否する', () => {

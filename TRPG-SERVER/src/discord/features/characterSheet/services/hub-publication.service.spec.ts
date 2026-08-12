@@ -22,7 +22,7 @@ function character(status: 'none' | 'publishing' | 'active' | 'error', revision 
     characterName: 'Alice',
     discordUserId: 'owner-1',
     discordChannelId: '123456789012345678',
-    sheet: { templateId: 'tpl', templateVersion: '1', revision, values: {} },
+    sheet: { templateId: 'tpl', templateVersion: '1', revision, visibility: 'private', values: {} },
     hub: { status, ...(status === 'publishing' ? { opId: 'op' } : {}) },
     palette: []
   } as CharacterEntity

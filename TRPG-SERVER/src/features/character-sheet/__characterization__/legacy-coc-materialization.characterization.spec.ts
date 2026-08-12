@@ -49,6 +49,7 @@ describe('legacy-coc materialization characterization', () => {
         templateId: LEGACY_COC_TEMPLATE.templateId,
         templateVersion: LEGACY_COC_TEMPLATE.version,
         revision: 1,
+        visibility: 'private',
         values
       }
     })

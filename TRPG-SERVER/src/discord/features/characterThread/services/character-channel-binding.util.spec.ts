@@ -9,6 +9,7 @@ const materializedSheet = {
   templateId: 'template-1',
   templateVersion: '1.0.0',
   revision: 1,
+  visibility: 'private' as const,
   values: {}
 }
 

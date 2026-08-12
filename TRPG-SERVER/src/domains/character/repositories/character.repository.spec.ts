@@ -138,7 +138,13 @@ describe('CharacterRepository', () => {
         discordUserId: 'u1',
         discordChannelId: 'ch1',
         ...projection,
-        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 1, values: { hp: 10 } },
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '1.0.0',
+          revision: 1,
+          visibility: 'private' as const,
+          values: { hp: 10 }
+        },
         computedCache: { hpHalf: 5 },
         palette: [],
         hub: { status: 'none' as const },
@@ -156,11 +162,17 @@ describe('CharacterRepository', () => {
       expect(result).toBe(entity)
     })
 
-    it('saveSheetMaterialized は revision CAS 条件・単一 $set・$inc で更新し pin を書かない', async () => {
+    it('saveSheetMaterialized は revision CAS・単一 $set/$inc を保ち public visibility を消さない', async () => {
       const updated = {
         characterId: 'c1',
         ...projection,
-        sheet: { templateId: 'tpl-1', templateVersion: '1.0.0', revision: 4, values: { hp: 12 } }
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '1.0.0',
+          revision: 4,
+          visibility: 'public' as const,
+          values: { hp: 12 }
+        }
       }
       const query = createQuery(updated)
       model.findOneAndUpdate.mockReturnValue(query)
@@ -200,6 +212,7 @@ describe('CharacterRepository', () => {
         { new: true }
       )
       expect(result).toBe(updated)
+      expect(result?.sheet?.visibility).toBe('public')
     })
 
     it('saveSheetMaterialized は0件更新を競合として null で返す', async () => {
@@ -396,6 +409,34 @@ describe('CharacterRepository', () => {
       expect(model.findOne).toHaveBeenCalledWith({ characterId: 'c1', discordUserId: 'owner-1' })
       expect(query.lean).toHaveBeenCalledTimes(1)
       expect(result).toBe(doc)
+    })
+
+    it.each([
+      ['欠落', {}],
+      ['unlisted', { visibility: 'unlisted' }],
+      ['不正値', { visibility: 42 }]
+    ])('findByIdForOwner は raw persisted visibility の%sを private に正規化する', async (_caseName, extra) => {
+      const sheet = {
+        templateId: 'tpl-1',
+        templateVersion: '1.0.0',
+        revision: 1,
+        values: {},
+        ...extra
+      }
+      const doc = { characterId: 'c1', discordUserId: 'owner-1', sheet }
+      model.findOne.mockReturnValue(createQuery(doc))
+
+      const result = await repository.findByIdForOwner('c1', 'owner-1')
+
+      expect(result?.sheet?.visibility).toBe('private')
+      expect(doc.sheet).toBe(sheet)
+      expect(doc.sheet).toEqual({
+        templateId: 'tpl-1',
+        templateVersion: '1.0.0',
+        revision: 1,
+        values: {},
+        ...extra
+      })
     })
 
     it('updateForOwner は所有者条件を含む単一クエリで更新する', async () => {

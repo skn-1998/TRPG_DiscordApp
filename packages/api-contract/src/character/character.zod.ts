@@ -29,6 +29,7 @@ export const characterSheetStateSchema = z
     templateId: z.string().min(1),
     templateVersion: z.string().min(1),
     revision: z.number().int().positive(),
+    visibility: z.enum(['private', 'public']),
     values: z.record(z.string(), z.unknown())
   })
   .strict()

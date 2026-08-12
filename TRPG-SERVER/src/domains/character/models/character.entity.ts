@@ -4,6 +4,7 @@ export interface CharacterSheetState {
   templateId: string
   templateVersion: string
   revision: number
+  visibility: 'private' | 'public'
   values: Record<string, unknown>
 }
 

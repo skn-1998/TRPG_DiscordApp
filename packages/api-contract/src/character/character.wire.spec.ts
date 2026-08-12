@@ -137,6 +137,19 @@ type CreateCharacterFromTemplateResultWireShape = Assert<
   >
 >
 
+type CharacterSheetStateWireShape = Assert<
+  IsExact<
+    CharacterSheetStateWire,
+    {
+      templateId: string
+      templateVersion: string
+      revision: number
+      visibility: 'private' | 'public'
+      values: Record<string, unknown>
+    }
+  >
+>
+
 type CharacterWireAnyKeys = AssertNever<AnyKeys<CharacterWire>>
 type CharacterSummaryWireAnyKeys = AssertNever<AnyKeys<CharacterSummaryWire>>
 type CharacterDeleteResultWireAnyKeys = AssertNever<AnyKeys<CharacterDeleteResultWire>>

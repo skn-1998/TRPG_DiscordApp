@@ -75,6 +75,7 @@ export class SheetMaterializerService {
         templateId: input.sheet.templateId,
         templateVersion: input.sheet.templateVersion,
         revision: input.sheet.revision,
+        visibility: input.sheet.visibility,
         values
       },
       computedCache: this.buildComputedCache(template, evaluated),
