@@ -2577,6 +2577,11 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   コミットは長コマンド EOF 破損を pathspec-from-file 方式で回避（メモリ追記済み）。
   **次 = 大粒度 #15（SM-14b・SM-8b・U16-a 横断）の二重レビュー**。
   その後 U16-b（summary read model）→ c（保存専用操作）→ d（renderer）。
+  **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
+  大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
+  作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
+  （design-ledger）と本ファイルへ反映してから、大粒度 #15 の起動可否を再判断する
+  （設計更新が直近 3 スライスの面に触るならレビュー依頼文の前提を更新すること）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
