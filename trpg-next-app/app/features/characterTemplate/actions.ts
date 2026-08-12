@@ -28,6 +28,7 @@ export type EditorActionData = {
   template?: CharacterSheetTemplateEntity
   conflict?: boolean
   messages?: string[]
+  retryable?: boolean
 }
 
 export async function createTemplate(): Promise<{ error: string | null }> {
@@ -134,9 +135,21 @@ export async function saveTemplateDraft(
     return { template: updated }
   } catch (error) {
     const status = getResponseStatus(error)
+    if (status === 409) {
+      return {
+        conflict: true,
+        messages: extractApiErrorMessages(error)
+      }
+    }
+
+    // upstream body が {message: ''} や ';;' だと extractApiErrorMessages は空配列を返しうる。
+    // messages が空だと編集画面はエラーも再試行ボタンも出せないため、定型文で埋める
+    const extracted = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
+
     return {
-      conflict: status === 409,
-      messages: status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
+      conflict: false,
+      messages: extracted.length > 0 ? extracted : [GENERIC_NETWORK_ERROR_MESSAGE],
+      retryable: status === undefined || status === 429 || (status >= 500 && status < 600)
     }
   }
 }

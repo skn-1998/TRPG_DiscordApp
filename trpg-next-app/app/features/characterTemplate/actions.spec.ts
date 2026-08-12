@@ -43,6 +43,10 @@ const mockedCreateCharacterFromTemplate = jest.mocked(createCharacterFromTemplat
 const mockedCreateSheetTemplate = jest.mocked(createSheetTemplate)
 const mockedDeleteSheetTemplate = jest.mocked(deleteSheetTemplate)
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
+// 空メッセージの抽出結果は実装依存なので、この経路だけは実物を通して検証する
+const actualExtractApiErrorMessages = jest.requireActual<typeof import('../../lib/api-response.util')>(
+  '../../lib/api-response.util'
+).extractApiErrorMessages
 const mockedPublishSheetTemplate = jest.mocked(publishSheetTemplate)
 const mockedUpdateSheetTemplate = jest.mocked(updateSheetTemplate)
 
@@ -251,7 +255,8 @@ describe('characterTemplate actions', () => {
 
     await expect(saveTemplateDraft('template-1', 'save', template)).resolves.toEqual({
       conflict: false,
-      messages: ['version が不正です']
+      messages: ['version が不正です'],
+      retryable: false
     })
   })
 
@@ -262,8 +267,38 @@ describe('characterTemplate actions', () => {
 
     await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
       conflict: false,
-      messages: [GENERIC_NETWORK_ERROR_MESSAGE]
+      messages: [GENERIC_NETWORK_ERROR_MESSAGE],
+      retryable: true
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  it('saveTemplateDraft の 5xx は body が空メッセージでも定型文を返す', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedUpdateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    expect(actualExtractApiErrorMessages(error)).toEqual([])
+    await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
+      conflict: false,
+      messages: [GENERIC_NETWORK_ERROR_MESSAGE],
+      retryable: true
+    })
+  })
+
+  it.each([
+    [429, true],
+    [503, true],
+    [422, false]
+  ])('saveTemplateDraft の status %i は retryable=%s を返す', async (status, retryable) => {
+    const error = { response: { status } }
+    mockedUpdateSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['保存に失敗しました'])
+
+    await expect(saveTemplateDraft('template-1', 'autosave', template)).resolves.toEqual({
+      conflict: false,
+      messages: ['保存に失敗しました'],
+      retryable
+    })
   })
 })
