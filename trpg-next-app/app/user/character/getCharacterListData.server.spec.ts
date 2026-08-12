@@ -21,7 +21,8 @@ const mockedApiGet = jest.mocked(apiClient.get)
 const character: CharacterSummaryWire = {
   characterId: 'character-1',
   characterName: 'テスト探索者',
-  gameSystemId: 'Cthulhu7th'
+  gameSystemId: 'Cthulhu7th',
+  visibility: 'private'
 }
 
 describe('getCharacterListData', () => {

@@ -683,7 +683,7 @@ describe('CharacterRepository', () => {
           characterId: 'c1',
           characterName: 'Alice',
           gameSystemId: 'coc',
-          sheet: { templateVersion: '2.0.0' },
+          sheet: { templateVersion: '2.0.0', visibility: 'public' },
           templatePin: { templateVersion: '1.0.0' },
           hub: { status: 'error' }
         },
@@ -701,7 +701,7 @@ describe('CharacterRepository', () => {
 
       expect(model.find).toHaveBeenCalledWith({ discordUserId: 'u1' })
       expect(query.select).toHaveBeenCalledWith(
-        'characterId characterName gameSystemId sheet.templateVersion templatePin.templateVersion hub.status -_id'
+        'characterId characterName gameSystemId sheet.templateVersion sheet.visibility templatePin.templateVersion hub.status -_id'
       )
       expect(query.lean).toHaveBeenCalledTimes(1)
       expect(result).toEqual([
@@ -709,6 +709,7 @@ describe('CharacterRepository', () => {
           characterId: 'c1',
           characterName: 'Alice',
           gameSystemId: 'coc',
+          visibility: 'public',
           templateVersion: '2.0.0',
           hub: { status: 'error' }
         },
@@ -716,6 +717,7 @@ describe('CharacterRepository', () => {
           characterId: 'c2',
           characterName: 'Bob',
           gameSystemId: 'coc',
+          visibility: 'private',
           templateVersion: '1.0.0'
         }
       ])

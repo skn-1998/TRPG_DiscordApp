@@ -284,6 +284,7 @@ describe('Character CRUD Integration Test', () => {
 
   describe('Character HTTP Payload Contract', () => {
     const completeCharacterId = 'character-integration-http-complete'
+    const missingVisibilitySummaryCharacterId = 'character-integration-http-missing-visibility-summary'
     const legacySummaryCharacterId = 'character-integration-http-legacy-summary'
     const retryAt = new Date('2026-07-03T03:04:05.006Z')
 
@@ -319,6 +320,7 @@ describe('Character CRUD Integration Test', () => {
               templateId: 'template-id',
               templateVersion: '1.0.0',
               revision: 3,
+              visibility: 'public',
               values: { hp: 10, note: 'ready' }
             },
             computedCache: {
@@ -360,6 +362,27 @@ describe('Character CRUD Integration Test', () => {
       )
 
       await characterService.create({
+        characterId: missingVisibilitySummaryCharacterId,
+        characterName: 'Integration Missing Visibility Summary Character',
+        gameSystemId: 'coc7',
+        discordUserId: authenticatedUser.discordUserId,
+        discordChannelId: 'integration-missing-visibility-summary-channel'
+      })
+      await characterModel.collection.updateOne(
+        { characterId: missingVisibilitySummaryCharacterId },
+        {
+          $set: {
+            sheet: {
+              templateId: 'template-id',
+              templateVersion: '1.0.0',
+              revision: 1,
+              values: { hp: 8 }
+            }
+          }
+        }
+      )
+
+      await characterService.create({
         characterId: legacySummaryCharacterId,
         characterName: 'Integration Legacy Summary Character',
         gameSystemId: 'coc6',
@@ -393,9 +416,9 @@ describe('Character CRUD Integration Test', () => {
 
       expectSuccessEnvelope(body, 'キャラクターサマリーを取得しました', ['meta'])
       expect(body.meta).toEqual({
-        total: 2,
+        total: 3,
         page: 1,
-        limit: 2,
+        limit: 3,
         hasNext: false,
         hasPrev: false
       })
@@ -404,18 +427,35 @@ describe('Character CRUD Integration Test', () => {
       }
 
       const completeSummary = data.find((summary) => summary.characterId === completeCharacterId)
+      const missingVisibilitySummary = data.find(
+        (summary) => summary.characterId === missingVisibilitySummaryCharacterId
+      )
       const legacySummary = data.find((summary) => summary.characterId === legacySummaryCharacterId)
       expect(completeSummary).toBeDefined()
+      expect(missingVisibilitySummary).toBeDefined()
       expect(legacySummary).toBeDefined()
       expect(Object.keys(completeSummary!).sort()).toEqual([...characterSummaryRuntimeKeys].sort())
       expect(completeSummary).toEqual({
         characterId: completeCharacterId,
         characterName: 'Integration HTTP Complete Character',
         gameSystemId: 'coc7',
+        visibility: 'public',
         templateVersion: '1.0.0',
         hub: { status: 'active' }
       })
-      expect(Object.keys(legacySummary!).sort()).toEqual(['characterId', 'characterName', 'gameSystemId'].sort())
+      expect(missingVisibilitySummary).toEqual({
+        characterId: missingVisibilitySummaryCharacterId,
+        characterName: 'Integration Missing Visibility Summary Character',
+        gameSystemId: 'coc7',
+        visibility: 'private',
+        templateVersion: '1.0.0'
+      })
+      expect(legacySummary).toEqual({
+        characterId: legacySummaryCharacterId,
+        characterName: 'Integration Legacy Summary Character',
+        gameSystemId: 'coc6',
+        visibility: 'private'
+      })
     })
   })
 

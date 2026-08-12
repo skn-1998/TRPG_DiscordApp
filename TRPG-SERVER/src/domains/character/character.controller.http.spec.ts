@@ -386,13 +386,15 @@ describe('CharacterController HTTP payload contract', () => {
         characterId: 'character-summary-id',
         characterName: 'Summary Character',
         gameSystemId: 'coc7',
+        visibility: 'public',
         templateVersion: '2.0.0',
         hub: { status: 'active' }
       },
       {
         characterId: 'character-summary-legacy-id',
         characterName: 'Legacy Summary Character',
-        gameSystemId: 'coc6'
+        gameSystemId: 'coc6',
+        visibility: 'private'
       }
     ])
 
@@ -412,7 +414,7 @@ describe('CharacterController HTTP payload contract', () => {
       expectOnlyCharacterSummaryRuntimeKeys(summary)
     }
     expect(Object.keys(data[0]).sort()).toEqual([...characterSummaryRuntimeKeys].sort())
-    expect(Object.keys(data[1]).sort()).toEqual(['characterId', 'characterName', 'gameSystemId'].sort())
+    expect(Object.keys(data[1]).sort()).toEqual(['characterId', 'characterName', 'gameSystemId', 'visibility'].sort())
     expect(characterService.findUserCharacterSummaries).toHaveBeenCalledWith(authenticatedUser.discordUserId)
   })
 })

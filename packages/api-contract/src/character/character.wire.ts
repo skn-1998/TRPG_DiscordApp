@@ -96,6 +96,7 @@ export interface CharacterSummaryWire {
   characterId: string
   characterName: string
   gameSystemId: string
+  visibility: 'private' | 'public'
   templateVersion?: string
   hub?: {
     status: CharacterHubStatusWire

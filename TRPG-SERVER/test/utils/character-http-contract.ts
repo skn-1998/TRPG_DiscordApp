@@ -8,7 +8,14 @@ export const requiredCharacterRuntimeKeys: readonly string[] = Object.entries(ch
   .map(([key]) => key)
 
 // 出典: src/domains/character/repositories/character.repository.ts の summary mapper が返す公開形。
-export const characterSummaryRuntimeKeys = ['characterId', 'characterName', 'gameSystemId', 'templateVersion', 'hub']
+export const characterSummaryRuntimeKeys = [
+  'characterId',
+  'characterName',
+  'gameSystemId',
+  'visibility',
+  'templateVersion',
+  'hub'
+]
 
 export const expectSuccessEnvelope = (body: JsonObject, message: string, additionalKeys: string[] = []): void => {
   expect(Object.keys(body).sort()).toEqual(
