@@ -30,6 +30,7 @@ type ConflictResolution = 'theirs' | 'mine'
 interface EditorConflict {
   id: string
   field: EditableScalarField
+  partsKey: string | undefined
   current: EditorValue
 }
 
@@ -63,6 +64,7 @@ function createConflictPanel(
     return [{
       id: `${conflict.path.fieldUid}:${conflict.path.partsKey ?? ''}:${index}`,
       field,
+      partsKey: conflict.path.partsKey,
       current: readConflictCurrent(field, conflict.current)
     }]
   })
@@ -87,6 +89,11 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
 
   const hasInvalidNumber = fields.some((field) => field.valueType === 'number' && values[field.uid] === '')
   const changes = deriveSheetChanges(fields, baseline, values)
+  const savableChanges = conflictPanel
+    ? changes.filter((change) => !conflictPanel.conflicts.some((conflict) =>
+      conflict.field.uid === change.path.fieldUid && conflict.partsKey === change.path.partsKey
+    ))
+    : changes
   const hasCompleteConflictSelection = conflictPanel?.conflicts.every(({ id }) => conflictPanel.selections[id]) ?? false
   const hasUnsavedFailure = changes.length > 0 && Boolean(actionData?.error || conflictPanel)
 
@@ -102,13 +109,19 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
       setConflictPanel(null)
       return
     }
+    if (result.conflict) {
+      setConflictPanel(null)
+      setActionData({ error: GENERIC_SHEET_CONFLICT_MESSAGE, conflict: true })
+      return
+    }
     setActionData(result)
   }
 
   const saveChanges = (revision: number, nextChanges: typeof changes) => {
-    if (isPending) return
+    if (isPending || nextChanges.length === 0) return
     startTransition(async () => {
       try {
+        // 競合判定は path ごとの baseValue CAS。baseRevision は SM-15 の再送規約用の情報値。
         const result = await saveSheet(character.characterId, { baseRevision: revision, changes: nextChanges })
         presentSaveResult(result)
       } catch (error) {
@@ -120,7 +133,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    saveChanges(baseRevision, changes)
+    saveChanges(baseRevision, savableChanges)
   }
 
   const handleConflictApply = () => {
@@ -221,7 +234,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                   color="red"
                   loading={isPending}
                   disabled={changes.length === 0}
-                  onClick={() => saveChanges(baseRevision, changes)}
+                  onClick={() => saveChanges(baseRevision, savableChanges)}
                 >
                   再試行
                 </Button>

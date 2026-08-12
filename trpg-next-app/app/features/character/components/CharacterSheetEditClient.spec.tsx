@@ -6,7 +6,7 @@ import type { CharacterWire } from '@trpg/api-contract'
 import { Component, type ReactNode } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
 import { saveSheet } from '../actions'
-import { GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from '../sheet-edit'
+import { GENERIC_SHEET_CONFLICT_MESSAGE, GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from '../sheet-edit'
 import { CharacterSheetEditClient } from './CharacterSheetEditClient'
 
 jest.mock('../actions', () => ({ saveSheet: jest.fn() }))
@@ -368,6 +368,32 @@ describe('CharacterSheetEditClient', () => {
     expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
   })
 
+  it('競合パネル表示中の保存は競合 path を payload から除外し、成功後もパネルを残す', async () => {
+    renderEditor()
+    await submitHpChange()
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '変更名' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    expect(mockedSaveSheet.mock.calls[1]?.[1]).toEqual({
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.name' }, baseValue: '初期名', newValue: '変更名' }]
+    })
+    expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
+    expect(screen.getByText('相手の値: 8')).toBeTruthy()
+  })
+
+  it('競合 path しか dirty でない間は空の changes を送信しない', async () => {
+    renderEditor()
+    await submitHpChange()
+
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
+  })
+
   it('競合パネル表示中の手動保存が再び 409 なら最新 payload でパネルを置き換える', async () => {
     renderEditor()
     await submitHpChange()
@@ -396,6 +422,34 @@ describe('CharacterSheetEditClient', () => {
     expect(screen.getByText('相手の値: 8')).toBeTruthy()
   })
 
+  it('競合パネル表示中の retryable 失敗はパネル・再試行つき赤 Alert・橙バナーを併記する', async () => {
+    renderEditor()
+    await submitHpChange()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '一時的に保存できません', retryable: true })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts.some((alert) => alert.textContent?.includes('保存できませんでした'))).toBe(true)
+    expect(alerts.some((alert) => alert.textContent?.includes('保存されていません'))).toBe(true)
+    expect(screen.getByRole('button', { name: '再試行' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
+  })
+
+  it('action 側 fail-back は旧パネルと選択を破棄して汎用競合 Alert に統一する', async () => {
+    renderEditor()
+    await submitHpChange()
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    mockedSaveSheet.mockResolvedValueOnce({ error: GENERIC_SHEET_CONFLICT_MESSAGE, conflict: true })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText(GENERIC_SHEET_CONFLICT_MESSAGE)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: '自分の値を採用 (mine)' })).toBeNull()
+  })
+
   it('current の型が field.valueType と異なる場合は未入力として採用する', async () => {
     renderEditor()
     await submitHpChange(mergeConflict('main.hp', '8'))
@@ -407,15 +461,19 @@ describe('CharacterSheetEditClient', () => {
     expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
   })
 
-  it('全 conflict が編集対象外ならパネルを出さず現行の汎用競合へ fail-back する', async () => {
+  it('client 側 fail-back は旧パネルと選択を破棄して汎用競合 Alert に統一する', async () => {
     renderEditor()
+    await submitHpChange()
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
     mockedSaveSheet.mockResolvedValueOnce(mergeConflict('unknown.field'))
-    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
 
-    const alerts = await screen.findAllByRole('alert')
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+    const alerts = screen.getAllByRole('alert')
     expect(alerts).toHaveLength(2)
-    expect(alerts.some((alert) => alert.textContent?.includes('他の操作でシートが更新されました。'))).toBe(true)
+    expect(alerts.some((alert) => alert.textContent?.includes(GENERIC_SHEET_CONFLICT_MESSAGE))).toBe(true)
     expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: '自分の値を採用 (mine)' })).toBeNull()
   })
 })
