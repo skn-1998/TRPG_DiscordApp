@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { produce } from 'immer'
 import {
   Alert,
   Autocomplete,
@@ -555,25 +556,35 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     return () => window.clearTimeout(timeout)
   }, [editorSignature, hasActiveSaveFailure, saveState, submitDraft])
 
+  // Invariant: undefined の patch も own key を残し、従来の spread merge と同じ state shape を保つ。
   const updateTemplate = (patch: Partial<CharacterSheetTemplateEntity>) => {
-    setTemplate((current) => ({ ...current, ...patch }))
+    setTemplate(
+      produce((draft) => {
+        Object.assign(draft, patch)
+      })
+    )
   }
 
   const updateSection = (sectionId: string, patch: Partial<SheetSection>) => {
-    setTemplate((current) => ({
-      ...current,
-      sections: current.sections.map((section) => (section.id === sectionId ? { ...section, ...patch } : section))
-    }))
+    setTemplate(
+      produce((draft) => {
+        for (const section of draft.sections) {
+          if (section.id === sectionId) Object.assign(section, patch)
+        }
+      })
+    )
   }
 
   const updateField = (fieldUid: string, patch: Partial<SheetField>) => {
-    setTemplate((current) => ({
-      ...current,
-      sections: current.sections.map((section) => ({
-        ...section,
-        fields: section.fields.map((field) => (field.uid === fieldUid ? ({ ...field, ...patch } as SheetField) : field))
-      }))
-    }))
+    setTemplate(
+      produce((draft) => {
+        for (const section of draft.sections) {
+          for (const field of section.fields) {
+            if (field.uid === fieldUid) Object.assign(field, patch)
+          }
+        }
+      })
+    )
   }
 
   const addSection = () => {
@@ -597,24 +608,25 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const addField = () => {
     if (!activeSection) return
     const field = createField(newFieldType, activeSection, newFieldLabel || newFieldType)
-    setTemplate((current) => ({
-      ...current,
-      sections: current.sections.map((section) =>
-        section.id === activeSection.id ? { ...section, fields: [...section.fields, field] } : section
-      )
-    }))
+    setTemplate(
+      produce((draft) => {
+        for (const section of draft.sections) {
+          if (section.id === activeSection.id) section.fields.push(field)
+        }
+      })
+    )
     setSelectedFieldUid(field.uid)
     setNewFieldLabel('')
   }
 
   const deleteField = (fieldUid: string) => {
-    setTemplate((current) => ({
-      ...current,
-      sections: current.sections.map((section) => ({
-        ...section,
-        fields: section.fields.filter((field) => field.uid !== fieldUid)
-      }))
-    }))
+    setTemplate(
+      produce((draft) => {
+        for (const section of draft.sections) {
+          section.fields = section.fields.filter((field) => field.uid !== fieldUid)
+        }
+      })
+    )
     setSelectedFieldUid(null)
   }
 
