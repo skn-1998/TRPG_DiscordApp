@@ -2523,9 +2523,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   （fieldUid＋partsKey 組・payload assert つき）・fail-back 両経路の旧パネル破棄
   統一・3 点同時成立 pin・per-path CAS コメント。非競合エラーでパネルを
   消さない規則は不変。独立ゲート = front 24/24 suites・372/372 tests（+4）・
-  eslint 0。**BIG14-FIX-B 委譲済み・走行中（prompt-big14-fix-b.md）**:
-  discord guard 2 箇所・一覧 401/403 redirect 化＋到達不能分岐と英語ブロック
-  削除・定数 rename・app/loading.tsx。検収後 → SM-14b へ。
+  eslint 0。**BIG14-FIX-B = 検収・コミット `01cd3df` → 大粒度 #14 完全クローズ**:
+  discord guard 2 箇所・一覧 401/403 redirect 化＋到達不能 soft degrade 分岐と
+  isAuthenticated/英語ブロック削除（AI.md の旧例外規約も削除）・
+  GENERIC_NETWORK_ERROR_MESSAGE へ rename（置き場は指示の sheet-edit 維持でなく
+  api-response.util へ co-locate — discord が消費者に加わり越境 import を避ける
+  実装者判断を Fable が採用）・app/loading.tsx。独立ゲート = front 26/26 suites・
+  374/374 tests（+2）・eslint 0。台帳 #11 行に #14 の確定事項
+  （1 本化 No-Go・per-path CAS・却下理由）を反映済み。
+  **SM-14b（templates レーン・SM-14 最終スライス）委譲済み・走行中
+  （prompt-sm-14b.md）**: loading/error 4 ファイル・getTemplateListData 分類化
+  （401/403 redirect・error フィールド廃止・TemplateListV3 の server error prop
+  削除）・エディタ page 401/403・templates actions の生文字列 5 sink guard。
+  検収後 → SM-8b → キュー #12 U16。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
