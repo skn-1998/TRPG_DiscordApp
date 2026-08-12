@@ -2531,11 +2531,15 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   実装者判断を Fable が採用）・app/loading.tsx。独立ゲート = front 26/26 suites・
   374/374 tests（+2）・eslint 0。台帳 #11 行に #14 の確定事項
   （1 本化 No-Go・per-path CAS・却下理由）を反映済み。
-  **SM-14b（templates レーン・SM-14 最終スライス）委譲済み・走行中
-  （prompt-sm-14b.md）**: loading/error 4 ファイル・getTemplateListData 分類化
-  （401/403 redirect・error フィールド廃止・TemplateListV3 の server error prop
-  削除）・エディタ page 401/403・templates actions の生文字列 5 sink guard。
-  検収後 → SM-8b → キュー #12 U16。
+  **SM-14b = 検収・コミット `556fa1f` → SM-14 クローズ**: loading/error
+  4 ファイル・getTemplateListData 分類化（401/403 redirect・error フィールド
+  廃止・TemplateListV3 の server error prop 削除）・エディタ page 401/403・
+  templates actions 5 sink（createTemplate/importV2Template/deleteTemplate/
+  createCharacter/saveTemplateDraft）の network guard。独立ゲート =
+  front 29/29 suites・388/388 tests（+14）・eslint 0。diff 352 行（spec 3 本分の
+  超過・申告済み）。**次 = SM-8b（エディタ autosave への 5 要素適用・
+  キュー #11 の最終着手可能スライス）→ キュー #12 U16**。
+  大粒度 #15 は #14 から 3 スライス後（SM-14b が 1 本目）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
