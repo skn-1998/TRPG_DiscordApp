@@ -2586,9 +2586,14 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   Alert/再試行/バナー 3 点消失。sink 単位フォールバック・helper 化 No-Go 維持・
   status/retryable 分類不変・実 extractor を通す spec 8 本追加 398→406。
   検収 = front 29/406 全緑＋eslint 0 を Fable 再実行）→
-  **FIX-A**（エディタ失敗状態機械の統合: F-2 署名基底不一致で無限再試行停止が非正規化 draft
-  で無効〔高〕・C-3 未定義遷移 2・F-5 undo 行き止まり・F-6 conflict 黙殺・F-7 Alert 残留。
-  失敗情報を単一 discriminated state へ）→
+  **FIX-A/A2 = 済（230a263）**（エディタ失敗状態機械の統合: F-2 署名基底不一致で
+  無限再試行停止が非正規化 draft で無効〔高〕・C-3 未定義遷移 2・F-5 undo 行き止まり・
+  F-6 conflict 黙殺・F-7 Alert 残留。failedSignatureRef/saveFailed/retryableIntent/
+  actionMessages の 4 箇所 → 単一 SaveFailure union＋正規化 payload 基底署名の一致導出へ
+  〔旧記録 L1466 等の actionMessages/failedSignatureRef 記載はこのコミットで置換済み〕。
+  小粒度レビュー = blocking/high 無し・F-2 spec と成功経路 spec は変異実測で検出力確認・
+  認知負荷純減 5→2。A2 裁定 = conflict 中の再試行ボタン非表示＋成功経路署名 spec 追加。
+  検収 = front 29/410 全緑＋eslint 0 を Fable 再実行）→
   **FIX-C**（C-1/F-4 publish 部分成功境界 = 偽 409・C-2 submitDraft single-flight）。
   F-8（sheet.visibility 無名 union×3・mapper 述語の型ゲート欠如）= U16-c へ折込。
   その後 U16-b（summary read model）→ c（保存専用操作）→ d（renderer）。
