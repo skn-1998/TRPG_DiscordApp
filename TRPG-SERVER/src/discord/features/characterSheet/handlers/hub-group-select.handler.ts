@@ -45,6 +45,7 @@ export class HubGroupSelectHandler extends SelectMenuInteractionHandler {
       channelId,
       palette: character.palette ?? [],
       groupId: selected,
+      canMutate: character.discordUserId === interaction.user.id,
       page: 1
     })
     await interaction.reply({ ...this.viewBuilder.buildPanel(view), flags: MessageFlags.Ephemeral })

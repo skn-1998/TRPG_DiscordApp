@@ -90,6 +90,7 @@ describe('@trpg/sheet-projection', () => {
       channelId: emptyDeltasInput.channelId,
       palette: emptyDeltasInput.palette,
       groupId: staleGroupId,
+      canMutate: true,
     })
 
     expect(result.hub.groupSelect?.options).toEqual([{ label: 'skills', value: 'skills' }])
@@ -117,7 +118,7 @@ describe('@trpg/sheet-projection', () => {
     ]
     const result = createDiscordProjectionViewModel(input(palette))
     const browser = createGroupBrowser({ channelId: input([]).channelId, palette })
-    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'mixed' })
+    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'mixed', canMutate: true })
 
     expect(result.hub.groupSelect?.options).toEqual([{ label: 'mixed', value: 'mixed' }])
     expect(browser.options).toEqual([{ label: 'mixed', value: 'mixed' }])
@@ -197,6 +198,7 @@ describe('@trpg/sheet-projection', () => {
       channelId: input([]).channelId,
       palette,
       groupId: 'mixedrenderability',
+      canMutate: true,
     })
 
     expect(result.hub.groupSelect?.options).toEqual([
@@ -220,13 +222,28 @@ describe('@trpg/sheet-projection', () => {
     expect(option?.value).toMatch(/^g[a-z0-9]+$/)
     expect(option?.value).toBe(second.hub.groupSelect?.options[0].value)
     expect(first.warnings).toContainEqual(expect.objectContaining({ code: 'group-id-normalized' }))
-    expect(createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: option!.value }).actions).toHaveLength(1)
+    expect(
+      createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: option!.value, canMutate: true })
+        .actions
+    ).toHaveLength(1)
   })
 
   it('ephemeral panelは20 action/pageで1-indexed pagingする', () => {
     const palette = Array.from({ length: 21 }, (_, index) => roll(index, 'skills'))
-    const page1 = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'skills', page: 1 })
-    const page2 = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'skills', page: 2 })
+    const page1 = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'skills',
+      canMutate: true,
+      page: 1,
+    })
+    const page2 = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'skills',
+      canMutate: true,
+      page: 2,
+    })
     expect(page1.actions).toHaveLength(20)
     expect(page1.actionRows.map((row) => row.length)).toEqual([5, 5, 5, 5])
     expect(page1.page).toEqual(expect.objectContaining({ currentPage: 1, totalPages: 2 }))
@@ -246,13 +263,75 @@ describe('@trpg/sheet-projection', () => {
     const palette: ProjectionPaletteEntry[] = [
       { key: 'hp', kind: 'resource', deltas: [-5, -1, 1, 5], label: 'HP', group: 'resource', fieldRef: { uid: 'hp' } },
     ]
-    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'resource' })
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'resource',
+      canMutate: true,
+    })
+    expect(panel.status).toBe('actions')
     expect(panel.actions.map(({ customId, style }) => [customId, style])).toEqual([
       ['res_123456789012345678_hp_-5', 'danger'],
       ['res_123456789012345678_hp_-1', 'danger'],
       ['res_123456789012345678_hp_1', 'success'],
       ['res_123456789012345678_hp_5', 'success'],
     ])
+  })
+
+  it('非所有者のresource-only groupはno-authorized-actionsを返しページ遷移を生成しない', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      { key: 'hp', kind: 'resource', deltas: [-1, 1], label: 'HP', group: 'resource', fieldRef: { uid: 'hp' } },
+    ]
+
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'resource',
+      canMutate: false,
+      page: 2,
+    })
+
+    expect(panel).toEqual(
+      expect.objectContaining({
+        status: 'no-authorized-actions',
+        actions: [],
+        actionRows: [],
+        page: { currentPage: 1, totalPages: 1 },
+      })
+    )
+  })
+
+  it('非所有者のroll・resource混在groupはroll actionだけを残す', () => {
+    const palette: ProjectionPaletteEntry[] = [
+      roll(1, 'mixed'),
+      { key: 'hp', kind: 'resource', deltas: [-1, 1], label: 'HP', group: 'mixed', fieldRef: { uid: 'hp' } },
+    ]
+
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'mixed',
+      canMutate: false,
+    })
+
+    expect(panel.status).toBe('actions')
+    expect(panel.actions.every((action) => action.action === 'roll')).toBe(true)
+    expect(panel.actions.map(({ action, paletteKey }) => [action, paletteKey])).toEqual([['roll', 'r1']])
+  })
+
+  it('非所有者でも除外前actionが0件なら既存の空panel状態を維持する', () => {
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette: [roll(1)],
+      groupId: 'bad group',
+      canMutate: false,
+    })
+
+    expect(panel.status).toBe('actions')
+    expect(panel.actions).toEqual([])
+    expect(panel.warnings).toContainEqual(
+      expect.objectContaining({ code: 'invalid-custom-id-part', path: 'groupId' })
+    )
   })
 
   it('指数表記・-0など正準10進表現にできないdeltaは警告してactionを生成しない', () => {
@@ -267,7 +346,12 @@ describe('@trpg/sheet-projection', () => {
       },
     ]
 
-    const panel = createEphemeralPanel({ channelId: input([]).channelId, palette, groupId: 'resource' })
+    const panel = createEphemeralPanel({
+      channelId: input([]).channelId,
+      palette,
+      groupId: 'resource',
+      canMutate: true,
+    })
 
     expect(panel.actions.map((action) => action.customId)).toEqual(['res_123456789012345678_hp_0.5'])
     expect(panel.warnings).toEqual(
@@ -362,6 +446,7 @@ describe('@trpg/sheet-projection', () => {
       channelId: input([]).channelId,
       palette: [invalid, overBudget],
       groupId: 'group',
+      canMutate: true,
     })
 
     expect(result.hub.groupSelect).toBeUndefined()
@@ -399,11 +484,13 @@ describe('@trpg/sheet-projection', () => {
       channelId,
       palette: pageBoundaryPalette,
       groupId: 'pageboundary',
+      canMutate: true,
     })
     const omittedPanel = createEphemeralPanel({
       channelId,
       palette: pageBoundaryPalette,
       groupId: 'overonly',
+      canMutate: true,
     })
 
     expect(customId.createRollPaletteCustomId(channelId, atLimitKey)).toHaveLength(100)
@@ -415,6 +502,7 @@ describe('@trpg/sheet-projection', () => {
     expect(boundaryPanel.actions.some(({ paletteKey }) => paletteKey === overLimitKey)).toBe(false)
     expect(boundaryPanel.page.totalPages).toBe(1)
     expect(omittedPanel.actions).toEqual([])
+    expect(omittedPanel.status).toBe('actions')
     expect(panelCustomId).toHaveBeenCalledWith(channelId, 'pageboundary', 1)
     expect(panelCustomId).not.toHaveBeenCalledWith(channelId, 'pageboundary', 2)
   })

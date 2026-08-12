@@ -30,6 +30,7 @@ export class HubPanelNavigationHandler extends ButtonInteractionHandler {
       channelId: parsed.channelId,
       palette: character.palette ?? [],
       groupId: parsed.groupId,
+      canMutate: character.discordUserId === interaction.user.id,
       page: parsed.page
     })
     await interaction.update(this.viewBuilder.buildPanel(view))

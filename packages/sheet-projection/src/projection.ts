@@ -567,14 +567,30 @@ export function createEphemeralPanel(input: EphemeralPanelInput): EphemeralPanel
           : buildResourceButtons(entry, input.channelId, warnings)
       )
     : []
-  const totalPages = Math.max(1, Math.ceil(allActions.length / PANEL_ACTIONS_PER_PAGE))
+  const authorizedActions = input.canMutate
+    ? allActions
+    : allActions.filter((action) => action.action === 'roll')
+  if (allActions.length > 0 && authorizedActions.length === 0) {
+    return {
+      kind: 'group-panel',
+      status: 'no-authorized-actions',
+      groupId: input.groupId,
+      title: group?.label ?? input.groupId,
+      actions: [],
+      actionRows: [],
+      page: { currentPage: 1, totalPages: 1 },
+      warnings,
+    }
+  }
+  const totalPages = Math.max(1, Math.ceil(authorizedActions.length / PANEL_ACTIONS_PER_PAGE))
   const currentPage = clampPage(input.page, totalPages)
-  const actions = allActions.slice(
+  const actions = authorizedActions.slice(
     (currentPage - 1) * PANEL_ACTIONS_PER_PAGE,
     currentPage * PANEL_ACTIONS_PER_PAGE
   )
   return {
     kind: 'group-panel',
+    status: 'actions',
     groupId: input.groupId,
     title: group?.label ?? input.groupId,
     actions,
