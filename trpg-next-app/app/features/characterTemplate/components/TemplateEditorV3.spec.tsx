@@ -973,7 +973,8 @@ describe('TemplateEditorV3 section blocks and pools', () => {
     const clearedPoolsSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
     expect(clearedPoolsSection?.pools).toBeUndefined()
     expect(JSON.stringify(clearedPoolsSection)).not.toContain('pools')
-  })
+    // 単独実行で約3.2秒。suite 全体実行時の負荷で既定の 5000ms を超えるため延長する
+  }, 15000)
 
   it('MultiSelect で scope をすべて外すと property を落とす', async () => {
     renderEditor(
