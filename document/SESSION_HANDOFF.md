@@ -2608,7 +2608,12 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   contract 25/25＋server build/circular＋server 全 suite 赤 3=L-2 のみ＋front 29/416＋
   eslint 0 を Fable 再実行。実 DB 統合 spec の追随は Docker ゲート持ち・通常 suite 対象外。
   コミット時に pre-commit formatter が import を再整形し index に stale 残滓 → restore --staged で解消）。
-  **次 = U16-c（保存専用操作＋F-8 語彙命名の折込）→ d（renderer）→ 大粒度 #16**。
+  **U16-c = 済（e4b0811・2026-08-12）**: 保存専用操作＋F-8 語彙命名（詳細 = 台帳 #12 行。
+  検収 = contract 26/26・build/circular 0・server 全 suite 赤 3=L-2 のみ 3117 緑・
+  front 29/416・eslint 0〔front 全体＋server 変更ファイル scoped〕を Fable 再実行。
+  実 DB 統合 spec は Docker 停止中で未実行 = Docker ゲート持ち。
+  formatter の index 残滓 MM 2 件を restore --staged で解消 — U16-b と同型・2 回目）。
+  **次 = U16-d（renderer・front のみ）→ 大粒度 #16（U16-b/c/d 横断）**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
