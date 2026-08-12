@@ -2603,7 +2603,12 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   記録のみ = F-4 編集レース中の publish 失敗は表示寿命 0〔内容アドレス表示の帰結〕・
   F-5 retryable 述語重複は #14 裁定面。証跡 = big15-integration.md）。
   F-8（sheet.visibility 無名 union×3・mapper 述語の型ゲート欠如）= U16-c へ折込。
-  **次 = U16-b（summary read model）→ c（保存専用操作）→ d（renderer）→ 大粒度 #16**。
+  **U16-b = 済（a5dc046・2026-08-12）**: summary read model へ visibility（required・
+  sheet 欠落 legacy も fail-closed で private・値関数 1 定義共有で述語複製 2→1・
+  contract 25/25＋server build/circular＋server 全 suite 赤 3=L-2 のみ＋front 29/416＋
+  eslint 0 を Fable 再実行。実 DB 統合 spec の追随は Docker ゲート持ち・通常 suite 対象外。
+  コミット時に pre-commit formatter が import を再整形し index に stale 残滓 → restore --staged で解消）。
+  **次 = U16-c（保存専用操作＋F-8 語彙命名の折込）→ d（renderer）→ 大粒度 #16**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
