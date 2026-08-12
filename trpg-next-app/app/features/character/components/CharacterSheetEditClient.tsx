@@ -1,12 +1,13 @@
 'use client'
 
-import { Alert, Button, Card, Container, Group, NumberInput, Radio, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Card, Container, Group, Radio, Stack, Text, Title } from '@mantine/core'
 import { IconAlertCircle, IconArrowLeft, IconDeviceFloppy } from '@tabler/icons-react'
 import type { CharacterWire, SheetMergeConflictWire } from '@trpg/api-contract'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
+import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveSheet } from '../actions'
 import {
@@ -45,6 +46,15 @@ function createEditorValues(
   rawValues: Record<string, unknown>
 ): Record<string, EditorValue> {
   return Object.fromEntries(fields.map((field) => [field.uid, readEditableValue(field, rawValues)]))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function usesPartsEditor(field: EditableScalarField): boolean {
+  // TFR の isPartsScalarField・engine value-input の allowsParts と同値である必要がある。変更時は三者を同期する。
+  return field.valueType === 'number' && (field.parts === true || field.partsKeys !== undefined)
 }
 
 function readConflictCurrent(field: EditableScalarField, current: unknown): EditorValue {
@@ -86,6 +96,19 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const [actionData, setActionData] = useState<SheetActionData | null>(null)
   const [conflictPanel, setConflictPanel] = useState<ConflictPanelState | null>(null)
   const [isPending, startTransition] = useTransition()
+  const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
+  const rendererValues = useMemo(() => {
+    const overlay: Record<string, unknown> = { ...initialBaseValues }
+    for (const field of fields) {
+      const rawValue = initialBaseValues[field.uid]
+      const editorValue = values[field.uid]
+      // 宣言 partsKeys は EditorValue の base が未確定なため raw を通し、確定後だけ raw shape の base を差し替える。
+      overlay[field.uid] = isRecord(rawValue) && isRecord(rawValue.parts)
+        ? (editorValue === undefined ? rawValue : { ...rawValue, parts: { ...rawValue.parts, base: editorValue } })
+        : editorValue
+    }
+    return overlay
+  }, [fields, initialBaseValues, values])
 
   const hasInvalidNumber = fields.some((field) => field.valueType === 'number' && values[field.uid] === '')
   const changes = deriveSheetChanges(fields, baseline, values)
@@ -134,6 +157,26 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     saveChanges(baseRevision, savableChanges)
+  }
+
+  const handleRendererChange = (fieldUid: string, value: unknown) => {
+    const field = fieldsByUid.get(fieldUid)
+    // TFR は unknown を運ぶ契約なので、保存境界では編集可能な非 parts scalar とその値型だけを state に入れる。
+    if (!field || usesPartsEditor(field)) return
+    if (field.valueType === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return
+    } else if (typeof value !== 'string') {
+      return
+    }
+    setValues((current) => ({ ...current, [fieldUid]: value }))
+  }
+
+  const handleRendererPartsChange = (fieldUid: string, partsKey: string, value: number) => {
+    const field = fieldsByUid.get(fieldUid)
+    // deriveSheetChanges は field.parts が真のときだけ partsKey: 'base' を付ける。宣言 partsKeys field は S5 まで
+    // whole-field write（parts 全消失の H3 経路・台帳 15b(b)）になるため、非 base 値を EditorValue へ入れない。
+    if (!field || !usesPartsEditor(field) || partsKey !== 'base' || !Number.isFinite(value)) return
+    setValues((current) => ({ ...current, [fieldUid]: value }))
   }
 
   const handleConflictApply = () => {
@@ -255,29 +298,13 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
           ) : (
             <form onSubmit={handleSubmit}>
               <Stack gap="md">
-                {fields.map((field) =>
-                  field.valueType === 'number' ? (
-                    <NumberInput
-                      key={field.uid}
-                      label={field.label}
-                      description={field.description}
-                      value={values[field.uid] ?? ''}
-                      onChange={(value) => setValues((current) => ({ ...current, [field.uid]: value }))}
-                      required
-                    />
-                  ) : (
-                    <TextInput
-                      key={field.uid}
-                      label={field.label}
-                      description={field.description}
-                      value={typeof values[field.uid] === 'string' ? values[field.uid] : ''}
-                      onChange={(event) => {
-                        const value = event.currentTarget.value
-                        setValues((current) => ({ ...current, [field.uid]: value }))
-                      }}
-                    />
-                  )
-                )}
+                <TemplateFormRenderer
+                  template={template}
+                  headingLevel={3}
+                  values={rendererValues}
+                  onChange={handleRendererChange}
+                  onPartsChange={handleRendererPartsChange}
+                />
                 <Group justify="flex-end">
                   <Button
                     type="submit"

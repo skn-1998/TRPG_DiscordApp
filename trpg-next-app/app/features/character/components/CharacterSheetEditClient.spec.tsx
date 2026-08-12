@@ -11,6 +11,15 @@ import { GENERIC_SHEET_CONFLICT_MESSAGE } from '../sheet-edit'
 import { CharacterSheetEditClient } from './CharacterSheetEditClient'
 
 jest.mock('../actions', () => ({ saveSheet: jest.fn() }))
+// この spec は編集境界の配線を検証するため、視覚スタイルではなく TFR の実描画と callback 契約を jsdom へ通す。
+jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
+  __esModule: true,
+  default: {
+    fieldContainer: 'fieldContainer',
+    gridField: 'gridField',
+    tableScroll: 'tableScroll'
+  }
+}))
 
 const mockedSaveSheet = jest.mocked(saveSheet)
 const character: CharacterWire = {
@@ -46,6 +55,32 @@ const template: CharacterSheetTemplateEntity = {
   }],
   tables: [],
   settings: { rounding: 'round' }
+}
+const declaredPartsCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.hp': { parts: { base: 10, growth: 5 } } }
+  }
+}
+const declaredPartsTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    id: 'main',
+    label: 'メイン',
+    layout: { preset: 'stack' },
+    fields: [
+      {
+        id: 'hp',
+        uid: 'main.hp',
+        label: 'HP',
+        type: 'scalar',
+        valueType: 'number',
+        partsKeys: [{ id: 'growth', label: 'growth' }]
+      },
+      { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+    ]
+  }]
 }
 
 function mergeConflict(fieldUid = 'main.hp', current: unknown = 8, currentRevision = 4) {
@@ -477,5 +512,154 @@ describe('CharacterSheetEditClient', () => {
     expect(alerts.some((alert) => alert.textContent?.includes(GENERIC_SHEET_CONFLICT_MESSAGE))).toBe(true)
     expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
     expect(screen.queryByRole('radio', { name: '自分の値を採用 (mine)' })).toBeNull()
+  })
+
+  it('parts field の raw shape を保ち、popover の base 編集を partsKey つき change として保存する', async () => {
+    const partsCharacter: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.hp': { parts: { base: 10, custom: 2 } } }
+      }
+    }
+    const partsTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        fields: [
+          { id: 'hp', uid: 'main.hp', label: 'HP', type: 'scalar', valueType: 'number', parts: true },
+          { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={partsCharacter} template={partsTemplate} />
+      </MantineProvider>
+    )
+    const partsTrigger = screen.getByRole('button', { name: 'HP: 内訳を編集' })
+    expect(partsTrigger.textContent).toBe('12')
+    fireEvent.click(partsTrigger)
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+
+    // base だけを編集 state で上書きしても、既存 parts が合計表示から失われないことを固定する。
+    expect(baseInput.value).toBe('10')
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(baseInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(1))
+    expect(mockedSaveSheet.mock.calls[0]?.[1]).toEqual({
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'base' }, baseValue: 10, newValue: 9 }]
+    })
+  })
+
+  it('宣言 partsKeys field の初期合計と popover 内訳に raw parts を表示する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    const partsTrigger = screen.getByRole('button', { name: 'HP: 内訳を編集' })
+
+    // EditorValue が未確定でも raw base を失わず、annotation 合計と内訳を同じ初期値から描画することを固定する。
+    expect(partsTrigger.textContent).toBe('15')
+    fireEvent.click(partsTrigger)
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    expect([baseInput.value, growthInput.value]).toEqual(['10', '5'])
+  })
+
+  it('parts:true field の base が number でなくても raw parts の合計を表示する', () => {
+    const partsCharacter: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.hp': { parts: { growth: 3 } } }
+      }
+    }
+    const partsTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        layout: { preset: 'stack' },
+        fields: [
+          { id: 'hp', uid: 'main.hp', label: 'HP', type: 'scalar', valueType: 'number', parts: true },
+          { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={partsCharacter} template={partsTemplate} />
+      </MantineProvider>
+    )
+
+    // base を読めない初期値へ undefined を注入せず、残る有効な raw part を annotation 合計へ渡すことを固定する。
+    expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('3')
+  })
+
+  it('宣言 partsKeys field の宣言キー入力を保存 changes に取り込まない', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    await screen.findByRole('textbox', { name: 'HP: base' })
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
+
+    // S5 前の whole-field write へ宣言キーを流さず、parts 全消失の H3 経路を閉じることを固定する。
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    expect(saveButton.disabled).toBe(true)
+    fireEvent.click(saveButton)
+    expect(mockedSaveSheet).not.toHaveBeenCalled()
+  })
+
+  it('編集対象外 uid の onChange は EditorValue state に取り込まない', () => {
+    const templateWithBoolean: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        fields: [
+          ...template.sections[0]!.fields,
+          { id: 'alive', uid: 'main.alive', label: '生存', type: 'scalar', valueType: 'boolean' }
+        ]
+      }]
+    }
+    const characterWithBoolean: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.alive': true }
+      }
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={characterWithBoolean} template={templateWithBoolean} />
+      </MantineProvider>
+    )
+    const checkbox = screen.getByRole('checkbox', { name: '生存' }) as HTMLInputElement
+
+    // overlay の raw 基底と編集対象 uid の境界を同時に固定する。
+    expect(checkbox.checked).toBe(true)
+    fireEvent.click(checkbox)
+
+    expect(checkbox.checked).toBe(true)
+    expect((screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mockedSaveSheet).not.toHaveBeenCalled()
+  })
+
+  it('ページ h2 配下の template section 見出しを h3 で描画する', () => {
+    renderEditor()
+
+    expect(screen.getByRole('heading', { level: 3, name: 'メイン' })).toBeTruthy()
   })
 })
