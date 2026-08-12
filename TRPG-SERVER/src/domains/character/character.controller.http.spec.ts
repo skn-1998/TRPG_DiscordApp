@@ -291,6 +291,7 @@ describe('CharacterController HTTP payload contract', () => {
         templateId: 'template-id',
         templateVersion: '1.0.0',
         revision: 3,
+        visibility: 'private',
         values: { hp: 10, note: 'ready' }
       },
       templatePin: {
