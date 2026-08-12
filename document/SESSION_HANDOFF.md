@@ -2404,6 +2404,33 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   （worktree==HEAD・staged が整形変異）→ 対象限定 restore --staged で解消。
   **次 = 大粒度 #13**（D2a 9c8dbb3／D2b 4d864ed／SM-E 196e629 横断・
   Codex＋Opus 二重・cognitive-load モード A＋reuse sweep）。
+  **大粒度 #13 走行中（Codex 返着 = pass・low 3・Opus 走行中）**: Codex 実測 =
+  409 形の符号化 9（production owner 2・実行 spec fixture 6・compile-only 1）・
+  権限 5 判定サイト全て fail-closed（roll handler のみ U13 の意図的 open）・
+  baseline owner は state 1 箇所・editor 累積 120→259 行だが最深ネスト 3 不変・
+  server focused 159（custom-id 32/hub-panel 7/repository 43/operation 77・
+  既知 L-2 の赤は今回 0）。low = (1) builder の status 分岐が第 3 値に fail-open →
+  `!== 'actions'` 化 (2) ConflictPanelState の raw payload 併存 → currentRevision のみ
+  保持へ縮約（9→8 概念） (3) server⇔契約 conformance 不在は B-5 継続管理。
+  **大粒度 #13 突合完了（big13-integration.md）・B13-FIX 発行済み・走行中**:
+  Opus = pass・medium 1・low 8（独立実測申告あり）。独立収束 = builder status の
+  fail-open → `!== 'actions'` 化。**Opus 単独 medium F1 採用** = 競合パネルが
+  非競合エラー（422/500）で消える（probe 実証・spec 0 件）→ panel clear を
+  mergeConflict 系経路に限定（裁定根拠 = SM-15 が Modal を不採用にした理由そのもの）。
+  他の採用 = ConflictPanelState 縮約・SheetActionData を ReturnType 化・
+  汎用文言 1 本化（owner = sheet-edit.ts）・死に文言 error:null 化・
+  server MergeConflictPayload を契約型再利用へ（Opus F6 — Codex の
+  「次回変更時 conformance」案より強く安い。B-5 の inner 要素 drift 窓を型結合で閉鎖）。
+  記録のみ = 権限拒否文言 2 種は意図的（台帳 §2-3 追記済み）・所有者 1 行述語は
+  統合しない・front の parts 付き競合 spec 0 件（起票）。
+  **B13-FIX 完了・コミット済み（f188370・2026-08-12）→ 大粒度 #13 クローズ**:
+  8 項目全消化を Fable 実査（+33/−25・panel 生存規則の red-green あり）。
+  独立ゲート = front 335（334＋1）・契約 22・projection 32・engine 519・
+  server focused 159。台帳 B-5 行を「inner 要素は型結合済み・外側 envelope は
+  複製のまま」へ更新。
+  **次 = キュー #11 残の設計**: SM-F（SM-1 proof 原子性・4 不変条件・単一プロトコル）
+  → SM-8（保存失敗の 5 要素）→ SM-14（データ 4 状態）。次の大粒度 #14 は
+  この 3 スライス後（cadence 継続）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
