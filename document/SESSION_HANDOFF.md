@@ -2578,11 +2578,14 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   **大粒度 #15（SM-14b・SM-8b・U16-a 横断）二重レビュー = 済（2026-08-12）**:
   Codex needs-fix（High 0/Medium 4）× Opus（blocking 1/high 2）・相互矛盾なし・
   主要 3 所見は独立収束。突合 = big15-integration.md。採用所見と消化順 =
-  **FIX-0**（blocking F-1: U16-a が wire 契約 spec を赤で残置 — fixture visibility 欠落。
-  Fable 再実行で赤確認済み = focused 検収の見逃し・メモリ verify-full-suite-before-merge に
-  3 例目として記録。契約変更スライスの server 検収は全 suite 必須へ）→
-  **FIX-B**（両者収束: 空 messages 抽出で 8 sink 沈黙・saveSheet は Alert/再試行/バナー 3 点消失。
-  sink 単位フォールバック・helper 化 No-Go 維持。指示書 = prompt-big15-fixb.md）→
+  **FIX-0 = 済（6eefb3e）**（blocking F-1: U16-a が wire 契約 spec を赤で残置 — fixture
+  visibility 欠落。Fable 再実行で赤確認 = focused 検収の見逃し・メモリ
+  verify-full-suite-before-merge に 3 例目として記録。契約変更スライスの server 検収は
+  全 suite 必須へ。検収 = server 222 suites 中 221 緑・赤 3 = L-2 のみを Fable 再実行）→
+  **FIX-B = 済（d5e1ac7）**（両者収束: 空 messages 抽出で 8 sink 沈黙・saveSheet は
+  Alert/再試行/バナー 3 点消失。sink 単位フォールバック・helper 化 No-Go 維持・
+  status/retryable 分類不変・実 extractor を通す spec 8 本追加 398→406。
+  検収 = front 29/406 全緑＋eslint 0 を Fable 再実行）→
   **FIX-A**（エディタ失敗状態機械の統合: F-2 署名基底不一致で無限再試行停止が非正規化 draft
   で無効〔高〕・C-3 未定義遷移 2・F-5 undo 行き止まり・F-6 conflict 黙殺・F-7 Alert 残留。
   失敗情報を単一 discriminated state へ）→
