@@ -312,6 +312,37 @@ describe('CharacterRepository', () => {
       expect(model.findOneAndUpdate).not.toHaveBeenCalled()
     })
 
+    it('setSheetVisibilityForOwner は所有者とsheet存在を条件にvisibilityだけを更新しrevisionを変えない', async () => {
+      const updated = {
+        characterId: 'c1',
+        discordUserId: 'owner-1',
+        sheet: {
+          templateId: 'tpl-1',
+          templateVersion: '1.0.0',
+          revision: 7,
+          visibility: 'public' as const,
+          values: { hp: 10 }
+        }
+      }
+      model.findOneAndUpdate.mockReturnValue(createQuery(updated))
+
+      const result = await repository.setSheetVisibilityForOwner('c1', 'owner-1', 'public')
+
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { characterId: 'c1', discordUserId: 'owner-1', 'sheet.templateId': { $exists: true } },
+        { $set: { 'sheet.visibility': 'public' } },
+        { new: true }
+      )
+      expect(result?.sheet?.visibility).toBe('public')
+      expect(result?.sheet?.revision).toBe(7)
+    })
+
+    it('setSheetVisibilityForOwner は所有者・存在・sheet条件の不成立を区別せずnullで返す', async () => {
+      model.findOneAndUpdate.mockReturnValue(createQuery(null))
+
+      await expect(repository.setSheetVisibilityForOwner('c1', 'owner-1', 'private')).resolves.toBeNull()
+    })
+
     it('setHubState は from の hub 条件で CAS し to の hub フィールドだけを更新する', async () => {
       const updated = { characterId: 'c1', hub: { status: 'active', opId: 'op-1', messageId: 'm1' } }
       model.findOneAndUpdate.mockReturnValue(createQuery(updated))

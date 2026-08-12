@@ -1,9 +1,12 @@
+import { characterSheetVisibilitySchema } from '@trpg/api-contract'
 import { normalizeSheetVisibilityValue } from './character-sheet-read.mapper'
 
 describe('normalizeSheetVisibilityValue', () => {
+  it.each(characterSheetVisibilitySchema.options)('named schema option %s を同値で通す', (visibility) => {
+    expect(normalizeSheetVisibilityValue(visibility)).toBe(visibility)
+  })
+
   it.each([
-    { label: 'private', value: 'private', expected: 'private' },
-    { label: 'public', value: 'public', expected: 'public' },
     { label: '予約値 unlisted', value: 'unlisted', expected: 'private' },
     { label: '欠落', value: undefined, expected: 'private' },
     { label: '数値', value: 42, expected: 'private' },

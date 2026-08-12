@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common'
 import { Request } from 'express'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger'
-import type { CharacterDeleteResultWire } from '@trpg/api-contract'
+import type { CharacterDeleteResultWire, CharacterSheetVisibility } from '@trpg/api-contract'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterService } from './character.service'
 import { CharacterInputDto, CharacterIdParamDto } from './dto/create-character.dto'
@@ -26,6 +26,7 @@ import { SuccessResponse } from '../../core/dto/api-response.dto'
 import { v4 as uuidv4 } from 'uuid'
 import { CharacterAuthenticationException, CharacterNotFoundException } from './character-http.exception'
 import type { CharacterSummaryDto } from './dto/character-summary.dto'
+import { UpdateCharacterSheetVisibilityDto } from './dto/character-sheet.dto'
 
 /**
  * キャラクターコントローラー
@@ -166,6 +167,33 @@ export class CharacterController {
       throw new CharacterNotFoundException('キャラクター')
     }
     return character
+  }
+
+  @Put(':id/sheet/visibility')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('シートの公開設定を更新しました')
+  @ApiOperation({ summary: 'シート公開設定更新', description: '所有するキャラクターのシート公開設定を更新します' })
+  @ApiParam({ name: 'id', description: 'キャラクターID' })
+  @ApiResponse({ status: 200, description: 'シート公開設定更新成功' })
+  @ApiResponse({ status: 404, description: 'キャラクターまたはシートが見つかりません' })
+  @ApiResponse({ status: 422, description: '公開設定の値が不正です' })
+  async updateSheetVisibility(
+    @Param() params: CharacterIdParamDto,
+    @Body() updateDto: UpdateCharacterSheetVisibilityDto,
+    @Req() req: Request
+  ): Promise<{ visibility: CharacterSheetVisibility }> {
+    const user = this.extractAuthenticatedUser(req)
+    const visibility = await this.characterService.setSheetVisibilityForOwner(
+      params.id,
+      user.discordUserId,
+      updateDto.visibility
+    )
+    if (visibility === null) {
+      throw new CharacterNotFoundException('キャラクター')
+    }
+
+    return { visibility }
   }
 
   /**

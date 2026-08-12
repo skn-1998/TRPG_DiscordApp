@@ -1,4 +1,8 @@
-import { materializedCharacterEntitySchema, saveSheetMaterializedPayloadSchema } from './character.zod'
+import {
+  characterSheetVisibilitySchema,
+  materializedCharacterEntitySchema,
+  saveSheetMaterializedPayloadSchema
+} from './character.zod'
 
 const canonicalSections = {
   status: { HP: { values: { base: 10, buff: 2, temp: -1, other: 3 } } },
@@ -9,6 +13,10 @@ const canonicalSections = {
 }
 
 describe('character Zod schemas', () => {
+  it('character sheet visibility の named options を固定する', () => {
+    expect(characterSheetVisibilitySchema.options).toEqual(['private', 'public'])
+  })
+
   it('materialized character の全要素と AttributeValue parts を受理する', () => {
     expect(
       materializedCharacterEntitySchema.safeParse({

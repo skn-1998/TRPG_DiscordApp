@@ -146,6 +146,7 @@ describe('CharacterController', () => {
       findUserCharacterSummaries: jest.fn(),
       findOne: jest.fn(),
       findOneForOwner: jest.fn(),
+      setSheetVisibilityForOwner: jest.fn(),
       update: jest.fn(),
       updateForOwner: jest.fn(),
       remove: jest.fn(),

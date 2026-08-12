@@ -457,6 +457,54 @@ describe('Character CRUD Integration Test', () => {
         visibility: 'private'
       })
     })
+
+    it('PUT /character/:id/sheet/visibility はowner更新を200で返し実Mongoのvisibilityだけを書き換える', async () => {
+      const response = await request(app.getHttpServer())
+        .put(`/character/${completeCharacterId}/sheet/visibility`)
+        .send({ visibility: 'private' })
+        .expect(200)
+
+      expectSuccessEnvelope(response.body as JsonObject, 'シートの公開設定を更新しました')
+      expect(response.body.data).toEqual({ visibility: 'private' })
+
+      const persisted = await characterModel.collection.findOne({ characterId: completeCharacterId })
+      expect(persisted?.sheet.visibility).toBe('private')
+      expect(persisted?.sheet.revision).toBe(3)
+    })
+
+    it('PUT /character/:id/sheet/visibility はnon-owner・不存在・sheet未保有を同じ404にする', async () => {
+      const nonOwnerCharacterId = 'character-integration-http-non-owner'
+      await characterModel.create({
+        characterId: nonOwnerCharacterId,
+        characterName: 'Non-owner Character',
+        gameSystemId: 'coc7',
+        discordUserId: 'another-owner',
+        discordChannelId: 'non-owner-channel',
+        sheet: {
+          templateId: 'template-id',
+          templateVersion: '1.0.0',
+          revision: 1,
+          visibility: 'private',
+          values: {}
+        }
+      })
+
+      for (const characterId of [nonOwnerCharacterId, 'character-integration-http-missing', legacySummaryCharacterId]) {
+        const response = await request(app.getHttpServer())
+          .put(`/character/${characterId}/sheet/visibility`)
+          .send({ visibility: 'public' })
+          .expect(404)
+
+        expect(response.body).toEqual({
+          success: false,
+          message: '未発見エラー',
+          timestamp: expect.any(Number),
+          requestId: expect.any(String),
+          error: 'キャラクターが見つかりません',
+          errorCode: 'NOT_FOUND_ERROR'
+        })
+      }
+    })
   })
 
   describe('Character Update', () => {

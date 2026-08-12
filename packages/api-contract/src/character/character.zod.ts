@@ -24,12 +24,15 @@ export const attributeValueSchema = z
 
 export const attributeSectionSchema = z.record(z.string(), attributeValueSchema)
 
+export const characterSheetVisibilitySchema = z.enum(['private', 'public'])
+export type CharacterSheetVisibility = z.infer<typeof characterSheetVisibilitySchema>
+
 export const characterSheetStateSchema = z
   .object({
     templateId: z.string().min(1),
     templateVersion: z.string().min(1),
     revision: z.number().int().positive(),
-    visibility: z.enum(['private', 'public']),
+    visibility: characterSheetVisibilitySchema,
     values: z.record(z.string(), z.unknown())
   })
   .strict()

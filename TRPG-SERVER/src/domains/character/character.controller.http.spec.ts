@@ -1,4 +1,4 @@
-import { ExecutionContext, INestApplication } from '@nestjs/common'
+import { ExecutionContext, INestApplication, UnprocessableEntityException } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { Request } from 'express'
 import { Types } from 'mongoose'
@@ -37,6 +37,7 @@ describe('CharacterController HTTP payload contract', () => {
     create: jest.fn(),
     findHavingAll: jest.fn(),
     findOneForOwner: jest.fn(),
+    setSheetVisibilityForOwner: jest.fn(),
     findUserCharacterSummaries: jest.fn(),
     updateForOwner: jest.fn(),
     removeForOwner: jest.fn()
@@ -78,6 +79,7 @@ describe('CharacterController HTTP payload contract', () => {
     characterService.create.mockReset()
     characterService.findHavingAll.mockReset()
     characterService.findOneForOwner.mockReset()
+    characterService.setSheetVisibilityForOwner.mockReset()
     characterService.findUserCharacterSummaries.mockReset()
     characterService.updateForOwner.mockReset()
     characterService.removeForOwner.mockReset()
@@ -236,6 +238,72 @@ describe('CharacterController HTTP payload contract', () => {
       authenticatedUser.discordUserId,
       { characterName: 'HTTP Updated Character' }
     )
+  })
+
+  it('PUT /character/:id/sheet/visibility は owner の更新結果を200封筒で返す', async () => {
+    characterService.setSheetVisibilityForOwner.mockResolvedValueOnce('public')
+
+    const response = await request(app.getHttpServer())
+      .put('/character/character-http-visibility/sheet/visibility')
+      .send({ visibility: 'public' })
+      .expect(200)
+
+    expectSuccessEnvelope(response.body as JsonObject, 'シートの公開設定を更新しました')
+    expect(response.body.data).toEqual({ visibility: 'public' })
+    expect(characterService.setSheetVisibilityForOwner).toHaveBeenCalledWith(
+      'character-http-visibility',
+      authenticatedUser.discordUserId,
+      'public'
+    )
+  })
+
+  it.each([
+    ['予約値 unlisted', 'unlisted'],
+    ['未知文字列', 'friends'],
+    ['数値', 42]
+  ])('PUT /character/:id/sheet/visibility は%sを422封筒で返す', async (_caseName, visibility) => {
+    const errorMessage = 'sheet.visibility は private または public を指定してください'
+    characterService.setSheetVisibilityForOwner.mockRejectedValueOnce(new UnprocessableEntityException(errorMessage))
+
+    const response = await request(app.getHttpServer())
+      .put('/character/character-http-invalid-visibility/sheet/visibility')
+      .send({ visibility })
+      .expect(422)
+
+    expect(response.body).toEqual({
+      success: false,
+      message: 'エラーが発生しました',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: errorMessage
+    })
+    expect(characterService.setSheetVisibilityForOwner).toHaveBeenCalledWith(
+      'character-http-invalid-visibility',
+      authenticatedUser.discordUserId,
+      visibility
+    )
+  })
+
+  it.each([
+    ['non-owner', 'character-http-non-owner'],
+    ['不存在', 'character-http-missing'],
+    ['sheet未保有', 'character-http-legacy']
+  ])('PUT /character/:id/sheet/visibility は%sを同じ404封筒で返す', async (_caseName, characterId) => {
+    characterService.setSheetVisibilityForOwner.mockResolvedValueOnce(null)
+
+    const response = await request(app.getHttpServer())
+      .put(`/character/${characterId}/sheet/visibility`)
+      .send({ visibility: 'private' })
+      .expect(404)
+
+    expect(response.body).toEqual({
+      success: false,
+      message: '未発見エラー',
+      timestamp: expect.any(Number),
+      requestId: expect.any(String),
+      error: 'キャラクターが見つかりません',
+      errorCode: 'NOT_FOUND_ERROR'
+    })
   })
 
   it('DELETE /character/:id は 200・meta なしで封筒 message と削除結果 message を別フィールドに保持する', async () => {

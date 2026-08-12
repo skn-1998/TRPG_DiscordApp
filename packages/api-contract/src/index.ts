@@ -17,6 +17,7 @@ export type {
   SheetMergeConflictWire
 } from './character/character.wire'
 export { sheetMergeConflictSchema } from './character/character.wire'
+export type { CharacterSheetVisibility } from './character/character.zod'
 export {
   attributeSectionSchema,
   attributeValueSchema,
@@ -25,6 +26,7 @@ export {
   characterHubStatusSchema,
   characterPaletteEntrySchema,
   characterSheetStateSchema,
+  characterSheetVisibilitySchema,
   characterTemplatePinSchema,
   materializedCharacterEntitySchema,
   saveSheetMaterializedPayloadSchema

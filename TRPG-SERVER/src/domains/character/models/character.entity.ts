@@ -1,10 +1,11 @@
+import type { CharacterSheetVisibility } from '@trpg/api-contract'
 import { AttributeSection } from '../../../core/types/attribute.types'
 
 export interface CharacterSheetState {
   templateId: string
   templateVersion: string
   revision: number
-  visibility: 'private' | 'public'
+  visibility: CharacterSheetVisibility
   values: Record<string, unknown>
 }
 

@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { characterEntitySchema } from './character.zod'
+import type { CharacterSheetVisibility, characterEntitySchema } from './character.zod'
 import {
   sheetMergeConflictSchema,
   type CharacterAttributeValueWire,
@@ -144,7 +144,7 @@ type CharacterSheetStateWireShape = Assert<
       templateId: string
       templateVersion: string
       revision: number
-      visibility: 'private' | 'public'
+      visibility: CharacterSheetVisibility
       values: Record<string, unknown>
     }
   >

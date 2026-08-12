@@ -52,6 +52,12 @@ export class SaveCharacterSheetDto {
   readonly changes: SheetChangeDto[]
 }
 
+/** whitelist 通過だけを担当し、値検証は 422 を返す CharacterService 境界へ委ねる。 */
+export class UpdateCharacterSheetVisibilityDto {
+  @Allow()
+  readonly visibility: unknown
+}
+
 /**
  * published テンプレートから materialized キャラクターを作る HTTP 外形。
  * values のキー・型検査は CharacterInstantiationService / materializer が担う。

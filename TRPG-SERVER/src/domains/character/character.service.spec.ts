@@ -51,6 +51,7 @@ describe('CharacterService', () => {
       findByUserId: jest.fn(),
       findById: jest.fn(),
       findByIdForOwner: jest.fn(),
+      setSheetVisibilityForOwner: jest.fn(),
       findByName: jest.fn(),
       findByChannelId: jest.fn(),
       update: jest.fn(),
@@ -403,6 +404,40 @@ describe('CharacterService', () => {
 
       expect(characterRepository.findByIdForOwner).toHaveBeenCalledWith('test-id', 'test-user')
       expect(result).toBe(mockCharacter)
+    })
+
+    it.each(['private', 'public'] as const)(
+      'setSheetVisibilityForOwner は有効な %s を所有者条件付きrepository操作へ渡す',
+      async (visibility) => {
+        characterRepository.setSheetVisibilityForOwner.mockResolvedValue({
+          ...materializedCharacter,
+          sheet: { ...materializedCharacter.sheet!, visibility }
+        })
+
+        const result = await service.setSheetVisibilityForOwner('test-id', 'test-user', visibility)
+
+        expect(characterRepository.setSheetVisibilityForOwner).toHaveBeenCalledWith('test-id', 'test-user', visibility)
+        expect(result).toBe(visibility)
+      }
+    )
+
+    it.each([
+      ['予約値 unlisted', 'unlisted'],
+      ['未知文字列', 'friends'],
+      ['数値', 42]
+    ])('setSheetVisibilityForOwner は%sを422で拒否する', async (_caseName, visibility) => {
+      await expect(service.setSheetVisibilityForOwner('test-id', 'test-user', visibility)).rejects.toMatchObject({
+        status: 422,
+        message: 'sheet.visibility は private または public を指定してください'
+      })
+
+      expect(characterRepository.setSheetVisibilityForOwner).not.toHaveBeenCalled()
+    })
+
+    it('setSheetVisibilityForOwner はrepositoryの対象なしをnullで返す', async () => {
+      characterRepository.setSheetVisibilityForOwner.mockResolvedValue(null)
+
+      await expect(service.setSheetVisibilityForOwner('test-id', 'test-user', 'private')).resolves.toBeNull()
     })
 
     it('updateForOwner は所有者条件付きrepository操作へ変換後データを渡す', async () => {
