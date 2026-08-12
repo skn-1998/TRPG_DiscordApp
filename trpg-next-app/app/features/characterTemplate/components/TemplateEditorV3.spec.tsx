@@ -123,6 +123,12 @@ function editTables() {
   fireEvent.change(screen.getByLabelText('tables'), { target: { value: editedTablesText } })
 }
 
+function getLayoutFixture(name: string): LayoutFixture {
+  const fixture = layoutFixtures.find((candidate) => candidate.name === name)
+  if (!fixture) throw new Error(`layout fixture not found: ${name}`)
+  return fixture
+}
+
 async function advanceAutosave(milliseconds = AUTOSAVE_DEBOUNCE_MS) {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(milliseconds)
@@ -205,6 +211,70 @@ describe('TemplateEditorV3 autosave', () => {
     expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('非正規化 grid の保存失敗後は時間経過だけで再送せず失敗表示を維持する', async () => {
+    let resolveSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
+    mockedSaveTemplateDraft.mockImplementationOnce(
+      () =>
+        new Promise<Awaited<ReturnType<typeof saveTemplateDraft>>>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const gridFixture = getLayoutFixture('canonical U14 grid')
+    renderEditor({ ...initialTemplate, sections: toPersistableSections(gridFixture.input.sections) })
+
+    editTables()
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveSave({ conflict: false, messages: ['一時的に保存できません'], retryable: true })
+    })
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 3)
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('保存されていません。再試行するか、編集を続けると自動保存を再開します。')).toBeTruthy()
+  })
+
+  // 成功応答後の stale 突合も正規化 payload 基底であること。生 state 基底へ戻すと、
+  // 非正規化 draft では偽 stale になり保存済み表示へ戻れなくなる。
+  it('非正規化 grid の保存成功後は保存済みを表示し追加送信しない', async () => {
+    let resolveSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
+    mockedSaveTemplateDraft.mockImplementationOnce(
+      () =>
+        new Promise<Awaited<ReturnType<typeof saveTemplateDraft>>>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const gridFixture = getLayoutFixture('canonical U14 grid')
+    renderEditor({ ...initialTemplate, sections: toPersistableSections(gridFixture.input.sections) })
+
+    editTables()
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+    const savedPayload = mockedSaveTemplateDraft.mock.calls[0]?.[2]
+    if (!savedPayload) throw new Error('autosave payload was not captured')
+
+    await act(async () => {
+      resolveSave({ template: { ...savedPayload, draftRevision: savedPayload.draftRevision + 1 } })
+    })
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 3)
+
+    expect(screen.getByText('保存しました。')).toBeTruthy()
+    expect(screen.queryByText('未保存の変更があります。autosave を待機中です。')).toBeNull()
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('local validation 失敗中は入力修正を案内し autosave 待機中と表示しない', async () => {
+    renderEditor()
+
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: '{' } })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft).not.toHaveBeenCalled()
+    expect(screen.getByText('入力を修正してください。修正すると自動保存を再開します。')).toBeTruthy()
+    expect(screen.queryByText('未保存の変更があります。autosave を待機中です。')).toBeNull()
+  })
+
   it('保存失敗中は待機案内を出さず、再編集後の autosave 成功で通常系へ戻す', async () => {
     mockedSaveTemplateDraft.mockResolvedValueOnce({
       conflict: false,
@@ -222,6 +292,9 @@ describe('TemplateEditorV3 autosave', () => {
     fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
 
     expect(screen.getByText('未保存の変更があります。autosave を待機中です。')).toBeTruthy()
+    expect(screen.queryByText('一時的に保存できません')).toBeNull()
+    expect(screen.queryByText('検証/保存エラー')).toBeNull()
+    expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
 
     await advanceAutosave()
 
@@ -249,7 +322,7 @@ describe('TemplateEditorV3 autosave', () => {
     expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
   })
 
-  it('retryable 失敗の手動再試行は編集後の最新内容を即時送信する', async () => {
+  it('retryable 失敗の内容へ戻すと失敗表示と再試行ボタンを復元する', async () => {
     mockedSaveTemplateDraft.mockResolvedValueOnce({
       conflict: false,
       messages: ['一時的に保存できません'],
@@ -260,6 +333,13 @@ describe('TemplateEditorV3 autosave', () => {
     editTables()
     await advanceAutosave()
     fireEvent.change(screen.getByLabelText('tables'), { target: { value: reEditedTablesText } })
+    expect(screen.queryByText('一時的に保存できません')).toBeNull()
+    expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('tables'), { target: { value: editedTablesText } })
+    expect(screen.getByText('一時的に保存できません')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '再試行' })).toBeTruthy()
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '再試行' }))
     })
@@ -268,7 +348,7 @@ describe('TemplateEditorV3 autosave', () => {
     expect(mockedSaveTemplateDraft).toHaveBeenLastCalledWith(
       initialTemplate.templateId,
       'autosave',
-      expect.objectContaining({ tables: [{ id: 'luck', rows: [['02', '成功']] }] })
+      expect.objectContaining({ tables: editedTables })
     )
   })
 
@@ -301,7 +381,9 @@ describe('TemplateEditorV3 autosave', () => {
 
     editTables()
     await advanceAutosave()
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 3)
 
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
     expect(screen.getByText('入力値が不正です')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
     expect(
@@ -309,6 +391,32 @@ describe('TemplateEditorV3 autosave', () => {
     ).toBeTruthy()
     expect(screen.queryByText(/再試行するか/)).toBeNull()
     expect(screen.queryByText('未保存の変更があります。autosave を待機中です。')).toBeNull()
+  })
+
+  it('conflict 中の retryable 失敗は競合案内を置き換えない', async () => {
+    mockedSaveTemplateDraft
+      .mockResolvedValueOnce({ conflict: true, messages: ['draftRevision が競合しました'] })
+      .mockResolvedValueOnce({
+        conflict: false,
+        messages: ['一時的に保存できません'],
+        retryable: true
+      })
+    renderEditor()
+
+    editTables()
+    await advanceAutosave()
+    expect(screen.getByText('他所で更新あり。再読み込みして最新の draft を確認してください。')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('一時的に保存できません')).toBeTruthy()
+    expect(screen.getByText('他所で更新あり。再読み込みして最新の draft を確認してください。')).toBeTruthy()
+    expect(screen.queryByText('保存されていません。再試行するか、編集を続けると自動保存を再開します。')).toBeNull()
+    expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
+    expect(screen.getByRole('button', { name: '再読み込み' })).toBeTruthy()
   })
 
   it('保存中の編集は並行送信せず、完了後に最新内容を autosave する', async () => {
