@@ -15,7 +15,7 @@ import { assertCharacterHubTransition } from '../models/character.entity'
 import { CharacterSummaryDto } from '../dto/character-summary.dto'
 import { AttributeSection, isAttributeSection } from '../../../core/types/attribute.types'
 import { normalizePersistedCharacterAttributes } from '../mappers/character-attribute.mapper'
-import { normalizePersistedCharacterSheet } from '../mappers/character-sheet-read.mapper'
+import { normalizePersistedCharacterSheet, normalizeSheetVisibilityValue } from '../mappers/character-sheet-read.mapper'
 import {
   materializedCharacterEntitySchema,
   saveSheetMaterializedPayloadSchema,
@@ -391,7 +391,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
     const summaries = await this.characterModel
       .find({ discordUserId })
       .select(
-        'characterId characterName gameSystemId sheet.templateVersion templatePin.templateVersion hub.status -_id'
+        'characterId characterName gameSystemId sheet.templateVersion sheet.visibility templatePin.templateVersion hub.status -_id'
       ) // 必要なフィールドのみ選択、_idは除外
       .lean() // Mongoose Document ではなく Plain Object を返す（メモリ効率化）
       .exec()
@@ -402,6 +402,7 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
         characterId: summary.characterId,
         characterName: summary.characterName,
         gameSystemId: summary.gameSystemId,
+        visibility: normalizeSheetVisibilityValue(summary.sheet?.visibility),
         ...(templateVersion === undefined ? {} : { templateVersion }),
         ...(summary.hub?.status === undefined ? {} : { hub: { status: summary.hub.status } })
       }

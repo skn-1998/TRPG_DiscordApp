@@ -19,6 +19,8 @@ export interface CharacterSummaryDto {
    */
   gameSystemId: string
 
+  visibility: 'private' | 'public'
+
   /** materialized sheet を legacy pin より優先して解決したテンプレート版 */
   templateVersion?: string
 

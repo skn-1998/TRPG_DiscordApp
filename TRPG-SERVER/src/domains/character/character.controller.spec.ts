@@ -78,7 +78,8 @@ describe('CharacterController', () => {
   const mockCharacterSummary: CharacterSummaryDto = {
     characterId: 'test-character-001',
     characterName: 'テストキャラクター',
-    gameSystemId: 'test-system'
+    gameSystemId: 'test-system',
+    visibility: 'private'
   }
 
   const mockUpdateCharacterDto: UpdateCharacterDto = {
