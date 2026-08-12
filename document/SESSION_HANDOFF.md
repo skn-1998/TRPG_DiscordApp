@@ -2613,7 +2613,13 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   front 29/416・eslint 0〔front 全体＋server 変更ファイル scoped〕を Fable 再実行。
   実 DB 統合 spec は Docker 停止中で未実行 = Docker ゲート持ち。
   formatter の index 残滓 MM 2 件を restore --staged で解消 — U16-b と同型・2 回目）。
-  **次 = U16-d（renderer・front のみ）→ 大粒度 #16（U16-b/c/d 横断）**。
+  **U16-d = 済（3a70c84・2026-08-12）→ キュー #12 の実装スライス全完了**: renderer
+  （公開トグル独立 component・一覧バッジ・編集導線の全行化。シート編集クライアント不変を
+  diff 検収。**fix1 で退行差し戻し** = 指示書「Discord ActionIcon は hub ガード内のまま」が
+  Explore 要約未検証の誤前提〔HEAD は無条件表示〕で、実装がガード内へ移動＋spec が退行を
+  pin していた — verify-claims-before-prescribing 21 へ記録。
+  検収 = front 31/434 全緑＋eslint 0 を Fable 再実行）。
+  **次 = 大粒度 #16（U16-b/c/d 横断・二重レビュー Codex＋Opus）**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
