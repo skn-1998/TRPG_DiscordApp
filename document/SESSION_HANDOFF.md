@@ -2502,6 +2502,17 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   （共有セル再利用）で受ける。auth-state spec :61 の「throw せず logged-out」pin は
   分類形へ置き換え。その後大粒度 #14（SM-8a・SM-14a+FIX・SM-14c 横断）→
   SM-14b（templates レーン）→ SM-8b → キュー #12 U16。
+  **SM-14c 返着・検収・コミット = `1f4d47d`**: 裁定どおり degradedByInfraFailure
+  フラグ方式・/user layout のみ throw・root app/error.tsx 新設・共有セルを
+  app/components/DataLoadError へ移設 rename（文言 SHA-256 一致）・
+  auth-state 旧 pin を分類形 6 spec へ置き換え＋layout 分岐 3 spec＋root smoke 1。
+  独立ゲート = front 24/24 suites・368/368 tests（+7）・eslint 0（AI.md の
+  設定対象外 warning のみ）・typecheck 緑。AI.md の AuthState 契約も実装者が更新。
+  **大粒度 #14 二重レビュー走行中（prompt-big14.md・Codex review＋Opus read-only）**:
+  ミッション = status 分類の複数箇所実装の grep 実測と drift 仕分け・
+  SM-8a 5 要素×競合パネル生存規則の干渉・4 状態×route のセル網羅表・
+  代表変更タスクのホップ実カウント。返着後に Fable 突合 → 採用所見を
+  BIG14-FIX として消化 → SM-14b へ。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
