@@ -2431,6 +2431,45 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   **次 = キュー #11 残の設計**: SM-F（SM-1 proof 原子性・4 不変条件・単一プロトコル）
   → SM-8（保存失敗の 5 要素）→ SM-14（データ 4 状態）。次の大粒度 #14 は
   この 3 スライス後（cadence 継続）。
+  **SM-F はブロックと裁定（2026-08-12・台帳 §5-2 L-2 行と #11 行へ記録済み）**:
+  proof/nonce は契約・production とも完全未実装を実測（grep 全域 0・dice preview の
+  wire は total/details のみ）・消費者 = ウィザード roll step UI も未構築。
+  作成時ロールの在り方は L-2 裁定（a/b/c）そのものなので、先行実装は死んだ抽象＋
+  裁定先取りの二重違反 → キューから外しユーザー決定待ちへ。
+  **SM-8a 委譲済み・走行中（prompt-sm-8a.md）**: シート保存経路への 5 要素適用
+  （分類 = response なし/429/5xx → retryable・422 → 恒久・409 は既存競合フロー不変／
+  「保存されていません」バナー／手動再試行は最新 dirty 送信／single-flight は
+  既存 isPending 機構の pin）。自動 backoff 系は延期列で導入禁止。
+  エディタ autosave への適用は別スライス（SM-8b）。
+  **SM-8a 返着・Fable 実査＋独立ゲートまで完了**: +192/−11・分類は
+  status undefined（ネットワーク断）/429/5xx → retryable・
+  saveChanges 冒頭の isPending ガード・バナー条件 =
+  changes.length > 0 かつ（actionData.error または conflictPanel）。
+  独立ゲート = front 346（335＋11）・eslint 0。
+  **Opus レビュー = needs-fix（high 1・medium 3・low 2・証跡 =
+  opus-review-sm-8a.md）→ R2 委譲済み・走行中**: high = ブラウザ→Next 断
+  （fetch reject）で transition 未捕捉 → エディタ unmount → dirty 全消失
+  （retryable 分類は server 間 axios 失敗しか扱えていなかった）。
+  **Fable 突合で処方箋の穴を検出**: 素朴な try/catch は成功 redirect
+  （promise reject で届く — D2b レビュー確定）まで握るため、
+  unstable_rethrow / redirect 再 throw を R2 で必須化＋成功時 regression spec。
+  他 = 再試行の空 changes ガード・バナー dirty clause 未カバー・
+  single-flight spec 2 件の空振り是正・生 ECONNREFUSED 文字列の定型文化。
+  F6（Alert 2 枚）は役割分離で現状維持と裁定。
+  **SM-8a R2 返着・検収済み・コミット = `06bc38e`（2026-08-12）**: 6 項目全消化を
+  Fable 実査で確認 — catch 先頭 `unstable_rethrow` の redirect 透過は
+  digest 付き実エラーを Error Boundary まで届かせる regression spec で pin・
+  ネットワーク定型文は sheet-edit.ts の 1 定義（production 2 参照）・
+  再試行 disabled＝空 changes・single-flight は form 直 submit でガード直撃・
+  role ベース枚数 assert 復旧。独立ゲート = 対象 2 suite 32/32・eslint 0。
+  **既存障害の発見と修復 = `a03f607`**: front 全体実行で TemplateEditorV3 の
+  大型テスト（単独 3218ms・suite 実行時 5246ms 実測）が既定 timeout 5000ms を
+  超えて赤化＋次テストが cleanup 連鎖で巻き添え（4 回再現・SM-8a の import
+  グラフと交差しない = コード変更なしの環境負荷起因）。個別 timeout 15000ms を
+  Opus 委譲で付与し、front 全体 20/20 suites・350/350 tests に復帰。
+  **次 = SM-14（データ 4 状態・design-v1-ui.md:481-485）**。その後 SM-8b
+  （エディタ autosave への 5 要素適用）→ キュー #12 U16。大粒度 #14 は
+  #13 から 3 スライス後（SM-8a が 1 本目）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
