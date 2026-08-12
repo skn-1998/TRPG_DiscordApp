@@ -2693,6 +2693,18 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   annotation 評価計量・UNSAFE 濾過整理＋台帳 D-R2 行 (e) characterSheet 移設 vs
   5 本目の辺・(f) labelledBy 契約・(g) h2 二重表示 の裁定）→ U14/U15 feature 完了
   （SESSION_HANDOFF 全面更新＋trpg-next-app/AI.md へ U14 layout 記述＋大粒度 #17）**。
+  **D-R2 S0 裁定 = 済（2026-08-13・正本 = 台帳 D-R2 行・事前実測 =
+  review-results/impl-u14/dr2-premeasure.md）**: (e) 辺方式維持（app/components は
+  zone 無し = fail-open・移設は機械固定の放棄）・(f) labelledBy 拡張不要
+  （EditClient は override 不使用）・(g) TFR headingLevel prop（既定 2・block +1）・
+  F2/F3 は現状維持・annotation 計量合格基準 = 式 1 本 ≤10,000 step。
+  台帳 D-R2 行の eslint 記載の向き（except の追記先 = character zone が正）を訂正済み。
+  **配線スライス = S1（TFR 内部: UNSAFE 濾過共有述語化＋headingLevel。EditClient 不変）→
+  S2（annotation step bench・S1 並行可）→ S3+S4（境界配線＋scalar TFR 差し替え・
+  toSheetTemplate useMemo・25 pin assert 不変）→ S5（parts 配線＋sheet-edit.ts:46
+  partsKeys 拡張 = H3 残債）→ S6（後片付け・完了宣言＋大粒度 #17）**。
+  記録 = page.tsx の template fetch は templateVersion 無視（SM-16 front ギャップ）・
+  TFR 'use client' 無し（S6 検討）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
