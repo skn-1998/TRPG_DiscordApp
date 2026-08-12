@@ -23,6 +23,8 @@ jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
     tableScroll: 'tableScroll'
   }
 }))
+// Test prerequisite: Mantine Select の選択後フォーカス処理を jsdom 上でも実行可能にする。
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
 
 const initialTemplate: CharacterSheetTemplateEntity = {
   templateId: 'template-1',
@@ -145,6 +147,13 @@ async function advanceAutosave(milliseconds = AUTOSAVE_DEBOUNCE_MS) {
   })
 }
 
+function selectOption(selectName: string, optionName: string) {
+  const select = screen.getByRole('combobox', { name: selectName })
+  fireEvent.click(select)
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
+  return select
+}
+
 describe('TemplateEditorV3 autosave', () => {
   beforeEach(() => {
     jest.useFakeTimers()
@@ -211,6 +220,138 @@ describe('TemplateEditorV3 autosave', () => {
     const persisted = mockedSaveTemplateDraft.mock.calls[0]?.[2]
     expect(persisted).toBeDefined()
     expect(toLayoutFixtureSections(persisted!.sections)).toEqual(expected.sections)
+  })
+
+  it('section layout preset と columns を保存し、clear では対象 property を落とす', async () => {
+    renderEditor()
+
+    selectOption('レイアウトプリセット', 'grid')
+    const columnsSelect = screen.getByRole('combobox', { name: 'グリッド列数' }) as HTMLInputElement
+    expect(columnsSelect.value).toBe('')
+    selectOption('グリッド列数', '3')
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.layout).toEqual({ preset: 'grid', columns: 3 })
+
+    fireEvent.click(screen.getByLabelText('列設定を初期化'))
+    expect(columnsSelect.value).toBe('')
+    await advanceAutosave()
+    // Test intent: editor state では columns を落とし、保存境界では既定値 2 へ正規化する。
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.layout).toEqual({ preset: 'grid', columns: 2 })
+
+    fireEvent.click(screen.getByLabelText('配置設定を初期化'))
+    await advanceAutosave()
+
+    const clearedSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
+    expect(clearedSection?.layout).toBeUndefined()
+    expect(Object.prototype.hasOwnProperty.call(clearedSection, 'layout')).toBe(false)
+  })
+
+  it('grid 選択時だけ columns と単純 field の span を表示する', () => {
+    renderEditor()
+
+    expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
+
+    selectOption('レイアウトプリセット', 'grid')
+    expect(screen.getByRole('combobox', { name: 'グリッド列数' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: '表示幅' })).toBeTruthy()
+
+    selectOption('レイアウトプリセット', 'table')
+    expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
+
+    selectOption('レイアウトプリセット', 'stack')
+    expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
+  })
+
+  it('field span を保存し、clear 直後は未選択へ戻して payload では既定 1 に正規化する', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'grid',
+        label: 'grid',
+        // Test prerequisite: span 3 が選択肢に出るのは columns 4 のときだけ（選択肢 = 1〜columns−1 ＋全幅）。
+        layout: { preset: 'grid', columns: 4 },
+        fields: [{ id: 'name', uid: 'uid_name', label: '名前', type: 'scalar', valueType: 'text' }]
+      })
+    )
+    const spanSelect = screen.getByRole('combobox', { name: '表示幅' }) as HTMLInputElement
+
+    expect(spanSelect.value).toBe('')
+    selectOption('表示幅', '3')
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]?.layout?.span).toBe(3)
+
+    fireEvent.click(screen.getByLabelText('幅指定を初期化'))
+    // Test intent: clear 時点の editor state と、保存境界での既定値具現化を別々に固定する。
+    expect(spanSelect.value).toBe('')
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]?.layout?.span).toBe(1)
+  })
+
+  it.each([
+    ['columns 3', { preset: 'grid', columns: 3 }, ['1', '2', 'full']],
+    ['columns 未設定（実効 2）', { preset: 'grid' }, ['1', 'full']]
+  ] as Array<[string, SheetSection['layout'], string[]]>)(
+    'grid %s の span 選択肢を 1〜columns−1 ＋全幅に絞る',
+    (_caseName, layout, expectedOptions) => {
+      renderEditor(
+        templateWithSection({
+          id: 'grid',
+          label: 'grid',
+          layout,
+          fields: [{ id: 'name', uid: 'uid_name', label: '名前', type: 'scalar', valueType: 'text' }]
+        })
+      )
+
+      fireEvent.click(screen.getByRole('combobox', { name: '表示幅' }))
+
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(expectedOptions)
+    }
+  )
+
+  it('preset のない legacy columns は grid 選択時に引き継ぐ', async () => {
+    renderEditor(
+      templateWithSection({
+        id: 'legacy',
+        label: 'legacy',
+        layout: { columns: 3 },
+        fields: [{ id: 'name', uid: 'uid_name', label: '名前', type: 'scalar', valueType: 'text' }]
+      })
+    )
+
+    selectOption('レイアウトプリセット', 'grid')
+
+    expect((screen.getByRole('combobox', { name: 'グリッド列数' }) as HTMLInputElement).value).toBe('3')
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.layout).toEqual({ preset: 'grid', columns: 3 })
+  })
+
+  // Test intent: layout property の削除経路をクリアボタンだけに保つ（選択済み項目の再クリックは無効化）。
+  it('選択済み preset の再クリックでは layout を消さない', async () => {
+    renderEditor()
+
+    const presetSelect = selectOption('レイアウトプリセット', 'grid') as HTMLInputElement
+    selectOption('レイアウトプリセット', 'grid')
+
+    expect(presetSelect.value).toBe('grid')
+    expect(screen.getByRole('combobox', { name: 'グリッド列数' })).toBeTruthy()
+    await advanceAutosave()
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.layout).toEqual({ preset: 'grid', columns: 2 })
+  })
+
+  it('preset キーのない legacy layout は preset を未選択表示にする', () => {
+    renderEditor(
+      templateWithSection({
+        id: 'legacy',
+        label: 'legacy',
+        layout: { direction: 'row' },
+        fields: [{ id: 'name', uid: 'uid_name', label: '名前', type: 'scalar', valueType: 'text' }]
+      })
+    )
+
+    expect((screen.getByRole('combobox', { name: 'レイアウトプリセット' }) as HTMLInputElement).value).toBe('')
   })
 
   it('保存成功後の再整形では autosave を再実行しない', async () => {
