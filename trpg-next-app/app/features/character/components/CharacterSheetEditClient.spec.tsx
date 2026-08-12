@@ -5,8 +5,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { CharacterWire } from '@trpg/api-contract'
 import { Component, type ReactNode } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
+import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveSheet } from '../actions'
-import { GENERIC_SHEET_CONFLICT_MESSAGE, GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from '../sheet-edit'
+import { GENERIC_SHEET_CONFLICT_MESSAGE } from '../sheet-edit'
 import { CharacterSheetEditClient } from './CharacterSheetEditClient'
 
 jest.mock('../actions', () => ({ saveSheet: jest.fn() }))
@@ -139,7 +140,7 @@ describe('CharacterSheetEditClient', () => {
 
     const alerts = await screen.findAllByRole('alert')
     expect(alerts).toHaveLength(2)
-    expect(screen.getByText(GENERIC_SHEET_NETWORK_ERROR_MESSAGE)).toBeTruthy()
+    expect(screen.getByText(GENERIC_NETWORK_ERROR_MESSAGE)).toBeTruthy()
     expect(hpInput.value).toBe('9')
     const retryButton = screen.getByRole('button', { name: '再試行' }) as HTMLButtonElement
     await waitFor(() => expect(retryButton.disabled).toBe(false))
@@ -163,7 +164,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith(redirectError))
-    expect(screen.queryByText(GENERIC_SHEET_NETWORK_ERROR_MESSAGE)).toBeNull()
+    expect(screen.queryByText(GENERIC_NETWORK_ERROR_MESSAGE)).toBeNull()
     expect(screen.queryAllByRole('alert')).toHaveLength(0)
   })
 

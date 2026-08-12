@@ -1,5 +1,7 @@
 import type { ErrorEnvelope } from '@trpg/api-contract'
 
+export const GENERIC_NETWORK_ERROR_MESSAGE = '通信に失敗しました。接続を確認して、もう一度お試しください。'
+
 export function isErrorEnvelope(data: unknown): data is ErrorEnvelope {
   return (
     typeof data === 'object' &&

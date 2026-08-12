@@ -7,10 +7,9 @@ import { CharacterList } from './CharacterList'
 
 interface CharacterPageClientProps {
   characters: CharacterSummaryWire[]
-  isAuthenticated: boolean
 }
 
-export function CharacterPageClient({ characters, isAuthenticated }: CharacterPageClientProps) {
+export function CharacterPageClient({ characters }: CharacterPageClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -20,15 +19,6 @@ export function CharacterPageClient({ characters, isAuthenticated }: CharacterPa
       const result = await refreshCharacterList()
       setError(result.error)
     })
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div>
-        <h2>Please login to view characters</h2>
-        <p>You need to be authenticated to access this page.</p>
-      </div>
-    )
   }
 
   return (

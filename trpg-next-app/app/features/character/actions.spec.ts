@@ -19,11 +19,10 @@ jest.mock('./api/character.service.server', () => ({
 }))
 
 import { redirect } from 'next/navigation'
-import { extractApiErrorMessages } from '../../lib/api-response.util'
+import { extractApiErrorMessages, GENERIC_NETWORK_ERROR_MESSAGE } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { getUserCharacterSummaries, saveCharacterSheet } from './api/character.service.server'
 import { refreshCharacterList, saveSheet } from './actions'
-import { GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from './sheet-edit'
 
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
@@ -53,7 +52,7 @@ describe('refreshCharacterList', () => {
     mockedExtractApiErrorMessages.mockReturnValue(['connect ECONNREFUSED 127.0.0.1:3000'])
 
     await expect(refreshCharacterList()).resolves.toEqual({
-      error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+      error: GENERIC_NETWORK_ERROR_MESSAGE
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
   })
@@ -182,7 +181,7 @@ describe('saveSheet', () => {
     mockedExtractApiErrorMessages.mockReturnValue(['connect ECONNREFUSED 127.0.0.1:3000'])
 
     await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
-      error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE,
+      error: GENERIC_NETWORK_ERROR_MESSAGE,
       retryable: true
     })
     expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()

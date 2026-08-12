@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { requireJwt } from '../../lib/auth-guard.server'
 import {
   extractApiErrorMessages,
+  GENERIC_NETWORK_ERROR_MESSAGE,
   getResponseStatus,
   getUpstreamResponse,
   isErrorEnvelope
@@ -15,7 +16,7 @@ import {
   saveCharacterSheet,
   type CharacterSheetChange
 } from './api/character.service.server'
-import { GENERIC_SHEET_CONFLICT_MESSAGE, GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from './sheet-edit'
+import { GENERIC_SHEET_CONFLICT_MESSAGE } from './sheet-edit'
 
 export async function refreshCharacterList(): Promise<{ error: string | null }> {
   await requireJwt()
@@ -28,7 +29,7 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
     const status = getResponseStatus(error)
     return {
       error: status === undefined
-        ? GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+        ? GENERIC_NETWORK_ERROR_MESSAGE
         : extractApiErrorMessages(error).join(' / ')
     }
   }
@@ -69,7 +70,7 @@ export async function saveSheet(
     }
     return {
       error: status === undefined
-        ? GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+        ? GENERIC_NETWORK_ERROR_MESSAGE
         : extractApiErrorMessages(error).join(' / '),
       retryable: status === undefined || status === 429 || (status >= 500 && status < 600)
     }
