@@ -2540,6 +2540,14 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   超過・申告済み）。**次 = SM-8b（エディタ autosave への 5 要素適用・
   キュー #11 の最終着手可能スライス）→ キュー #12 U16**。
   大粒度 #15 は #14 から 3 スライス後（SM-14b が 1 本目）。
+  **SM-8b 委譲済み・走行中（prompt-sm-8b.md）**: Fable 事前実測で
+  **現行 autosave は失敗時に dirty へ戻し debounce effect が同一内容を
+  再スケジュール = server 断が続くと無限自動再試行ループ**（SM-8 延期列
+  「無限自動再試行は実装しない」違反の既存挙動）を発見。中核 = ループ停止
+  （失敗時 signature 比較で同一内容の自動再送を抑止・編集再開で autosave 復帰）＋
+  retryable 分類＋手動再試行＋catch 分岐のハードコード文言を
+  GENERIC_NETWORK_ERROR_MESSAGE へ一本化。conflict/publish/成功経路の
+  signature 突合は不変条件。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
