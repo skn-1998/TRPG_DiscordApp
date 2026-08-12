@@ -2721,6 +2721,38 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   （現行パリティ）。select/boolean の永続化＋宣言 partsKeys 書込は S5 へ
   （S4 の select/boolean は「表示されるが永続しない」暫定 — 完了宣言前に S5 で解消）。
   S3+S4 指示書 = prompt-dr2-s3s4-code.txt 作成済み・S1/S2 レビュー消化＋コミット後に起動。
+  **S1 = コミット済み（9fe49e56）・S2 = コミット済み（e15db47a）**。合同レビュー pass
+  （needs-fix 0・case 3 は「裁定材料として妥当」で確定 → 台帳 D-R2 行に裁定枠を記録済み
+  = error 退化の仕様確定 vs publish 上限設計変更・完了宣言には非ブロック）。
+  **S3+S4（境界配線＋EditClient の TFR 差し替え）= 実装済み・Fable 検収通過
+  （2026-08-13・未コミット・二重レビュー走行中）**: eslint character zone except＋AI.md 辺⑤・
+  rendererValues overlay（parts shape 保持で base のみ差し替え）・onChange は編集可能
+  非 parts number/text ガード・onPartsChange は 'base' のみ・headingLevel={3}・
+  sheet-edit.ts と状態機械 diff 0・既存 25 pin 無適応で全緑・新規 pin 3。
+  front 465 全緑・eslint/tsc 0・境界負検証（except 除去→error・復元→0 を Fable 独立実測）・
+  変異（overlay 平坦化→pin (a) 赤）＋負の対照緑を Fable 独立実測。
+  **検収時の注視点（レビューへ委譲済み）**: 宣言 partsKeys field の base:undefined 注入の
+  表示影響と、宣言 field base 編集→whole-field write（H3 経路の現行パリティ）の退行判定。
+  **S3+S4 二重レビュー = 両者 needs-fix・突合済み（dr2-s3s4-integration.md）**:
+  採用 3 点を FIX-S3S4 で消化中 — F1 overlay の undefined 注入停止（宣言 partsKeys の
+  Σ 表示を S4 内で修復・両レビュー一致で S5 送り不可）・F2 検出器の穴 2 つ
+  （宣言キー入力→changes 0 pin＝partsKey ガードの門番・pin(b) fixture true 化＝raw 基底
+  喪失検出）・F3 コメント事実修正（H3 隠蔽の解消＋述語 3 者同期注記）。
+  観点 3(b) は両者一致 = 書込は旧 UI と同一の H3 経路（悪化なし・S5 送り妥当）。
+  記録 4 点は台帳 D-R2 行へ反映済み（table 宣言 field 編集不能の暫定・
+  **2 平面構造の裁定枠 = S5 着手前に raw 一本化 vs overlay 恒久化**・
+  hasInvalidNumber 死条件化・その他）。
+  見かけ矛盾 1 件（Opus M3 赤 vs Codex 変異緑）は変異体の違いで両立と判定
+  （crash 検出 vs 意味論素通り — pin 増強は Opus 案を採用）。
+  **FIX-S3S4 = 済・Fable 検収通過 → S3+S4 クローズ（2026-08-13）**:
+  F1 undefined 素通し（宣言 partsKeys の Σ/base 表示修復・pin 2 本）・F2 検出器増強
+  （宣言キー入力→changes 0 の H3 門番 pin・pin(b) fixture true 化）・F3 コメント事実化。
+  front 468 全緑・eslint/tsc 0・Fable 独立変異 = (a) 無条件注入戻し→2 pin 赤・
+  (b) partsKey ガード除去→門番 pin 赤・負の対照 31/31 緑
+  （※(b) 初回は sed 失敗で変異未適用のまま緑 = 無効実測。python 適用で正しく赤 —
+  変異は適用確認とセットでないと偽緑になる教訓）。
+  **次 = S5 設計（着手前に 2 平面裁定: raw 一本化 vs overlay 恒久化 — 事前実測つき）→
+  S6（後片付け・U14/U15 完了宣言＋大粒度 #17）**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
