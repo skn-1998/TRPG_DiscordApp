@@ -2575,7 +2575,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   独立ゲート = contract 25/25・server build＋circular 0・server focused
   149/152（赤 3 = 未変更 L-2 再現 spec の意図的赤のみと確認）・front 398/398。
   コミットは長コマンド EOF 破損を pathspec-from-file 方式で回避（メモリ追記済み）。
-  **次 = 大粒度 #15（SM-14b・SM-8b・U16-a 横断）の二重レビュー**。
+  **大粒度 #15（SM-14b・SM-8b・U16-a 横断）二重レビュー = 済（2026-08-12）**:
+  Codex needs-fix（High 0/Medium 4）× Opus（blocking 1/high 2）・相互矛盾なし・
+  主要 3 所見は独立収束。突合 = big15-integration.md。採用所見と消化順 =
+  **FIX-0**（blocking F-1: U16-a が wire 契約 spec を赤で残置 — fixture visibility 欠落。
+  Fable 再実行で赤確認済み = focused 検収の見逃し・メモリ verify-full-suite-before-merge に
+  3 例目として記録。契約変更スライスの server 検収は全 suite 必須へ）→
+  **FIX-B**（両者収束: 空 messages 抽出で 8 sink 沈黙・saveSheet は Alert/再試行/バナー 3 点消失。
+  sink 単位フォールバック・helper 化 No-Go 維持。指示書 = prompt-big15-fixb.md）→
+  **FIX-A**（エディタ失敗状態機械の統合: F-2 署名基底不一致で無限再試行停止が非正規化 draft
+  で無効〔高〕・C-3 未定義遷移 2・F-5 undo 行き止まり・F-6 conflict 黙殺・F-7 Alert 残留。
+  失敗情報を単一 discriminated state へ）→
+  **FIX-C**（C-1/F-4 publish 部分成功境界 = 偽 409・C-2 submitDraft single-flight）。
+  F-8（sheet.visibility 無名 union×3・mapper 述語の型ゲート欠如）= U16-c へ折込。
   その後 U16-b（summary read model）→ c（保存専用操作）→ d（renderer）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
