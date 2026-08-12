@@ -575,6 +575,16 @@ describe('CharacterRepository', () => {
       expect(query.sort).toHaveBeenCalledWith({ updatedAt: -1 })
       expect(result).toBe(docs)
     })
+
+    it('raw sheet.visibility の未知値を private に正規化する', async () => {
+      const docs = [{ characterId: 'c1', sheet: { visibility: 'unlisted' } }]
+      const query = createQuery(docs)
+      model.find.mockReturnValue(query)
+
+      const result = await repository.findByUserId('u1')
+
+      expect(result[0]?.sheet?.visibility).toBe('private')
+    })
   })
 
   describe('update', () => {
@@ -752,6 +762,25 @@ describe('CharacterRepository', () => {
           templateVersion: '1.0.0'
         }
       ])
+    })
+
+    it.each([
+      { caseName: '予約値 unlisted', visibility: 'unlisted' },
+      { caseName: '非 string 値', visibility: 42 }
+    ])('raw sheet.visibility が $caseName の summary は private に正規化する', async ({ visibility }) => {
+      const query = createQuery([
+        {
+          characterId: 'c1',
+          characterName: 'Alice',
+          gameSystemId: 'coc',
+          sheet: { visibility }
+        }
+      ])
+      model.find.mockReturnValue(query)
+
+      const [summary] = await repository.findUserCharacterSummaries('u1')
+
+      expect(summary.visibility).toBe('private')
     })
   })
 

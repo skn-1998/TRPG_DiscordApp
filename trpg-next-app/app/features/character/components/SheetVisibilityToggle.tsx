@@ -4,17 +4,14 @@ import { Alert, Card, SegmentedControl, Stack, Text, Title } from '@mantine/core
 import type { CharacterSheetVisibility } from '@trpg/api-contract'
 import { useRef, useState, useTransition } from 'react'
 import { updateSheetVisibility } from '../actions'
-import { SHEET_VISIBILITY_LABELS, SHEET_VISIBILITY_NOTICE } from '../sheet-visibility'
+import { SHEET_VISIBILITY, SHEET_VISIBILITY_NOTICE } from '../sheet-visibility'
 
 interface SheetVisibilityToggleProps {
   characterId: string
   initialVisibility: CharacterSheetVisibility
 }
 
-const VISIBILITY_OPTIONS = [
-  { value: 'private', label: SHEET_VISIBILITY_LABELS.private },
-  { value: 'public', label: SHEET_VISIBILITY_LABELS.public }
-]
+const VISIBILITY_OPTIONS = Object.entries(SHEET_VISIBILITY).map(([value, { label }]) => ({ value, label }))
 
 export function SheetVisibilityToggle({ characterId, initialVisibility }: SheetVisibilityToggleProps) {
   const [visibility, setVisibility] = useState(initialVisibility)
@@ -46,7 +43,7 @@ export function SheetVisibilityToggle({ characterId, initialVisibility }: SheetV
     <Card withBorder radius="md" p="lg">
       <Stack gap="sm">
         <Title order={3}>公開設定</Title>
-        <Text size="sm">現在の設定: {SHEET_VISIBILITY_LABELS[visibility]}</Text>
+        <Text size="sm">現在の設定: {SHEET_VISIBILITY[visibility].label}</Text>
         <SegmentedControl
           aria-label="シートの公開設定"
           data={VISIBILITY_OPTIONS}

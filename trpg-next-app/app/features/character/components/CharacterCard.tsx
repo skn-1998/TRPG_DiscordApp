@@ -21,7 +21,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { getGameSystemNameById } from '../../../lib/gameSystem'
 import { loadDiscordServers, postCharacterToDiscord } from '../../discord/actions'
-import { SHEET_VISIBILITY_LABELS, SHEET_VISIBILITY_NOTICE } from '../sheet-visibility'
+import { SHEET_VISIBILITY, SHEET_VISIBILITY_NOTICE } from '../sheet-visibility'
 
 interface DiscordServerSelectOption {
   value: string
@@ -102,9 +102,13 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
             {character.characterName}
           </Text>
           <Group gap="xs">
-            <Tooltip label={SHEET_VISIBILITY_NOTICE} withArrow>
-              <Badge variant="light" color={character.visibility === 'public' ? 'green' : 'gray'}>
-                {SHEET_VISIBILITY_LABELS[character.visibility]}
+            <Tooltip
+              label={SHEET_VISIBILITY_NOTICE}
+              withArrow
+              events={{ hover: true, focus: true, touch: true }}
+            >
+              <Badge variant="light" color={SHEET_VISIBILITY[character.visibility].color}>
+                {SHEET_VISIBILITY[character.visibility].label}
               </Badge>
             </Tooltip>
             {character.templateVersion && (
