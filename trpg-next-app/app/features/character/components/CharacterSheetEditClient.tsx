@@ -4,6 +4,7 @@ import { Alert, Button, Card, Container, Group, NumberInput, Radio, Stack, Text,
 import { IconAlertCircle, IconArrowLeft, IconDeviceFloppy } from '@tabler/icons-react'
 import type { CharacterWire, SheetMergeConflictWire } from '@trpg/api-contract'
 import Link from 'next/link'
+import { unstable_rethrow } from 'next/navigation'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
 import { saveSheet } from '../actions'
@@ -11,6 +12,7 @@ import {
   deriveSheetChanges,
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
+  GENERIC_SHEET_NETWORK_ERROR_MESSAGE,
   readEditableValue,
   type EditableScalarField,
   type EditorValue
@@ -86,6 +88,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const hasInvalidNumber = fields.some((field) => field.valueType === 'number' && values[field.uid] === '')
   const changes = deriveSheetChanges(fields, baseline, values)
   const hasCompleteConflictSelection = conflictPanel?.conflicts.every(({ id }) => conflictPanel.selections[id]) ?? false
+  const hasUnsavedFailure = changes.length > 0 && Boolean(actionData?.error || conflictPanel)
 
   const presentSaveResult = (result: SheetActionData) => {
     if (result.mergeConflict) {
@@ -103,9 +106,15 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   }
 
   const saveChanges = (revision: number, nextChanges: typeof changes) => {
+    if (isPending) return
     startTransition(async () => {
-      const result = await saveSheet(character.characterId, { baseRevision: revision, changes: nextChanges })
-      presentSaveResult(result)
+      try {
+        const result = await saveSheet(character.characterId, { baseRevision: revision, changes: nextChanges })
+        presentSaveResult(result)
+      } catch (error) {
+        unstable_rethrow(error)
+        setActionData({ error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE, retryable: true })
+      }
     })
   }
 
@@ -203,7 +212,27 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
             icon={<IconAlertCircle size={16} />}
             title={actionData.conflict ? '保存競合' : '保存できませんでした'}
           >
-            {actionData.error}
+            <Stack gap="xs">
+              <Text>{actionData.error}</Text>
+              {actionData.retryable && (
+                <Button
+                  type="button"
+                  variant="light"
+                  color="red"
+                  loading={isPending}
+                  disabled={changes.length === 0}
+                  onClick={() => saveChanges(baseRevision, changes)}
+                >
+                  再試行
+                </Button>
+              )}
+            </Stack>
+          </Alert>
+        )}
+
+        {hasUnsavedFailure && (
+          <Alert color="orange" icon={<IconAlertCircle size={16} />} title="保存されていません">
+            編集内容はこの画面に保持されています。
           </Alert>
         )}
 

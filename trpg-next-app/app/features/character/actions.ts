@@ -15,7 +15,7 @@ import {
   saveCharacterSheet,
   type CharacterSheetChange
 } from './api/character.service.server'
-import { GENERIC_SHEET_CONFLICT_MESSAGE } from './sheet-edit'
+import { GENERIC_SHEET_CONFLICT_MESSAGE, GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from './sheet-edit'
 
 export async function refreshCharacterList(): Promise<{ error: string | null }> {
   await requireJwt()
@@ -34,13 +34,19 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
 export async function saveSheet(
   characterId: string,
   input: { baseRevision: number; changes: CharacterSheetChange[] }
-): Promise<{ error: string | null; conflict?: boolean; mergeConflict?: SheetMergeConflictWire }> {
+): Promise<{
+  error: string | null
+  conflict?: boolean
+  mergeConflict?: SheetMergeConflictWire
+  retryable?: boolean
+}> {
   await requireJwt()
 
   try {
     await saveCharacterSheet({ characterId, ...input })
   } catch (error) {
-    if (getResponseStatus(error) === 409) {
+    const status = getResponseStatus(error)
+    if (status === 409) {
       const upstreamResponse = getUpstreamResponse(error)
       if (upstreamResponse && isErrorEnvelope(upstreamResponse.data)) {
         const mergeConflict = sheetMergeConflictSchema.safeParse(upstreamResponse.data.cause)
@@ -58,7 +64,12 @@ export async function saveSheet(
         conflict: true
       }
     }
-    return { error: extractApiErrorMessages(error).join(' / ') }
+    return {
+      error: status === undefined
+        ? GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+        : extractApiErrorMessages(error).join(' / '),
+      retryable: status === undefined || status === 429 || (status >= 500 && status < 600)
+    }
   }
 
   redirect('/user/character')

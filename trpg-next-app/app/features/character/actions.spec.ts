@@ -23,6 +23,7 @@ import { extractApiErrorMessages } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
 import { getUserCharacterSummaries, saveCharacterSheet } from './api/character.service.server'
 import { refreshCharacterList, saveSheet } from './actions'
+import { GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from './sheet-edit'
 
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
@@ -157,9 +158,45 @@ describe('saveSheet', () => {
     mockedExtractApiErrorMessages.mockReturnValue(['名前は必須です', '値が不正です'])
 
     await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
-      error: '名前は必須です / 値が不正です'
+      error: '名前は必須です / 値が不正です',
+      retryable: false
     })
     expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
     expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('response のないネットワーク断は内部情報を含まない定型文で再試行可に分類する', async () => {
+    const error = new Error('connect ECONNREFUSED 127.0.0.1:3000')
+    mockedSaveCharacterSheet.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['connect ECONNREFUSED 127.0.0.1:3000'])
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: GENERIC_SHEET_NETWORK_ERROR_MESSAGE,
+      retryable: true
+    })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['429', { response: { status: 429 } }],
+    ['5xx', { response: { status: 503 } }]
+  ])('%s は再試行可に分類する', async (_label, error) => {
+    mockedSaveCharacterSheet.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['保存に失敗しました'])
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: '保存に失敗しました',
+      retryable: true
+    })
+  })
+
+  it('422 は恒久エラーに分類する', async () => {
+    mockedSaveCharacterSheet.mockRejectedValue({ response: { status: 422 } })
+    mockedExtractApiErrorMessages.mockReturnValue(['入力値が不正です'])
+
+    await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
+      error: '入力値が不正です',
+      retryable: false
+    })
   })
 })
