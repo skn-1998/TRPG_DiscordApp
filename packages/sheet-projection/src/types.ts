@@ -101,6 +101,7 @@ export interface EphemeralPanelInput {
   channelId: string
   palette: readonly ProjectionPaletteEntry[]
   groupId: string
+  canMutate: boolean
   page?: number
 }
 
@@ -113,6 +114,7 @@ export interface PageNavigationModel {
 
 export interface EphemeralPanelViewModel {
   kind: 'group-panel'
+  status: 'actions' | 'no-authorized-actions'
   groupId: string
   title: string
   actions: DiscordButtonModel[]

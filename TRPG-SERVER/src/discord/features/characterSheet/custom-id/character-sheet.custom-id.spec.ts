@@ -148,7 +148,7 @@ describe('characterSheet customId v2', () => {
       channelId,
       palette
     })
-    const panel = createEphemeralPanel({ channelId, palette, groupId: 'skills', page: 1 })
+    const panel = createEphemeralPanel({ channelId, palette, groupId: 'skills', canMutate: true, page: 1 })
     const browserPalette: ProjectionPaletteEntry[] = Array.from({ length: 25 }, (_, index) => ({
       key: `b${index}`,
       kind: 'roll' as const,
