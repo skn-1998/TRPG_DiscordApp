@@ -2519,8 +2519,13 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   per-path CAS → コメント＋台帳）・O-F6+O-F7（一覧 401/403 の redirect 化と
   到達不能 soft degrade 分岐の削除 = 純減）・C-M2（app/loading.tsx）を採用。
   O-F8（枠差 = Next 構造制約）・O-F9（GET への 422 分類 = YAGNI）は却下。
-  **BIG14-FIX-A（状態機械群）委譲済み・走行中（prompt-big14-fix-a.md）**。
-  返着後 FIX-B（露出・一貫性・セル = prompt-big14-fix-b.md）→ SM-14b へ。
+  **BIG14-FIX-A = 検収・コミット `1013a7a`**: 競合 path の保存時除外
+  （fieldUid＋partsKey 組・payload assert つき）・fail-back 両経路の旧パネル破棄
+  統一・3 点同時成立 pin・per-path CAS コメント。非競合エラーでパネルを
+  消さない規則は不変。独立ゲート = front 24/24 suites・372/372 tests（+4）・
+  eslint 0。**BIG14-FIX-B 委譲済み・走行中（prompt-big14-fix-b.md）**:
+  discord guard 2 箇所・一覧 401/403 redirect 化＋到達不能分岐と英語ブロック
+  削除・定数 rename・app/loading.tsx。検収後 → SM-14b へ。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
