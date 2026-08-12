@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { Alert, Button, Checkbox, Code, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from '@mantine/core'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { Alert, Button, Code, Group, Stack, Tabs, Text, TextInput } from '@mantine/core'
 import { IconAlertCircle, IconDice } from '@tabler/icons-react'
 import { evaluateTemplate } from '@trpg/sheet-engine'
+import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import type { CharacterSheetTemplateEntity, PreviewValues, SheetField } from '../types/v3'
 import { buildDicePreviewRequest, readDicePreviewActionData } from '../utils/dicePreview'
 import { toSheetTemplate } from '../utils/v3Template'
@@ -27,9 +28,48 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
     }
   }, [sheetTemplate, values])
 
-  const activeSection = template.sections.find((section) => section.id === activeSectionId) ?? template.sections[0]
+  // タブ列挙と editor と一致すべき生 formula は entity 側、layout・評価用 section は変換後 template 側を正本にする。
+  // toSheetTemplate が section の id・順序と field uid を保つことが、両者を突き合わせられる前提。
+  const activeEntitySection = template.sections.find((section) => section.id === activeSectionId) ?? template.sections[0]
+  const activeSection = sheetTemplate.sections.find((section) => section.id === activeSectionId) ?? sheetTemplate.sections[0]
+  // セクション切替は preview の所掌なので、TFR へは active section だけの subset を渡す。
+  // これにより TFR へ section 選択の責務を持ち込まず、タブ挙動を preview 内に閉じる。
+  const activeSectionTemplate = useMemo(() => ({
+    ...sheetTemplate,
+    sections: activeSection === undefined
+      ? []
+      : [{
+        ...activeSection,
+        // preview の式表示は保存前の editor 入力と一致させるため、参照正規化前の entity formula を uid で対応付ける。
+        fields: activeSection.fields.map((field) => {
+          const entityField = activeEntitySection?.fields.find((candidate) => candidate.uid === field.uid)
+          return field.type === 'computed' && entityField?.type === 'computed'
+            ? { ...field, description: `式: ${entityField.formula}` }
+            : field
+        })
+      }]
+  }), [activeEntitySection, activeSection, sheetTemplate])
+  // evaluated（engine 評価値と computed の失敗表示）を基底に、ユーザー編集値で後から上書きする順序が不変条件。
+  // updateValue が唯一の writer として undefined を弾くため、overlay は保持済みの編集値を無条件に最終値へできる。
+  const formValues = useMemo(() => {
+    const nextValues: Record<string, unknown> = {}
+    for (const [fieldUid, runtime] of Object.entries(evaluated.result?.values ?? {})) {
+      nextValues[fieldUid] = runtime.value
+    }
+    for (const field of activeSection?.fields ?? []) {
+      if (field.type === 'computed' && evaluated.result?.values[field.uid] === undefined) {
+        nextValues[field.uid] = 'Error'
+      }
+    }
+    for (const [fieldUid, value] of Object.entries(values)) {
+      nextValues[fieldUid] = value
+    }
+    return nextValues
+  }, [activeSection, evaluated.result, values])
 
-  const updateValue = useCallback((uid: string, value: string | number | boolean | undefined) => {
+  const updateValue = useCallback((uid: string, value: unknown) => {
+    // 現状の TFR は primitive だけを渡すが onChange の契約は unknown なので、preview state の境界で絞る。
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return
     setValues((current) => ({ ...current, [uid]: value }))
   }, [])
 
@@ -81,62 +121,12 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
     }
   }
 
-  const renderField = (field: SheetField) => {
-    const runtime = evaluated.result?.values[field.uid]
-    const current = values[field.uid] ?? runtime?.value
-
-    if (field.type === 'scalar' && field.valueType === 'number') {
-      return (
-        <NumberInput
-          key={field.uid}
-          label={field.label}
-          description={field.description}
-          value={typeof current === 'number' ? current : undefined}
-          onChange={(value) => updateValue(field.uid, typeof value === 'number' ? value : undefined)}
-        />
-      )
-    }
-
-    if (field.type === 'scalar' && field.valueType === 'select') {
-      return (
-        <Select
-          key={field.uid}
-          label={field.label}
-          description={field.description}
-          data={(field.options ?? []).map((option) => ({ value: option.value, label: option.label }))}
-          value={typeof current === 'string' ? current : ''}
-          onChange={(value) => updateValue(field.uid, value ?? '')}
-        />
-      )
-    }
-
-    if (field.type === 'scalar' && field.valueType === 'boolean') {
-      return (
-        <Checkbox
-          key={field.uid}
-          label={field.label}
-          description={field.description}
-          checked={Boolean(current)}
-          onChange={(event) => updateValue(field.uid, event.currentTarget.checked)}
-        />
-      )
-    }
-
-    if (field.type === 'computed') {
-      return (
-        <TextInput
-          key={field.uid}
-          label={field.label}
-          description={`式: ${field.formula}`}
-          value={runtime ? String(runtime.value) : 'Error'}
-          readOnly
-        />
-      )
-    }
-
+  // preview が自前で描くのは対話ダイスを伴う roll だけとし、それ以外は TFR の既定描画へ委譲する。
+  const renderPreviewField = (field: SheetField, defaultNode: ReactNode) => {
     if (field.type === 'roll') {
       const feedback = rollFeedback[field.uid]
       const isRolling = rollingFieldUid === field.uid
+      const current = formValues[field.uid]
       return (
         <Stack key={field.uid} gap={4}>
           <Group align="end" wrap="nowrap">
@@ -172,15 +162,7 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
       )
     }
 
-    return (
-      <TextInput
-        key={field.uid}
-        label={field.label}
-        description={field.description}
-        value={typeof current === 'string' ? current : ''}
-        onChange={(event) => updateValue(field.uid, event.currentTarget.value)}
-      />
-    )
+    return defaultNode
   }
 
   if (!activeSection) {
@@ -205,7 +187,12 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
         </Tabs.List>
       </Tabs>
 
-      <Stack gap="sm">{activeSection.fields.map(renderField)}</Stack>
+      <TemplateFormRenderer
+        template={activeSectionTemplate}
+        values={formValues}
+        onChange={updateValue}
+        renderField={renderPreviewField}
+      />
 
       <details>
         <summary style={{ cursor: 'pointer' }}>

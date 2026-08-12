@@ -2,6 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ReactNode } from 'react'
 import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
@@ -1572,6 +1573,38 @@ describe('TemplateFormRenderer', () => {
       </MantineProvider>
     )
     expect(input.value).toBe('更新済み探索者')
+  })
+
+  it('renderField override は指定 field だけを差し替えて section と layout 構造を保つ', () => {
+    const renderField = jest.fn((field: SheetField, defaultNode: ReactNode) => field.uid === 'uid_score'
+      ? <div data-preview-field={field.uid}>preview: {field.label}</div>
+      : defaultNode)
+
+    render(
+      <MantineProvider>
+        <TemplateFormRenderer template={template} values={{}} renderField={renderField} />
+      </MantineProvider>
+    )
+
+    expect(screen.getByRole('heading', { level: 2, name: 'プロフィール' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'メモ' })).toBeTruthy()
+    expect(getFieldCell('uid_score').dataset.gridSpan).toBe('2')
+    expect(getFieldCell('uid_score').querySelector('[data-preview-field="uid_score"]')?.textContent)
+      .toBe('preview: 算出値')
+    expect(screen.queryByRole('textbox', { name: '算出値' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: '名前' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: '判定' })).toBeTruthy()
+    expect(screen.getByText('耐久力').closest('[data-field-placeholder="track"]')).toBeTruthy()
+    expect(renderField.mock.calls.map(([field]) => field.uid)).toEqual([
+      'uid_name',
+      'uid_score',
+      'uid_check',
+      'uid_hp',
+      'uid_items',
+      'uid_bond',
+      'uid_tags',
+      'uid_note'
+    ])
   })
 
   it.each([

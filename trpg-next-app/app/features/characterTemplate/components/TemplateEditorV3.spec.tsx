@@ -13,6 +13,15 @@ import { AUTOSAVE_DEBOUNCE_MS, TemplateEditorV3 } from './TemplateEditorV3'
 jest.mock('../actions', () => ({
   saveTemplateDraft: jest.fn()
 }))
+// Test intent: preview 経由で TemplateFormRenderer を推移 import するため、jest が解釈できない CSS Module を差し替える。
+jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
+  __esModule: true,
+  default: {
+    fieldContainer: 'fieldContainer',
+    gridField: 'gridField',
+    tableScroll: 'tableScroll'
+  }
+}))
 
 const initialTemplate: CharacterSheetTemplateEntity = {
   templateId: 'template-1',

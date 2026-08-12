@@ -11,7 +11,7 @@ import {
   type SheetField,
   type SheetTemplate
 } from '@trpg/sheet-engine'
-import { useId, useMemo, useState, type KeyboardEvent } from 'react'
+import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import styles from './TemplateFormRenderer.module.css'
 
 interface TemplateFormRendererProps {
@@ -19,6 +19,13 @@ interface TemplateFormRendererProps {
   values: Record<string, unknown>
   onChange?: (fieldUid: string, value: unknown) => void
   onPartsChange?: (fieldUid: string, partsKey: string, value: number) => void
+  /**
+   * 呼び出し側が field 単位で描画を差し替える controlled 拡張点。既定描画を defaultNode として渡して呼ぶので、
+   * 差し替えない field は defaultNode をそのまま返す。未指定なら全 field が既定描画のまま（既存呼び出し側は無影響）。
+   * 例外: table layout の parts 列は行構造ごと parts 専用に組むため、この差し替えを経由しない。
+   * table layout では labelledBy を渡さないため既定の aria-labelledby を再現できず、差し替え側が自前のラベルを要する。
+   */
+  renderField?: (field: SheetField, defaultNode: ReactNode) => ReactNode
 }
 
 type RenderFieldEntry = {
@@ -30,7 +37,13 @@ type RenderFieldEntry = {
 
 type PartDefinition = NonNullable<ScalarField['partsKeys']>[number]
 
-export function TemplateFormRenderer({ template, values, onChange, onPartsChange }: TemplateFormRendererProps) {
+export function TemplateFormRenderer({
+  template,
+  values,
+  onChange,
+  onPartsChange,
+  renderField
+}: TemplateFormRendererProps) {
   const annotationRuntime = useMemo(
     () => evaluateAnnotationRuntime(template, values),
     [template, values]
@@ -50,8 +63,18 @@ export function TemplateFormRenderer({ template, values, onChange, onPartsChange
             <Title order={2}>{section.label}</Title>
             {renderSectionPools(section, annotations)}
             {annotations.blockIds.length > 0
-              ? renderBlockGroups(section, fields, layout, values, onChange, onPartsChange, annotations, overLimitMessages)
-              : renderFieldContainer(fields, layout, values, onChange, onPartsChange, overLimitMessages)}
+              ? renderBlockGroups(
+                section,
+                fields,
+                layout,
+                values,
+                onChange,
+                onPartsChange,
+                renderField,
+                annotations,
+                overLimitMessages
+              )
+              : renderFieldContainer(fields, layout, values, onChange, onPartsChange, renderField, overLimitMessages)}
           </Stack>
         )
       })}
@@ -66,6 +89,7 @@ function renderBlockGroups(
   values: Record<string, unknown>,
   onChange: TemplateFormRendererProps['onChange'],
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
+  renderFieldOverride: TemplateFormRendererProps['renderField'],
   annotations: SectionAnnotationRuntime,
   overLimitMessages: ReadonlyMap<string, string>
 ) {
@@ -87,7 +111,15 @@ function renderBlockGroups(
   return (
     <>
       {defaultFields.length > 0
-        ? renderFieldContainer(defaultFields, layout, values, onChange, onPartsChange, overLimitMessages)
+        ? renderFieldContainer(
+          defaultFields,
+          layout,
+          values,
+          onChange,
+          onPartsChange,
+          renderFieldOverride,
+          overLimitMessages
+        )
         : null}
       {[...blockGroups]
         .filter(([, { fields }]) => fields.length > 0)
@@ -105,7 +137,15 @@ function renderBlockGroups(
                   <Badge data-block-cap={cap}>上限 {cap}</Badge>
                 </Group>
               )}
-              {renderFieldContainer(fields, layout, values, onChange, onPartsChange, overLimitMessages)}
+              {renderFieldContainer(
+                fields,
+                layout,
+                values,
+                onChange,
+                onPartsChange,
+                renderFieldOverride,
+                overLimitMessages
+              )}
             </Stack>
           )
         })}
@@ -195,6 +235,7 @@ function renderFieldContainer(
   values: Record<string, unknown>,
   onChange: TemplateFormRendererProps['onChange'],
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
+  renderFieldOverride: TemplateFormRendererProps['renderField'],
   overLimitMessages: ReadonlyMap<string, string>
 ) {
   const partColumns = layout.mode === 'table' ? buildTablePartColumns(fields) : []
@@ -231,6 +272,7 @@ function renderFieldContainer(
                   partColumns={partColumns}
                   onChange={onChange}
                   onPartsChange={onPartsChange}
+                  renderField={renderFieldOverride}
                   warning={overLimitMessages.get(field.uid)}
                 />
               ))}
@@ -253,6 +295,7 @@ function renderFieldContainer(
               displayValue,
               onChange,
               onPartsChange,
+              renderField: renderFieldOverride,
               warning: overLimitMessages.get(field.uid)
             })}
           </div>
@@ -269,6 +312,7 @@ function TableFieldRow({
   partColumns,
   onChange,
   onPartsChange,
+  renderField,
   warning
 }: {
   field: SheetField
@@ -277,6 +321,7 @@ function TableFieldRow({
   partColumns: PartDefinition[]
   onChange: TemplateFormRendererProps['onChange']
   onPartsChange: TemplateFormRendererProps['onPartsChange']
+  renderField: TemplateFormRendererProps['renderField']
   warning: string | undefined
 }) {
   const labelId = useId()
@@ -330,7 +375,7 @@ function TableFieldRow({
     return (
       <Table.Tr data-field-uid={field.uid} data-table-row-mode="full-width">
         <Table.Td colSpan={partColumns.length + 2}>
-          {renderFieldWithWarning({ field, value, displayValue, onChange, onPartsChange, warning })}
+          {renderFieldWithWarning({ field, value, displayValue, onChange, onPartsChange, renderField, warning })}
         </Table.Td>
       </Table.Tr>
     )
@@ -349,6 +394,7 @@ function TableFieldRow({
           displayValue,
           onChange,
           onPartsChange,
+          renderField,
           warning,
           labelledBy: labelId
         })}
@@ -497,6 +543,7 @@ function renderFieldWithWarning({
   displayValue,
   onChange,
   onPartsChange,
+  renderField: renderFieldOverride,
   warning,
   labelledBy
 }: {
@@ -505,11 +552,12 @@ function renderFieldWithWarning({
   displayValue: number | undefined
   onChange: TemplateFormRendererProps['onChange']
   onPartsChange: TemplateFormRendererProps['onPartsChange']
+  renderField: TemplateFormRendererProps['renderField']
   warning: string | undefined
   labelledBy?: string
 }) {
   const hasPartsEditor = isPartsScalarField(field)
-  const control = hasPartsEditor ? (
+  const defaultNode = hasPartsEditor ? (
     <>
       <Text fw={500} size="sm">{field.label}</Text>
       {field.description === undefined ? null : <Text c="dimmed" size="xs">{field.description}</Text>}
@@ -520,7 +568,8 @@ function renderFieldWithWarning({
         onPartsChange={onPartsChange}
       />
     </>
-  ) : renderField(field, value, onChange, labelledBy)
+  ) : renderDefaultField(field, value, onChange, labelledBy)
+  const control = renderFieldOverride === undefined ? defaultNode : renderFieldOverride(field, defaultNode)
   if (!hasPartsEditor && warning === undefined) return control
 
   return (
@@ -536,7 +585,7 @@ function renderFieldWarning(fieldUid: string, warning: string | undefined) {
   return <Text c="red" size="sm" data-field-over-limit={fieldUid}>{warning}</Text>
 }
 
-function renderField(
+function renderDefaultField(
   field: SheetField,
   value: unknown,
   onChange: TemplateFormRendererProps['onChange'],

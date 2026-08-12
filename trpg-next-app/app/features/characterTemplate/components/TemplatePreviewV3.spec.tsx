@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 /**
- * TemplatePreviewV3 が所有する型別 widget と入力・評価・section 切替の現挙動を固定する。
+ * TemplatePreviewV3 が TemplateFormRenderer に委譲する入力と、自身が所有する評価・roll・section 切替を固定する。
  */
 
 import { MantineProvider } from '@mantine/core'
@@ -14,8 +14,20 @@ jest.mock('@trpg/sheet-engine', () => {
   const actual = jest.requireActual<typeof import('@trpg/sheet-engine')>('@trpg/sheet-engine')
   return { ...actual, evaluateTemplate: jest.fn(actual.evaluateTemplate) }
 })
+jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
+  __esModule: true,
+  default: {
+    fieldContainer: 'fieldContainer',
+    gridField: 'gridField',
+    tableScroll: 'tableScroll'
+  }
+}))
 
 const evaluateTemplateMock = jest.mocked(evaluateTemplate)
+const actualEvaluateTemplate = jest.requireActual<typeof import('@trpg/sheet-engine')>(
+  '@trpg/sheet-engine'
+).evaluateTemplate
+const nativeFetch = globalThis.fetch
 
 function createPreviewTemplate(fields: SheetField[]): CharacterSheetTemplateEntity {
   return {
@@ -52,7 +64,15 @@ beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  evaluateTemplateMock.mockImplementation(actualEvaluateTemplate)
+  if (nativeFetch === undefined) {
+    Reflect.deleteProperty(globalThis, 'fetch')
+  } else {
+    globalThis.fetch = nativeFetch
+  }
+})
 
 describe('TemplatePreviewV3 characterization', () => {
   it('scalar 4 valueType を NumberInput・Select・Checkbox・TextInput へ割り当てる', () => {
@@ -81,7 +101,7 @@ describe('TemplatePreviewV3 characterization', () => {
     expect(textInput.inputMode).toBe('')
   })
 
-  it('number は空値を 0 として表示し、数値を保持して空文字を undefined へ正規化する', () => {
+  it('number は評価済みの 0 を表示し、数値を保持して clear を通知しない', () => {
     renderPreview(createPreviewTemplate([
       { id: 'number', uid: 'uid_number', label: '数値', type: 'scalar', valueType: 'number' }
     ]))
@@ -95,11 +115,11 @@ describe('TemplatePreviewV3 characterization', () => {
     expect(readPreviewValues()).toEqual({ uid_number: 42 })
 
     fireEvent.change(input, { target: { value: '' } })
-    expect(input.value).toBe('0')
-    expect(readPreviewValues()).toEqual({})
+    expect(input.value).toBe('')
+    expect(readPreviewValues()).toEqual({ uid_number: 42 })
   })
 
-  it('select は未選択を空表示し、deselect を空文字で保持して選択済みラベルを残す', async () => {
+  it('select は未選択を空表示し、deselect を通知せず評価済みの選択を維持する', async () => {
     const template = createPreviewTemplate([{
       id: 'select',
       uid: 'uid_select',
@@ -128,7 +148,7 @@ describe('TemplatePreviewV3 characterization', () => {
     fireEvent.click(input)
     fireEvent.click(await screen.findByRole('option', { name: '探偵' }))
     expect(input.value).toBe('探偵')
-    expect(readPreviewValues()).toEqual({ uid_select: '' })
+    expect(readPreviewValues()).toEqual({})
   })
 
   it('boolean の操作値を厳密な true・false として保持する', () => {
@@ -149,9 +169,9 @@ describe('TemplatePreviewV3 characterization', () => {
   })
 
   it.each([
-    ['truthy な文字列', { type: 'text' as const, value: 'yes' }, true],
-    ['falsy な数値', { type: 'number' as const, value: 0 }, false]
-  ])('boolean は runtime の %s を Boolean で checked へ変換する', (_case, runtime, expected) => {
+    ['truthy な文字列', { type: 'text' as const, value: 'yes' }, false],
+    ['真偽値 true', { type: 'boolean' as const, value: true }, true]
+  ])('boolean は runtime の %s を true との厳密比較で checked へ変換する', (_case, runtime, expected) => {
     evaluateTemplateMock.mockReturnValueOnce({
       values: { uid_boolean: runtime },
       rows: {},
@@ -167,19 +187,24 @@ describe('TemplatePreviewV3 characterization', () => {
   })
 
   it('computed は式を description に出し、評価結果を read-only 表示する', () => {
-    renderPreview(createPreviewTemplate([{
-      id: 'computed',
-      uid: 'uid_computed',
-      label: '算出値',
-      type: 'computed',
-      resultType: 'number',
-      formula: '1 + 2'
-    }]))
+    const rawFormula = '{base} * 2'
+    renderPreview(createPreviewTemplate([
+      { id: 'base', uid: 'uid_base', label: '基礎値', type: 'scalar', valueType: 'number' },
+      {
+        id: 'computed',
+        uid: 'uid_computed',
+        label: '算出値',
+        type: 'computed',
+        resultType: 'number',
+        formula: rawFormula
+      }
+    ]))
 
     const input = screen.getByRole('textbox', { name: '算出値' }) as HTMLInputElement
-    expect(input.value).toBe('3')
+    expect(input.value).toBe('0')
     expect(input.readOnly).toBe(true)
-    expect(screen.getByText('式: 1 + 2')).toBeTruthy()
+    expect(screen.getByText(`式: ${rawFormula}`)).toBeTruthy()
+    expect(screen.queryByText('式: {main.base} * 2')).toBeNull()
   })
 
   it('computed の評価失敗時は式評価エラーと Error 値を表示する', () => {
@@ -210,7 +235,33 @@ describe('TemplatePreviewV3 characterization', () => {
     expect(screen.getByRole('button', { name: 'ロール' })).toBeTruthy()
   })
 
-  it('track・list・relation・tag を placeholder ではなく空の TextInput として描画する', () => {
+  it('roll 成功時は編集値が評価済みの基底値を上書きしてダイス合計を表示する', async () => {
+    evaluateTemplateMock.mockReturnValue({
+      values: { uid_roll: { type: 'text', value: '1d20' } },
+      rows: {},
+      evaluationOrder: [],
+      resolvedRefs: []
+    })
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 17, details: '1d20=17' })
+    } as Response)
+    globalThis.fetch = fetchMock
+    renderPreview(createPreviewTemplate([
+      { id: 'roll', uid: 'uid_roll', label: '判定', type: 'roll', notation: '1d20' }
+    ]))
+
+    const input = screen.getByRole('textbox', { name: '判定' }) as HTMLInputElement
+    expect(input.value).toBe('1d20')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ロール' }))
+
+    expect(await screen.findByText('結果: 1d20=17')).toBeTruthy()
+    expect(input.value).toBe('17')
+    expect(readPreviewValues()).toEqual({ uid_roll: 17 })
+    expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('track・list・relation・tag を保存不能な入力ではなく placeholder として描画する', () => {
     renderPreview(createPreviewTemplate([
       { id: 'track', uid: 'uid_track', label: '耐久力', type: 'track', max: 10, style: 'gauge' },
       { id: 'list', uid: 'uid_list', label: '所持品', type: 'list', itemFields: [] },
@@ -218,12 +269,17 @@ describe('TemplatePreviewV3 characterization', () => {
       { id: 'tag', uid: 'uid_tag', label: 'タグ', type: 'tag' }
     ]))
 
-    for (const label of ['耐久力', '所持品', '関係', 'タグ']) {
-      const input = screen.getByRole('textbox', { name: label }) as HTMLInputElement
-      expect(input.value).toBe('')
-      expect(input.readOnly).toBe(false)
+    for (const [fieldType, label] of [
+      ['track', '耐久力'],
+      ['list', '所持品'],
+      ['relation', '関係'],
+      ['tag', 'タグ']
+    ]) {
+      const placeholder = screen.getByText(label).closest(`[data-field-placeholder="${fieldType}"]`)
+      expect(placeholder).toBeTruthy()
+      expect(placeholder?.textContent).toContain(fieldType)
     }
-    expect(document.querySelector('[data-field-placeholder]')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 
   it('全 section のタブを表示し、active tab の field だけを切り替えて描画する', () => {
@@ -246,10 +302,13 @@ describe('TemplatePreviewV3 characterization', () => {
     renderPreview(template)
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['第一セクション', '第二セクション'])
+    expect(screen.getByRole('heading', { level: 2, name: '第一セクション' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '第一入力' })).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: '第二入力' })).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: '第二セクション' }))
+    expect(screen.queryByRole('heading', { level: 2, name: '第一セクション' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: '第二セクション' })).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: '第一入力' })).toBeNull()
     expect(screen.getByRole('textbox', { name: '第二入力' })).toBeTruthy()
   })
