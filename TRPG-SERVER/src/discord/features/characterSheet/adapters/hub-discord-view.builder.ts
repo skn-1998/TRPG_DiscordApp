@@ -54,7 +54,7 @@ export class HubDiscordViewBuilder {
   }
 
   buildPanel(view: EphemeralPanelViewModel): MessageCreateOptions & MessageEditOptions {
-    if (view.status === 'no-authorized-actions') {
+    if (view.status !== 'actions') {
       return { content: 'この操作はキャラクター所有者のみ実行できます', components: [] }
     }
     const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = view.actionRows.map((row) =>

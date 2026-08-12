@@ -170,6 +170,18 @@ describe('CharacterSheetEditClient', () => {
     expect((screen.getByRole('button', { name: '選択を適用' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('競合パネル表示中の手動保存が非競合エラーならパネルを残して Alert を併記する', async () => {
+    renderEditor()
+    await submitHpChange()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '入力値が不正です' })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('入力値が不正です')
+    expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
+    expect(screen.getByText('相手の値: 8')).toBeTruthy()
+  })
+
   it('current の型が field.valueType と異なる場合は未入力として採用する', async () => {
     renderEditor()
     await submitHpChange(mergeConflict('main.hp', '8'))

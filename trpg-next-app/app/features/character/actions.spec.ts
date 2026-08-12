@@ -92,7 +92,7 @@ describe('saveSheet', () => {
     })
 
     await expect(saveSheet('character-1', { baseRevision: 0, changes: [] })).resolves.toEqual({
-      error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+      error: null,
       conflict: true,
       mergeConflict: cause
     })

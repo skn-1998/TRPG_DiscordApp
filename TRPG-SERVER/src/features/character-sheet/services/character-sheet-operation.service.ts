@@ -7,6 +7,7 @@ import {
   NotFoundException,
   UnprocessableEntityException
 } from '@nestjs/common'
+import type { SheetMergeConflictWire } from '@trpg/api-contract'
 import { clampDelta, EPSILON, evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
@@ -111,12 +112,7 @@ export function resolveHubPreparationErrorCode(error: unknown): string | undefin
   return undefined
 }
 
-interface MergeConflictPayload {
-  path: CharacterSheetValuePath
-  current: unknown
-  base: unknown
-  yours: unknown
-}
+type MergeConflictPayload = SheetMergeConflictWire['conflicts'][number]
 
 @Injectable()
 export class CharacterSheetOperationService {
