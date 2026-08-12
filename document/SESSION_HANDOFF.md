@@ -2667,9 +2667,22 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   証跡 = opus-review-dr1b.md。検収 = front 32/447・eslint 0・tsc 0 を Fable 再実行。
   **運用変更（2026-08-12・コミット 59e667d）**: コード委譲へ code-comment-rules 準拠の
   コメント記載を必須化（fable-rules 正本・§6-3・メモリ登録済み）。D-R1b で初適用。
-  **次 = 9-S8（エディタ layout 入力 UI）— 着手前に ST-B2 同乗判定**
-  （エディタ更新ヘルパ群を触るか実測 → 触るなら台帳 #17 前提 3 点とセット）。
-  大粒度俯瞰は §6-3 どおり feature 完了時（= D-R2 配線後の U14/U15 完了時）。
+  **9-S8-pre = 済（deb8097・ST-B2 発動）**: 事前実測で「S8 は呼び出し側の再構築式を
+  5→7 に増やす」と判明し同乗既定を発動。更新ヘルパ 5 本を produce カリー形へ
+  （挙動不変・再構築式 5→0・キャスト解消・凍結 pin = 台帳 B-21 を機械固定）。
+  **9-S8 = 済（47aacd4・2026-08-13）→ U14 の実装工程は全完了（残 = 配線と完了宣言）**:
+  preset/columns/span の Select UI（grid のみ columns/span・未設定は property 削除・
+  mount 時既定書込なし = fixture pin が機械ガード）。着手監査で指示書の受入矛盾
+  （span クリアの payload 期待 vs normalizer 具現化）を実装者が停止検出 → 裁定修正。
+  小粒度レビュー F1 = span 選択肢の正本乖離（columns 連動を読まず固定 4 択を指示 —
+  verify-claims 18b に記録）を fix で消化・F2/F3（Mantine 暗黙 deselect の破壊経路閉鎖・
+  legacy columns 引き継ぎ pin）・F4 消化。F5/F6 は許容範囲裁定で見送り。
+  変異 8 種＋負の対照で pin 固定力実証。front 448→456。
+  記録 = 並走負荷時の既存 pools spec flake 1 回（逐次で再現せず・負荷敏感性は別枠）・
+  AI.md への U14 layout 記述は feature 完了時に反映。
+  **次 = 右ペインタブ化（E3 の D-R1 待ち解除分・小スライス）→ D-R2 配線
+  （接続時条件 4 点＋台帳 D-R2 行 (e)(f) の裁定）→ U14/U15 feature 完了
+  （SESSION_HANDOFF 全面更新＋AI.md 反映＋大粒度 #17）**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
