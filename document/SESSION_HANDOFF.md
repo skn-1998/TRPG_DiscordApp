@@ -2619,7 +2619,24 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   Explore 要約未検証の誤前提〔HEAD は無条件表示〕で、実装がガード内へ移動＋spec が退行を
   pin していた — verify-claims-before-prescribing 21 へ記録。
   検収 = front 31/434 全緑＋eslint 0 を Fable 再実行）。
-  **次 = 大粒度 #16（U16-b/c/d 横断・二重レビュー Codex＋Opus）**。
+  **大粒度 #16 = 済（2026-08-12）→ キュー #12（U16 シート公開設定）クローズ**:
+  二重レビュー（Codex needs-fix medium 2／Opus blocking なし・相互矛盾 0・
+  横断不変条件〔fail-closed 全 read 経路・公開 GET 認可・404 統一・revision 不変・
+  Discord 非連動・EditClient 不変〕は両者実測で全項 ✓）。採用 5 項目 =
+  FIX-BIG16（6ee13e0: front label/color 単一 Record 化＋導出・server 422 文言の
+  schema.options 生成〔バイト同一〕・summaries/配列 read 経路の raw 未知値 spec 2 本・
+  Tooltip touch/focus・filter why コメント。変異検収は実装者と Fable が独立実測 =
+  負の対照 51/51 緑→MX1 で新 spec 1 本のみ赤→summary 迂回で table 2 件のみ赤）＋
+  FIX-LINT（b2b3514: SM-G 由来 lint error 3 件を受理/拒否 2 系分割で解消・
+  検証内容不変・server lint error 0 復帰）。不採用 = route 面 pin spec
+  （台帳 §2-2 B-20 へ規約登録）。突合 = big16-integration.md。
+  検収 = contract 26/26・server build/circular 0・全 suite 3120 緑（赤 3=L-2 のみ・
+  新 spec 3 本含む）・front 31/434・eslint 0 を Fable 再実行。
+  コミット時 formatter MM 残渣（character.service.ts・3 回目）→ restore --staged で解消。
+  **次 = キュー #9（U14 レイアウトヒント）の残工程実測**（台帳 #9 行に消化状況の
+  記載なし。renderer 本体は D-R2 レビューで実在確認済み・エディタ UI/canonical 正規化
+  H-15/fixture 3 系の有無が不明 → Explore 実測から再開。D-R1/D-R2 は完了宣言のみを
+  ブロックし実装スライスは非依存）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
