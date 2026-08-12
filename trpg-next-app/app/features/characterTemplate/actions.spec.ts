@@ -277,6 +277,55 @@ describe('characterTemplate actions', () => {
     )
   })
 
+  it('publish 503 の部分成功は更新済み revision を返し、再試行で次 revision を update して publish する', async () => {
+    const updated = { ...template, draftRevision: 8, updatedAt: '2026-08-06T01:00:00.000Z' }
+    const retriedUpdate = { ...updated, draftRevision: 9, updatedAt: '2026-08-06T02:00:00.000Z' }
+    const published = { ...retriedUpdate, status: 'published' as const, publishedAt: '2026-08-06T02:00:00.000Z' }
+    const publishError = { response: { status: 503, data: { message: '' } } }
+    mockedUpdateSheetTemplate
+      .mockResolvedValueOnce(updated)
+      .mockImplementationOnce(async (_templateId, request) => {
+        if (request.draftRevision !== updated.draftRevision) {
+          throw { response: { status: 409 } }
+        }
+        return retriedUpdate
+      })
+    mockedPublishSheetTemplate.mockRejectedValueOnce(publishError).mockResolvedValueOnce(published)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    const partialSuccess = await saveTemplateDraft('template-1', 'publish', template)
+
+    expect(partialSuccess).toEqual({
+      template: updated,
+      messages: [GENERIC_NETWORK_ERROR_MESSAGE],
+      retryable: true
+    })
+    const savedTemplate = partialSuccess.template
+    if (!savedTemplate) throw new Error('partial success did not return the updated template')
+
+    await expect(saveTemplateDraft('template-1', 'publish', savedTemplate)).resolves.toEqual({
+      template: published
+    })
+    expect(mockedUpdateSheetTemplate).toHaveBeenCalledTimes(2)
+    expect(mockedUpdateSheetTemplate.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ draftRevision: updated.draftRevision })
+    )
+    expect(mockedPublishSheetTemplate).toHaveBeenCalledTimes(2)
+  })
+
+  it('publish leg の 409 は更新済み template を返さず conflict flow を維持する', async () => {
+    const updated = { ...template, draftRevision: 8 }
+    const error = { response: { status: 409 } }
+    mockedUpdateSheetTemplate.mockResolvedValue(updated)
+    mockedPublishSheetTemplate.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['draftRevision が競合しました'])
+
+    await expect(saveTemplateDraft('template-1', 'publish', template)).resolves.toEqual({
+      conflict: true,
+      messages: ['draftRevision が競合しました']
+    })
+  })
+
   it('saveTemplateDraft の 409 は conflict true と抽出メッセージを返す', async () => {
     const error = { response: { status: 409 } }
     mockedUpdateSheetTemplate.mockRejectedValue(error)

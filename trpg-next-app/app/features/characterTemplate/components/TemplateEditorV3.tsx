@@ -405,6 +405,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
+  const inFlightRef = useRef(false)
   const lastSavedSignatureRef = useRef(
     createSaveSignature(initialTemplate, stringifyTables(initialTemplate.tables))
   )
@@ -437,86 +438,100 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
 
   const submitDraft = useCallback(
     async (intent: EditorIntent) => {
-      setSaveFailure(null)
-
-      let payload: CharacterSheetTemplateEntity
-      try {
-        payload = buildPayload()
-        const localErrors = validateLocalTemplate(payload)
-        if (localErrors.length > 0) {
-          setValidationMessages([])
-          setSaveFailure({ kind: 'local', signature: editorSignature, messages: localErrors })
-          setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
-          return
-        }
-      } catch (error) {
-        setValidationMessages([])
-        setSaveFailure({
-          kind: 'local',
-          signature: editorSignature,
-          messages: [error instanceof Error ? error.message : '保存 payload の作成に失敗しました']
-        })
-        setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
-        return
-      }
-
-      const signature = editorSignature
-      pendingSignatureRef.current = signature
-      setValidationMessages([])
-      setSaveState((current) => (current === 'conflict' ? current : 'saving'))
-      setInFlightIntent(intent)
+      if (inFlightRef.current) return
+      inFlightRef.current = true
 
       try {
-        const actionResult = await saveTemplateDraft(template.templateId, intent, payload)
-        const messages = actionResult.messages ?? []
-
-        if (actionResult.conflict) {
-          setSaveFailure({ kind: 'conflict', signature, messages })
-          setSaveState('conflict')
-          return
-        }
-        if (!actionResult.template) {
-          pendingSignatureRef.current = null
-          setSaveFailure(
-            actionResult.retryable
-              ? { kind: 'retryable', signature, intent, messages }
-              : { kind: 'permanent', signature, messages }
-          )
-          setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
-          return
-        }
-
-        const returned = actionResult.template
-        const currentSignature = createSaveSignature(templateRef.current, tablesTextRef.current)
-        const pendingSignature = pendingSignatureRef.current
-        lastSavedSignatureRef.current =
-          pendingSignature ?? createSaveSignature(returned, stringifyTables(returned.tables))
-        pendingSignatureRef.current = null
         setSaveFailure(null)
 
-        if (pendingSignature && currentSignature !== pendingSignature) {
-          setTemplate((current) => ({
-            ...current,
-            draftRevision: returned.draftRevision,
-            updatedAt: returned.updatedAt
-          }))
-          setSaveState('dirty')
+        let payload: CharacterSheetTemplateEntity
+        try {
+          payload = buildPayload()
+          const localErrors = validateLocalTemplate(payload)
+          if (localErrors.length > 0) {
+            setValidationMessages([])
+            setSaveFailure({ kind: 'local', signature: editorSignature, messages: localErrors })
+            setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
+            return
+          }
+        } catch (error) {
+          setValidationMessages([])
+          setSaveFailure({
+            kind: 'local',
+            signature: editorSignature,
+            messages: [error instanceof Error ? error.message : '保存 payload の作成に失敗しました']
+          })
+          setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
           return
         }
 
-        setTemplate(returned)
-        setTablesText(stringifyTables(returned.tables))
-        setSaveState('saved')
-      } catch {
-        pendingSignatureRef.current = null
-        setSaveFailure({
-          kind: 'retryable',
-          signature,
-          intent,
-          messages: [GENERIC_NETWORK_ERROR_MESSAGE]
-        })
-        setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
+        const signature = editorSignature
+        pendingSignatureRef.current = signature
+        setValidationMessages([])
+        setSaveState((current) => (current === 'conflict' ? current : 'saving'))
+        setInFlightIntent(intent)
+
+        try {
+          const actionResult = await saveTemplateDraft(template.templateId, intent, payload)
+          const messages = actionResult.messages ?? []
+
+          if (actionResult.conflict) {
+            setSaveFailure({ kind: 'conflict', signature, messages })
+            setSaveState('conflict')
+            return
+          }
+          if (!actionResult.template) {
+            pendingSignatureRef.current = null
+            setSaveFailure(
+              actionResult.retryable
+                ? { kind: 'retryable', signature, intent, messages }
+                : { kind: 'permanent', signature, messages }
+            )
+            setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
+            return
+          }
+
+          const returned = actionResult.template
+          const currentSignature = createSaveSignature(templateRef.current, tablesTextRef.current)
+          const pendingSignature = pendingSignatureRef.current
+          lastSavedSignatureRef.current =
+            pendingSignature ?? createSaveSignature(returned, stringifyTables(returned.tables))
+          pendingSignatureRef.current = null
+          // actions は「template あり ∧ messages 非空」を部分成功として返す。
+          // draft は保存済みで publish leg だけが失敗した状態なので、保存済み表示のまま失敗も併記する。
+          setSaveFailure(
+            messages.length === 0
+              ? null
+              : actionResult.retryable
+                ? { kind: 'retryable', signature, intent, messages }
+                : { kind: 'permanent', signature, messages }
+          )
+
+          if (pendingSignature && currentSignature !== pendingSignature) {
+            setTemplate((current) => ({
+              ...current,
+              draftRevision: returned.draftRevision,
+              updatedAt: returned.updatedAt
+            }))
+            setSaveState('dirty')
+            return
+          }
+
+          setTemplate(returned)
+          setTablesText(stringifyTables(returned.tables))
+          setSaveState('saved')
+        } catch {
+          pendingSignatureRef.current = null
+          setSaveFailure({
+            kind: 'retryable',
+            signature,
+            intent,
+            messages: [GENERIC_NETWORK_ERROR_MESSAGE]
+          })
+          setSaveState((current) => (current === 'conflict' ? current : 'dirty'))
+        }
       } finally {
+        inFlightRef.current = false
         setInFlightIntent(null)
       }
     },
@@ -657,7 +672,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           <Button
             variant="outline"
             leftSection={<IconDeviceFloppy size={16} />}
-            loading={isSaving && inFlightIntent !== 'publish'}
+            loading={isSaving}
             onClick={() => void submitDraft('save')}
           >
             保存

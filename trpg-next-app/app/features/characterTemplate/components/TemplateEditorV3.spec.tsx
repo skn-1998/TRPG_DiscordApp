@@ -359,7 +359,6 @@ describe('TemplateEditorV3 autosave', () => {
       retryable: true
     })
     renderEditor()
-
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'publish' }))
     })
@@ -369,6 +368,85 @@ describe('TemplateEditorV3 autosave', () => {
 
     expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
     expect(mockedSaveTemplateDraft.mock.calls.map(([, intent]) => intent)).toEqual(['publish', 'publish'])
+  })
+
+  it('publish の部分成功は保存済みと失敗を併記し、更新後 revision で publish を再試行する', async () => {
+    const updated = { ...initialTemplate, draftRevision: 2, updatedAt: '2026-08-06T01:00:00.000Z' }
+    mockedSaveTemplateDraft.mockResolvedValueOnce({
+      template: updated,
+      messages: ['一時的に publish できません'],
+      retryable: true
+    })
+    renderEditor()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+    })
+
+    expect(screen.getByText('保存しました。')).toBeTruthy()
+    expect(screen.getByText('draftRevision 2 / schemaVersion 3')).toBeTruthy()
+    expect(screen.getByText('一時的に publish できません')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '再試行' })).toBeTruthy()
+    await advanceAutosave(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(2)
+    expect(mockedSaveTemplateDraft.mock.calls.map(([, intent]) => intent)).toEqual(['publish', 'publish'])
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].draftRevision).toBe(updated.draftRevision)
+  })
+
+  it.each([
+    ['publish 連打', 'publish'],
+    ['publish 中の保存押下', '保存']
+  ])('%s は同一 tick に UI disabled を迂回しても送信を 1 回だけ開始する', async (_caseName, secondButtonName) => {
+    let resolveSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
+    mockedSaveTemplateDraft.mockImplementationOnce(
+      () =>
+        new Promise<Awaited<ReturnType<typeof saveTemplateDraft>>>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    renderEditor()
+    const publishButton = screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement
+    const secondButton = screen.getByRole('button', { name: secondButtonName }) as HTMLButtonElement
+
+    act(() => {
+      publishButton.click()
+      secondButton.disabled = false
+      secondButton.click()
+    })
+
+    expect(mockedSaveTemplateDraft).toHaveBeenCalledTimes(1)
+    const payload = mockedSaveTemplateDraft.mock.calls[0]?.[2]
+    if (!payload) throw new Error('publish payload was not captured')
+    await act(async () => {
+      resolveSave({ template: { ...payload, draftRevision: payload.draftRevision + 1 } })
+    })
+  })
+
+  it('全 intent の in-flight 中は保存と publish の両ボタンを無効化する', async () => {
+    let resolveSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
+    mockedSaveTemplateDraft.mockImplementationOnce(
+      () =>
+        new Promise<Awaited<ReturnType<typeof saveTemplateDraft>>>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    renderEditor()
+
+    fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+
+    expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement).disabled).toBe(true)
+    const payload = mockedSaveTemplateDraft.mock.calls[0]?.[2]
+    if (!payload) throw new Error('publish payload was not captured')
+    await act(async () => {
+      resolveSave({ template: { ...payload, draftRevision: payload.draftRevision + 1 } })
+    })
   })
 
   it('422 の恒久エラーには再試行ボタンも再試行の案内も出さない', async () => {
