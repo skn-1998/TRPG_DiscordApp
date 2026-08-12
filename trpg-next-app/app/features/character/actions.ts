@@ -1,6 +1,10 @@
 'use server'
 
-import { sheetMergeConflictSchema, type SheetMergeConflictWire } from '@trpg/api-contract'
+import {
+  sheetMergeConflictSchema,
+  type CharacterSheetVisibility,
+  type SheetMergeConflictWire
+} from '@trpg/api-contract'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireJwt } from '../../lib/auth-guard.server'
@@ -14,7 +18,8 @@ import {
 import {
   getUserCharacterSummaries,
   saveCharacterSheet,
-  type CharacterSheetChange
+  type CharacterSheetChange,
+  updateCharacterSheetVisibility
 } from './api/character.service.server'
 import { GENERIC_SHEET_CONFLICT_MESSAGE } from './sheet-edit'
 
@@ -25,6 +30,25 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
     await getUserCharacterSummaries()
     revalidatePath('/user/character')
     return { error: null }
+  } catch (error) {
+    const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
+    return {
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
+    }
+  }
+}
+
+export async function updateSheetVisibility(
+  characterId: string,
+  visibility: CharacterSheetVisibility
+): Promise<{ visibility: CharacterSheetVisibility } | { error: string }> {
+  await requireJwt()
+
+  try {
+    const result = await updateCharacterSheetVisibility(characterId, visibility)
+    revalidatePath('/user/character')
+    return { visibility: result.visibility }
   } catch (error) {
     const status = getResponseStatus(error)
     const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)

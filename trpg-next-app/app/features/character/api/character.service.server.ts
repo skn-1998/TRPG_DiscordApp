@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type {
+  CharacterSheetVisibility,
   CharacterSummaryWire,
   CharacterWire,
   CreateCharacterFromTemplateResultWire,
@@ -13,6 +14,10 @@ export interface CharacterSheetChange {
   path: { fieldUid: string; partsKey?: string }
   baseValue: unknown
   newValue: unknown
+}
+
+interface UpdateCharacterSheetVisibilityResult {
+  visibility: CharacterSheetVisibility
 }
 
 export async function createCharacterFromTemplate(input: {
@@ -46,6 +51,17 @@ export async function saveCharacterSheet(input: {
   const response = await apiClient.put<SuccessEnvelope<SaveCharacterSheetResultWire>>(
     `/character/${input.characterId}/sheet`,
     { baseRevision: input.baseRevision, changes: input.changes }
+  )
+  return response.data.data
+}
+
+export async function updateCharacterSheetVisibility(
+  characterId: string,
+  visibility: CharacterSheetVisibility
+): Promise<UpdateCharacterSheetVisibilityResult> {
+  const response = await apiClient.put<SuccessEnvelope<UpdateCharacterSheetVisibilityResult>>(
+    `/character/${characterId}/sheet/visibility`,
+    { visibility }
   )
   return response.data.data
 }

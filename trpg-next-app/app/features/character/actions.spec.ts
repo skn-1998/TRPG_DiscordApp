@@ -4,6 +4,10 @@ jest.mock('next/navigation', () => ({
   redirect: jest.fn()
 }))
 
+jest.mock('next/cache', () => ({
+  revalidatePath: jest.fn()
+}))
+
 jest.mock('../../lib/auth-guard.server', () => ({
   requireJwt: jest.fn()
 }))
@@ -15,15 +19,22 @@ jest.mock('../../lib/api-response.util', () => ({
 
 jest.mock('./api/character.service.server', () => ({
   getUserCharacterSummaries: jest.fn(),
-  saveCharacterSheet: jest.fn()
+  saveCharacterSheet: jest.fn(),
+  updateCharacterSheetVisibility: jest.fn()
 }))
 
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { extractApiErrorMessages, GENERIC_NETWORK_ERROR_MESSAGE } from '../../lib/api-response.util'
 import { requireJwt } from '../../lib/auth-guard.server'
-import { getUserCharacterSummaries, saveCharacterSheet } from './api/character.service.server'
-import { refreshCharacterList, saveSheet } from './actions'
+import {
+  getUserCharacterSummaries,
+  saveCharacterSheet,
+  updateCharacterSheetVisibility
+} from './api/character.service.server'
+import { refreshCharacterList, saveSheet, updateSheetVisibility } from './actions'
 
+const mockedRevalidatePath = jest.mocked(revalidatePath)
 const mockedRedirect = jest.mocked(redirect)
 const mockedRequireJwt = jest.mocked(requireJwt)
 const mockedExtractApiErrorMessages = jest.mocked(extractApiErrorMessages)
@@ -32,6 +43,7 @@ const actualExtractApiErrorMessages = jest.requireActual<typeof import('../../li
 ).extractApiErrorMessages
 const mockedGetUserCharacterSummaries = jest.mocked(getUserCharacterSummaries)
 const mockedSaveCharacterSheet = jest.mocked(saveCharacterSheet)
+const mockedUpdateCharacterSheetVisibility = jest.mocked(updateCharacterSheetVisibility)
 
 beforeEach(() => {
   mockedRequireJwt.mockResolvedValue(undefined)
@@ -69,6 +81,64 @@ describe('refreshCharacterList', () => {
       error: GENERIC_NETWORK_ERROR_MESSAGE
     })
     expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+  })
+})
+
+describe('updateSheetVisibility', () => {
+  it('更新成功時は server 応答の visibility を返して一覧を再検証する', async () => {
+    mockedUpdateCharacterSheetVisibility.mockResolvedValue({ visibility: 'public' })
+
+    await expect(updateSheetVisibility('character-1', 'public')).resolves.toEqual({ visibility: 'public' })
+
+    expect(mockedRequireJwt).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateCharacterSheetVisibility).toHaveBeenCalledWith('character-1', 'public')
+    expect(mockedRevalidatePath).toHaveBeenCalledWith('/user/character')
+  })
+
+  it('response のないネットワーク断は内部情報を含まない定型文を返す', async () => {
+    const error = new Error('connect ECONNREFUSED 127.0.0.1:3000')
+    mockedUpdateCharacterSheetVisibility.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['connect ECONNREFUSED 127.0.0.1:3000'])
+
+    await expect(updateSheetVisibility('character-1', 'public')).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('API の message が空でも定型文へフォールバックする', async () => {
+    const error = { response: { status: 503, data: { message: '' } } }
+    mockedUpdateCharacterSheetVisibility.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(updateSheetVisibility('character-1', 'public')).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('422 相当の応答は抽出した検証エラーを返す', async () => {
+    const error = {
+      response: {
+        status: 422,
+        data: {
+          success: false,
+          message: 'リクエストの処理に失敗しました',
+          timestamp: 1,
+          error: 'visibility must be private or public'
+        }
+      }
+    }
+    mockedUpdateCharacterSheetVisibility.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockImplementation(actualExtractApiErrorMessages)
+
+    await expect(updateSheetVisibility('character-1', 'public')).resolves.toEqual({
+      error: 'visibility must be private or public'
+    })
+    expect(mockedExtractApiErrorMessages).toHaveBeenCalledWith(error)
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
   })
 })
 

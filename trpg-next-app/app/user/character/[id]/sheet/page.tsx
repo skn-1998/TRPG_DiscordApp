@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCharacter } from '../../../../features/character/api/character.service.server'
 import { CharacterSheetEditClient } from '../../../../features/character/components/CharacterSheetEditClient'
+import { SheetVisibilityToggle } from '../../../../features/character/components/SheetVisibilityToggle'
 import { getSheetTemplate } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
 import { getResponseStatus } from '../../../../lib/api-response.util'
 import { requireJwt } from '../../../../lib/auth-guard.server'
@@ -45,5 +46,15 @@ export default async function CharacterSheetPage({ params }: CharacterSheetPageP
   }
 
   const template = await loadOrRedirectOnAuthFailure(getSheetTemplate(character.sheet.templateId))
-  return <CharacterSheetEditClient character={character} template={template} />
+  return (
+    <Stack gap={0}>
+      <Container size="sm" pt="xl" w="100%">
+        <SheetVisibilityToggle
+          characterId={character.characterId}
+          initialVisibility={character.sheet.visibility}
+        />
+      </Container>
+      <CharacterSheetEditClient character={character} template={template} />
+    </Stack>
+  )
 }

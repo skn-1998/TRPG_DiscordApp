@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { getGameSystemNameById } from '../../../lib/gameSystem'
 import { loadDiscordServers, postCharacterToDiscord } from '../../discord/actions'
+import { SHEET_VISIBILITY_LABELS, SHEET_VISIBILITY_NOTICE } from '../sheet-visibility'
 
 interface DiscordServerSelectOption {
   value: string
@@ -100,13 +101,20 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
           <Text fw={500} size="lg" lineClamp={1}>
             {character.characterName}
           </Text>
-          {character.templateVersion && (
-            <Tooltip label="テンプレート更新に自動追従しない" withArrow>
-              <Badge variant="light" color="accent">
-                template v{character.templateVersion}
+          <Group gap="xs">
+            <Tooltip label={SHEET_VISIBILITY_NOTICE} withArrow>
+              <Badge variant="light" color={character.visibility === 'public' ? 'green' : 'gray'}>
+                {SHEET_VISIBILITY_LABELS[character.visibility]}
               </Badge>
             </Tooltip>
-          )}
+            {character.templateVersion && (
+              <Tooltip label="テンプレート更新に自動追従しない" withArrow>
+                <Badge variant="light" color="accent">
+                  template v{character.templateVersion}
+                </Badge>
+              </Tooltip>
+            )}
+          </Group>
         </Group>
 
         <Text size="sm" c="dimmed" mb="xs">
@@ -120,18 +128,16 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
         )}
 
         <Group justify="space-between" mt="auto">
-          {character.hub && (
-            <Button
-              component={Link}
-              href={`/user/character/${character.characterId}/sheet`}
-              size="xs"
-              variant="outline"
-              leftSection={<IconPencil size={14} />}
-              onClick={(event) => event.stopPropagation()}
-            >
-              シート編集
-            </Button>
-          )}
+          <Button
+            component={Link}
+            href={`/user/character/${character.characterId}/sheet`}
+            size="xs"
+            variant="outline"
+            leftSection={<IconPencil size={14} />}
+            onClick={(event) => event.stopPropagation()}
+          >
+            シート編集
+          </Button>
           <ActionIcon
             aria-label="Discord サーバーに追加"
             variant="light"

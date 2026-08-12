@@ -20,6 +20,7 @@ export default defineConfig([
                 'LoginDataWire',
                 'CharacterDeleteResultWire',
                 'CharacterHubStatusWire',
+                'CharacterSheetVisibility',
                 'CharacterSummaryWire',
                 'CharacterWire',
                 'CreateCharacterFromTemplateResultWire',
