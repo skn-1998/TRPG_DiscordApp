@@ -2548,6 +2548,16 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   retryable 分類＋手動再試行＋catch 分岐のハードコード文言を
   GENERIC_NETWORK_ERROR_MESSAGE へ一本化。conflict/publish/成功経路の
   signature 突合は不変条件。
+  **SM-8b = 検収・コミット `a6acf46` → キュー #11 の着手可能分クローズ**
+  （残 = SM-F の L-2 裁定待ちのみ）。Codex 実装＋Fable 差し戻し 2 巡
+  （①失敗中バナーが「autosave 待機中」と偽る → 失敗文言へ分岐・
+  ②422 で存在しない再試行ボタンに言及 → 恒久側文言へ分岐）＋
+  最終追補（messages 空配列の実在経路 — body {message:''} で split→filter が
+  空を返すことを実 extract 実装で証明 — を定型文フォールバックで閉鎖）。
+  負の対照 4 本。独立ゲート = front 29/29 suites・398/398 tests（+10）・
+  eslint 0・typecheck 緑。
+  **次 = キュー #12 U16（シート公開設定）の第 1 スライス設計**。
+  大粒度 #15 は U16 第 1 スライス後（SM-14b・SM-8b・U16-1 の 3 本）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
