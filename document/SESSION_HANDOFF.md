@@ -2571,6 +2571,12 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   summaries は独立 mapper で別スライス・DiscordProjectionInput は
   visibility 非受領を型で確認）。required 化裁定の理由 = optional だと
   front まで undefined が漏れる（cross-package runtime 盲点メモリと同根）。
+  **U16-a = 検収・コミット `c51b1fa`**: 23 ファイル 233 行・逸脱なし。
+  独立ゲート = contract 25/25・server build＋circular 0・server focused
+  149/152（赤 3 = 未変更 L-2 再現 spec の意図的赤のみと確認）・front 398/398。
+  コミットは長コマンド EOF 破損を pathspec-from-file 方式で回避（メモリ追記済み）。
+  **次 = 大粒度 #15（SM-14b・SM-8b・U16-a 横断）の二重レビュー**。
+  その後 U16-b（summary read model）→ c（保存専用操作）→ d（renderer）。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
