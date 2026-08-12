@@ -35,6 +35,11 @@ import {
 } from '@tabler/icons-react'
 import {
   normalizeTemplateLayout,
+  isSimpleField,
+  resolveSectionLayout,
+  SHEET_FIELD_LAYOUT_SPANS,
+  SHEET_SECTION_GRID_COLUMNS,
+  SHEET_SECTION_LAYOUT_PRESETS,
   type ConstraintSource,
   validatePublishTemplate,
   validateStandaloneRollNotations
@@ -70,6 +75,15 @@ interface TemplateEditorV3Props {
 export const AUTOSAVE_DEBOUNCE_MS = 1800
 
 type ConstraintInputMode = 'number' | 'formula'
+type SectionLayoutPreset = (typeof SHEET_SECTION_LAYOUT_PRESETS)[number]
+type SectionGridColumns = (typeof SHEET_SECTION_GRID_COLUMNS)[number]
+type FieldLayoutSpan = (typeof SHEET_FIELD_LAYOUT_SPANS)[number]
+
+const SECTION_LAYOUT_PRESET_OPTIONS = SHEET_SECTION_LAYOUT_PRESETS.map((value) => ({ value, label: value }))
+const SECTION_GRID_COLUMNS_OPTIONS = SHEET_SECTION_GRID_COLUMNS.map((value) => ({
+  value: String(value),
+  label: String(value)
+}))
 
 type SaveFailure =
   | { kind: 'retryable'; signature: string; intent: EditorIntent; messages: string[] }
@@ -422,6 +436,26 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     () => activeSection?.fields.find((field) => field.uid === selectedFieldUid),
     [activeSection, selectedFieldUid]
   )
+  const activeSectionLayout =
+    typeof activeSection?.layout === 'object' && activeSection.layout !== null
+      ? (activeSection.layout as Record<string, unknown>)
+      : undefined
+  // Invariant: resolver の既定値は表示条件にだけ使い、明示的な Select 操作までは state に具現化しない。
+  const resolvedActiveSectionLayout = resolveSectionLayout(activeSection?.layout)
+  const selectedSectionLayoutPreset =
+    SHEET_SECTION_LAYOUT_PRESETS.find((preset) => preset === activeSectionLayout?.preset) ?? null
+  const selectedSectionGridColumns =
+    SHEET_SECTION_GRID_COLUMNS.find((columns) => columns === activeSectionLayout?.columns) ?? null
+  const selectedFieldLayoutSpan =
+    SHEET_FIELD_LAYOUT_SPANS.find((span) => span === selectedField?.layout?.span) ?? null
+  // 正本 design-v1-ui.md のレイアウトヒント語彙は span を「1〜columns−1 ＋ 全幅」と定める。
+  // columns 以上の span は描画時に full へ clamp されるため、選ばせても別の結果にならない。
+  const fieldLayoutSpanOptions =
+    resolvedActiveSectionLayout.mode === 'grid'
+      ? SHEET_FIELD_LAYOUT_SPANS.filter(
+          (span) => span === 'full' || span < resolvedActiveSectionLayout.columns
+        ).map((span) => ({ value: String(span), label: String(span) }))
+      : []
 
   const isSaving = inFlightIntent !== null
   const editorSignature = useMemo(() => createSaveSignature(template, tablesText), [tablesText, template])
@@ -582,6 +616,68 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           for (const field of section.fields) {
             if (field.uid === fieldUid) Object.assign(field, patch)
           }
+        }
+      })
+    )
+  }
+
+  const updateSectionLayout = (
+    sectionId: string,
+    update: { preset: SectionLayoutPreset | null } | { columns: SectionGridColumns | null }
+  ) => {
+    setTemplate(
+      produce((draft) => {
+        const section = draft.sections.find((candidate) => candidate.id === sectionId)
+        if (!section) return
+
+        if ('preset' in update) {
+          if (update.preset === null) {
+            delete section.layout
+            return
+          }
+
+          // この UI から preset なしの columns へは到達しない。H-9 が「preset キーを持たない layout は
+          // 無視して stack 扱い」と決めた legacy/外部 JSON の columns を、grid 化で捨てないための引き継ぎ。
+          const currentLayout =
+            typeof section.layout === 'object' && section.layout !== null
+              ? (section.layout as Record<string, unknown>)
+              : undefined
+          const currentColumns = SHEET_SECTION_GRID_COLUMNS.find(
+            (columns) => columns === currentLayout?.columns
+          )
+          section.layout =
+            update.preset === 'grid' && currentColumns !== undefined
+              ? { preset: update.preset, columns: currentColumns }
+              : { preset: update.preset }
+          return
+        }
+
+        if (resolveSectionLayout(section.layout).mode !== 'grid') return
+        const layout = section.layout as { preset: 'grid'; columns?: SectionGridColumns }
+        if (update.columns === null) delete layout.columns
+        else layout.columns = update.columns
+      })
+    )
+  }
+
+  const updateFieldLayout = (fieldUid: string, span: FieldLayoutSpan | null) => {
+    setTemplate(
+      produce((draft) => {
+        for (const section of draft.sections) {
+          const field = section.fields.find((candidate) => candidate.uid === fieldUid)
+          if (!field) continue
+
+          if (span === null) {
+            // Invariant: clear は editor state から削除し、保存境界での既定値具現化とは分離する。
+            if (!field.layout) return
+            delete field.layout.span
+            if (Object.keys(field.layout).length === 0) delete field.layout
+            return
+          }
+
+          if (!field.layout) field.layout = {}
+          field.layout.span = span
+          return
         }
       })
     )
@@ -892,6 +988,40 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                   onChange={(pools) => updateSection(activeSection.id, { pools })}
                 />
 
+                <Group grow align="end">
+                  <Select
+                    label="レイアウトプリセット"
+                    placeholder="未選択（既定 stack）"
+                    data={SECTION_LAYOUT_PRESET_OPTIONS}
+                    clearable
+                    allowDeselect={false}
+                    clearButtonProps={{ 'aria-label': '配置設定を初期化' }}
+                    value={selectedSectionLayoutPreset}
+                    onChange={(value) =>
+                      updateSectionLayout(activeSection.id, {
+                        preset: SHEET_SECTION_LAYOUT_PRESETS.find((preset) => preset === value) ?? null
+                      })
+                    }
+                  />
+                  {resolvedActiveSectionLayout.mode === 'grid' ? (
+                    <Select
+                      label="グリッド列数"
+                      placeholder="未選択（既定 2）"
+                      data={SECTION_GRID_COLUMNS_OPTIONS}
+                      clearable
+                      allowDeselect={false}
+                      clearButtonProps={{ 'aria-label': '列設定を初期化' }}
+                      value={selectedSectionGridColumns === null ? null : String(selectedSectionGridColumns)}
+                      onChange={(value) =>
+                        updateSectionLayout(activeSection.id, {
+                          columns:
+                            SHEET_SECTION_GRID_COLUMNS.find((columns) => String(columns) === value) ?? null
+                        })
+                      }
+                    />
+                  ) : null}
+                </Group>
+
                 <Divider />
 
                 <Group align="end">
@@ -994,6 +1124,23 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     })
                   }
                 />
+                {isSimpleField(selectedField) && resolvedActiveSectionLayout.mode === 'grid' ? (
+                  <Select
+                    label="表示幅"
+                    placeholder="未選択（既定 1）"
+                    data={fieldLayoutSpanOptions}
+                    clearable
+                    allowDeselect={false}
+                    clearButtonProps={{ 'aria-label': '幅指定を初期化' }}
+                    value={selectedFieldLayoutSpan === null ? null : String(selectedFieldLayoutSpan)}
+                    onChange={(value) =>
+                      updateFieldLayout(
+                        selectedField.uid,
+                        SHEET_FIELD_LAYOUT_SPANS.find((span) => String(span) === value) ?? null
+                      )
+                    }
+                  />
+                ) : null}
                 {selectedField.type === 'scalar' && selectedField.valueType === 'number' && (
                   <>
                     <ConstraintInput
