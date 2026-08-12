@@ -2470,6 +2470,38 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   **次 = SM-14（データ 4 状態・design-v1-ui.md:481-485）**。その後 SM-8b
   （エディタ autosave への 5 要素適用）→ キュー #12 U16。大粒度 #14 は
   #13 から 3 スライス後（SM-8a が 1 本目）。
+  **SM-14a 委譲済み・走行中（prompt-sm-14a.md）**: character レーン 2 route の
+  loading.tsx（skeleton）＋error.tsx（定型文＋reset() 再試行・生 error.message
+  非露出）新設と、getCharacterListData の畳み込み解消
+  （Fable 実測: API 失敗が空一覧＋isAuthenticated:false に畳まれ page が error を
+  捨てる = :485 の 1 セル畳み込み違反。裁定 = JWT なし/401/403 は未認証 soft degrade
+  セル維持・その他は re-throw で取得失敗セルへ分離。既存 spec :64 の旧 app 契約 pin は
+  置き換え）。SM-10 の空 CTA・templates レーン・404 notFound 化は out-of-scope。
+  **SM-14a 返着・検収・コミット = `813beb1`（2026-08-12）**: +180/−6・逸脱なし。
+  loading/error 各 2 route 新設・getCharacterListData は 401/403 のみ soft degrade で
+  他は re-throw・生 error.message 非露出と reset 呼び出しを spec 7 件で固定。
+  独立ゲート = front 全体 22/22 suites・357/357 tests・eslint 0。
+  **小粒度レビュー（Opus read-only）= needs-fix（証跡 = opus-review-sm-14a.md）**:
+  変異検証 5 種全 kill・不変条件全充足だが high 2。
+  **F-1 = reset() は Next 16 では再 fetch せず手動再試行が空振り**（Fable が
+  error-boundary.js:16-25/:87-91 を実読で裏取り — errorComponent には reset と別に
+  retry〔refresh＋reset〕が渡されている）→ retry へ配線替え。
+  **F-2 = backend 全断のハードロードでは /user layout の getAuthState が全例外を
+  握って /login へ redirect し取得失敗セルに到達しない**（soft nav では機能する。
+  公開ページの soft degrade と共存設計が要るため独立スライス SM-14c へ分離）。
+  F-4（sheet の 401/403 誤誘導。requireJwt は cookie 存在チェックのみ = 期限切れの
+  通常経路、を Fable 追加実測）・F-3 最小（refreshCharacterList の生文字列）・
+  F-5（dead field 削除）・認知負荷 1a/1b（error セル共有化＋定数 co-locate）を採用、
+  F-6 は却下。**SM-14a-FIX 返着・検収・コミット = `8afae4e`**: 5 項目全消化
+  （retry 配線＋retry1/reset0 の spec pin・共有セル CharacterDataLoadError 新設＋
+  定数 co-locate・sheet 401/403 → /login・refreshCharacterList 定型文化・
+  dead field 削除）。独立ゲート = front 22/22 suites・361/361 tests（+4）・eslint 0。
+  **次 = SM-14c（F-2 消化・3 本目のスライス）**: getAuthState は throw せず
+  degraded フラグ返却（cache() が全消費者に同一結果を配るため throw は公開面の
+  soft degrade を壊す）・/user layout のみフラグで throw・root app/error.tsx
+  （共有セル再利用）で受ける。auth-state spec :61 の「throw せず logged-out」pin は
+  分類形へ置き換え。その後大粒度 #14（SM-8a・SM-14a+FIX・SM-14c 横断）→
+  SM-14b（templates レーン）→ SM-8b → キュー #12 U16。
   D2b 設計は prompt-sm-d2-draft.md へ追記済み（baseline を EditorValue レベルで state 化 →
   theirs/mine とも baseline[uid]=current・mine は values 維持で再送 baseValue=current が
   server 決定表 2 で通る = SM-15 と一対一）。
