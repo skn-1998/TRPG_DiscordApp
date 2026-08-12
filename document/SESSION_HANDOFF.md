@@ -2653,6 +2653,23 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   触るなら台帳 #17 の前提 3 点とセット）→ 右ペインタブ化 → D-R2 配線
   （接続時条件 4 点・regression）→ U14/U15 完了宣言 → 大粒度 #17（3 スライス毎）**。
   D-R1a を委譲起動済み。
+  **D-R1a = 済（de4be 相当・characterization 11 tests・front 445）→
+  D-R1b = 済（5048257・2026-08-12）**: preview の field widget を TFR へ委譲
+  （scalar フル実装 2→1・repo 全体 3→2 = EditClient 部分実装は D-R2 まで残存）。
+  TFR 拡張は renderField override 1 本のみ（roll 専用に縮小・computed は
+  entity 生 formula のデータ加工＋Error 値供給で既定描画）。
+  AI.md 4 本目の辺＋eslint 同期。小粒度レビュー（Opus）high 2/medium 5 を
+  fix で消化 — H1 式表示の正規化変質（生 formula へ復帰＋参照つき pin）・
+  H2 clear 乖離の表示 pin 復元（挙動は 15b(d) 整合で維持）・M4 override 縮小・
+  M1 roll 成功 pin（overlay 順序の変異実証）・M2 死にガード整理。
+  起票 = CSS mock 3 複製（jest config 化・低優先）・h2 二重表示（S8/タブ化で整理）・
+  labelledBy 契約と characterSheet 移設代替（D-R2 配線時に裁定 = 台帳 D-R2 行 (e)(f)）。
+  証跡 = opus-review-dr1b.md。検収 = front 32/447・eslint 0・tsc 0 を Fable 再実行。
+  **運用変更（2026-08-12・コミット 59e667d）**: コード委譲へ code-comment-rules 準拠の
+  コメント記載を必須化（fable-rules 正本・§6-3・メモリ登録済み）。D-R1b で初適用。
+  **次 = 9-S8（エディタ layout 入力 UI）— 着手前に ST-B2 同乗判定**
+  （エディタ更新ヘルパ群を触るか実測 → 触るなら台帳 #17 前提 3 点とセット）。
+  大粒度俯瞰は §6-3 どおり feature 完了時（= D-R2 配線後の U14/U15 完了時）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
