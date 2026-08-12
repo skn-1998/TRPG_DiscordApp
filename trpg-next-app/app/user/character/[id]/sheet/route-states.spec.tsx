@@ -11,7 +11,23 @@ jest.mock('../../../../features/character/api/character.service.server', () => (
 }))
 
 jest.mock('../../../../features/character/components/CharacterSheetEditClient', () => ({
-  CharacterSheetEditClient: () => null
+  CharacterSheetEditClient: () => <div data-testid="sheet-editor" />
+}))
+
+jest.mock('../../../../features/character/components/SheetVisibilityToggle', () => ({
+  SheetVisibilityToggle: ({
+    characterId,
+    initialVisibility
+  }: {
+    characterId: string
+    initialVisibility: string
+  }) => (
+    <div
+      data-testid="sheet-visibility-toggle"
+      data-character-id={characterId}
+      data-visibility={initialVisibility}
+    />
+  )
 }))
 
 jest.mock('../../../../features/characterTemplate/api/sheetTemplateApi.server', () => ({
@@ -69,7 +85,7 @@ describe('character sheet route states', () => {
   })
 })
 
-describe('character sheet page auth failures', () => {
+describe('character sheet page', () => {
   beforeEach(() => {
     mockedRedirect.mockReset()
     mockedGetCharacter.mockReset()
@@ -106,5 +122,25 @@ describe('character sheet page auth failures', () => {
       CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
     ).rejects.toBe(serverError)
     expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('公開設定を初期値付きでシート編集 UI の前に配置する', async () => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        visibility: 'public'
+      }
+    } as never)
+    mockedGetSheetTemplate.mockResolvedValue({} as never)
+
+    const page = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    render(<MantineProvider>{page}</MantineProvider>)
+
+    const visibilityToggle = screen.getByTestId('sheet-visibility-toggle')
+    const sheetEditor = screen.getByTestId('sheet-editor')
+    expect(visibilityToggle.getAttribute('data-character-id')).toBe('character-1')
+    expect(visibilityToggle.getAttribute('data-visibility')).toBe('public')
+    expect(visibilityToggle.compareDocumentPosition(sheetEditor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
