@@ -2680,9 +2680,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   変異 8 種＋負の対照で pin 固定力実証。front 448→456。
   記録 = 並走負荷時の既存 pools spec flake 1 回（逐次で再現せず・負荷敏感性は別枠）・
   AI.md への U14 layout 記述は feature 完了時に反映。
-  **次 = 右ペインタブ化（E3 の D-R1 待ち解除分・小スライス）→ D-R2 配線
-  （接続時条件 4 点＋台帳 D-R2 行 (e)(f) の裁定）→ U14/U15 feature 完了
-  （SESSION_HANDOFF 全面更新＋AI.md 反映＋大粒度 #17）**。
+  **TAB-1（右ペインタブ化）= 済（1b0ac9e・2026-08-13）**: 右ペインを controlled Tabs 2 枚へ
+  （検証はタブに集約 = 正本 S2' 行充足。Discord プレビュータブは台帳 #18 起票の後続）。
+  検証実行で自動切替・成功時肯定表示・未実行案内。小粒度レビュー high 2 消化 =
+  実装者拡張「保存失敗時も自動切替」を撤去し保存失敗詳細＋再試行を全幅「保存エラー」
+  Alert へ分離（SM-8 ⑤ 常時性を回復・変異で新 pin＋既存 3 本の赤を実証）。
+  タブ内赤 Alert は「検証エラー」へ改名（spec 12 行追随）。front 456→460。
+  レビュー実測の重要知見 = Mantine Tabs は keepMounted 既定 true —
+  getByText はタブ状態非依存・タブ切替の検出は selected 状態の pin のみが担う。
+  **次 = D-R2 配線（TemplateFormRenderer を CharacterSheetEditClient のシート編集面へ
+  controlled renderer として接続。接続時条件 4 点＝immutable values・参照安定・
+  annotation 評価計量・UNSAFE 濾過整理＋台帳 D-R2 行 (e) characterSheet 移設 vs
+  5 本目の辺・(f) labelledBy 契約・(g) h2 二重表示 の裁定）→ U14/U15 feature 完了
+  （SESSION_HANDOFF 全面更新＋trpg-next-app/AI.md へ U14 layout 記述＋大粒度 #17）**。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
