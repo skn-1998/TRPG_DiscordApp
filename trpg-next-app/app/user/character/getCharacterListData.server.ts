@@ -7,14 +7,12 @@ import { readJwt } from '../../lib/auth-guard.server'
 
 interface CharacterListData {
   characters: CharacterSummaryWire[]
-  error: string | null
   isAuthenticated: boolean
 }
 
 // JWT 不在・認証拒否時も一覧ページを表示できる soft degrade 契約を維持する。
 const failedCharacterListData: CharacterListData = {
   characters: [],
-  error: 'Failed to load characters',
   isAuthenticated: false
 }
 
@@ -29,7 +27,6 @@ export async function getCharacterListData(): Promise<CharacterListData> {
     const characters = await getUserCharacterSummaries()
     return {
       characters,
-      error: null,
       isAuthenticated: true
     }
   } catch (error) {

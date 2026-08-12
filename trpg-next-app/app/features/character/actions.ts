@@ -25,8 +25,11 @@ export async function refreshCharacterList(): Promise<{ error: string | null }> 
     revalidatePath('/user/character')
     return { error: null }
   } catch (error) {
+    const status = getResponseStatus(error)
     return {
-      error: extractApiErrorMessages(error).join(' / ')
+      error: status === undefined
+        ? GENERIC_SHEET_NETWORK_ERROR_MESSAGE
+        : extractApiErrorMessages(error).join(' / ')
     }
   }
 }
