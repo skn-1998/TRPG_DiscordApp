@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { CharacterSummaryWire } from '@trpg/api-contract'
 import { getUserCharacterSummaries } from '../../features/character/api/character.service.server'
+import { getResponseStatus } from '../../lib/api-response.util'
 import { readJwt } from '../../lib/auth-guard.server'
 
 interface CharacterListData {
@@ -10,7 +11,7 @@ interface CharacterListData {
   isAuthenticated: boolean
 }
 
-// error フィールドを含む返却形は旧 app の character loader 契約を pin する。
+// JWT 不在・認証拒否時も一覧ページを表示できる soft degrade 契約を維持する。
 const failedCharacterListData: CharacterListData = {
   characters: [],
   error: 'Failed to load characters',
@@ -31,7 +32,9 @@ export async function getCharacterListData(): Promise<CharacterListData> {
       error: null,
       isAuthenticated: true
     }
-  } catch {
-    return failedCharacterListData
+  } catch (error) {
+    const status = getResponseStatus(error)
+    if (status === 401 || status === 403) return failedCharacterListData
+    throw error
   }
 }

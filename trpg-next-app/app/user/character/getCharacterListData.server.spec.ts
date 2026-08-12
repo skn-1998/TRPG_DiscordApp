@@ -61,14 +61,41 @@ describe('getCharacterListData', () => {
     expect(mockedApiGet).toHaveBeenCalledWith('/character/summaries')
   })
 
-  it('取得に失敗しても throw せず soft degrade 形を返す', async () => {
-    mockJwtCookie('invalid-jwt')
-    mockedApiGet.mockRejectedValue(new Error('Unauthorized'))
+  it('401 なら soft degrade 形を返す', async () => {
+    mockJwtCookie('expired-jwt')
+    mockedApiGet.mockRejectedValue({ response: { status: 401 } })
 
     await expect(getCharacterListData()).resolves.toEqual({
       characters: [],
       error: 'Failed to load characters',
       isAuthenticated: false
     })
+  })
+
+  it('403 なら soft degrade 形を返す', async () => {
+    mockJwtCookie('forbidden-jwt')
+    mockedApiGet.mockRejectedValue({ response: { status: 403 } })
+
+    await expect(getCharacterListData()).resolves.toEqual({
+      characters: [],
+      error: 'Failed to load characters',
+      isAuthenticated: false
+    })
+  })
+
+  it('network 断なら取得失敗セルへ渡すため throw する', async () => {
+    const networkError = new Error('connect ECONNREFUSED 127.0.0.1:3000')
+    mockJwtCookie('valid-jwt')
+    mockedApiGet.mockRejectedValue(networkError)
+
+    await expect(getCharacterListData()).rejects.toBe(networkError)
+  })
+
+  it('5xx なら取得失敗セルへ渡すため throw する', async () => {
+    const serverError = { response: { status: 503 } }
+    mockJwtCookie('valid-jwt')
+    mockedApiGet.mockRejectedValue(serverError)
+
+    await expect(getCharacterListData()).rejects.toBe(serverError)
   })
 })
