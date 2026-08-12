@@ -1,10 +1,12 @@
 /** @jest-environment jsdom */
 
 import { MantineProvider } from '@mantine/core'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CharacterWire } from '@trpg/api-contract'
+import { Component, type ReactNode } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
 import { saveSheet } from '../actions'
+import { GENERIC_SHEET_NETWORK_ERROR_MESSAGE } from '../sheet-edit'
 import { CharacterSheetEditClient } from './CharacterSheetEditClient'
 
 jest.mock('../actions', () => ({ saveSheet: jest.fn() }))
@@ -64,6 +66,34 @@ function renderEditor() {
   )
 }
 
+function deferredSaveResult() {
+  type SaveResult = Awaited<ReturnType<typeof saveSheet>>
+  let resolve!: (result: SaveResult) => void
+  const promise = new Promise<SaveResult>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+class RedirectErrorBoundary extends Component<{
+  children: ReactNode
+  onError: (error: Error) => void
+}, { hasError: boolean }> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error)
+  }
+
+  render() {
+    return this.state.hasError ? <div>redirect handled</div> : this.props.children
+  }
+}
+
 async function submitHpChange(result = mergeConflict()) {
   mockedSaveSheet.mockResolvedValueOnce(result)
   fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
@@ -75,11 +105,193 @@ beforeEach(() => mockedSaveSheet.mockReset())
 afterEach(cleanup)
 
 describe('CharacterSheetEditClient', () => {
+  it('初期状態と保存成功時は未保存バナーを表示しない', async () => {
+    renderEditor()
+    expect(screen.queryByText('保存されていません')).toBeNull()
+
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('保存されていません')).toBeNull()
+  })
+
+  it('保存失敗後は dirty と入力値を保持して未保存バナーを常掲する', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '保存に失敗しました', retryable: true })
+    const hpInput = screen.getByRole('textbox', { name: /^HP/ }) as HTMLInputElement
+    fireEvent.change(hpInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText('保存されていません')).toBeTruthy()
+    expect(hpInput.value).toBe('9')
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
+    expect(screen.getByText('保存されていません')).toBeTruthy()
+  })
+
+  it('saveSheet の reject 後も dirty を保持して通信失敗と再試行を表示する', async () => {
+    renderEditor()
+    mockedSaveSheet.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const hpInput = screen.getByRole('textbox', { name: /^HP/ }) as HTMLInputElement
+    fireEvent.change(hpInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts).toHaveLength(2)
+    expect(screen.getByText(GENERIC_SHEET_NETWORK_ERROR_MESSAGE)).toBeTruthy()
+    expect(hpInput.value).toBe('9')
+    const retryButton = screen.getByRole('button', { name: '再試行' }) as HTMLButtonElement
+    await waitFor(() => expect(retryButton.disabled).toBe(false))
+  })
+
+  it('成功時の redirect reject は透過し、通信失敗 Alert を表示しない', async () => {
+    const redirectError = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;push;/user/character;307;'
+    })
+    const onError = jest.fn()
+    mockedSaveSheet.mockRejectedValueOnce(redirectError)
+    render(
+      <RedirectErrorBoundary onError={onError}>
+        <MantineProvider>
+          <CharacterSheetEditClient character={character} template={template} />
+        </MantineProvider>
+      </RedirectErrorBoundary>,
+      { onCaughtError: () => undefined }
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(redirectError))
+    expect(screen.queryByText(GENERIC_SHEET_NETWORK_ERROR_MESSAGE)).toBeNull()
+    expect(screen.queryAllByRole('alert')).toHaveLength(0)
+  })
+
+  it('失敗後に値を baseline へ戻すと未保存バナーが消える', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '保存に失敗しました', retryable: true })
+    const hpInput = screen.getByRole('textbox', { name: /^HP/ })
+    fireEvent.change(hpInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByText('保存されていません')
+
+    fireEvent.change(hpInput, { target: { value: '10' } })
+
+    expect(screen.queryByText('保存されていません')).toBeNull()
+  })
+
+  it('失敗後に changes が空になると再試行ボタンを disabled にする', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '保存に失敗しました', retryable: true })
+    const hpInput = screen.getByRole('textbox', { name: /^HP/ })
+    fireEvent.change(hpInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    const retryButton = await screen.findByRole('button', { name: '再試行' }) as HTMLButtonElement
+    await waitFor(() => expect(retryButton.disabled).toBe(false))
+
+    fireEvent.change(hpInput, { target: { value: '10' } })
+
+    expect(retryButton.disabled).toBe(true)
+  })
+
+  it('手動再試行はクリック時点の最新 dirty を送る', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '保存に失敗しました', retryable: true })
+    const hpInput = screen.getByRole('textbox', { name: /^HP/ })
+    fireEvent.change(hpInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByRole('button', { name: '再試行' })
+
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(hpInput, { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    expect(mockedSaveSheet.mock.calls[1]?.[1]).toEqual({
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp' }, baseValue: 10, newValue: 7 }]
+    })
+  })
+
+  it('422 の恒久エラーには再試行ボタンを表示しない', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '入力値が不正です', retryable: false })
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText('入力値が不正です')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '再試行' })).toBeNull()
+  })
+
+  it('保存送信中の submit は重複送信しない', async () => {
+    renderEditor()
+    const pending = deferredSaveResult()
+    mockedSaveSheet.mockReturnValueOnce(pending.promise)
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
+    const form = saveButton.closest('form')
+    if (!form) throw new Error('保存フォームが見つかりません')
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(saveButton.disabled).toBe(true))
+    fireEvent.submit(form)
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      pending.resolve({ error: '保存に失敗しました', retryable: true })
+      await pending.promise
+    })
+  })
+
+  it('再試行送信中は再試行操作が disabled になる', async () => {
+    renderEditor()
+    mockedSaveSheet.mockResolvedValueOnce({ error: '保存に失敗しました', retryable: true })
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    const retryButton = await screen.findByRole('button', { name: '再試行' }) as HTMLButtonElement
+    await waitFor(() => expect(retryButton.disabled).toBe(false))
+    const pending = deferredSaveResult()
+    mockedSaveSheet.mockReturnValueOnce(pending.promise)
+    fireEvent.click(retryButton)
+
+    await waitFor(() => expect(retryButton.disabled).toBe(true))
+    fireEvent.click(retryButton)
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      pending.resolve({ error: '保存に失敗しました', retryable: true })
+      await pending.promise
+    })
+  })
+
+  it('保存送信中は競合適用操作が disabled になる', async () => {
+    renderEditor()
+    await submitHpChange()
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
+    const pending = deferredSaveResult()
+    mockedSaveSheet.mockReturnValueOnce(pending.promise)
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    const applyButton = screen.getByRole('button', { name: '選択を適用' }) as HTMLButtonElement
+
+    await waitFor(() => expect(applyButton.disabled).toBe(true))
+    fireEvent.click(applyButton)
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      pending.resolve({ error: '保存に失敗しました', retryable: true })
+      await pending.promise
+    })
+  })
+
   it('mergeConflict は汎用 Alert ではなく非モーダルの競合パネルへ表示する', async () => {
     renderEditor()
     await submitHpChange()
 
-    expect(screen.queryByRole('alert')).toBeNull()
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0]?.textContent).toContain('保存されていません')
+    expect(alerts[0]?.textContent).not.toContain('他の操作でシートが更新されました。')
     expect(screen.getByText('相手の値: 8')).toBeTruthy()
     expect(screen.getByText('自分の値: 9')).toBeTruthy()
     expect((screen.getByRole('button', { name: '選択を適用' }) as HTMLButtonElement).disabled).toBe(true)
@@ -177,7 +389,9 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.change(screen.getByLabelText('名前'), { target: { value: '編集中' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain('入力値が不正です')
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.some((alert) => alert.textContent?.includes('入力値が不正です'))).toBe(true)
     expect(screen.getByRole('region', { name: '保存競合' })).toBeTruthy()
     expect(screen.getByText('相手の値: 8')).toBeTruthy()
   })
@@ -199,9 +413,9 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
-    )
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts).toHaveLength(2)
+    expect(alerts.some((alert) => alert.textContent?.includes('他の操作でシートが更新されました。'))).toBe(true)
     expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
   })
 })
