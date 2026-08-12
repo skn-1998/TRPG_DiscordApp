@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common'
+import { ConflictException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common'
+import { characterSheetVisibilitySchema, type CharacterSheetVisibility } from '@trpg/api-contract'
 import { CharacterRepository } from './repositories/character.repository'
 import { CharacterInputDto, AttributeValueDto } from './dto/create-character.dto'
 import { UpdateCharacterDto } from './dto/update-character.dto'
@@ -12,6 +13,7 @@ import { AttributeValue, AttributeSection, isAttributeSection } from '../../core
 
 const MATERIALIZED_SECTION_WRITE_MESSAGE =
   'materialized character sections must be updated via PUT /character/:id/sheet'
+const SHEET_VISIBILITY_VALIDATION_MESSAGE = 'sheet.visibility は private または public を指定してください'
 const PROJECTED_SECTION_KEYS = ['status', 'skill', 'parameter', 'item', 'description'] as const
 
 /**
@@ -163,6 +165,24 @@ export class CharacterService {
    */
   async findOneForOwner(id: string, discordUserId: string): Promise<CharacterEntity | null> {
     return this.characterRepository.findByIdForOwner(id, discordUserId)
+  }
+
+  async setSheetVisibilityForOwner(
+    id: string,
+    discordUserId: string,
+    visibility: unknown
+  ): Promise<CharacterSheetVisibility | null> {
+    const parsedVisibility = characterSheetVisibilitySchema.safeParse(visibility)
+    if (!parsedVisibility.success) {
+      throw new UnprocessableEntityException(SHEET_VISIBILITY_VALIDATION_MESSAGE)
+    }
+
+    const character = await this.characterRepository.setSheetVisibilityForOwner(
+      id,
+      discordUserId,
+      parsedVisibility.data
+    )
+    return character?.sheet?.visibility ?? null
   }
 
   /**

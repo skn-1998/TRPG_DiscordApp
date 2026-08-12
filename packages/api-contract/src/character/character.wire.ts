@@ -5,7 +5,8 @@ import {
   characterHubStatusSchema,
   characterPaletteEntrySchema,
   characterSheetStateSchema,
-  characterTemplatePinSchema
+  characterTemplatePinSchema,
+  type CharacterSheetVisibility
 } from './character.zod'
 
 /**
@@ -96,7 +97,7 @@ export interface CharacterSummaryWire {
   characterId: string
   characterName: string
   gameSystemId: string
-  visibility: 'private' | 'public'
+  visibility: CharacterSheetVisibility
   templateVersion?: string
   hub?: {
     status: CharacterHubStatusWire

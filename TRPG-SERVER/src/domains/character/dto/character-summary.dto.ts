@@ -1,3 +1,4 @@
+import type { CharacterSheetVisibility } from '@trpg/api-contract'
 import { CharacterHubStatus } from '../models/character.entity'
 
 /**
@@ -19,7 +20,7 @@ export interface CharacterSummaryDto {
    */
   gameSystemId: string
 
-  visibility: 'private' | 'public'
+  visibility: CharacterSheetVisibility
 
   /** materialized sheet を legacy pin より優先して解決したテンプレート版 */
   templateVersion?: string

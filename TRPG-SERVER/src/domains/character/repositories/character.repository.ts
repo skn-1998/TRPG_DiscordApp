@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
+import type { CharacterSheetVisibility } from '@trpg/api-contract'
 import { Model, UpdateQuery, UpdateWithAggregationPipeline } from 'mongoose'
 import { Repository } from 'src/core/interfaces/repository.interface'
 import { CHARACTER_MODEL, CharacterDocument, UpdatePrimary } from '../models/character.model'
@@ -181,6 +182,22 @@ export class CharacterRepository implements Repository<LegacyCharacterEntity, st
       .findOneAndUpdate(
         { characterId, sheet: { $exists: false }, templatePin: { $exists: false } },
         { $set: { templatePin: pin } },
+        { new: true }
+      )
+      .lean()
+      .exec()
+    return this.normalizeCharacter(character)
+  }
+
+  async setSheetVisibilityForOwner(
+    characterId: string,
+    discordUserId: string,
+    visibility: CharacterSheetVisibility
+  ): Promise<CharacterEntity | null> {
+    const character = await this.characterModel
+      .findOneAndUpdate(
+        { characterId, discordUserId, 'sheet.templateId': { $exists: true } },
+        { $set: { 'sheet.visibility': visibility } },
         { new: true }
       )
       .lean()
