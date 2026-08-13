@@ -110,14 +110,23 @@ export class CharacterInstantiationService {
   }
 
   private rollOnCreateNotation(field: SheetField): string | undefined {
-    const candidate = field as SheetField & { rollOnCreate?: boolean | string; notation?: string }
-    if (!candidate.rollOnCreate) {
+    if (field.type === 'roll') {
+      return field.notation
+    }
+    if (field.type !== 'track') {
       return undefined
     }
-    if (typeof candidate.rollOnCreate === 'string') {
-      return candidate.rollOnCreate
+
+    // NOTE: 規約例外 - TrackField.rollOnCreate の正式契約への昇格は
+    // track-roll-on-create-promotion-draft.md で裁定済み。後続スライスでこの契約外分岐を置換する。
+    const trackCandidate = field as typeof field & { rollOnCreate?: boolean | string; notation?: string }
+    if (!trackCandidate.rollOnCreate) {
+      return undefined
     }
-    return candidate.notation
+    if (typeof trackCandidate.rollOnCreate === 'string') {
+      return trackCandidate.rollOnCreate
+    }
+    return trackCandidate.notation
   }
 
   private collectTopLevelFields(template: CharacterSheetTemplateEntity): SheetField[] {
