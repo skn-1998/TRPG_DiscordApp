@@ -6,7 +6,7 @@ type SheetTemplateVisibility = 'private' | 'unlisted' | 'public'
 
 type V3ScalarEditorType = 'number' | 'text' | 'select' | 'checkbox'
 
-export type V3EditorFieldType = V3ScalarEditorType | 'computed' | 'roll'
+export type V3EditorFieldType = V3ScalarEditorType | 'computed' | 'roll' | 'track'
 
 export interface CharacterSheetTemplateEntity extends SheetTemplate {
   status: SheetTemplateStatus
