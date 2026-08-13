@@ -2881,6 +2881,107 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   L-13 = **seeder 新設採用**（所有者指定はスライス設計時に提案）。D-R4 = **(a) pinned
   接続採用**。非ブロック裁定枠群 = **保留**（後でまとめて裁定）。
   **実装はすべて待機**（ユーザーの再開指示があるまで L-2/L-13/D-R4 スライスに着手しない）。
+  **【追補】track 昇格の主要裁定も確定（同日）**: 契約形 A・範囲は全経路 advisory 化
+  （正本 = track-roll-on-create-promotion-draft.md・現状調査の split-brain 実測込み）。
+  **【再開 2026-08-13・ユーザー指示】** スライス順序は司令塔裁定:
+  TR-1（L-2 (c) コア = roll 型常時ロール・track 契約外分岐は暫定温存・常時赤 3 件解消・
+  Codex run-tr1）と D-R4 スライス（pinned 接続・Opus・事前実測 = GET /:id は user スコープ・
+  pinned endpoint 不在・resolvePinnedRevision は published/deprecated 許可）を並行委譲中。
+  後続 = TR-2（engine 契約 A＋drift 裁定）→ TR-3（正式契約読み置換＋422 撤廃）→
+  TR-4a/4b（advisory 化＋split-brain 解消・± raw 基準）→ TR-5（front gauge）→
+  TR-6（エディタ UI）。L-13 seeder は TR-1 検収後（同 package 並行回避）。
+  3 スライス毎に大粒度レビュー（次 = #18）。
+  **【進捗 2026-08-13 続報】** TR-1 = **コミット済み 736e5305**（レビュー pass 1 low →
+  RollField 優先 pin は TR-3 へ同乗と裁定）。D-R4 = **コミット済み d2d0759**
+  （レビュー pass Low 2 → FIX ラウンド消化: コメント作業番号除去＋encode pin 複合予約文字化。
+  検収 = 変異 4 種赤＋FIX 後 D4 再変異赤・focused 11/11）。
+  TR-2 = 実装完了・Fable 検収通過（engine 527/527・tsc 0・変異 E1/E2 = 4 赤・
+  **E3 Zod 宣言除去プローブ = 全緑 → runtime pin 欠落を実証、レビューへ裁定委譲**）・
+  Opus 小粒度レビュー中（prompt-tr2-review.txt）。
+  L-13 = **コミット済み 51d83bf**（レビュー medium〔検証 2 関数の検出力欠落・Fable
+  プローブで実証〕→ spec 追補 3 本で消化・プローブ赤化を実証。scripts 16/16。
+  visibility 規約例外 = 受入裁定）。
+  **重要所見 → 台帳 §5-2 L-13b 新設**: owner 'system' 行は assertOwner で一般ユーザーへ
+  403（seeder 投入でも legacy 経路は開通しない・--execute 実走はこの裁定までブロック）。
+  pnpm ERR_PNPM_VERIFY_DEPS_BEFORE_RUN は L-13 コミット後の pnpm install で解消
+  （lockfile 差分なしを確認）。
+  TR-2 = **コミット済み 16f91cc**（レビュー needs-fix Medium 2＋Low 3 全消化:
+  boolean 形 runtime pin 追加〔E3 プローブ赤化を実証〕・advisory JSDoc の現実装矛盾解消・
+  コメント 3 箇所。engine 528/528・server クロスチェック 286/286）。
+  index 残渣（controller.spec の整形 staged 差分）は restore --staged で解消。
+  **大粒度 #18 = 完了（両レビュー一致でクリーン・統合フェーズ不要・blocking 0。
+  突合 = big18-integration.md）**。要点: CL-1（正式形と暫定読みの排他 = 死枝）は
+  Fable 実読で確認し TR-3 へ内包／順序制約 = TR-4b 前に TR-5 禁止／司令塔裁定 2 件
+  （itemFields 内 track の publish 拒否・提出値衝突 422）= 正本 draft 裁定 4/5／
+  CL-8（取得不能注記の裁定文言未実装）= D-R4b 化／CL-3 formatError 死蔵 = チップ化／
+  CL-2 検証セット 3 面手組み = 台帳 L-13 行に 2-2 型で記録。
+  #18 消化 3 スライスの進捗: **TR-2b = コミット済み 5194d8e**（レビュー pass low 消化・
+  変異 2 赤・engine 531/531）・**D-R4b = コミット済み f1fc41f**（レビュー needs-fix
+  medium 通信断 pin＋low NEXT_REDIRECT 透過 pin を消化・変異 N1/N2/N3 各 2 赤・
+  focused 17/17）・TR-3 = Fable 検収通過（feature 218/218・変異 S1〜S4 赤・
+  反転 pin 3 件・assertCreationValuesWithinBounds は production 呼び出し 0 に →
+  **TR-4a で method＋unit spec 削除**）・Opus 小粒度レビュー待ち。
+  既知: backfill-template-pin.ts に出所不明の 1 行変更（チップ処方と同一・lint 緑・
+  スライスコミットに含めない）。
+  **TR-3 = コミット済み 17c978ef**（レビュー needs-fix Medium 3 Low 3 全消化。
+  F-2 の司令塔裁定 = 非有限 max の作成時 422 喪失を受容・恒久受け皿 = track 描画の
+  error 警告 → 正本 draft 裁定 6。コミット後 = **server 全 suite 3150/3150 全緑**）。
+  **大粒度 #19 = 完了（両レビュー一致・blocking 0・新統合フェーズ不要。突合 =
+  big19-integration.md）**。要点: #18 の 6 実装勘定へ 7 個目
+  （value-input.validateTrackPartsRange・作成/保存両経路・Fable 裏取り済み）が追加／
+  用語腑分け = 範囲検査は advisory 化・**有限性検査（非有限/overflow 診断）は維持**／
+  Opus B-1 = assert 削除前の pin 移設が必須ゲート（parts overflow pin はリポジトリ唯一）／
+  TR-4b は engine-only 禁止（server clamp 群と同一反転単位・Codex Medium）／
+  ApplyResourceDeltaResultBase の clamp 3 プロパティは production 読み 0 → TR-4b で削除。
+  **TR-4a1 = コミット済み 8890305**（pin 移設 4 群〔overflow 正負・非有限封筒・EPSILON〕→
+  変異 M1/M2/M3 で検出力を機械確認 → assert 削除・レビュー medium〔EPSILON pin 喪失〕消化）。
+  **TR-4a2 = コミット済み 67e665f**（悪化拒否撤去・assertFiniteTrackValues へ rename・
+  悪化 pin 13 反転・E1 空洞化を実証 → EPSILON pin を legacy 投影 clamp へ再アンカー・
+  レビュー medium/low 消化）。lint 負債 7 warning = チップ task_1301af1d。
+  **TR-4b = コミット済み 3dd3536**（engine＋server の一括反転・split-brain 解消。
+  検収 = 3 suite 全緑＋変異 7 種検出。二重レビュー needs-fix → FIX 消化 =
+  投影メソッドを assertMaterializationTrackInputsFinite へ縮退 rename・
+  ℹ️ 分岐 pin 2 本復活・min>max 422 の経路非対称〔± のみ暫定残存〕を pin 固定・
+  再検収 3146/3146＋変異 4 種再確認）。併走チップ task_1301af1d の lint hunk 3 つを
+  明記同梱・チップ専有ファイルは未コミットのまま維持。
+  **大粒度 #20 = 突合済み**（big20-integration.md）: 有限性の全面統合 No-Go・
+  front に clamp 残存ゼロ（TR-5 解禁）・保存経路の二重走査不整合（多重破損 track の
+  修復不能と封筒分岐・未 pin）を両レビューが実証 → 裁定 7（司令塔・全 track 歩行へ
+  1 本化＋封筒統一・拒否維持）＋純減 3 点 = **TR-4c として Codex 委譲中（run-tr4c）**。
+  zero-delta 契約と bounds/atBound 一式の去就 = **ユーザー決定点 TR-D1 へ昇格**
+  （design-ledger §5-2・min>max 裁定 3 は従属）。
+  **TR-4c = コミット済み f576324**（有限性検査の全 track 歩行 1 本化〔裁定 7・明示 2 ループ〕・
+  診断封筒統一・多重破損 pin 3 本・resource-eval/種付け/alias の純減 35 行。
+  検収 = 3151/3151＋変異 N1/MF 赤・レビュー medium 1 消化）。
+  **TR-5 = コミット済み df83d7c**（TFR の track placeholder を専用描画へ反転:
+  15 / 10 超過明示・gauge 塗りのみ 0..100 cap〔絶対比率 pin つき〕・max は
+  evaluateConstraint の 3 status〔error = インライン警告 = 裁定 6〕・表示専用の
+  退化契約 helper・読み取り専用維持・checkboxes 専用視覚は後続送り・
+  CL-3 Alert 1 本化同乗。検収 = front 555/555＋変異 G1/G2/G3 赤・レビュー pass・low 2 消化）。
+  CL-6 実測補足 = rollOnCreateResults は wire 契約に非搭載（controller で型ごと破棄）・
+  表示には 3 層スライスが必要 — ユーザー裁定枠のまま。
+  **TR-6 = コミット済み cf61681**（エディタで track 作成・編集: V3EditorFieldType/
+  型 Select/createField〔既定値は publish 通過形 max:10・style:gauge — autosave が
+  publish 検証を通すため〕・詳細パネル max required/min/style/rollOnCreate〔空文字は
+  property ごと落とす〕・text scalar への silent fallback を pin で封鎖。
+  検収 = front 561/561＋変異 E1/E2/E3 赤・レビュー pass findings 0）。
+
+  **【TR レーン完了宣言 2026-08-14】TR-1〜TR-6 実装完了。**
+  大粒度 #21（TR-4c/TR-5/TR-6 横断・二重）= 両者 pass・blocking 0
+  （突合 = review-results/impl-u14/big21-integration.md）。
+  マージ前全 suite = engine 528 / server 3151 / front 561 全緑（Fable 実測）。
+  相互矛盾 1 件（gauge clamp 2 実装の 1 本化）は「分母 0 の意味論が実際に異なる
+  意図的二重」として見送り裁定。正本 doc 同期済み =
+  track-roll-on-create-promotion-draft.md（冒頭を実装完了へ・実装コミット 10 本・
+  残スライス節新設）＋ design-ledger.md（§0 現在地・マトリクス track/roll 行・
+  front の蓋・L-2 解消・6-2 の track UI 除外・TR-D1 行）。
+  **残（実装なし・記録済み）**: TR-D1（zero-delta/bounds 一式 — ユーザー裁定待ち・凍結）・
+  checkboxes 専用視覚・試しロール UI・CL-6 出目提示（3 層）・role 編集スライス
+  （TR-D1 非対称と CL-6 を同時設計）・未入力 track の表示割れ裁定枠
+  （プレビュー 0 / 10 vs 実シート — / 10・保留グループ）。
+  **ユーザー指示（2026-08-14）: Fable 使用量を削減**（メモリ reduce-fable-token-usage 参照。
+  重い分析は Opus 検収エージェントへ・Fable は判定とゲート再実行のみ — TR-4c 以降の
+  スライスはこの体制で実施済み）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
@@ -2949,6 +3050,26 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   レビューを遡及実施中（prompt-s5a-opus-review.txt・結果は opus-review-s5a.md へ保存予定）
 - 未コミット: sheet-engine 3 ファイル＋document 3 件（ledger/design-v1-ui/本ファイル）。
   コミットはユーザー指示時（pathspec でスライス単位）
+
+- **チップ消化（2026-08-13・別セッション）**: 大粒度 #18 CL-3 の formatError 死蔵 export を削除
+  （shared/utils/error-helpers.ts＋spec の describe ブロック・純削除。scripts のローカル formatError
+  2 実装は別物のため無変更）。実装 = Opus 委譲・Fable 独立検収 = src/shared jest 4 suites
+  133/133 緑・`tsc --noEmit -p tsconfig.build.json` 緑・src/shared に formatError 残存 0。
+  **未コミット**（error-helpers.ts / error-helpers.spec.ts の 2 ファイルのみ）
+
+- **チップ消化（2026-08-13・別セッション）**: character-sheet/services 配下の既存 eslint warning
+  解消（ディレクトリ一括 `--max-warnings 0` を緑化）。起票 7 件のうち実測 6 件
+  （track-range:294 の 1 件は並行セッションの未コミットテスト削除で既に消滅 —
+  **その削除が revert されると warning が 1 件戻る**）。内容 = 不要 non-null `!` 除去 1
+  （operation.spec:1166）・不要 `as SheetField[]` 除去 2（track-range.spec:62/250）・
+  sheet-materializer.spec 先頭へ file-scoped inline rule 設定
+  （`jest/expect-expect` の assertFunctionNames に `expectUnprocessable` 追加。rule 生存
+  = 無 assertion テスト注入で警告継続を Linter API 実測。src 配下で inline rule-config 初出）。
+  実装 = Opus 委譲・read-only Opus レビュー受入（blocking/should 0・nit 2）・Fable 独立検収
+  = eslint exit 0・jest src/features/character-sheet 13 suites 216/216 緑・
+  委譲前スナップショット比較で diff 3 ファイル 4 hunk のみ。**未コミット**。
+  注意: operation.spec / track-range.spec は並行セッションの未コミット変更と**同一ファイル同居**
+  — pathspec コミットでも本チップ分が同乗する（ファイル内分離は不能）
 
 ## 参照
 
