@@ -28,9 +28,9 @@ export class SheetChangeDto {
   @Type(() => SheetChangePathDto)
   readonly path: SheetChangePathDto
 
-  @IsDefined()
+  // 未存在 path の初回書込では、省略を「現在値なし」と期待する CAS として service へ渡す。
   @Allow()
-  readonly baseValue: unknown
+  readonly baseValue?: unknown
 
   @IsDefined()
   @Allow()

@@ -11,7 +11,12 @@ import { CharacterSheetTemplateRepository } from '../../../domains/character-she
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import type { TemplateValidationPort } from '../../../domains/character-sheet-template/validation/template-validation.port'
-import { CharacterSheetOperationService, HubProjectionPreparationError } from './character-sheet-operation.service'
+import {
+  type CharacterSheetChange,
+  CharacterSheetOperationService,
+  type CharacterSheetValuePath,
+  HubProjectionPreparationError
+} from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
 jest.mock('@trpg/sheet-engine', () => {
@@ -718,7 +723,8 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
     })
 
-    // partsKey 受理の層間一致は、ケース表 partsKeyAcceptanceCases を受理系/拒否系に分けて検証する。
+    // 受理系は parts:{} / baseValue undefined で、未存在 partsKey の初回 CAS と層間一致を同時に固定する。
+    // partsKeyAcceptanceCases は受理系/拒否系に分けて検証する。
     // （1 本の it.each に畳むと期待値が if 分岐に入り jest/no-conditional-expect に触れるため）
     const arrangePartsKeyCase = (mode: PartsKeyMode): CharacterSheetTemplateEntity => {
       const partsKeyTemplate = makePartsKeyTemplate(mode)
@@ -991,6 +997,108 @@ describe('CharacterSheetOperationService', () => {
       await expect(promise).rejects.toBeInstanceOf(ConflictException)
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
+
+    // undefined の JSON 欠落で構造化競合応答全体が無効にならないよう、現在値なしは null で固定する。
+    it('current が undefined の競合は current: null を直列化後も保持する', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makePartsKeyTemplate('declared'))
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: { ...current.sheet!.values, 'uid-score': { parts: {} } }
+        }
+      })
+
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 0,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'career' }, baseValue: 3, newValue: 7 }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse() as {
+        conflicts: Array<{ current: unknown }>
+      }
+      expect(payload.conflicts[0]?.current).toBeNull()
+      expect(JSON.parse(JSON.stringify(payload))).toHaveProperty('conflicts.0.current', null)
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    /**
+     * baseValue キーごと欠落した wire 実物を service 入力として作る。
+     * DTO は省略可・service 入力型は必須のままなので、境界の非対称をこの 1 箇所の assertion に閉じ込める。
+     */
+    const changeWithoutBaseValue = (path: CharacterSheetValuePath, newValue: unknown): CharacterSheetChange =>
+      ({ path, newValue }) as CharacterSheetChange
+
+    // baseValue 省略は「現在値なし」を期待する CAS なので、既存 current がある path では必ず競合させる。
+    // 「省略なら適用」を CAS 判定へ足す誤変異は、未存在 path しか通らない受理系 pin を素通りするため
+    // この負方向 pin だけが検出する。current の読み出し経路が形状ごとに違うので 4 形状を並べる。
+    const baseValueOmissionConflictCases: ReadonlyArray<{
+      caseName: string
+      pinnedTemplate: CharacterSheetTemplateEntity
+      storedValues: Record<string, unknown>
+      path: CharacterSheetValuePath
+      newValue: unknown
+      expectedCurrent: unknown
+    }> = [
+      {
+        caseName: 'track',
+        pinnedTemplate: template,
+        storedValues: { 'uid-hp': { parts: { base: 8, buff: 0, temp: 0, other: 0 } } },
+        path: { fieldUid: 'uid-hp' },
+        newValue: 5,
+        expectedCurrent: { parts: { base: 8, buff: 0, temp: 0, other: 0 } }
+      },
+      {
+        caseName: 'parts:true',
+        pinnedTemplate: template,
+        storedValues: { 'uid-score': { parts: { base: 5, buff: 0, temp: 0, other: 0 } } },
+        path: { fieldUid: 'uid-score', partsKey: 'base' },
+        newValue: 7,
+        expectedCurrent: 5
+      },
+      {
+        caseName: '宣言 partsKeys',
+        pinnedTemplate: makePartsKeyTemplate('declared'),
+        storedValues: { 'uid-score': { parts: { career: 3 } } },
+        path: { fieldUid: 'uid-score', partsKey: 'career' },
+        newValue: 7,
+        expectedCurrent: 3
+      },
+      {
+        caseName: '非 parts scalar',
+        pinnedTemplate: makeFormulaMaxTemplate(),
+        storedValues: { 'uid-limit': 10 },
+        path: { fieldUid: 'uid-limit' },
+        newValue: 12,
+        expectedCurrent: 10
+      }
+    ]
+
+    it.each(baseValueOmissionConflictCases)(
+      '既存値のある path への baseValue 省略は409にし、保存へ到達させない: $caseName',
+      async ({ pinnedTemplate, storedValues, path, newValue, expectedCurrent }) => {
+        templateService.resolvePinnedRevision.mockResolvedValue(pinnedTemplate)
+        current = makeCharacter({
+          sheet: { ...current.sheet!, values: { ...current.sheet!.values, ...storedValues } }
+        })
+        const change = changeWithoutBaseValue(path, newValue)
+
+        const conflict = await service
+          .saveSheet({ characterId: 'character-1', baseRevision: 1, changes: [change] })
+          .catch((error: unknown) => error)
+
+        // 送信側がキーごと省略した状態を pin の前提として固定する（undefined 値の明示送信では代替にならない）。
+        expect(Object.prototype.hasOwnProperty.call(change, 'baseValue')).toBe(false)
+        expect(conflict).toBeInstanceOf(ConflictException)
+        expect((conflict as ConflictException).getResponse()).toMatchObject({
+          conflicts: [{ path, current: expectedCurrent, yours: newValue }]
+        })
+        expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+      }
+    )
 
     it('mine は conflict の currentRevision と current を base にして再送すると保存できる', async () => {
       current = makeCharacter({

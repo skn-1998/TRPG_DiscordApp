@@ -208,7 +208,8 @@ export class CharacterSheetOperationService {
         }
         conflicts.push({
           path: { ...change.path },
-          current: currentValue,
+          // JSON が undefined を落としても、競合 wire の必須キーと「現在値なし」の意味を保つ。
+          current: currentValue ?? null,
           base: change.baseValue,
           yours: change.newValue
         })
