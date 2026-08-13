@@ -168,6 +168,18 @@ describe('CharacterSheetOperationService', () => {
     ]
   })
 
+  const makeInvertedTrackRangeTemplate = (): CharacterSheetTemplateEntity => ({
+    ...template,
+    sections: [
+      {
+        ...template.sections[0],
+        fields: (template.sections[0].fields as SheetField[]).map((field) =>
+          field.uid === 'uid-hp' ? { ...field, min: 10, max: 5 } : field
+        )
+      }
+    ]
+  })
+
   const projection = {
     status: {},
     parameter: {},
@@ -352,7 +364,9 @@ describe('CharacterSheetOperationService', () => {
           delta: 1,
           interaction: { id: 'interaction-deprecated-pin' }
         })
-      ).resolves.toEqual(expect.objectContaining({ noOp: false, effectiveDelta: 1, revision: 2 }))
+      ).resolves.toEqual(
+        expect.objectContaining({ noOp: false, beforeEffectiveValue: 8, afterEffectiveValue: 9, revision: 2 })
+      )
     })
 
     it('deprecated テンプレートを pin したキャラクターの getHubCharacter 投影が成功する', async () => {
@@ -458,7 +472,7 @@ describe('CharacterSheetOperationService', () => {
       ).rejects.toBe(resolutionError)
     })
 
-    it('formula max=10・parts合計12のhub resource値を10へクランプする', async () => {
+    it('formula max=10・parts合計12のhub resource値をrawの12で返す', async () => {
       templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         discordThreadId: 'thread-1',
@@ -474,7 +488,7 @@ describe('CharacterSheetOperationService', () => {
 
       await expect(service.getHubCharacter('character-1')).resolves.toEqual(
         expect.objectContaining({
-          resolvedResourceValues: expect.objectContaining({ 'uid-hp': 10 })
+          resolvedResourceValues: expect.objectContaining({ 'uid-hp': 12 })
         })
       )
     })
@@ -530,7 +544,7 @@ describe('CharacterSheetOperationService', () => {
       )
     })
 
-    it('max依存値を縮小して保存した直後のhub resource値を新maxへクランプする', async () => {
+    it('max依存値を縮小して保存した直後もhub resource値をrawのまま返す', async () => {
       templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         discordThreadId: 'thread-1',
@@ -552,7 +566,7 @@ describe('CharacterSheetOperationService', () => {
 
       await expect(service.getHubCharacter('character-1')).resolves.toEqual(
         expect.objectContaining({
-          resolvedResourceValues: expect.objectContaining({ 'uid-hp': 5 })
+          resolvedResourceValues: expect.objectContaining({ 'uid-hp': 8 })
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -823,7 +837,7 @@ describe('CharacterSheetOperationService', () => {
       expect(materializer.validateInputValues).not.toHaveBeenCalled()
     })
 
-    it('実materializerで範囲外legacy partsを投影だけ正規化し、保存値を維持する', async () => {
+    it('実materializerで範囲外legacy partsを投影と保存の両方へrawで渡す', async () => {
       const legacyHp = { parts: { base: 999, buff: 0, temp: 0, other: 0 } }
       current = makeCharacter({
         sheet: {
@@ -847,9 +861,9 @@ describe('CharacterSheetOperationService', () => {
 
       const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
       expect(payload.values['uid-hp']).toEqual(legacyHp)
-      expect(payload.status.hp).toEqual(expect.objectContaining({ values: { base: 10 } }))
+      expect(payload.status.hp).toEqual(expect.objectContaining({ values: legacyHp.parts }))
       expect(payload.palette).toEqual([
-        expect.objectContaining({ fieldRef: { uid: 'uid-hp' }, label: 'HP (10)', kind: 'resource' })
+        expect.objectContaining({ fieldRef: { uid: 'uid-hp' }, label: 'HP (999)', kind: 'resource' })
       ])
     })
 
@@ -906,6 +920,29 @@ describe('CharacterSheetOperationService', () => {
             'uid-con': 11
           })
         }),
+        1
+      )
+    })
+
+    it('minがmaxを上回るtrackテンプレートでもsave経路はadvisoryとして保存する', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makeInvertedTrackRangeTemplate())
+      service = new CharacterSheetOperationService(
+        repository as unknown as CharacterRepository,
+        templateService as unknown as CharacterSheetTemplateService,
+        new SheetMaterializerService()
+      )
+      const baseValue = current.sheet!.values['uid-hp']
+
+      await expect(
+        service.saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-hp' }, baseValue, newValue: 9 }]
+        })
+      ).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+      expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
+        'character-1',
+        expect.objectContaining({ values: expect.objectContaining({ 'uid-hp': 9 }) }),
         1
       )
     })
@@ -1161,7 +1198,7 @@ describe('CharacterSheetOperationService', () => {
           yours: unknown
         }>
       }
-      const conflictEntry = payload.conflicts[0]!
+      const conflictEntry = payload.conflicts[0]
 
       await expect(
         service.saveSheet({
@@ -1429,7 +1466,30 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
 
-    it('minとmaxが同じ縮退trackでは境界方向を特定しない', async () => {
+    it('minがmaxを上回るtrackテンプレートの±経路は422を返す', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makeInvertedTrackRangeTemplate())
+      let failure: unknown
+
+      try {
+        await service.applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: 1,
+          interaction: { id: 'interaction-inverted-range' }
+        })
+      } catch (error) {
+        failure = error
+      }
+
+      expect(failure).toBeInstanceOf(UnprocessableEntityException)
+      expect((failure as UnprocessableEntityException).getStatus()).toBe(422)
+      expect((failure as UnprocessableEntityException).getResponse()).toEqual(
+        expect.objectContaining({ message: 'resource field uid-hp resolved max below min' })
+      )
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('minとmaxが同じ縮退trackでもraw deltaを適用し、境界方向を特定しない', async () => {
       templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
@@ -1461,13 +1521,13 @@ describe('CharacterSheetOperationService', () => {
       expect(result).toEqual(
         expect.objectContaining({
           beforeEffectiveValue: 5,
-          afterEffectiveValue: 5,
+          afterEffectiveValue: 4,
           atBound: null
         })
       )
     })
 
-    it('track 境界で実効deltaへ縮退し parts.other だけへ加算する', async () => {
+    it('track 境界を超えるraw deltaをparts.otherだけへ加算する', async () => {
       const result = await service.applyResourceDelta({
         channelId: 'channel-1',
         paletteKey: 'resource-hp',
@@ -1477,19 +1537,17 @@ describe('CharacterSheetOperationService', () => {
 
       expect(result).toEqual(
         expect.objectContaining({
-          effectiveDelta: 2,
-          clamped: true,
           noOp: false,
           beforeEffectiveValue: 8,
-          afterEffectiveValue: 10,
-          atBound: 'max'
+          afterEffectiveValue: 13,
+          atBound: null
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
         'character-1',
         expect.objectContaining({
           values: expect.objectContaining({
-            'uid-hp': { parts: { base: 8, buff: 0, temp: 0, other: 2 } }
+            'uid-hp': { parts: { base: 8, buff: 0, temp: 0, other: 5 } }
           }),
           appliedInteractionIds: ['interaction-1']
         }),
@@ -1534,9 +1592,7 @@ describe('CharacterSheetOperationService', () => {
           delta: -1,
           interaction: { id: 'interaction-hp-lowers-mp-max' }
         })
-      ).resolves.toEqual(
-        expect.objectContaining({ beforeEffectiveValue: 10, afterEffectiveValue: 9, effectiveDelta: -1 })
-      )
+      ).resolves.toEqual(expect.objectContaining({ beforeEffectiveValue: 10, afterEffectiveValue: 9 }))
 
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
         'character-1',
@@ -1562,7 +1618,7 @@ describe('CharacterSheetOperationService', () => {
           delta: -1,
           interaction: { id: 'interaction-with-roll' }
         })
-      ).resolves.toEqual(expect.objectContaining({ effectiveDelta: -1, noOp: false }))
+      ).resolves.toEqual(expect.objectContaining({ beforeEffectiveValue: 8, afterEffectiveValue: 7, noOp: false }))
       expect(materializer.materialize).toHaveBeenCalledWith(
         expect.objectContaining({
           sheet: expect.objectContaining({ values: expect.objectContaining({ 'uid-roll': '4' }) })
@@ -1571,7 +1627,7 @@ describe('CharacterSheetOperationService', () => {
       expect(materializer.validateInputValues).not.toHaveBeenCalled()
     })
 
-    it('effectiveDelta=0 でも interaction id を同一saveに記録する', async () => {
+    it('raw delta=0 でも interaction id を同一saveに記録する', async () => {
       current = {
         ...current,
         palette: (current.palette ?? []).map((entry) =>
@@ -1586,7 +1642,6 @@ describe('CharacterSheetOperationService', () => {
         interaction: { id: 'interaction-zero' }
       })
 
-      expect(result.effectiveDelta).toBe(0)
       expect(result).toEqual(
         expect.objectContaining({ beforeEffectiveValue: 8, afterEffectiveValue: 8, atBound: null })
       )
@@ -1675,11 +1730,11 @@ describe('CharacterSheetOperationService', () => {
         interaction: { id: 'interaction-declared-delta' }
       })
 
-      expect(result).toEqual(expect.objectContaining({ noOp: false, effectiveDelta: -1 }))
+      expect(result).toEqual(expect.objectContaining({ noOp: false, beforeEffectiveValue: 8, afterEffectiveValue: 7 }))
       expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
     })
 
-    it('範囲外legacy partsへの宣言済み-5は保存しつつ実効値がmaxのまま変わらないと返す', async () => {
+    it('範囲外legacy partsへの宣言済み-5をraw値へ適用する', async () => {
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -1700,10 +1755,9 @@ describe('CharacterSheetOperationService', () => {
       expect(result).toEqual(
         expect.objectContaining({
           noOp: false,
-          effectiveDelta: -5,
-          beforeEffectiveValue: 10,
-          afterEffectiveValue: 10,
-          atBound: 'max'
+          beforeEffectiveValue: 999,
+          afterEffectiveValue: 994,
+          atBound: null
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -1718,13 +1772,15 @@ describe('CharacterSheetOperationService', () => {
       expect(materializer.materialize).toHaveBeenCalledWith(
         expect.objectContaining({
           sheet: expect.objectContaining({
-            values: expect.objectContaining({ 'uid-hp': 10 })
+            values: expect.objectContaining({
+              'uid-hp': { parts: { base: 999, buff: 0, temp: 0, other: -5 } }
+            })
           })
         })
       )
     })
 
-    it('min未満legacy partsへの+3は保存しつつ実効値がminのまま変わらないと返す', async () => {
+    it('min未満legacy partsへの+3をraw値へ適用する', async () => {
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -1748,10 +1804,9 @@ describe('CharacterSheetOperationService', () => {
       expect(result).toEqual(
         expect.objectContaining({
           noOp: false,
-          effectiveDelta: 3,
-          beforeEffectiveValue: 0,
-          afterEffectiveValue: 0,
-          atBound: 'min'
+          beforeEffectiveValue: -999,
+          afterEffectiveValue: -996,
+          atBound: null
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -1765,7 +1820,7 @@ describe('CharacterSheetOperationService', () => {
       )
     })
 
-    it('formula max範囲外のlegacy partsは±1で巨大な逆向きdeltaを作らず、実効値不変を返す', async () => {
+    it('formula max範囲外のlegacy partsへ±1をraw基準で順番に適用する', async () => {
       templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         sheet: {
@@ -1778,8 +1833,8 @@ describe('CharacterSheetOperationService', () => {
         }
       })
       materializer.materialize.mockImplementation((input) => {
-        if (typeof input.sheet.values['uid-hp'] !== 'number') {
-          throw new Error('out-of-range formula-max parts reached materializer')
+        if (typeof input.sheet.values['uid-hp'] === 'number') {
+          throw new Error('raw formula-max parts were replaced before materialization')
         }
         return {
           sheet: input.sheet,
@@ -1804,38 +1859,39 @@ describe('CharacterSheetOperationService', () => {
 
       expect(increment).toEqual(
         expect.objectContaining({
-          effectiveDelta: 0,
-          beforeEffectiveValue: 10,
-          afterEffectiveValue: 10,
-          atBound: 'max'
+          beforeEffectiveValue: 999,
+          afterEffectiveValue: 1000,
+          atBound: null
         })
       )
       expect(decrement).toEqual(
         expect.objectContaining({
-          effectiveDelta: -1,
-          beforeEffectiveValue: 10,
-          afterEffectiveValue: 10,
-          atBound: 'max'
+          beforeEffectiveValue: 1000,
+          afterEffectiveValue: 999,
+          atBound: null
         })
       )
-      expect(decrement.effectiveDelta).not.toBe(-989)
       expect(materializer.materialize).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          sheet: expect.objectContaining({ values: expect.objectContaining({ 'uid-hp': 10 }) })
+          sheet: expect.objectContaining({
+            values: expect.objectContaining({ 'uid-hp': { parts: { base: 999, other: 1 } } })
+          })
         })
       )
       expect(materializer.materialize).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
-          sheet: expect.objectContaining({ values: expect.objectContaining({ 'uid-hp': 10 }) })
+          sheet: expect.objectContaining({
+            values: expect.objectContaining({ 'uid-hp': { parts: { base: 999, other: 0 } } })
+          })
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenLastCalledWith(
         'character-1',
         expect.objectContaining({
           values: expect.objectContaining({
-            'uid-hp': { parts: { base: 999, other: -1 } }
+            'uid-hp': { parts: { base: 999, other: 0 } }
           })
         }),
         2
@@ -1896,7 +1952,7 @@ describe('CharacterSheetOperationService', () => {
         expect.objectContaining({
           sheet: expect.objectContaining({
             values: expect.objectContaining({
-              'uid-hp': 10,
+              'uid-hp': { parts: { base: 999 } },
               'uid-mp': { parts: { base: 5, other: -1 } }
             })
           })

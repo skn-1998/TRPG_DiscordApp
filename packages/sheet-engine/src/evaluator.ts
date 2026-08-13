@@ -172,9 +172,7 @@ function coerceFieldValue(field: SheetField, raw: unknown): RuntimeValue {
     return { type: 'text', value: raw == null ? '' : String(raw) };
   }
   if (field.type === 'track') {
-    const min = field.min ?? 0;
-    const max = typeof field.max === 'number' ? field.max : Number.POSITIVE_INFINITY;
-    return { type: 'number', value: Math.min(max, Math.max(min, resolveNumberValue(field.uid, raw))) };
+    return { type: 'number', value: resolveNumberValue(field.uid, raw) };
   }
   if (field.type === 'roll') {
     if (typeof raw === 'number') {

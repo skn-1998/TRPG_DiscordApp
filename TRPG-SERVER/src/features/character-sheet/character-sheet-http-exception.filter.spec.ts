@@ -119,20 +119,6 @@ describe('CharacterSheetHttpExceptionFilter', () => {
 
   it.each([
     {
-      name: '422 out-of-bounds',
-      exception: () =>
-        new UnprocessableEntityException({
-          message: 'track field uid-hp value is outside resolved bounds',
-          fieldUid: 'uid-hp',
-          value: 11,
-          min: 0,
-          max: 10
-        }),
-      status: 422,
-      error: 'track field uid-hp value is outside resolved bounds',
-      cause: { fieldUid: 'uid-hp', value: 11, min: 0, max: 10 }
-    },
-    {
       name: '422 detail',
       exception: () =>
         new UnprocessableEntityException({
