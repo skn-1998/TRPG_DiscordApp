@@ -160,6 +160,26 @@ function createAnnotationTemplate(
   }
 }
 
+function createTrackTemplate(
+  trackOverrides: Partial<Extract<SheetField, { type: 'track' }>> = {},
+  extraFields: SheetField[] = []
+): SheetTemplate {
+  const track: Extract<SheetField, { type: 'track' }> = {
+    id: 'hp',
+    uid: 'uid_hp',
+    label: '耐久力',
+    type: 'track',
+    max: 10,
+    style: 'gauge',
+    ...trackOverrides
+  }
+
+  return {
+    ...template,
+    sections: [{ id: 'tracks', label: 'トラック', layout: { preset: 'stack' }, fields: [track, ...extraFields] }]
+  }
+}
+
 function createDisplayValueSentinel(
   fieldUid: string,
   runtimeValue: unknown,
@@ -588,7 +608,7 @@ describe('TemplateFormRenderer', () => {
   it('blocks 未指定と空配列で既存 section DOM を byte-identical に保つ', () => {
     const blocklessTemplate = {
       ...template,
-      sections: [{ ...template.sections[0], layout: { preset: 'stack' }, fields: [template.sections[0].fields[3]] }]
+      sections: [{ ...template.sections[0], layout: { preset: 'stack' }, fields: [template.sections[0].fields[4]] }]
     }
     const { rerender } = renderForm({}, undefined, blocklessTemplate)
     const before = screen.getByRole('heading', { level: 2, name: 'プロフィール' }).closest('section')?.outerHTML
@@ -597,7 +617,7 @@ describe('TemplateFormRenderer', () => {
       sections: blocklessTemplate.sections.map((section) => ({ ...section, blocks: [] }))
     }
 
-    expect(before).toMatchInlineSnapshot(`"<section style="--stack-gap: var(--mantine-spacing-sm); --stack-align: stretch; --stack-justify: flex-start;" class="m_6d731127 mantine-Stack-root"><h2 style="--title-fw: var(--mantine-h2-font-weight); --title-lh: var(--mantine-h2-line-height); --title-fz: var(--mantine-h2-font-size);" class="m_8a5d1357 mantine-Title-root" data-order="2">プロフィール</h2><div class="fieldContainer" data-layout-mode="stack"><div data-field-uid="uid_hp"><div style="width: 100%;" class="m_1b7284a3 mantine-Paper-root" data-with-border="true" data-field-placeholder="track"><p style="font-weight: 600;" class="mantine-focus-auto m_b6d8b162 mantine-Text-root">耐久力</p><p style="--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm);" class="mantine-focus-auto m_b6d8b162 mantine-Text-root" data-size="sm">track</p></div></div></div></section>"`)
+    expect(before).toMatchInlineSnapshot(`"<section style="--stack-gap: var(--mantine-spacing-sm); --stack-align: stretch; --stack-justify: flex-start;" class="m_6d731127 mantine-Stack-root"><h2 style="--title-fw: var(--mantine-h2-font-weight); --title-lh: var(--mantine-h2-line-height); --title-fz: var(--mantine-h2-font-size);" class="m_8a5d1357 mantine-Title-root" data-order="2">プロフィール</h2><div class="fieldContainer" data-layout-mode="stack"><div data-field-uid="uid_items"><div style="width: 100%;" class="m_1b7284a3 mantine-Paper-root" data-with-border="true" data-field-placeholder="list"><p style="font-weight: 600;" class="mantine-focus-auto m_b6d8b162 mantine-Text-root">所持品</p><p style="--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm);" class="mantine-focus-auto m_b6d8b162 mantine-Text-root" data-size="sm">list</p></div></div></div></section>"`)
 
     rerender(
       <MantineProvider>
@@ -1269,8 +1289,19 @@ describe('TemplateFormRenderer', () => {
     expect(document.body.textContent).not.toContain('undefined')
   })
 
+  it('track を table の全幅行で専用描画する', () => {
+    renderForm({ uid_hp: 8 }, undefined, createTableTemplate())
+
+    const row = getFieldCell('uid_hp') as HTMLTableRowElement
+    const cell = row.cells[0]
+    expect(row.dataset.tableRowMode).toBe('full-width')
+    expect(row.cells).toHaveLength(1)
+    expect(cell.colSpan).toBe(2)
+    expect(cell.querySelector('[data-track-field="uid_hp"]')).toBeTruthy()
+    expect(cell.querySelector('[data-field-placeholder="track"]')).toBeNull()
+  })
+
   it.each([
-    ['track', 'uid_hp'],
     ['list', 'uid_items'],
     ['relation', 'uid_bond'],
     ['tag', 'uid_tags']
@@ -1780,7 +1811,7 @@ describe('TemplateFormRenderer', () => {
     expect(screen.queryByRole('textbox', { name: '算出値' })).toBeNull()
     expect(screen.getByRole('textbox', { name: '名前' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '判定' })).toBeTruthy()
-    expect(screen.getByText('耐久力').closest('[data-field-placeholder="track"]')).toBeTruthy()
+    expect(getFieldCell('uid_hp').querySelector('[data-track-field="uid_hp"]')).toBeTruthy()
     expect(renderField.mock.calls.map(([field]) => field.uid)).toEqual([
       'uid_name',
       'uid_score',
@@ -1793,8 +1824,21 @@ describe('TemplateFormRenderer', () => {
     ])
   })
 
+  it('track を grid の全幅かつ読み取り専用の gauge として描画する', () => {
+    renderForm({})
+
+    const fieldCell = getFieldCell('uid_hp')
+    const track = fieldCell.querySelector('[data-track-field="uid_hp"]') as HTMLElement
+    expect(track).toBeTruthy()
+    expect(track.style.width).toBe('100%')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+    expect(screen.queryByRole('textbox', { name: '耐久力' })).toBeNull()
+    expect(fieldCell.dataset.gridSpan).toBe('full')
+    expect(fieldCell.classList.contains(styles.gridField)).toBe(true)
+  })
+
   it.each([
-    ['track', '耐久力'],
     ['list', '所持品'],
     ['relation', '関係'],
     ['tag', 'タグ']
@@ -1808,5 +1852,71 @@ describe('TemplateFormRenderer', () => {
     expect(placeholder.textContent).toContain(fieldType)
     expect(fieldCell.dataset.gridSpan).toBe('full')
     expect(fieldCell.classList.contains(styles.gridField)).toBe(true)
+  })
+
+  it('track の超過 raw を数値では保持し、gauge の塗りだけ 100% に cap する', () => {
+    renderForm({ uid_hp: 15 })
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('15 / 10')
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('100')
+  })
+
+  it('track の gauge は min を原点にせず絶対比率で描画する', () => {
+    renderForm({ uid_hp: 5 }, undefined, createTrackTemplate({ min: 5, max: 10 }))
+
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('50')
+  })
+
+  it('track の max が indeterminate なら「/ —」へ退化し、警告しない', () => {
+    const targetTemplate = createTrackTemplate(
+      { max: { formula: '{tracks.base}' } },
+      [{ id: 'base', uid: 'uid_base', label: '参照元', type: 'scalar', valueType: 'number' }]
+    )
+    renderForm({ uid_hp: 6 }, undefined, targetTemplate)
+
+    const track = document.querySelector('[data-track-field="uid_hp"]') as HTMLElement
+    expect(track.dataset.trackMaxStatus).toBe('indeterminate')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('6 / —')
+    expect(track.querySelector('[data-track-max-error]')).toBeNull()
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+  })
+
+  it('track の max 評価失敗を値表示から分離したインライン警告にする', () => {
+    renderForm({ uid_hp: 6 }, undefined, createTrackTemplate({ max: { formula: '1 / 0' } }))
+
+    const track = document.querySelector('[data-track-field="uid_hp"]') as HTMLElement
+    expect(track.dataset.trackMaxStatus).toBe('error')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('6')
+    expect(track.querySelector('[data-track-max-error="uid_hp"]')?.textContent).toBe('最大値を評価できません')
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+  })
+
+  it('track の parts raw は有限な part を合算して表示する', () => {
+    renderForm({ uid_hp: { parts: { base: 8, other: -2, armor: 3 } } })
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('9 / 10')
+  })
+
+  it.each([
+    ['flat', Number.POSITIVE_INFINITY],
+    ['parts', { parts: { base: 8, other: Number.NaN } }]
+  ])('track の壊れた %s raw は「—」へ退化する', (_shape, raw) => {
+    renderForm({ uid_hp: raw })
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
+  })
+
+  it('max が 0 以下なら gauge の塗りを 0% にする', () => {
+    renderForm({ uid_hp: 5 }, undefined, createTrackTemplate({ max: 0 }))
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('5 / 0')
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+  })
+
+  it('checkboxes style は数値テキストだけを共通表示し、gauge を描画しない', () => {
+    renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('4 / 10')
+    expect(screen.queryByRole('progressbar')).toBeNull()
   })
 })

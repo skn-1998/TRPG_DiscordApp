@@ -13,6 +13,23 @@ interface CharacterSheetPageProps {
   params: Promise<{ id: string }>
 }
 
+function SheetUnavailableAlert({ message }: { message: string }) {
+  return (
+    <Container size="sm" py="xl">
+      <Alert color="yellow">
+        <Stack gap="sm">
+          <Text>{message}</Text>
+          <Link href="/user/character">
+            <Button component="span" variant="subtle" leftSection={<IconArrowLeft size={16} />}>
+              一覧へ
+            </Button>
+          </Link>
+        </Stack>
+      </Alert>
+    </Container>
+  )
+}
+
 async function loadOrRedirectOnAuthFailure<T>(request: Promise<T>): Promise<T> {
   try {
     return await request
@@ -38,20 +55,7 @@ export default async function CharacterSheetPage({ params }: CharacterSheetPageP
   const character = await loadOrRedirectOnAuthFailure(getCharacter(id))
 
   if (!character.sheet) {
-    return (
-      <Container size="sm" py="xl">
-        <Alert color="yellow">
-          <Stack gap="sm">
-            <Text>materialized キャラクターではありません</Text>
-            <Link href="/user/character">
-              <Button component="span" variant="subtle" leftSection={<IconArrowLeft size={16} />}>
-                一覧へ
-              </Button>
-            </Link>
-          </Stack>
-        </Alert>
-      </Container>
-    )
+    return <SheetUnavailableAlert message="materialized キャラクターではありません" />
   }
 
   // 編集面は「最新テンプレート」ではなく character.sheet が pin した版
@@ -66,20 +70,7 @@ export default async function CharacterSheetPage({ params }: CharacterSheetPageP
   })
 
   if (!template) {
-    return (
-      <Container size="sm" py="xl">
-        <Alert color="yellow">
-          <Stack gap="sm">
-            <Text>このシートが固定しているテンプレート版を取得できません</Text>
-            <Link href="/user/character">
-              <Button component="span" variant="subtle" leftSection={<IconArrowLeft size={16} />}>
-                一覧へ
-              </Button>
-            </Link>
-          </Stack>
-        </Alert>
-      </Container>
-    )
+    return <SheetUnavailableAlert message="このシートが固定しているテンプレート版を取得できません" />
   }
 
   return (
