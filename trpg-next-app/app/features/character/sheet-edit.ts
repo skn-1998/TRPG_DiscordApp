@@ -5,10 +5,10 @@ import type { CharacterSheetChange } from './api/character.service.server'
 export const GENERIC_SHEET_CONFLICT_MESSAGE = '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。'
 
 export type EditableScalarField = Extract<SheetField, { type: 'scalar' }> & {
-  valueType: 'number' | 'text'
+  valueType: 'number' | 'text' | 'boolean' | 'select'
 }
 
-export type EditorValue = string | number | undefined
+export type EditorValue = string | number | boolean | undefined
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -31,9 +31,29 @@ export function editableScalarFields(template: CharacterSheetTemplateEntity): Ed
   return template.sections.flatMap((section) =>
     section.fields.filter(
       (field): field is EditableScalarField =>
-        field.type === 'scalar' && (field.valueType === 'number' || field.valueType === 'text')
+        // NOTE: editor 由来の契約外 valueType（'checkbox' 等）を runtime で弾くため明示列挙する。
+        field.type === 'scalar' && (
+          field.valueType === 'number'
+          || field.valueType === 'text'
+          || field.valueType === 'boolean'
+          || field.valueType === 'select'
+        )
     )
   )
+}
+
+/**
+ * payload/CAS 健全性の防壁を 1 定義に保ち、読み取り経路の片方だけ直る drift を防ぐ。
+ *
+ * Invariant: server の非 parts readPathValue は raw を素通しするため同値ではない。
+ * baseValue: unknown に型防壁はなく、この正規化が payload 健全性の front 側唯一の防壁となる。
+ * number の有限性だけは EditClient の入力ガードが担う。
+ */
+export function normalizeEditorValue(field: EditableScalarField, value: unknown): EditorValue {
+  if (field.valueType === 'number') return typeof value === 'number' ? value : undefined
+  if (field.valueType === 'boolean') return typeof value === 'boolean' ? value : undefined
+  // text/select の文字列型を共通で保証する。select の語彙検査は template/server の所掌。
+  return typeof value === 'string' ? value : undefined
 }
 
 export function listEditablePartsKeys(
@@ -61,8 +81,6 @@ export function readSheetPathValue(
   values: Record<string, unknown>
 ): EditorValue {
   const raw = values[field.uid]
-  // payload/CAS 用に valueType で意図的に狭める正規化。server の partsKey なし readPathValue は raw を
-  // そのまま返すため同値ではない。baseValue: unknown に型防壁はなく、この正規化が payload 健全性の唯一の防壁になる。
   if (partsKey !== undefined) {
     if (field.valueType !== 'number') return undefined
     if (partsKey === 'base' && typeof raw === 'number') return raw
@@ -70,8 +88,7 @@ export function readSheetPathValue(
     const part = raw.parts[partsKey]
     return typeof part === 'number' ? part : undefined
   }
-  if (field.valueType === 'number') return typeof raw === 'number' ? raw : undefined
-  return typeof raw === 'string' ? raw : undefined
+  return normalizeEditorValue(field, raw)
 }
 
 export function writeSheetPathValue(
