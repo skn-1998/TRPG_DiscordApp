@@ -233,7 +233,7 @@ export class CharacterSheetOperationService {
 
       const engineTemplate = toEngineTemplate(template)
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
-      trackRangePolicy.assertNoWorsenedTrackValues(sheet.values, values)
+      trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       const evaluated = this.evaluateTemplateOrThrow(engineTemplate, values)
       const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
         sheet.values,
@@ -353,7 +353,7 @@ export class CharacterSheetOperationService {
         afterBounds
       )
       const atBound = this.resolveAtBound(afterEffectiveValue, afterBounds)
-      trackRangePolicy.assertNoWorsenedTrackValues(sheet.values, values)
+      trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       const appliedInteractionIds = [...(current.appliedInteractionIds ?? []), input.interaction.id].slice(-20)
       const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
         sheet.values,

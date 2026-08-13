@@ -177,7 +177,7 @@ describe('non-finite field diagnostics', () => {
     const policy = new TrackRangePolicy(toEngineTemplate(template))
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues(
+      policy.assertFiniteTrackValues(
         {},
         {
           'uid-numerator': 10,
@@ -188,7 +188,7 @@ describe('non-finite field diagnostics', () => {
     ).not.toThrow()
 
     const exception = captureUnprocessable(() =>
-      policy.assertNoWorsenedTrackValues(
+      policy.assertFiniteTrackValues(
         {},
         {
           'uid-numerator': 10,
@@ -223,10 +223,10 @@ describe('non-finite field diagnostics', () => {
     ])
     const policy = new TrackRangePolicy(toEngineTemplate(template))
 
-    expect(() => policy.assertNoWorsenedTrackValues({}, { 'uid-hp': 5 })).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues({}, { 'uid-hp': 5 })).not.toThrow()
 
     const exception = captureUnprocessable(() =>
-      policy.assertNoWorsenedTrackValues({}, { 'uid-hp': Number.NEGATIVE_INFINITY })
+      policy.assertFiniteTrackValues({}, { 'uid-hp': Number.NEGATIVE_INFINITY })
     )
     const expectedMessage =
       'トラックの入力値が有限な数値になりませんでした（フィールド: uid-hp / ラベル: HP / 入力箇所: フィールド値 / 結果: -Infinity）。有限な数値を入力してください'

@@ -346,9 +346,11 @@ export class TrackRangePolicy {
   constructor(private readonly template: SheetTemplate) {}
 
   /**
-   * 実際に入力値が変わった track だけを検査し、既存違反の維持・縮小を許容する。
+   * track の min/max 範囲は advisory として扱う。
+   * 変更された track を歩行し、非有限入力、非有限な max 式、parts 合計 overflow などの
+   * 有限性とデータ健全性だけを拒否する。
    */
-  assertNoWorsenedTrackValues(currentValues: Record<string, unknown>, nextValues: Record<string, unknown>): void {
+  assertFiniteTrackValues(currentValues: Record<string, unknown>, nextValues: Record<string, unknown>): void {
     for (const field of this.trackFields()) {
       const currentRaw = currentValues[field.uid]
       const nextRaw = nextValues[field.uid]
@@ -357,18 +359,10 @@ export class TrackRangePolicy {
       const nextInputValue = this.trackInputValue(field, nextRaw)
       if (nextInputValue === undefined) continue
 
-      // 比較基準を next bounds に固定する。別フィールド更新で境界だけ縮んだ未変更 track は、
-      // evaluator / projection 用の正規化で吸収し、入力値を変更した扱いにはしない。
-      const bounds = this.resolveBounds(field, nextValues)
-      const currentInputValue = this.existingTrackInputValue(field, currentRaw)
-      const nextViolation = this.rangeViolation(nextInputValue, bounds)
-      const currentViolation = this.existingTrackRangeViolation(currentInputValue, bounds, nextViolation?.side)
-      if (nextViolation === null) continue
-      if (currentViolation?.side === nextViolation.side && nextViolation.amount <= currentViolation.amount + EPSILON) {
-        continue
+      if (typeof field.max !== 'number') {
+        this.evaluateBoundExpression(field.max.formula, nextValues, field)
       }
-
-      this.throwOutOfBounds(field.uid, nextInputValue, bounds)
+      this.existingTrackInputValue(field, currentRaw)
     }
   }
 
@@ -551,6 +545,8 @@ export class TrackRangePolicy {
     return total
   }
 
+  // 戻り値 kind/value を読む呼び出し側はもう無く、非有限・非数値を検出する副作用だけが使われている。
+  // 投影 clamp の advisory 化と同時に、この戻り値も削除する。
   private existingTrackInputValue(
     field: Extract<SheetField, { type: 'track' }>,
     value: unknown
@@ -565,19 +561,8 @@ export class TrackRangePolicy {
     }
   }
 
-  private existingTrackRangeViolation(
-    input: ExistingTrackInputValue,
-    bounds: TrackBounds,
-    nextViolationSide: 'min' | 'max' | undefined
-  ): TrackRangeViolation {
-    if (input.kind === 'finite') {
-      return input.value === undefined ? null : this.rangeViolation(input.value, bounds)
-    }
-
-    const side = input.result === 'NaN' ? nextViolationSide : input.result === '-Infinity' ? 'min' : 'max'
-    return side === undefined ? null : { side, amount: Number.POSITIVE_INFINITY }
-  }
-
+  // 唯一の消費者は legacy 投影の clamp 判定で、違反の有無しか読まれない（side/amount は現在どこからも参照されない）。
+  // 投影 clamp の advisory 化と同時に、この判定ごと削除する。
   private rangeViolation(value: number, bounds: TrackBounds): TrackRangeViolation {
     const belowMin = bounds.min - value
     if (belowMin > EPSILON) return { side: 'min', amount: belowMin }
@@ -598,15 +583,5 @@ export class TrackRangePolicy {
     const created = new Map<string, TrackBounds>()
     this.boundsByValues.set(values, created)
     return created
-  }
-
-  private throwOutOfBounds(fieldUid: string, value: number, bounds: TrackBounds): never {
-    throw new UnprocessableEntityException({
-      message: `track field ${fieldUid} value is outside resolved bounds`,
-      fieldUid,
-      value,
-      min: bounds.min,
-      max: bounds.max
-    })
   }
 }

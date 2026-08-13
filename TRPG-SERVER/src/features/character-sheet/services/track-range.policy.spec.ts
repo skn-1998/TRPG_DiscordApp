@@ -125,11 +125,11 @@ describe('TrackRangePolicy', () => {
     ['min側からmax側への逸脱', -2, 11],
     ['partsでmax側からmin側への逸脱', { parts: { base: 12 } }, { parts: { base: -1 } }],
     ['partsでmin側からmax側への逸脱', { parts: { base: -2 } }, { parts: { base: 11 } }]
-  ])('%sを判定表どおり拒否する', (_caseName, currentValue, nextValue) => {
+  ])('%sでも範囲外への変更をadvisoryとして許可する', (_caseName, currentValue, nextValue) => {
     const policy = new TrackRangePolicy(trackTemplate())
-    const action = () => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
+    const action = () => policy.assertFiniteTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
 
-    expect(action).toThrow(UnprocessableEntityException)
+    expect(action).not.toThrow()
   })
 
   it.each([
@@ -137,7 +137,7 @@ describe('TrackRangePolicy', () => {
     ['既存違反の縮小', 12, 11]
   ])('%sを判定表どおり許可する', (_caseName, currentValue, nextValue) => {
     const policy = new TrackRangePolicy(trackTemplate())
-    const action = () => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
+    const action = () => policy.assertFiniteTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })
 
     expect(action).not.toThrow()
   })
@@ -146,16 +146,16 @@ describe('TrackRangePolicy', () => {
     const policy = new TrackRangePolicy(parameterBoundTemplate())
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues({ 'uid-limit': 10, 'uid-hp': 8 }, { 'uid-limit': 5, 'uid-hp': 5 })
+      policy.assertFiniteTrackValues({ 'uid-limit': 10, 'uid-hp': 8 }, { 'uid-limit': 5, 'uid-hp': 5 })
     ).not.toThrow()
   })
 
-  it('current boundsでは範囲内でも、next boundsで新規違反になる同時更新を拒否する', () => {
+  it('current boundsでは範囲内でも、next boundsで新規違反になる同時更新をadvisoryとして許可する', () => {
     const policy = new TrackRangePolicy(parameterBoundTemplate())
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues({ 'uid-limit': 10, 'uid-hp': 5 }, { 'uid-limit': 5, 'uid-hp': 8 })
-    ).toThrow(UnprocessableEntityException)
+      policy.assertFiniteTrackValues({ 'uid-limit': 10, 'uid-hp': 5 }, { 'uid-limit': 5, 'uid-hp': 8 })
+    ).not.toThrow()
   })
 
   it.each([
@@ -172,14 +172,14 @@ describe('TrackRangePolicy', () => {
   ])('current/nextを同じnext boundsで比較して%sする更新を許可する', (_caseName, current, next) => {
     const policy = new TrackRangePolicy(parameterBoundTemplate())
 
-    expect(() => policy.assertNoWorsenedTrackValues(current, next)).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues(current, next)).not.toThrow()
   })
 
   it('track入力が同じなら、依存値低下だけで境界外になっても拒否しない', () => {
     const policy = new TrackRangePolicy(parameterBoundTemplate())
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues({ 'uid-limit': 12, 'uid-hp': 12 }, { 'uid-limit': 11, 'uid-hp': 12 })
+      policy.assertFiniteTrackValues({ 'uid-limit': 12, 'uid-hp': 12 }, { 'uid-limit': 11, 'uid-hp': 12 })
     ).not.toThrow()
   })
 
@@ -216,11 +216,11 @@ describe('TrackRangePolicy', () => {
     const policy = new TrackRangePolicy(template)
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues({ 'uid-hp': 10, 'uid-mp': 10 }, { 'uid-hp': 9, 'uid-mp': 10 })
+      policy.assertFiniteTrackValues({ 'uid-hp': 10, 'uid-mp': 10 }, { 'uid-hp': 9, 'uid-mp': 10 })
     ).not.toThrow()
   })
 
-  it('computed fieldを経由するformula maxで新規逸脱を拒否する', () => {
+  it('computed fieldを経由するformula maxでの新規逸脱をadvisoryとして許可する', () => {
     const template: SheetTemplate = {
       ...trackTemplate(),
       sections: [
@@ -257,8 +257,8 @@ describe('TrackRangePolicy', () => {
     const policy = new TrackRangePolicy(template)
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues({ 'uid-limit': 5, 'uid-hp': 8 }, { 'uid-limit': 5, 'uid-hp': 11 })
-    ).toThrow(UnprocessableEntityException)
+      policy.assertFiniteTrackValues({ 'uid-limit': 5, 'uid-hp': 8 }, { 'uid-limit': 5, 'uid-hp': 11 })
+    ).not.toThrow()
   })
 
   it('未変更trackのformula maxがmin未満になっても無関係な保存を拒否しない', () => {
@@ -268,11 +268,11 @@ describe('TrackRangePolicy', () => {
     const policy = new TrackRangePolicy(template)
     const evaluated = evaluateTemplate(template, { values: nextValues })
 
-    expect(() => policy.assertNoWorsenedTrackValues(currentValues, nextValues)).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues(currentValues, nextValues)).not.toThrow()
     expect(() => policy.toLegacyCompatibleMaterializationValues(currentValues, nextValues, evaluated)).not.toThrow()
   })
 
-  it('engineと同じ1e-9以内の浮動小数差を範囲違反にしない', () => {
+  it('legacy投影のclampはengineと同じ1e-9以内の浮動小数差では発火しない', () => {
     const template: SheetTemplate = {
       ...parameterBoundTemplate(),
       sections: [
@@ -298,13 +298,18 @@ describe('TrackRangePolicy', () => {
         }
       ]
     }
+    const values = { 'uid-pow': 19.999999999999996, 'uid-hp': 4 }
+    const hpField = template.sections[1].fields[0] as Extract<SheetField, { type: 'track' }>
+    const policy = new TrackRangePolicy(template)
 
-    // 19.999999999999996/5 は max=3.9999999999999996 となり、入力 4 との差は約 4.4e-16。
+    // 19.999999999999996/5 の max は 3.999999999999999 となり、入力 4 との差は約 8.9e-16。
     // 範囲判定が engine と同じ EPSILON(1e-9) 許容を失って素の大小比較へ退行すると、
-    // この二進浮動小数の丸め残差だけで新規違反と判定されるため、ここで許容を固定する。
-    expect(() =>
-      new TrackRangePolicy(template).assertNoWorsenedTrackValues({}, { 'uid-pow': 19.999999999999996, 'uid-hp': 4 })
-    ).not.toThrow()
+    // この二進浮動小数の丸め残差だけで legacy 投影が 4 を max へ clamp してしまう。
+    // 先の max 検証は、丸め残差が消えて pin が空洞化した場合に気付くための前提固定。
+    expect(policy.resolveBounds(hpField, values).max).toBeLessThan(4)
+    expect(
+      policy.toLegacyCompatibleMaterializationValues(values, values, evaluateTemplate(template, { values }))['uid-hp']
+    ).toBe(4)
   })
 
   it.each([
@@ -315,7 +320,7 @@ describe('TrackRangePolicy', () => {
     let failure: unknown
 
     try {
-      policy.assertNoWorsenedTrackValues({}, { 'uid-hp': { parts } })
+      policy.assertFiniteTrackValues({}, { 'uid-hp': { parts } })
     } catch (error) {
       failure = error
     }
@@ -338,7 +343,7 @@ describe('TrackRangePolicy', () => {
   ])('既存の parts 合計%sへの有限な縮小更新を許可する', (_caseName, currentValue, nextValue) => {
     const policy = new TrackRangePolicy(trackTemplate())
 
-    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
   })
 
   it.each([
@@ -352,14 +357,14 @@ describe('TrackRangePolicy', () => {
   ])('既存の直接入力%sへの修復更新を許可する', (_caseName, currentValue, nextValue) => {
     const policy = new TrackRangePolicy(trackTemplate())
 
-    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
   })
 
   it('有限な既存値から parts 合計 overflow への更新は引き続き拒否する', () => {
     const policy = new TrackRangePolicy(trackTemplate())
 
     expect(() =>
-      policy.assertNoWorsenedTrackValues(
+      policy.assertFiniteTrackValues(
         { 'uid-hp': 5 },
         { 'uid-hp': { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } } }
       )
@@ -369,7 +374,7 @@ describe('TrackRangePolicy', () => {
   it('数値でない既存 parts からの修復更新は引き続き拒否する', () => {
     const policy = new TrackRangePolicy(trackTemplate())
 
-    expect(() => policy.assertNoWorsenedTrackValues({ 'uid-hp': { parts: { base: 'x' } } }, { 'uid-hp': 5 })).toThrow(
+    expect(() => policy.assertFiniteTrackValues({ 'uid-hp': { parts: { base: 'x' } } }, { 'uid-hp': 5 })).toThrow(
       UnprocessableEntityException
     )
   })
