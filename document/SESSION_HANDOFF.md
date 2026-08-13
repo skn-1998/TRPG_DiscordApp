@@ -5,9 +5,11 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-07（FR 消化 campaign 完了・`b8f3216`）／「現在の feature」から
-  「運用変更（2026-08-04）」より前までの節は 2026-07-29〜08-03 時点の記載のまま。
-  それ以降は日付付き追記節（08-04 運用変更・08-06 Next 移行・08-07 FR 消化 campaign）が実態
+- 最終更新: 2026-08-13（**U14/U15 feature 完了** = D-R2 配線＋大粒度 #17 FIX 全消化・
+  `e4468ab6`）。**現況の正本は本ファイル末尾近くの「キュー #9〜#12 ループ」節**
+  （検索: `U14/U15 feature 完了`）と台帳 `design-ledger.md` §0。
+  冒頭〜中盤の節は 2026-07-29〜08-07 時点の追記ログでありそのまま保存
+  （現況として読まないこと）
 
 ## 2026-08-03 完了: ts-morph 静的解析基盤（tools/static-analysis・第4群とは独立の feature）
 
@@ -35,6 +37,12 @@
   同ファイルの `tools/` 移設は**見送り**（レポート内の全パス基準が変わる破壊的変更・参照13箇所）
 
 ## 現在の feature
+
+**〔2026-08-13 更新〕直近完了 = U14/U15（シートレイアウト＋ブロック・上限・プール）**。
+D-R2 配線 S0〜S6a＋大粒度 #17 二重レビュー＋FIX 5 ラウンド全消化（`e4468ab6` まで）。
+現況・次候補は末尾近くの「キュー #9〜#12 ループ」節（検索: `U14/U15 feature 完了`）と
+台帳 `design-ledger.md`（§0 現在地・§6-1 ワークキュー）を読む。
+（以下の「第4群」記載は 2026-08-03 時点の旧 feature のログ）
 
 `TRPG-SERVER/docs/reviews/full-review-2026-07-26.md` 駆動のリファクタキャンペーン **第4群**（タスク #22）。
 経緯・所見・裁定の正本は `TRPG-SERVER/AI.refactor.md`（本 doc は復帰用要約）。
@@ -2838,11 +2846,35 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   反転裁定 = C-F4 computed live は §3.6 Renderer 行に無し（記録へ）・C-F5 templateVersion
   badge はキャラページ（SM-13）スコープ = 既存裁定枠維持・§5-2 昇格。
   台帳記録待ち = O-F5 preview parts 無反応・O-F6 headingLevel 既定 2。
-  **FIX 3 スライス**: FIX-A（Codex・TFR = C-F1＋O-F1＋O-F2・run-fix-big17-a）と
-  FIX-B（Opus agent・server C-F2）を並行委譲中。FIX-C（EditClient = O-F3＋C-F3）は
-  A 検収後。完了宣言の再判定条件 = U14 は FIX-C 後・U15 は FIX-A＋B 後。
-  次 = FIX-A/B 検収 → FIX-C → 台帳 D-R2 行更新（big17 クローズ＋記録 4 点）→
-  U14/U15 完了宣言 ＋ AI.md コミット ＋ SESSION_HANDOFF 全面更新（feature 完了ゲート）。
+  **FIX-A/B 独立検収通過（2026-08-13・dr2-fixbig17-acceptance.md）**:
+  FIX-B（server base ?? null＋JSON 往復 safeParse pin）= suite 210 緑（赤 3 = L-2
+  allowlist のみ）・変異赤/復元緑。FIX-A（TFR 3 経路 status 契約化＋flat base＋
+  excludedPartIds）= front 全 suite 534/534（528＋6）・eslint/tsc 0・変異 6 種
+  すべて指定検出器で赤・負の対照緑。**合同小粒度レビュー（run-fix-big17-ab-review）と
+  FIX-C（EditClient = O-F3＋C-F3・run-fix-big17-c）を並行委譲中**。
+  **FIX-C 検収通過**（536/536・変異 3 種全赤〔見出し平坦化・条件付き描画復帰・
+  label 解決除去〕・負の対照緑）。**合同レビュー pass**（blocking/needs-fix 0・nit 5 は
+  FIX-AB2 で消化: constraint 語彙 rename・hasPartKey 死分岐除去・重複 pin 3 本を
+  局所性/自由モード flat base pin へ転用・fixture 宣言キー 2 個化・server コメント
+  role 分離。AB2 検収 = front 535/535・変異 6 種赤のまま再配分どおり・server 84/84）。
+  **コミット済み = c9c72acf（FIX-A+AB2 front）・da908a48（FIX-B server）**。
+  変異ハーネス書き戻しの EOL churn は内容差ゼロを確認して checkout 正規化。
+  FIX-C の Opus レビューは**ユーザー停止**（結果未提出・作業キャンセル扱い）→
+  キャンペーン既定の Codex review へ切替。結果 = needs-fix 2（いずれも pin 検出力:
+  radiogroup accessible name＋独立解決検証の欠落・未宣言キー fallback 未検証）・
+  実装本体は全観点 info で問題なし → **FIX-C2**（spec のみ・radiogroup 独立解決 pin＋
+  自由モード 'custom' fallback pin）で消化。Fable 検収 = 52/52・front 全 536/536・
+  変異 3 種（id 平坦化・label 平坦化・fallback 凍結）全赤・byte 同一復元。
+  **【U14/U15 feature 完了（2026-08-13）】** コミット = c9c72acf（FIX-A+AB2 front）・
+  da908a48（FIX-B server）・e4468ab6（FIX-C+C2 EditClient）・68957583（AI.md 設計正本）。
+  完了宣言は §3.6 実装境界表基準・台帳 D-R2 行 big17 クローズと queue #9/#10 行に記録。
+  post-FIX ゲート = front 536/536・server 3127/3130（赤 3 = L-2 allowlist のみ）・
+  contract 27/27。検収証跡 = dr2-fixbig17-acceptance.md（変異計 13 種全赤）。
+  残差（すべて記録済み・非ブロック）= D-R4（pinned 素引き・§5-2 ユーザー裁定候補）・
+  computed live 表示裁定枠・preview parts popover 読み取り専用裁定枠・
+  headingLevel 既定 2 据え置き・S2 ベンチ error 退化裁定枠。
+  **次の候補（ユーザー帰還時の判断材料）**: キュー #12 U16 の残スライス続行／
+  D-R4 ほか §5-2 裁定／push（未 push 100+ コミット・ユーザー判断）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
