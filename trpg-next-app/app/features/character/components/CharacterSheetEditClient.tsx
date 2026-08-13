@@ -71,6 +71,14 @@ function formatEditorValue(field: EditableScalarField, value: EditorValue): stri
   return value === undefined ? '未入力' : value === '' ? '空文字' : String(value)
 }
 
+function formatConflictPathLabel(field: EditableScalarField, partsKey: string | undefined): string {
+  if (partsKey === undefined) return field.label
+  const partsLabel = partsKey === 'base'
+    ? '基本値'
+    : field.partsKeys?.find(({ id }) => id === partsKey)?.label ?? partsKey
+  return `${field.label}（${partsLabel}）`
+}
+
 export function CharacterSheetEditClient({ character, template }: CharacterSheetEditClientProps) {
   const fields = useMemo(() => editableScalarFields(template), [template])
   const initialBaseValues = character.sheet!.values
@@ -197,34 +205,37 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                 <Title order={3}>保存競合</Title>
                 <Text size="sm" c="dimmed">項目ごとに採用する値を選んでください。他の項目は引き続き編集できます。</Text>
               </div>
-              {conflictPanel.conflicts.map((conflict) => (
-                <Card key={conflict.id} withBorder radius="sm" p="md">
-                  <Stack gap="xs">
-                    <Text fw={600}>{conflict.field.label}</Text>
-                    <Text size="sm">相手の値: {formatEditorValue(conflict.field, conflict.current)}</Text>
-                    <Text size="sm">
-                      自分の値: {formatEditorValue(
-                        conflict.field,
-                        readSheetPathValue(conflict.field, conflict.partsKey, values)
-                      )}
-                    </Text>
-                    <Radio.Group
-                      label={`${conflict.field.label} の解決方法`}
-                      value={conflictPanel.selections[conflict.id] ?? ''}
-                      onChange={(resolution) => setConflictPanel((current) =>
-                        current?.conflicts === conflictPanel.conflicts
-                          ? { ...current, selections: { ...current.selections, [conflict.id]: resolution as ConflictResolution } }
-                          : current
-                      )}
-                    >
-                      <Group mt="xs">
-                        <Radio value="theirs" label="相手の値を採用 (theirs)" />
-                        <Radio value="mine" label="自分の値を採用 (mine)" />
-                      </Group>
-                    </Radio.Group>
-                  </Stack>
-                </Card>
-              ))}
+              {conflictPanel.conflicts.map((conflict) => {
+                const pathLabel = formatConflictPathLabel(conflict.field, conflict.partsKey)
+                return (
+                  <Card key={conflict.id} withBorder radius="sm" p="md">
+                    <Stack gap="xs">
+                      <Text fw={600}>{pathLabel}</Text>
+                      <Text size="sm">相手の値: {formatEditorValue(conflict.field, conflict.current)}</Text>
+                      <Text size="sm">
+                        自分の値: {formatEditorValue(
+                          conflict.field,
+                          readSheetPathValue(conflict.field, conflict.partsKey, values)
+                        )}
+                      </Text>
+                      <Radio.Group
+                        label={`${pathLabel} の解決方法`}
+                        value={conflictPanel.selections[conflict.id] ?? ''}
+                        onChange={(resolution) => setConflictPanel((current) =>
+                          current?.conflicts === conflictPanel.conflicts
+                            ? { ...current, selections: { ...current.selections, [conflict.id]: resolution as ConflictResolution } }
+                            : current
+                        )}
+                      >
+                        <Group mt="xs">
+                          <Radio value="theirs" label="相手の値を採用 (theirs)" />
+                          <Radio value="mine" label="自分の値を採用 (mine)" />
+                        </Group>
+                      </Radio.Group>
+                    </Stack>
+                  </Card>
+                )
+              })}
               <Group justify="flex-end">
                 <Button
                   type="button"
@@ -270,31 +281,31 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
         )}
 
         <Card withBorder radius="md" p="lg">
-          {fields.length === 0 ? (
-            <Alert color="blue">このテンプレートには編集対象の scalar がありません。</Alert>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <Stack gap="md">
-                <TemplateFormRenderer
-                  template={template}
-                  headingLevel={3}
-                  values={values}
-                  onChange={handleRendererChange}
-                  onPartsChange={handleRendererPartsChange}
-                />
-                <Group justify="flex-end">
-                  <Button
-                    type="submit"
-                    leftSection={<IconDeviceFloppy size={16} />}
-                    disabled={changes.length === 0}
-                    loading={isPending}
-                  >
-                    変更を保存
-                  </Button>
-                </Group>
-              </Stack>
-            </form>
-          )}
+          <form onSubmit={handleSubmit}>
+            <Stack gap="md">
+              {fields.length === 0 ? (
+                <Alert color="blue">このテンプレートには編集対象の scalar がありません。</Alert>
+              ) : null}
+              {/* design-v1-ui :117: 編集対象がなくても computed/roll と U14/U15 annotation を同一 TFR 経路で描画する。 */}
+              <TemplateFormRenderer
+                template={template}
+                headingLevel={3}
+                values={values}
+                onChange={handleRendererChange}
+                onPartsChange={handleRendererPartsChange}
+              />
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  leftSection={<IconDeviceFloppy size={16} />}
+                  disabled={changes.length === 0}
+                  loading={isPending}
+                >
+                  変更を保存
+                </Button>
+              </Group>
+            </Stack>
+          </form>
         </Card>
       </Stack>
     </Container>

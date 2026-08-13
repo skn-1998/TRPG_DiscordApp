@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import { MantineProvider } from '@mantine/core'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { CharacterWire } from '@trpg/api-contract'
 import { Component, type ReactNode } from 'react'
 import type { CharacterSheetTemplateEntity, SheetField } from '../../characterTemplate/types/v3'
@@ -137,7 +137,7 @@ const declaredPartsTemplate: CharacterSheetTemplateEntity = {
         label: 'HP',
         type: 'scalar',
         valueType: 'number',
-        partsKeys: [{ id: 'growth', label: 'growth' }]
+        partsKeys: [{ id: 'growth', label: '成長分' }]
       },
       { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
     ]
@@ -662,7 +662,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(partsTrigger)
     const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     expect([baseInput.value, growthInput.value]).toEqual(['10', '5'])
   })
 
@@ -757,7 +757,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
     await screen.findByRole('textbox', { name: 'HP: base' })
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
 
     // H3 の検出器: growth だけを per-path 化し、base などの兄弟値を payload に混ぜない。
@@ -782,7 +782,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(partsTrigger)
     const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
 
     // flat raw の非 base 書込で base を失う変異は、合計 16・base 10・単一 growth path の三面すべてを壊す。
     mockedSaveSheet.mockResolvedValueOnce({ error: null })
@@ -863,6 +863,54 @@ describe('CharacterSheetEditClient', () => {
     }))
   })
 
+  it('parts:true field の未宣言キー競合をキー名 fallback 付きで表示する', async () => {
+    const partsCharacter: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.hp': { parts: { base: 10, custom: 2 } } }
+      }
+    }
+    const partsTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        fields: [
+          { id: 'hp', uid: 'main.hp', label: 'HP', type: 'scalar', valueType: 'number', parts: true },
+          { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={partsCharacter} template={partsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const customInput = await screen.findByRole('textbox', { name: 'HP: custom' })
+    mockedSaveSheet.mockResolvedValueOnce({
+      error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+      conflict: true,
+      mergeConflict: {
+        characterId: 'character-1',
+        conflicts: [{
+          path: { fieldUid: 'main.hp', partsKey: 'custom' },
+          current: 4,
+          base: 2,
+          yours: 3
+        }],
+        currentRevision: 4
+      }
+    })
+    fireEvent.change(customInput, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    // Test intent: 未宣言 partsKey を固定文言へ置換する退行を、見出しと accessible name の両方で検出する。
+    expect(await screen.findByText('HP（custom）')).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: 'HP（custom） の解決方法' })).toBeTruthy()
+  })
+
   it('宣言キー競合を per-path 表示し、theirs で当該キーだけ更新して base を温存する', async () => {
     render(
       <MantineProvider>
@@ -872,7 +920,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
     const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     mockedSaveSheet.mockResolvedValueOnce(mergeGrowthConflict(7))
     fireEvent.change(growthInput, { target: { value: '6' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
@@ -898,7 +946,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(partsTrigger)
     const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     mockedSaveSheet.mockResolvedValueOnce(mergePartsConflicts())
     fireEvent.change(growthInput, { target: { value: '6' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
@@ -916,6 +964,39 @@ describe('CharacterSheetEditClient', () => {
     expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
   })
 
+  it('同一 field の base と宣言キー競合を partsKey 別 radiogroup で独立解決する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
+    mockedSaveSheet
+      .mockResolvedValueOnce(mergePartsConflicts())
+      .mockResolvedValueOnce({ error: null })
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await screen.findByText('HP（基本値）')
+    const baseResolution = screen.getByRole('radiogroup', { name: 'HP（基本値） の解決方法' })
+    const growthResolution = screen.getByRole('radiogroup', { name: 'HP（成長分） の解決方法' })
+
+    // Test intent: fieldUid だけの conflict id へ退行しても、2 カードの選択状態が共有されないことを固定する。
+    fireEvent.click(within(baseResolution).getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+    fireEvent.click(within(growthResolution).getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    expect([baseInput.value, growthInput.value]).toEqual(['12', '6'])
+    expect(mockedSaveSheet).toHaveBeenNthCalledWith(2, 'character-1', {
+      baseRevision: 4,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'growth' }, baseValue: 7, newValue: 6 }]
+    })
+  })
+
   it('theirs の current:null は宣言キーを削除し、base を温存する', async () => {
     render(
       <MantineProvider>
@@ -925,7 +1006,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
     const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     mockedSaveSheet.mockResolvedValueOnce(mergeGrowthConflict(null))
     fireEvent.change(growthInput, { target: { value: '6' } })
     fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
@@ -955,7 +1036,7 @@ describe('CharacterSheetEditClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
     await screen.findByRole('textbox', { name: 'HP: base' })
     const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
-    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    const growthInput = popover.querySelector('input[aria-label="HP: 成長分"]') as HTMLInputElement
     mockedSaveSheet
       .mockResolvedValueOnce(mergeGrowthConflict(null))
       .mockResolvedValueOnce({ error: null })
@@ -1156,7 +1237,7 @@ describe('CharacterSheetEditClient', () => {
     expect(await screen.findByText(`相手の値: ${label}`)).toBeTruthy()
   })
 
-  it('編集対象 scalar がない template は新しい空状態文言を表示する', () => {
+  it('computed-only template でも TFR の section 見出しと空状態案内を併置する', () => {
     const computedOnlyTemplate: CharacterSheetTemplateEntity = {
       ...template,
       sections: [{
@@ -1177,8 +1258,36 @@ describe('CharacterSheetEditClient', () => {
       </MantineProvider>
     )
 
-    // number/text 限定の旧説明を残さず、編集対象 scalar 全体の空状態を通知する。
+    // 空状態案内だけで TFR を置換せず、computed-only でも renderer の全展開モードを維持する。
     expect(screen.getByRole('alert').textContent).toContain('このテンプレートには編集対象の scalar がありません。')
+    expect(screen.getByRole('heading', { level: 3, name: 'メイン' })).toBeTruthy()
+    expect((screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('annotation 付き非 editable template でも TFR の block 見出しを描画する', () => {
+    const annotatedComputedTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        ...template.sections[0]!,
+        blocks: [{ id: 'summary', label: '集計結果' }],
+        fields: [{
+          id: 'total',
+          uid: 'main.total',
+          label: '合計',
+          type: 'computed',
+          resultType: 'number',
+          formula: '1',
+          blockId: 'summary'
+        }]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={character} template={annotatedComputedTemplate} />
+      </MantineProvider>
+    )
+
+    expect(screen.getByRole('heading', { level: 4, name: '集計結果' })).toBeTruthy()
   })
 
   it('ページ h2 配下の template section 見出しを h3 で描画する', () => {
