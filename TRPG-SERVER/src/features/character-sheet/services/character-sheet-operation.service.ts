@@ -208,9 +208,13 @@ export class CharacterSheetOperationService {
         }
         conflicts.push({
           path: { ...change.path },
-          // JSON が undefined を落としても、競合 wire の必須キーと「現在値なし」の意味を保つ。
+          // current/base は「その path に値なし」を undefined で表すが、JSON 化で undefined の own キーごと落ちる。
+          // 競合 wire (sheetMergeConflictSchema) は 3 値とも nonoptional なので、キーが欠けると front の
+          // safeParse ごと失敗し、構造化競合パネルが汎用エラーへ落ちる。current: null は front が undefined へ
+          // 復号する。base: null は wire 必須キーを保持して schema parse を通すための sentinel とする。
+          // yours は保存要求の必須値なので正規化対象にしない。
           current: currentValue ?? null,
-          base: change.baseValue,
+          base: change.baseValue ?? null,
           yours: change.newValue
         })
       }
