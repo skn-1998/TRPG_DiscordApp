@@ -85,7 +85,7 @@ export interface TrackField extends FieldBase {
   style: 'gauge' | 'checkboxes';
   /**
    * 作成時にサーバーで notation をロールし、出目を track の現在値として保存する。
-   * min/max は裁定上 advisory（範囲外の出目も採用する契約）。ただし全経路 advisory 化は未実施で、現状の作成時実装は範囲外を 422 で拒否する。
+   * min/max は裁定上 advisory で、作成経路は advisory 化済み（範囲外の出目・提出値とも raw 採用）だが、保存・± の hard enforcement は残存しており、その advisory 化は未実施。
    * notation は standalone roll 文法。placeholder（`{...}`）と `/` は publish で拒否される。
    * 正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の「確定した裁定」。
    */

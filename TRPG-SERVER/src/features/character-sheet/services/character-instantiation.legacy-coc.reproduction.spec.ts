@@ -1,16 +1,13 @@
 /**
- * L-2 再現 spec（design-ledger.md §4 L-2）: LEGACY_COC_TEMPLATE からのキャラ作成で
- * 作成時ロールが発火することを期待する。
+ * LEGACY_COC_TEMPLATE からのキャラ作成で、全 roll フィールドの作成時ロールが発火することを検証する。
  *
  * 期待の根拠: design-v1 §「フィールド型」の RollField = 「作成時ロール（bcdice 記法）」・
  * phase2-operation-contracts OP-3 の供給側保証「rollOnCreate（server 実行）」。
  * roll フィールド値は作成入力として提出不可（value-input.ts が 422）・作成後も書込不可
  * （assertWritablePath は track/scalar のみ）のため、作成時ロールが唯一の値供給経路。
  *
- * 現状は instantiation が engine 契約外の `rollOnCreate` truthy でのみ発火し、seed の
- * roll フィールドはこれを持たないため本 spec は赤くなる（= L-2 の実証）。
- * 期待値を現状挙動（ロール 0 回）へ書き換えて緑にしてはならない。
- * 緑化は L-2 の裁定（型昇格 / seed 付与 / roll 型の常時ロール化）実装によってのみ行う。
+ * roll 型は常時ロールが正式挙動であるため、本 spec は緑が正しい。
+ * 赤に戻る場合は常時ロールの退行を示すため、期待値をロール 0 回へ書き換えてはならない。
  */
 import type { CharacterEntity, MaterializedCharacterEntity } from '../../../domains/character/models/character.entity'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
