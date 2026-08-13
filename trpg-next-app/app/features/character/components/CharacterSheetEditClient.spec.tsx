@@ -573,6 +573,27 @@ describe('CharacterSheetEditClient', () => {
     expect([baseInput.value, growthInput.value]).toEqual(['10', '5'])
   })
 
+  it('宣言 partsKeys field の base 編集を per-path payload で保存する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+
+    // 裁定済み例外 1: 旧 whole-field write は parts 全消失の H3 経路だった。per-path 化は
+    // S5b2 スコープの base 分前倒し・台帳 D-R2 行。
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(baseInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'base' }, baseValue: 10, newValue: 9 }]
+    }))
+  })
+
   it('parts:true field の base が number でなくても raw parts の合計を表示する', () => {
     const partsCharacter: CharacterWire = {
       ...character,
@@ -603,6 +624,37 @@ describe('CharacterSheetEditClient', () => {
     expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('3')
   })
 
+  it("parts:true field の退化 raw を Σ '0' と表示する", () => {
+    const partsCharacter: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.hp': {} }
+      }
+    }
+    const partsTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        layout: { preset: 'stack' },
+        fields: [
+          { id: 'hp', uid: 'main.hp', label: 'HP', type: 'scalar', valueType: 'number', parts: true },
+          { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={partsCharacter} template={partsTemplate} />
+      </MantineProvider>
+    )
+
+    // 裁定済み例外 2: annotation は退化 raw を engine 意味論で表示する。preview と同一・
+    // 旧 overlay は退化を隠していた。
+    expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('0')
+  })
+
   it('宣言 partsKeys field の宣言キー入力を保存 changes に取り込まない', async () => {
     render(
       <MantineProvider>
@@ -615,7 +667,7 @@ describe('CharacterSheetEditClient', () => {
     const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
     const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
 
-    // S5 前の whole-field write へ宣言キーを流さず、parts 全消失の H3 経路を閉じることを固定する。
+    // 宣言キー（非 base）を S5b2 まで流さない門番を固定する。
     fireEvent.change(growthInput, { target: { value: '6' } })
     expect(saveButton.disabled).toBe(true)
     fireEvent.click(saveButton)
