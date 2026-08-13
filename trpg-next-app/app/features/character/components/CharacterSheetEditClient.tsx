@@ -14,7 +14,9 @@ import {
   deriveSheetChanges,
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
-  readEditableValue,
+  readSheetPathValue,
+  usesPartsEditor,
+  writeSheetPathValue,
   type EditableScalarField,
   type EditorValue
 } from '../sheet-edit'
@@ -41,24 +43,8 @@ interface ConflictPanelState {
   selections: Record<string, ConflictResolution>
 }
 
-function createEditorValues(
-  fields: EditableScalarField[],
-  rawValues: Record<string, unknown>
-): Record<string, EditorValue> {
-  return Object.fromEntries(fields.map((field) => [field.uid, readEditableValue(field, rawValues)]))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function usesPartsEditor(field: EditableScalarField): boolean {
-  // TFR の isPartsScalarField・engine value-input の allowsParts と同値である必要がある。変更時は三者を同期する。
-  return field.valueType === 'number' && (field.parts === true || field.partsKeys !== undefined)
-}
-
 function readConflictCurrent(field: EditableScalarField, current: unknown): EditorValue {
-  // readEditableValue と似るが、field 全体の values レコードではなく conflict path 単位の値を読む。
+  // readSheetPathValue と似るが、field 全体の values レコードではなく conflict path 単位の値を読む。
   if (field.valueType === 'number') return typeof current === 'number' ? current : undefined
   return typeof current === 'string' ? current : undefined
 }
@@ -88,29 +74,14 @@ function formatEditorValue(value: EditorValue): string {
 export function CharacterSheetEditClient({ character, template }: CharacterSheetEditClientProps) {
   const fields = useMemo(() => editableScalarFields(template), [template])
   const initialBaseValues = character.sheet!.values
-  const [baseline, setBaseline] = useState<Record<string, EditorValue>>(() =>
-    createEditorValues(fields, initialBaseValues)
-  )
+  const [baseline, setBaseline] = useState<Record<string, unknown>>(() => ({ ...initialBaseValues }))
   const [baseRevision, setBaseRevision] = useState(character.sheet!.revision)
-  const [values, setValues] = useState<Record<string, EditorValue>>(() => createEditorValues(fields, initialBaseValues))
+  const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...initialBaseValues }))
   const [actionData, setActionData] = useState<SheetActionData | null>(null)
   const [conflictPanel, setConflictPanel] = useState<ConflictPanelState | null>(null)
   const [isPending, startTransition] = useTransition()
   const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
-  const rendererValues = useMemo(() => {
-    const overlay: Record<string, unknown> = { ...initialBaseValues }
-    for (const field of fields) {
-      const rawValue = initialBaseValues[field.uid]
-      const editorValue = values[field.uid]
-      // 宣言 partsKeys は EditorValue の base が未確定なため raw を通し、確定後だけ raw shape の base を差し替える。
-      overlay[field.uid] = isRecord(rawValue) && isRecord(rawValue.parts)
-        ? (editorValue === undefined ? rawValue : { ...rawValue, parts: { ...rawValue.parts, base: editorValue } })
-        : editorValue
-    }
-    return overlay
-  }, [fields, initialBaseValues, values])
 
-  const hasInvalidNumber = fields.some((field) => field.valueType === 'number' && values[field.uid] === '')
   const changes = deriveSheetChanges(fields, baseline, values)
   const savableChanges = conflictPanel
     ? changes.filter((change) => !conflictPanel.conflicts.some((conflict) =>
@@ -168,25 +139,27 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     } else if (typeof value !== 'string') {
       return
     }
-    setValues((current) => ({ ...current, [fieldUid]: value }))
+    setValues((current) => writeSheetPathValue(field, undefined, value, current))
   }
 
   const handleRendererPartsChange = (fieldUid: string, partsKey: string, value: number) => {
     const field = fieldsByUid.get(fieldUid)
-    // deriveSheetChanges は field.parts が真のときだけ partsKey: 'base' を付ける。宣言 partsKeys field は S5 まで
-    // whole-field write（parts 全消失の H3 経路・台帳 15b(b)）になるため、非 base 値を EditorValue へ入れない。
+    // 宣言 partsKeys の base は state に入り per-path で保存する。宣言された非 base キーは S5b2 まで受理しない。
+    // H3 経路は base 分を閉鎖済みで、残るのは宣言キーの新規書込（台帳 15b(b)）。
     if (!field || !usesPartsEditor(field) || partsKey !== 'base' || !Number.isFinite(value)) return
-    setValues((current) => ({ ...current, [fieldUid]: value }))
+    setValues((current) => writeSheetPathValue(field, 'base', value, current))
   }
 
   const handleConflictApply = () => {
     if (!conflictPanel || !hasCompleteConflictSelection) return
-    const nextBaseline = { ...baseline }
-    const nextValues = { ...values }
-    // deriveSheetChanges により、1 uid あたりの partsKey は 'base' 一択なので field 単位で書き込む。
+    let nextBaseline = { ...baseline }
+    let nextValues = { ...values }
+    // 現状 client が送る path は partsKey が 'base' またはなしの 2 種なので、path ごとに書き込む。
     for (const conflict of conflictPanel.conflicts) {
-      nextBaseline[conflict.field.uid] = conflict.current
-      if (conflictPanel.selections[conflict.id] === 'theirs') nextValues[conflict.field.uid] = conflict.current
+      nextBaseline = writeSheetPathValue(conflict.field, conflict.partsKey, conflict.current, nextBaseline)
+      if (conflictPanel.selections[conflict.id] === 'theirs') {
+        nextValues = writeSheetPathValue(conflict.field, conflict.partsKey, conflict.current, nextValues)
+      }
     }
     const nextRevision = conflictPanel.currentRevision
     const nextChanges = deriveSheetChanges(fields, nextBaseline, nextValues)
@@ -230,7 +203,9 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                   <Stack gap="xs">
                     <Text fw={600}>{conflict.field.label}</Text>
                     <Text size="sm">相手の値: {formatEditorValue(conflict.current)}</Text>
-                    <Text size="sm">自分の値: {formatEditorValue(values[conflict.field.uid])}</Text>
+                    <Text size="sm">
+                      自分の値: {formatEditorValue(readSheetPathValue(conflict.field, conflict.partsKey, values))}
+                    </Text>
                     <Radio.Group
                       label={`${conflict.field.label} の解決方法`}
                       value={conflictPanel.selections[conflict.id] ?? ''}
@@ -301,7 +276,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                 <TemplateFormRenderer
                   template={template}
                   headingLevel={3}
-                  values={rendererValues}
+                  values={values}
                   onChange={handleRendererChange}
                   onPartsChange={handleRendererPartsChange}
                 />
@@ -309,7 +284,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                   <Button
                     type="submit"
                     leftSection={<IconDeviceFloppy size={16} />}
-                    disabled={hasInvalidNumber || changes.length === 0}
+                    disabled={changes.length === 0}
                     loading={isPending}
                   >
                     変更を保存
