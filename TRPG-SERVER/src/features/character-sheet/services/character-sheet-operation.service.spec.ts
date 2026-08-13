@@ -913,7 +913,7 @@ describe('CharacterSheetOperationService', () => {
     it.each([
       ['plain number', 999],
       ['parts total', { parts: { base: 999, other: 0 } }]
-    ])('formula maxを外れる新規track書き込みを422にする: %s', async (_caseName, newValue) => {
+    ])('formula maxを外れる新規track書き込みをadvisoryとしてraw保存する: %s', async (_caseName, newValue) => {
       templateService.resolvePinnedRevision.mockResolvedValue(makeFormulaMaxTemplate())
       current = makeCharacter({
         sheet: {
@@ -929,8 +929,12 @@ describe('CharacterSheetOperationService', () => {
         changes: [{ path: { fieldUid: 'uid-hp' }, baseValue, newValue }]
       })
 
-      await expect(promise).rejects.toBeInstanceOf(UnprocessableEntityException)
-      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+      await expect(promise).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+      expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
+        'character-1',
+        expect.objectContaining({ values: expect.objectContaining({ 'uid-hp': newValue }) }),
+        1
+      )
     })
 
     it.each([
@@ -938,7 +942,7 @@ describe('CharacterSheetOperationService', () => {
       ['plain numberでmin側からmax側', -2, 11],
       ['partsでmax側からmin側', { parts: { base: 12 } }, { parts: { base: -1 } }],
       ['partsでmin側からmax側', { parts: { base: -2 } }, { parts: { base: 11 } }]
-    ])('反対側への範囲外書き込みを422にして保存しない: %s', async (_caseName, currentValue, newValue) => {
+    ])('反対側への範囲外書き込みをadvisoryとしてraw保存する: %s', async (_caseName, currentValue, newValue) => {
       current = makeCharacter({
         sheet: {
           ...current.sheet!,
@@ -952,8 +956,12 @@ describe('CharacterSheetOperationService', () => {
         changes: [{ path: { fieldUid: 'uid-hp' }, baseValue: currentValue, newValue }]
       })
 
-      await expect(promise).rejects.toBeInstanceOf(UnprocessableEntityException)
-      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+      await expect(promise).resolves.toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+      expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
+        'character-1',
+        expect.objectContaining({ values: expect.objectContaining({ 'uid-hp': newValue }) }),
+        1
+      )
     })
 
     it('決定表3: current==new は converged no-op とし、DBを更新しない', async () => {
