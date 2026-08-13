@@ -47,9 +47,7 @@ export function validateStandaloneRollNotations(template: SheetTemplate): Publis
 }
 
 /**
- * 補間済みの単式を静的検査する。
- *
- * template 用検査と異なり、実行境界へ placeholder を持ち越す式は受理しない。
+ * 補間済み単式（実行境界）と、placeholder を許さない宣言（TrackField.rollOnCreate）の検査に使う。
  */
 export function validateStandaloneRollNotation(notation: string): PublishIssue[] {
   const messages = validateStandaloneRollExpression(notation);

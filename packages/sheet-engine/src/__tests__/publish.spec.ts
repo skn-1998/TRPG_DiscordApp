@@ -3,6 +3,7 @@ import {
   DEFAULT_STEP_LIMIT,
   evaluateTemplate,
   SheetTemplate,
+  TrackField,
   UNSAFE_PARTS_KEYS,
   validatePublishTemplate,
 } from '..';
@@ -13,6 +14,82 @@ import { baseTemplate, issueMessages } from './test-utils';
 declare const Buffer: {
   byteLength(value: string, encoding: 'utf8'): number;
 };
+
+describe('TrackField rollOnCreate publish validation', () => {
+  function templateWithTrack(fieldPatch: Record<string, unknown> = {}) {
+    return baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', max: 10, style: 'gauge',
+          ...fieldPatch,
+        }],
+      }],
+    });
+  }
+
+  it.each([
+    '1d20+10',
+    '(2d6+6)*5',
+  ])('accepts creation roll notation %s', (notation) => {
+    const result = validatePublishTemplate(templateWithTrack({ rollOnCreate: { notation } }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['invalid notation', '1d20+', 'invalid standalone roll expression'],
+    ['division', '1d20/2', 'invalid standalone roll expression'],
+    ['placeholder', '1d20+{main.bonus}', 'standalone roll expression must not contain placeholders'],
+    ['empty notation', '', 'standalone roll expression must not be empty'],
+  ])('rejects %s', (_case, notation, message) => {
+    const result = validatePublishTemplate(templateWithTrack({ rollOnCreate: { notation } }));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'main.hp.rollOnCreate.notation',
+      message,
+    });
+  });
+
+  it('accepts a track without rollOnCreate for backward compatibility', () => {
+    expect(validatePublishTemplate(templateWithTrack())).toEqual(
+      expect.objectContaining({ ok: true, issues: [], warnings: [] }),
+    );
+  });
+
+  it('rejects the boolean rollOnCreate form at runtime', () => {
+    const result = validatePublishTemplate(templateWithTrack({ rollOnCreate: true }));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'sections.0.fields.0.rollOnCreate',
+      message: 'Invalid input: expected object, received boolean',
+    });
+  });
+
+  it('pins the object-only rollOnCreate type contract', () => {
+    const valid: TrackField = {
+      type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', max: 10, style: 'gauge',
+      rollOnCreate: { notation: '1d20' },
+    };
+    const booleanForm: TrackField = {
+      type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', max: 10, style: 'gauge',
+      // @ts-expect-error boolean 形は正式契約に含めない。
+      rollOnCreate: true,
+    };
+    const stringForm: TrackField = {
+      type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', max: 10, style: 'gauge',
+      // @ts-expect-error string 形は正式契約に含めない。
+      rollOnCreate: '1d20',
+    };
+
+    expect(valid.rollOnCreate).toEqual({ notation: '1d20' });
+    void booleanForm;
+    void stringForm;
+  });
+});
 
 describe('publish validation rejects unsupported v1 surface', () => {
   it.each([

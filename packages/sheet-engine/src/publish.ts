@@ -6,6 +6,7 @@ import { isNotationFragment } from './notation';
 import { parseExpression } from './parser';
 import { buildTemplateIndex, canonicalFieldPath, refKey, resolveRefPath } from './template-index';
 import { isSimpleField, resolveGridSpan, resolveSectionLayout } from './layout-resolver';
+import { validateStandaloneRollNotation } from './standalone-roll';
 // publish の uid / partsKey 宣言と value-input の入力キー検査は同じ prototype 汚染面を持つ。
 // 両境界を UNSAFE_PARTS_KEYS で封止し、許可語彙の drift を防ぐ。
 import { RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from './value-input';
@@ -107,7 +108,7 @@ const fieldSchema: z.ZodType<SheetField> = z.lazy(() =>
     scalarFieldSchema,
     z.object({ ...fieldBaseSchema, type: z.literal('computed'), resultType: z.enum(['number', 'text', 'boolean', 'dice']), formula: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string(), rerollable: z.boolean().optional() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), rollOnCreate: z.object({ notation: z.string() }).optional(), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: roleSchema.optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(scalarFieldSchema).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('tag'), catalog: z.array(z.string()).optional(), allowFreeInput: z.boolean().optional() }).passthrough(),
@@ -708,6 +709,13 @@ function validateTrack(
   path: string,
   parentList?: ListField,
 ): void {
+  // RollField の文法検査は validateStandaloneRollNotations が publish の外で担い save では走らないが、rollOnCreate は宣言時点で placeholder を許さないため publish/save 共通のこの経路で封止する。
+  if (field.rollOnCreate !== undefined) {
+    for (const issue of validateStandaloneRollNotation(field.rollOnCreate.notation)) {
+      issues.push({ path: `${path}.rollOnCreate.${issue.path}`, message: issue.message });
+    }
+  }
+
   const min = field.min ?? 0;
   if (typeof field.max === 'number' && field.max < min) {
     issues.push({ path, message: 'track max must be greater than or equal to min' });
