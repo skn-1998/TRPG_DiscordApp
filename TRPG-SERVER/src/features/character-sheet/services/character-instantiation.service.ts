@@ -5,7 +5,6 @@ import type { MaterializedCharacterEntity } from '../../../domains/character/mod
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
-import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
   InstantiateCharacterInput,
@@ -13,7 +12,6 @@ import {
   RollOnCreateResult
 } from '../types/character-sheet.types'
 import { SheetMaterializerService } from './sheet-materializer.service'
-import { TrackRangePolicy } from './track-range.policy'
 
 @Injectable()
 export class CharacterInstantiationService {
@@ -33,7 +31,6 @@ export class CharacterInstantiationService {
     )
     const submittedValues = this.sheetMaterializer.validateInputValues(template, input.values ?? {})
     const { values, rollOnCreateResults } = await this.applyRollOnCreate(template, submittedValues)
-    new TrackRangePolicy(toEngineTemplate(template)).assertCreationValuesWithinBounds(values)
     const materialized = this.materializeOrThrow(template, values)
     const characterId = await this.characterIdService.generateUniqueCharacterId()
     const entity: MaterializedCharacterEntity = {
@@ -90,7 +87,20 @@ export class CharacterInstantiationService {
     const values = { ...inputValues }
     const rollOnCreateResults: RollOnCreateResult[] = []
 
+    // rollOnCreate の走査は top-level のみ。itemFields 内 track の宣言は publish で拒否される（正本 = track-roll-on-create-promotion-draft.md 裁定 4）。
     for (const field of this.collectTopLevelFields(template)) {
+      // 出目は canonical な現在値で提出値と両立しないため、無言で握り潰さず fail-noisy にする（正本 = track-roll-on-create-promotion-draft.md 裁定 5）。発火述語と notation の読み述語は同じ rollOnCreate 契約を指し、契約外形（boolean 等）が DB に残存した場合は提出も発火も成立しない。
+      if (
+        field.type === 'track' &&
+        field.rollOnCreate !== undefined &&
+        Object.prototype.hasOwnProperty.call(inputValues, field.uid)
+      ) {
+        throw new UnprocessableEntityException({
+          message: `track field ${field.uid} declares rollOnCreate and cannot accept an explicit creation value`,
+          fieldUid: field.uid
+        })
+      }
+
       const notation = this.rollOnCreateNotation(field)
       if (!notation) {
         continue
@@ -116,17 +126,7 @@ export class CharacterInstantiationService {
     if (field.type !== 'track') {
       return undefined
     }
-
-    // NOTE: 規約例外 - TrackField.rollOnCreate の正式契約への昇格は
-    // track-roll-on-create-promotion-draft.md で裁定済み。後続スライスでこの契約外分岐を置換する。
-    const trackCandidate = field as typeof field & { rollOnCreate?: boolean | string; notation?: string }
-    if (!trackCandidate.rollOnCreate) {
-      return undefined
-    }
-    if (typeof trackCandidate.rollOnCreate === 'string') {
-      return trackCandidate.rollOnCreate
-    }
-    return trackCandidate.notation
+    return field.rollOnCreate?.notation
   }
 
   private collectTopLevelFields(template: CharacterSheetTemplateEntity): SheetField[] {
