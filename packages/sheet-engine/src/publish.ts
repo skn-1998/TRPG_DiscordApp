@@ -562,7 +562,7 @@ function validateField(
       if (subField.type === 'list') {
         issues.push({ path: `${path}.${subField.id}`, message: 'list inside list is not supported' });
       }
-      // 作成時ロールの走査は top-level のみで、list row は作成時に存在しない。宣言できるが発火しない面を残さないため publish で閉じる（正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の司令塔裁定）。
+      // 作成時ロールの走査は top-level のみで、list row は作成時に存在しない。宣言できるが発火しない面を残さないため save/publish で閉じる（正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の司令塔裁定）。
       if (subField.type === 'track' && subField.rollOnCreate !== undefined) {
         issues.push({ path: `${path}.${subField.id}.rollOnCreate`, message: 'track rollOnCreate is not allowed inside list itemFields' });
       }
