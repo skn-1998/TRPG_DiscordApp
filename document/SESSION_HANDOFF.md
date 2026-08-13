@@ -2799,7 +2799,31 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   2 赤/35・candidates 和集合化 2 赤/35・アキュムレート除去 1 赤/39・負の対照緑。
   台帳反映済み = F-2（isPresentablePartsKey 2 サイト重複 → S6 で 1 本化）・
   F-4（wire 表現不能な削除 change = 裁定枠）・F-6（table 宣言モード base 編集不能 = S6 判断材料）。
-  次 = S5b3（select/boolean 永続化）→ S6。
+  コミット = d25749e2（code）＋87785412（docs）。
+  **S5b3 実装完了・Fable 検収実測通過・二重レビュー実施中（2026-08-13）**:
+  初回委譲は Codex が指示書の矛盾（列挙 pin 凍結と 4 種拡張の両立不能）を検出し停止 →
+  例外指定（反転許可 = :69 系列挙 pin・:897 系 boolean pin の 2 本のみ・'checkbox'/computed
+  除外は維持）を追記して再委譲（run-dr2-s5b3-r2）。依頼事故はメモリ
+  verify-claims-before-prescribing 項目 23 に記録済み。
+  実装 = 4 種 valueType 拡張・normalizeEditorValue 新設（F9 消化 = readSheetPathValue
+  非 parts 分岐と readConflictCurrent の 2→1 純減）・boolean 表示チェックあり/なし・
+  新文言。Fable 独立実測 = front 502→517 全緑・eslint/tsc 0・変異 3 種すべて指定検出器で
+  赤（受理取り消し 6 赤/45・正規化素通し 8 赤/89・conflict 読取退行 2 赤/45）・
+  負の対照 89/89・45/45 緑（証跡 = dr2-s5b3-acceptance.md）。
+  **二重レビュー突合済み（dr2-s5b3-integration.md・blocking 0）**: 両者一致 =
+  readConflictCurrent ゼロ判断 wrapper 削除。Codex = select 検出力（options 外通過 pin・
+  select null mine 再送）。Opus = !field ガード pin 喪失（'checkbox' の TFR fallback 実経路）・
+  server 非対称性コメント消失・select 競合表示の生値/label 不一致（FIX 10 で label 解決）。
+  台帳訂正 = F9 は実装数 3→1 が正。台帳記録 = boolean 未設定 vs false の dirty 化
+  （S6 判断材料）。**FIX-S5B3 済・Fable 検収通過 → S5b3 クローズ（2026-08-13）**:
+  FIX 1〜10 全消化（select 検出力 pin 3 群・'checkbox' 契約 drift pin 復元・
+  readConflictCurrent 削除・死条件縮約・Invariant コメント復帰・select 競合表示の
+  label 解決）。Fable 独立実測 = front 517→523 全緑・eslint/tsc 0・変異 3 種すべて
+  指定検出器で赤（options 検査追加 2 赤/95・ガード除去 1 赤/48・label 退行 1 赤/48）・
+  負の対照緑（証跡 = dr2-s5b3-acceptance.md）。残差記録 = select 空文字 current の
+  空表示（実害なし・acceptance doc 記載）。
+  次 = S6（後片付け: isPresentablePartsKey 1 本化・h2 消費者指定・'use client' 検討・
+  table 宣言 base 編集可否判断 → U14/U15 完了宣言＋大粒度 #17＋SESSION_HANDOFF 全面更新）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
