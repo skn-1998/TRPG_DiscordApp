@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+import { sheetMergeConflictSchema } from '@trpg/api-contract'
 import * as sheetEngine from '@trpg/sheet-engine'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
@@ -1099,6 +1100,34 @@ describe('CharacterSheetOperationService', () => {
         expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
       }
     )
+
+    /**
+     * baseValue 省略の競合でも wire 上に base キーが残ることを固定する。
+     * undefined を素通しすると JSON 化で base の own キーごと消え、front の safeParse が
+     * conflicts.0.base の invalid_type で落ちて構造化競合パネルが汎用エラーへ退行する。
+     * in-memory の payload では undefined でもキー自体は存在するため、JSON 往復後の実物で判定する。
+     */
+    it('baseValue 省略の競合は base: null を直列化後も保持し、競合 wire として妥当にする', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue(makePartsKeyTemplate('declared'))
+      current = makeCharacter({
+        sheet: { ...current.sheet!, values: { ...current.sheet!.values, 'uid-score': { parts: { career: 3 } } } }
+      })
+      const change = changeWithoutBaseValue({ fieldUid: 'uid-score', partsKey: 'career' }, 7)
+
+      const conflict = await service
+        .saveSheet({ characterId: 'character-1', baseRevision: 1, changes: [change] })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse()
+      const serialized = JSON.parse(JSON.stringify(payload)) as { conflicts: Array<Record<string, unknown>> }
+      const serializedConflict = serialized.conflicts[0]
+      expect(Object.prototype.hasOwnProperty.call(serializedConflict, 'base')).toBe(true)
+      expect(serializedConflict.base).toBeNull()
+      // front と同じ schema で往復後の実物を検証し、server 側の正規化漏れを wire 契約として検出する。
+      expect(sheetMergeConflictSchema.safeParse(serialized).success).toBe(true)
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
 
     it('mine は conflict の currentRevision と current を base にして再送すると保存できる', async () => {
       current = makeCharacter({
