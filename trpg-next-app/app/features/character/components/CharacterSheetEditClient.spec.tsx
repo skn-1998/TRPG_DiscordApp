@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CharacterWire } from '@trpg/api-contract'
 import { Component, type ReactNode } from 'react'
-import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
+import type { CharacterSheetTemplateEntity, SheetField } from '../../characterTemplate/types/v3'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { saveSheet } from '../actions'
 import { GENERIC_SHEET_CONFLICT_MESSAGE } from '../sheet-edit'
@@ -55,6 +55,67 @@ const template: CharacterSheetTemplateEntity = {
   }],
   tables: [],
   settings: { rounding: 'round' }
+}
+const booleanTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      { id: 'alive', uid: 'main.alive', label: '生存', type: 'scalar', valueType: 'boolean' }
+    ]
+  }]
+}
+const booleanCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.alive': true }
+  }
+}
+const selectTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'job',
+        uid: 'main.job',
+        label: '職業',
+        type: 'scalar',
+        valueType: 'select',
+        options: [
+          { label: '探偵', value: 'detective' },
+          { label: '医師', value: 'doctor' },
+          { label: '記者', value: 'journalist' }
+        ]
+      }
+    ]
+  }]
+}
+const selectCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.job': 'detective' }
+  }
+}
+const editorContractDriftTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'active',
+        uid: 'main.active',
+        label: '有効',
+        type: 'scalar',
+        valueType: 'checkbox'
+      } as unknown as SheetField
+    ]
+  }]
 }
 const declaredPartsCharacter: CharacterWire = {
   ...character,
@@ -894,39 +955,206 @@ describe('CharacterSheetEditClient', () => {
     expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
   })
 
-  it('編集対象外 uid の onChange は EditorValue state に取り込まない', () => {
-    const templateWithBoolean: CharacterSheetTemplateEntity = {
-      ...template,
-      sections: [{
-        id: 'main',
-        label: 'メイン',
-        fields: [
-          ...template.sections[0]!.fields,
-          { id: 'alive', uid: 'main.alive', label: '生存', type: 'scalar', valueType: 'boolean' }
-        ]
-      }]
-    }
-    const characterWithBoolean: CharacterWire = {
-      ...character,
-      sheet: {
-        ...character.sheet!,
-        values: { ...character.sheet!.values, 'main.alive': true }
-      }
-    }
+  it('boolean checkbox の checked を per-path change として保存する', async () => {
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
     render(
       <MantineProvider>
-        <CharacterSheetEditClient character={characterWithBoolean} template={templateWithBoolean} />
+        <CharacterSheetEditClient character={booleanCharacter} template={booleanTemplate} />
       </MantineProvider>
     )
     const checkbox = screen.getByRole('checkbox', { name: '生存' }) as HTMLInputElement
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
 
-    // overlay の raw 基底と編集対象 uid の境界を同時に固定する。
+    // 旧「編集対象外 uid」境界は TFR が emit する全 scalar の編集対応により UI 到達不能になった。
+    // !field guard は TFR 契約 drift 防御として残し、ここでは兄弟を混ぜない boolean payload を固定する。
     expect(checkbox.checked).toBe(true)
     fireEvent.click(checkbox)
 
-    expect(checkbox.checked).toBe(true)
-    expect((screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(checkbox.checked).toBe(false)
+    expect(saveButton.disabled).toBe(false)
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.alive' }, baseValue: true, newValue: false }]
+    }))
+  })
+
+  it('select の選択を旧文字列から新文字列への per-path change として保存する', async () => {
+    // options は TFR の到達可能入力だけに使い、payload は選択値の string 型だけを保持する。
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={selectCharacter} template={selectTemplate} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: '職業' }))
+    fireEvent.click(await screen.findByRole('option', { name: '医師' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.job' }, baseValue: 'detective', newValue: 'doctor' }]
+    }))
+  })
+
+  it('TFR が emit した編集対象外 valueType は state に取り込まず保存しない', () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={character} template={editorContractDriftTemplate} />
+      </MantineProvider>
+    )
+    const driftInput = screen.getByRole('textbox', { name: '有効' })
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
+
+    // !field ガードは TFR 契約 drift 防御。除去すると usesPartsEditor(undefined) で TypeError になるが、
+    // 既存 517 tests では全緑生存していた変異を、この fallback 入力で到達させる。
+    fireEvent.change(driftInput, { target: { value: 'enabled' } })
+
+    expect((driftInput as HTMLInputElement).value).toBe('')
+    expect(saveButton.disabled).toBe(true)
+    fireEvent.click(saveButton)
     expect(mockedSaveSheet).not.toHaveBeenCalled()
+  })
+
+  it('boolean current:null の mine 再送は baseValue を own キーごと欠落させて保存成功へ進む', async () => {
+    mockedSaveSheet
+      .mockResolvedValueOnce(mergeConflict('main.alive', null))
+      .mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={booleanCharacter} template={booleanTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: '生存' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByText('相手の値: 未入力')
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    const resentWire = JSON.parse(JSON.stringify(mockedSaveSheet.mock.calls[1]?.[1])) as {
+      baseRevision: number
+      changes: Array<Record<string, unknown>>
+    }
+    // null echo を undefined へ復号しないと、path 不在を期待する CAS の wire 表現を作れない。
+    expect(resentWire).toEqual({
+      baseRevision: 4,
+      changes: [{ path: { fieldUid: 'main.alive' }, newValue: false }]
+    })
+    expect(Object.prototype.hasOwnProperty.call(resentWire.changes[0], 'baseValue')).toBe(false)
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+  })
+
+  it('select current:null の mine 再送は baseValue を own キーごと欠落させて保存成功へ進む', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
+    mockedSaveSheet
+      .mockResolvedValueOnce(mergeConflict('main.job', null))
+      .mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={selectCharacter} template={selectTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: '職業' }))
+    fireEvent.click(await screen.findByRole('option', { name: '医師' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByText('相手の値: 未入力')
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    const resentWire = JSON.parse(JSON.stringify(mockedSaveSheet.mock.calls[1]?.[1])) as {
+      baseRevision: number
+      changes: Array<Record<string, unknown>>
+    }
+    // null echo を undefined へ復号し、path 不在を期待する CAS の wire 表現へ戻す。
+    expect(resentWire).toEqual({
+      baseRevision: 4,
+      changes: [{ path: { fieldUid: 'main.job' }, newValue: 'doctor' }]
+    })
+    expect(Object.prototype.hasOwnProperty.call(resentWire.changes[0], 'baseValue')).toBe(false)
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+  })
+
+  it('select 競合の theirs は current 文字列を state と表示へ反映する', async () => {
+    // current の string 復号と theirs 適用を一続きで固定し、表示だけ更新して state が旧値に残る退行を防ぐ。
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
+    mockedSaveSheet.mockResolvedValueOnce(mergeConflict('main.job', 'journalist'))
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={selectCharacter} template={selectTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: '職業' }))
+    fireEvent.click(await screen.findByRole('option', { name: '医師' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText('相手の値: 記者')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    expect((screen.getByRole('combobox', { name: '職業' }) as HTMLInputElement).value).toBe('記者')
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('select 競合の options 外 current は生値へフォールバックして表示する', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: jest.fn() })
+    mockedSaveSheet.mockResolvedValueOnce(mergeConflict('main.job', 'legacy-value'))
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={selectCharacter} template={selectTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('combobox', { name: '職業' }))
+    fireEvent.click(await screen.findByRole('option', { name: '医師' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText('相手の値: legacy-value')).toBeTruthy()
+  })
+
+  it.each([
+    [true, 'チェックあり'],
+    [false, 'チェックなし']
+  ] as const)('boolean 競合の current:%s を「%s」と表示する', async (current, label) => {
+    // 競合 wire の boolean を未入力や英語表記へ退行させず、日本語 UI の語彙へ揃える。
+    mockedSaveSheet.mockResolvedValueOnce(mergeConflict('main.alive', current))
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={booleanCharacter} template={booleanTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: '生存' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText(`相手の値: ${label}`)).toBeTruthy()
+  })
+
+  it('編集対象 scalar がない template は新しい空状態文言を表示する', () => {
+    const computedOnlyTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        ...template.sections[0]!,
+        fields: [{
+          id: 'total',
+          uid: 'main.total',
+          label: '合計',
+          type: 'computed',
+          resultType: 'number',
+          formula: '1'
+        }]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={character} template={computedOnlyTemplate} />
+      </MantineProvider>
+    )
+
+    // number/text 限定の旧説明を残さず、編集対象 scalar 全体の空状態を通知する。
+    expect(screen.getByRole('alert').textContent).toContain('このテンプレートには編集対象の scalar がありません。')
   })
 
   it('ページ h2 配下の template section 見出しを h3 で描画する', () => {

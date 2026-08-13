@@ -15,6 +15,7 @@ import {
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
   listEditablePartsKeys,
+  normalizeEditorValue,
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
@@ -44,12 +45,6 @@ interface ConflictPanelState {
   selections: Record<string, ConflictResolution>
 }
 
-function readConflictCurrent(field: EditableScalarField, current: unknown): EditorValue {
-  // readSheetPathValue と似るが、field 全体の values レコードではなく conflict path 単位の値を読む。
-  if (field.valueType === 'number') return typeof current === 'number' ? current : undefined
-  return typeof current === 'string' ? current : undefined
-}
-
 function createConflictPanel(
   payload: SheetMergeConflictWire,
   fields: EditableScalarField[]
@@ -62,13 +57,17 @@ function createConflictPanel(
       id: `${conflict.path.fieldUid}:${conflict.path.partsKey ?? ''}:${index}`,
       field,
       partsKey: conflict.path.partsKey,
-      current: readConflictCurrent(field, conflict.current)
+      current: normalizeEditorValue(field, conflict.current)
     }]
   })
   return conflicts.length > 0 ? { currentRevision: payload.currentRevision, conflicts, selections: {} } : null
 }
 
-function formatEditorValue(value: EditorValue): string {
+function formatEditorValue(field: EditableScalarField, value: EditorValue): string {
+  if (field.valueType === 'select' && typeof value === 'string') {
+    return field.options?.find((option) => option.value === value)?.label ?? String(value)
+  }
+  if (typeof value === 'boolean') return value ? 'チェックあり' : 'チェックなし'
   return value === undefined ? '未入力' : value === '' ? '空文字' : String(value)
 }
 
@@ -135,12 +134,10 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     const field = fieldsByUid.get(fieldUid)
     // TFR は unknown を運ぶ契約なので、保存境界では編集可能な非 parts scalar とその値型だけを state に入れる。
     if (!field || usesPartsEditor(field)) return
-    if (field.valueType === 'number') {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return
-    } else if (typeof value !== 'string') {
-      return
-    }
-    setValues((current) => writeSheetPathValue(field, undefined, value, current))
+    const normalizedValue = normalizeEditorValue(field, value)
+    if (normalizedValue === undefined) return
+    if (field.valueType === 'number' && !Number.isFinite(normalizedValue)) return
+    setValues((current) => writeSheetPathValue(field, undefined, normalizedValue, current))
   }
 
   const handleRendererPartsChange = (fieldUid: string, partsKey: string, value: number) => {
@@ -204,9 +201,12 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                 <Card key={conflict.id} withBorder radius="sm" p="md">
                   <Stack gap="xs">
                     <Text fw={600}>{conflict.field.label}</Text>
-                    <Text size="sm">相手の値: {formatEditorValue(conflict.current)}</Text>
+                    <Text size="sm">相手の値: {formatEditorValue(conflict.field, conflict.current)}</Text>
                     <Text size="sm">
-                      自分の値: {formatEditorValue(readSheetPathValue(conflict.field, conflict.partsKey, values))}
+                      自分の値: {formatEditorValue(
+                        conflict.field,
+                        readSheetPathValue(conflict.field, conflict.partsKey, values)
+                      )}
                     </Text>
                     <Radio.Group
                       label={`${conflict.field.label} の解決方法`}
@@ -271,7 +271,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
 
         <Card withBorder radius="md" p="lg">
           {fields.length === 0 ? (
-            <Alert color="blue">このテンプレートには編集対象の number/text scalar がありません。</Alert>
+            <Alert color="blue">このテンプレートには編集対象の scalar がありません。</Alert>
           ) : (
             <form onSubmit={handleSubmit}>
               <Stack gap="md">

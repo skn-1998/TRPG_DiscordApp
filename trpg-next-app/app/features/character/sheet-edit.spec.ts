@@ -4,6 +4,7 @@ import {
   deriveSheetChanges,
   editableScalarFields,
   listEditablePartsKeys,
+  normalizeEditorValue,
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
@@ -66,15 +67,25 @@ const textField: EditableScalarField = {
   valueType: 'text'
 }
 
+const booleanField: EditableScalarField = {
+  type: 'scalar',
+  id: 'alive',
+  uid: 'main.alive',
+  label: '生存',
+  valueType: 'boolean'
+}
+
+const selectField: EditableScalarField = {
+  type: 'scalar',
+  id: 'job',
+  uid: 'main.job',
+  label: '職業',
+  valueType: 'select',
+  options: [{ label: '探偵', value: 'detective' }]
+}
+
 describe('editableScalarFields', () => {
-  it('number/text scalar だけを残し、scalar 以外と select/checkbox を除外する', () => {
-    const selectField: SheetField = {
-      type: 'scalar',
-      id: 'job',
-      uid: 'main.job',
-      label: '職業',
-      valueType: 'select'
-    }
+  it('engine の4 scalar valueType だけを残し、非 scalar と editor 専用 checkbox を除外する', () => {
     const checkboxField = {
       type: 'scalar',
       id: 'active',
@@ -90,9 +101,55 @@ describe('editableScalarFields', () => {
       resultType: 'number',
       formula: '1'
     }
+    const rollField: SheetField = {
+      type: 'roll',
+      id: 'check',
+      uid: 'main.check',
+      label: '判定',
+      notation: '1d100'
+    }
+    const trackField: SheetField = {
+      type: 'track',
+      id: 'mp',
+      uid: 'main.mp',
+      label: 'MP',
+      max: 10,
+      style: 'gauge'
+    }
 
-    expect(editableScalarFields(createTemplate([numberField, textField, selectField, checkboxField, computedField])))
-      .toEqual([numberField, textField])
+    // engine 語彙外の checkbox や computed/roll/track が編集面へ漏れない型境界を固定する。
+    expect(editableScalarFields(createTemplate([
+      numberField,
+      textField,
+      booleanField,
+      selectField,
+      checkboxField,
+      computedField,
+      rollField,
+      trackField
+    ]))).toEqual([numberField, textField, booleanField, selectField])
+  })
+})
+
+describe('normalizeEditorValue', () => {
+  // conflict と通常読取が共有する primitive 防壁を field ごとの退化 raw で直接固定する。
+  it.each([
+    ['boolean field の object raw', booleanField, { broken: true }, undefined],
+    ['boolean field の string raw', booleanField, 'true', undefined],
+    ['boolean field の number raw', booleanField, 1, undefined],
+    // server の競合 echo は current ?? null で、null が唯一の path 不在表現。
+    ['boolean field の null raw', booleanField, null, undefined],
+    ['boolean field の boolean raw', booleanField, false, false],
+    ['select field の object raw', selectField, { broken: true }, undefined],
+    ['select field の number raw', selectField, 1, undefined],
+    ['select field の boolean raw', selectField, true, undefined],
+    ['select field の null raw', selectField, null, undefined],
+    ['select field の string raw', selectField, 'detective', 'detective'],
+    // 裁定 (2): options 所属検査は template/server 所掌。options 内の値だけを使う fixture では、
+    // 所属検査を front へ足す誤実装の変異が全緑生存した検出穴を閉じる。
+    ['select field の options 外 string raw', selectField, 'legacy-value', 'legacy-value']
+  ] as const)('%s を正規化する', (_caseName, field, raw, expected) => {
+    expect(normalizeEditorValue(field, raw)).toBe(expected)
   })
 })
 
@@ -295,5 +352,16 @@ describe('deriveSheetChanges', () => {
     )
 
     expect(serialized).toBe('[{"path":{"fieldUid":"main.hp"},"newValue":9}]')
+  })
+
+  it('boolean/select の退化 raw を payload から除外した JSON byte を固定する', () => {
+    // 共有正規化が素通しへ退行すると、型外 object が baseValue として wire へ露出する。
+    const serialized = JSON.stringify(deriveSheetChanges(
+      [booleanField, selectField],
+      { 'main.alive': { broken: true }, 'main.job': { broken: true } },
+      { 'main.alive': false, 'main.job': 'detective' }
+    ))
+
+    expect(serialized).toBe('[{"path":{"fieldUid":"main.alive"},"newValue":false},{"path":{"fieldUid":"main.job"},"newValue":"detective"}]')
   })
 })
