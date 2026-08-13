@@ -1,4 +1,10 @@
-import { BadRequestException, ExecutionContext, INestApplication, UnauthorizedException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ExecutionContext,
+  INestApplication,
+  UnauthorizedException
+} from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import type { Request } from 'express'
 import request from 'supertest'
@@ -58,6 +64,7 @@ describe('CharacterSheetTemplateController', () => {
       create: jest.fn(),
       findSummaries: jest.fn(),
       findOne: jest.fn(),
+      resolvePinnedRevision: jest.fn(),
       update: jest.fn(),
       publish: jest.fn(),
       remove: jest.fn()
@@ -129,6 +136,47 @@ describe('CharacterSheetTemplateController', () => {
 
     await expect(controller.findOne({ id: 'template-1' }, requestFromGuard())).resolves.toBe(template)
     expect(service.findOne).toHaveBeenCalledWith('template-1', 'user-1')
+  })
+
+  it('GET /sheet-templates/:id/revisions/:version は id/version/discordUserId を resolvePinnedRevision に渡す', async () => {
+    const pinned = { ...template, status: 'published' as const, version: '1.2.0' }
+    service.resolvePinnedRevision.mockResolvedValue(pinned)
+
+    await expect(
+      controller.findPinnedRevision({ id: 'template-1', version: '1.2.0' }, requestFromGuard())
+    ).resolves.toBe(pinned)
+    expect(service.resolvePinnedRevision).toHaveBeenCalledWith('template-1', '1.2.0', 'user-1')
+  })
+
+  it('GET /sheet-templates/:id/revisions/:version は最新素引きの findOne を経由しない', async () => {
+    service.resolvePinnedRevision.mockResolvedValue(template)
+
+    await request(app.getHttpServer()).get('/sheet-templates/template-1/revisions/1.2.0').expect(200)
+
+    expect(service.resolvePinnedRevision).toHaveBeenCalledWith('template-1', '1.2.0', 'user-1')
+    expect(service.findOne).not.toHaveBeenCalled()
+  })
+
+  // 解決できない version は service の ConflictException が 409 として素通りする。
+  // path segment は空になり得ないため、DTO の @IsNotEmpty による 400 は HTTP 経由では踏めない。
+  it('GET /sheet-templates/:id/revisions/:version は解決できない version を 409 で返す', async () => {
+    service.resolvePinnedRevision.mockRejectedValueOnce(
+      new ConflictException('pinned sheet template revision must be published or deprecated at the requested version')
+    )
+
+    const response = await request(app.getHttpServer()).get('/sheet-templates/template-1/revisions/9.9.9').expect(409)
+
+    expect(response.body.success).toBe(false)
+    expect(service.resolvePinnedRevision).toHaveBeenCalledWith('template-1', '9.9.9', 'user-1')
+  })
+
+  it('GET /sheet-templates/:id/revisions/:version は user が無い場合 401', async () => {
+    guardUser = null
+
+    await expect(
+      controller.findPinnedRevision({ id: 'template-1', version: '1.2.0' }, requestFromGuard())
+    ).rejects.toBeInstanceOf(UnauthorizedException)
+    expect(service.resolvePinnedRevision).not.toHaveBeenCalled()
   })
 
   it('PUT /sheet-templates/:id は draftRevision 付き body を service に渡す', async () => {

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCharacter } from '../../../../features/character/api/character.service.server'
 import { CharacterSheetEditClient } from '../../../../features/character/components/CharacterSheetEditClient'
 import { SheetVisibilityToggle } from '../../../../features/character/components/SheetVisibilityToggle'
-import { getSheetTemplate } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
+import { getSheetTemplateRevision } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
 import { getResponseStatus } from '../../../../lib/api-response.util'
 import { requireJwt } from '../../../../lib/auth-guard.server'
 
@@ -45,9 +45,20 @@ export default async function CharacterSheetPage({ params }: CharacterSheetPageP
     )
   }
 
-  const template = await loadOrRedirectOnAuthFailure(getSheetTemplate(character.sheet.templateId))
+  // 編集面は「最新テンプレート」ではなく character.sheet が pin した版
+  // （templateId＋templateVersion）を引く。最新を素引きすると、テンプレートを publish し直した
+  // 瞬間に編集画面だけが新版へ勝手に追従し、pin 版で検証する保存経路
+  // （server: resolvePinnedRevision）と表示が食い違うため。
+  const template = await loadOrRedirectOnAuthFailure(
+    getSheetTemplateRevision(character.sheet.templateId, character.sheet.templateVersion)
+  )
   return (
     <Stack gap={0}>
+      {template.status === 'deprecated' && (
+        <Container size="sm" pt="xl" w="100%">
+          <Alert color="yellow">このシートは非推奨版のテンプレートに固定されています</Alert>
+        </Container>
+      )}
       <Container size="sm" pt="xl" w="100%">
         <SheetVisibilityToggle
           characterId={character.characterId}

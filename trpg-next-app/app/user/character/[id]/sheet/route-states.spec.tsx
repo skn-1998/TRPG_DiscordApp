@@ -31,7 +31,7 @@ jest.mock('../../../../features/character/components/SheetVisibilityToggle', () 
 }))
 
 jest.mock('../../../../features/characterTemplate/api/sheetTemplateApi.server', () => ({
-  getSheetTemplate: jest.fn()
+  getSheetTemplateRevision: jest.fn()
 }))
 
 jest.mock('../../../../lib/auth-guard.server', () => ({
@@ -43,7 +43,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { redirect } from 'next/navigation'
 import { GENERIC_DATA_LOAD_ERROR_MESSAGE } from '../../../../components/DataLoadError'
 import { getCharacter } from '../../../../features/character/api/character.service.server'
-import { getSheetTemplate } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
+import { getSheetTemplateRevision } from '../../../../features/characterTemplate/api/sheetTemplateApi.server'
 import { requireJwt } from '../../../../lib/auth-guard.server'
 import CharacterSheetError from './error'
 import CharacterSheetLoading from './loading'
@@ -51,7 +51,7 @@ import CharacterSheetPage from './page'
 
 const mockedRedirect = jest.mocked(redirect)
 const mockedGetCharacter = jest.mocked(getCharacter)
-const mockedGetSheetTemplate = jest.mocked(getSheetTemplate)
+const mockedGetSheetTemplateRevision = jest.mocked(getSheetTemplateRevision)
 const mockedRequireJwt = jest.mocked(requireJwt)
 
 afterEach(cleanup)
@@ -89,7 +89,7 @@ describe('character sheet page', () => {
   beforeEach(() => {
     mockedRedirect.mockReset()
     mockedGetCharacter.mockReset()
-    mockedGetSheetTemplate.mockReset()
+    mockedGetSheetTemplateRevision.mockReset()
     mockedRequireJwt.mockReset().mockResolvedValue(undefined)
   })
 
@@ -103,10 +103,12 @@ describe('character sheet page', () => {
     expect(mockedRedirect).toHaveBeenCalledWith('/login')
   })
 
-  it('getSheetTemplate の 403 は login へ redirect する', async () => {
+  it('getSheetTemplateRevision の 403 は login へ redirect する', async () => {
     const authError = { response: { status: 403 } }
-    mockedGetCharacter.mockResolvedValue({ sheet: { templateId: 'template-1' } } as never)
-    mockedGetSheetTemplate.mockRejectedValue(authError)
+    mockedGetCharacter.mockResolvedValue({
+      sheet: { templateId: 'template-1', templateVersion: '1.0.0' }
+    } as never)
+    mockedGetSheetTemplateRevision.mockRejectedValue(authError)
 
     await expect(
       CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
@@ -129,10 +131,11 @@ describe('character sheet page', () => {
       characterId: 'character-1',
       sheet: {
         templateId: 'template-1',
+        templateVersion: '1.0.0',
         visibility: 'public'
       }
     } as never)
-    mockedGetSheetTemplate.mockResolvedValue({} as never)
+    mockedGetSheetTemplateRevision.mockResolvedValue({} as never)
 
     const page = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
     render(<MantineProvider>{page}</MantineProvider>)
@@ -142,5 +145,43 @@ describe('character sheet page', () => {
     expect(visibilityToggle.getAttribute('data-character-id')).toBe('character-1')
     expect(visibilityToggle.getAttribute('data-visibility')).toBe('public')
     expect(visibilityToggle.compareDocumentPosition(sheetEditor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('最新版ではなく sheet が pin した版でテンプレートを取得する', async () => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockResolvedValue({ status: 'published' } as never)
+
+    await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+
+    expect(mockedGetSheetTemplateRevision).toHaveBeenCalledWith('template-1', '1.2.0')
+  })
+
+  it('pin 先が deprecated のときだけ非推奨注記を表示する', async () => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockResolvedValue({ status: 'deprecated' } as never)
+
+    const deprecatedPage = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    render(<MantineProvider>{deprecatedPage}</MantineProvider>)
+    expect(screen.getByText('このシートは非推奨版のテンプレートに固定されています')).toBeTruthy()
+
+    cleanup()
+    mockedGetSheetTemplateRevision.mockResolvedValue({ status: 'published' } as never)
+    const publishedPage = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    render(<MantineProvider>{publishedPage}</MantineProvider>)
+    expect(screen.queryByText('このシートは非推奨版のテンプレートに固定されています')).toBeNull()
   })
 })
