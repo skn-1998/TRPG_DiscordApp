@@ -2786,6 +2786,20 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   **S5b2 は分割**: S5b2 = 宣言 partsKey の per-path 完成（H3 完全消化・conflictApply
   (uid,partsKey) 化・mine 再送 pin・flat 種付け裁定込み）→ S5b3 = select/boolean 永続化
   （型拡張の波及が別テーマのため分離）→ S6。
+  **S5b2 済・FIX-S5B2 済・Fable 検収通過 → S5b2 クローズ（2026-08-13）**:
+  Codex 実装（run-dr2-s5b2）= 4 ファイルのみ・:606 門番 pin 反転（裁定済み）＋新規 pin
+  （flat 種付け・自由キー・宣言キー競合 theirs 兄弟温存・current:null theirs 削除・
+  mine 再送 baseValue own キー欠落）。Fable 独立実測 = front 488→502 全緑・eslint/tsc 0・
+  変異 3 種すべて指定検出器で赤・負の対照緑（証跡 = dr2-s5b2-acceptance.md）。
+  **二重レビュー突合（dr2-s5b2-integration.md）**: 相互矛盾 1 件を Fable 実測で裁定
+  （toEqual は own undefined と欠落を同一視 — Codex 正・Opus 観点 3 反証）。
+  FIX-S5B2 = 削除 pin の toStrictEqual 化＋hasOwnProperty・宣言モード未宣言安全キー
+  （legacy）遮断 pin・種付けケース一本化・同一 uid 複数 partsKey 競合の逐次合成 pin・
+  server base:0 既定差コメント 1 行（挙動不変）。Fable 独立変異 = delete→undefined 代入
+  2 赤/35・candidates 和集合化 2 赤/35・アキュムレート除去 1 赤/39・負の対照緑。
+  台帳反映済み = F-2（isPresentablePartsKey 2 サイト重複 → S6 で 1 本化）・
+  F-4（wire 表現不能な削除 change = 裁定枠）・F-6（table 宣言モード base 編集不能 = S6 判断材料）。
+  次 = S5b3（select/boolean 永続化）→ S6。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
