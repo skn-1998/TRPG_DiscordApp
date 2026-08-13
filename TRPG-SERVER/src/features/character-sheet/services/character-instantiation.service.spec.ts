@@ -27,7 +27,6 @@ describe('CharacterInstantiationService', () => {
             label: 'DEX',
             type: 'roll',
             notation: '3d6*5',
-            rollOnCreate: true,
             role: { kind: 'rollable', notation: '1d100<={value}', group: 'ability' }
           },
           {
@@ -235,6 +234,37 @@ describe('CharacterInstantiationService', () => {
     expect(result.materialized.sheet.visibility).toBe('private')
     expect(result.character).toBe(created)
     expect(result.materialized).toBe(materialized)
+  })
+
+  it.each([
+    ['boolean', { rollOnCreate: true, notation: '1d20' }],
+    ['string', { rollOnCreate: '1d20' }]
+  ])('契約外 rollOnCreate の %s 形を持つ scalar は作成時ロールしない', async (_caseName, legacyProperties) => {
+    const dependencies = createDependencies()
+    const scalarTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'parameter',
+          label: 'Parameter',
+          fields: [
+            {
+              id: 'luck',
+              uid: 'uid-luck',
+              label: 'Luck',
+              type: 'scalar',
+              valueType: 'number',
+              ...legacyProperties
+            }
+          ]
+        }
+      ]
+    }
+    dependencies.templateService.resolveForCreate.mockResolvedValue(scalarTemplate)
+
+    await dependencies.service.instantiate(instantiateInput)
+
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
   })
 
   it.each([
