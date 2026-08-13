@@ -59,6 +59,57 @@ describe('TrackField rollOnCreate publish validation', () => {
     );
   });
 
+  function templateWithListTrack(fieldPatch: Record<string, unknown> = {}) {
+    return baseTemplate({
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'list', id: 'items', uid: 'main.items', label: 'Items',
+          itemFields: [{
+            type: 'track', id: 'hp', uid: 'items.hp', label: 'HP', max: 10, style: 'gauge',
+            ...fieldPatch,
+          }],
+        }],
+      }],
+    });
+  }
+
+  it('rejects rollOnCreate declared on a track inside list itemFields', () => {
+    const result = validatePublishTemplate(templateWithListTrack({ rollOnCreate: { notation: '1d20' } }));
+
+    expect(result.ok).toBe(false);
+    // 完全一致で固定する。配置拒否は 1 件だけであるべきで、重複 issue や無関係 issue の混入を退行として赤にする。
+    expect(result.issues).toEqual([{
+      path: 'main.items.hp.rollOnCreate',
+      message: 'track rollOnCreate is not allowed inside list itemFields',
+    }]);
+  });
+
+  it('reports both the placement rejection and the notation diagnostic for an invalid rollOnCreate inside list itemFields', () => {
+    const result = validatePublishTemplate(templateWithListTrack({ rollOnCreate: { notation: '1d20+' } }));
+
+    expect(result.ok).toBe(false);
+    // 配置拒否（list 走査）→ notation 診断（validateTrack）の順で 2 件そろうことを固定する。
+    // 片方だけを報告して打ち切る実装への退行を検知するため、順序込みの完全一致で pin する。
+    expect(result.issues).toEqual([
+      {
+        path: 'main.items.hp.rollOnCreate',
+        message: 'track rollOnCreate is not allowed inside list itemFields',
+      },
+      {
+        path: 'main.items.hp.rollOnCreate.notation',
+        message: 'invalid standalone roll expression',
+      },
+    ]);
+  });
+
+  it('accepts a track inside list itemFields without rollOnCreate', () => {
+    expect(validatePublishTemplate(templateWithListTrack())).toEqual(
+      expect.objectContaining({ ok: true, issues: [], warnings: [] }),
+    );
+  });
+
   it('rejects the boolean rollOnCreate form at runtime', () => {
     const result = validatePublishTemplate(templateWithTrack({ rollOnCreate: true }));
 
