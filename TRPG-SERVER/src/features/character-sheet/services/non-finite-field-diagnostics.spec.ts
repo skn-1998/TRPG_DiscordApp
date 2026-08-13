@@ -177,19 +177,25 @@ describe('non-finite field diagnostics', () => {
     const policy = new TrackRangePolicy(toEngineTemplate(template))
 
     expect(() =>
-      policy.assertCreationValuesWithinBounds({
-        'uid-numerator': 10,
-        'uid-denominator': 2,
-        'uid-hp': 4
-      })
+      policy.assertNoWorsenedTrackValues(
+        {},
+        {
+          'uid-numerator': 10,
+          'uid-denominator': 2,
+          'uid-hp': 4
+        }
+      )
     ).not.toThrow()
 
     const exception = captureUnprocessable(() =>
-      policy.assertCreationValuesWithinBounds({
-        'uid-numerator': 10,
-        'uid-denominator': 0,
-        'uid-hp': 4
-      })
+      policy.assertNoWorsenedTrackValues(
+        {},
+        {
+          'uid-numerator': 10,
+          'uid-denominator': 0,
+          'uid-hp': 4
+        }
+      )
     )
     const detail = 'formula did not produce a finite number'
     const expectedMessage = `トラック最大値の計算に失敗しました（フィールド: uid-hp / ラベル: HP / 式: ${formula} / 原因: ${detail}）。最大値の式を確認してください`
@@ -217,10 +223,10 @@ describe('non-finite field diagnostics', () => {
     ])
     const policy = new TrackRangePolicy(toEngineTemplate(template))
 
-    expect(() => policy.assertCreationValuesWithinBounds({ 'uid-hp': 5 })).not.toThrow()
+    expect(() => policy.assertNoWorsenedTrackValues({}, { 'uid-hp': 5 })).not.toThrow()
 
     const exception = captureUnprocessable(() =>
-      policy.assertCreationValuesWithinBounds({ 'uid-hp': Number.NEGATIVE_INFINITY })
+      policy.assertNoWorsenedTrackValues({}, { 'uid-hp': Number.NEGATIVE_INFINITY })
     )
     const expectedMessage =
       'トラックの入力値が有限な数値になりませんでした（フィールド: uid-hp / ラベル: HP / 入力箇所: フィールド値 / 結果: -Infinity）。有限な数値を入力してください'

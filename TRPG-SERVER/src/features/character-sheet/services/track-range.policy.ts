@@ -346,20 +346,6 @@ export class TrackRangePolicy {
   constructor(private readonly template: SheetTemplate) {}
 
   /**
-   * 新規作成には既存違反がないため、入力された全 track が解決済み範囲内であることを要求する。
-   */
-  assertCreationValuesWithinBounds(values: Record<string, unknown>): void {
-    for (const field of this.trackFields()) {
-      const inputValue = this.trackInputValue(field, values[field.uid])
-      if (inputValue === undefined) continue
-
-      const bounds = this.resolveBounds(field, values)
-      if (this.rangeViolation(inputValue, bounds) === null) continue
-      this.throwOutOfBounds(field.uid, inputValue, bounds)
-    }
-  }
-
-  /**
    * 実際に入力値が変わった track だけを検査し、既存違反の維持・縮小を許容する。
    */
   assertNoWorsenedTrackValues(currentValues: Record<string, unknown>, nextValues: Record<string, unknown>): void {

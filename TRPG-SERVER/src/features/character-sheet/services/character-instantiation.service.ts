@@ -87,9 +87,9 @@ export class CharacterInstantiationService {
     const values = { ...inputValues }
     const rollOnCreateResults: RollOnCreateResult[] = []
 
-    // rollOnCreate の走査は top-level のみ。itemFields 内 track の宣言は publish で拒否される（正本 = track-roll-on-create-promotion-draft.md 裁定 4）。
+    // rollOnCreate の走査は top-level のみ。itemFields 内 track の宣言は save/publish 共通の validatePublishTemplate 経路で拒否される（正本 = track-roll-on-create-promotion-draft.md 裁定 4）。
     for (const field of this.collectTopLevelFields(template)) {
-      // 出目は canonical な現在値で提出値と両立しないため、無言で握り潰さず fail-noisy にする（正本 = track-roll-on-create-promotion-draft.md 裁定 5）。発火述語と notation の読み述語は同じ rollOnCreate 契約を指し、契約外形（boolean 等）が DB に残存した場合は提出も発火も成立しない。
+      // 出目は canonical な現在値で提出値と両立しないため、無言で握り潰さず fail-noisy にする（正本 = track-roll-on-create-promotion-draft.md 裁定 5）。roll 型への提出値は先行する validateInputValues が既に 422 にする。発火述語と notation の読み述語は同じ rollOnCreate 契約を指し、契約外形（boolean 等）が DB に残存した場合は提出も発火も成立しない。
       if (
         field.type === 'track' &&
         field.rollOnCreate !== undefined &&

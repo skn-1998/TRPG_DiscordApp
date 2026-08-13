@@ -299,11 +299,11 @@ describe('TrackRangePolicy', () => {
       ]
     }
 
+    // 19.999999999999996/5 は max=3.9999999999999996 となり、入力 4 との差は約 4.4e-16。
+    // 範囲判定が engine と同じ EPSILON(1e-9) 許容を失って素の大小比較へ退行すると、
+    // この二進浮動小数の丸め残差だけで新規違反と判定されるため、ここで許容を固定する。
     expect(() =>
-      new TrackRangePolicy(template).assertCreationValuesWithinBounds({
-        'uid-pow': 19.999999999999996,
-        'uid-hp': 4
-      })
+      new TrackRangePolicy(template).assertNoWorsenedTrackValues({}, { 'uid-pow': 19.999999999999996, 'uid-hp': 4 })
     ).not.toThrow()
   })
 
@@ -315,7 +315,7 @@ describe('TrackRangePolicy', () => {
     let failure: unknown
 
     try {
-      policy.assertCreationValuesWithinBounds({ 'uid-hp': { parts } })
+      policy.assertNoWorsenedTrackValues({}, { 'uid-hp': { parts } })
     } catch (error) {
       failure = error
     }
