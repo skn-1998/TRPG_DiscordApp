@@ -3,7 +3,11 @@ import type { SheetField } from '@trpg/sheet-engine'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { SheetMaterializerService } from './sheet-materializer.service'
-import { formatNonFiniteFieldDiagnostics, type NonFiniteFieldDiagnostic, TrackRangePolicy } from './track-range.policy'
+import {
+  buildBoundedNonFiniteErrorEnvelope,
+  type NonFiniteFieldDiagnostic,
+  TrackRangePolicy
+} from './track-range.policy'
 
 describe('non-finite field diagnostics', () => {
   const templateWithFields = (fields: SheetField[]): CharacterSheetTemplateEntity => ({
@@ -297,12 +301,12 @@ describe('non-finite field diagnostics', () => {
             [component]: longText
           } as NonFiniteFieldDiagnostic
           for (const count of counts) {
-            const result = formatNonFiniteFieldDiagnostics(Array.from({ length: count }, () => diagnostic))
+            const result = buildBoundedNonFiniteErrorEnvelope(Array.from({ length: count }, () => diagnostic))
             expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(4_096)
           }
         }
       }
-      const emptyResult = formatNonFiniteFieldDiagnostics([])
+      const emptyResult = buildBoundedNonFiniteErrorEnvelope([])
       expect(Buffer.byteLength(JSON.stringify(emptyResult), 'utf8')).toBeLessThanOrEqual(4_096)
     }).not.toThrow()
   })
@@ -320,7 +324,7 @@ describe('non-finite field diagnostics', () => {
     expect(() => {
       for (let count = diagnostics.length; count > 0; count -= 1) {
         diagnostics.length = count
-        const result = formatNonFiniteFieldDiagnostics(diagnostics)
+        const result = buildBoundedNonFiniteErrorEnvelope(diagnostics)
         expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(4_096)
       }
     }).not.toThrow()
@@ -328,7 +332,7 @@ describe('non-finite field diagnostics', () => {
 
   it('空診断の安全網でも既存 issue 全体を会計し、長大 issue は丸ごと落とす', () => {
     const longUid = 'u'.repeat(100_000)
-    const formatted = formatNonFiniteFieldDiagnostics(
+    const formatted = buildBoundedNonFiniteErrorEnvelope(
       [],
       [
         {
@@ -345,7 +349,7 @@ describe('non-finite field diagnostics', () => {
   })
 
   it('NUL の component 上限は UTF-8 生値ではなく最終封筒の JSON.stringify 後の長さで数える', () => {
-    const formatted = formatNonFiniteFieldDiagnostics([
+    const formatted = buildBoundedNonFiniteErrorEnvelope([
       {
         kind: 'computed',
         fieldUid: 'uid-computed',

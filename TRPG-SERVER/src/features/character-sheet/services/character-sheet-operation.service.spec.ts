@@ -867,6 +867,49 @@ describe('CharacterSheetOperationService', () => {
       ])
     })
 
+    it('未変更trackのparts overflowを評価前に診断付き422で拒否する', async () => {
+      templateService.resolvePinnedRevision.mockResolvedValue({
+        ...template,
+        sections: [
+          {
+            ...template.sections[0],
+            fields: [
+              ...(template.sections[0].fields as SheetField[]),
+              {
+                id: 'mp',
+                uid: 'uid-mp',
+                label: 'MP',
+                type: 'track',
+                min: 0,
+                max: 10,
+                style: 'gauge'
+              }
+            ]
+          }
+        ]
+      })
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: {
+            ...current.sheet!.values,
+            'uid-mp': { parts: { first: Number.MAX_VALUE, second: Number.MAX_VALUE } }
+          }
+        }
+      })
+      const failure = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 5, newValue: 6 }]
+        })
+        .catch((error: unknown) => error)
+
+      expectNonFinite422Envelope(failure, 'uid-mp')
+      expect(evaluateTemplateMock).not.toHaveBeenCalled()
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
     it('hp.maxがCONを参照していても、CONだけを12から11へ下げる保存は成功する', async () => {
       const hpByConTemplate: CharacterSheetTemplateEntity = {
         ...template,
@@ -1463,6 +1506,33 @@ describe('CharacterSheetOperationService', () => {
       evaluateTemplateMock.mockImplementation(evaluateTemplate)
 
       expectNonFinite422Envelope(failure, 'uid-hp')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('delta適用後のparts overflowを再評価前に診断付き422で拒否する', async () => {
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: {
+            ...current.sheet!.values,
+            'uid-hp': { parts: { base: Number.MAX_VALUE, other: 0 } }
+          }
+        },
+        palette: (current.palette ?? []).map((entry) =>
+          entry.kind === 'resource' ? { ...entry, deltas: [Number.MAX_VALUE] } : entry
+        )
+      })
+      const failure = await service
+        .applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: Number.MAX_VALUE,
+          interaction: { id: 'interaction-parts-overflow' }
+        })
+        .catch((error: unknown) => error)
+
+      expectNonFinite422Envelope(failure, 'uid-hp')
+      expect(evaluateTemplateMock).toHaveBeenCalledTimes(1)
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
 
