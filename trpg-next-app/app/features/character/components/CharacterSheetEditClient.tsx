@@ -14,6 +14,7 @@ import {
   deriveSheetChanges,
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
+  listEditablePartsKeys,
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
@@ -144,17 +145,18 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
 
   const handleRendererPartsChange = (fieldUid: string, partsKey: string, value: number) => {
     const field = fieldsByUid.get(fieldUid)
-    // 宣言 partsKeys の base は state に入り per-path で保存する。宣言された非 base キーは S5b2 まで受理しない。
-    // H3 経路は base 分を閉鎖済みで、残るのは宣言キーの新規書込（台帳 15b(b)）。
-    if (!field || !usesPartsEditor(field) || partsKey !== 'base' || !Number.isFinite(value)) return
-    setValues((current) => writeSheetPathValue(field, 'base', value, current))
+    if (!field || !usesPartsEditor(field) || !Number.isFinite(value)) return
+    // TFR が提示できる base・宣言キー・自由キーだけを受理し、旧公開データの reserved / UNSAFE と
+    // 宣言モードの未宣言キーが callback 境界を越えて state に入ることを防ぐ。
+    if (!listEditablePartsKeys(field, baseline, values).includes(partsKey)) return
+    setValues((current) => writeSheetPathValue(field, partsKey, value, current))
   }
 
   const handleConflictApply = () => {
     if (!conflictPanel || !hasCompleteConflictSelection) return
     let nextBaseline = { ...baseline }
     let nextValues = { ...values }
-    // 現状 client が送る path は partsKey が 'base' またはなしの 2 種なので、path ごとに書き込む。
+    // 同一 uid の複数 partsKey 競合も合成できるよう、各 path を直前の再構築結果へ逐次適用する。
     for (const conflict of conflictPanel.conflicts) {
       nextBaseline = writeSheetPathValue(conflict.field, conflict.partsKey, conflict.current, nextBaseline)
       if (conflictPanel.selections[conflict.id] === 'theirs') {

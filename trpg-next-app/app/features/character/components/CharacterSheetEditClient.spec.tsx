@@ -95,6 +95,38 @@ function mergeConflict(fieldUid = 'main.hp', current: unknown = 8, currentRevisi
   }
 }
 
+function mergeGrowthConflict(current: unknown, currentRevision = 4) {
+  return {
+    error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+    conflict: true,
+    mergeConflict: {
+      characterId: 'character-1',
+      conflicts: [{
+        path: { fieldUid: 'main.hp', partsKey: 'growth' },
+        current,
+        base: 5,
+        yours: 6
+      }],
+      currentRevision
+    }
+  }
+}
+
+function mergePartsConflicts(currentRevision = 4) {
+  return {
+    error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+    conflict: true,
+    mergeConflict: {
+      characterId: 'character-1',
+      conflicts: [
+        { path: { fieldUid: 'main.hp', partsKey: 'base' }, current: 12, base: 10, yours: 10 },
+        { path: { fieldUid: 'main.hp', partsKey: 'growth' }, current: 7, base: 5, yours: 6 }
+      ],
+      currentRevision
+    }
+  }
+}
+
 function renderEditor() {
   return render(
     <MantineProvider>
@@ -655,7 +687,7 @@ describe('CharacterSheetEditClient', () => {
     expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('0')
   })
 
-  it('宣言 partsKeys field の宣言キー入力を保存 changes に取り込まない', async () => {
+  it('宣言 partsKeys field の宣言キー入力を兄弟キーなしの per-path change で保存する', async () => {
     render(
       <MantineProvider>
         <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
@@ -667,11 +699,199 @@ describe('CharacterSheetEditClient', () => {
     const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
     const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
 
-    // 宣言キー（非 base）を S5b2 まで流さない門番を固定する。
+    // H3 の検出器: growth だけを per-path 化し、base などの兄弟値を payload に混ぜない。
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
     fireEvent.change(growthInput, { target: { value: '6' } })
-    expect(saveButton.disabled).toBe(true)
     fireEvent.click(saveButton)
-    expect(mockedSaveSheet).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'growth' }, baseValue: 5, newValue: 6 }]
+    }))
+  })
+
+  it('flat number raw の宣言キー編集でも base を表示 state に種付けし、growth だけを保存する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={character} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    const partsTrigger = screen.getByRole('button', { name: 'HP: 内訳を編集' })
+    expect(partsTrigger.textContent).toBe('10')
+    fireEvent.click(partsTrigger)
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+
+    // flat raw の非 base 書込で base を失う変異は、合計 16・base 10・単一 growth path の三面すべてを壊す。
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    expect([partsTrigger.textContent, baseInput.value, growthInput.value]).toEqual(['16', '10', '6'])
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(1))
+    expect(mockedSaveSheet.mock.calls[0]?.[1]).toEqual({
+      baseRevision: 1,
+      changes: [{
+        path: { fieldUid: 'main.hp', partsKey: 'growth' },
+        baseValue: undefined,
+        newValue: 6
+      }]
+    })
+  })
+
+  it('parts:true field の自由キー入力を per-path change で保存する', async () => {
+    const partsCharacter: CharacterWire = {
+      ...character,
+      sheet: {
+        ...character.sheet!,
+        values: { ...character.sheet!.values, 'main.hp': { parts: { base: 10, custom: 2 } } }
+      }
+    }
+    const partsTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        id: 'main',
+        label: 'メイン',
+        fields: [
+          { id: 'hp', uid: 'main.hp', label: 'HP', type: 'scalar', valueType: 'number', parts: true },
+          { id: 'name', uid: 'main.name', label: '名前', type: 'scalar', valueType: 'text' }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={partsCharacter} template={partsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const customInput = await screen.findByRole('textbox', { name: 'HP: custom' }) as HTMLInputElement
+
+    // 自由モードも既存 raw の提示可能キーだけを列挙し、whole-field ではなく custom path だけを保存する。
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(customInput, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'custom' }, baseValue: 2, newValue: 3 }]
+    }))
+  })
+
+  it('宣言キー競合を per-path 表示し、theirs で当該キーだけ更新して base を温存する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    mockedSaveSheet.mockResolvedValueOnce(mergeGrowthConflict(7))
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    // uid 直書きへ退行すると current 7 が field 全体を潰し、base 10 と growth path の両方を失う。
+    expect(await screen.findByText('相手の値: 7')).toBeTruthy()
+    expect(screen.getByText('自分の値: 6')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    expect([baseInput.value, growthInput.value]).toEqual(['10', '7'])
+    expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('17')
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('同一 uid の base/growth 競合を逐次合成し、theirs の両 current を残す', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    const partsTrigger = screen.getByRole('button', { name: 'HP: 内訳を編集' })
+    fireEvent.click(partsTrigger)
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    mockedSaveSheet.mockResolvedValueOnce(mergePartsConflicts())
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText('相手の値: 12')).toBeTruthy()
+    expect(screen.getByText('相手の値: 7')).toBeTruthy()
+    const theirsSelections = screen.getAllByRole('radio', { name: '相手の値を採用 (theirs)' })
+    fireEvent.click(theirsSelections[0]!)
+    fireEvent.click(theirsSelections[1]!)
+
+    // S5b2 の逐次合成検出器。毎回 baseline/values 起点に戻す非アキュムレート変異では先行 base が消える。
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+    expect([baseInput.value, growthInput.value]).toEqual(['12', '7'])
+    expect(partsTrigger.textContent).toBe('19')
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('theirs の current:null は宣言キーを削除し、base を温存する', async () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    mockedSaveSheet.mockResolvedValueOnce(mergeGrowthConflict(null))
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByText('相手の値: 未入力')
+    fireEvent.click(screen.getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+
+    // null echo は undefined へ復号され、undefined 値の残留ではなく当該 path の不存在へ戻る。
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+    expect([baseInput.value, growthInput.value]).toEqual(['10', ''])
+    expect(screen.getByRole('button', { name: 'HP: 内訳を編集' }).textContent).toBe('10')
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('current:null の mine 再送は baseValue を wire から欠落させて保存成功へ進む', async () => {
+    const characterWithoutGrowth: CharacterWire = {
+      ...declaredPartsCharacter,
+      sheet: {
+        ...declaredPartsCharacter.sheet!,
+        values: { ...declaredPartsCharacter.sheet!.values, 'main.hp': { parts: { base: 10 } } }
+      }
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={characterWithoutGrowth} template={declaredPartsTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    await screen.findByRole('textbox', { name: 'HP: base' })
+    const popover = document.querySelector('[data-parts-popover="main.hp"]') as HTMLElement
+    const growthInput = popover.querySelector('input[aria-label="HP: growth"]') as HTMLInputElement
+    mockedSaveSheet
+      .mockResolvedValueOnce(mergeGrowthConflict(null))
+      .mockResolvedValueOnce({ error: null })
+    fireEvent.change(growthInput, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByText('相手の値: 未入力')
+    fireEvent.click(screen.getByRole('radio', { name: '自分の値を採用 (mine)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    const resentWire = JSON.parse(JSON.stringify(mockedSaveSheet.mock.calls[1]?.[1])) as {
+      baseRevision: number
+      changes: Array<Record<string, unknown>>
+    }
+    // null を baseValue に再利用すると不存在期待 CAS にならず再競合する。undefined 復号が JSON 欠落を守る保護線。
+    expect(resentWire).toEqual({
+      baseRevision: 4,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'growth' }, newValue: 6 }]
+    })
+    expect(Object.prototype.hasOwnProperty.call(resentWire.changes[0], 'baseValue')).toBe(false)
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
   })
 
   it('編集対象外 uid の onChange は EditorValue state に取り込まない', () => {
