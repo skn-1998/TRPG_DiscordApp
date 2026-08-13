@@ -1,7 +1,14 @@
-# track 作成時ロールの契約昇格 起案（主要裁定済み・実装待機）
+# track 作成時ロールの契約昇格 起案（実装完了・2026-08-14）
 
 作成: 2026-08-13（L-2 裁定 (c) の付帯裁定「track は廃止せず昇格」を受けた起案）。
-状態: **契約形と範囲意味論はユーザー裁定済み（2026-08-13）**。実装順序 = 未定・着手 = ユーザーの再開指示待ち。
+状態: **TR-1〜TR-6 実装完了（2026-08-14・大粒度 #21 で blocking 0 を確認）**。
+実装コミット = TR-1 736e5305 / TR-2 16f91cc / TR-2b 5194d8e / TR-3 17c978ef /
+TR-4a1 8890305 / TR-4a2 67e665f / TR-4b 3dd3536 / TR-4c f576324 / TR-5 df83d7c / TR-6 cf61681。
+現況: engine 契約 A・全経路 advisory（raw canonical）・front 表示（15 / 10 超過明示・
+gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ track 作成/編集まで実装済み。
+残件 = §「大粒度 #20 でユーザー決定点へ昇格した項目」（TR-D1 凍結）と
+§「実装完了後の残スライス」。**以下の「現状調査の結果」節は 2026-08-13 の実装前
+スナップショット**（裁定根拠の記録として保持・現況を表さない）。
 
 ## 確定した裁定（2026-08-13・ユーザー）
 
@@ -16,6 +23,51 @@
 3. 修飾つき notation（`1d20+10`・`(2d6+6)*5`）は standalone roll 文法を正本として明示 pin する。
    調査で発見した drift（publish の `/` 拒否と runtime 許可の差・placeholder 非補間・
    track notation の検査対象外）はスライス設計時に同時裁定する。
+
+### 司令塔裁定（2026-08-13・大粒度 #18 の突合で確定。narrow start / fail-noisy 既定の
+### 詳細化でありユーザー再裁定可）
+
+4. **itemFields 内 track の rollOnCreate は publish で拒否する**。itemFields は roll/list を
+   既に明示拒否しており同型。作成時に list row は存在せず意味論が未定義で、
+   「宣言できるが発火しない」面を残すのは L-1 型の穴になるため。
+   track 自体の itemFields 配置は現状維持（rollOnCreate 宣言のみ拒否）。
+5. **rollOnCreate を宣言した track へ作成時 inputValues が明示値を持つ場合は 422**。
+   出目 = 現在値の裁定と提出値は矛盾し、無言上書き（提出値の握り潰し）より
+   fail-noisy を選ぶ。
+6. **max 式の評価失敗（非有限）は投入拒否でなく表示層の error 警告で扱う**
+   （2026-08-13・TR-3 レビュー F-2 の裁定）。作成経路の advisory 化で「トラック最大値の
+   計算に失敗しました」系の作成時 422 は消え、当面は保存/± の残存検査が fail-late で
+   検出する。その残存検査も advisory 化で消えるため、恒久の受け皿は track 描画
+   （gauge/checkboxes）の error 警告とする — 注釈 status 表示契約
+   （ok=値・indeterminate=「—」・error=インライン警告）と同型。
+   track 描画スライスの実装項目に含める。
+7. **保存経路の有限性検査は全 track 歩行へ 1 本化し、診断形を非有限封筒へ統一する**
+   （2026-08-14・大粒度 #20 の突合で確定）。拒否挙動は現状維持 = 無関係 track が
+   非有限のままでも保存は 422（緩和側 = 変更 track のみ歩行は、破損データの無言温存を
+   許すため不採用）。多重破損の脱出路は同一リクエストでの同時修復。効果は
+   「未変更 track の parts overflow が `sheet evaluation failed` になる」封筒分岐の解消。
+   実装 = TR-4c。
+
+### 大粒度 #20 でユーザー決定点へ昇格した項目（実装凍結中）
+
+- **zero-delta 契約と bounds/atBound 一式の去就**（design-ledger §5-2 TR-D1 参照）。
+  裁定 3（min>max 422 の ± 残存）は本件の従属で、単独先行させない。
+  #21 精密化: 式 max の min>max は検証タブ完全無徴候（publish は数値 max しか min と
+  比較しない）・± の 422 だけ素の文字列で封筒非準拠 — いずれも TR-D1 と同時解決。
+
+### 実装完了後の残スライス・裁定枠（2026-08-14 大粒度 #21・突合 = big21-integration.md）
+
+- checkboxes 専用視覚（TFR renderTrackField 1 箇所・低優先の到達不能 fallback
+  `status:'error'`→indeterminate 向き修正を同乗）
+- 試しロール UI（SM-F 非依存を実測済み・dice preview 部品は未抽出）
+- CL-6 出目提示（rollOnCreateResults は controller で破棄・wire 契約に非搭載 —
+  表示には controller/api-contract/front の 3 層スライス。裁定 5 の明示提出値 422 も
+  front 作成経路から現状到達不能 = values 送信 UI が無い）
+- 裁定枠（保留グループ）: 未入力 track の表示割れ — editor プレビュー「0 / 10」
+  （evaluated 基底）vs 実シート「— / 10」（raw 基底）。canonical 表示の裁定待ち
+- capability gap の記録: front エディタは SheetField.role を編集できず、エディタ製 track は
+  palette resource になれない（± 経路到達不能）。role 編集スライスでは TR-D1 非対称と
+  CL-6 を同時設計すること
 
 ## 背景
 

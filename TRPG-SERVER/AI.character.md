@@ -528,3 +528,24 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - palette 上限は api-contract の PALETTE_MAX_ENTRIES（未 export・ファイル内3箇所で参照）と
   server の PALETTE_HARD_CAP の2箇所。**値の drift は機械固定されておらずコメント頼み**
   （型 drift は固定済みという非対称。固定するには api-contract のエクスポート面拡大が要る）
+
+## track 昇格レーン完了（2026-08-14・TR-1〜TR-6）
+
+正本 = document/character-sheet-proposals/track-roll-on-create-promotion-draft.md
+（裁定一覧・実装コミット 10 本・残スライス）。証跡 = review-results/impl-u14/。
+
+- **rollOnCreate は正式契約**: `TrackField.rollOnCreate?: { notation }`（契約形 A）。
+  publish が standalone roll 文法で検証・itemFields 内は拒否。作成時は出目が canonical
+  現在値（提出値との衝突は 422）。出目結果（rollOnCreateResults）は controller で
+  破棄されており wire に載らない（CL-6 裁定枠）
+- **track の min/max は全経路 advisory**: 提出・保存・± とも範囲超過を raw のまま採用。
+  clamp は engine/server から全撤去（raw が canonical・表示 cap は front gauge の塗りのみ）。
+  拒否するのは有限性・データ健全性のみで、検査は `TrackRangePolicy.assertFiniteTrackValues`
+  1 本（全 track の raw 有限性 → 変更 track の max 式/修復可能性・診断は非有限封筒に統一）
+- **残存の暫定**: calculateBounds の min>max 422 は ± 経路（atBound 表示用 resolveBounds）
+  にのみ残る。zero-delta 契約・bounds/atBound 一式の去就とセットで **TR-D1
+  （design-ledger §5-2・ユーザー裁定待ち）** — 単独で触らないこと
+- front: 表示 = TemplateFormRenderer の track 専用描画（15 / 10 超過明示・
+  max error 警告 = SM-9(b) 同型）。エディタ = track 作成/編集可（既定値は publish 通過形 —
+  autosave が publish 検証を丸ごと通すため。編集 UI の無い role は不変で、エディタ製
+  track は palette resource にならない）

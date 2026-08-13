@@ -9,10 +9,11 @@
 
 ---
 
-## 0. 現在地（2026-08-13 実測・基準 commit `e4468ab6`）
+## 0. 現在地（2026-08-14 実測・基準 commit `cf616813`）
 
 | 項目 | 状態 |
 |---|---|
+| **TR レーン（L-2 (c)＋track 昇格 TR-1〜TR-6）** | **実装完了（2026-08-14・大粒度 #20/#21 とも blocking 0）**。engine 契約 A・全経路 advisory（raw canonical）・server 有限性検査 1 本化・front 表示（15 / 10 超過明示）・エディタ track 作成/編集まで。正本 = track-roll-on-create-promotion-draft.md（冒頭に実装コミット 10 本）・証跡 = review-results/impl-u14/tr-lane-acceptance.md。残 = TR-D1（§5-2・凍結）＋残スライス（checkboxes 視覚・試しロール・CL-6・role 編集） |
 | Phase 1（engine・template ドメイン・Web エディタ実 API 化） | **実装完了**（AI.character.md 追記6） |
 | Phase 2（hub・palette・Discord ±・worker） | **実装完了・受入未了**。PH-7 実機受入（D-3・ユーザー実施）の全 16 チェック項目が `☐` のまま（`phase2-ph7-acceptance-checklist.md`） |
 | Phase 3 | **未着工**。`phase3-goal-contract.md` は DRAFT v0.9。着工前提 = D-3 通過（I3-3）＋決定点 D-P3-1〜4 のユーザー決定 |
@@ -285,9 +286,9 @@
 | scalar number/text/select/boolean | ✅ | ✅ | ✅（4 種） | ⚠️ number/text のみ | — |
 | scalar `parts` | ✅ | ✅（± は parts.other） | ❌ | ⚠️ base のみ保存経路 | ✅（±） |
 | computed（式・9 関数・lookup） | ✅ | ✅ computedCache | ✅ formula 編集 | ❌ **表示されない** | ⚠️ embed は resource のみ |
-| roll / standalone roll（3d6*5） | ✅ | ⚠️ rollOnCreate 契約外（L-2） | ✅ notation 編集 | ❌ | ✅ palette roll |
+| roll / standalone roll（3d6*5） | ✅ | ✅ rollOnCreate 正式契約（TR-3・2026-08-14） | ✅ notation 編集 | ❌ | ✅ palette roll |
 | lookup table（CoC DB） | ✅ 範囲表・resultType dice | ✅ | ⚠️ 生 JSON textarea | ❌ | ✅（notation 差し込み経由） |
-| track（min/max/thresholds） | ✅ clamp（formula max は server 責務） | ✅ TrackRangePolicy | ❌ 作成 UI なし | ❌ | ✅ res_ ± |
+| track（min/max/thresholds） | ✅ **全経路 advisory（raw canonical・TR-4b/4c）**・有限性のみ 422 | ✅ TrackRangePolicy（有限性診断＋bounds は ± atBound 専用） | ✅ 作成・編集 UI（TR-6・rollOnCreate 含む） | ✅ 15 / 10 超過明示＋gauge 塗り cap＋max error 警告（TR-5・checkboxes 視覚は残） | ✅ res_ ±（raw 適用・min>max 422 のみ TR-D1 凍結） |
 | track reset（resetOn/resetTo） | ⚠️ 宣言・検証のみ | ❌ 実行系なし（C-1） | ❌ | ❌ | ❌ |
 | thresholds 到達通知 | ⚠️ 検証のみ | ❌ | ❌ | ❌ | ❌ |
 | list / relation / tag | ✅ 型・publish 検証 | ❌ 投影・palette 対象外 | ❌ 作成 UI なし | ❌ | ❌ 行 palette なし |
@@ -301,7 +302,7 @@
 | テンプレ複数バージョン共存 | — | ❌ Phase 4 | — | — | — |
 | 配布（gallery/fork/license） | — | ❌ Phase 4 | ❌ | — | — |
 
-**フロントの構造的な蓋**: `V3EditorFieldType`（`trpg-next-app/app/features/characterTemplate/types/v3.ts:9`）が scalar 系＋computed＋roll に限定。track/list/relation/tag は「型は素通しするが作成・編集できない」。キャラシート画面（`CharacterSheetEditClient`）は `editableScalarFields` の filter（`sheet-edit.ts:10-17`）で number/text に退化。`evaluateTemplate` の front 使用は TemplatePreviewV3 の 1 箇所のみ。
+**フロントの構造的な蓋**: `V3EditorFieldType`（`trpg-next-app/app/features/characterTemplate/types/v3.ts:9`）は scalar 系＋computed＋roll＋**track（TR-6・2026-08-14 で蓋開放）**。list/relation/tag は「型は素通しするが作成・編集できない」のまま。track の role（palette resource 化）も編集不可のまま（大粒度 #21 記録: エディタ製 track は ± 経路に到達しない）。キャラシート画面（`CharacterSheetEditClient`）は `editableScalarFields` の filter（`sheet-edit.ts:10-17`）で number/text に退化。`evaluateTemplate` の front 使用は TemplatePreviewV3 の 1 箇所のみ。
 
 ---
 
@@ -310,7 +311,7 @@
 | ID | 内容 | 根拠 | 扱い |
 |---|---|---|---|
 | **L-1** | **dice 断片の `+` 連結が publish 通過→評価時 throw**。`'+1d4' + '+1d6'` は inferBinaryType が dice を返すが evalBinary は無条件 expectNumber。回避は notation 側連結（`1d8{a}{b}`）。回帰テストなし | `publish.ts:469-472,647-651` ⇔ `evaluator.ts:297-299,470-475` | **人間決定点（round1 H5 で昇格）**: publish 側の文言は連結を意図的に受理しており、拒絶は公開言語の縮退になる。回帰再現の固定と裁定資料まではループ可（§6-1） |
-| **L-2** | **rollOnCreate が engine 契約外フィールド**。instantiation は `field.rollOnCreate` を参照するが RollField 型に存在せず（passthrough で素通り）、**legacy-coc seed の roll には無い＝作成時ロール不発を実証済み**（2026-08-08 再現 spec 3 red / seed 整合ガード 1 green・感度確認済み）。roll 値は提出不可・事後書込不可のため不発＝修復経路なしの永久欠落 | `character-instantiation.legacy-coc.reproduction.spec.ts`・`l2-roll-on-create-adjudication.md`（事実チェーン 10 項） | **裁定待ち**（a 型昇格 / b seed 付与 / c 常時ロール。資料は c 推奨）。実装は裁定後 |
+| **L-2** | **rollOnCreate が engine 契約外フィールド**。instantiation は `field.rollOnCreate` を参照するが RollField 型に存在せず（passthrough で素通り）、**legacy-coc seed の roll には無い＝作成時ロール不発を実証済み**（2026-08-08 再現 spec 3 red / seed 整合ガード 1 green・感度確認済み）。roll 値は提出不可・事後書込不可のため不発＝修復経路なしの永久欠落 | `character-instantiation.legacy-coc.reproduction.spec.ts`・`l2-roll-on-create-adjudication.md`（事実チェーン 10 項） | **解消済み（2026-08-14）**: (c) 常時ロール採用＋契約形 A で TR-1〜TR-6 実装完了（再現 spec 緑化済み・§0 参照） |
 | **L-3** | **OP-1 fast-path 未実装（契約との乖離）**: `phase2-operation-contracts.md:55` は「baseRevision==現 revision なら比較省略で全適用」の fast-path を要求するが、実装は `baseRevision` を形式検査にしか使わず `sheet.revision` と比較しない。実防御は per-change `baseValue` 一致＋repository CAS | `character-sheet-operation.service.ts:654-658` ⇔ `phase2-operation-contracts.md:55` | 原則**契約どおり実装**（§6-1・round1 H4 で再分類）。契約側を廃止する場合のみ別の人間裁定 |
 | **L-4** | **hub `error→*` の復帰遷移が存在せず rebuild 不可能**（GAP-B の受け皿は Phase 3 E-4 のまま） | `character.entity.ts:91-92` | Phase 3 |
 | **L-5** | golden fixtures の「Web/サーバ両側 jest 共有」は**未達**（projection パッケージ内テスト専用。front は依存すらしていない） | `sheet-projection/jest.config.cjs` / `trpg-next-app/package.json` | design-v1-ui 契約 3 との乖離を記録 |
@@ -342,8 +343,9 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | ID | 決定事項 | ブロックしているもの |
 |---|---|---|
 | **D-3** | PH-7 実機受入の実施と判定（Docker ゲート §5 含む） | Phase 2 完了宣言・Phase 3 着工 |
-| **L-2 裁定** | rollOnCreate 修正方針（a 型昇格／b seed 付与／c 常時ロール — 裁定資料は c 推奨）**【裁定 2026-08-13・ユーザー】(c) 常時ロールを採用**。**付帯裁定 = track の作成時ロールは廃止せず正式契約へ昇格する**（正本 = track-roll-on-create-promotion-draft.md）。**昇格の主要裁定済み（2026-08-13・ユーザー）= 契約形 A（TrackField.rollOnCreate 内包・出目 canonical・二形態廃止）＋範囲意味論は全経路 advisory 化（提出・± も超過許可・数値 15/10 明示・± raw 基準・gauge 塗りのみ cap。既存の提出検査・悪化拒否・raw/投影 clamp・422 の pin 群を反転）**。実装順序 = 未定・着手はユーザーの再開指示待ち | 再現 spec の赤解消・D-3 の作成時ロール受入・**SM-F（SM-1 proof 原子性）の着手**（2026-08-12 実測: proof/nonce は契約・production とも完全未実装〔dice preview の wire は total/details のみ〕。proof の消費者 = ウィザードの roll step UI も未構築。作成時ロールの在り方が本裁定で決まる前に protocol を先行実装すると死んだ抽象になるため、キュー #11 の SM-F はブロック扱い） |
-| **L-13** | legacy-coc テンプレートの DB 投入方法（手動 publish or seeder 新設・所有者/version）**【裁定 2026-08-13・ユーザー】seeder 新設を採用**（所有者の指定方法はスライス設計時に提案。実装はユーザーの再開指示待ち — L-2 (c)・D-R4 (a) と同じく着手待機） | D-3 §0 事前準備の実行可能性 |
+| **L-2 裁定** | rollOnCreate 修正方針（a 型昇格／b seed 付与／c 常時ロール — 裁定資料は c 推奨）**【裁定 2026-08-13・ユーザー】(c) 常時ロールを採用**。**付帯裁定 = track の作成時ロールは廃止せず正式契約へ昇格する**（正本 = track-roll-on-create-promotion-draft.md）。**昇格の主要裁定済み（2026-08-13・ユーザー）= 契約形 A（TrackField.rollOnCreate 内包・出目 canonical・二形態廃止）＋範囲意味論は全経路 advisory 化（提出・± も超過許可・数値 15/10 明示・± raw 基準・gauge 塗りのみ cap。既存の提出検査・悪化拒否・raw/投影 clamp・422 の pin 群を反転）**。実装順序 = 未定・着手はユーザーの再開指示待ち。**〔進捗 2026-08-13〕TR-1（736e5305）・TR-2 engine 契約 A（16f91cc）・D-R4（d2d0759）・L-13（51d83bf）済み。大粒度 #18 = 二重レビュー一致でクリーン・統合フェーズ不要（突合 = review-results/impl-u14/big18-integration.md）。順序制約 = TR-4b 完了前に TR-5 を始めない（raw/capped 二語彙の front 流入防止）。追加の司令塔裁定 2 件（itemFields 内 track の publish 拒否・提出値衝突 422）は正本 draft §裁定 4/5。CL-6 裁定枠 = rollOnCreateResults の details は production 消費 0（#21 実測で wire 契約に非搭載 = 表示には controller/api-contract/front の 3 層スライスが必要・裁定は保留のまま）。**〔完了 2026-08-14〕TR-1〜TR-6 実装完了（§0 参照・大粒度 #20/#21 blocking 0・残 = TR-D1 凍結＋残スライス）** | 再現 spec の赤解消・D-3 の作成時ロール受入・**SM-F（SM-1 proof 原子性）の着手**（2026-08-12 実測: proof/nonce は契約・production とも完全未実装〔dice preview の wire は total/details のみ〕。proof の消費者 = ウィザードの roll step UI も未構築。作成時ロールの在り方が本裁定で決まる前に protocol を先行実装すると死んだ抽象になるため、キュー #11 の SM-F はブロック扱い） |
+| **L-13** | legacy-coc テンプレートの DB 投入方法（手動 publish or seeder 新設・所有者/version）**【裁定 2026-08-13・ユーザー】seeder 新設を採用**。**〔実装 2026-08-13〕** seeder = src/scripts/seed-legacy-coc-template.ts（backfill 家風・dry-run 既定・冪等キー templateId＋version・seed 実体無改変・publish 3 検証再利用〔visibility=public 要求のみ規約例外として除外 — seed は private が正で書き換え禁止のため。code 内 NOTE あり〕）。**〔2-2 型不変条件・#18 CL-2〕** publish 検証セットは domain validateForPublish／seeder collectSeedPublishIssues／front エディタ runValidation の 3 通りに手組みされ、検証を増減しても機械検出されない — domain 側を触るスライスは他 2 面の追随を指示書に明記すること（front には投影キー検査が元々無い = 既知乖離） | D-3 §0 事前準備の実行可能性 |
+| **L-13b** | **seeder を投入しても legacy 経路は開通しない（実測 2026-08-13）**: findOne / resolvePinnedRevision は `assertOwner`（authorDiscordUserId 等値）で遮断し visibility を読み取り述語に使わないため、owner 'system' の行は一般ユーザーへ **403**（seeder 投入で 404→403 に変わるだけ）。認可の変更なので AI は決めない。選択肢 = (a) 読み取り述語へ system テンプレートの許可を追加（visibility ベース or owner 'system' 特例） (b) seed の owner/visibility を変更（seed 実体の改変 — L-13 不変条件の変更を伴う） (c) legacy 経路は別解決（backfill pin の消費側で code 側 seed を直接参照し続ける現状維持） | seeder `--execute` の実走・D-3 §0（PH-7 前提 = legacy-coc が DB 解決可能であること）・D-R4 経路の legacy キャラクター到達性 |
 | **L-1 裁定** | dice 断片 `+` 連結の言語仕様（publish 拒絶=公開言語の縮退 or evaluator 連結対応） | L-1 封鎖の実装方向 |
 | **D-P3-1** | Phase 3 スコープ (a)コアのみ／(b)＋U5／(c)＋v1.x（declare/when） | M3-1〜M3-6 の範囲 |
 | **D-P3-2** | 作者ピン留めフラグを schema v3.1 で追加するか | README 未決 15・先頭 20 縮退の解消 |
@@ -358,6 +360,7 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | ~~D-R3~~ | **決定済み（2026-08-12 ユーザー裁定）** — 正本 = design-v1-ui H-18（更新済み）・却下記録 = §1-4。前半 = (a) **LIST_ROW_LIMIT 新設（512 仮置き・表上限と同形の単一定数＋options 差し替え）**・後半 = **注釈式の独立予算（式 1 本ごと既定 10,000）を仕様として明文化**。消化スライス = §6-1 #16 | クローズ（実装完了で H-18 完全達成宣言可） |
 | ~~D-ST1~~ | **決定済み（2026-08-12 ユーザー裁定）** — front 状態管理方針: **zustand 標準採用は見送り**（再評価トリガー = 離れたコンポーネント間の状態共有の実需要発生時・その際はコンポーネント所有 Provider 形が第一候補）・**produce を setState に入れるだけの immer 導入は不採用**（負荷純増を実測）・**テンプレートエディタ限定で連鎖畳み構造変更＋immer をセット採用**（将来スライス・同乗既定 = §6-1 #17）。正本 = `document/state-management-zustand-immer.md`（調査証跡 = review-results/state-mgmt-study/） | クローズ（#17 着手前に凍結不変条件を §2-2 へ登録） |
 | **D-R4** | **sheet 編集面の template 取得が templateVersion を無視して最新を素引き**（SM-16 の front 側ギャップ。D-R2 行で記録 → 大粒度 #17 で影響面拡大を確認し昇格）: D-R2 配線後は layout/blocks/pools/annotation もすべて最新版由来になり、保存済み revision と異なるフォームで編集・保存しうる。選択肢 = (a) pinned revision 解決を front API へ公開・接続（＋取得不能/deprecated の注記） (b) v1 は最新素引きを仕様として容認し記録 **【裁定 2026-08-13・ユーザー】(a) 接続を採用**（実装スライス化して消化する） | U14/U15 の品質残差クローズ・SM-13/SM-16 キャラページ表示との整合 |
+| **TR-D1** | **zero-delta 契約と bounds/atBound 一式の去就**（2026-08-14 大粒度 #20 で昇格・突合 = review-results/impl-u14/big20-integration.md）。TR-4b の全経路 advisory 化後、resolveBounds/calculateBounds/WeakMap cache/resolveAtBound/atBound/Discord の ℹ️ 上限・下限・変化なし文言は「宣言 delta が 0 のときだけ到達する経路」へ縮退（両レビュー probe 実測。palette deltas の 0 は publish が受理・押下毎に値不変のまま revision+1・interactionIds 1 枠消費・hub 編集が走る。production/seed に deltas:0 の宣言は 0 件・外部 DB は未確認）。選択肢 = (a) **0 を契約拒否**（publish schema を nonzero 化＋operation ガード。bounds 一式 ≈60 行と ℹ️ 文言が丸ごと削除でき、min>max 422 の ± 残存非対称〔裁定 3〕も自動消滅 — Codex 推奨） (b) 0 を許容し ℹ️ 文言と bounds 一式を維持（文言は「境界が止めた」から「変化なし」系へ要修正・±の zero 押下 noOp 短絡の追加要否も付随）。**裁定 3（min>max 422 撤去）は本件に従属・単独先行させない**（Opus 依存指摘） | ℹ️ 文言/atBound の恒久形・min>max 非対称の解消・TR-5 完了後の残務範囲 |
 | 運用 | 未 push 59 コミット（2026-08-12 実測）の push／lint-server required 昇格／rest.http credential（chip task_dedfbb73）／U4 ベンチ | — |
 
 ### 5-3. タスク番号の注意
@@ -404,7 +407,7 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 
 front の消化区分（round1 H8 で「Phase 3 と独立」の過大判定を訂正）:
 - **独立着手可（既契約の未消化・Phase 3 スコープ外）**: キャラシート画面への computed ライブ表示（三面契約「同一評価器」の未消化。TemplatePreviewV3 の実証済みパターン移植）
-- **D-P3-1 決定後（Phase 3 の G3-1/M3-2 の対象 — 独立着手しない）**: track UI・list 編集 UI・lookup table グリッドエディタ等のブロック UI（`V3EditorFieldType` の蓋を開ける変更は Phase 3 契約の範囲内）
+- **D-P3-1 決定後（Phase 3 の G3-1/M3-2 の対象 — 独立着手しない）**: list 編集 UI・lookup table グリッドエディタ等のブロック UI（track UI は L-2 (c) 付帯裁定の TR レーンで 2026-08-14 前倒し完了 — Phase 3 対象から除外）
 
 ### 6-3. ループ運転規則（fable-rules 準拠＋2026-08-04・2026-08-12 運用変更）
 
