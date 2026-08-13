@@ -116,6 +116,34 @@ describe('character sheet page', () => {
     expect(mockedRedirect).toHaveBeenCalledWith('/login')
   })
 
+  // 実物の redirect() は戻らず、NEXT_REDIRECT digest を持つ error を throw して制御を奪う。
+  // 何も throw しない mock では redirect 後の経路を通らないため、その error が pin 解決不能の
+  // 判定を素通りして呼び出し元まで届くこと（＝注記に吸い込まれて redirect が握り潰されないこと）を
+  // 固定できない。ここだけ実物の throw 挙動を再現して、その透過を pin する。
+  it('403 の redirect が投げる NEXT_REDIRECT は注記に吸収されず呼び出し元へ透過する', async () => {
+    // Next.js 実物の redirect error の形（digest に遷移種別・遷移先・status を載せる）に合わせる。
+    const redirectError = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/login;307;'
+    })
+    mockedRedirect.mockImplementation(() => {
+      throw redirectError
+    })
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockRejectedValue({ response: { status: 403 } })
+
+    await expect(
+      CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    ).rejects.toBe(redirectError)
+    expect(mockedRedirect).toHaveBeenCalledWith('/login')
+  })
+
   it('5xx は取得失敗セルへ渡すため throw する', async () => {
     const serverError = { response: { status: 503 } }
     mockedGetCharacter.mockRejectedValue(serverError)
@@ -161,6 +189,69 @@ describe('character sheet page', () => {
     await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
 
     expect(mockedGetSheetTemplateRevision).toHaveBeenCalledWith('template-1', '1.2.0')
+  })
+
+  // 404/409 は pin 版が解決できない行き止まりなので、再試行付きの取得失敗セルではなく
+  // route 固有の注記へ落ちること、かつ未解決のテンプレートで編集面を開かせないことを固定する。
+  it.each([409, 404])('pin 版を解決できない %i では取得不能注記を出しエディタを描画しない', async (status) => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockRejectedValue({ response: { status } })
+
+    const page = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    render(<MantineProvider>{page}</MantineProvider>)
+
+    expect(screen.getByText('このシートが固定しているテンプレート版を取得できません')).toBeTruthy()
+    expect(screen.queryByTestId('sheet-editor')).toBeNull()
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('pin 版を解決できたときは取得不能注記を出さない', async () => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockResolvedValue({ status: 'published' } as never)
+
+    const page = await CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    render(<MantineProvider>{page}</MantineProvider>)
+
+    expect(screen.queryByText('このシートが固定しているテンプレート版を取得できません')).toBeNull()
+    expect(screen.getByTestId('sheet-editor')).toBeTruthy()
+  })
+
+  // 5xx も通信断も再試行で回復しうるため、取得不能注記へ吸い込まず再試行つきの取得失敗セルへ渡し続ける。
+  // 通信断（response を持たず status を読めない素の Error）まで並べるのは、行き止まり判定が
+  // 「404/409 または status === undefined」へ緩むと、status 不明の一過性障害まで行き止まり扱いになり
+  // 再試行手段のない注記へ落ちてしまうため。status を読めないことは行き止まりの根拠にならない。
+  it.each([
+    ['5xx', { response: { status: 503 } }],
+    ['通信断', new Error('network down')]
+  ] as const)('getSheetTemplateRevision の %s は注記にせず取得失敗セルへ渡す', async (_caseName, failure) => {
+    mockedGetCharacter.mockResolvedValue({
+      characterId: 'character-1',
+      sheet: {
+        templateId: 'template-1',
+        templateVersion: '1.2.0',
+        visibility: 'private'
+      }
+    } as never)
+    mockedGetSheetTemplateRevision.mockRejectedValue(failure)
+
+    await expect(
+      CharacterSheetPage({ params: Promise.resolve({ id: 'character-1' }) })
+    ).rejects.toBe(failure)
+    expect(mockedRedirect).not.toHaveBeenCalled()
   })
 
   it('pin 先が deprecated のときだけ非推奨注記を表示する', async () => {

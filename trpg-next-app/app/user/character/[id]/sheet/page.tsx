@@ -23,6 +23,15 @@ async function loadOrRedirectOnAuthFailure<T>(request: Promise<T>): Promise<T> {
   }
 }
 
+// pin 版そのものが解決できない失敗（404 = テンプレートが存在しない / 409 = pin した version が
+// published にも deprecated にも解決できない）は、再試行しても同じ結果になる行き止まり。
+// 再試行ボタン付きの汎用取得失敗セルでは原因が伝わらないため、route 固有の注記へ振り分ける。
+// 5xx や通信断は再試行で回復しうるので、従来どおり error boundary へ渡す。
+function isPinnedTemplateUnresolvable(error: unknown): boolean {
+  const status = getResponseStatus(error)
+  return status === 404 || status === 409
+}
+
 export default async function CharacterSheetPage({ params }: CharacterSheetPageProps) {
   await requireJwt()
   const { id } = await params
@@ -51,7 +60,28 @@ export default async function CharacterSheetPage({ params }: CharacterSheetPageP
   // （server: resolvePinnedRevision）と表示が食い違うため。
   const template = await loadOrRedirectOnAuthFailure(
     getSheetTemplateRevision(character.sheet.templateId, character.sheet.templateVersion)
-  )
+  ).catch((error: unknown) => {
+    if (!isPinnedTemplateUnresolvable(error)) throw error
+    return null
+  })
+
+  if (!template) {
+    return (
+      <Container size="sm" py="xl">
+        <Alert color="yellow">
+          <Stack gap="sm">
+            <Text>このシートが固定しているテンプレート版を取得できません</Text>
+            <Link href="/user/character">
+              <Button component="span" variant="subtle" leftSection={<IconArrowLeft size={16} />}>
+                一覧へ
+              </Button>
+            </Link>
+          </Stack>
+        </Alert>
+      </Container>
+    )
+  }
+
   return (
     <Stack gap={0}>
       {template.status === 'deprecated' && (
