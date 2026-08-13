@@ -63,7 +63,7 @@ export function TemplateFormRenderer({
         const layout = resolveSectionLayout(section.layout)
         const annotations = annotationRuntime.sections[sectionIndex]
         const fields = buildRenderFieldEntries(section.fields, annotations)
-        const overLimitMessages = buildOverLimitMessages(annotations)
+        const fieldConstraintMessages = buildFieldConstraintMessages(annotations)
 
         return (
           <Stack component="section" gap="sm" key={`${section.id}:${sectionIndex}`}>
@@ -79,10 +79,10 @@ export function TemplateFormRenderer({
                 onPartsChange,
                 renderField,
                 annotations,
-                overLimitMessages,
+                fieldConstraintMessages,
                 blockHeadingLevel
               )
-              : renderFieldContainer(fields, layout, values, onChange, onPartsChange, renderField, overLimitMessages)}
+              : renderFieldContainer(fields, layout, values, onChange, onPartsChange, renderField, fieldConstraintMessages)}
           </Stack>
         )
       })}
@@ -99,7 +99,7 @@ function renderBlockGroups(
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
   renderFieldOverride: TemplateFormRendererProps['renderField'],
   annotations: SectionAnnotationRuntime,
-  overLimitMessages: ReadonlyMap<string, string>,
+  fieldConstraintMessages: ReadonlyMap<string, string>,
   blockHeadingLevel: 3 | 4
 ) {
   const blockLabels = new Map<string, string>()
@@ -127,23 +127,29 @@ function renderBlockGroups(
           onChange,
           onPartsChange,
           renderFieldOverride,
-          overLimitMessages
+          fieldConstraintMessages
         )
         : null}
       {[...blockGroups]
         .filter(([, { fields }]) => fields.length > 0)
         .map(([blockId, { label, fields }]) => {
           const capRuntime = annotations.blocks.find((block) => block.blockId === blockId)
-          const cap = capRuntime?.status === 'ok' ? capRuntime.cap : undefined
 
           return (
             <Stack gap="xs" key={blockId}>
-              {cap === undefined ? (
+              {capRuntime === undefined ? (
                 <Title order={blockHeadingLevel}>{label}</Title>
               ) : (
                 <Group gap="xs">
                   <Title order={blockHeadingLevel}>{label}</Title>
-                  <Badge data-block-cap={cap}>上限 {cap}</Badge>
+                  {/* design-v1-ui :287 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
+                  {capRuntime.status === 'ok' ? (
+                    <Badge data-block-cap={capRuntime.cap}>上限 {capRuntime.cap}</Badge>
+                  ) : capRuntime.status === 'indeterminate' ? (
+                    <Badge data-block-cap="indeterminate">上限 —</Badge>
+                  ) : (
+                    <Text c="red" data-block-cap-error={blockId} size="sm">上限を評価できません</Text>
+                  )}
                 </Group>
               )}
               {renderFieldContainer(
@@ -153,7 +159,7 @@ function renderBlockGroups(
                 onChange,
                 onPartsChange,
                 renderFieldOverride,
-                overLimitMessages
+                fieldConstraintMessages
               )}
             </Stack>
           )
@@ -179,8 +185,7 @@ function renderSectionPools(
   section: SheetTemplate['sections'][number],
   annotations: SectionAnnotationRuntime
 ) {
-  const visiblePools = annotations.pools.filter((pool) => pool.status === 'ok')
-  if (visiblePools.length === 0) return null
+  if (annotations.pools.length === 0) return null
 
   const poolLabels = new Map<string, string>()
   for (const pool of section.pools ?? []) {
@@ -189,8 +194,27 @@ function renderSectionPools(
 
   return (
     <Stack gap="sm">
-      {visiblePools.map((pool) => {
+      {annotations.pools.map((pool) => {
         const label = poolLabels.get(pool.poolId) ?? pool.poolId
+
+        // design-v1-ui :287 / SM-9(b): indeterminate は値だけ「—」へ退化し、error はこの pool 行だけで警告する。
+        if (pool.status !== 'ok') {
+          if (pool.status === 'indeterminate') {
+            return (
+              <Stack gap={4} key={pool.poolId} data-pool-id={pool.poolId} data-pool-status="indeterminate">
+                <Text fw={600}>{label}</Text>
+                <Text size="sm">残り —</Text>
+              </Stack>
+            )
+          }
+          return (
+            <Stack gap={4} key={pool.poolId} data-pool-id={pool.poolId} data-pool-status="error">
+              <Text fw={600}>{label}</Text>
+              <Text c="red" data-pool-error={pool.poolId} size="sm">残量を評価できません</Text>
+            </Stack>
+          )
+        }
+
         const isOver = pool.over
 
         return (
@@ -217,7 +241,7 @@ function toPoolProgress(consumed: number, total: number) {
   return Number.isNaN(percentage) ? 0 : Math.max(0, Math.min(100, percentage))
 }
 
-function buildOverLimitMessages(annotations: SectionAnnotationRuntime) {
+function buildFieldConstraintMessages(annotations: SectionAnnotationRuntime) {
   const fieldUids = new Set<string>()
   const ambiguousFieldUids = new Set<string>()
   for (const { fieldUid } of annotations.fieldBlocks) {
@@ -227,11 +251,14 @@ function buildOverLimitMessages(annotations: SectionAnnotationRuntime) {
   const messages = new Map<string, string>()
 
   for (const limit of annotations.limits) {
-    if (
-      limit.status !== 'ok' ||
-      ambiguousFieldUids.has(limit.fieldUid) ||
-      !limit.over
-    ) continue
+    if (ambiguousFieldUids.has(limit.fieldUid)) continue
+    // design-v1-ui :287 / SM-9(b): indeterminate は超過警告を抑え、error は該当 field の近傍だけで警告する。
+    if (limit.status !== 'ok') {
+      if (limit.status === 'indeterminate') continue
+      messages.set(limit.fieldUid, '上限を評価できません')
+      continue
+    }
+    if (!limit.over) continue
     messages.set(limit.fieldUid, `上限 ${limit.limit} を超えています（現在 ${limit.displayValue}）`)
   }
 
@@ -245,7 +272,7 @@ function renderFieldContainer(
   onChange: TemplateFormRendererProps['onChange'],
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
   renderFieldOverride: TemplateFormRendererProps['renderField'],
-  overLimitMessages: ReadonlyMap<string, string>
+  fieldConstraintMessages: ReadonlyMap<string, string>
 ) {
   const partColumns = layout.mode === 'table' ? buildTablePartColumns(fields) : []
 
@@ -282,7 +309,7 @@ function renderFieldContainer(
                   onChange={onChange}
                   onPartsChange={onPartsChange}
                   renderField={renderFieldOverride}
-                  warning={overLimitMessages.get(field.uid)}
+                  warning={fieldConstraintMessages.get(field.uid)}
                 />
               ))}
             </Table.Tbody>
@@ -305,7 +332,7 @@ function renderFieldContainer(
               onChange,
               onPartsChange,
               renderField: renderFieldOverride,
-              warning: overLimitMessages.get(field.uid)
+              warning: fieldConstraintMessages.get(field.uid)
             })}
           </div>
         )
@@ -364,11 +391,13 @@ function TableFieldRow({
           )
         })}
         <Table.Td data-table-column="total">
+          {/* table の宣言キーは canonical 列が編集責任を持つため、Popover は base だけを補完して重複提示を避ける。 */}
           <PartsEditorPopover
             field={field}
             value={value}
             displayValue={displayValue}
             onPartsChange={onPartsChange}
+            excludedPartIds={declaredPartIds}
           />
           {renderFieldWarning(field.uid, warning)}
         </Table.Td>
@@ -438,17 +467,19 @@ function PartsEditorPopover({
   field,
   value,
   displayValue,
-  onPartsChange
+  onPartsChange,
+  excludedPartIds
 }: {
   field: ScalarField
   value: unknown
   displayValue: number | undefined
   onPartsChange: TemplateFormRendererProps['onPartsChange']
+  excludedPartIds?: ReadonlySet<string>
 }) {
   const [opened, setOpened] = useState(false)
   const editableParts = [
     { id: 'base', label: 'base' },
-    ...buildPopoverPartRows(field, value)
+    ...buildPopoverPartRows(field, value).filter(({ id }) => !excludedPartIds?.has(id))
   ]
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'Escape') {
@@ -529,6 +560,7 @@ function hasPartKey(value: unknown, partsKey: string) {
 }
 
 function readPartValue(value: unknown, partsKey: string): number | '' {
+  if (partsKey === 'base' && typeof value === 'number' && Number.isFinite(value)) return value
   if (!isRecord(value) || !isRecord(value.parts)) return ''
   if (!Object.prototype.hasOwnProperty.call(value.parts, partsKey)) return ''
   const partValue = value.parts[partsKey]
@@ -584,7 +616,7 @@ function renderFieldWithWarning({
 
 function renderFieldWarning(fieldUid: string, warning: string | undefined) {
   if (warning === undefined) return null
-  return <Text c="red" size="sm" data-field-over-limit={fieldUid}>{warning}</Text>
+  return <Text c="red" size="sm" data-field-constraint-warning={fieldUid}>{warning}</Text>
 }
 
 function renderDefaultField(

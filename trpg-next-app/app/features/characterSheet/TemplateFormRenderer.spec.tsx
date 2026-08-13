@@ -581,7 +581,7 @@ describe('TemplateFormRenderer', () => {
     expect(screen.queryByRole('heading', { level: 2, name: '空セクション' })).toBeNull()
     expect(document.querySelectorAll('[data-layout-mode]')).toHaveLength(1)
     const limitedSection = screen.getByRole('heading', { level: 2, name: '上限セクション' }).closest('section')
-    expect(limitedSection?.querySelector('[data-field-over-limit]')?.textContent)
+    expect(limitedSection?.querySelector('[data-field-constraint-warning]')?.textContent)
       .toBe('上限 5 を超えています（現在 55）')
   })
 
@@ -661,7 +661,7 @@ describe('TemplateFormRenderer', () => {
     expect(secondSection?.querySelector('[data-block-cap]')?.textContent).toBe('上限 20')
   })
 
-  it('indeterminate / error の block cap は見出しに表示しない', () => {
+  it('indeterminate の block cap は「上限 —」を表示し、error は見出し脇に警告する', () => {
     const targetTemplate = createAnnotationTemplate({
       blocks: [
         { id: 'pending', label: '未確定', cap: { formula: '{skills.base}' } },
@@ -676,12 +676,38 @@ describe('TemplateFormRenderer', () => {
 
     renderForm({}, undefined, targetTemplate)
 
-    expect(screen.getByRole('heading', { level: 3, name: '未確定' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 3, name: '評価失敗' })).toBeTruthy()
-    expect(document.querySelector('[data-block-cap]')).toBeNull()
+    const pendingGroup = screen.getByRole('heading', { level: 3, name: '未確定' }).parentElement
+    const brokenGroup = screen.getByRole('heading', { level: 3, name: '評価失敗' }).parentElement
+    expect(pendingGroup?.querySelector('[data-block-cap="indeterminate"]')?.textContent).toBe('上限 —')
+    expect(pendingGroup?.querySelector('[data-block-cap-error]')).toBeNull()
+    expect(brokenGroup?.querySelector('[data-block-cap]')).toBeNull()
+    expect(brokenGroup?.querySelector('[data-block-cap-error="broken"]')?.textContent).toBe('上限を評価できません')
   })
 
-  it('field-over-limit の実値を入力近傍に表示し、非超過 field では表示しない', () => {
+  it('indeterminate の block cap と pool は「—」を表示して警告を抑制する', () => {
+    const targetTemplate = createAnnotationTemplate({
+      blocks: [{ id: 'pending', label: '未確定', cap: { formula: '{skills.base}' } }],
+      pools: [{ id: 'career', label: '職業ポイント', total: { formula: '{skills.base}' }, partsKey: 'career' }],
+      fields: [
+        {
+          id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number', blockId: 'pending',
+          partsKeys: [{ id: 'career', label: '職業' }]
+        },
+        { id: 'base', uid: 'uid_base', label: '参照元', type: 'scalar', valueType: 'number' }
+      ]
+    })
+
+    renderForm({}, undefined, targetTemplate)
+
+    const headingGroup = screen.getByRole('heading', { level: 3, name: '未確定' }).parentElement
+    const pool = screen.getByText('職業ポイント').closest('[data-pool-id="career"]') as HTMLElement
+    expect(headingGroup?.querySelector('[data-block-cap="indeterminate"]')?.textContent).toBe('上限 —')
+    expect(headingGroup?.querySelector('[data-block-cap-error]')).toBeNull()
+    expect(pool.textContent).toContain('残り —')
+    expect(pool.querySelector('[data-pool-error]')).toBeNull()
+  })
+
+  it('field constraint の超過実値を入力近傍に表示し、非超過 field では表示しない', () => {
     const targetTemplate = createAnnotationTemplate({
       fields: [
         { id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number', max: 40 },
@@ -692,7 +718,7 @@ describe('TemplateFormRenderer', () => {
 
     const warning = screen.getByText('上限 40 を超えています（現在 55）')
     expect(getFieldCell('uid_skill').contains(warning)).toBe(true)
-    expect(getFieldCell('uid_note').querySelector('[data-field-over-limit]')).toBeNull()
+    expect(getFieldCell('uid_note').querySelector('[data-field-constraint-warning]')).toBeNull()
 
     rerender(
       <MantineProvider>
@@ -700,7 +726,7 @@ describe('TemplateFormRenderer', () => {
       </MantineProvider>
     )
     expect(screen.queryByText('上限 40 を超えています（現在 55）')).toBeNull()
-    expect(document.querySelector('[data-field-over-limit]')).toBeNull()
+    expect(document.querySelector('[data-field-constraint-warning]')).toBeNull()
   })
 
   it.each([
@@ -726,14 +752,14 @@ describe('TemplateFormRenderer', () => {
 
     const lowSection = screen.getByRole('heading', { level: 2, name: '上限 5 セクション' }).closest('section')
     const highSection = screen.getByRole('heading', { level: 2, name: '上限 100 セクション' }).closest('section')
-    expect(lowSection?.querySelector('[data-field-over-limit]')?.textContent).toBe('上限 5 を超えています（現在 55）')
-    expect(highSection?.querySelector('[data-field-over-limit]')).toBeNull()
+    expect(lowSection?.querySelector('[data-field-constraint-warning]')?.textContent).toBe('上限 5 を超えています（現在 55）')
+    expect(highSection?.querySelector('[data-field-constraint-warning]')).toBeNull()
   })
 
   it.each([
-    ['indeterminate', { formula: '{skills.base}' }],
-    ['error', { formula: '1 / 0' }]
-  ])('status=%s の field limit は表示しない', (_status, max) => {
+    ['indeterminate', { formula: '{skills.base}' }, null],
+    ['error', { formula: '1 / 0' }, '上限を評価できません']
+  ])('status=%s の field limit を契約どおりに表示する', (_status, max, expectedWarning) => {
     const targetTemplate = createAnnotationTemplate({
       fields: [
         { id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number', max },
@@ -743,7 +769,22 @@ describe('TemplateFormRenderer', () => {
 
     renderForm({ uid_skill: 55 }, undefined, targetTemplate)
 
-    expect(document.querySelector('[data-field-over-limit]')).toBeNull()
+    const warning = getFieldCell('uid_skill').querySelector('[data-field-constraint-warning]')
+    expect(warning?.textContent ?? null).toBe(expectedWarning)
+  })
+
+  it('同一 section の field limit error は該当 field の近傍だけに表示する', () => {
+    const targetTemplate = createAnnotationTemplate({
+      fields: [
+        { id: 'broken', uid: 'uid_broken', label: '評価失敗', type: 'scalar', valueType: 'number', max: { formula: '1 / 0' } },
+        { id: 'healthy', uid: 'uid_healthy', label: '正常値', type: 'scalar', valueType: 'number', max: 100 }
+      ]
+    })
+
+    renderForm({ uid_broken: 55, uid_healthy: 20 }, undefined, targetTemplate)
+
+    expect(getFieldCell('uid_broken').querySelector('[data-field-constraint-warning]')?.textContent).toBe('上限を評価できません')
+    expect(getFieldCell('uid_healthy').querySelector('[data-field-constraint-warning]')).toBeNull()
   })
 
   it('同一 section の重複 fieldUid では曖昧な上限文言を表示しない', () => {
@@ -756,7 +797,7 @@ describe('TemplateFormRenderer', () => {
 
     renderForm({ dup: 20 }, undefined, targetTemplate)
 
-    expect(document.querySelector('[data-field-over-limit]')).toBeNull()
+    expect(document.querySelector('[data-field-constraint-warning]')).toBeNull()
   })
 
   it('displayValue が省略された上限 annotation は undefined を含む文言を表示しない', () => {
@@ -766,7 +807,7 @@ describe('TemplateFormRenderer', () => {
 
     renderForm({ uid_skill: { parts: { career: 'invalid' } } }, undefined, targetTemplate)
 
-    expect(document.querySelector('[data-field-over-limit]')).toBeNull()
+    expect(document.querySelector('[data-field-constraint-warning]')).toBeNull()
     expect(document.body.textContent).not.toContain('undefined')
   })
 
@@ -826,9 +867,9 @@ describe('TemplateFormRenderer', () => {
   })
 
   it.each([
-    ['indeterminate', { formula: '{skills.base}' }],
-    ['error', { formula: '1 / 0' }]
-  ])('status=%s の pool は表示しない', (_status, total) => {
+    ['indeterminate', { formula: '{skills.base}' }, '残り —', null],
+    ['error', { formula: '1 / 0' }, null, '残量を評価できません']
+  ])('status=%s の pool を契約どおりに表示する', (status, total, expectedRemaining, expectedWarning) => {
     const targetTemplate = createAnnotationTemplate({
       pools: [{ id: 'career', label: '職業ポイント', total, partsKey: 'career' }],
       fields: [
@@ -839,11 +880,27 @@ describe('TemplateFormRenderer', () => {
 
     renderForm({}, undefined, targetTemplate)
 
-    expect(screen.queryByText('職業ポイント')).toBeNull()
+    const pool = screen.getByText('職業ポイント').closest('[data-pool-id="career"]') as HTMLElement
+    expect(pool.dataset.poolStatus).toBe(status)
+    expect(pool.querySelector('[data-pool-error]')?.textContent ?? null).toBe(expectedWarning)
+    if (expectedRemaining !== null) expect(pool.textContent).toContain(expectedRemaining)
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
 
-  it('remaining が非有限で status=error へ退化した pool は表示しない', () => {
+  it('parts:true の flat number は Popover の base 行に有限値を表示する', async () => {
+    const targetTemplate = createAnnotationTemplate({
+      fields: [{ id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number', parts: true }]
+    })
+
+    renderForm({ uid_skill: 42 }, undefined, targetTemplate, jest.fn())
+
+    fireEvent.click(screen.getByRole('button', { name: '技能値: 内訳を編集' }))
+
+    const baseInput = await screen.findByRole('textbox', { name: '技能値: base' }) as HTMLInputElement
+    expect(baseInput.value).toBe('42')
+  })
+
+  it('remaining が非有限で status=error へ退化した pool はインライン警告を表示する', () => {
     const targetTemplate = createAnnotationTemplate({
       pools: [{ id: 'career', label: '職業ポイント', total: -Number.MAX_VALUE, partsKey: 'career' }]
     })
@@ -852,7 +909,8 @@ describe('TemplateFormRenderer', () => {
     expect(evaluateAnnotationRuntime(targetTemplate, values).sections[0].pools[0]).toMatchObject({ status: 'error' })
     renderForm(values, undefined, targetTemplate)
 
-    expect(screen.queryByText('職業ポイント')).toBeNull()
+    const pool = screen.getByText('職業ポイント').closest('[data-pool-id="career"]') as HTMLElement
+    expect(pool.querySelector('[data-pool-error="career"]')?.textContent).toBe('残量を評価できません')
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
 
@@ -1050,6 +1108,26 @@ describe('TemplateFormRenderer', () => {
     const baseInput = await screen.findByRole('textbox', { name: '技能値: base' }) as HTMLInputElement
     expect(baseInput.value).toBe('5')
     expect(row.querySelector('[data-parts-popover="uid_skill"]')).toBeTruthy()
+  })
+
+  it('table 宣言モードの Popover は canonical 列の宣言キーをすべて除外し、base だけを補完する', async () => {
+    const targetTemplate = createTableTemplate([{
+      id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number',
+      partsKeys: [{ id: 'career', label: '職業' }, { id: 'hobby', label: '趣味' }]
+    }])
+    renderForm({ uid_skill: { parts: { base: 5, career: 20, hobby: 10 } } }, undefined, targetTemplate, jest.fn())
+
+    const careerInput = screen.getByRole('textbox', { name: '技能値: 職業' })
+    const hobbyInput = screen.getByRole('textbox', { name: '技能値: 趣味' })
+    fireEvent.click(screen.getByRole('button', { name: '技能値: 内訳を編集' }))
+
+    const baseInput = await screen.findByRole('textbox', { name: '技能値: base' }) as HTMLInputElement
+    const popover = document.querySelector('[data-parts-popover="uid_skill"]') as HTMLElement
+    expect(popover.querySelector('input[aria-label="技能値: 職業"]')).toBeNull()
+    expect(popover.querySelector('input[aria-label="技能値: 趣味"]')).toBeNull()
+    expect(screen.getAllByRole('textbox', { name: '技能値: 職業' })).toEqual([careerInput])
+    expect(screen.getAllByRole('textbox', { name: '技能値: 趣味' })).toEqual([hobbyInput])
+    expect(baseInput.value).toBe('5')
   })
 
   it('table の宣言キー入力は有限数だけを per-key callback へ通知する', () => {
@@ -1363,6 +1441,21 @@ describe('TemplateFormRenderer', () => {
     expect(onPartsChange).toHaveBeenNthCalledWith(2, 'uid_skill', 'career', 0)
     expect(onPartsChange).toHaveBeenCalledTimes(2)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('flat number の parts field は Popover の base 行に有限値を表示する', async () => {
+    const targetTemplate = createAnnotationTemplate({
+      fields: [{
+        id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number',
+        partsKeys: [{ id: 'career', label: '職業' }]
+      }]
+    })
+    renderForm({ uid_skill: 42 }, undefined, targetTemplate, jest.fn())
+
+    fireEvent.click(screen.getByRole('button', { name: '技能値: 内訳を編集' }))
+
+    const baseInput = await screen.findByRole('textbox', { name: '技能値: base' }) as HTMLInputElement
+    expect(baseInput.value).toBe('42')
   })
 
   it('grid Popover は Tab 順を内訳へ接続し、trigger の Enter・Space・Escape で開閉する', async () => {
