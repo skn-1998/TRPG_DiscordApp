@@ -1,7 +1,7 @@
+'use client'
+
 import { Badge, Button, Checkbox, Group, NumberInput, Paper, Popover, Progress, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import {
-  RESERVED_PARTS_KEY_IDS,
-  UNSAFE_PARTS_KEYS,
   evaluateAnnotationRuntime,
   isSimpleField,
   resolveGridSpan,
@@ -12,6 +12,7 @@ import {
   type SheetTemplate
 } from '@trpg/sheet-engine'
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { isPresentablePartsKey } from './parts-key-visibility'
 import styles from './TemplateFormRenderer.module.css'
 
 interface TemplateFormRendererProps {
@@ -363,16 +364,12 @@ function TableFieldRow({
           )
         })}
         <Table.Td data-table-column="total">
-          {usesFreeformParts ? (
-            <PartsEditorPopover
-              field={field}
-              value={value}
-              displayValue={displayValue}
-              onPartsChange={onPartsChange}
-            />
-          ) : (
-            <Text component="span" data-field-display-value={field.uid}>{displayValue ?? ''}</Text>
-          )}
+          <PartsEditorPopover
+            field={field}
+            value={value}
+            displayValue={displayValue}
+            onPartsChange={onPartsChange}
+          />
           {renderFieldWarning(field.uid, warning)}
         </Table.Td>
       </Table.Tr>
@@ -525,11 +522,6 @@ function buildPopoverPartRows(field: ScalarField, value: unknown): PartDefinitio
   return Object.keys(value.parts)
     .filter(isPresentablePartsKey)
     .map((partsKey) => ({ id: partsKey, label: partsKey }))
-}
-
-function isPresentablePartsKey(partsKey: string) {
-  // publish 上流は B12-FIX で reserved / UNSAFE 宣言を拒否するため、修正前の公開データだけをここで防御する。
-  return !RESERVED_PARTS_KEY_IDS.some((reservedKey) => reservedKey === partsKey) && !UNSAFE_PARTS_KEYS.has(partsKey)
 }
 
 function hasPartKey(value: unknown, partsKey: string) {

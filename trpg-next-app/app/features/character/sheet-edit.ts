@@ -1,4 +1,4 @@
-import { RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
+import { isPresentablePartsKey } from '../characterSheet/parts-key-visibility'
 import type { CharacterSheetTemplateEntity, SheetField } from '../characterTemplate/types/v3'
 import type { CharacterSheetChange } from './api/character.service.server'
 
@@ -12,10 +12,6 @@ export type EditorValue = string | number | boolean | undefined
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isPresentablePartsKey(partsKey: string): boolean {
-  return !RESERVED_PARTS_KEY_IDS.some((reservedKey) => reservedKey === partsKey) && !UNSAFE_PARTS_KEYS.has(partsKey)
 }
 
 function ownPartsKeys(raw: unknown): string[] {
@@ -67,8 +63,6 @@ export function listEditablePartsKeys(
     ? [...ownPartsKeys(baseline[field.uid]), ...ownPartsKeys(values[field.uid])]
     : (field.partsKeys ?? []).map(({ id }) => id)
 
-  // publish 上流の B12-FIX より前に公開されたデータも守るため、TFR の isPresentablePartsKey と
-  // 同じ reserved / UNSAFE 除外集合で表示経路だけでなく書込経路も閉じる。
   for (const partsKey of candidates) {
     if (isPresentablePartsKey(partsKey)) partsKeys.add(partsKey)
   }
