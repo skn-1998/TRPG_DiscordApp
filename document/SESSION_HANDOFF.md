@@ -2822,8 +2822,27 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   指定検出器で赤（options 検査追加 2 赤/95・ガード除去 1 赤/48・label 退行 1 赤/48）・
   負の対照緑（証跡 = dr2-s5b3-acceptance.md）。残差記録 = select 空文字 current の
   空表示（実害なし・acceptance doc 記載）。
-  次 = S6（後片付け: isPresentablePartsKey 1 本化・h2 消費者指定・'use client' 検討・
-  table 宣言 base 編集可否判断 → U14/U15 完了宣言＋大粒度 #17＋SESSION_HANDOFF 全面更新）。
+  コミット = 5801c6c6（code）＋048a4655（docs）。
+  **S6a クローズ（2026-08-13・コミット a511191b）**: 共有述語 1 本化
+  （parts-key-visibility.ts 新設 — TFR export にしない理由 = 'use client' 付与で
+  server 文脈からの非 component export 経路を作らないため）・table 宣言モード Σ セルの
+  popover 統一（base 編集経路の復活 = F-6 裁定）・TemplatePreviewV3 headingLevel={3}・
+  TFR 'use client'。Fable 独立実測 = front 523→528 全緑・eslint/tsc 0・変異すべて指定
+  検出器で赤・負の対照緑（証跡 = dr2-s6a-acceptance.md）。
+  **大粒度 #17 二重レビュー突合済み（2026-08-13・big17-integration.md）**:
+  Codex blocking 5（完了不可）× Opus needs-fix 3＋info 4（条件付き可）を全件実読・実測で
+  裁定。FIX 確定 = C-F1（TFR が制約評価 error を cap/pool/limit の 3 経路とも非表示・
+  誤 pin 4 群）・C-F2（競合応答 base 無正規化 → JSON で own キー消失 → wire nonoptional
+  違反を実測）・C-F3（editable 0 件で TFR 不描画 = design :117 違反）・O-F1（readPartValue
+  flat base 欠落）・O-F2（table 宣言 popover 二重提示）・O-F3（競合パネル partsKey 無表示）。
+  反転裁定 = C-F4 computed live は §3.6 Renderer 行に無し（記録へ）・C-F5 templateVersion
+  badge はキャラページ（SM-13）スコープ = 既存裁定枠維持・§5-2 昇格。
+  台帳記録待ち = O-F5 preview parts 無反応・O-F6 headingLevel 既定 2。
+  **FIX 3 スライス**: FIX-A（Codex・TFR = C-F1＋O-F1＋O-F2・run-fix-big17-a）と
+  FIX-B（Opus agent・server C-F2）を並行委譲中。FIX-C（EditClient = O-F3＋C-F3）は
+  A 検収後。完了宣言の再判定条件 = U14 は FIX-C 後・U15 は FIX-A＋B 後。
+  次 = FIX-A/B 検収 → FIX-C → 台帳 D-R2 行更新（big17 クローズ＋記録 4 点）→
+  U14/U15 完了宣言 ＋ AI.md コミット ＋ SESSION_HANDOFF 全面更新（feature 完了ゲート）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
