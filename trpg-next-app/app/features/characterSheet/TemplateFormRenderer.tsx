@@ -3,13 +3,16 @@
 import { Badge, Button, Checkbox, Group, NumberInput, Paper, Popover, Progress, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import {
   evaluateAnnotationRuntime,
+  evaluateConstraint,
   isSimpleField,
   resolveGridSpan,
   resolveSectionLayout,
+  type ConstraintEvaluationResult,
   type ScalarField,
   type SectionAnnotationRuntime,
   type SheetField,
-  type SheetTemplate
+  type SheetTemplate,
+  type TrackField
 } from '@trpg/sheet-engine'
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { isPresentablePartsKey } from './parts-key-visibility'
@@ -38,6 +41,7 @@ type RenderFieldEntry = {
   fieldIndex: number
   blockId: string | undefined
   displayValue: number | undefined
+  trackMax: ConstraintEvaluationResult | undefined
 }
 
 type PartDefinition = NonNullable<ScalarField['partsKeys']>[number]
@@ -62,7 +66,7 @@ export function TemplateFormRenderer({
 
         const layout = resolveSectionLayout(section.layout)
         const annotations = annotationRuntime.sections[sectionIndex]
-        const fields = buildRenderFieldEntries(section.fields, annotations)
+        const fields = buildRenderFieldEntries(section.fields, annotations, template, values)
         const fieldConstraintMessages = buildFieldConstraintMessages(annotations)
 
         return (
@@ -170,14 +174,17 @@ function renderBlockGroups(
 
 function buildRenderFieldEntries(
   fields: SheetField[],
-  annotations: SectionAnnotationRuntime
+  annotations: SectionAnnotationRuntime,
+  template: SheetTemplate,
+  values: Record<string, unknown>
 ): RenderFieldEntry[] {
   // fieldBlocks は engine が section.fields と同数・同順で返すため、宣言 index で対応付ける。
   return fields.map((field, fieldIndex) => ({
     field,
     fieldIndex,
     blockId: annotations.fieldBlocks[fieldIndex]?.blockId,
-    displayValue: annotations.fieldBlocks[fieldIndex]?.displayValue
+    displayValue: annotations.fieldBlocks[fieldIndex]?.displayValue,
+    trackMax: field.type === 'track' ? evaluateConstraint(field.max, template, values) : undefined
   }))
 }
 
@@ -299,12 +306,13 @@ function renderFieldContainer(
               </Table.Thead>
             ) : null}
             <Table.Tbody>
-              {fields.map(({ field, fieldIndex, displayValue }) => (
+              {fields.map(({ field, fieldIndex, displayValue, trackMax }) => (
                 <TableFieldRow
                   key={`${field.uid}:${fieldIndex}`}
                   field={field}
                   value={values[field.uid]}
                   displayValue={displayValue}
+                  trackMax={trackMax}
                   partColumns={partColumns}
                   onChange={onChange}
                   onPartsChange={onPartsChange}
@@ -315,7 +323,7 @@ function renderFieldContainer(
             </Table.Tbody>
           </Table>
         </div>
-      ) : fields.map(({ field, fieldIndex, displayValue }) => {
+      ) : fields.map(({ field, fieldIndex, displayValue, trackMax }) => {
         const span = layout.mode === 'grid' ? resolveGridSpan(field, layout.columns) : null
 
         return (
@@ -329,6 +337,7 @@ function renderFieldContainer(
               field,
               value: values[field.uid],
               displayValue,
+              trackMax,
               onChange,
               onPartsChange,
               renderField: renderFieldOverride,
@@ -345,6 +354,7 @@ function TableFieldRow({
   field,
   value,
   displayValue,
+  trackMax,
   partColumns,
   onChange,
   onPartsChange,
@@ -354,6 +364,7 @@ function TableFieldRow({
   field: SheetField
   value: unknown
   displayValue: number | undefined
+  trackMax: ConstraintEvaluationResult | undefined
   partColumns: PartDefinition[]
   onChange: TemplateFormRendererProps['onChange']
   onPartsChange: TemplateFormRendererProps['onPartsChange']
@@ -409,7 +420,7 @@ function TableFieldRow({
     return (
       <Table.Tr data-field-uid={field.uid} data-table-row-mode="full-width">
         <Table.Td colSpan={partColumns.length + 2}>
-          {renderFieldWithWarning({ field, value, displayValue, onChange, onPartsChange, renderField, warning })}
+          {renderFieldWithWarning({ field, value, displayValue, trackMax, onChange, onPartsChange, renderField, warning })}
         </Table.Td>
       </Table.Tr>
     )
@@ -426,6 +437,7 @@ function TableFieldRow({
           field,
           value,
           displayValue,
+          trackMax,
           onChange,
           onPartsChange,
           renderField,
@@ -571,10 +583,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function trackDisplayValue(raw: unknown): number | undefined {
+  // 表示専用の退化契約。保存系の有限性検査（server policy）とは役割が別で、壊れた保存値でも表示を落とさない。
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined
+  if (!isRecord(raw) || !isRecord(raw.parts)) return undefined
+
+  let total = 0
+  for (const part of Object.values(raw.parts)) {
+    if (typeof part !== 'number' || !Number.isFinite(part)) return undefined
+    total += part
+  }
+  return Number.isFinite(total) ? total : undefined
+}
+
 function renderFieldWithWarning({
   field,
   value,
   displayValue,
+  trackMax,
   onChange,
   onPartsChange,
   renderField: renderFieldOverride,
@@ -584,6 +610,7 @@ function renderFieldWithWarning({
   field: SheetField
   value: unknown
   displayValue: number | undefined
+  trackMax: ConstraintEvaluationResult | undefined
   onChange: TemplateFormRendererProps['onChange']
   onPartsChange: TemplateFormRendererProps['onPartsChange']
   renderField: TemplateFormRendererProps['renderField']
@@ -602,7 +629,7 @@ function renderFieldWithWarning({
         onPartsChange={onPartsChange}
       />
     </>
-  ) : renderDefaultField(field, value, onChange, labelledBy)
+  ) : renderDefaultField(field, value, trackMax, onChange, labelledBy)
   const control = renderFieldOverride === undefined ? defaultNode : renderFieldOverride(field, defaultNode)
   if (!hasPartsEditor && warning === undefined) return control
 
@@ -622,10 +649,15 @@ function renderFieldWarning(fieldUid: string, warning: string | undefined) {
 function renderDefaultField(
   field: SheetField,
   value: unknown,
+  trackMax: ConstraintEvaluationResult | undefined,
   onChange: TemplateFormRendererProps['onChange'],
   labelledBy?: string
 ) {
   if (field.type === 'scalar') return renderScalarField(field, value, onChange, labelledBy)
+
+  if (field.type === 'track') {
+    return renderTrackField(field, value, trackMax ?? { status: 'error' })
+  }
 
   if (field.type === 'computed' || field.type === 'roll') {
     return (
@@ -647,6 +679,50 @@ function renderDefaultField(
       </Text>
     </Paper>
   )
+}
+
+function renderTrackField(
+  field: TrackField,
+  rawValue: unknown,
+  maxRuntime: ConstraintEvaluationResult
+) {
+  const displayValue = trackDisplayValue(rawValue)
+  const maxValue = maxRuntime.status === 'ok' ? maxRuntime.value : undefined
+  const valueText = maxRuntime.status === 'error'
+    ? String(displayValue ?? '—')
+    : `${displayValue ?? '—'} / ${maxValue ?? '—'}`
+
+  return (
+    <Paper
+      key={field.uid}
+      p="sm"
+      withBorder
+      style={{ width: '100%' }}
+      data-track-field={field.uid}
+      data-track-max-status={maxRuntime.status}
+    >
+      <Stack gap={4}>
+        <Text fw={600}>{field.label}</Text>
+        {field.description === undefined ? null : <Text c="dimmed" size="xs">{field.description}</Text>}
+        {field.style === 'gauge' ? (
+          <Progress
+            aria-label={`${field.label} のゲージ`}
+            value={toTrackProgress(displayValue, maxValue)}
+          />
+        ) : null}
+        <Text data-track-display-value={field.uid} size="sm">{valueText}</Text>
+        {/* design-v1-ui :287 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
+        {maxRuntime.status === 'error' ? (
+          <Text c="red" data-track-max-error={field.uid} size="sm">最大値を評価できません</Text>
+        ) : null}
+      </Stack>
+    </Paper>
+  )
+}
+
+function toTrackProgress(value: number | undefined, max: number | undefined) {
+  if (value === undefined || max === undefined || max <= 0) return 0
+  return Math.max(0, Math.min(100, (value / max) * 100))
 }
 
 function renderScalarField(

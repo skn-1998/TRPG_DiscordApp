@@ -261,7 +261,13 @@ describe('TemplatePreviewV3 characterization', () => {
     expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', expect.objectContaining({ method: 'POST' }))
   })
 
-  it('track・list・relation・tag を保存不能な入力ではなく placeholder として描画する', () => {
+  it('評価済み track を読み取り専用で表示し、list・relation・tag は placeholder として描画する', () => {
+    evaluateTemplateMock.mockReturnValue({
+      values: { uid_track: { type: 'number', value: 7 } },
+      rows: {},
+      evaluationOrder: [],
+      resolvedRefs: []
+    })
     renderPreview(createPreviewTemplate([
       { id: 'track', uid: 'uid_track', label: '耐久力', type: 'track', max: 10, style: 'gauge' },
       { id: 'list', uid: 'uid_list', label: '所持品', type: 'list', itemFields: [] },
@@ -270,7 +276,6 @@ describe('TemplatePreviewV3 characterization', () => {
     ]))
 
     for (const [fieldType, label] of [
-      ['track', '耐久力'],
       ['list', '所持品'],
       ['relation', '関係'],
       ['tag', 'タグ']
@@ -279,6 +284,8 @@ describe('TemplatePreviewV3 characterization', () => {
       expect(placeholder).toBeTruthy()
       expect(placeholder?.textContent).toContain(fieldType)
     }
+    expect(document.querySelector('[data-track-display-value="uid_track"]')?.textContent).toBe('7 / 10')
+    expect(document.querySelector('[data-field-placeholder="track"]')).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 
