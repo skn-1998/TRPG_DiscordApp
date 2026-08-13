@@ -342,7 +342,7 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | ID | 決定事項 | ブロックしているもの |
 |---|---|---|
 | **D-3** | PH-7 実機受入の実施と判定（Docker ゲート §5 含む） | Phase 2 完了宣言・Phase 3 着工 |
-| **L-2 裁定** | rollOnCreate 修正方針（a 型昇格／b seed 付与／c 常時ロール — 裁定資料は c 推奨）**【裁定 2026-08-13・ユーザー】(c) 常時ロールを採用**。**付帯裁定 = track の作成時ロールは廃止せず正式契約へ昇格する**（起案 = track-roll-on-create-promotion-draft.md・契約形と順序はユーザー裁定待ち。(c) スライスは「track の契約外分岐を暫定温存し roll 型分岐を追加」する先行形なら昇格設計と独立に着手可能 — 順序も起案の決定点）。実装はユーザーの再開指示待ち | 再現 spec の赤解消・D-3 の作成時ロール受入・**SM-F（SM-1 proof 原子性）の着手**（2026-08-12 実測: proof/nonce は契約・production とも完全未実装〔dice preview の wire は total/details のみ〕。proof の消費者 = ウィザードの roll step UI も未構築。作成時ロールの在り方が本裁定で決まる前に protocol を先行実装すると死んだ抽象になるため、キュー #11 の SM-F はブロック扱い） |
+| **L-2 裁定** | rollOnCreate 修正方針（a 型昇格／b seed 付与／c 常時ロール — 裁定資料は c 推奨）**【裁定 2026-08-13・ユーザー】(c) 常時ロールを採用**。**付帯裁定 = track の作成時ロールは廃止せず正式契約へ昇格する**（正本 = track-roll-on-create-promotion-draft.md）。**昇格の主要裁定済み（2026-08-13・ユーザー）= 契約形 A（TrackField.rollOnCreate 内包・出目 canonical・二形態廃止）＋範囲意味論は全経路 advisory 化（提出・± も超過許可・数値 15/10 明示・± raw 基準・gauge 塗りのみ cap。既存の提出検査・悪化拒否・raw/投影 clamp・422 の pin 群を反転）**。実装順序 = 未定・着手はユーザーの再開指示待ち | 再現 spec の赤解消・D-3 の作成時ロール受入・**SM-F（SM-1 proof 原子性）の着手**（2026-08-12 実測: proof/nonce は契約・production とも完全未実装〔dice preview の wire は total/details のみ〕。proof の消費者 = ウィザードの roll step UI も未構築。作成時ロールの在り方が本裁定で決まる前に protocol を先行実装すると死んだ抽象になるため、キュー #11 の SM-F はブロック扱い） |
 | **L-13** | legacy-coc テンプレートの DB 投入方法（手動 publish or seeder 新設・所有者/version）**【裁定 2026-08-13・ユーザー】seeder 新設を採用**（所有者の指定方法はスライス設計時に提案。実装はユーザーの再開指示待ち — L-2 (c)・D-R4 (a) と同じく着手待機） | D-3 §0 事前準備の実行可能性 |
 | **L-1 裁定** | dice 断片 `+` 連結の言語仕様（publish 拒絶=公開言語の縮退 or evaluator 連結対応） | L-1 封鎖の実装方向 |
 | **D-P3-1** | Phase 3 スコープ (a)コアのみ／(b)＋U5／(c)＋v1.x（declare/when） | M3-1〜M3-6 の範囲 |
