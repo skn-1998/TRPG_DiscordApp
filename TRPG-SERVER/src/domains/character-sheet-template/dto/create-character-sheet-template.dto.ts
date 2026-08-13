@@ -64,3 +64,9 @@ export class CharacterSheetTemplateIdParamDto {
   @IsNotEmpty()
   readonly id: string
 }
+
+export class CharacterSheetTemplateRevisionParamDto extends CharacterSheetTemplateIdParamDto {
+  @IsString()
+  @IsNotEmpty()
+  readonly version: string
+}

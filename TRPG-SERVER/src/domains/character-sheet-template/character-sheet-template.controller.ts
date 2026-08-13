@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../auth/models/auth.token.model'
 import {
   CharacterSheetTemplateIdParamDto,
+  CharacterSheetTemplateRevisionParamDto,
   CreateCharacterSheetTemplateDto
 } from './dto/create-character-sheet-template.dto'
 import { UpdateCharacterSheetTemplateDto } from './dto/update-character-sheet-template.dto'
@@ -56,6 +57,22 @@ export class CharacterSheetTemplateController {
   ): Promise<CharacterSheetTemplateEntity> {
     const user = this.extractAuthenticatedUser(req)
     return this.service.findOne(params.id, user.discordUserId)
+  }
+
+  /**
+   * pin された版を素引きする読み取り面。`findOne` は常に最新版を返すため、
+   * character.sheet の pin（templateId + templateVersion）を尊重する経路をここに分ける。
+   * 保存経路（CharacterSheetOperationService）と同じ resolvePinnedRevision を通し、
+   * 読み書きで解決規則がずれないようにする。
+   */
+  @Get(':id/revisions/:version')
+  @HttpCode(HttpStatus.OK)
+  async findPinnedRevision(
+    @Param() params: CharacterSheetTemplateRevisionParamDto,
+    @Req() req: Request
+  ): Promise<CharacterSheetTemplateEntity> {
+    const user = this.extractAuthenticatedUser(req)
+    return this.service.resolvePinnedRevision(params.id, params.version, user.discordUserId)
   }
 
   @Put(':id')
