@@ -147,9 +147,6 @@ export function buildBoundedNonFiniteErrorEnvelope(
   return MINIMAL_NON_FINITE_NEST_ERROR_BODY
 }
 
-// 既存 import の互換名。封筒構築の実体は上の builder 一つだけに保つ。
-export const formatNonFiniteFieldDiagnostics = buildBoundedNonFiniteErrorEnvelope
-
 function buildNonFiniteFieldMessage(
   diagnostics: readonly NonFiniteFieldDiagnostic[],
   omittedCount: number,
@@ -340,11 +337,17 @@ export class TrackRangePolicy {
 
   /**
    * track の min/max 範囲は advisory として扱う。
-   * 変更された track を歩行し、非有限入力、非有限な max 式、parts 合計 overflow などの
-   * 有限性とデータ健全性だけを拒否する。
+   * 全 track の next raw 有限性を先に検査し、変更された track だけ非有限な max 式と
+   * 既存値の修復可能性を追加検査する。
    */
   assertFiniteTrackValues(currentValues: Record<string, unknown>, nextValues: Record<string, unknown>): void {
-    for (const field of this.trackFields()) {
+    const trackFields = this.trackFields()
+
+    for (const field of trackFields) {
+      this.trackInputValue(field, nextValues[field.uid])
+    }
+
+    for (const field of trackFields) {
       const currentRaw = currentValues[field.uid]
       const nextRaw = nextValues[field.uid]
       if (sheetValuesEqual(currentRaw, nextRaw)) continue
@@ -356,13 +359,6 @@ export class TrackRangePolicy {
         this.evaluateBoundExpression(field.max.formula, nextValues, field)
       }
       this.assertExistingTrackInputIsRepairable(field, currentRaw)
-    }
-  }
-
-  /** materialize 前に全 track の raw 入力が有限であることを検査する。 */
-  assertMaterializationTrackInputsFinite(values: Record<string, unknown>): void {
-    for (const field of this.trackFields()) {
-      this.trackInputValue(field, values[field.uid])
     }
   }
 

@@ -40,6 +40,30 @@ describe('TrackRangePolicy', () => {
     settings: { rounding: 'floor' }
   })
 
+  const multiTrackTemplate = (): SheetTemplate => {
+    const base = trackTemplate()
+    return {
+      ...base,
+      sections: [
+        {
+          ...base.sections[0],
+          fields: [
+            ...base.sections[0].fields,
+            {
+              id: 'mp',
+              uid: 'uid-mp',
+              label: 'MP',
+              type: 'track',
+              min: 0,
+              max: 10,
+              style: 'gauge'
+            }
+          ]
+        }
+      ]
+    }
+  }
+
   const parameterBoundTemplate = (): SheetTemplate => ({
     ...trackTemplate(),
     sections: [
@@ -267,7 +291,6 @@ describe('TrackRangePolicy', () => {
     const policy = new TrackRangePolicy(template)
 
     expect(() => policy.assertFiniteTrackValues(currentValues, nextValues)).not.toThrow()
-    expect(() => policy.assertMaterializationTrackInputsFinite(nextValues)).not.toThrow()
   })
 
   it.each([
@@ -318,6 +341,44 @@ describe('TrackRangePolicy', () => {
     expect(() => policy.assertFiniteTrackValues({ 'uid-hp': currentValue }, { 'uid-hp': nextValue })).not.toThrow()
   })
 
+  it.each([
+    [
+      '片方だけを修復',
+      { 'uid-hp': Number.POSITIVE_INFINITY, 'uid-mp': Number.NaN },
+      { 'uid-hp': 5, 'uid-mp': Number.NaN }
+    ],
+    [
+      '無関係trackの破損を残して別trackを更新',
+      { 'uid-hp': 5, 'uid-mp': Number.POSITIVE_INFINITY },
+      { 'uid-hp': 6, 'uid-mp': Number.POSITIVE_INFINITY }
+    ]
+  ])('%sした場合も全track検査の診断付き422で拒否する', (_caseName, currentValues, nextValues) => {
+    const policy = new TrackRangePolicy(multiTrackTemplate())
+    let failure: unknown
+
+    try {
+      policy.assertFiniteTrackValues(currentValues, nextValues)
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(UnprocessableEntityException)
+    const response = (failure as UnprocessableEntityException).getResponse() as { message: string }
+    expect(response.message).toContain('トラックの入力値が有限な数値になりませんでした')
+    expect(response.message).toContain('フィールド: uid-mp')
+  })
+
+  it('複数trackの既存非有限値を同一更新で同時修復できる', () => {
+    const policy = new TrackRangePolicy(multiTrackTemplate())
+
+    expect(() =>
+      policy.assertFiniteTrackValues(
+        { 'uid-hp': Number.POSITIVE_INFINITY, 'uid-mp': Number.NaN },
+        { 'uid-hp': 5, 'uid-mp': 0 }
+      )
+    ).not.toThrow()
+  })
+
   it('有限な既存値から parts 合計 overflow への更新は引き続き拒否する', () => {
     const policy = new TrackRangePolicy(trackTemplate())
 
@@ -337,12 +398,12 @@ describe('TrackRangePolicy', () => {
     )
   })
 
-  it('materialize前の全track検査は有限なraw partsを許可する', () => {
+  it('全track検査は未変更trackの有限なraw partsを許可する', () => {
     const template = trackTemplate()
     const values = { 'uid-hp': { parts: { base: 999, other: 0 } } }
     const policy = new TrackRangePolicy(template)
 
-    expect(() => policy.assertMaterializationTrackInputsFinite(values)).not.toThrow()
+    expect(() => policy.assertFiniteTrackValues(values, values)).not.toThrow()
     expect(values).toEqual({ 'uid-hp': { parts: { base: 999, other: 0 } } })
   })
 

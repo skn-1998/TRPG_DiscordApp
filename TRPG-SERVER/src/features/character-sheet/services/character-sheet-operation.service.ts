@@ -28,7 +28,7 @@ import { CharacterSheetTemplateService } from '../../../domains/character-sheet-
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { SheetMaterializerService } from './sheet-materializer.service'
 import { allowsParts, isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
-import { formatNonFiniteFieldDiagnostics, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
+import { buildBoundedNonFiniteErrorEnvelope, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
 
 const MAX_SAVE_ATTEMPTS = 5
 const SAVE_RETRY_BUDGET_MS = 2_000
@@ -231,7 +231,6 @@ export class CharacterSheetOperationService {
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
       trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       this.evaluateTemplateOrThrow(engineTemplate, values)
-      trackRangePolicy.assertMaterializationTrackInputsFinite(values)
       const materialized = this.materializeOrThrow(template, current, values)
       const savePayload = this.toSavePayload(materialized, sheet.revision + 1, current.appliedInteractionIds ?? [])
       const saved = await this.characterRepository.saveSheetMaterialized(
@@ -286,57 +285,23 @@ export class CharacterSheetOperationService {
       const field = this.findTopLevelField(engineTemplate, paletteEntry.fieldRef.uid)
       this.assertResourceField(field)
 
+      trackRangePolicy.assertFiniteTrackValues(sheet.values, sheet.values)
       const evaluated = this.evaluateTemplateOrThrow(engineTemplate, sheet.values)
-      const currentValue = evaluated.values[field.uid]
-      if (currentValue?.type !== 'number' || !Number.isFinite(currentValue.value)) {
-        const formatted = formatNonFiniteFieldDiagnostics([
-          {
-            kind: 'resource-eval',
-            fieldUid: field.uid,
-            label: field.label,
-            ...(typeof currentValue?.value === 'number'
-              ? { result: toNonFiniteNumberKind(currentValue.value) }
-              : { detail: '数値として評価されませんでした' })
-          }
-        ])
-        throw new UnprocessableEntityException(formatted)
-      }
+      const currentValue = this.requireFiniteResourceValue(field, evaluated.values[field.uid])
 
-      const beforeEffectiveValue = trackRangePolicy.resolveEffectiveValue(
-        field,
-        sheet.values[field.uid],
-        Number(currentValue.value)
-      )
+      const beforeEffectiveValue = trackRangePolicy.resolveEffectiveValue(field, sheet.values[field.uid], currentValue)
       const values = { ...sheet.values }
       if (input.delta !== 0) {
-        this.addToOtherPart(values, field.uid, Number(currentValue.value), input.delta)
+        this.addToOtherPart(values, field.uid, currentValue, input.delta)
+        trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       }
 
       const afterEvaluation = this.evaluateTemplateOrThrow(engineTemplate, values)
-      const afterValue = afterEvaluation.values[field.uid]
-      if (afterValue?.type !== 'number' || !Number.isFinite(afterValue.value)) {
-        const formatted = formatNonFiniteFieldDiagnostics([
-          {
-            kind: 'resource-eval',
-            fieldUid: field.uid,
-            label: field.label,
-            ...(typeof afterValue?.value === 'number'
-              ? { result: toNonFiniteNumberKind(afterValue.value) }
-              : { detail: '数値として評価されませんでした' })
-          }
-        ])
-        throw new UnprocessableEntityException(formatted)
-      }
+      const afterValue = this.requireFiniteResourceValue(field, afterEvaluation.values[field.uid])
       const afterBounds = trackRangePolicy.resolveBounds(field, values)
-      const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(
-        field,
-        values[field.uid],
-        Number(afterValue.value)
-      )
+      const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(field, values[field.uid], afterValue)
       const atBound = this.resolveAtBound(afterEffectiveValue, afterBounds)
-      trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       const appliedInteractionIds = [...(current.appliedInteractionIds ?? []), input.interaction.id].slice(-20)
-      trackRangePolicy.assertMaterializationTrackInputsFinite(values)
       const materialized = this.materializeOrThrow(template, current, values)
       const savePayload = this.toSavePayload(materialized, sheet.revision + 1, appliedInteractionIds)
       const saved = await this.characterRepository.saveSheetMaterialized(
@@ -412,24 +377,11 @@ export class CharacterSheetOperationService {
         for (const field of section.fields) {
           if (!isResourceField(field)) continue
 
-          const evaluatedValue = evaluated.values[field.uid]
-          if (evaluatedValue?.type !== 'number' || !Number.isFinite(evaluatedValue.value)) {
-            const formatted = formatNonFiniteFieldDiagnostics([
-              {
-                kind: 'resource-eval',
-                fieldUid: field.uid,
-                label: field.label,
-                ...(typeof evaluatedValue?.value === 'number'
-                  ? { result: toNonFiniteNumberKind(evaluatedValue.value) }
-                  : { detail: '数値として評価されませんでした' })
-              }
-            ])
-            throw new UnprocessableEntityException(formatted)
-          }
+          const evaluatedValue = this.requireFiniteResourceValue(field, evaluated.values[field.uid])
           resolvedResourceValues[field.uid] = trackRangePolicy.resolveEffectiveValue(
             field,
             values[field.uid],
-            Number(evaluatedValue.value)
+            evaluatedValue
           )
           resourceLabelsByUid.set(field.uid, field.label)
         }
@@ -503,10 +455,7 @@ export class CharacterSheetOperationService {
       return
     }
 
-    const current = values[path.fieldUid]
-    const parts: Record<string, number> = isPartsValue(current)
-      ? { ...current.parts }
-      : { base: typeof current === 'number' && Number.isFinite(current) ? current : 0 }
+    const parts = this.seedParts(values[path.fieldUid], 0)
     parts[path.partsKey] = newValue as number
     values[path.fieldUid] = { parts }
   }
@@ -517,16 +466,19 @@ export class CharacterSheetOperationService {
     evaluatedCurrent: number,
     delta: number
   ): void {
-    const raw = values[fieldUid]
-    const parts: Record<string, number> = isPartsValue(raw)
-      ? { ...raw.parts }
-      : { base: typeof raw === 'number' && Number.isFinite(raw) ? raw : evaluatedCurrent }
+    const parts = this.seedParts(values[fieldUid], evaluatedCurrent)
     const other = parts.other ?? 0
     if (typeof other !== 'number' || !Number.isFinite(other)) {
       throw new UnprocessableEntityException(`field ${fieldUid} parts.other must be a finite number`)
     }
     parts.other = other + delta
     values[fieldUid] = { parts }
+  }
+
+  private seedParts(raw: unknown, fallback: number): Record<string, number> {
+    return isPartsValue(raw)
+      ? { ...raw.parts }
+      : { base: typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback }
   }
 
   private resolveAtBound(value: number, bounds: { min: number; max: number }): 'min' | 'max' | null {
@@ -587,6 +539,22 @@ export class CharacterSheetOperationService {
         detail: this.errorMessage(error)
       })
     }
+  }
+
+  private requireFiniteResourceValue(
+    field: Extract<SheetField, { type: 'track' | 'scalar' }>,
+    evaluatedValue: ReturnType<typeof evaluateTemplate>['values'][string] | undefined
+  ): number {
+    if (evaluatedValue?.type === 'number' && Number.isFinite(evaluatedValue.value)) return Number(evaluatedValue.value)
+    const diagnostic = {
+      kind: 'resource-eval' as const,
+      fieldUid: field.uid,
+      label: field.label,
+      ...(typeof evaluatedValue?.value === 'number'
+        ? { result: toNonFiniteNumberKind(evaluatedValue.value) }
+        : { detail: '数値として評価されませんでした' })
+    }
+    throw new UnprocessableEntityException(buildBoundedNonFiniteErrorEnvelope([diagnostic]))
   }
 
   private toSavePayload(
