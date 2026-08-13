@@ -2759,6 +2759,33 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   障壁は HTTP 境界 2 点のみと実測確定。分割 = S5a（server/契約）→
   S5b1（raw 一本化 refactor・31 pin 無改変緑）→ S5b2（per-path＋select/boolean・
   pin 反転 :606/:625）。
+  **S5a = 済・コミット 37ea6e2（2026-08-13）**: baseValue optional＋競合 echo null。
+  レビュー needs-fix 1 = 負方向 pin（既存値＋省略＋異 newValue → 409）を Opus fix で消化 —
+  「省略を適用条件へ誤追加」変異は既存 79 pin 全盲目・新 4 pin のみ検出
+  （実装者/Fable 独立実測）。記録 = S5b2 は競合 current:null の undefined 復号維持＋
+  mine 再送 pin 必須（台帳反映済み）。dto.spec に formatter MM 残渣 4 回目 →
+  git diff HEAD 空で restore --staged（既知処方）。
+  **S5b1 = 実装済み・Fable 検収通過・二重レビュー走行中**: raw 一本化
+  （overlay/EditorValue 並行 state/hasInvalidNumber 削除・path helper 2 本＋
+  server 同期注記）。31 pin 無改変緑・front 468 全緑。実装者の正直報告 =
+  正規化除去の変異が全緑で生存（非 pin 残差・指示どおり pin 未追加・S5b2 設計材料）。
+  Fable 起票 = front writeSheetPathValue は flat number raw で server と異なり {} 起点
+  （'base' 限定なら同結果・S5b2 の宣言キー再利用で base 消失）— 両レビューへ検証委譲済み。
+  **S5b1 二重レビュー = 両者 needs-fix・突合済み（dr2-s5b1-integration.md）**:
+  H1/F1 = 宣言 base 編集 payload の per-path 化（root cause = Fable 指示書の自己矛盾 —
+  verify-claims 22 に記録）は**維持＋契約改訂で裁定**（旧 whole-field = H3 破壊の忠実再現は
+  不合理・server 受理両者実測）。Codex H2 と Opus C3 の見かけ矛盾は測定面の違いで両立
+  （機構 1 つ = annotation が退化 raw を直接見る）→ engine 意味論への統一として裁定・pin 化。
+  Fable 起票は成立＋第 2 乖離（server {parts} 全置換 vs front 温存）まで検出 →
+  S5b2 開始条件へ。FIX-S5B1 = pin 3 群（正規化表形式・宣言 base payload・Σ '0'）＋
+  コメント事実化（同期コメントの誤誘導解消）を委譲中。
+  **FIX-S5B1 = 済・Fable 検収通過 → S5b1 クローズ（2026-08-13）**: front 468→488
+  （sheet-edit 純関数 pin 20 本＋EditClient 新 pin 2）・31 既存 pin 無改変・
+  eslint/tsc 0。Fable 独立変異 = 正規化除去→6 赤（旧「468 全緑生存」の無防備領域が
+  閉鎖されたことを実証）・partsKey 旧規則化→per-path pin 1 赤・負の対照 91/91 緑。
+  **S5b2 は分割**: S5b2 = 宣言 partsKey の per-path 完成（H3 完全消化・conflictApply
+  (uid,partsKey) 化・mine 再送 pin・flat 種付け裁定込み）→ S5b3 = select/boolean 永続化
+  （型拡張の波及が別テーマのため分離）→ S6。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
