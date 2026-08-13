@@ -2753,6 +2753,12 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   変異は適用確認とセットでないと偽緑になる教訓）。
   **次 = S5 設計（着手前に 2 平面裁定: raw 一本化 vs overlay 恒久化 — 事前実測つき）→
   S6（後片付け・U14/U15 完了宣言＋大粒度 #17）**。
+  **S5 事前実測＋裁定 = 済（2026-08-13・dr2-s5-premeasure.md・台帳 D-R2 行反映済み）**:
+  (B) raw 一本化採用・DTO baseValue optional 化・競合 echo current ?? null・
+  deselect v1 非提供。server は宣言 partsKey per-path を既に受理（SM-G）で
+  障壁は HTTP 境界 2 点のみと実測確定。分割 = S5a（server/契約）→
+  S5b1（raw 一本化 refactor・31 pin 無改変緑）→ S5b2（per-path＋select/boolean・
+  pin 反転 :606/:625）。
   **【一時停止 2026-08-12】ユーザー指示によりここでループ停止（設計更新のため）。**
   大粒度 #15 は依頼文作成済み・未起動（prompt-big15.md）。走行中の委譲レーンなし・
   作業ツリー clean・未 push 55 コミット。再開時はまず設計更新の内容を台帳
