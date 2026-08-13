@@ -1,7 +1,5 @@
 import {
   buildValueInputSchema,
-  clampDelta,
-  EPSILON,
   evaluateTemplate,
   RESERVED_PARTS_KEY_IDS,
   UNSAFE_PARTS_KEYS,
@@ -32,7 +30,7 @@ describe('parts-aware value resolution', () => {
     ],
   });
 
-  it('sums finite parts for scalar and track values, then clamps the track', () => {
+  it('sums finite parts for scalar and track values without capping the track', () => {
     const evaluated = evaluateTemplate(template, {
       values: {
         'main.score': { parts: { base: 5, buff: 2, temp: -1 } },
@@ -41,8 +39,8 @@ describe('parts-aware value resolution', () => {
     });
 
     expect(evaluated.values['main.score']).toEqual({ type: 'number', value: 6 });
-    expect(evaluated.values['main.hp']).toEqual({ type: 'number', value: 10 });
-    expect(evaluated.values['main.total']).toEqual({ type: 'number', value: 16 });
+    expect(evaluated.values['main.hp']).toEqual({ type: 'number', value: 13 });
+    expect(evaluated.values['main.total']).toEqual({ type: 'number', value: 19 });
   });
 
   it('keeps accepting plain numbers', () => {
@@ -59,19 +57,6 @@ describe('parts-aware value resolution', () => {
     expect(() => evaluateTemplate(template, { values: { [uid]: value } })).toThrow(
       `field ${uid} ${partPath} must be a finite number`,
     );
-  });
-});
-
-describe('clampDelta', () => {
-  it('returns only the effective delta when the requested change crosses a boundary', () => {
-    expect(clampDelta(8, 5, 0, 10)).toEqual({ effectiveDelta: 2, clamped: true });
-    expect(clampDelta(2, -5, 0, 10)).toEqual({ effectiveDelta: -2, clamped: true });
-    expect(clampDelta(0, -1, undefined, 10)).toEqual({ effectiveDelta: 0, clamped: true });
-  });
-
-  it('reports an unchanged zero delta without clamping', () => {
-    expect(clampDelta(5, 0, 0, 10)).toEqual({ effectiveDelta: 0, clamped: false });
-    expect(clampDelta(0.2, 0.1, 0, 1).clamped).toBe(false);
   });
 });
 
@@ -330,17 +315,10 @@ describe('buildValueInputSchema', () => {
   });
 
   it.each([
-    [{ base: 8, buff: 3 }, 'field uid_hp parts total must be between 0 and 10'],
-    [{ base: 1, damage: -2 }, 'field uid_hp parts total must be between 0 and 10'],
-  ])('rejects track parts totals outside numeric min/max: %o', (parts, message) => {
-    const result = schema.safeParse({ uid_hp: { parts } });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues).toContainEqual(
-        expect.objectContaining({ path: ['uid_hp', 'parts'], message }),
-      );
-    }
+    { base: 8, buff: 3 },
+    { base: 1, damage: -2 },
+  ])('accepts track parts totals outside numeric min/max as advisory: %o', (parts) => {
+    expect(schema.safeParse({ uid_hp: { parts } }).success).toBe(true);
   });
 
   it('accepts track parts totals at numeric min/max', () => {
@@ -348,28 +326,7 @@ describe('buildValueInputSchema', () => {
     expect(schema.safeParse({ uid_hp: { parts: { base: 1, damage: -1 } } }).success).toBe(true);
   });
 
-  it('accepts a track parts total within the shared EPSILON and rejects a larger overflow', () => {
-    const decimalSchema = buildValueInputSchema(baseTemplate({
-      sections: [
-        {
-          id: 'main',
-          label: 'Main',
-          fields: [
-            { type: 'track', id: 'hp', uid: 'uid_decimal_hp', label: 'HP', min: 0, max: 0.3, style: 'gauge' },
-          ],
-        },
-      ],
-    }));
-
-    expect(decimalSchema.safeParse({
-      uid_decimal_hp: { parts: { base: 0.1, buff: 0.2 } },
-    }).success).toBe(true);
-    expect(decimalSchema.safeParse({
-      uid_decimal_hp: { parts: { base: 0.3, buff: EPSILON * 2 } },
-    }).success).toBe(false);
-  });
-
-  it('leaves formula max track totals to evaluation-aware validation', () => {
+  it('accepts formula max track totals without range enforcement at the input boundary', () => {
     const formulaMaxSchema = buildValueInputSchema(baseTemplate({
       sections: [
         {

@@ -1,6 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common'
 import type { ErrorEnvelope } from '@trpg/api-contract'
-import { EPSILON, evaluateExpression, evaluateTemplate } from '@trpg/sheet-engine'
+import { EPSILON, evaluateExpression } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../../core/dto/api-response.dto'
 import { isPartsValue, partsTotal, sheetValuesEqual } from './sheet-values.util'
@@ -87,15 +87,8 @@ const MINIMAL_NON_FINITE_NEST_ERROR_BODY: BoundedNonFiniteErrorEnvelope = {
   issues: []
 }
 
-type TrackRangeViolation = { side: 'min' | 'max'; amount: number } | null
-type ExistingTrackInputValue =
-  { kind: 'finite'; value: number | undefined } | { kind: 'non-finite'; result: NonFiniteNumberKind }
-
 class NonFiniteTrackInputException extends UnprocessableEntityException {
-  constructor(
-    readonly result: NonFiniteNumberKind,
-    diagnostic: NonFiniteFieldDiagnostic
-  ) {
+  constructor(diagnostic: NonFiniteFieldDiagnostic) {
     super(buildBoundedNonFiniteErrorEnvelope([diagnostic]))
   }
 }
@@ -336,9 +329,9 @@ function messagePartsFor(kind: NonFiniteFieldDiagnostic['kind']): { summary: str
 }
 
 /**
- * Track の入力値、解決済み範囲、legacy 互換の保存規則を一箇所で扱う。
+ * Track 入力の有限性診断と、advisory な範囲・実効値の解決を一箇所で扱う。
  *
- * sheet-engine evaluator は変更せず、hub 投影も feature 境界でこの policy の実効値へ解決する。
+ * hub 投影も feature 境界でこの policy の実効値へ解決する。
  */
 export class TrackRangePolicy {
   private readonly boundsByValues = new WeakMap<Record<string, unknown>, Map<string, TrackBounds>>()
@@ -362,53 +355,15 @@ export class TrackRangePolicy {
       if (typeof field.max !== 'number') {
         this.evaluateBoundExpression(field.max.formula, nextValues, field)
       }
-      this.existingTrackInputValue(field, currentRaw)
+      this.assertExistingTrackInputIsRepairable(field, currentRaw)
     }
   }
 
-  /**
-   * 範囲外 legacy 値は materialize 中だけクランプし、呼び出し側が保存する正本値は変更しない。
-   */
-  toLegacyCompatibleMaterializationValues(
-    currentValues: Record<string, unknown>,
-    nextValues: Record<string, unknown>,
-    evaluated: ReturnType<typeof evaluateTemplate>
-  ): Record<string, unknown> {
-    const materializationValues = { ...nextValues }
+  /** materialize 前に全 track の raw 入力が有限であることを検査する。 */
+  assertMaterializationTrackInputsFinite(values: Record<string, unknown>): void {
     for (const field of this.trackFields()) {
-      const currentRaw = currentValues[field.uid]
-      const nextRaw = nextValues[field.uid]
-      const rawInputValue = this.trackInputValue(field, nextRaw)
-      if (rawInputValue === undefined) continue
-
-      let bounds: TrackBounds
-      try {
-        bounds = this.resolveBounds(field, nextValues)
-      } catch (error) {
-        // 変更していない track の境界だけが不正化しても、無関係な保存を止めない。
-        if (sheetValuesEqual(currentRaw, nextRaw)) continue
-        throw error
-      }
-      if (this.rangeViolation(rawInputValue, bounds) === null) continue
-
-      const effectiveValue = evaluated.values[field.uid]
-      if (effectiveValue?.type !== 'number' || !Number.isFinite(effectiveValue.value)) {
-        throw new UnprocessableEntityException(
-          buildBoundedNonFiniteErrorEnvelope([
-            {
-              kind: 'resource-eval',
-              fieldUid: field.uid,
-              label: field.label,
-              ...(typeof effectiveValue?.value === 'number'
-                ? { result: toNonFiniteNumberKind(effectiveValue.value) }
-                : { detail: '数値として評価されませんでした' })
-            }
-          ])
-        )
-      }
-      materializationValues[field.uid] = this.clampToBounds(Number(effectiveValue.value), bounds)
+      this.trackInputValue(field, values[field.uid])
     }
-    return materializationValues
   }
 
   /**
@@ -432,16 +387,12 @@ export class TrackRangePolicy {
   resolveEffectiveValue(
     field: Extract<SheetField, { type: 'track' | 'scalar' }>,
     raw: unknown,
-    evaluatedValue: number,
-    bounds: TrackBounds
+    evaluatedValue: number
   ): number {
     if (field.type !== 'track') return evaluatedValue
     const inputValue = this.trackInputValue(field, raw)
-    return this.clampToBounds(inputValue ?? evaluatedValue, bounds)
-  }
-
-  private clampToBounds(value: number, bounds: TrackBounds): number {
-    return Math.min(bounds.max, Math.max(bounds.min, value))
+    // min/max で cap するのは front gauge の塗りだけで、数値表示は超過をそのまま出す。
+    return inputValue ?? evaluatedValue
   }
 
   private calculateBounds(
@@ -455,6 +406,7 @@ export class TrackRangePolicy {
     const max =
       typeof field.max === 'number' ? field.max : this.evaluateBoundExpression(field.max.formula, values, field)
     const min = field.min ?? 0
+    // ± 経路にのみ残す暫定検査。save は advisory とし、撤去判断は昇格ドラフトの残課題とする。
     if (min - max > EPSILON) {
       throw new UnprocessableEntityException(`resource field ${field.uid} resolved max below min`)
     }
@@ -492,7 +444,7 @@ export class TrackRangePolicy {
     if (typeof value === 'number') {
       if (!Number.isFinite(value)) {
         const result = toNonFiniteNumberKind(value)
-        throw new NonFiniteTrackInputException(result, {
+        throw new NonFiniteTrackInputException({
           kind: 'track-input',
           fieldUid: field.uid,
           label: field.label,
@@ -511,7 +463,7 @@ export class TrackRangePolicy {
       const [partName, part] = invalidPart
       if (typeof part === 'number') {
         const result = toNonFiniteNumberKind(part)
-        throw new NonFiniteTrackInputException(result, {
+        throw new NonFiniteTrackInputException({
           kind: 'track-input',
           fieldUid: field.uid,
           label: field.label,
@@ -534,7 +486,7 @@ export class TrackRangePolicy {
     const total = partsTotal(value)
     if (!Number.isFinite(total)) {
       const result = toNonFiniteNumberKind(total)
-      throw new NonFiniteTrackInputException(result, {
+      throw new NonFiniteTrackInputException({
         kind: 'track-input',
         fieldUid: field.uid,
         label: field.label,
@@ -545,30 +497,16 @@ export class TrackRangePolicy {
     return total
   }
 
-  // 戻り値 kind/value を読む呼び出し側はもう無く、非有限・非数値を検出する副作用だけが使われている。
-  // 投影 clamp の advisory 化と同時に、この戻り値も削除する。
-  private existingTrackInputValue(
-    field: Extract<SheetField, { type: 'track' }>,
-    value: unknown
-  ): ExistingTrackInputValue {
+  private assertExistingTrackInputIsRepairable(field: Extract<SheetField, { type: 'track' }>, value: unknown): void {
     try {
-      return { kind: 'finite', value: this.trackInputValue(field, value) }
+      this.trackInputValue(field, value)
     } catch (error) {
+      // 既存値の非有限は利用者が修復できるが、非数値 parts は修復経路がないため 422 を再送出する。
       if (error instanceof NonFiniteTrackInputException) {
-        return { kind: 'non-finite', result: error.result }
+        return
       }
       throw error
     }
-  }
-
-  // 唯一の消費者は legacy 投影の clamp 判定で、違反の有無しか読まれない（side/amount は現在どこからも参照されない）。
-  // 投影 clamp の advisory 化と同時に、この判定ごと削除する。
-  private rangeViolation(value: number, bounds: TrackBounds): TrackRangeViolation {
-    const belowMin = bounds.min - value
-    if (belowMin > EPSILON) return { side: 'min', amount: belowMin }
-    const aboveMax = value - bounds.max
-    if (aboveMax > EPSILON) return { side: 'max', amount: aboveMax }
-    return null
   }
 
   private trackFields(): Array<Extract<SheetField, { type: 'track' }>> {

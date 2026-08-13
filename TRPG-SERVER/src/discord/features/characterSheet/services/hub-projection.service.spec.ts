@@ -36,13 +36,13 @@ describe('HubProjectionService', () => {
       {
         key: 'hp',
         fieldRef: { uid: 'uid-hp' },
-        label: 'HP (10)',
+        label: 'HP (999)',
         group: 'Status',
         kind: 'resource',
         deltas: [-1, 1]
       }
     ],
-    resolvedResourceValues: { 'uid-hp': 10 },
+    resolvedResourceValues: { 'uid-hp': 999 },
     ...overrides
   })
 
@@ -69,7 +69,7 @@ describe('HubProjectionService', () => {
     expect(createProjection.mock.calls[0][0]).not.toHaveProperty('visibility')
   })
 
-  it('formula max=10・parts合計12でもfeature境界の実効値10を表示する', () => {
+  it('formula max=10・parts合計12をfeature境界のraw値12で表示する', () => {
     const projection = new HubProjectionService().create(
       character({
         sheet: {
@@ -78,14 +78,25 @@ describe('HubProjectionService', () => {
           revision: 1,
           visibility: 'private',
           values: { 'uid-limit': 10, 'uid-hp': { parts: { base: 12 } } }
-        }
+        },
+        palette: [
+          {
+            key: 'hp',
+            fieldRef: { uid: 'uid-hp' },
+            label: 'HP (12)',
+            group: 'Status',
+            kind: 'resource',
+            deltas: [-1, 1]
+          }
+        ],
+        resolvedResourceValues: { 'uid-hp': 12 }
       })
     )
 
-    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '10', inline: true }])
+    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '12', inline: true }])
   })
 
-  it('feature出力を実projectionへ渡し、旧paletteラベルを実効値へ整合させる', async () => {
+  it('feature出力を実projectionへ渡し、旧paletteラベルをraw値へ整合させる', async () => {
     const sourceCharacter = character({
       discordThreadId: 'thread-1',
       hub: {
@@ -161,14 +172,14 @@ describe('HubProjectionService', () => {
 
     const projectionCharacter = await operations.getHubCharacter('character-1')
 
-    expect(projectionCharacter?.resolvedResourceValues).toEqual({ 'uid-hp': 10 })
+    expect(projectionCharacter?.resolvedResourceValues).toEqual({ 'uid-hp': 12 })
     expect(new HubProjectionService().create(projectionCharacter!).hub.embed.fields).toEqual([
-      { name: 'HP', value: '10', inline: true }
+      { name: 'HP', value: '12', inline: true }
     ])
     expect(sourceCharacter.palette?.[0].label).toBe('HP (12)')
   })
 
-  it('max依存値の縮小直後はfeature境界のクランプ値を表示する', () => {
+  it('max依存値の縮小直後もfeature境界のraw値を表示する', () => {
     const projection = new HubProjectionService().create(
       character({
         sheet: {
@@ -182,23 +193,23 @@ describe('HubProjectionService', () => {
           {
             key: 'hp',
             fieldRef: { uid: 'uid-hp' },
-            label: 'HP (5)',
+            label: 'HP (8)',
             group: 'Status',
             kind: 'resource',
             deltas: [-1, 1]
           }
         ],
-        resolvedResourceValues: { 'uid-hp': 5 }
+        resolvedResourceValues: { 'uid-hp': 8 }
       })
     )
 
-    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '5', inline: true }])
+    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '8', inline: true }])
   })
 
-  it('範囲外のlegacy partsではfeature境界のクランプ済み実効値を表示する', () => {
+  it('範囲外のlegacy partsではfeature境界のraw値を表示する', () => {
     const projection = new HubProjectionService().create(character())
 
-    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '10', inline: true }])
+    expect(projection.hub.embed.fields).toEqual([{ name: 'HP', value: '999', inline: true }])
   })
 
   it('解決済みresource valuesが無いsnapshotは投影しない', () => {

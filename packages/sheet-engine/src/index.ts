@@ -1,6 +1,5 @@
 export * from './annotation-runtime';
 export * from './ast';
-export * from './clamp';
 export * from './constraint-evaluator';
 export {
   DEFAULT_AST_NODE_LIMIT,

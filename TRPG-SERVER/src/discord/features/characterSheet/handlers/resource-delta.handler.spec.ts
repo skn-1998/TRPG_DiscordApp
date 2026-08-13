@@ -38,8 +38,6 @@ describe('ResourceDeltaHandler', () => {
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: false,
-      effectiveDelta: 1,
       beforeEffectiveValue: 8,
       afterEffectiveValue: 9,
       atBound: null,
@@ -79,19 +77,17 @@ describe('ResourceDeltaHandler', () => {
   })
 
   it.each([
-    [1, 10, 'max', 'ℹ️ 上限です。'],
-    [-1, 0, 'min', 'ℹ️ 下限です。']
+    [1, 10, 11, null, '✅ リソースを +1 更新しました。'],
+    [-1, 0, -1, null, '✅ リソースを -1 更新しました。']
   ] as const)(
-    'delta=%s で実効値が動かなければ接している境界の文言を返す',
-    async (delta, effectiveValue, atBound, content) => {
+    'delta=%s を境界の外側へraw適用した更新量を返す',
+    async (delta, beforeEffectiveValue, afterEffectiveValue, atBound, content) => {
       Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', delta) })
       characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
       operationService.applyResourceDelta.mockResolvedValue({
         noOp: false,
-        clamped: true,
-        effectiveDelta: 0,
-        beforeEffectiveValue: effectiveValue,
-        afterEffectiveValue: effectiveValue,
+        beforeEffectiveValue,
+        afterEffectiveValue,
         atBound,
         character: { characterId: 'char-1' }
       })
@@ -105,14 +101,12 @@ describe('ResourceDeltaHandler', () => {
     }
   )
 
-  it('minとmaxが同じ縮退trackは境界方向を決めず変化なし文言を返す', async () => {
+  it('minとmaxが同じ縮退trackでもraw更新量を返す', async () => {
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: true,
-      effectiveDelta: 0,
       beforeEffectiveValue: 5,
-      afterEffectiveValue: 5,
+      afterEffectiveValue: 6,
       atBound: null,
       character: { characterId: 'char-1' }
     })
@@ -120,70 +114,86 @@ describe('ResourceDeltaHandler', () => {
     await handler.execute(interaction)
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: 'ℹ️ これ以上変化しません。',
+      content: '✅ リソースを +1 更新しました。',
       flags: MessageFlags.Ephemeral
     })
   })
 
-  it('max超過legacyへの負deltaは実効値がmaxのままなら上限文言を返す', async () => {
+  it.each([
+    ['下限にいる', 'min', 'ℹ️ 下限です。'],
+    ['境界にいない', null, 'ℹ️ これ以上変化しません。']
+  ] as const)('raw delta=0で%s場合の変化なし分岐を返す', async (_caseName, atBound, content) => {
+    Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', 0) })
+    characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
+    operationService.applyResourceDelta.mockResolvedValue({
+      noOp: false,
+      beforeEffectiveValue: 5,
+      afterEffectiveValue: 5,
+      atBound,
+      character: { characterId: 'char-1' }
+    })
+
+    await handler.execute(interaction)
+
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content,
+      flags: MessageFlags.Ephemeral
+    })
+  })
+
+  it('max超過legacyへの負deltaをraw基準で報告する', async () => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', -3) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: false,
-      effectiveDelta: -3,
-      beforeEffectiveValue: 10,
-      afterEffectiveValue: 10,
-      atBound: 'max',
+      beforeEffectiveValue: 999,
+      afterEffectiveValue: 996,
+      atBound: null,
       character: { characterId: 'char-1' }
     })
 
     await handler.execute(interaction)
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: 'ℹ️ 上限です。',
+      content: '✅ リソースを -3 更新しました。',
       flags: MessageFlags.Ephemeral
     })
   })
 
-  it('min未満legacyへの正deltaは実効値がminのままなら下限文言を返す', async () => {
+  it('min未満legacyへの正deltaをraw基準で報告する', async () => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', 3) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: false,
-      effectiveDelta: 3,
-      beforeEffectiveValue: 0,
-      afterEffectiveValue: 0,
-      atBound: 'min',
+      beforeEffectiveValue: -999,
+      afterEffectiveValue: -996,
+      atBound: null,
       character: { characterId: 'char-1' }
     })
 
     await handler.execute(interaction)
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: 'ℹ️ 下限です。',
+      content: '✅ リソースを +3 更新しました。',
       flags: MessageFlags.Ephemeral
     })
   })
 
-  it('requested deltaがclampされても実効値が動いた分だけ更新成功を報告する', async () => {
+  it('requested deltaをmax超過までraw適用した更新量を報告する', async () => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', 5) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: true,
-      effectiveDelta: 2,
       beforeEffectiveValue: 8,
-      afterEffectiveValue: 10,
-      atBound: 'max',
+      afterEffectiveValue: 13,
+      atBound: null,
       character: { characterId: 'char-1' }
     })
 
     await handler.execute(interaction)
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: '✅ リソースを +2 更新しました。',
+      content: '✅ リソースを +5 更新しました。',
       flags: MessageFlags.Ephemeral
     })
   })
@@ -193,8 +203,6 @@ describe('ResourceDeltaHandler', () => {
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: true,
-      effectiveDelta: 0.1,
       beforeEffectiveValue: 0.3,
       afterEffectiveValue: 0.3 + EPSILON / 10,
       atBound: 'max',
@@ -214,8 +222,6 @@ describe('ResourceDeltaHandler', () => {
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
-      clamped: false,
-      effectiveDelta: 0.2,
       beforeEffectiveValue: 0.1,
       afterEffectiveValue: 0.3,
       atBound: null,

@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import type { SheetMergeConflictWire } from '@trpg/api-contract'
-import { clampDelta, EPSILON, evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
+import { EPSILON, evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
 import type {
@@ -67,10 +67,6 @@ export interface SaveSheetResult {
 interface ApplyResourceDeltaResultBase {
   character: CharacterEntity
   revision: number
-  requestedDelta: number
-  /** clampDelta が raw parts.other へ適用した量。表示上の変化量は前後実効値の差を使う。 */
-  effectiveDelta: number
-  clamped: boolean
 }
 
 export type ApplyResourceDeltaResult =
@@ -234,18 +230,10 @@ export class CharacterSheetOperationService {
       const engineTemplate = toEngineTemplate(template)
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
       trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
-      const evaluated = this.evaluateTemplateOrThrow(engineTemplate, values)
-      const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
-        sheet.values,
-        values,
-        evaluated
-      )
-      const materialized = this.materializeOrThrow(template, current, materializationValues)
-      const savePayload = this.toSavePayload(
-        { ...materialized, sheet: { ...materialized.sheet, values } },
-        sheet.revision + 1,
-        current.appliedInteractionIds ?? []
-      )
+      this.evaluateTemplateOrThrow(engineTemplate, values)
+      trackRangePolicy.assertMaterializationTrackInputsFinite(values)
+      const materialized = this.materializeOrThrow(template, current, values)
+      const savePayload = this.toSavePayload(materialized, sheet.revision + 1, current.appliedInteractionIds ?? [])
       const saved = await this.characterRepository.saveSheetMaterialized(
         current.characterId,
         savePayload,
@@ -286,9 +274,6 @@ export class CharacterSheetOperationService {
           character: current,
           revision: sheet.revision,
           noOp: true,
-          requestedDelta: input.delta,
-          effectiveDelta: 0,
-          clamped: false,
           beforeEffectiveValue: null,
           afterEffectiveValue: null,
           atBound: null
@@ -317,17 +302,14 @@ export class CharacterSheetOperationService {
         throw new UnprocessableEntityException(formatted)
       }
 
-      const bounds = trackRangePolicy.resolveBounds(field, sheet.values)
       const beforeEffectiveValue = trackRangePolicy.resolveEffectiveValue(
         field,
         sheet.values[field.uid],
-        Number(currentValue.value),
-        bounds
+        Number(currentValue.value)
       )
-      const clamped = clampDelta(beforeEffectiveValue, input.delta, bounds.min, bounds.max)
       const values = { ...sheet.values }
-      if (clamped.effectiveDelta !== 0) {
-        this.addToOtherPart(values, field.uid, Number(currentValue.value), clamped.effectiveDelta)
+      if (input.delta !== 0) {
+        this.addToOtherPart(values, field.uid, Number(currentValue.value), input.delta)
       }
 
       const afterEvaluation = this.evaluateTemplateOrThrow(engineTemplate, values)
@@ -349,23 +331,14 @@ export class CharacterSheetOperationService {
       const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(
         field,
         values[field.uid],
-        Number(afterValue.value),
-        afterBounds
+        Number(afterValue.value)
       )
       const atBound = this.resolveAtBound(afterEffectiveValue, afterBounds)
       trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
       const appliedInteractionIds = [...(current.appliedInteractionIds ?? []), input.interaction.id].slice(-20)
-      const materializationValues = trackRangePolicy.toLegacyCompatibleMaterializationValues(
-        sheet.values,
-        values,
-        afterEvaluation
-      )
-      const materialized = this.materializeOrThrow(template, current, materializationValues)
-      const savePayload = this.toSavePayload(
-        { ...materialized, sheet: { ...materialized.sheet, values } },
-        sheet.revision + 1,
-        appliedInteractionIds
-      )
+      trackRangePolicy.assertMaterializationTrackInputsFinite(values)
+      const materialized = this.materializeOrThrow(template, current, values)
+      const savePayload = this.toSavePayload(materialized, sheet.revision + 1, appliedInteractionIds)
       const saved = await this.characterRepository.saveSheetMaterialized(
         current.characterId,
         savePayload,
@@ -377,9 +350,6 @@ export class CharacterSheetOperationService {
           character: saved,
           revision: this.requireSheet(saved).revision,
           noOp: false,
-          requestedDelta: input.delta,
-          effectiveDelta: clamped.effectiveDelta,
-          clamped: clamped.clamped,
           beforeEffectiveValue,
           afterEffectiveValue,
           atBound
@@ -456,12 +426,10 @@ export class CharacterSheetOperationService {
             ])
             throw new UnprocessableEntityException(formatted)
           }
-          const bounds = trackRangePolicy.resolveBounds(field, values)
           resolvedResourceValues[field.uid] = trackRangePolicy.resolveEffectiveValue(
             field,
             values[field.uid],
-            Number(evaluatedValue.value),
-            bounds
+            Number(evaluatedValue.value)
           )
           resourceLabelsByUid.set(field.uid, field.label)
         }
@@ -547,7 +515,7 @@ export class CharacterSheetOperationService {
     values: Record<string, unknown>,
     fieldUid: string,
     evaluatedCurrent: number,
-    effectiveDelta: number
+    delta: number
   ): void {
     const raw = values[fieldUid]
     const parts: Record<string, number> = isPartsValue(raw)
@@ -557,7 +525,7 @@ export class CharacterSheetOperationService {
     if (typeof other !== 'number' || !Number.isFinite(other)) {
       throw new UnprocessableEntityException(`field ${fieldUid} parts.other must be a finite number`)
     }
-    parts.other = other + effectiveDelta
+    parts.other = other + delta
     values[fieldUid] = { parts }
   }
 

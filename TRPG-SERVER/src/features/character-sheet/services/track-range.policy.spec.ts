@@ -1,5 +1,4 @@
 import { UnprocessableEntityException } from '@nestjs/common'
-import { evaluateTemplate } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../../../core/dto/api-response.dto'
 import {
@@ -59,7 +58,7 @@ describe('TrackRangePolicy', () => {
       },
       {
         ...trackTemplate().sections[0],
-        fields: (trackTemplate().sections[0].fields as SheetField[]).map((field) => ({
+        fields: trackTemplate().sections[0].fields.map((field) => ({
           ...field,
           max: { formula: '{parameter.limit}' }
         }))
@@ -247,7 +246,7 @@ describe('TrackRangePolicy', () => {
         },
         {
           ...trackTemplate().sections[0],
-          fields: (trackTemplate().sections[0].fields as SheetField[]).map((field) => ({
+          fields: trackTemplate().sections[0].fields.map((field) => ({
             ...field,
             max: { formula: '{parameter.ceiling}' }
           }))
@@ -261,55 +260,14 @@ describe('TrackRangePolicy', () => {
     ).not.toThrow()
   })
 
-  it('未変更trackのformula maxがmin未満になっても無関係な保存を拒否しない', () => {
+  it('未変更trackのformula maxがmin未満でもmaterialize前の全track有限性検査は通る', () => {
     const template = parameterBoundTemplate()
     const currentValues = { 'uid-limit': 1, 'uid-hp': 1 }
     const nextValues = { 'uid-limit': -1, 'uid-hp': 1 }
     const policy = new TrackRangePolicy(template)
-    const evaluated = evaluateTemplate(template, { values: nextValues })
 
     expect(() => policy.assertFiniteTrackValues(currentValues, nextValues)).not.toThrow()
-    expect(() => policy.toLegacyCompatibleMaterializationValues(currentValues, nextValues, evaluated)).not.toThrow()
-  })
-
-  it('legacy投影のclampはengineと同じ1e-9以内の浮動小数差では発火しない', () => {
-    const template: SheetTemplate = {
-      ...parameterBoundTemplate(),
-      sections: [
-        {
-          id: 'parameter',
-          label: 'Parameter',
-          fields: [
-            {
-              id: 'pow',
-              uid: 'uid-pow',
-              label: 'POW',
-              type: 'scalar',
-              valueType: 'number'
-            }
-          ]
-        },
-        {
-          ...trackTemplate().sections[0],
-          fields: (trackTemplate().sections[0].fields as SheetField[]).map((field) => ({
-            ...field,
-            max: { formula: '{parameter.pow}/5' }
-          }))
-        }
-      ]
-    }
-    const values = { 'uid-pow': 19.999999999999996, 'uid-hp': 4 }
-    const hpField = template.sections[1].fields[0] as Extract<SheetField, { type: 'track' }>
-    const policy = new TrackRangePolicy(template)
-
-    // 19.999999999999996/5 の max は 3.999999999999999 となり、入力 4 との差は約 8.9e-16。
-    // 範囲判定が engine と同じ EPSILON(1e-9) 許容を失って素の大小比較へ退行すると、
-    // この二進浮動小数の丸め残差だけで legacy 投影が 4 を max へ clamp してしまう。
-    // 先の max 検証は、丸め残差が消えて pin が空洞化した場合に気付くための前提固定。
-    expect(policy.resolveBounds(hpField, values).max).toBeLessThan(4)
-    expect(
-      policy.toLegacyCompatibleMaterializationValues(values, values, evaluateTemplate(template, { values }))['uid-hp']
-    ).toBe(4)
+    expect(() => policy.assertMaterializationTrackInputsFinite(nextValues)).not.toThrow()
   })
 
   it.each([
@@ -379,39 +337,13 @@ describe('TrackRangePolicy', () => {
     )
   })
 
-  it('legacy partsはmaterialize用だけクランプし、元の入力値を保持する', () => {
+  it('materialize前の全track検査は有限なraw partsを許可する', () => {
     const template = trackTemplate()
     const values = { 'uid-hp': { parts: { base: 999, other: 0 } } }
-    const evaluated = evaluateTemplate(template, { values })
     const policy = new TrackRangePolicy(template)
 
-    expect(policy.toLegacyCompatibleMaterializationValues(values, values, evaluated)).toEqual({
-      'uid-hp': 10
-    })
+    expect(() => policy.assertMaterializationTrackInputsFinite(values)).not.toThrow()
     expect(values).toEqual({ 'uid-hp': { parts: { base: 999, other: 0 } } })
-  })
-
-  it('legacy materialize の非有限評価も resource-eval 共通診断を使う', () => {
-    const template = trackTemplate()
-    const policy = new TrackRangePolicy(template)
-    const evaluated = {
-      ...evaluateTemplate(template, { values: { 'uid-hp': 12 } }),
-      values: { 'uid-hp': { type: 'number' as const, value: Number.POSITIVE_INFINITY } }
-    }
-    let failure: unknown
-
-    try {
-      policy.toLegacyCompatibleMaterializationValues({ 'uid-hp': 11 }, { 'uid-hp': 12 }, evaluated)
-    } catch (error) {
-      failure = error
-    }
-
-    expect(failure).toBeInstanceOf(UnprocessableEntityException)
-    const response = (failure as UnprocessableEntityException).getResponse() as { message: string }
-    expect(response.message).toContain('リソースフィールドの計算結果が有限な数値になりませんでした')
-    expect(response.message).toContain('フィールド: uid-hp')
-    expect(response.message).toContain('ラベル: HP')
-    expect(response.message).toContain('結果: Infinity')
   })
 
   it('同じvalues snapshotの同一field boundsをメモ化する', () => {
