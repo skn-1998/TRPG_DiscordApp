@@ -19,6 +19,7 @@ import {
 import engineIsNumberScalar from '../../../../packages/sheet-engine/src/annotation-runtime'
 import styles from './TemplateFormRenderer.module.css'
 import { TemplateFormRenderer } from './TemplateFormRenderer'
+import { isPresentablePartsKey } from './parts-key-visibility'
 
 jest.mock('./TemplateFormRenderer.module.css', () => ({
   __esModule: true,
@@ -302,6 +303,17 @@ function expectRendererCssContract(css: string) {
 }
 
 afterEach(cleanup)
+
+describe('isPresentablePartsKey', () => {
+  // Test intent: 表示・保存が共有する旧公開データ防御の reserved / UNSAFE / 安全キー境界を直接固定する。
+  it.each([
+    ['reserved', 'base', false],
+    ['UNSAFE', '__proto__', false],
+    ['安全', 'career', true]
+  ] as const)('%s キーの提示可否を固定する', (_caseName, partsKey, expected) => {
+    expect(isPresentablePartsKey(partsKey)).toBe(expected)
+  })
+})
 
 describe('TemplateFormRenderer', () => {
   it('front と engine の isNumberScalar が 9 型 field マトリクスで一致する', () => {
@@ -922,10 +934,11 @@ describe('TemplateFormRenderer', () => {
 
     const firstRow = getFieldCell('uid_first') as HTMLTableRowElement
     const undeclaredCell = firstRow.querySelector('[data-parts-key="focus"]') as HTMLTableCellElement
+    const totalTrigger = firstRow.querySelector('[data-parts-popover-trigger="uid_first"]') as HTMLButtonElement
     expect(undeclaredCell.dataset.partsDeclared).toBe('false')
     expect(undeclaredCell.textContent).toBe('')
     expect(firstRow.cells[4].dataset.tableColumn).toBe('total')
-    expect(firstRow.cells[4].textContent).toBe('35')
+    expect(totalTrigger.textContent).toBe('35')
     expect(20 + 10).not.toBe(35)
 
     const noteRow = getFieldCell('uid_note') as HTMLTableRowElement
@@ -1020,6 +1033,23 @@ describe('TemplateFormRenderer', () => {
     expect(Object.values(rendererRaw.parts).reduce((sum, value) => sum + value, 0)).toBe(35)
     expect(total.textContent).toBe('42')
     expect(total.textContent).not.toBe('35')
+  })
+
+  it('table の宣言 partsKeys 合計セルから共通 Popover を開き base input を提示する', async () => {
+    const targetTemplate = createTableTemplate([{
+      id: 'skill', uid: 'uid_skill', label: '技能値', type: 'scalar', valueType: 'number',
+      partsKeys: [{ id: 'career', label: '職業' }]
+    }])
+    renderForm({ uid_skill: { parts: { base: 5, career: 20 } } }, undefined, targetTemplate, jest.fn())
+
+    // Test intent: table 宣言モードでも合計セルを base 編集の入口にし、grid と同じ Popover 実装へ到達させる。
+    const row = getFieldCell('uid_skill')
+    expect(row.dataset.tableRowMode).toBe('parts')
+    fireEvent.click(screen.getByRole('button', { name: '技能値: 内訳を編集' }))
+
+    const baseInput = await screen.findByRole('textbox', { name: '技能値: base' }) as HTMLInputElement
+    expect(baseInput.value).toBe('5')
+    expect(row.querySelector('[data-parts-popover="uid_skill"]')).toBeTruthy()
   })
 
   it('table の宣言キー入力は有限数だけを per-key callback へ通知する', () => {

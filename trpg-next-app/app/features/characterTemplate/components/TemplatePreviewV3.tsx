@@ -189,6 +189,7 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
 
       <TemplateFormRenderer
         template={activeSectionTemplate}
+        headingLevel={3}
         values={formValues}
         onChange={updateValue}
         renderField={renderPreviewField}

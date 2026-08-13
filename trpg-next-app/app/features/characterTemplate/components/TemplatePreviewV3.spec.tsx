@@ -302,13 +302,13 @@ describe('TemplatePreviewV3 characterization', () => {
     renderPreview(template)
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['第一セクション', '第二セクション'])
-    expect(screen.getByRole('heading', { level: 2, name: '第一セクション' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: '第一セクション' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '第一入力' })).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: '第二入力' })).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: '第二セクション' }))
-    expect(screen.queryByRole('heading', { level: 2, name: '第一セクション' })).toBeNull()
-    expect(screen.getByRole('heading', { level: 2, name: '第二セクション' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { level: 3, name: '第一セクション' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 3, name: '第二セクション' })).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: '第一入力' })).toBeNull()
     expect(screen.getByRole('textbox', { name: '第二入力' })).toBeTruthy()
   })

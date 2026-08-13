@@ -801,6 +801,30 @@ describe('CharacterSheetEditClient', () => {
     })
   })
 
+  it('table layout の宣言 partsKeys field は合計セルから base を per-path 保存する', async () => {
+    const tableDeclaredPartsTemplate: CharacterSheetTemplateEntity = {
+      ...declaredPartsTemplate,
+      sections: [{ ...declaredPartsTemplate.sections[0]!, layout: { preset: 'table' } }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={declaredPartsCharacter} template={tableDeclaredPartsTemplate} />
+      </MantineProvider>
+    )
+
+    // Test intent: D-R2 table 宣言モードで失われていた base 編集入口から保存 payload までを一続きで固定する。
+    fireEvent.click(screen.getByRole('button', { name: 'HP: 内訳を編集' }))
+    const baseInput = await screen.findByRole('textbox', { name: 'HP: base' })
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(baseInput, { target: { value: '12' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{ path: { fieldUid: 'main.hp', partsKey: 'base' }, baseValue: 10, newValue: 12 }]
+    }))
+  })
+
   it('parts:true field の自由キー入力を per-path change で保存する', async () => {
     const partsCharacter: CharacterWire = {
       ...character,
