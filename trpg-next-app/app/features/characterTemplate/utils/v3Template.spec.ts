@@ -120,6 +120,7 @@ describe('v3Template editor field builders', () => {
     ['checkbox', { type: 'scalar', valueType: 'boolean' }],
     ['computed', { type: 'computed', resultType: 'number', formula: '0' }],
     ['roll', { type: 'roll', notation: '1d100', rerollable: true }],
+    ['track', { type: 'track', max: 10, style: 'gauge' }],
     ['text', { type: 'scalar', valueType: 'text' }]
   ] satisfies Array<[V3EditorFieldType, Record<string, unknown>]>)(
     'createField は %s の初期 field を作る',
@@ -142,6 +143,35 @@ describe('v3Template editor field builders', () => {
       expect(field.uid).not.toBe('basic_existing')
     }
   )
+
+  it('createField の track 既定値は engine の publish 検証を通過する', () => {
+    const section: SheetSection = { id: 'status', label: 'ステータス', fields: [] }
+    const field = createField('track', section, 'HP')
+
+    expect(field).toEqual({
+      id: 'hp',
+      uid: expect.stringMatching(/^status_/),
+      label: 'HP',
+      visibleTo: 'public',
+      type: 'track',
+      max: 10,
+      style: 'gauge'
+    })
+    expect(
+      validatePublishTemplate({
+        templateId: 'track-default',
+        name: 'Track default',
+        version: '1.0.0',
+        schemaVersion: 3,
+        tags: [],
+        visibility: 'private',
+        authorDiscordUserId: 'user_1',
+        sections: [{ ...section, fields: [field] }],
+        tables: [],
+        settings: { rounding: 'floor' }
+      }).issues
+    ).toEqual([])
+  })
 
   it('createSection は予約語と空 label を正規化する', () => {
     const duplicate = createSection([{ id: 'basic', label: '基本', fields: [] }], 'basic')

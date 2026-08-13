@@ -266,6 +266,19 @@ describe('TemplateEditorV3 autosave', () => {
     expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
   })
 
+  it('track field には grid 内でも表示幅を表示しない', () => {
+    renderEditor(
+      templateWithSection({
+        id: 'status',
+        label: 'ステータス',
+        layout: { preset: 'grid', columns: 2 },
+        fields: [{ id: 'hp', uid: 'uid_hp', label: 'HP', type: 'track', max: 10, style: 'gauge' }]
+      })
+    )
+
+    expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
+  })
+
   it('field span を保存し、clear 直後は未選択へ戻して payload では既定 1 に正規化する', async () => {
     renderEditor(
       templateWithSection({
@@ -1119,6 +1132,38 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     ).toBeTruthy()
   })
 
+  it('track の不正な rollOnCreate notation を section と field の位置つきで表示する', () => {
+    const template = templateWithSection({
+      id: 'status',
+      label: 'ステータス',
+      fields: [
+        {
+          id: 'hp',
+          uid: 'uid_hp',
+          label: 'HP',
+          type: 'track',
+          max: 10,
+          style: 'gauge',
+          rollOnCreate: { notation: '1d20+{parameter.con}' }
+        }
+      ]
+    })
+    const publishResult = validatePublishTemplate(toSheetTemplate(template))
+    const publishIssue = publishResult.issues.find(
+      (issue) => issue.path === 'status.hp.rollOnCreate.notation'
+    )
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(template)
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(
+      within(errorAlert as HTMLElement).getByText(`[ステータス / HP] ${publishIssue!.message}`)
+    ).toBeTruthy()
+  })
+
   it('relation attr の partsKeys issue を nested field と index まで位置表示する', () => {
     const template = templateWithSection({
       id: 'main',
@@ -1293,6 +1338,73 @@ describe('TemplateEditorV3 field annotations', () => {
     const clearedField = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]?.fields[0]
     expect((clearedField as { max?: unknown }).max).toBeUndefined()
     expect(JSON.stringify(clearedField)).not.toContain('max')
+  })
+
+  it('型 Select から track を選ぶと検証通過形の track field を作る', async () => {
+    renderEditor(templateWithSection({ id: 'status', label: 'ステータス', fields: [] }))
+
+    fireEvent.click(screen.getByRole('combobox', { name: '型' }))
+    expect(screen.getByRole('option', { name: 'track' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('option', { name: 'track' }))
+    fireEvent.click(screen.getByRole('button', { name: 'フィールド追加' }))
+    await advanceAutosave()
+
+    const createdField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(createdField).toMatchObject({
+      id: 'track',
+      label: 'track',
+      type: 'track',
+      max: 10,
+      style: 'gauge'
+    })
+    expect(createdField?.type).not.toBe('scalar')
+  })
+
+  it('track 詳細で max/min/style/rollOnCreate を編集し、非公開 annotation を保持する', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        min: 1,
+        max: 10,
+        style: 'gauge',
+        rollOnCreate: { notation: '1d20' },
+        thresholds: [{ at: 2, label: '瀕死' }],
+        resetOn: 'rest',
+        resetTo: 'max'
+      })
+    )
+
+    expect(screen.getByLabelText('max 入力方式')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('max'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('min'), { target: { value: '' } })
+    selectOption('style', 'checkboxes')
+    fireEvent.change(screen.getByLabelText('rollOnCreate notation'), { target: { value: '' } })
+    await advanceAutosave()
+
+    const clearedConstraints = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(clearedConstraints).toMatchObject({
+      type: 'track',
+      max: 0,
+      style: 'checkboxes',
+      thresholds: [{ at: 2, label: '瀕死' }],
+      resetOn: 'rest',
+      resetTo: 'max'
+    })
+    expect((clearedConstraints as { min?: unknown }).min).toBeUndefined()
+    expect(JSON.stringify(clearedConstraints)).not.toContain('"min"')
+    expect((clearedConstraints as { rollOnCreate?: unknown }).rollOnCreate).toBeUndefined()
+    expect(JSON.stringify(clearedConstraints)).not.toContain('rollOnCreate')
+
+    fireEvent.change(screen.getByLabelText('rollOnCreate notation'), { target: { value: '1d20+10' } })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
+      type: 'track',
+      rollOnCreate: { notation: '1d20+10' }
+    })
   })
 
   it('非 required の formula を空にしても入力欄を維持し、式を打ち直せる', async () => {

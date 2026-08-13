@@ -1033,7 +1033,8 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       { value: 'select', label: 'select' },
                       { value: 'checkbox', label: 'checkbox' },
                       { value: 'computed', label: 'computed' },
-                      { value: 'roll', label: 'roll' }
+                      { value: 'roll', label: 'roll' },
+                      { value: 'track', label: 'track' }
                     ]}
                     value={newFieldType}
                     onChange={(value) => setNewFieldType((value ?? 'text') as V3EditorFieldType)}
@@ -1187,6 +1188,48 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       }
                     />
                   </Group>
+                )}
+                {selectedField.type === 'track' && (
+                  <>
+                    <ConstraintInput
+                      label="max"
+                      value={selectedField.max}
+                      required
+                      onChange={(max) => updateField(selectedField.uid, { max })}
+                    />
+                    <NumberInput
+                      label="min"
+                      value={selectedField.min ?? ''}
+                      onChange={(min) =>
+                        updateField(selectedField.uid, {
+                          min: typeof min === 'number' ? min : undefined
+                        } as Partial<SheetField>)
+                      }
+                    />
+                    <Select
+                      label="style"
+                      data={[
+                        { value: 'gauge', label: 'gauge' },
+                        { value: 'checkboxes', label: 'checkboxes' }
+                      ]}
+                      value={selectedField.style}
+                      onChange={(value) =>
+                        updateField(selectedField.uid, {
+                          style: (value ?? 'gauge') as typeof selectedField.style
+                        } as Partial<SheetField>)
+                      }
+                    />
+                    <TextInput
+                      label="rollOnCreate notation"
+                      value={selectedField.rollOnCreate?.notation ?? ''}
+                      onChange={(event) => {
+                        const notation = event.currentTarget.value || undefined
+                        updateField(selectedField.uid, {
+                          rollOnCreate: notation ? { notation } : undefined
+                        } as Partial<SheetField>)
+                      }}
+                    />
+                  </>
                 )}
                 {selectedField.type === 'roll' && (
                   <TextInput
