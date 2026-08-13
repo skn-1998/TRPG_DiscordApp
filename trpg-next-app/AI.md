@@ -114,6 +114,29 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   届く）。prod compose は `.env*` が .dockerignore で image に入らないため **environment での
   明示が必須**（DISCORD_APPLICATIONID は `${...:?required}` で fail-fast — 最終レビュー C-H1/M7）
 
+## シート描画・編集（U14/U15 — D-R2 配線済み 2026-08-13）
+
+- **field 描画の正本は `characterSheet/TemplateFormRenderer`（TFR・'use client'）**。
+  編集面（`character/components/CharacterSheetEditClient`）もプレビュー
+  （`characterTemplate/components/TemplatePreviewV3`）も TFR を消費し、
+  **第三の描画実装を作らない**（D-R2 裁定・2026-08-12 ユーザー）。見出し階層は
+  headingLevel prop（既定 2・block は +1）で消費者が指定する（編集面/プレビューとも 3）
+- **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
+  （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
+  使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない
+- **保存は per-path CAS**（`character/sheet-edit.ts`）: path = (fieldUid, partsKey?)。
+  normalizeEditorValue の valueType 正規化が **payload 健全性の front 側唯一の防壁**
+  （server readPathValue は非 parts で raw 素通し・DTO baseValue は unknown で型防壁なし）。
+  undefined 書込 = キー削除（server の path 不在と同型）・競合 echo の current/base: null は
+  undefined へ復号し、mine 再送は baseValue own キー欠落（= 不存在期待 CAS）で通る
+  （server 側は current/base とも null sentinel へ正規化 — wire nonoptional 契約・大粒度 #17 FIX-B）。
+  usesPartsEditor（parts 対応 = number 専用）は TFR isPartsScalarField・engine allowsParts と
+  三者同期 — 変更時は 3 箇所を同時に見る
+- **annotation（cap/pool/limit）の表示は status 3 値で確定**（design-v1-ui :287・SM-9(b)・
+  大粒度 #17 FIX-A）: ok = 値表示・indeterminate = 「—」表示で警告抑制・error = 該当箇所の
+  インライン警告のみ（隠さない）。TFR の 3 表示経路（cap バッジ・pool 行・field 近傍警告）が
+  この契約を共有する — 「ok 以外は非表示」へ戻す変更は仕様違反
+
 ## テスト
 
 - jest は `testEnvironment: 'node'` のまま、client component の spec は**ファイル冒頭の
