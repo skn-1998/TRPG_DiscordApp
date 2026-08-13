@@ -236,4 +236,14 @@ describe('sheetMergeConflictSchema', () => {
       }).success
     ).toBe(false)
   })
+
+  // 欠落拒否を維持しつつ「現在値なし」を明示できるよう、null は wire の有効値として固定する。
+  it('conflict の current: null を受理する', () => {
+    expect(
+      sheetMergeConflictSchema.safeParse({
+        ...validConflict,
+        conflicts: [{ ...validConflict.conflicts[0], current: null }]
+      }).success
+    ).toBe(true)
+  })
 })
