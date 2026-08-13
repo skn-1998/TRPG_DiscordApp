@@ -3,6 +3,7 @@ import type { CharacterSheetTemplateEntity } from '../characterTemplate/types/v3
 import {
   deriveSheetChanges,
   editableScalarFields,
+  listEditablePartsKeys,
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
@@ -45,6 +46,16 @@ const partsField: EditableScalarField = {
 const declaredPartsField: EditableScalarField = {
   ...numberField,
   partsKeys: [{ id: 'growth', label: 'Growth' }]
+}
+
+const legacyDeclaredPartsField: EditableScalarField = {
+  ...declaredPartsField,
+  partsKeys: [
+    { id: 'growth', label: 'Growth' },
+    { id: 'base', label: 'Base' },
+    { id: 'other', label: 'Other' },
+    { id: 'constructor', label: 'Constructor' }
+  ]
 }
 
 const textField: EditableScalarField = {
@@ -130,11 +141,80 @@ describe('writeSheetPathValue', () => {
     })
   })
 
+  it('flat number raw の base を温存して宣言キーを追加する', () => {
+    // flat raw の非 base 書込でも server と同じ base 種付けを行うことを固定する。
+    expect(writeSheetPathValue(partsField, 'growth', 5, { 'main.score': 10 })).toEqual({
+      'main.score': { parts: { base: 10, growth: 5 } }
+    })
+  })
+
   it('非 parts path へプリミティブを代入する', () => {
     expect(writeSheetPathValue(numberField, undefined, 9, { 'main.hp': 10, untouched: true })).toEqual({
       'main.hp': 9,
       untouched: true
     })
+  })
+
+  it.each([
+    [
+      '非 parts field',
+      numberField,
+      undefined,
+      { 'main.hp': 10, untouched: true },
+      { untouched: true }
+    ],
+    [
+      'parts の当該キー',
+      partsField,
+      'growth',
+      { 'main.score': { note: 'keep', parts: { base: 10, growth: 5 } }, untouched: true },
+      { 'main.score': { note: 'keep', parts: { base: 10 } }, untouched: true }
+    ]
+  ] as const)('undefined 書込は%sだけを削除する', (_caseName, field, partsKey, values, expected) => {
+    // toEqual は own undefined と欠落を同一視して delete -> undefined 代入変異を通したため、Fable 実測どおり両面で固定する。
+    const result = writeSheetPathValue(field, partsKey, undefined, values)
+    const deletionOwner = partsKey === undefined
+      ? result
+      : (result[field.uid] as { parts: Record<string, unknown> }).parts
+
+    expect(result).toStrictEqual(expected)
+    expect(Object.prototype.hasOwnProperty.call(deletionOwner, partsKey ?? field.uid)).toBe(false)
+  })
+})
+
+describe('listEditablePartsKeys', () => {
+  it.each([
+    [
+      '非 parts field',
+      numberField,
+      { 'main.hp': 10 },
+      { 'main.hp': 11 },
+      []
+    ],
+    // reserved / UNSAFE だけでは生存した raw own キー和集合変異を、未宣言の安全な legacy でも遮断する。
+    [
+      '宣言モード',
+      legacyDeclaredPartsField,
+      { 'main.hp': { parts: { base: 10, growth: 5, legacy: 7, other: 2, constructor: 3 } } },
+      { 'main.hp': { parts: { base: 10, growth: 6, legacy: 8, other: 4, constructor: 5 } } },
+      ['base', 'growth']
+    ],
+    [
+      '自由モード',
+      partsField,
+      { 'main.score': { parts: { base: 10, career: 4, other: 2, prototype: 3 } } },
+      { 'main.score': { parts: { base: 10, growth: 5, other: 4, prototype: 6 } } },
+      ['base', 'career', 'growth']
+    ]
+  ] as const)('%sは提示可能な parts path だけを列挙する', (
+    _caseName,
+    field,
+    baseline,
+    values,
+    expected
+  ) => {
+    // TFR と同じ reserved / UNSAFE 防御を、宣言データと自由データの両方の書込列挙で固定する。
+    expect(listEditablePartsKeys(field, baseline, values)).toEqual(expected)
   })
 })
 
@@ -166,6 +246,36 @@ describe('deriveSheetChanges', () => {
         newValue: 11
       }
     ])
+  })
+
+  it.each([
+    // 宣言一覧を無視する raw own キー和集合変異が、安全な未宣言 legacy の値差でも change を作る穴を閉じる。
+    [
+      '宣言モード',
+      declaredPartsField,
+      { 'main.hp': { parts: { base: 10, growth: 5, legacy: 7 } } },
+      { 'main.hp': { parts: { base: 10, growth: 6, legacy: 8 } } },
+      [{ path: { fieldUid: 'main.hp', partsKey: 'growth' }, baseValue: 5, newValue: 6 }]
+    ],
+    [
+      '自由モードの baseline/values 和集合',
+      partsField,
+      { 'main.score': { parts: { base: 10, career: 4 } } },
+      { 'main.score': { parts: { base: 10, growth: 5 } } },
+      [
+        { path: { fieldUid: 'main.score', partsKey: 'career' }, baseValue: 4, newValue: undefined },
+        { path: { fieldUid: 'main.score', partsKey: 'growth' }, baseValue: undefined, newValue: 5 }
+      ]
+    ]
+  ] as const)('%sの非 base partsKey を per-path change にする', (_caseName, field, baseline, values, expected) => {
+    // base 以外も whole-field payload に混ぜず、各 partsKey の CAS 値だけを送ることを固定する。
+    const changes = deriveSheetChanges([field], baseline, values)
+
+    expect(changes).toEqual(expected)
+    if (_caseName === '自由モードの baseline/values 和集合') {
+      const wireChanges = JSON.parse(JSON.stringify(changes)) as Array<Record<string, unknown>>
+      expect(Object.prototype.hasOwnProperty.call(wireChanges[0], 'newValue')).toBe(false)
+    }
   })
 
   it.each([
