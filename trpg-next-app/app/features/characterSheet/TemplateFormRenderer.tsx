@@ -47,6 +47,7 @@ type RenderFieldEntry = {
 type PartDefinition = NonNullable<ScalarField['partsKeys']>[number]
 
 // 典型的な TRPG トラック規模だけをマーク列にし、DOM 肥大を防ぐため 30 超は数値表示へ退避する。
+// max <= 0 は style ごとの退避規則として、割合を描く gauge は 0% を保ち、個数を描く checkboxes は列ごと退避する。
 const MAX_TRACK_CHECKBOX_MARKS = 30
 
 export function TemplateFormRenderer({
@@ -689,7 +690,8 @@ function renderTrackField(
   rawValue: unknown,
   maxRuntime: ConstraintEvaluationResult
 ) {
-  // 未入力 track は engine が min 非依存で 0 評価するため、evaluated 基底の preview・hub/Discord 投影と
+  // design-v1-ui :288: numberOrZero 不変更により、未入力 track は engine が min 非依存で 0 評価するため、
+  // evaluated 基底の preview・hub/Discord 投影と
   // 同じ表示へ揃える。定義済みだが壊れた raw は trackDisplayValue の「—」退化を維持する。
   const displayValue = rawValue === undefined ? 0 : trackDisplayValue(rawValue)
   const maxValue = maxRuntime.status === 'ok' ? maxRuntime.value : undefined
@@ -715,7 +717,7 @@ function renderTrackField(
             value={toTrackProgress(displayValue, maxValue)}
           />
         ) : null}
-        {renderTrackCheckboxes(field, displayValue, maxValue)}
+        {field.style === 'checkboxes' ? renderTrackCheckboxes(field, displayValue, maxValue) : null}
         <Text data-track-display-value={field.uid} size="sm">{valueText}</Text>
         {/* design-v1-ui :287 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
         {maxRuntime.status === 'error' ? (
@@ -731,7 +733,7 @@ function renderTrackCheckboxes(
   displayValue: number | undefined,
   maxValue: number | undefined
 ) {
-  if (field.style !== 'checkboxes' || displayValue === undefined || maxValue === undefined) return null
+  if (displayValue === undefined || maxValue === undefined) return null
   if (!Number.isInteger(maxValue) || maxValue <= 0 || maxValue > MAX_TRACK_CHECKBOX_MARKS) return null
 
   const checkedCount = Math.max(0, Math.min(maxValue, Math.floor(displayValue)))

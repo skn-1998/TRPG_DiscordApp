@@ -277,6 +277,7 @@ export class CharacterSheetOperationService {
       }
 
       // min/max advisory 化後の delta 0 は値を変えず revision と冪等枠だけを消費するが、適用済み interaction の replay は先行する noOp 短絡が受けるため、このガードは未処理の delta 0 だけを拒否する。
+      // 新規 revision の宣言は sheet-engine publish の deltas nonzero 検査が閉じており、ここは publish 以前に保存済みの旧 palette を防御する。
       if (input.delta === 0) {
         throw new UnprocessableEntityException('delta must not be zero')
       }

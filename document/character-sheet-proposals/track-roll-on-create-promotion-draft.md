@@ -3,11 +3,13 @@
 作成: 2026-08-13（L-2 裁定 (c) の付帯裁定「track は廃止せず昇格」を受けた起案）。
 状態: **TR-1〜TR-6 実装完了（2026-08-14・大粒度 #21 で blocking 0 を確認）**。
 実装コミット = TR-1 736e5305 / TR-2 16f91cc / TR-2b 5194d8e / TR-3 17c978ef /
-TR-4a1 8890305 / TR-4a2 67e665f / TR-4b 3dd3536 / TR-4c f576324 / TR-5 df83d7c / TR-6 cf61681。
+TR-4a1 8890305 / TR-4a2 67e665f / TR-4b 3dd3536 / TR-4c f576324 / TR-5 df83d7c / TR-6 cf61681 /
+TD1 e7ee7103 / TD2 3e91c3ac / TD3 69232eef。
 現況: engine 契約 A・全経路 advisory（raw canonical）・front 表示（15 / 10 超過明示・
-gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ track 作成/編集まで実装済み。
-残件 = §「大粒度 #20 でユーザー決定点へ昇格した項目」（TR-D1 凍結）と
-§「実装完了後の残スライス」。**以下の「現状調査の結果」節は 2026-08-13 の実装前
+塗り/マーク列のみ視覚 cap・max 評価失敗の error 警告・未入力は evaluated 基底 0 表示・
+checkboxes マーク列）・エディタ track 作成/編集・delta 0 契約拒否まで実装済み。
+残件 = §「実装完了後の残スライス」の未消化分（試しロール・CL-6・role 編集）。
+TR-D1 は (a) 裁定・TD1 で消化済み（大粒度 #22 blocking 0）。**以下の「現状調査の結果」節は 2026-08-13 の実装前
 スナップショット**（裁定根拠の記録として保持・現況を表さない）。
 
 ## 確定した裁定（2026-08-13・ユーザー）
@@ -61,7 +63,9 @@ gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ trac
 ### 実装完了後の残スライス・裁定枠（2026-08-14 大粒度 #21・突合 = big21-integration.md・**着手許可 2026-08-14・ユーザー**）
 
 - checkboxes 専用視覚（TFR renderTrackField 1 箇所・低優先の到達不能 fallback
-  `status:'error'`→indeterminate 向き修正を同乗）
+  `status:'error'`→indeterminate 向き修正を同乗）**【消化済み 2026-08-14 = TD3 69232eef】**
+  視覚仕様（max ok・整数・1〜30 のみマーク列・チェック数は視覚 cap・それ以外テキスト退避）の
+  要旨は design-v1-ui「編集と保存」節へ転記・詳細契約の正本は TFR.spec の checkboxes pin 群
 - 試しロール UI（SM-F 非依存を実測済み・dice preview 部品は未抽出）
 - CL-6 出目提示（rollOnCreateResults は controller で破棄・wire 契約に非搭載 —
   表示には controller/api-contract/front の 3 層スライス。裁定 5 の明示提出値 422 も
@@ -69,7 +73,9 @@ gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ trac
 - 裁定枠: 未入力 track の表示割れ — editor プレビュー「0 / 10」
   （evaluated 基底）vs 実シート「— / 10」（raw 基底）。**【裁定 2026-08-14・ユーザー】
   (a) 実シート側を evaluated 基底の 0 表示へ揃える**（未入力と明示 0 の画面区別は消える。
-  壊れた保存値の「—」退化は表示退化契約として維持）。消化スライス = TD2
+  壊れた保存値の「—」退化は表示退化契約として維持）。**【消化済み 2026-08-14 = TD2 3e91c3ac】**
+  解消は raw が undefined（キー不在）の場合に限る — null は退化契約側に留置し、
+  実シート「—」と Discord palette「(0)」の割れは意図的に残存（大粒度 #22 R-1 実測）
 - capability gap の記録: front エディタは SheetField.role を編集できず、エディタ製 track は
   palette resource になれない（± 経路到達不能）。role 編集スライスでは TR-D1 非対称と
   CL-6 を同時設計すること

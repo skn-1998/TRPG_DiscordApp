@@ -1889,6 +1889,18 @@ describe('TemplateFormRenderer', () => {
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
   })
 
+  it('未入力 track の 0 と生入力欠落で indeterminate の式 max を「0 / —」として併記する', () => {
+    const targetTemplate = createTrackTemplate(
+      { max: { formula: '{tracks.base}' } },
+      [{ id: 'base', uid: 'uid_base', label: '参照元', type: 'scalar', valueType: 'number' }]
+    )
+    renderForm({}, undefined, targetTemplate)
+
+    const track = document.querySelector('[data-track-field="uid_hp"]') as HTMLElement
+    expect(track.dataset.trackMaxStatus).toBe('indeterminate')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / —')
+  })
+
   it('track の max 評価失敗を値表示から分離したインライン警告にする', () => {
     renderForm({ uid_hp: 6 }, undefined, createTrackTemplate({ max: { formula: '1 / 0' } }))
 

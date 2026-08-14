@@ -192,7 +192,7 @@ describe('TrackRangePolicy', () => {
       { 'uid-limit': 10, 'uid-hp': 8 },
       { 'uid-limit': 5, 'uid-hp': 7 }
     ]
-  ])('current/nextを同じnext boundsで比較して%sする更新を許可する', (_caseName, current, next) => {
+  ])('%sする範囲超過更新をadvisoryとして許可し、next rawを採用する', (_caseName, current, next) => {
     const policy = new TrackRangePolicy(parameterBoundTemplate())
 
     expect(() => policy.assertFiniteTrackValues(current, next)).not.toThrow()
