@@ -1833,6 +1833,7 @@ describe('TemplateFormRenderer', () => {
     expect(track.style.width).toBe('100%')
     expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / 10')
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+    expect(track.querySelector('[data-track-checkboxes]')).toBeNull()
     expect(screen.queryByRole('textbox', { name: '耐久力' })).toBeNull()
     expect(fieldCell.dataset.gridSpan).toBe('full')
     expect(fieldCell.classList.contains(styles.gridField)).toBe(true)
@@ -1934,17 +1935,104 @@ describe('TemplateFormRenderer', () => {
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
   })
 
-  it('checkboxes style は数値テキストだけを共通表示し、gauge を描画しない', () => {
+  it('checkboxes style は max 個の箱と値に応じた checked 状態を描画し、gauge を描画しない', () => {
     renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
 
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    expect(checkboxes.querySelectorAll('input[type="checkbox"]')).toHaveLength(10)
+    expect(checkboxes.querySelectorAll('input:checked')).toHaveLength(4)
     expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('4 / 10')
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
 
-  it('未入力の checkboxes style は 0 の数値テキストだけを表示する', () => {
+  it('未入力の checkboxes style は 10 箱をすべて未チェックにして 0 の数値テキストを表示する', () => {
     renderForm({}, undefined, createTrackTemplate({ style: 'checkboxes' }))
 
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    expect(checkboxes.querySelectorAll('input[type="checkbox"]')).toHaveLength(10)
+    expect(checkboxes.querySelectorAll('input:checked')).toHaveLength(0)
     expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / 10')
     expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+
+  it('checkboxes style の超過 raw は全箱を checked にし、数値テキストでは超過を保持する', () => {
+    renderForm({ uid_hp: 15 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
+
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    expect(checkboxes.querySelectorAll('input[type="checkbox"]')).toHaveLength(10)
+    expect(checkboxes.querySelectorAll('input:checked')).toHaveLength(10)
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('15 / 10')
+  })
+
+  it('checkboxes style の負値 raw は全箱を未チェックにし、数値テキストでは負値を保持する', () => {
+    renderForm({ uid_hp: -3 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
+
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    expect(checkboxes.querySelectorAll('input[type="checkbox"]')).toHaveLength(10)
+    expect(checkboxes.querySelectorAll('input:checked')).toHaveLength(0)
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('-3 / 10')
+  })
+
+  it('checkboxes style の max が非整数ならマーク列を描画しない', () => {
+    renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes', max: 10.5 }))
+
+    expect(document.querySelector('[data-track-checkboxes="uid_hp"]')).toBeNull()
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('4 / 10.5')
+  })
+
+  it.each([1, 30])('checkboxes style の許可境界 max=%s は max 個の箱を描画する', (max) => {
+    renderForm({ uid_hp: max }, undefined, createTrackTemplate({ style: 'checkboxes', max }))
+
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    expect(checkboxes).toBeTruthy()
+    expect(checkboxes.querySelectorAll('input[type="checkbox"]')).toHaveLength(max)
+  })
+
+  it('checkboxes style の max が 30 を超えるならマーク列を描画しない', () => {
+    renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes', max: 31 }))
+
+    expect(document.querySelector('[data-track-checkboxes="uid_hp"]')).toBeNull()
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('4 / 31')
+  })
+
+  it('checkboxes style の max が 0 以下ならマーク列を描画しない', () => {
+    renderForm({ uid_hp: 5 }, undefined, createTrackTemplate({ style: 'checkboxes', max: 0 }))
+
+    expect(document.querySelector('[data-track-checkboxes="uid_hp"]')).toBeNull()
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('5 / 0')
+  })
+
+  it('checkboxes style の max が indeterminate ならマーク列を描画しない', () => {
+    const targetTemplate = createTrackTemplate(
+      { style: 'checkboxes', max: { formula: '{tracks.base}' } },
+      [{ id: 'base', uid: 'uid_base', label: '参照元', type: 'scalar', valueType: 'number' }]
+    )
+    renderForm({ uid_hp: 6 }, undefined, targetTemplate)
+
+    expect(document.querySelector('[data-track-checkboxes="uid_hp"]')).toBeNull()
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('6 / —')
+  })
+
+  it('checkboxes style の壊れた raw はマーク列を描画せず「—」へ退化する', () => {
+    renderForm(
+      { uid_hp: Number.POSITIVE_INFINITY },
+      undefined,
+      createTrackTemplate({ style: 'checkboxes' })
+    )
+
+    expect(document.querySelector('[data-track-checkboxes="uid_hp"]')).toBeNull()
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
+  })
+
+  it('checkboxes style のマーク列を装飾扱いにして tab 到達可能な要素を含めない', () => {
+    renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
+
+    const checkboxes = document.querySelector('[data-track-checkboxes="uid_hp"]') as HTMLElement
+    const potentiallyFocusable = checkboxes.querySelectorAll<HTMLElement>(
+      'a[href], button, input, select, textarea, [tabindex]'
+    )
+    expect(checkboxes.getAttribute('aria-hidden')).toBe('true')
+    expect(Array.from(potentiallyFocusable).filter((element) => element.tabIndex >= 0)).toHaveLength(0)
+    expect(screen.queryByRole('checkbox')).toBeNull()
   })
 })

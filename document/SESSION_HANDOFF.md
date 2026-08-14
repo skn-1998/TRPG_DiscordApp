@@ -3101,6 +3101,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   :659 fallback の indeterminate 向き修正。視覚仕様は設計正本に無く司令塔裁定 =
   max ok・整数・1〜30 のときだけ読み取り専用マーク列・それ以外は現行テキストへ退避。
   指示書 = prompt-td3-code.txt 作成済み）。
+- **TD3 完了（2026-08-14）**: checkboxes 専用視覚（定数＋helper・aria-hidden readOnly
+  Checkbox 列・checked = floor の視覚 cap）＋:659 fallback の indeterminate 化。
+  レビュー = Codex pass（blocking 0・should 1 = 境界/負値 pin → FIX で消化）。
+  変異 6 種（cap/整数/off-by-one/style/上限>=/下限<=1）全て赤・復元 sha256 一致。
+  suite 123/123＋Preview 12/12。証跡 = review-results/impl-u14/td3-acceptance.md。
+  **視覚仕様は設計正本に無く司令塔裁定が一次記録（prompt-td3-code.txt）** — 恒久化するなら
+  design-v1-ui への転記が残課題。
+- **TD4 事前実測の重要所見（2026-08-14・Opus）**: 既存 /templates/dice-preview は
+  executeDiceRoll（rands 合算 total・legacy 互換）で、rollOnCreate の
+  executeEvaluatedDiceRoll（評価値 total・'3d6*5'→55）と **total 意味論が不一致**。
+  試しロール UI は details 文字列のみ表示（末尾に評価値を含み正確）の front 完結案を軸に
+  大粒度 #22 後に指示書化。dice preview UI 部品は TemplatePreviewV3 に inline 未抽出
+  （共有部品は utils/dicePreview.ts のみ）。
 
 ## 参照
 
