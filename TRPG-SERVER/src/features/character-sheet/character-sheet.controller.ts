@@ -23,6 +23,7 @@ import { CharacterIdParamDto } from '../../domains/character/dto/create-characte
 import { CreateCharacterFromTemplateDto, SaveCharacterSheetDto } from '../../domains/character/dto/character-sheet.dto'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
 import { CharacterSheetHttpExceptionFilter } from './character-sheet-http-exception.filter'
+import type { RollOnCreateResult } from './types/character-sheet.types'
 
 export const CHARACTER_SHEET_OPERATION_USE_CASE = Symbol('CHARACTER_SHEET_OPERATION_USE_CASE')
 export const CHARACTER_INSTANTIATION_USE_CASE = Symbol('CHARACTER_INSTANTIATION_USE_CASE')
@@ -44,7 +45,10 @@ interface CharacterInstantiationUseCase {
     discordUserId: string
     discordChannelId: string
     values?: Record<string, unknown>
-  }): Promise<{ character: { characterId: string } }>
+  }): Promise<{
+    character: { characterId: string }
+    rollOnCreateResults: RollOnCreateResult[]
+  }>
 }
 
 /**
@@ -102,7 +106,7 @@ export class CharacterSheetController {
   async createFromTemplate(
     @Body() dto: CreateCharacterFromTemplateDto,
     @Req() req: Request
-  ): Promise<{ characterId: string }> {
+  ): Promise<{ characterId: string; rollOnCreateResults: RollOnCreateResult[] }> {
     const user = this.extractAuthenticatedUser(req)
     const result = await this.instantiationService.instantiate({
       templateId: dto.templateId,
@@ -114,7 +118,10 @@ export class CharacterSheetController {
       values: dto.values
     })
 
-    return { characterId: result.character.characterId }
+    return {
+      characterId: result.character.characterId,
+      rollOnCreateResults: result.rollOnCreateResults
+    }
   }
 
   private extractAuthenticatedUser(req: Request): JwtTokenPayload {

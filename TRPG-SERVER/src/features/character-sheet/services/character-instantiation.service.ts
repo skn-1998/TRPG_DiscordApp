@@ -110,6 +110,7 @@ export class CharacterInstantiationService {
       values[field.uid] = result.total
       rollOnCreateResults.push({
         uid: field.uid,
+        label: field.label,
         notation,
         total: result.total,
         details: result.details

@@ -3,7 +3,8 @@
 /* eslint jsx-a11y/no-autofocus: "error" */
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import type { RollOnCreateResultWire } from '@trpg/api-contract'
 import {
   Alert,
   Badge,
@@ -28,15 +29,22 @@ interface TemplateListV3Props {
   summaries: CharacterSheetTemplateSummary[]
 }
 
+type CharacterCreationOutcome =
+  | { status: 'idle' }
+  | { status: 'error'; message: string }
+  | { status: 'rolls'; results: RollOnCreateResultWire[] }
+
 export function TemplateListV3({ summaries }: TemplateListV3Props) {
   const [legacyTemplates, setLegacyTemplates] = useState<Template[]>([])
   const [legacyReadError, setLegacyReadError] = useState<string | null>(null)
   const [creationTemplate, setCreationTemplate] = useState<CharacterSheetTemplateSummary | null>(null)
   const [characterName, setCharacterName] = useState('')
   const [listActionError, setListActionError] = useState<string | null>(null)
-  const [createCharacterError, setCreateCharacterError] = useState<string | null>(null)
+  const [creationOutcome, setCreationOutcome] = useState<CharacterCreationOutcome>({ status: 'idle' })
   const [isListPending, startListTransition] = useTransition()
   const [, startCreateCharacterTransition] = useTransition()
+  const creationRequestGenerationRef = useRef(0)
+  const createCharacterError = creationOutcome.status === 'error' ? creationOutcome.message : null
 
   /* eslint-disable react-hooks/set-state-in-effect -- 旧 localStorage 移行導線のマウント時読み込みを維持する。 */
   useEffect(() => {
@@ -70,6 +78,14 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
       const result = await action()
       setListActionError(result.error)
     })
+  }
+
+  const resetCreationModal = () => {
+    // close 後に完了した旧リクエストが、次に開く Modal の状態を上書きしないよう無効化する。
+    creationRequestGenerationRef.current += 1
+    setCreationTemplate(null)
+    setCharacterName('')
+    setCreationOutcome({ status: 'idle' })
   }
 
   return (
@@ -147,6 +163,7 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                         leftSection={<IconUserPlus size={14} />}
                         onClick={() => {
                           setCharacterName('')
+                          setCreationOutcome({ status: 'idle' })
                           setCreationTemplate(summary)
                         }}
                       >
@@ -212,7 +229,7 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
 
         <Modal
           opened={creationTemplate !== null}
-          onClose={() => setCreationTemplate(null)}
+          onClose={resetCreationModal}
           title="テンプレートからキャラクターを作成"
           centered
         >
@@ -220,13 +237,23 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
             onSubmit={(event) => {
               event.preventDefault()
               if (!creationTemplate) return
+              const requestGeneration = ++creationRequestGenerationRef.current
               startCreateCharacterTransition(async () => {
                 const result = await createCharacter({
                   templateId: creationTemplate.templateId,
                   templateVersion: creationTemplate.version,
                   characterName
                 })
-                setCreateCharacterError(result.error)
+                if (requestGeneration !== creationRequestGenerationRef.current) return
+                if (result.error) {
+                  setCreationOutcome({ status: 'error', message: result.error })
+                  return
+                }
+
+                const rollResults = result.rollOnCreateResults ?? []
+                setCreationOutcome(
+                  rollResults.length > 0 ? { status: 'rolls', results: rollResults } : { status: 'idle' }
+                )
               })
             }}
           >
@@ -234,28 +261,50 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
               <Text size="sm" c="dimmed">
                 {creationTemplate?.name} / v{creationTemplate?.version}
               </Text>
-              <TextInput
-                name="characterName"
-                label="キャラクター名"
-                value={characterName}
-                onChange={(event) => setCharacterName(event.currentTarget.value)}
-                required
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- 既存 UX の意図的維持（S3c で lint ゲート化のため既存挙動を変えずに抑制）
-                autoFocus
-              />
-              {createCharacterError && (
-                <Alert color="red" icon={<IconAlertCircle size={16} />}>
-                  {createCharacterError}
-                </Alert>
+              {creationOutcome.status === 'rolls' ? (
+                <>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={700}>
+                      作成時の出目
+                    </Text>
+                    {creationOutcome.results.map((result) => (
+                      <Text key={result.uid} size="xs" c="dimmed">
+                        {result.label}: {result.details}
+                      </Text>
+                    ))}
+                  </Stack>
+                  <Group justify="flex-end">
+                    <Button component={Link} href="/user/character" onClick={resetCreationModal}>
+                      キャラクター一覧へ
+                    </Button>
+                  </Group>
+                </>
+              ) : (
+                <>
+                  <TextInput
+                    name="characterName"
+                    label="キャラクター名"
+                    value={characterName}
+                    onChange={(event) => setCharacterName(event.currentTarget.value)}
+                    required
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- 既存 UX の意図的維持。
+                    autoFocus
+                  />
+                  {createCharacterError && (
+                    <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                      {createCharacterError}
+                    </Alert>
+                  )}
+                  <Group justify="flex-end">
+                    <Button type="button" variant="outline" onClick={resetCreationModal}>
+                      キャンセル
+                    </Button>
+                    <Button type="submit" disabled={!characterName.trim()}>
+                      作成
+                    </Button>
+                  </Group>
+                </>
               )}
-              <Group justify="flex-end">
-                <Button type="button" variant="outline" onClick={() => setCreationTemplate(null)}>
-                  キャンセル
-                </Button>
-                <Button type="submit" disabled={!characterName.trim()}>
-                  作成
-                </Button>
-              </Group>
             </Stack>
           </form>
         </Modal>

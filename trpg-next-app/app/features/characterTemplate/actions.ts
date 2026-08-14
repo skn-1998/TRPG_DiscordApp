@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { normalizeTemplateLayout } from '@trpg/sheet-engine'
+import type { RollOnCreateResultWire } from '@trpg/api-contract'
 import {
   extractApiErrorMessages,
   GENERIC_NETWORK_ERROR_MESSAGE,
@@ -29,6 +30,11 @@ export type EditorActionData = {
   conflict?: boolean
   messages?: string[]
   retryable?: boolean
+}
+
+type CreateCharacterActionResult = {
+  error: string | null
+  rollOnCreateResults?: RollOnCreateResultWire[]
 }
 
 export async function createTemplate(): Promise<{ error: string | null }> {
@@ -100,7 +106,7 @@ export async function createCharacter(input: {
   templateId: string
   templateVersion: string
   characterName: string
-}): Promise<{ error: string | null }> {
+}): Promise<CreateCharacterActionResult> {
   await requireJwt()
 
   const characterName = input.characterName.trim()
@@ -109,7 +115,12 @@ export async function createCharacter(input: {
   }
 
   try {
-    await createCharacterFromTemplate({ ...input, characterName })
+    const result = await createCharacterFromTemplate({ ...input, characterName })
+
+    // 出目は作成応答限りで再照会できないため、非空時は作成の場へ返し、空なら従来どおり一覧へ遷移する。
+    if (result.rollOnCreateResults.length > 0) {
+      return { error: null, rollOnCreateResults: result.rollOnCreateResults }
+    }
   } catch (error) {
     const status = getResponseStatus(error)
     const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)

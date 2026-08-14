@@ -24,14 +24,14 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
 
   // seed の全 roll フィールド。3d6*5 が STR/CON/POW/DEX/APP、(2d6+6)*5 が SIZ/INT/EDU
   const EXPECTED_CREATION_ROLLS = [
-    { uid: 'lgc_str_roll', notation: '3d6*5' },
-    { uid: 'lgc_con_roll', notation: '3d6*5' },
-    { uid: 'lgc_pow_roll', notation: '3d6*5' },
-    { uid: 'lgc_dex_roll', notation: '3d6*5' },
-    { uid: 'lgc_app_roll', notation: '3d6*5' },
-    { uid: 'lgc_siz_roll', notation: '(2d6+6)*5' },
-    { uid: 'lgc_int_roll', notation: '(2d6+6)*5' },
-    { uid: 'lgc_edu_roll', notation: '(2d6+6)*5' }
+    { uid: 'lgc_str_roll', label: 'STR roll', notation: '3d6*5' },
+    { uid: 'lgc_con_roll', label: 'CON roll', notation: '3d6*5' },
+    { uid: 'lgc_pow_roll', label: 'POW roll', notation: '3d6*5' },
+    { uid: 'lgc_dex_roll', label: 'DEX roll', notation: '3d6*5' },
+    { uid: 'lgc_app_roll', label: 'APP roll', notation: '3d6*5' },
+    { uid: 'lgc_siz_roll', label: 'SIZ roll', notation: '(2d6+6)*5' },
+    { uid: 'lgc_int_roll', label: 'INT roll', notation: '(2d6+6)*5' },
+    { uid: 'lgc_edu_roll', label: 'EDU roll', notation: '(2d6+6)*5' }
   ] as const
 
   const STUB_TOTAL_BY_NOTATION: Record<string, number> = {
@@ -88,7 +88,7 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     const seedRolls = LEGACY_COC_TEMPLATE.sections
       .flatMap((section) => section.fields)
       .filter((field) => field.type === 'roll')
-      .map((field) => ({ uid: field.uid, notation: field.notation }))
+      .map((field) => ({ uid: field.uid, label: field.label, notation: field.notation }))
 
     expect(seedRolls).toEqual([...EXPECTED_CREATION_ROLLS])
   })
@@ -105,12 +105,12 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     }
   })
 
-  it('rollOnCreateResults が 8 件の roll フィールドを uid・notation 付きで報告する', async () => {
+  it('rollOnCreateResults が 8 件の roll フィールドを uid・label・notation 付きで報告する', async () => {
     const { service } = createService()
 
     const result = await service.instantiate(instantiateInput)
 
-    expect(result.rollOnCreateResults.map(({ uid, notation }) => ({ uid, notation }))).toEqual([
+    expect(result.rollOnCreateResults.map(({ uid, label, notation }) => ({ uid, label, notation }))).toEqual([
       ...EXPECTED_CREATION_ROLLS
     ])
   })

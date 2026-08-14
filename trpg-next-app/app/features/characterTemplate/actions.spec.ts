@@ -153,8 +153,11 @@ describe('characterTemplate actions', () => {
     expect(mockedRedirect).not.toHaveBeenCalled()
   })
 
-  it('createCharacter 成功後に character 一覧へ redirect する', async () => {
-    mockedCreateCharacterFromTemplate.mockResolvedValue({} as never)
+  it('createCharacter は作成時の出目が空なら character 一覧へ redirect する', async () => {
+    mockedCreateCharacterFromTemplate.mockResolvedValue({
+      characterId: 'character-1',
+      rollOnCreateResults: []
+    })
 
     await createCharacter({ templateId: 'template-1', templateVersion: '1.0.0', characterName: ' 探索者 ' })
 
@@ -164,6 +167,35 @@ describe('characterTemplate actions', () => {
       characterName: '探索者'
     })
     expect(mockedRedirect).toHaveBeenCalledWith('/user/character')
+  })
+
+  it('createCharacter は作成時の出目が非空なら redirect せず結果を返す', async () => {
+    const rollOnCreateResults = [
+      {
+        uid: 'uid-dex',
+        label: 'DEX',
+        notation: '3d6*5',
+        total: 55,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'
+      },
+      {
+        uid: 'uid-luck',
+        label: '幸運',
+        notation: '3d6*5',
+        total: 65,
+        details: '(3D6*5) ＞ 13[3,4,6]*5 ＞ 65'
+      }
+    ]
+    mockedCreateCharacterFromTemplate.mockResolvedValue({
+      characterId: 'character-1',
+      rollOnCreateResults
+    })
+
+    await expect(
+      createCharacter({ templateId: 'template-1', templateVersion: '1.0.0', characterName: ' 探索者 ' })
+    ).resolves.toEqual({ error: null, rollOnCreateResults })
+
+    expect(mockedRedirect).not.toHaveBeenCalled()
   })
 
   it('deleteTemplate 成功後に template 一覧へ redirect する', async () => {

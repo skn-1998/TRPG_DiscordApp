@@ -11,6 +11,7 @@ import {
   type CharacterTemplatePinWire,
   type CharacterWire,
   type CreateCharacterFromTemplateResultWire,
+  type RollOnCreateResultWire,
   type SaveCharacterSheetResultWire,
   type SheetMergeConflictWire
 } from './character.wire'
@@ -118,7 +119,7 @@ type CreateCharacterFromTemplateResultWireRequiredKeys = Exclude<
   keyof CreateCharacterFromTemplateResultWire,
   OptionalKeys<CreateCharacterFromTemplateResultWire>
 >
-type ExpectedCreateCharacterFromTemplateResultWireRequiredKeys = 'characterId'
+type ExpectedCreateCharacterFromTemplateResultWireRequiredKeys = 'characterId' | 'rollOnCreateResults'
 type UnexpectedCreateCharacterFromTemplateResultWireRequiredKeys = AssertNever<
   Exclude<CreateCharacterFromTemplateResultWireRequiredKeys, ExpectedCreateCharacterFromTemplateResultWireRequiredKeys>
 >
@@ -133,6 +134,20 @@ type CreateCharacterFromTemplateResultWireShape = Assert<
     CreateCharacterFromTemplateResultWire,
     {
       characterId: string
+      rollOnCreateResults: RollOnCreateResultWire[]
+    }
+  >
+>
+
+type RollOnCreateResultWireShape = Assert<
+  IsExact<
+    RollOnCreateResultWire,
+    {
+      uid: string
+      label: string
+      notation: string
+      total: number
+      details: string
     }
   >
 >
@@ -156,6 +171,7 @@ type CharacterDeleteResultWireAnyKeys = AssertNever<AnyKeys<CharacterDeleteResul
 type SaveCharacterSheetResultWireAnyKeys = AssertNever<AnyKeys<SaveCharacterSheetResultWire>>
 type SheetMergeConflictWireAnyKeys = AssertNever<AnyKeys<SheetMergeConflictWire>>
 type CreateCharacterFromTemplateResultWireAnyKeys = AssertNever<AnyKeys<CreateCharacterFromTemplateResultWire>>
+type RollOnCreateResultWireAnyKeys = AssertNever<AnyKeys<RollOnCreateResultWire>>
 type CharacterHubWireAnyKeys = AssertNever<AnyKeys<CharacterHubWire>>
 type CharacterSheetStateWireAnyKeys = AssertNever<AnyKeys<CharacterSheetStateWire>>
 type CharacterTemplatePinWireAnyKeys = AssertNever<AnyKeys<CharacterTemplatePinWire>>

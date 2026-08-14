@@ -42,6 +42,7 @@ export interface InstantiateCharacterInput {
 
 export interface RollOnCreateResult {
   uid: string
+  label: string
   notation: string
   total: number
   details: string
