@@ -3071,6 +3071,29 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   注意: operation.spec / track-range.spec は並行セッションの未コミット変更と**同一ファイル同居**
   — pathspec コミットでも本チップ分が同乗する（ファイル内分離は不能）
 
+## 【TR 残スライス着手 2026-08-14】TR-D1 裁定＋残スライス消化開始
+
+- ユーザー裁定 3 件（2026-08-14）: (1) **TR-D1 = (a) delta 0 の契約拒否**（publish nonzero 化＋
+  操作層ガード・bounds/atBound 一式と Discord ℹ️ 上限/下限文言を削除・従属の裁定 3
+  〔min>max 422〕も同時撤去） (2) **未入力 track の表示割れ = (a) 実シート側を evaluated 基底の
+  0 表示へ揃える**（壊れた保存値の「—」退化は表示退化契約として維持） (3) 残スライス群
+  （checkboxes 視覚・試しロール UI・CL-6 出目提示・role 編集）の**着手許可**
+- スライス計画（依存順・逐次実行）: TD1（TR-D1(a) server・削除主体）→ TD2（表示割れ(a) front）→
+  TD3（checkboxes 視覚＋TFR :659 fallback の error→indeterminate 修正同乗）→ 大粒度 #22 →
+  TD4（試しロール UI）→ TD5（CL-6 出目提示・controller/api-contract/front の 3 層）→
+  TD6（role 編集 — TR-D1/CL-6 消化後に着手可）→ 大粒度 #23
+- **TD1 実装完了（2026-08-14）**: publish の deltas を nonzero 化し、操作層の delta 0 ガード、bounds/atBound 一式と Discord 境界通知を撤去した。
+  min>max の ± は advisory として raw 保存へ反転した。
+  検収では server 4 suites / 185 tests、engine 13 suites / 530 tests、build、circular 0、server 変更 6 ファイルの ESLint が緑になった。
+  engine は ESLint 実行環境と設定がなく、`Command "eslint" not found` で実行できなかった。
+- **TD1 検収完了（2026-08-14・Fable 実測）**: 小粒度レビュー = Codex pass（blocking 0・
+  should 2・nit 1 → FIX 全消化 = zero replay の noOp 優先 pin／publish Why コメント／
+  min>max 両方向 pin）。変異 4 種（publish nonzero・zero ガード・post-delta 有限性 assert・
+  noOp 短絡）全て赤・復元 sha256 一致。証跡 = review-results/impl-u14/td1-acceptance.md。
+  次は TD2（未入力 track を evaluated 基底 0 表示へ統一。事前実測済み =
+  engine 未入力評価 0・min 非依存／flip pin は TFR.spec :1827-1839 のみ／壊れ値「—」pin
+  :1900-1907 は維持／hub・Discord 投影は既に 0 で一致）。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

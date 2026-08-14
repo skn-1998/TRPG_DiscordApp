@@ -76,7 +76,13 @@ const nonBlankLabelSchema = labelSchema.refine((label) => label.trim().length > 
 
 const roleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rollable'), notation: z.string(), group: z.string().optional(), secret: z.boolean().optional() }).passthrough(),
-  z.object({ kind: z.literal('resource'), deltas: z.array(z.number()).min(1, 'deltas must contain at least one entry'), secret: z.boolean().optional() }).passthrough(),
+  // min/max advisory 化後の delta 0 は値を変えず revision と冪等枠だけを消費するため、契約で拒否する。
+  z.object({
+    kind: z.literal('resource'),
+    deltas: z.array(z.number().refine((delta) => delta !== 0, 'deltas must not contain zero'))
+      .min(1, 'deltas must contain at least one entry'),
+    secret: z.boolean().optional(),
+  }).passthrough(),
   z.object({ kind: z.literal('profile'), secret: z.boolean().optional() }).passthrough(),
 ]);
 

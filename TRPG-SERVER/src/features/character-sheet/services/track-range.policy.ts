@@ -1,14 +1,9 @@
 import { UnprocessableEntityException } from '@nestjs/common'
 import type { ErrorEnvelope } from '@trpg/api-contract'
-import { EPSILON, evaluateExpression } from '@trpg/sheet-engine'
+import { evaluateExpression } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE } from '../../../core/dto/api-response.dto'
 import { isPartsValue, partsTotal, sheetValuesEqual } from './sheet-values.util'
-
-export interface TrackBounds {
-  min: number
-  max: number
-}
 
 export type NonFiniteNumberKind = 'Infinity' | '-Infinity' | 'NaN'
 
@@ -326,13 +321,11 @@ function messagePartsFor(kind: NonFiniteFieldDiagnostic['kind']): { summary: str
 }
 
 /**
- * Track 入力の有限性診断と、advisory な範囲・実効値の解決を一箇所で扱う。
+ * Track 入力の有限性診断と、advisory な raw 実効値の解決を一箇所で扱う。
  *
  * hub 投影も feature 境界でこの policy の実効値へ解決する。
  */
 export class TrackRangePolicy {
-  private readonly boundsByValues = new WeakMap<Record<string, unknown>, Map<string, TrackBounds>>()
-
   constructor(private readonly template: SheetTemplate) {}
 
   /**
@@ -362,24 +355,6 @@ export class TrackRangePolicy {
     }
   }
 
-  /**
-   * field の解決済み範囲を values snapshot ごとに返す。
-   *
-   * 渡した values は以後変更しないこと。変更する場合は新しいオブジェクトを渡す。
-   * メモ化は values オブジェクトの同一性をキーにしており、無効化機構はない。
-   */
-  resolveBounds(
-    field: Extract<SheetField, { type: 'track' | 'scalar' }>,
-    values: Record<string, unknown>
-  ): TrackBounds {
-    const cached = this.boundsCache(values).get(field.uid)
-    if (cached !== undefined) return cached
-
-    const bounds = this.calculateBounds(field, values)
-    this.boundsCache(values).set(field.uid, bounds)
-    return bounds
-  }
-
   resolveEffectiveValue(
     field: Extract<SheetField, { type: 'track' | 'scalar' }>,
     raw: unknown,
@@ -389,24 +364,6 @@ export class TrackRangePolicy {
     const inputValue = this.trackInputValue(field, raw)
     // min/max で cap するのは front gauge の塗りだけで、数値表示は超過をそのまま出す。
     return inputValue ?? evaluatedValue
-  }
-
-  private calculateBounds(
-    field: Extract<SheetField, { type: 'track' | 'scalar' }>,
-    values: Record<string, unknown>
-  ): TrackBounds {
-    if (field.type === 'scalar') {
-      return { min: Number.NEGATIVE_INFINITY, max: Number.POSITIVE_INFINITY }
-    }
-
-    const max =
-      typeof field.max === 'number' ? field.max : this.evaluateBoundExpression(field.max.formula, values, field)
-    const min = field.min ?? 0
-    // ± 経路にのみ残す暫定検査。save は advisory とし、撤去判断は昇格ドラフトの残課題とする。
-    if (min - max > EPSILON) {
-      throw new UnprocessableEntityException(`resource field ${field.uid} resolved max below min`)
-    }
-    return { min, max: max < min ? min : max }
   }
 
   private evaluateBoundExpression(
@@ -509,13 +466,5 @@ export class TrackRangePolicy {
     return this.template.sections.flatMap((section) =>
       section.fields.filter((field): field is Extract<SheetField, { type: 'track' }> => field.type === 'track')
     )
-  }
-
-  private boundsCache(values: Record<string, unknown>): Map<string, TrackBounds> {
-    const existing = this.boundsByValues.get(values)
-    if (existing !== undefined) return existing
-    const created = new Map<string, TrackBounds>()
-    this.boundsByValues.set(values, created)
-    return created
   }
 }

@@ -60,19 +60,9 @@ export class ResourceDeltaHandler extends ButtonInteractionHandler {
         content = '✅ この操作は処理済みです。'
       } else {
         const effectiveValueDelta = result.afterEffectiveValue - result.beforeEffectiveValue
-        if (Math.abs(effectiveValueDelta) <= EPSILON) {
-          if (result.atBound === 'max') {
-            content = 'ℹ️ 上限です。'
-          } else if (result.atBound === 'min') {
-            content = 'ℹ️ 下限です。'
-          } else {
-            content = 'ℹ️ これ以上変化しません。'
-          }
-        } else {
-          const displayDelta = Number(effectiveValueDelta.toFixed(EFFECTIVE_DELTA_DECIMAL_PLACES))
-          const sign = displayDelta >= 0 ? '+' : ''
-          content = `✅ リソースを ${sign}${displayDelta} 更新しました。`
-        }
+        const displayDelta = Number(effectiveValueDelta.toFixed(EFFECTIVE_DELTA_DECIMAL_PLACES))
+        const sign = displayDelta >= 0 ? '+' : ''
+        content = `✅ リソースを ${sign}${displayDelta} 更新しました。`
       }
       await interaction.followUp({ content, flags: MessageFlags.Ephemeral })
     } catch (error) {

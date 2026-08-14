@@ -542,9 +542,8 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   clamp は engine/server から全撤去（raw が canonical・表示 cap は front gauge の塗りのみ）。
   拒否するのは有限性・データ健全性のみで、検査は `TrackRangePolicy.assertFiniteTrackValues`
   1 本（全 track の raw 有限性 → 変更 track の max 式/修復可能性・診断は非有限封筒に統一）
-- **残存の暫定**: calculateBounds の min>max 422 は ± 経路（atBound 表示用 resolveBounds）
-  にのみ残る。zero-delta 契約・bounds/atBound 一式の去就とセットで **TR-D1
-  （design-ledger §5-2・ユーザー裁定待ち）** — 単独で触らないこと
+- **TR-D1 (a) 完了（2026-08-14）**: palette の宣言 delta 0 は publish で拒否し、保存済み旧 palette に 0 が残る場合も未処理 interaction は操作層で 422 にする（適用済み interaction の replay は noOp 冪等が優先）。
+  全経路 advisory 化で不要になった bounds/atBound と Discord の境界通知を削除し、min>max の ± も raw のまま適用する。
 - front: 表示 = TemplateFormRenderer の track 専用描画（15 / 10 超過明示・
   max error 警告 = SM-9(b) 同型）。エディタ = track 作成/編集可（既定値は publish 通過形 —
   autosave が publish 検証を丸ごと通すため。編集 UI の無い role は不変で、エディタ製

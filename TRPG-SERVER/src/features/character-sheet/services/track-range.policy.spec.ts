@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common'
-import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
+import type { SheetTemplate } from '@trpg/sheet-engine'
 import { DEFAULT_ERROR_RESPONSE_MESSAGE, ErrorResponse } from '../../../core/dto/api-response.dto'
 import {
   buildBoundedNonFiniteErrorEnvelope,
@@ -405,30 +405,5 @@ describe('TrackRangePolicy', () => {
 
     expect(() => policy.assertFiniteTrackValues(values, values)).not.toThrow()
     expect(values).toEqual({ 'uid-hp': { parts: { base: 999, other: 0 } } })
-  })
-
-  it('同じvalues snapshotの同一field boundsをメモ化する', () => {
-    const template = parameterBoundTemplate()
-    const field = template.sections[1].fields[0] as Extract<SheetField, { type: 'track' }>
-    const values = { 'uid-limit': 10, 'uid-hp': 8 }
-    const policy = new TrackRangePolicy(template)
-
-    const first = policy.resolveBounds(field, values)
-    const second = policy.resolveBounds(field, values)
-
-    expect(second).toBe(first)
-  })
-
-  it('同じpolicyでも異なるvalues snapshotには別のboundsを返す', () => {
-    const template = parameterBoundTemplate()
-    const field = template.sections[1].fields[0] as Extract<SheetField, { type: 'track' }>
-    const policy = new TrackRangePolicy(template)
-
-    const first = policy.resolveBounds(field, { 'uid-limit': 10, 'uid-hp': 8 })
-    const second = policy.resolveBounds(field, { 'uid-limit': 5, 'uid-hp': 4 })
-
-    expect(first).toEqual({ min: 0, max: 10 })
-    expect(second).toEqual({ min: 0, max: 5 })
-    expect(second).not.toBe(first)
   })
 })
