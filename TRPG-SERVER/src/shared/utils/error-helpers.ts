@@ -93,24 +93,3 @@ export function getErrorMessage(error: unknown): string {
 
   return '不明なエラーが発生しました'
 }
-
-/**
- * エラーオブジェクトを安全に文字列化する
- * @param error 未知のエラー
- * @returns エラーの文字列表現
- */
-export function formatError(error: unknown): string {
-  if (typeof error === 'string') {
-    return error
-  }
-
-  if (isErrorWithMessage(error)) {
-    return error.message
-  }
-
-  try {
-    return JSON.stringify(error, null, 2)
-  } catch {
-    return String(error)
-  }
-}

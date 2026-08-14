@@ -5,6 +5,10 @@ import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-t
 import { LEGACY_COC_TEMPLATE } from '../../../domains/character-sheet-template/seeds/legacy-coc.template'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
+// expectUnprocessable は 422 応答の assertion 群を内包するヘルパー。ルール自体は生かしたまま、
+// 呼び出しを assertion として認識させるため対象名に加える。
+/* eslint jest/expect-expect: ["warn", { "assertFunctionNames": ["expect", "expectUnprocessable"] }] */
+
 describe('SheetMaterializerService', () => {
   let service: SheetMaterializerService
 

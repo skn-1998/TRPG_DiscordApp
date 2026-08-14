@@ -3,8 +3,7 @@ import {
   isErrorWithCode,
   isMongoError,
   isDuplicateKeyError,
-  getErrorMessage,
-  formatError
+  getErrorMessage
 } from './error-helpers'
 
 /**
@@ -132,30 +131,6 @@ describe('error-helpers', () => {
 
     it('判別できないエラーは既定メッセージを返す', () => {
       expect(getErrorMessage(12345)).toBe('不明なエラーが発生しました')
-    })
-  })
-
-  describe('formatError', () => {
-    it('文字列はそのまま返す', () => {
-      expect(formatError('plain error')).toBe('plain error')
-    })
-
-    it('message を持つエラーはその message を返す', () => {
-      expect(formatError(new Error('msg'))).toBe('msg')
-    })
-
-    it('message を持たないオブジェクトは整形 JSON を返す', () => {
-      expect(formatError({ foo: 'bar' })).toBe(JSON.stringify({ foo: 'bar' }, null, 2))
-    })
-
-    it('循環参照で JSON 化できない場合は String(error) を返す', () => {
-      const circular: Record<string, unknown> = {}
-      circular.self = circular
-      expect(formatError(circular)).toBe('[object Object]')
-    })
-
-    it('null は JSON.stringify の結果("null")を返す', () => {
-      expect(formatError(null)).toBe('null')
     })
   })
 })
