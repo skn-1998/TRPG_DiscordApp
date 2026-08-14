@@ -3093,6 +3093,14 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   次は TD2（未入力 track を evaluated 基底 0 表示へ統一。事前実測済み =
   engine 未入力評価 0・min 非依存／flip pin は TFR.spec :1827-1839 のみ／壊れ値「—」pin
   :1900-1907 は維持／hub・Discord 投影は既に 0 で一致）。
+- **TD2 完了（2026-08-14）**: TFR renderTrackField の未入力（undefined のみ・null 除外）を
+  0 表示へ統一（production 1 行＋Why コメント）。レビュー = Codex pass（blocking 0・
+  should 1 = min 非依存 pin 欠落 → FIX で追加）。変異 3 種（0 既定除去・null 包含・
+  min フォールバック）全て赤・復元 sha256 一致。suite 113/113。
+  証跡 = review-results/impl-u14/td2-acceptance.md。次 = TD3（checkboxes 専用視覚＋
+  :659 fallback の indeterminate 向き修正。視覚仕様は設計正本に無く司令塔裁定 =
+  max ok・整数・1〜30 のときだけ読み取り専用マーク列・それ以外は現行テキストへ退避。
+  指示書 = prompt-td3-code.txt 作成済み）。
 
 ## 参照
 
