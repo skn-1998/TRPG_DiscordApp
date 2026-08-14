@@ -110,7 +110,7 @@ describe('CharacterSheetController', () => {
     ).rejects.toBe(validationError)
   })
 
-  it('POST /character/from-template は JWT 所有者を v2 instantiation へ渡して characterId と作成時ロール結果を返す', async () => {
+  it('POST /character/from-template は JWT 所有者を instantiation use case へ渡して characterId と作成時ロール結果を返す', async () => {
     const rollOnCreateResults = [
       {
         uid: 'uid-dex',

@@ -5,8 +5,9 @@
  * discordChannelId? の拡幅根拠は create-character.dto.ts:90-92→character.service.ts:89,97-102
  * →repositories/character.repository.ts:74-77（optional 入力を素通しし、永続化前に undefined キーを除去する）。
  */
-import type { CharacterSummaryWire, CharacterWire } from '@trpg/api-contract'
+import type { CharacterSummaryWire, CharacterWire, RollOnCreateResultWire } from '@trpg/api-contract'
 import type { ProjectionPaletteEntry } from '@trpg/sheet-projection'
+import type { RollOnCreateResult } from '../../features/character-sheet/types/character-sheet.types'
 import type { CharacterSummaryDto } from './dto/character-summary.dto'
 import type { CharacterEntity, CharacterPaletteEntry } from './models/character.entity'
 
@@ -48,6 +49,14 @@ type MismatchedValueKeys<Actual, Expected> = {
 
 type CharacterPaletteExact = AssertNever<
   IsExact<CharacterPaletteEntry, ProjectionPaletteEntry> extends true ? never : 'Mismatch'
+>
+type RollOnCreateResultExact = AssertNever<
+  IsExact<RollOnCreateResult, RollOnCreateResultWire> extends true ? never : 'Mismatch'
+>
+// IsExact が見逃す pure optional 追加を、キー集合の双方向差分で補う。
+type RollOnCreateResultKeyMismatches = AssertBothNever<
+  Exclude<keyof RollOnCreateResult, keyof RollOnCreateResultWire>,
+  Exclude<keyof RollOnCreateResultWire, keyof RollOnCreateResult>
 >
 // IsExact が見逃す pure optional 追加を、両 variant と入れ子 fieldRef の双方向 optionality 差分で補う。
 type CharacterPaletteRollOptionalityMismatches = AssertBothNever<

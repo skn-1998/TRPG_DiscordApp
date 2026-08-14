@@ -47,6 +47,7 @@ export function buildDicePreviewRequest({
   }
 }
 
+// モジュール跨ぎの runtime 参照は無いが削除不可。dicePreview.spec.ts が error 分類契約を直接 consume する。
 export function classifyDicePreviewError({ status, messages, errorCode }: Partial<DicePreviewActionError>): string {
   if (errorCode === DICE_PREVIEW_NETWORK_ERROR_CODE || status == null) {
     return 'ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。'
@@ -65,6 +66,7 @@ export function classifyDicePreviewError({ status, messages, errorCode }: Partia
   return appendDetails('ダイスロールに失敗しました。', details)
 }
 
+// モジュール跨ぎの runtime 参照は無いが削除不可。dicePreview.spec.ts が action 応答判別契約を直接 consume する。
 export function readDicePreviewActionData(data: unknown): DicePreviewActionResult {
   if (isDicePreviewResponse(data)) {
     return { ok: true, result: data }

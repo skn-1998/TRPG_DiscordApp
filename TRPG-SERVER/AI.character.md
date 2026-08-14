@@ -537,8 +537,11 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 
 - **rollOnCreate は正式契約**: `TrackField.rollOnCreate?: { notation }`（契約形 A）。
   publish が standalone roll 文法で検証・itemFields 内は拒否。作成時は出目が canonical
-  現在値（提出値との衝突は 422）。出目結果（rollOnCreateResults）は controller で
-  破棄されており wire に載らない（CL-6 裁定枠）
+  現在値（提出値との衝突は 422）。出目結果（rollOnCreateResults）は CL-6 消化（TD5）で
+  作成応答の正式契約になった: controller が `{ characterId, rollOnCreateResults }` を返し、
+  wire は `RollOnCreateResultWire[]`（required・label は server 付与）。front は作成 Modal で
+  `{label}: {details}` を提示（空なら従来どおり一覧へ redirect）。応答限りの提示で
+  永続再照会 API は無い
 - **track の min/max は全経路 advisory**: 提出・保存・± とも範囲超過を raw のまま採用。
   clamp は engine/server から全撤去（raw が canonical・表示 cap は front の視覚のみ =
   gauge の塗りと checkboxes のチェック数）。
@@ -550,5 +553,15 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   max error 警告 = SM-9(b) 同型・未入力は evaluated 基底の 0 表示〔undefined のみ。null は
   「—」退化に留置 = TD2〕・checkboxes は max ok・整数・1〜30 のとき読み取り専用マーク列
   〔チェック数は視覚 cap = TD3〕）。エディタ = track 作成/編集可（既定値は publish 通過形 —
-  autosave が publish 検証を丸ごと通すため。編集 UI の無い role は不変で、エディタ製
-  track は palette resource にならない）
+  autosave が publish 検証を丸ごと通すため）。track の resource role も編集可（TD6）:
+  deltas 配列入力・全行削除で role ごと undefined・既存 non-resource role は警告＋明示置換
+  ボタンで保護。エディタ製 track はこれで palette resource（± 到達）になれる。
+  group/secret/when の入力は無し（group は palette 生成が section.label で決定・
+  secret/when は publish 未対応拒否）
+- **dice preview の total は評価済み最終値（2026-08-14 大粒度 #23）**: DicePreviewService は
+  executeEvaluatedDiceRoll を呼び、preview 入力欄へ書かれる値と作成時保存値が一致する
+  （'3d6*5' → 55。旧 executeDiceRoll の rands 合算 11 は preview から撤去。
+  DiceExecutionService 本体と Discord 経路は不変）。試しロール・作成 Modal の
+  details のみ表示は維持（details 末尾に評価値を含むため total を重複表示しない —
+  両 UI 同一根拠へ収束）。RollOnCreateResult ↔ wire は contract spec の IsExact＋
+  キー集合双方向差分で束縛（pure optional 追加も検出）

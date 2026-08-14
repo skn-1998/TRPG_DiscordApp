@@ -3176,6 +3176,23 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   証跡 = review-results/impl-u14/td6-acceptance.md。**TR 残スライスはこれで全消化**。
   次 = 大粒度 #23（TD4/TD5/TD6 横断・Codex＋Opus 二重レビュー＋突合）→ Task #34 完了ゲート
   （SESSION_HANDOFF 全面更新・promotion-draft/ledger クローズ・マージ前全 suite）。
+- **大粒度 #23 消化完了（2026-08-14・突合 = review-results/impl-u14/big23-integration.md）**:
+  Codex（needs-fix 6 件・11 suites 独自再実行）×Opus（14 件・static:duplication 実測）の二重。
+  **blocking（両者同一箇所）= TemplatePreviewV3 の total 自己矛盾**（入力欄 = rands 合算 11 /
+  結果行・作成値 = 評価 55）→ B23-FIX で dice-preview service を executeEvaluatedDiceRoll へ
+  統一（total 消費 1 件のみ実測・Discord 経路不変・TD4 の「封じ込め」裁定を上書き改訂）。
+  相互矛盾裁定 3 = RollOnCreateResult は alias 化でなく **IsExact＋キー集合双方向差分の型橋**
+  （既存 entity/wire パターン準拠）・S3c 除去は正当（非作業番号の文脈のみ復元）・
+  engine 到達可能性検査は**ユーザー裁定枠を維持**（材料 = 発見距離 3 ホップ→0、正本 draft へ
+  追記済み）。他の消化 = 作成エラーの Modal 一本化（誤 title・?? マスキング解消）・
+  design-v1-ui 行番号参照 6 件の節名アンカー化・total 非表示 pin の部分文字列偽緑解消・
+  定数化/注記/語彙統一/spec 名改名。見送り（実カウント記録）= remove 系 3 複製統合・
+  試しロール共有 hook・staleness 3 機構統合・materializer 複製（チップ完了後へ延期）。
+  変異 = MN1/MN2/MN4 赤・**MN3（型への optional 追加）が初回生存 → B23-FIX2 で
+  キー集合差分を追加して赤化**（型橋検収は drift 変異の赤で判定する教訓を記録）。
+  正本同期 = AI.character.md（CL-6/role 編集/preview total の 3 記述）・promotion-draft
+  （レーン全消化ヘッダ・TD4〜TD6 消化印・裁定枠 3 件）・design-ledger（:16 セル・CL-6 行）。
+  次 = Task #34 完了ゲート（マージ前全 suite → SESSION_HANDOFF 全面更新）。
 
 ## 参照
 

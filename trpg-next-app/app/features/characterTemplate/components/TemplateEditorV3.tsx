@@ -71,6 +71,9 @@ import {
 } from '../utils/v3Template'
 import { TemplatePreviewV3 } from './TemplatePreviewV3'
 
+const RESOURCE_OPERATION_HEADING = 'リソース操作（±）'
+const DEFAULT_RESOURCE_DELTA = -1
+
 interface TemplateEditorV3Props {
   initialTemplate: CharacterSheetTemplateEntity
 }
@@ -446,7 +449,7 @@ function DeltasInput({ value, onChange }: DeltasInputProps) {
 
   return (
     <Stack gap="xs">
-      <Text fw={500}>リソース操作（±）</Text>
+      <Text fw={500}>{RESOURCE_OPERATION_HEADING}</Text>
       {value.map((delta, index) => (
         <Group key={index} grow align="end" wrap="nowrap">
           <NumberInput
@@ -469,7 +472,7 @@ function DeltasInput({ value, onChange }: DeltasInputProps) {
         variant="outline"
         size="xs"
         leftSection={<IconPlus size={16} />}
-        onClick={() => onChange([...value, -1])}
+        onClick={() => onChange([...value, DEFAULT_RESOURCE_DELTA])}
       >
         delta 追加
       </Button>
@@ -1352,8 +1355,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       </Button>
                       {rollOnCreateFeedback[selectedField.uid]?.details && (
                         <Text size="xs" c="dimmed">
-                          {/* dice-preview の total は rands 合算で、rollOnCreate の評価後の値とは一致しない。
-                              BCDice text の末尾に評価値を含む details だけを表示する。 */}
+                          {/* dice-preview の total は評価値で作成値と一致するが、details 末尾にも評価値を含むため重複表示しない。 */}
                           結果: {rollOnCreateFeedback[selectedField.uid].details}
                         </Text>
                       )}
@@ -1365,7 +1367,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     </Stack>
                     {selectedField.role !== undefined && selectedField.role.kind !== 'resource' ? (
                       <Stack gap="xs">
-                        <Text fw={500}>リソース操作（±）</Text>
+                        <Text fw={500}>{RESOURCE_OPERATION_HEADING}</Text>
                         <Text size="sm" c="orange">
                           この track には {selectedField.role.kind} role が設定されています。リソース操作（±）へ置き換えると現在の
                           role は失われます。
@@ -1375,7 +1377,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                           variant="outline"
                           onClick={() =>
                             updateField(selectedField.uid, {
-                              role: { kind: 'resource', deltas: [-1] }
+                              role: { kind: 'resource', deltas: [DEFAULT_RESOURCE_DELTA] }
                             } as Partial<SheetField>)
                           }
                         >

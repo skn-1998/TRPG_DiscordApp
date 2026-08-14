@@ -132,7 +132,7 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   （server 側は current/base とも null sentinel へ正規化 — wire nonoptional 契約・大粒度 #17 FIX-B）。
   usesPartsEditor（parts 対応 = number 専用）は TFR isPartsScalarField・engine allowsParts と
   三者同期 — 変更時は 3 箇所を同時に見る
-- **annotation（cap/pool/limit）の表示は status 3 値で確定**（design-v1-ui :287・SM-9(b)・
+- **annotation（cap/pool/limit）の表示は status 3 値で確定**（design-v1-ui の「制約評価 API」節・SM-9(b)・
   大粒度 #17 FIX-A）: ok = 値表示・indeterminate = 「—」表示で警告抑制・error = 該当箇所の
   インライン警告のみ（隠さない）。TFR の 3 表示経路（cap バッジ・pool 行・field 近傍警告）が
   この契約を共有する — 「ok 以外は非表示」へ戻す変更は仕様違反
