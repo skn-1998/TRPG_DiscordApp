@@ -111,9 +111,9 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
           </form>
         </Group>
 
-        {(listActionError || createCharacterError) && (
+        {listActionError && (
           <Alert color="red" icon={<IconAlertCircle size={16} />} title="テンプレート一覧の処理に失敗しました">
-            {listActionError ?? createCharacterError}
+            {listActionError}
           </Alert>
         )}
 
@@ -267,6 +267,7 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                     <Text size="sm" fw={700}>
                       作成時の出目
                     </Text>
+                    {/* total は作成値と一致するが、details 末尾にも評価値が含まれるため重複表示しない。 */}
                     {creationOutcome.results.map((result) => (
                       <Text key={result.uid} size="xs" c="dimmed">
                         {result.label}: {result.details}
@@ -287,7 +288,7 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                     value={characterName}
                     onChange={(event) => setCharacterName(event.currentTarget.value)}
                     required
-                    // eslint-disable-next-line jsx-a11y/no-autofocus -- 既存 UX の意図的維持。
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- 既存 UX の意図的維持（lint ゲート化時に既存挙動を変えずに抑制）。
                     autoFocus
                   />
                   {createCharacterError && (

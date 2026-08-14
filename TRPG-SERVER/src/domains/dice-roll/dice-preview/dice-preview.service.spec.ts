@@ -8,20 +8,29 @@ import { DicePreviewService, INVALID_DICE_NOTATION_MESSAGE } from './dice-previe
  * DiceExecutionService は既存挙動を変更せず、戻り値または rejection だけを固定する。
  */
 describe('DicePreviewService', () => {
-  let diceExecutionService: jest.Mocked<Pick<DiceExecutionService, 'executeDiceRoll'>>
+  let diceExecutionService: jest.Mocked<Pick<DiceExecutionService, 'executeEvaluatedDiceRoll'>>
   let service: DicePreviewService
 
   beforeEach(() => {
-    diceExecutionService = { executeDiceRoll: jest.fn() }
+    diceExecutionService = { executeEvaluatedDiceRoll: jest.fn() }
     service = new DicePreviewService(diceExecutionService as unknown as DiceExecutionService)
   })
 
   it('正常な単式は gameSystemId とともに既存実行 service へ委譲し、戻り値を変えない', async () => {
     const result = { total: 9, details: '(2D6+1) ＞ 8[3,5]+1 ＞ 9' }
-    diceExecutionService.executeDiceRoll.mockResolvedValue(result)
+    diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue(result)
 
     await expect(service.preview({ notation: '2d6+1', gameSystemId: 'Cthulhu7th' })).resolves.toBe(result)
-    expect(diceExecutionService.executeDiceRoll).toHaveBeenCalledWith('2d6+1', 'Cthulhu7th')
+    expect(diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('2d6+1', 'Cthulhu7th')
+  })
+
+  it('3d6*5 の preview total は作成経路と同じ評価済み最終値 55 を返す', async () => {
+    // character-instantiation と同じ evaluated API の結果を使い、preview と作成値の一致を固定する。
+    const result = { total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
+    diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue(result)
+
+    await expect(service.preview({ notation: '3d6*5', gameSystemId: 'DiceBot' })).resolves.toEqual(result)
+    expect(diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('3d6*5', 'DiceBot')
   })
 
   it.each([
@@ -31,7 +40,7 @@ describe('DicePreviewService', () => {
     const exception = await service.preview({ notation }).catch((error: unknown) => error)
 
     expectException(exception, BadRequestException, 400, [expectedMessage])
-    expect(diceExecutionService.executeDiceRoll).not.toHaveBeenCalled()
+    expect(diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
   })
 
   it('257文字の式を engine 上限違反として 400 にする', async () => {
@@ -56,7 +65,7 @@ describe('DicePreviewService', () => {
   })
 
   it('BCDice が式を拒否すると path を含めず invalid notation 配列の 422 にする', async () => {
-    diceExecutionService.executeDiceRoll.mockRejectedValue(new Error('BCDice rejected command'))
+    diceExecutionService.executeEvaluatedDiceRoll.mockRejectedValue(new Error('BCDice rejected command'))
 
     const exception = await service.preview({ notation: '1d6' }).catch((error: unknown) => error)
 
@@ -65,14 +74,14 @@ describe('DicePreviewService', () => {
   })
 
   it('無効な gameSystemId による BCDice rejection も 422 にする', async () => {
-    diceExecutionService.executeDiceRoll.mockRejectedValue(new Error('Unknown game system'))
+    diceExecutionService.executeEvaluatedDiceRoll.mockRejectedValue(new Error('Unknown game system'))
 
     const exception = await service
       .preview({ notation: '1d6', gameSystemId: 'NotExistingSystem' })
       .catch((error: unknown) => error)
 
     expectException(exception, UnprocessableEntityException, 422, [INVALID_DICE_NOTATION_MESSAGE])
-    expect(diceExecutionService.executeDiceRoll).toHaveBeenCalledWith('1d6', 'NotExistingSystem')
+    expect(diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('1d6', 'NotExistingSystem')
   })
 })
 

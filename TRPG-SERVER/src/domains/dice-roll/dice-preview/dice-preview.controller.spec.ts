@@ -55,17 +55,17 @@ describe('DicePreviewController', () => {
     await app.close()
   })
 
-  it('POST /dice-roll/preview は補間済み式を service へ渡し、結果構造をそのまま返す', async () => {
-    dicePreviewService.preview.mockResolvedValue({ total: 7, details: '(2D6) ＞ 7[3,4]' })
+  it('POST /dice-roll/preview は補間済み式を service へ渡し、評価済み total をそのまま返す', async () => {
+    dicePreviewService.preview.mockResolvedValue({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
 
     const response = await request(app.getHttpServer())
       .post('/dice-roll/preview')
       .set('Authorization', 'Bearer test-token')
-      .send({ notation: '2d6', gameSystemId: 'DiceBot' })
+      .send({ notation: '3d6*5', gameSystemId: 'DiceBot' })
       .expect(200)
 
-    expect(response.body).toEqual({ total: 7, details: '(2D6) ＞ 7[3,4]' })
-    expect(dicePreviewService.preview).toHaveBeenCalledWith({ notation: '2d6', gameSystemId: 'DiceBot' })
+    expect(response.body).toEqual({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+    expect(dicePreviewService.preview).toHaveBeenCalledWith({ notation: '3d6*5', gameSystemId: 'DiceBot' })
   })
 
   it('JWT が無い request は 401 で service を呼ばない', async () => {

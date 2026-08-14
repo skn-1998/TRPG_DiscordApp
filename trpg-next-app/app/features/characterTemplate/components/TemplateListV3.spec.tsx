@@ -36,19 +36,20 @@ const anotherPublishedSummary: CharacterSheetTemplateSummary = {
   version: '2.0.0'
 }
 
+// details に含まれない負の対照値で、total の誤表示を部分一致でも検出する。
 const rollOnCreateResults = [
   {
     uid: 'uid-dex',
     label: 'DEX',
     notation: '3d6*5',
-    total: 55,
+    total: 987654321,
     details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'
   },
   {
     uid: 'uid-luck',
     label: '幸運',
     notation: '3d6*5',
-    total: 65,
+    total: 876543210,
     details: '(3D6*5) ＞ 13[3,4,6]*5 ＞ 65'
   }
 ]
@@ -109,7 +110,8 @@ describe('TemplateListV3', () => {
 
     await submitCharacterCreation()
 
-    expect(await screen.findAllByText(GENERIC_NETWORK_ERROR_MESSAGE)).toHaveLength(2)
+    expect(await screen.findAllByText(GENERIC_NETWORK_ERROR_MESSAGE)).toHaveLength(1)
+    expect(screen.queryByText('テンプレート一覧の処理に失敗しました')).toBeNull()
     expect(screen.queryByText(`${rollOnCreateResults[0]?.label}: ${rollOnCreateResults[0]?.details}`)).toBeNull()
     expect(screen.queryByRole('link', { name: 'キャラクター一覧へ' })).toBeNull()
   })
@@ -126,7 +128,7 @@ describe('TemplateListV3', () => {
 
     for (const result of rollOnCreateResults) {
       expect(await screen.findByText(`${result.label}: ${result.details}`)).toBeTruthy()
-      expect(screen.queryByText(String(result.total))).toBeNull()
+      expect(screen.queryByText(String(result.total), { exact: false })).toBeNull()
     }
     const characterListLink = screen.getByRole('link', { name: 'キャラクター一覧へ' })
     expect(characterListLink.getAttribute('href')).toBe('/user/character')

@@ -1,14 +1,17 @@
 # track 作成時ロールの契約昇格 起案（実装完了・2026-08-14）
 
 作成: 2026-08-13（L-2 裁定 (c) の付帯裁定「track は廃止せず昇格」を受けた起案）。
-状態: **TR-1〜TR-6 実装完了（2026-08-14・大粒度 #21 で blocking 0 を確認）**。
+状態: **レーン全消化（2026-08-14・TR-1〜TR-6＋TD1〜TD6＋大粒度 #22/#23 消化済み）**。
 実装コミット = TR-1 736e5305 / TR-2 16f91cc / TR-2b 5194d8e / TR-3 17c978ef /
 TR-4a1 8890305 / TR-4a2 67e665f / TR-4b 3dd3536 / TR-4c f576324 / TR-5 df83d7c / TR-6 cf61681 /
-TD1 e7ee7103 / TD2 3e91c3ac / TD3 69232eef。
+TD1 e7ee7103 / TD2 3e91c3ac / TD3 69232eef / TD4 8e9ebf3f / TD5 cbb27e3a / TD6 9e2188bb /
+B23-FIX（大粒度 #23 消化・本 doc 同梱コミット）。
 現況: engine 契約 A・全経路 advisory（raw canonical）・front 表示（15 / 10 超過明示・
 塗り/マーク列のみ視覚 cap・max 評価失敗の error 警告・未入力は evaluated 基底 0 表示・
-checkboxes マーク列）・エディタ track 作成/編集・delta 0 契約拒否まで実装済み。
-残件 = §「実装完了後の残スライス」の未消化分（試しロール・CL-6・role 編集）。
+checkboxes マーク列）・エディタ track 作成/編集・delta 0 契約拒否・試しロール UI・
+CL-6 出目提示（作成応答 wire required 配列＋Modal 表示）・track の resource role 編集
+（± パレット到達）・dice preview total の評価値統一（preview 入力値 = 作成保存値）まで実装済み。
+残件 = 無し（残るのは §残スライスの「ユーザー裁定枠」のみ）。
 TR-D1 は (a) 裁定・TD1 で消化済み（大粒度 #22 blocking 0）。**以下の「現状調査の結果」節は 2026-08-13 の実装前
 スナップショット**（裁定根拠の記録として保持・現況を表さない）。
 
@@ -67,9 +70,14 @@ TR-D1 は (a) 裁定・TD1 で消化済み（大粒度 #22 blocking 0）。**以
   視覚仕様（max ok・整数・1〜30 のみマーク列・チェック数は視覚 cap・それ以外テキスト退避）の
   要旨は design-v1-ui「編集と保存」節へ転記・詳細契約の正本は TFR.spec の checkboxes pin 群
 - 試しロール UI（SM-F 非依存を実測済み・dice preview 部品は未抽出）
+  **【消化済み 2026-08-14 = TD4 8e9ebf3f】** requestDicePreview 純関数抽出・client 検証先行・
+  details のみ表示。なお preview total の意味論不一致（rands 合算）は大粒度 #23 で
+  評価値へ統一され、preview 入力値 = 作成保存値になった（B23-FIX）
 - CL-6 出目提示（rollOnCreateResults は controller で破棄・wire 契約に非搭載 —
   表示には controller/api-contract/front の 3 層スライス。裁定 5 の明示提出値 422 も
   front 作成経路から現状到達不能 = values 送信 UI が無い）
+  **【消化済み 2026-08-14 = TD5 cbb27e3a】** 作成応答 wire required 配列（label は server 付与）・
+  Modal で `{label}: {details}` 提示・空なら redirect 維持・旧応答欠落は HTTP 境界で空配列吸収
 - 裁定枠: 未入力 track の表示割れ — editor プレビュー「0 / 10」
   （evaluated 基底）vs 実シート「— / 10」（raw 基底）。**【裁定 2026-08-14・ユーザー】
   (a) 実シート側を evaluated 基底の 0 表示へ揃える**（未入力と明示 0 の画面区別は消える。
@@ -79,6 +87,17 @@ TR-D1 は (a) 裁定・TD1 で消化済み（大粒度 #22 blocking 0）。**以
 - capability gap の記録: front エディタは SheetField.role を編集できず、エディタ製 track は
   palette resource になれない（± 経路到達不能）。role 編集スライスでは TR-D1 非対称と
   CL-6 を同時設計すること
+  **【消化済み 2026-08-14 = TD6 9e2188bb】** track 詳細パネルの resource role 編集
+  （deltas 配列・全行削除で role ごと undefined・既存 non-resource role は警告＋明示置換）。
+  TR-D1/CL-6 は TD1/TD5 で消化済みの前提を適用。裁定の一次記録 = prompt-td6-code.txt / -fix.txt
+- **ユーザー裁定枠（レーンクローズ後の残置・2026-08-14 大粒度 #23 突合で材料追記）**:
+  (1) engine 側の resource role 到達可能性検査 — parts 無し field への resource role は
+  現状 publish 緑のまま palette に現れない silent dead role。validateRole で allowsParts を
+  再利用すれば発見距離 3 ホップ→0（Codex #23 実カウント）だが、既存 publish.spec の
+  fixture が赤くなる契約変更＋既存保存 draft の再 publish が 422 になりうるため裁定待ち。
+  (2) rollable role の編集 UI（TD6 は track の resource 限定）。
+  (3) scalar number＋partsKeys への resource role 適用（エディタに parts:true トグルが無く
+  partsKeys 経由のみ）。
 
 ## 背景
 

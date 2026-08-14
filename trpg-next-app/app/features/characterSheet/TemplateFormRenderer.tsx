@@ -150,7 +150,7 @@ function renderBlockGroups(
               ) : (
                 <Group gap="xs">
                   <Title order={blockHeadingLevel}>{label}</Title>
-                  {/* design-v1-ui :287 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
+                  {/* design-v1-ui の「制約評価 API」節 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
                   {capRuntime.status === 'ok' ? (
                     <Badge data-block-cap={capRuntime.cap}>上限 {capRuntime.cap}</Badge>
                   ) : capRuntime.status === 'indeterminate' ? (
@@ -208,7 +208,7 @@ function renderSectionPools(
       {annotations.pools.map((pool) => {
         const label = poolLabels.get(pool.poolId) ?? pool.poolId
 
-        // design-v1-ui :287 / SM-9(b): indeterminate は値だけ「—」へ退化し、error はこの pool 行だけで警告する。
+        // design-v1-ui の「制約評価 API」節 / SM-9(b): indeterminate は値だけ「—」へ退化し、error はこの pool 行だけで警告する。
         if (pool.status !== 'ok') {
           if (pool.status === 'indeterminate') {
             return (
@@ -263,7 +263,7 @@ function buildFieldConstraintMessages(annotations: SectionAnnotationRuntime) {
 
   for (const limit of annotations.limits) {
     if (ambiguousFieldUids.has(limit.fieldUid)) continue
-    // design-v1-ui :287 / SM-9(b): indeterminate は超過警告を抑え、error は該当 field の近傍だけで警告する。
+    // design-v1-ui の「制約評価 API」節 / SM-9(b): indeterminate は超過警告を抑え、error は該当 field の近傍だけで警告する。
     if (limit.status !== 'ok') {
       if (limit.status === 'indeterminate') continue
       messages.set(limit.fieldUid, '上限を評価できません')
@@ -690,7 +690,7 @@ function renderTrackField(
   rawValue: unknown,
   maxRuntime: ConstraintEvaluationResult
 ) {
-  // design-v1-ui :288: numberOrZero 不変更により、未入力 track は engine が min 非依存で 0 評価するため、
+  // design-v1-ui の「制約評価 API」節の numberOrZero 不変更契約により、未入力 track は engine が min 非依存で 0 評価するため、
   // evaluated 基底の preview・hub/Discord 投影と
   // 同じ表示へ揃える。定義済みだが壊れた raw は trackDisplayValue の「—」退化を維持する。
   const displayValue = rawValue === undefined ? 0 : trackDisplayValue(rawValue)
@@ -719,7 +719,7 @@ function renderTrackField(
         ) : null}
         {field.style === 'checkboxes' ? renderTrackCheckboxes(field, displayValue, maxValue) : null}
         <Text data-track-display-value={field.uid} size="sm">{valueText}</Text>
-        {/* design-v1-ui :287 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
+        {/* design-v1-ui の「制約評価 API」節 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
         {maxRuntime.status === 'error' ? (
           <Text c="red" data-track-max-error={field.uid} size="sm">最大値を評価できません</Text>
         ) : null}

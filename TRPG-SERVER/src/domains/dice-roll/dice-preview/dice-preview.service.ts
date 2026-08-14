@@ -16,7 +16,7 @@ export class DicePreviewService {
     }
 
     try {
-      return await this.diceExecutionService.executeDiceRoll(dto.notation, dto.gameSystemId)
+      return await this.diceExecutionService.executeEvaluatedDiceRoll(dto.notation, dto.gameSystemId)
     } catch {
       throw new UnprocessableEntityException([INVALID_DICE_NOTATION_MESSAGE])
     }
