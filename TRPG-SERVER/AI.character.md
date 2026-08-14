@@ -277,8 +277,9 @@ conflicts / refetchRequired / fieldUid / value / min / max / detail / 未来の�
 front は `error.response.status` を読む）。非 HttpException は素通しし、
 APP_FILTER の `GlobalExceptionFilter`（1206a3e）が 500 封筒化する。
 
-**この上限が塞いでいるのは非有限経路だけ**。同じ 100,000 文字 uid でも
-`throwOutOfBounds` は約 200KB、`calculateBounds` の `resolved max below min` は約 100KB を返す。
+**この上限が塞いでいるのは非有限経路だけ**。かつての反例だった範囲系 422
+（`throwOutOfBounds` 約 200KB・`calculateBounds` の `resolved max below min` 約 100KB）は
+TR-4a／TR-D1(a) の撤去で両方失効し、現行コードに範囲系 422 の発生源はない（履歴として保持）。
 発生源の uid / label 無制限は **#28（コミット 32ee086・2026-07-30）で封鎖済み**
 （publish schema の uid/label 全キーに ≤128。新規テンプレートは巨大 uid/label を持てない）。
 **未封鎖の同クラス経路**: formula / notation は無制限・`tables[].rows` は `z.any()`・
@@ -539,12 +540,15 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   現在値（提出値との衝突は 422）。出目結果（rollOnCreateResults）は controller で
   破棄されており wire に載らない（CL-6 裁定枠）
 - **track の min/max は全経路 advisory**: 提出・保存・± とも範囲超過を raw のまま採用。
-  clamp は engine/server から全撤去（raw が canonical・表示 cap は front gauge の塗りのみ）。
+  clamp は engine/server から全撤去（raw が canonical・表示 cap は front の視覚のみ =
+  gauge の塗りと checkboxes のチェック数）。
   拒否するのは有限性・データ健全性のみで、検査は `TrackRangePolicy.assertFiniteTrackValues`
   1 本（全 track の raw 有限性 → 変更 track の max 式/修復可能性・診断は非有限封筒に統一）
 - **TR-D1 (a) 完了（2026-08-14）**: palette の宣言 delta 0 は publish で拒否し、保存済み旧 palette に 0 が残る場合も未処理 interaction は操作層で 422 にする（適用済み interaction の replay は noOp 冪等が優先）。
   全経路 advisory 化で不要になった bounds/atBound と Discord の境界通知を削除し、min>max の ± も raw のまま適用する。
 - front: 表示 = TemplateFormRenderer の track 専用描画（15 / 10 超過明示・
-  max error 警告 = SM-9(b) 同型）。エディタ = track 作成/編集可（既定値は publish 通過形 —
+  max error 警告 = SM-9(b) 同型・未入力は evaluated 基底の 0 表示〔undefined のみ。null は
+  「—」退化に留置 = TD2〕・checkboxes は max ok・整数・1〜30 のとき読み取り専用マーク列
+  〔チェック数は視覚 cap = TD3〕）。エディタ = track 作成/編集可（既定値は publish 通過形 —
   autosave が publish 検証を丸ごと通すため。編集 UI の無い role は不変で、エディタ製
   track は palette resource にならない）

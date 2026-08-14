@@ -116,6 +116,11 @@ flowchart LR
 
 - 編集は同一レンダラの全展開モード。track は ±／ゲージ、list は行追加・削除・複製（rowId 自動発行）、
   relation は相手選択、tag はチップ入力。
+- track の視覚は style で gauge / checkboxes の 2 種（2026-08-14・TD3）。checkboxes は
+  max が評価 ok・整数・1〜30 のときだけ読み取り専用マーク列を描き（チェック数は表示値の
+  視覚 cap。raw の超過・負値は数値テキストが明示し続ける）、それ以外（非整数・30 超・0 以下・
+  未確定・評価失敗・壊れた保存値）は数値テキストのみへ退避する。詳細契約の正本は
+  TemplateFormRenderer.spec の checkboxes pin 群。
 - **保存は全 values 提出ではなく `{ baseRevision, dirty フィールドの diff }`**（controlled renderer が dirty 追跡）。
   サーバーは **field 単位＋parts キー単位で auto-merge**: 非重複フィールドは無条件マージ。
   Discord ± は `parts.other` のみ触るため、同一フィールドの base 編集とも共存できる。

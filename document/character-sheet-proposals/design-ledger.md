@@ -13,7 +13,7 @@
 
 | 項目 | 状態 |
 |---|---|
-| **TR レーン（L-2 (c)＋track 昇格 TR-1〜TR-6）** | **実装完了（2026-08-14・大粒度 #20/#21 とも blocking 0）**。engine 契約 A・全経路 advisory（raw canonical）・server 有限性検査 1 本化・front 表示（15 / 10 超過明示）・エディタ track 作成/編集まで。正本 = track-roll-on-create-promotion-draft.md（冒頭に実装コミット 10 本）・証跡 = review-results/impl-u14/tr-lane-acceptance.md。残 = TR-D1（§5-2・凍結）＋残スライス（checkboxes 視覚・試しロール・CL-6・role 編集） |
+| **TR レーン（L-2 (c)＋track 昇格 TR-1〜TR-6）** | **実装完了（2026-08-14・大粒度 #20/#21 とも blocking 0）**。engine 契約 A・全経路 advisory（raw canonical）・server 有限性検査 1 本化・front 表示（15 / 10 超過明示）・エディタ track 作成/編集まで。正本 = track-roll-on-create-promotion-draft.md（冒頭に実装コミット 13 本）・証跡 = review-results/impl-u14/tr-lane-acceptance.md。**TR-D1 = (a) 裁定・TD1 e7ee7103 で消化済み。checkboxes 視覚 = TD3 69232eef・未入力 0 表示統一 = TD2 3e91c3ac（いずれも 2026-08-14・大粒度 #22 blocking 0）**。残 = 試しロール・CL-6・role 編集 |
 | Phase 1（engine・template ドメイン・Web エディタ実 API 化） | **実装完了**（AI.character.md 追記6） |
 | Phase 2（hub・palette・Discord ±・worker） | **実装完了・受入未了**。PH-7 実機受入（D-3・ユーザー実施）の全 16 チェック項目が `☐` のまま（`phase2-ph7-acceptance-checklist.md`） |
 | Phase 3 | **未着工**。`phase3-goal-contract.md` は DRAFT v0.9。着工前提 = D-3 通過（I3-3）＋決定点 D-P3-1〜4 のユーザー決定 |
@@ -288,7 +288,7 @@
 | computed（式・9 関数・lookup） | ✅ | ✅ computedCache | ✅ formula 編集 | ❌ **表示されない** | ⚠️ embed は resource のみ |
 | roll / standalone roll（3d6*5） | ✅ | ✅ rollOnCreate 正式契約（TR-3・2026-08-14） | ✅ notation 編集 | ❌ | ✅ palette roll |
 | lookup table（CoC DB） | ✅ 範囲表・resultType dice | ✅ | ⚠️ 生 JSON textarea | ❌ | ✅（notation 差し込み経由） |
-| track（min/max/thresholds） | ✅ **全経路 advisory（raw canonical・TR-4b/4c）**・有限性のみ 422 | ✅ TrackRangePolicy（有限性診断・raw 実効値解決） | ✅ 作成・編集 UI（TR-6・rollOnCreate 含む） | ✅ 15 / 10 超過明示＋gauge 塗り cap＋max error 警告（TR-5・checkboxes 視覚は残） | ✅ res_ ±（raw 適用・delta 0 は TD1 で契約拒否） |
+| track（min/max/thresholds） | ✅ **全経路 advisory（raw canonical・TR-4b/4c）**・有限性のみ 422 | ✅ TrackRangePolicy（有限性診断・raw 実効値解決） | ✅ 作成・編集 UI（TR-6・rollOnCreate 含む） | ✅ 15 / 10 超過明示＋gauge 塗り cap＋max error 警告（TR-5）＋未入力 0 表示（TD2）＋checkboxes マーク列（TD3・max ok/整数/1〜30 のみ） | ✅ res_ ±（raw 適用・delta 0 は TD1 で契約拒否） |
 | track reset（resetOn/resetTo） | ⚠️ 宣言・検証のみ | ❌ 実行系なし（C-1） | ❌ | ❌ | ❌ |
 | thresholds 到達通知 | ⚠️ 検証のみ | ❌ | ❌ | ❌ | ❌ |
 | list / relation / tag | ✅ 型・publish 検証 | ❌ 投影・palette 対象外 | ❌ 作成 UI なし | ❌ | ❌ 行 palette なし |

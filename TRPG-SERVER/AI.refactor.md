@@ -1620,6 +1620,10 @@ round2〜6 が前ラウンドの退行修正、round7〜8 が Fable の処方ミ
   `sheet-values.util.ts` に `isPartsValue`/`sheetValuesEqual`/`partsTotal`/`isResourceField` を集約（3重複→1）
 - **判定規則**: 「next が範囲内」または「current と**同じ側**で違反量が非増加」のみ許可。
   比較は**両側とも next bounds**で行う（境界縮小は evaluator/projection の正規化が吸収）
+- **〔失効 2026-08-14〕** 上記の bounds 解決・方向付き判定・悪化非増加規則は、track の
+  全経路 advisory 化（TR-4b）と TR-D1(a)（delta 0 契約拒否・bounds/atBound 撤去）で削除済み。
+  現行 TrackRangePolicy の責務は有限性診断と raw 実効値解決のみ
+  （正本 = document/character-sheet-proposals/track-roll-on-create-promotion-draft.md）
 - **hub 失敗の扱い（契約 OP-6/C-11 準拠）**: **backoff 対象は Discord 429 のみ**。
   読み取り面の失敗は分類を問わず**初回で `active → error`**（投影準備失敗＝`PROJECTION_FAILED` /
   テンプレート恒久却下＝`TEMPLATE_UNRESOLVABLE` / 分類外も安全側で即 error）。publication も同じ分類関数を使う

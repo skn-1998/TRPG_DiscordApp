@@ -3114,6 +3114,17 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   試しロール UI は details 文字列のみ表示（末尾に評価値を含み正確）の front 完結案を軸に
   大粒度 #22 後に指示書化。dice preview UI 部品は TemplatePreviewV3 に inline 未抽出
   （共有部品は utils/dicePreview.ts のみ）。
+- **大粒度 #22 消化完了（2026-08-14・突合 = review-results/impl-u14/big22-integration.md）**:
+  Codex needs-fix（should 3）×Opus blocking 0 の二重 → blocking 0・runtime 複製なし・
+  統合系全見送り（視覚 cap 3 実装と「未入力=0」= 正本 1＋狭い再表明 1 は意図的分離）。
+  相違裁定 2 = checkboxes 仕様は**要旨のみ** design-v1-ui へ転記（8 契約逐条は pin と
+  二重管理になるため不採用）・「未入力=0」台帳は Opus 分類採用。FIX 消化 =
+  doc 同期 8 編集（Fable。ledger/draft 自己矛盾 4 件・AI.character 削除済み関数名指し・
+  AI.refactor SP-2 失効注記・「表示割れ解消は undefined 限定」精密化）＋code 6 件（Codex。
+  相互参照コメント・stale コメント/spec 名・TFR dispatch 集約〔ホップ 1→0〕・max<=0 Why・
+  `0 / —` pin）。検収 = dispatch 変異赤・front 136/policy 38 緑・作業番号混入 1 件を
+  差し戻しで除去。記録のみ = projection '—' 2 宣言（置き場所裁定待ち・非 export 選好）・
+  spec の ℹ️ 負の対照 1 件は妥当。
 
 ## 参照
 

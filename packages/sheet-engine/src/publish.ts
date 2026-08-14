@@ -77,6 +77,7 @@ const nonBlankLabelSchema = labelSchema.refine((label) => label.trim().length > 
 const roleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rollable'), notation: z.string(), group: z.string().optional(), secret: z.boolean().optional() }).passthrough(),
   // min/max advisory 化後の delta 0 は値を変えず revision と冪等枠だけを消費するため、契約で拒否する。
+  // この publish 検査は新規 revision の宣言を閉じ、publish 以前に保存済みの旧 palette は server の操作層ガードが防御する。
   z.object({
     kind: z.literal('resource'),
     deltas: z.array(z.number().refine((delta) => delta !== 0, 'deltas must not contain zero'))

@@ -362,7 +362,7 @@ export class TrackRangePolicy {
   ): number {
     if (field.type !== 'track') return evaluatedValue
     const inputValue = this.trackInputValue(field, raw)
-    // min/max で cap するのは front gauge の塗りだけで、数値表示は超過をそのまま出す。
+    // min/max の視覚 cap は front の gauge の塗りと checkboxes のチェック数だけで、数値表示は raw の超過をそのまま出す。
     return inputValue ?? evaluatedValue
   }
 
