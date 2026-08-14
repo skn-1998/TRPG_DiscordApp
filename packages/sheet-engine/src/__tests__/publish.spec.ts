@@ -1685,8 +1685,28 @@ describe('publish resource role validation', () => {
     });
   });
 
+  it('rejects a resource role containing a zero delta', () => {
+    const result = validatePublishTemplate(resourceTemplate([1, 0, -1]));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'sections.0.fields.0.role.deltas.1',
+      message: 'deltas must not contain zero',
+    });
+  });
+
+  it('rejects negative zero under the same zero-delta contract', () => {
+    const result = validatePublishTemplate(resourceTemplate([-0]));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'sections.0.fields.0.role.deltas.0',
+      message: 'deltas must not contain zero',
+    });
+  });
+
   it('accepts a resource role with decrement and increment deltas', () => {
-    expect(validatePublishTemplate(resourceTemplate([-1, 1]))).toEqual(
+    expect(validatePublishTemplate(resourceTemplate([1, -1]))).toEqual(
       expect.objectContaining({ ok: true, issues: [] }),
     );
   });

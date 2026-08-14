@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import type { SheetMergeConflictWire } from '@trpg/api-contract'
-import { EPSILON, evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
+import { evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
 import type {
@@ -75,13 +75,11 @@ export type ApplyResourceDeltaResult =
       noOp: true
       beforeEffectiveValue: null
       afterEffectiveValue: null
-      atBound: null
     })
   | (ApplyResourceDeltaResultBase & {
       noOp: false
       beforeEffectiveValue: number
       afterEffectiveValue: number
-      atBound: 'min' | 'max' | null
     })
 
 export interface HubProjectionCharacter extends CharacterEntity {
@@ -274,11 +272,14 @@ export class CharacterSheetOperationService {
           revision: sheet.revision,
           noOp: true,
           beforeEffectiveValue: null,
-          afterEffectiveValue: null,
-          atBound: null
+          afterEffectiveValue: null
         }
       }
 
+      // min/max advisory 化後の delta 0 は値を変えず revision と冪等枠だけを消費するが、適用済み interaction の replay は先行する noOp 短絡が受けるため、このガードは未処理の delta 0 だけを拒否する。
+      if (input.delta === 0) {
+        throw new UnprocessableEntityException('delta must not be zero')
+      }
       const paletteEntry = this.findResourcePaletteEntry(current.palette ?? [], input.paletteKey, input.delta)
       const engineTemplate = toEngineTemplate(template)
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
@@ -291,16 +292,12 @@ export class CharacterSheetOperationService {
 
       const beforeEffectiveValue = trackRangePolicy.resolveEffectiveValue(field, sheet.values[field.uid], currentValue)
       const values = { ...sheet.values }
-      if (input.delta !== 0) {
-        this.addToOtherPart(values, field.uid, currentValue, input.delta)
-        trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
-      }
+      this.addToOtherPart(values, field.uid, currentValue, input.delta)
+      trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
 
       const afterEvaluation = this.evaluateTemplateOrThrow(engineTemplate, values)
       const afterValue = this.requireFiniteResourceValue(field, afterEvaluation.values[field.uid])
-      const afterBounds = trackRangePolicy.resolveBounds(field, values)
       const afterEffectiveValue = trackRangePolicy.resolveEffectiveValue(field, values[field.uid], afterValue)
-      const atBound = this.resolveAtBound(afterEffectiveValue, afterBounds)
       const appliedInteractionIds = [...(current.appliedInteractionIds ?? []), input.interaction.id].slice(-20)
       const materialized = this.materializeOrThrow(template, current, values)
       const savePayload = this.toSavePayload(materialized, sheet.revision + 1, appliedInteractionIds)
@@ -316,8 +313,7 @@ export class CharacterSheetOperationService {
           revision: this.requireSheet(saved).revision,
           noOp: false,
           beforeEffectiveValue,
-          afterEffectiveValue,
-          atBound
+          afterEffectiveValue
         }
       }
 
@@ -479,13 +475,6 @@ export class CharacterSheetOperationService {
     return isPartsValue(raw)
       ? { ...raw.parts }
       : { base: typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback }
-  }
-
-  private resolveAtBound(value: number, bounds: { min: number; max: number }): 'min' | 'max' | null {
-    if (bounds.min === bounds.max) return null
-    if (Math.abs(value - bounds.max) <= EPSILON) return 'max'
-    if (Math.abs(value - bounds.min) <= EPSILON) return 'min'
-    return null
   }
 
   private findResourcePaletteEntry(

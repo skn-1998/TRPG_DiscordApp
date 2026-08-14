@@ -1536,30 +1536,37 @@ describe('CharacterSheetOperationService', () => {
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
 
-    it('minがmaxを上回るtrackテンプレートの±経路は422を返す', async () => {
-      templateService.resolvePinnedRevision.mockResolvedValue(makeInvertedTrackRangeTemplate())
-      let failure: unknown
+    it.each([
+      [-1, 7],
+      [1, 9]
+    ])(
+      'minがmaxを上回る数値trackテンプレートでもdelta=%iをadvisoryとしてraw保存する',
+      async (delta, afterEffectiveValue) => {
+        templateService.resolvePinnedRevision.mockResolvedValue(makeInvertedTrackRangeTemplate())
 
-      try {
-        await service.applyResourceDelta({
+        const result = await service.applyResourceDelta({
           channelId: 'channel-1',
           paletteKey: 'resource-hp',
-          delta: 1,
-          interaction: { id: 'interaction-inverted-range' }
+          delta,
+          interaction: { id: `interaction-inverted-range-${delta}` }
         })
-      } catch (error) {
-        failure = error
+
+        expect(result).toEqual(
+          expect.objectContaining({ noOp: false, beforeEffectiveValue: 8, afterEffectiveValue, revision: 2 })
+        )
+        expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
+          'character-1',
+          expect.objectContaining({
+            values: expect.objectContaining({
+              'uid-hp': { parts: { base: 8, buff: 0, temp: 0, other: delta } }
+            })
+          }),
+          1
+        )
       }
+    )
 
-      expect(failure).toBeInstanceOf(UnprocessableEntityException)
-      expect((failure as UnprocessableEntityException).getStatus()).toBe(422)
-      expect((failure as UnprocessableEntityException).getResponse()).toEqual(
-        expect.objectContaining({ message: 'resource field uid-hp resolved max below min' })
-      )
-      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
-    })
-
-    it('minとmaxが同じ縮退trackでもraw deltaを適用し、境界方向を特定しない', async () => {
+    it('minとmaxが同じ縮退trackでもadvisoryとしてraw deltaを適用する', async () => {
       templateService.resolvePinnedRevision.mockResolvedValue({
         ...template,
         sections: [
@@ -1591,8 +1598,7 @@ describe('CharacterSheetOperationService', () => {
       expect(result).toEqual(
         expect.objectContaining({
           beforeEffectiveValue: 5,
-          afterEffectiveValue: 4,
-          atBound: null
+          afterEffectiveValue: 4
         })
       )
     })
@@ -1609,8 +1615,7 @@ describe('CharacterSheetOperationService', () => {
         expect.objectContaining({
           noOp: false,
           beforeEffectiveValue: 8,
-          afterEffectiveValue: 13,
-          atBound: null
+          afterEffectiveValue: 13
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -1697,7 +1702,25 @@ describe('CharacterSheetOperationService', () => {
       expect(materializer.validateInputValues).not.toHaveBeenCalled()
     })
 
-    it('raw delta=0 でも interaction id を同一saveに記録する', async () => {
+    it('delta=0は422で拒否し、revisionとinteraction idを変更しない', async () => {
+      const failure = await service
+        .applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: 0,
+          interaction: { id: 'interaction-zero' }
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(UnprocessableEntityException)
+      expect((failure as UnprocessableEntityException).getStatus()).toBe(422)
+      expect((failure as UnprocessableEntityException).message).toBe('delta must not be zero')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+      expect(current.sheet!.revision).toBe(1)
+      expect(current.appliedInteractionIds).toEqual([])
+    })
+
+    it('旧paletteにdelta=0が宣言済みでも422で拒否する', async () => {
       current = {
         ...current,
         palette: (current.palette ?? []).map((entry) =>
@@ -1705,24 +1728,48 @@ describe('CharacterSheetOperationService', () => {
         )
       }
 
+      const failure = await service
+        .applyResourceDelta({
+          channelId: 'channel-1',
+          paletteKey: 'resource-hp',
+          delta: 0,
+          interaction: { id: 'interaction-zero-legacy' }
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(UnprocessableEntityException)
+      expect((failure as UnprocessableEntityException).message).toBe('delta must not be zero')
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('旧paletteのdelta=0を適用済みinteractionがreplayした場合はnoOp冪等を優先する', async () => {
+      const interactionId = 'interaction-zero-legacy-replay'
+      current = {
+        ...current,
+        palette: (current.palette ?? []).map((entry) =>
+          entry.kind === 'resource' ? { ...entry, deltas: [...entry.deltas, 0] } : entry
+        ),
+        appliedInteractionIds: [interactionId]
+      }
+      const revision = current.sheet!.revision
+
       const result = await service.applyResourceDelta({
         channelId: 'channel-1',
         paletteKey: 'resource-hp',
         delta: 0,
-        interaction: { id: 'interaction-zero' }
+        interaction: { id: interactionId }
       })
 
       expect(result).toEqual(
-        expect.objectContaining({ beforeEffectiveValue: 8, afterEffectiveValue: 8, atBound: null })
-      )
-      expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
-        'character-1',
         expect.objectContaining({
-          values: current.sheet!.values,
-          appliedInteractionIds: ['interaction-zero']
-        }),
-        1
+          noOp: true,
+          revision,
+          beforeEffectiveValue: null,
+          afterEffectiveValue: null
+        })
       )
+      expect(current.sheet!.revision).toBe(revision)
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
     })
 
     it('同一 interaction.id の二重配送は加算を1回にする', async () => {
@@ -1741,9 +1788,7 @@ describe('CharacterSheetOperationService', () => {
 
       expect(first.noOp).toBe(false)
       expect(second.noOp).toBe(true)
-      expect(second).toEqual(
-        expect.objectContaining({ beforeEffectiveValue: null, afterEffectiveValue: null, atBound: null })
-      )
+      expect(second).toEqual(expect.objectContaining({ beforeEffectiveValue: null, afterEffectiveValue: null }))
       expect(repository.saveSheetMaterialized).toHaveBeenCalledTimes(1)
     })
 
@@ -1826,8 +1871,7 @@ describe('CharacterSheetOperationService', () => {
         expect.objectContaining({
           noOp: false,
           beforeEffectiveValue: 999,
-          afterEffectiveValue: 994,
-          atBound: null
+          afterEffectiveValue: 994
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -1875,8 +1919,7 @@ describe('CharacterSheetOperationService', () => {
         expect.objectContaining({
           noOp: false,
           beforeEffectiveValue: -999,
-          afterEffectiveValue: -996,
-          atBound: null
+          afterEffectiveValue: -996
         })
       )
       expect(repository.saveSheetMaterialized).toHaveBeenCalledWith(
@@ -1930,15 +1973,13 @@ describe('CharacterSheetOperationService', () => {
       expect(increment).toEqual(
         expect.objectContaining({
           beforeEffectiveValue: 999,
-          afterEffectiveValue: 1000,
-          atBound: null
+          afterEffectiveValue: 1000
         })
       )
       expect(decrement).toEqual(
         expect.objectContaining({
           beforeEffectiveValue: 1000,
-          afterEffectiveValue: 999,
-          atBound: null
+          afterEffectiveValue: 999
         })
       )
       expect(materializer.materialize).toHaveBeenNthCalledWith(

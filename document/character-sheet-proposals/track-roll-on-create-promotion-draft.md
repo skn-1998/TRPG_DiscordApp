@@ -48,14 +48,17 @@ gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ trac
    「未変更 track の parts overflow が `sheet evaluation failed` になる」封筒分岐の解消。
    実装 = TR-4c。
 
-### 大粒度 #20 でユーザー決定点へ昇格した項目（実装凍結中）
+### 大粒度 #20 でユーザー決定点へ昇格した項目（TR-D1・裁定済み 2026-08-14）
 
 - **zero-delta 契約と bounds/atBound 一式の去就**（design-ledger §5-2 TR-D1 参照）。
   裁定 3（min>max 422 の ± 残存）は本件の従属で、単独先行させない。
   #21 精密化: 式 max の min>max は検証タブ完全無徴候（publish は数値 max しか min と
   比較しない）・± の 422 だけ素の文字列で封筒非準拠 — いずれも TR-D1 と同時解決。
+  **【裁定 2026-08-14・ユーザー】(a) delta 0 の契約拒否を採用**（publish 検証の nonzero 化＋
+  操作層ガード。bounds/atBound 一式と Discord ℹ️ 上限/下限文言を削除し、従属の裁定 3
+  〔min>max 422〕も同時撤去）。消化スライス = TD1。
 
-### 実装完了後の残スライス・裁定枠（2026-08-14 大粒度 #21・突合 = big21-integration.md）
+### 実装完了後の残スライス・裁定枠（2026-08-14 大粒度 #21・突合 = big21-integration.md・**着手許可 2026-08-14・ユーザー**）
 
 - checkboxes 専用視覚（TFR renderTrackField 1 箇所・低優先の到達不能 fallback
   `status:'error'`→indeterminate 向き修正を同乗）
@@ -63,8 +66,10 @@ gauge 塗りのみ cap・max 評価失敗の error 警告）・エディタ trac
 - CL-6 出目提示（rollOnCreateResults は controller で破棄・wire 契約に非搭載 —
   表示には controller/api-contract/front の 3 層スライス。裁定 5 の明示提出値 422 も
   front 作成経路から現状到達不能 = values 送信 UI が無い）
-- 裁定枠（保留グループ）: 未入力 track の表示割れ — editor プレビュー「0 / 10」
-  （evaluated 基底）vs 実シート「— / 10」（raw 基底）。canonical 表示の裁定待ち
+- 裁定枠: 未入力 track の表示割れ — editor プレビュー「0 / 10」
+  （evaluated 基底）vs 実シート「— / 10」（raw 基底）。**【裁定 2026-08-14・ユーザー】
+  (a) 実シート側を evaluated 基底の 0 表示へ揃える**（未入力と明示 0 の画面区別は消える。
+  壊れた保存値の「—」退化は表示退化契約として維持）。消化スライス = TD2
 - capability gap の記録: front エディタは SheetField.role を編集できず、エディタ製 track は
   palette resource になれない（± 経路到達不能）。role 編集スライスでは TR-D1 非対称と
   CL-6 を同時設計すること

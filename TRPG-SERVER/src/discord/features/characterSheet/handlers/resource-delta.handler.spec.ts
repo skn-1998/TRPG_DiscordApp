@@ -40,7 +40,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: 8,
       afterEffectiveValue: 9,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
@@ -77,18 +76,17 @@ describe('ResourceDeltaHandler', () => {
   })
 
   it.each([
-    [1, 10, 11, null, '✅ リソースを +1 更新しました。'],
-    [-1, 0, -1, null, '✅ リソースを -1 更新しました。']
+    [1, 10, 11, '✅ リソースを +1 更新しました。'],
+    [-1, 0, -1, '✅ リソースを -1 更新しました。']
   ] as const)(
     'delta=%s を境界の外側へraw適用した更新量を返す',
-    async (delta, beforeEffectiveValue, afterEffectiveValue, atBound, content) => {
+    async (delta, beforeEffectiveValue, afterEffectiveValue, content) => {
       Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', delta) })
       characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
       operationService.applyResourceDelta.mockResolvedValue({
         noOp: false,
         beforeEffectiveValue,
         afterEffectiveValue,
-        atBound,
         character: { characterId: 'char-1' }
       })
 
@@ -107,7 +105,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: 5,
       afterEffectiveValue: 6,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
@@ -119,28 +116,6 @@ describe('ResourceDeltaHandler', () => {
     })
   })
 
-  it.each([
-    ['下限にいる', 'min', 'ℹ️ 下限です。'],
-    ['境界にいない', null, 'ℹ️ これ以上変化しません。']
-  ] as const)('raw delta=0で%s場合の変化なし分岐を返す', async (_caseName, atBound, content) => {
-    Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', 0) })
-    characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
-    operationService.applyResourceDelta.mockResolvedValue({
-      noOp: false,
-      beforeEffectiveValue: 5,
-      afterEffectiveValue: 5,
-      atBound,
-      character: { characterId: 'char-1' }
-    })
-
-    await handler.execute(interaction)
-
-    expect(interaction.followUp).toHaveBeenCalledWith({
-      content,
-      flags: MessageFlags.Ephemeral
-    })
-  })
-
   it('max超過legacyへの負deltaをraw基準で報告する', async () => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', -3) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
@@ -148,7 +123,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: 999,
       afterEffectiveValue: 996,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
@@ -167,7 +141,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: -999,
       afterEffectiveValue: -996,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
@@ -186,7 +159,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: 8,
       afterEffectiveValue: 13,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
@@ -198,23 +170,25 @@ describe('ResourceDeltaHandler', () => {
     })
   })
 
-  it('EPSILON以下の実効値差は境界到達として扱う', async () => {
+  it('EPSILON以下の実効値差でも成功として+0を表示する', async () => {
     Object.assign(interaction, { customId: ResourceDeltaCustomId.create(channelId, 'hp', 0.1) })
     characterService.findByChannelId.mockResolvedValue({ discordUserId: 'owner-1' })
     operationService.applyResourceDelta.mockResolvedValue({
       noOp: false,
       beforeEffectiveValue: 0.3,
       afterEffectiveValue: 0.3 + EPSILON / 10,
-      atBound: 'max',
       character: { characterId: 'char-1' }
     })
 
     await handler.execute(interaction)
 
     expect(interaction.followUp).toHaveBeenCalledWith({
-      content: 'ℹ️ 上限です。',
+      content: '✅ リソースを +0 更新しました。',
       flags: MessageFlags.Ephemeral
     })
+    expect(interaction.followUp).not.toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('ℹ️') })
+    )
   })
 
   it('更新成功の実効値差は浮動小数誤差を丸めて表示する', async () => {
@@ -224,7 +198,6 @@ describe('ResourceDeltaHandler', () => {
       noOp: false,
       beforeEffectiveValue: 0.1,
       afterEffectiveValue: 0.3,
-      atBound: null,
       character: { characterId: 'char-1' }
     })
 
