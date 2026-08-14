@@ -3193,6 +3193,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   正本同期 = AI.character.md（CL-6/role 編集/preview total の 3 記述）・promotion-draft
   （レーン全消化ヘッダ・TD4〜TD6 消化印・裁定枠 3 件）・design-ledger（:16 セル・CL-6 行）。
   次 = Task #34 完了ゲート（マージ前全 suite → SESSION_HANDOFF 全面更新）。
+- **Task #34 クローズ（2026-08-14）— TR レーン完全消化**。マージ前全 suite 全緑を実測:
+  api-contract 27/27・sheet-engine 530/530・server 224 suites/3151・front 33 suites/601
+  （snapshot 1 含む。チップ 4 ファイルの未コミット変更を含む作業ツリーのままで緑）。
+  コミット列 = TD4 8e9ebf3f / TD5 cbb27e3a / TD6 9e2188bb / B23 57c776af（＋#22 まで
+  の 13 本 = promotion-draft ヘッダ参照）。**現在の状態**: TR レーン（L-2 (c)＋track 昇格＋
+  残スライス）は設計〜実装〜二重レビューまで全クローズ。未コミット残 = 並行チップ 4 ファイル
+  のみ（ユーザー管轄）。push は 130 本超未実施（スコープ外・ユーザー裁定）。
+  **次にやること（すべてユーザー裁定待ち・Fable からは着手しない）**:
+  D-3 / L-13b / L-1 / D-P3-1〜4 / C1 / README 未決 / computed live 裁定枠 /
+  preview parts 裁定枠 / projection「—」1 本化の置き場所 /
+  engine の resource role 到達可能性検査（#23 で材料追記済み・正本 draft §残スライス）/
+  rollable role 編集 UI / scalar+partsKeys への resource 適用 /
+  materializer 複製統合（チップ完了後）/ `messages.join(' / ')` 9 複製の統合スライス。
 
 ## 参照
 

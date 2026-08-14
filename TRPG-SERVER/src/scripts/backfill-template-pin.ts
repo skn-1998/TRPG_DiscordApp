@@ -47,7 +47,7 @@ export interface BackfillCharacterModel {
 }
 
 export interface TemplatePinRepository {
-  setTemplatePin(characterId: string, pin: CharacterTemplatePin): Promise<unknown | null>
+  setTemplatePin(characterId: string, pin: CharacterTemplatePin): Promise<unknown>
 }
 
 export interface BackfillLogger {
