@@ -4,8 +4,13 @@ import {
   classifyDicePreviewError,
   DICE_PREVIEW_NETWORK_ERROR_CODE,
   NOTATION_INTERPOLATION_ERROR_MESSAGE,
-  readDicePreviewActionData
+  readDicePreviewActionData,
+  requestDicePreview
 } from './dicePreview'
+
+const nativeFetch = globalThis.fetch
+const networkErrorMessage =
+  'ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。'
 
 const template: SheetTemplate = {
   templateId: 'template-1',
@@ -99,7 +104,7 @@ describe('classifyDicePreviewError', () => {
     })
     const notationMessage = classifyDicePreviewError({ status: 400, messages: ['invalid notation'] })
 
-    expect(networkMessage).toBe('ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。')
+    expect(networkMessage).toBe(networkErrorMessage)
     expect(networkMessage).not.toBe(notationMessage)
   })
 })
@@ -127,7 +132,39 @@ describe('readDicePreviewActionData', () => {
   it('応答データが無い場合は network failure として扱う', () => {
     expect(readDicePreviewActionData(undefined)).toEqual({
       ok: false,
-      error: 'ダイスロールサーバーに接続できませんでした。通信状態を確認して再試行してください。'
+      error: networkErrorMessage
+    })
+  })
+})
+
+describe('requestDicePreview', () => {
+  afterEach(() => {
+    if (nativeFetch === undefined) {
+      Reflect.deleteProperty(globalThis, 'fetch')
+    } else {
+      globalThis.fetch = nativeFetch
+    }
+  })
+
+  it('fetch が reject しても throw せず network エラーを返す', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('network failure'))
+
+    await expect(requestDicePreview({ notation: '1d6' })).resolves.toEqual({
+      ok: false,
+      error: networkErrorMessage
+    })
+  })
+
+  it('response.json が reject しても throw せず network エラーを返す', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      json: async () => {
+        throw new Error('invalid json')
+      }
+    } as Response)
+
+    await expect(requestDicePreview({ notation: '1d6' })).resolves.toEqual({
+      ok: false,
+      error: networkErrorMessage
     })
   })
 })

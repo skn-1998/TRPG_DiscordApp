@@ -51,6 +51,7 @@ const editedTables: LookupTable[] = [{ id: 'luck', rows: [['01', '大成功']] }
 const editedTablesText = JSON.stringify(editedTables, null, 2)
 const reEditedTablesText = JSON.stringify([{ id: 'luck', rows: [['02', '成功']] }], null, 2)
 const mockedSaveTemplateDraft = jest.mocked(saveTemplateDraft)
+const nativeFetch = globalThis.fetch
 
 type LayoutFixtureSection = {
   id: string
@@ -1480,6 +1481,163 @@ describe('TemplateEditorV3 field annotations', () => {
 
     expect(screen.getByText('parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'parts キー追加' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('TemplateEditorV3 rollOnCreate preview', () => {
+  afterEach(() => {
+    cleanup()
+    if (nativeFetch === undefined) {
+      Reflect.deleteProperty(globalThis, 'fetch')
+    } else {
+      globalThis.fetch = nativeFetch
+    }
+  })
+
+  function renderTrackEditor(notation?: string) {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge',
+        ...(notation === undefined ? {} : { rollOnCreate: { notation } })
+      })
+    )
+  }
+
+  it('notation を POST し、details を結果として表示する', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+    } as Response)
+    globalThis.fetch = fetchMock
+    renderTrackEditor('3d6*5')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+
+    expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notation: '3d6*5' })
+    })
+  })
+
+  it('ロール後に notation を変更すると旧結果を消す', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
+    } as Response)
+    renderTrackEditor('1d6')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+    expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'rollOnCreate notation' }), {
+      target: { value: '2d6' }
+    })
+
+    expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
+  })
+
+  it('notation を空にして rollOnCreate を削除すると旧結果を消す', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
+    } as Response)
+    renderTrackEditor('1d6')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+    expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'rollOnCreate notation' }), {
+      target: { value: '' }
+    })
+
+    expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
+    expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('試しロール実行中は notation 入力を無効化する', async () => {
+    let resolveFetch!: (response: Response) => void
+    globalThis.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve
+      })
+    )
+    renderTrackEditor('1d6')
+    const notationInput = screen.getByRole('textbox', {
+      name: 'rollOnCreate notation'
+    }) as HTMLInputElement
+
+    fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+
+    expect(notationInput.disabled).toBe(true)
+
+    await act(async () => {
+      resolveFetch({ json: async () => ({ total: 6, details: '(1D6) ＞ 6' }) } as Response)
+    })
+  })
+
+  it('不正 notation はサーバーへ送らず最初の検証 message を表示する', () => {
+    const fetchMock = jest.fn()
+    globalThis.fetch = fetchMock
+    renderTrackEditor('abc')
+
+    fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    const alert = screen.getByText('invalid standalone roll expression').closest('[role="alert"]')
+    expect(alert).not.toBeNull()
+  })
+
+  it('notation が空なら試しロールを無効化する', () => {
+    renderTrackEditor()
+
+    expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('429 応答は分類済みエラーメッセージを表示する', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ status: 429, messages: ['dice preview rate limit exceeded'] })
+    } as Response)
+    globalThis.fetch = fetchMock
+    renderTrackEditor('1d6')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+
+    const alert = screen
+      .getByText(
+        'ロール回数の上限に達しました。少し待ってから再試行してください。 dice preview rate limit exceeded'
+      )
+      .closest('[role="alert"]')
+    expect(alert).not.toBeNull()
+    expect((alert as HTMLElement).textContent).toContain(
+      'ロール回数の上限に達しました。少し待ってから再試行してください。'
+    )
+    expect((alert as HTMLElement).textContent).toContain('dice preview rate limit exceeded')
+  })
+
+  it('legacy total は表示せず、評価値を含む details だけを表示する', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 987654321, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+    } as Response)
+    renderTrackEditor('3d6*5')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+
+    expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
+    expect(screen.queryByText(/987654321/)).toBeNull()
   })
 })
 

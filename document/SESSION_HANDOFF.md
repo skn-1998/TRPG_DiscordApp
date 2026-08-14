@@ -3125,6 +3125,16 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   `0 / —` pin）。検収 = dispatch 変異赤・front 136/policy 38 緑・作業番号混入 1 件を
   差し戻しで除去。記録のみ = projection '—' 2 宣言（置き場所裁定待ち・非 export 選好）・
   spec の ℹ️ 負の対照 1 件は妥当。
+- **TD4 完了（2026-08-14）**: 試しロール UI（エディタ track 詳細パネル）。
+  requestDicePreview 純関数抽出（fetch 2→1）・client 検証先行・**details のみ表示**
+  （preview total = rands 合算と rollOnCreate = 評価値の意味論不一致を封じ込め・pin で固定）・
+  FIX = feedback 鮮度保証（notation 変更で消去・実行中入力 disabled）＋total 封じ込め強化＋
+  catch 経路 focused test。レビュー = Codex pass（blocking 0・should 2・nit 1 → 全消化）。
+  変異 5 種全て赤・復元 sha256 一致。suites 110/110。
+  証跡 = review-results/impl-u14/td4-acceptance.md。
+  次 = TD5（CL-6 出目提示・3 層。事前実測済み・指示書 = prompt-td5-code.txt。
+  司令塔裁定 = Modal 内表示〔空なら現行 redirect 維持〕・label は server 側で付与・
+  wire は required 配列。Discord 作成経路 0 件・secret 到達不能を実測済み）。
 
 ## 参照
 
