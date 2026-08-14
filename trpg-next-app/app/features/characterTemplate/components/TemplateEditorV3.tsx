@@ -408,6 +408,75 @@ function PartsKeysInput({ value = [], disabled, onChange }: PartsKeysInputProps)
   )
 }
 
+interface DeltasInputProps {
+  value: number[]
+  onChange: (value: number[]) => void
+}
+
+function DeltasInput({ value, onChange }: DeltasInputProps) {
+  const [drafts, setDrafts] = useState<Array<string | undefined>>([])
+
+  const discardDraft = (index: number) => {
+    setDrafts((current) => {
+      if (current[index] === undefined) return current
+      const nextDrafts = [...current]
+      nextDrafts[index] = undefined
+      return nextDrafts
+    })
+  }
+
+  const updateDelta = (index: number, nextDelta: string | number) => {
+    if (typeof nextDelta !== 'number' || !Number.isFinite(nextDelta)) {
+      setDrafts((current) => {
+        const nextDrafts = [...current]
+        nextDrafts[index] = nextDelta
+        return nextDrafts
+      })
+      return
+    }
+
+    discardDraft(index)
+    onChange(value.map((delta, currentIndex) => (currentIndex === index ? nextDelta : delta)))
+  }
+
+  const removeDelta = (index: number) => {
+    setDrafts([])
+    onChange(value.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  return (
+    <Stack gap="xs">
+      <Text fw={500}>リソース操作（±）</Text>
+      {value.map((delta, index) => (
+        <Group key={index} grow align="end" wrap="nowrap">
+          <NumberInput
+            label={`delta ${index + 1}`}
+            value={drafts[index] ?? delta}
+            onChange={(nextDelta) => updateDelta(index, nextDelta)}
+            onBlur={() => discardDraft(index)}
+          />
+          <Button
+            aria-label={`delta ${index + 1} を削除`}
+            color="red"
+            variant="subtle"
+            onClick={() => removeDelta(index)}
+          >
+            <IconTrash size={16} />
+          </Button>
+        </Group>
+      ))}
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={16} />}
+        onClick={() => onChange([...value, -1])}
+      >
+        delta 追加
+      </Button>
+    </Stack>
+  )
+}
+
 export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [template, setTemplate] = useState<CharacterSheetTemplateEntity>(initialTemplate)
   const [activeSectionId, setActiveSectionId] = useState(initialTemplate.sections[0]?.id ?? '')
@@ -1294,6 +1363,39 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                         </Text>
                       )}
                     </Stack>
+                    {selectedField.role !== undefined && selectedField.role.kind !== 'resource' ? (
+                      <Stack gap="xs">
+                        <Text fw={500}>リソース操作（±）</Text>
+                        <Text size="sm" c="orange">
+                          この track には {selectedField.role.kind} role が設定されています。リソース操作（±）へ置き換えると現在の
+                          role は失われます。
+                        </Text>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            updateField(selectedField.uid, {
+                              role: { kind: 'resource', deltas: [-1] }
+                            } as Partial<SheetField>)
+                          }
+                        >
+                          resource role へ置き換える
+                        </Button>
+                      </Stack>
+                    ) : (
+                      <>
+                        {/* resource の group は palette 生成時に section.label から決まるため、この UI では入力させない。 */}
+                        <DeltasInput
+                          key={selectedField.uid}
+                          value={selectedField.role?.kind === 'resource' ? selectedField.role.deltas : []}
+                          onChange={(deltas) =>
+                            updateField(selectedField.uid, {
+                              role: deltas.length > 0 ? { kind: 'resource', deltas } : undefined
+                            } as Partial<SheetField>)
+                          }
+                        />
+                      </>
+                    )}
                   </>
                 )}
                 {selectedField.type === 'roll' && (

@@ -1408,6 +1408,178 @@ describe('TemplateEditorV3 field annotations', () => {
     })
   })
 
+  it('track の resource role に複数の delta を省略せず保存する', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge'
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'delta 追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'delta 追加' }))
+    fireEvent.change(screen.getByLabelText('delta 1'), { target: { value: '-2' } })
+    fireEvent.change(screen.getByLabelText('delta 2'), { target: { value: '3' } })
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField?.role).toEqual({ kind: 'resource', deltas: [-2, 3] })
+  })
+
+  it('track の resource delta を全行削除すると role property を落とす', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge',
+        role: { kind: 'resource', deltas: [-1, 1] }
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'delta 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'delta 1 を削除' }))
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField?.role).toBeUndefined()
+    expect(JSON.stringify(savedField)).not.toContain('"role"')
+  })
+
+  it('delta 0 は独自に拒否せず publish 検証の deltas 契約違反として表示する', () => {
+    const trackField = {
+      id: 'hp',
+      uid: 'uid_hp',
+      label: 'HP',
+      type: 'track',
+      max: 10,
+      style: 'gauge',
+      role: { kind: 'resource', deltas: [-1] }
+    } satisfies SheetField
+    const invalidTemplate = templateWithField({ ...trackField, role: { kind: 'resource', deltas: [0] } })
+    const publishIssue = validatePublishTemplate(toSheetTemplate(invalidTemplate)).issues.find(
+      (issue) => issue.path === 'sections.0.fields.0.role.deltas.0'
+    )
+
+    expect(publishIssue).toBeDefined()
+    renderEditor(templateWithField(trackField))
+    fireEvent.change(screen.getByLabelText('delta 1'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: '検証' }))
+
+    const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
+    expect(errorAlert).not.toBeNull()
+    expect(within(errorAlert as HTMLElement).getByText(`[test / HP] ${publishIssue!.message}`)).toBeTruthy()
+  })
+
+  it('track の non-resource role は他項目の編集と autosave でも保持する', async () => {
+    const role = { kind: 'rollable', notation: '1d100', group: '技能' } as const
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge',
+        role
+      })
+    )
+
+    expect(screen.getByText(/この track には rollable role が設定されています/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'delta 追加' })).toBeNull()
+    expect(screen.queryByLabelText('delta 1')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('label'), { target: { value: 'HP 上限' } })
+    fireEvent.change(screen.getByLabelText('max'), { target: { value: '20' } })
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField).toMatchObject({ label: 'HP 上限', max: 20, role })
+  })
+
+  it('track の non-resource role は明示ボタンを押した時だけ resource role へ置き換える', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge',
+        role: { kind: 'rollable', notation: '1d100', group: '技能' }
+      })
+    )
+
+    expect(screen.queryByRole('button', { name: 'delta 追加' })).toBeNull()
+    expect(screen.queryByLabelText('delta 1')).toBeNull()
+    expect(mockedSaveTemplateDraft).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'resource role へ置き換える' }))
+    expect((screen.getByLabelText('delta 1') as HTMLInputElement).value).toBe('-1')
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField?.role).toEqual({ kind: 'resource', deltas: [-1] })
+  })
+
+  it.each([
+    ['空文字', ''],
+    ['符号だけ', '-'],
+    ['小数入力途中', '1.']
+  ])('delta の%sは blur 後に確定済みの表示と保存値へ戻す', async (_caseName, draftValue) => {
+    renderEditor(
+      templateWithField({
+        id: 'hp',
+        uid: 'uid_hp',
+        label: 'HP',
+        type: 'track',
+        max: 10,
+        style: 'gauge',
+        role: { kind: 'resource', deltas: [-1] }
+      })
+    )
+
+    fireEvent.change(screen.getByLabelText('label'), { target: { value: 'HP 更新' } })
+    const deltaInput = screen.getByLabelText('delta 1') as HTMLInputElement
+    fireEvent.change(deltaInput, { target: { value: draftValue } })
+    fireEvent.blur(deltaInput)
+
+    expect(deltaInput.value).toBe('-1')
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField?.role).toEqual({ kind: 'resource', deltas: [-1] })
+    const savedDelta = savedField?.role?.kind === 'resource' ? savedField.role.deltas[0] : undefined
+    expect(deltaInput.value).toBe(String(savedDelta))
+  })
+
+  it('rollable role 付き field の label 編集で既存 role を保持する', async () => {
+    const role = { kind: 'rollable', notation: '1d100', group: '技能' } as const
+    renderEditor(
+      templateWithField({
+        id: 'luck',
+        uid: 'uid_luck',
+        label: '幸運',
+        type: 'scalar',
+        valueType: 'number',
+        role
+      })
+    )
+
+    fireEvent.change(screen.getByLabelText('label'), { target: { value: '幸運値' } })
+    await advanceAutosave()
+
+    const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
+    expect(savedField?.label).toBe('幸運値')
+    expect(savedField?.role).toEqual(role)
+  })
+
   it('非 required の formula を空にしても入力欄を維持し、式を打ち直せる', async () => {
     renderEditor(
       templateWithField({

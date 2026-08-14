@@ -3149,6 +3149,33 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   必然随伴として受入（指示書側の記載漏れ）。証跡 = review-results/impl-u14/td5-acceptance.md。
   次 = TD6（role 編集 — 最終実装スライス。TR-D1(a)/CL-6 消化済みの前提で事前実測＋司令塔設計）
   → 大粒度 #23（TD4/TD5/TD6 横断・二重レビュー＋突合）→ Task #34 完了ゲート。
+- **TD6 事前実測（2026-08-14・Opus・司令塔で拘束 3 点裏取り済み）**: role は
+  engine 型・publish 検証・palette 生成まで**完全サポート済みでエディタ UI が無いだけ**
+  （front 単独スライス成立・engine/api-contract 無改変）。重要実測 =
+  (1) publish は resource role の到達可能性を検査しない（validateRole が非 rollable を
+  early return）→ parts 無し field に付くと **publish 緑のまま palette に現れない
+  silent dead role**（既存 publish.spec の fixture 自体がその形）。
+  (2) palette 生成は resource の role.group を無視し section.label で上書き。
+  (3) secret / role.when は publish が「未対応」拒否。(4) resource role の製品テンプレート
+  供給源は現在ゼロ（legacy-coc は rollable 1 種のみ・HP/MP/SAN は computed で resource 不可）。
+  **司令塔裁定（prompt-td6-code.txt が一次記録）**: (a) UI は track 詳細パネル限定
+  （track は parts 常時有効で dead role 罠を UI 制約だけで回避）・(b) group/secret/when の
+  入力は作らない・(c) deltas 新規行初期値 -1（0 は契約拒否値）・(d) 全行削除で role ごと
+  undefined（rollOnCreate と同型）。**ユーザー裁定枠として記録** = engine 側の到達可能性
+  検査追加（既存 publish.spec fixture が赤くなる契約変更）・rollable role 編集 UI・
+  scalar+partsKeys への resource 適用。
+- **TD6 完了（2026-08-14）**: track の resource role 編集 UI（front 単独・
+  TemplateEditorV3 の 2 ファイルのみ +274 純増）。DeltasInput（NumberInput 行＋削除＋
+  「delta 追加」初期値 -1）・全行削除で role ごと undefined・group/secret/when 入力なし。
+  レビュー = Codex needs-fix（blocking 1・should 1）→ FIX 全消化:
+  **既存 non-resource role の無告知置換防止**（警告＋「resource role へ置き換える」明示ボタン・
+  押下前無接触・rollable 編集 UI は作らない境界を維持）＋**中間文字列の draft 管理**
+  （''・'-'・'1.' を blur で確定値表示へ復帰・0 拒否は publish 検証へ委譲のまま）。
+  変異 6 種（role 破棄・slice 切り詰め・クリア bypass・client 0 拒否・ガード bypass・
+  blur 復帰除去）全て赤・復元 byte-identical。ゲート = jest 94/94・eslint・diff --check。
+  証跡 = review-results/impl-u14/td6-acceptance.md。**TR 残スライスはこれで全消化**。
+  次 = 大粒度 #23（TD4/TD5/TD6 横断・Codex＋Opus 二重レビュー＋突合）→ Task #34 完了ゲート
+  （SESSION_HANDOFF 全面更新・promotion-draft/ledger クローズ・マージ前全 suite）。
 
 ## 参照
 
