@@ -28,6 +28,7 @@ import {
   IconAlertCircle,
   IconCheck,
   IconDeviceFloppy,
+  IconDice,
   IconPlus,
   IconRefresh,
   IconRocket,
@@ -42,6 +43,7 @@ import {
   SHEET_SECTION_LAYOUT_PRESETS,
   type ConstraintSource,
   validatePublishTemplate,
+  validateStandaloneRollNotation,
   validateStandaloneRollNotations
 } from '@trpg/sheet-engine'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
@@ -54,6 +56,7 @@ import type {
   TemplateValidationMessage,
   V3EditorFieldType
 } from '../types/v3'
+import { requestDicePreview } from '../utils/dicePreview'
 import {
   createEditorSignature,
   createField,
@@ -422,6 +425,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
+  const [rollingTrackFieldUid, setRollingTrackFieldUid] = useState<string | null>(null)
+  const [rollOnCreateFeedback, setRollOnCreateFeedback] = useState<
+    Record<string, { details?: string; error?: string }>
+  >({})
   const inFlightRef = useRef(false)
   const lastSavedSignatureRef = useRef(
     createSaveSignature(initialTemplate, stringifyTables(initialTemplate.tables))
@@ -726,6 +733,38 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
       })
     )
     setSelectedFieldUid(null)
+  }
+
+  const previewRollOnCreate = async (field: Extract<SheetField, { type: 'track' }>) => {
+    if (rollingTrackFieldUid !== null) return
+
+    const notation = field.rollOnCreate?.notation ?? ''
+    const validationIssue = validateStandaloneRollNotation(notation)[0]
+    if (validationIssue) {
+      setRollOnCreateFeedback((current) => ({
+        ...current,
+        [field.uid]: { error: validationIssue.message }
+      }))
+      return
+    }
+
+    setRollOnCreateFeedback((current) => ({ ...current, [field.uid]: {} }))
+    setRollingTrackFieldUid(field.uid)
+
+    try {
+      const requestResult = await requestDicePreview({
+        notation,
+        ...(template.gameSystemId ? { gameSystemId: template.gameSystemId } : {})
+      })
+      setRollOnCreateFeedback((current) => ({
+        ...current,
+        [field.uid]: requestResult.ok
+          ? { details: requestResult.details }
+          : { error: requestResult.error }
+      }))
+    } finally {
+      setRollingTrackFieldUid(null)
+    }
   }
 
   const runValidation = () => {
@@ -1219,16 +1258,42 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                         } as Partial<SheetField>)
                       }
                     />
-                    <TextInput
-                      label="rollOnCreate notation"
-                      value={selectedField.rollOnCreate?.notation ?? ''}
-                      onChange={(event) => {
-                        const notation = event.currentTarget.value || undefined
-                        updateField(selectedField.uid, {
-                          rollOnCreate: notation ? { notation } : undefined
-                        } as Partial<SheetField>)
-                      }}
-                    />
+                    <Stack gap={4}>
+                      <TextInput
+                        label="rollOnCreate notation"
+                        value={selectedField.rollOnCreate?.notation ?? ''}
+                        disabled={rollingTrackFieldUid === selectedField.uid}
+                        onChange={(event) => {
+                          const notation = event.currentTarget.value || undefined
+                          setRollOnCreateFeedback((current) => ({ ...current, [selectedField.uid]: {} }))
+                          updateField(selectedField.uid, {
+                            rollOnCreate: notation ? { notation } : undefined
+                          } as Partial<SheetField>)
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        leftSection={<IconDice size={16} />}
+                        loading={rollingTrackFieldUid === selectedField.uid}
+                        disabled={!selectedField.rollOnCreate?.notation || rollingTrackFieldUid !== null}
+                        onClick={() => void previewRollOnCreate(selectedField)}
+                      >
+                        試しロール
+                      </Button>
+                      {rollOnCreateFeedback[selectedField.uid]?.details && (
+                        <Text size="xs" c="dimmed">
+                          {/* dice-preview の total は rands 合算で、rollOnCreate の評価後の値とは一致しない。
+                              BCDice text の末尾に評価値を含む details だけを表示する。 */}
+                          結果: {rollOnCreateFeedback[selectedField.uid].details}
+                        </Text>
+                      )}
+                      {rollOnCreateFeedback[selectedField.uid]?.error && (
+                        <Text size="xs" c="red" role="alert">
+                          {rollOnCreateFeedback[selectedField.uid].error}
+                        </Text>
+                      )}
+                    </Stack>
                   </>
                 )}
                 {selectedField.type === 'roll' && (

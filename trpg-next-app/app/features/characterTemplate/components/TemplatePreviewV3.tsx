@@ -6,7 +6,7 @@ import { IconAlertCircle, IconDice } from '@tabler/icons-react'
 import { evaluateTemplate } from '@trpg/sheet-engine'
 import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import type { CharacterSheetTemplateEntity, PreviewValues, SheetField } from '../types/v3'
-import { buildDicePreviewRequest, readDicePreviewActionData } from '../utils/dicePreview'
+import { buildDicePreviewRequest, requestDicePreview } from '../utils/dicePreview'
 import { toSheetTemplate } from '../utils/v3Template'
 
 interface TemplatePreviewV3Props {
@@ -91,31 +91,20 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
     setRollingFieldUid(field.uid)
 
     try {
-      const response = await fetch('/templates/dice-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(builtRequest.request)
-      })
-      const actionResult = readDicePreviewActionData(await response.json())
+      const requestResult = await requestDicePreview(builtRequest.request)
 
-      if (actionResult.ok) {
-        updateValue(field.uid, actionResult.result.total)
+      if (requestResult.ok) {
+        updateValue(field.uid, requestResult.total)
         setRollFeedback((current) => ({
           ...current,
-          [field.uid]: { details: actionResult.result.details }
+          [field.uid]: { details: requestResult.details }
         }))
       } else {
         setRollFeedback((current) => ({
           ...current,
-          [field.uid]: { error: actionResult.error }
+          [field.uid]: { error: requestResult.error }
         }))
       }
-    } catch {
-      const actionResult = readDicePreviewActionData(undefined)
-      setRollFeedback((current) => ({
-        ...current,
-        [field.uid]: { error: actionResult.ok ? undefined : actionResult.error }
-      }))
     } finally {
       setRollingFieldUid(null)
     }

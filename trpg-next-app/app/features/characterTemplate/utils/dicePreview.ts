@@ -9,6 +9,9 @@ export const NOTATION_INTERPOLATION_ERROR_MESSAGE = 'ロール式の参照を解
 type DicePreviewRequestBuildResult = { ok: true; request: DicePreviewRequest } | { ok: false; error: string }
 
 type DicePreviewActionResult = { ok: true; result: DicePreviewResponse } | { ok: false; error: string }
+type DicePreviewRequestResult =
+  | { ok: true; total: number; details: string }
+  | { ok: false; error: string }
 
 export interface DicePreviewActionError {
   status: number
@@ -74,6 +77,26 @@ export function readDicePreviewActionData(data: unknown): DicePreviewActionResul
   return {
     ok: false,
     error: classifyDicePreviewError(data)
+  }
+}
+
+export async function requestDicePreview(request: DicePreviewRequest): Promise<DicePreviewRequestResult> {
+  try {
+    const response = await fetch('/templates/dice-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    })
+    const actionResult = readDicePreviewActionData(await response.json())
+
+    if (!actionResult.ok) return actionResult
+    return {
+      ok: true,
+      total: actionResult.result.total,
+      details: actionResult.result.details
+    }
+  } catch {
+    return { ok: false, error: classifyDicePreviewError({}) }
   }
 }
 
