@@ -3135,6 +3135,20 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   次 = TD5（CL-6 出目提示・3 層。事前実測済み・指示書 = prompt-td5-code.txt。
   司令塔裁定 = Modal 内表示〔空なら現行 redirect 維持〕・label は server 側で付与・
   wire は required 配列。Discord 作成経路 0 件・secret 到達不能を実測済み）。
+- **TD5 完了（2026-08-14）**: CL-6 出目提示・3 層（server: label 追加＋応答へ配列・
+  api-contract: RollOnCreateResultWire＋required 配列〔名前 pin 43→44〕・front: 作成 Modal の
+  判別 union 表示 `{label}: {details}`・空なら redirect 維持）。レビュー = Codex needs-fix
+  （blocking 1・should 2・nit 2）→ FIX 全消化: **HTTP 境界の runtime 正規化**（旧 server 応答の
+  欠落→空配列。wire は required 維持・新規 character.service.server.spec で旧形/新形 pin）・
+  **request generation ID** で stale 応答破棄（close→別テンプレート再開の上書き防止 spec）・
+  2 件 fixture で全件引き渡し/全行表示 pin・作業番号除去・目的外 hunk（req.user cast）復元。
+  変異 = 本体 3 種＋FIX 4 種（正規化無効化・slice 切り詰め×2・stale ガード無効化）全て赤・
+  復元 byte-identical＋残留 grep（復元リトライハーネスが間欠 OSError 22 を吸収）。
+  ゲート = front 3 suites 30・server 4 suites 25・api-contract 27・build・circular・eslint
+  （server warning 1 は HEAD 既存行）。eslint.config.mjs の allowlist 1 名追加は契約追加の
+  必然随伴として受入（指示書側の記載漏れ）。証跡 = review-results/impl-u14/td5-acceptance.md。
+  次 = TD6（role 編集 — 最終実装スライス。TR-D1(a)/CL-6 消化済みの前提で事前実測＋司令塔設計）
+  → 大粒度 #23（TD4/TD5/TD6 横断・二重レビュー＋突合）→ Task #34 完了ゲート。
 
 ## 参照
 

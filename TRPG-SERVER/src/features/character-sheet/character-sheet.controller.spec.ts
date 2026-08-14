@@ -110,15 +110,27 @@ describe('CharacterSheetController', () => {
     ).rejects.toBe(validationError)
   })
 
-  it('POST /character/from-template は JWT 所有者を v2 instantiation へ渡して characterId を返す', async () => {
-    instantiationService.instantiate.mockResolvedValue({ character: { characterId: 'character-2' } })
+  it('POST /character/from-template は JWT 所有者を v2 instantiation へ渡して characterId と作成時ロール結果を返す', async () => {
+    const rollOnCreateResults = [
+      {
+        uid: 'uid-dex',
+        label: 'DEX',
+        notation: '3d6*5',
+        total: 55,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'
+      }
+    ]
+    instantiationService.instantiate.mockResolvedValue({
+      character: { characterId: 'character-2' },
+      rollOnCreateResults
+    })
 
     await expect(
       controller.createFromTemplate(
         { templateId: 'template-1', templateVersion: '1.0.0', characterName: '探索者' },
         requestFromGuard()
       )
-    ).resolves.toEqual({ characterId: 'character-2' })
+    ).resolves.toEqual({ characterId: 'character-2', rollOnCreateResults })
     expect(instantiationService.instantiate).toHaveBeenCalledWith({
       templateId: 'template-1',
       templateVersion: '1.0.0',

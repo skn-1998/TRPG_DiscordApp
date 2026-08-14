@@ -6,7 +6,7 @@ declare const __dirname: string
 const path = require('path') as { join: (...paths: string[]) => string }
 
 describe('@trpg/api-contract public exports', () => {
-  it('型シンボルの公開面を43名に固定する', () => {
+  it('型シンボルの公開面を44名に固定する', () => {
     const indexPath = path.join(__dirname, 'index.ts')
     const program = ts.createProgram([indexPath], {
       moduleResolution: ts.ModuleResolutionKind.Node10
@@ -49,6 +49,7 @@ describe('@trpg/api-contract public exports', () => {
       'Envelope',
       'ErrorEnvelope',
       'LoginDataWire',
+      'RollOnCreateResultWire',
       'SaveCharacterSheetResultWire',
       'SheetMergeConflictWire',
       'SuccessEnvelope',
@@ -78,7 +79,7 @@ describe('@trpg/api-contract public exports', () => {
   it('ランタイム値の公開面を19名に固定する', () => {
     // require('./index') は ts-jest がソースを解決する。
     // これはソース公開面の値/型区分の証人であり、dist 成果物の検証は build が担う。
-    // 43 − 19 = 型のみ24（既存23＋character sheet visibility型1）を不変条件とする。
+    // 44 − 19 = 型のみ25（既存24＋character sheet visibility型1）を不変条件とする。
     const runtimeExportNames = Object.keys(require('./index'))
       .filter((name) => name !== '__esModule')
       .sort()

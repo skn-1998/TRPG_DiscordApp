@@ -158,8 +158,21 @@ export const sheetMergeConflictSchema = z
 export type SheetMergeConflictWire = z.infer<typeof sheetMergeConflictSchema>
 
 /**
+ * POST /character/from-template の作成応答限りで提示する出目情報。
+ * 永続化後にこの情報を再照会する API はない。
+ */
+export interface RollOnCreateResultWire {
+  uid: string
+  label: string
+  notation: string
+  total: number
+  details: string
+}
+
+/**
  * POST /character/from-template について front が消費する保証面。
  */
 export interface CreateCharacterFromTemplateResultWire {
   characterId: string
+  rollOnCreateResults: RollOnCreateResultWire[]
 }

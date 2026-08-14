@@ -74,9 +74,19 @@ describe('CharacterSheetController success response contract', () => {
     }
   })
 
-  it('POST /character/from-template は 201 の単一封筒に characterId を返す', async () => {
+  it('POST /character/from-template は 201 の単一封筒に characterId と rollOnCreateResults を返す', async () => {
+    const rollOnCreateResults = [
+      {
+        uid: 'uid-dex',
+        label: 'DEX',
+        notation: '3d6*5',
+        total: 55,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'
+      }
+    ]
     const instantiate = jest.fn().mockResolvedValue({
-      character: { characterId: 'created-character-1' }
+      character: { characterId: 'created-character-1' },
+      rollOnCreateResults
     })
     const app = await createHttpApp(jest.fn(), instantiate)
 
@@ -93,7 +103,7 @@ describe('CharacterSheetController success response contract', () => {
 
       expectEnvelopeKeys(response.body)
       expect(response.body.message).toBe('キャラクターを作成しました')
-      expect(response.body.data).toEqual({ characterId: 'created-character-1' })
+      expect(response.body.data).toEqual({ characterId: 'created-character-1', rollOnCreateResults })
       expect(response.body.data.data).toBeUndefined()
     } finally {
       await app.close()

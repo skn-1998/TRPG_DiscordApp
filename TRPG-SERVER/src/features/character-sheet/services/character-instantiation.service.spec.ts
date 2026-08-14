@@ -230,7 +230,7 @@ describe('CharacterInstantiationService', () => {
     expect(materializeOrder).toBeLessThan(insertOrder)
 
     expect(result.rollOnCreateResults).toEqual([
-      { uid: 'uid-dex', notation: '3d6*5', total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
+      { uid: 'uid-dex', label: 'DEX', notation: '3d6*5', total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
     ])
     expect(result.materialized.sheet.visibility).toBe('private')
     expect(result.character).toBe(created)
@@ -346,6 +346,7 @@ describe('CharacterInstantiationService', () => {
     expect(result.rollOnCreateResults).toEqual([
       {
         uid: 'uid-hp',
+        label: 'HP',
         notation: '1d20+10',
         total: 25,
         details: '(1D20+10) ＞ 15[15]+10 ＞ 25'

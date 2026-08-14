@@ -30,7 +30,12 @@ export async function createCharacterFromTemplate(input: {
     '/character/from-template',
     input
   )
-  return response.data.data
+  const data = response.data.data
+  if ('rollOnCreateResults' in data) return data
+
+  // 公開 wire は required を維持しつつ、cross-package の runtime 値は型では守れないため、
+  // HTTP 境界で旧応答の rollOnCreateResults 欠落だけを空配列へ吸収する。
+  return { ...data, rollOnCreateResults: [] }
 }
 
 export async function getCharacter(characterId: string): Promise<CharacterWire> {
