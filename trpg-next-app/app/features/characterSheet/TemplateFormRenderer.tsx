@@ -686,7 +686,9 @@ function renderTrackField(
   rawValue: unknown,
   maxRuntime: ConstraintEvaluationResult
 ) {
-  const displayValue = trackDisplayValue(rawValue)
+  // 未入力 track は engine が min 非依存で 0 評価するため、evaluated 基底の preview・hub/Discord 投影と
+  // 同じ表示へ揃える。定義済みだが壊れた raw は trackDisplayValue の「—」退化を維持する。
+  const displayValue = rawValue === undefined ? 0 : trackDisplayValue(rawValue)
   const maxValue = maxRuntime.status === 'ok' ? maxRuntime.value : undefined
   const valueText = maxRuntime.status === 'error'
     ? String(displayValue ?? '—')

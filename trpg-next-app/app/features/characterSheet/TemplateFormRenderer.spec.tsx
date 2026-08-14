@@ -1831,7 +1831,7 @@ describe('TemplateFormRenderer', () => {
     const track = fieldCell.querySelector('[data-track-field="uid_hp"]') as HTMLElement
     expect(track).toBeTruthy()
     expect(track.style.width).toBe('100%')
-    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / 10')
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
     expect(screen.queryByRole('textbox', { name: '耐久力' })).toBeNull()
     expect(fieldCell.dataset.gridSpan).toBe('full')
@@ -1867,6 +1867,13 @@ describe('TemplateFormRenderer', () => {
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('50')
   })
 
+  it('未入力 track は min に依存せず 0 表示になる', () => {
+    renderForm({}, undefined, createTrackTemplate({ min: 5, max: 10 }))
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / 10')
+    expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
+  })
+
   it('track の max が indeterminate なら「/ —」へ退化し、警告しない', () => {
     const targetTemplate = createTrackTemplate(
       { max: { formula: '{tracks.base}' } },
@@ -1891,6 +1898,14 @@ describe('TemplateFormRenderer', () => {
     expect(screen.getByRole('progressbar', { name: '耐久力 のゲージ' }).getAttribute('aria-valuenow')).toBe('0')
   })
 
+  it('未入力 track は max の評価失敗時も 0 と表示する', () => {
+    renderForm({}, undefined, createTrackTemplate({ max: { formula: '1 / 0' } }))
+
+    const track = document.querySelector('[data-track-field="uid_hp"]') as HTMLElement
+    expect(track.dataset.trackMaxStatus).toBe('error')
+    expect(track.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0')
+  })
+
   it('track の parts raw は有限な part を合算して表示する', () => {
     renderForm({ uid_hp: { parts: { base: 8, other: -2, armor: 3 } } })
 
@@ -1906,6 +1921,12 @@ describe('TemplateFormRenderer', () => {
     expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
   })
 
+  it('track の null raw は未入力とみなさず「—」へ退化する', () => {
+    renderForm({ uid_hp: null })
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('— / 10')
+  })
+
   it('max が 0 以下なら gauge の塗りを 0% にする', () => {
     renderForm({ uid_hp: 5 }, undefined, createTrackTemplate({ max: 0 }))
 
@@ -1917,6 +1938,13 @@ describe('TemplateFormRenderer', () => {
     renderForm({ uid_hp: 4 }, undefined, createTrackTemplate({ style: 'checkboxes' }))
 
     expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('4 / 10')
+    expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+
+  it('未入力の checkboxes style は 0 の数値テキストだけを表示する', () => {
+    renderForm({}, undefined, createTrackTemplate({ style: 'checkboxes' }))
+
+    expect(document.querySelector('[data-track-display-value="uid_hp"]')?.textContent).toBe('0 / 10')
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
 })
