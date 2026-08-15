@@ -21,6 +21,7 @@ import {
 } from '@mantine/core'
 import { IconAlertCircle, IconFilePlus, IconPencil, IconRefresh, IconTrash, IconUserPlus } from '@tabler/icons-react'
 import { createCharacter, createTemplate, deleteTemplate, importV2Template } from '../actions'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
 import type { Template } from '../types/v2'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
 import { isV2LocalTemplate, migrateV2TemplateToCreateRequest } from '../utils/v3Template'
@@ -123,73 +124,84 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
           </Alert>
         ) : (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-            {sortedSummaries.map((summary) => (
-              <Card key={summary.templateId} withBorder radius="md" p="md">
-                <Stack gap="sm">
-                  <Group justify="space-between" align="start">
-                    <div>
-                      <Text fw={700}>{summary.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        v{summary.version} / rev {summary.draftRevision}
-                      </Text>
-                    </div>
-                    <Badge color={summary.status === 'draft' ? 'yellow' : 'green'}>{summary.status}</Badge>
-                  </Group>
+            {sortedSummaries.map((summary) => {
+              const isSystemTemplate = summary.authorDiscordUserId === SYSTEM_TEMPLATE_AUTHOR
 
-                  <Group gap="xs">
-                    <Badge variant="outline">{summary.visibility}</Badge>
-                    {summary.tags.slice(0, 3).map((tag) => (
-                      <Badge key={tag} variant="light" color="accent">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+              return (
+                <Card key={summary.templateId} withBorder radius="md" p="md">
+                  <Stack gap="sm">
+                    <Group justify="space-between" align="start">
+                      <div>
+                        <Text fw={700}>{summary.name}</Text>
+                        <Text size="xs" c="dimmed">
+                          v{summary.version} / rev {summary.draftRevision}
+                        </Text>
+                      </div>
+                      <Group gap="xs">
+                        {isSystemTemplate && <Badge color="blue">配布</Badge>}
+                        <Badge color={summary.status === 'draft' ? 'yellow' : 'green'}>{summary.status}</Badge>
+                      </Group>
+                    </Group>
 
-                  <Group justify="space-between" mt="xs" wrap="wrap">
-                    <Button
-                      component={Link}
-                      href={`/templates/${summary.templateId}/edit`}
-                      size="xs"
-                      variant="outline"
-                      leftSection={<IconPencil size={14} />}
-                    >
-                      編集
-                    </Button>
-                    {summary.status === 'published' && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="light"
-                        leftSection={<IconUserPlus size={14} />}
-                        onClick={() => {
-                          setCharacterName('')
-                          setCreationOutcome({ status: 'idle' })
-                          setCreationTemplate(summary)
-                        }}
-                      >
-                        このテンプレートで作成
-                      </Button>
-                    )}
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        runListAction(() => deleteTemplate(summary.templateId))
-                      }}
-                    >
-                      <Button
-                        type="submit"
-                        size="xs"
-                        color="red"
-                        variant="subtle"
-                        leftSection={<IconTrash size={14} />}
-                      >
-                        削除
-                      </Button>
-                    </form>
-                  </Group>
-                </Stack>
-              </Card>
-            ))}
+                    <Group gap="xs">
+                      <Badge variant="outline">{summary.visibility}</Badge>
+                      {summary.tags.slice(0, 3).map((tag) => (
+                        <Badge key={tag} variant="light" color="accent">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </Group>
+
+                    <Group justify="space-between" mt="xs" wrap="wrap">
+                      {!isSystemTemplate && (
+                        <Button
+                          component={Link}
+                          href={`/templates/${summary.templateId}/edit`}
+                          size="xs"
+                          variant="outline"
+                          leftSection={<IconPencil size={14} />}
+                        >
+                          編集
+                        </Button>
+                      )}
+                      {summary.status === 'published' && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="light"
+                          leftSection={<IconUserPlus size={14} />}
+                          onClick={() => {
+                            setCharacterName('')
+                            setCreationOutcome({ status: 'idle' })
+                            setCreationTemplate(summary)
+                          }}
+                        >
+                          このテンプレートで作成
+                        </Button>
+                      )}
+                      {!isSystemTemplate && (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            runListAction(() => deleteTemplate(summary.templateId))
+                          }}
+                        >
+                          <Button
+                            type="submit"
+                            size="xs"
+                            color="red"
+                            variant="subtle"
+                            leftSection={<IconTrash size={14} />}
+                          >
+                            削除
+                          </Button>
+                        </form>
+                      )}
+                    </Group>
+                  </Stack>
+                </Card>
+              )
+            })}
           </SimpleGrid>
         )}
 

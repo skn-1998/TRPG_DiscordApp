@@ -14,7 +14,7 @@ import { APP_VALIDATION_PIPE_PROVIDER } from '../../core/http/validation-pipe.pr
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CharacterSheetTemplateController } from './character-sheet-template.controller'
 import { CharacterSheetTemplateService } from './character-sheet-template.service'
-import { CharacterSheetTemplateEntity } from './models/character-sheet-template.entity'
+import { CharacterSheetTemplateEntity, CharacterSheetTemplateSummary } from './models/character-sheet-template.entity'
 
 describe('CharacterSheetTemplateController', () => {
   let controller: CharacterSheetTemplateController
@@ -123,11 +123,36 @@ describe('CharacterSheetTemplateController', () => {
     expect(service.create).toHaveBeenCalledWith({ name: 'Template' }, 'user-1')
   })
 
-  it('GET /sheet-templates は自分の summary 一覧だけを取得する', async () => {
-    const summaries = [{ templateId: 'template-1', name: 'Template' }] as any
+  it('GET /sheet-templates は自分の全テンプレートと system published の summary 一覧を取得する', async () => {
+    const summaries: CharacterSheetTemplateSummary[] = [
+      {
+        templateId: 'own-private',
+        status: 'draft',
+        version: '0.1.0',
+        schemaVersion: 3,
+        name: 'Own private',
+        tags: [],
+        visibility: 'private',
+        authorDiscordUserId: 'user-1',
+        draftRevision: 1
+      },
+      {
+        templateId: 'system-published',
+        status: 'published',
+        version: '1.0.0',
+        schemaVersion: 3,
+        name: 'System published',
+        tags: ['legacy'],
+        visibility: 'private',
+        authorDiscordUserId: 'system',
+        draftRevision: 1
+      }
+    ]
     service.findSummaries.mockResolvedValue(summaries)
 
-    await expect(controller.findSummaries(requestFromGuard())).resolves.toBe(summaries)
+    const result = await controller.findSummaries(requestFromGuard())
+
+    expect(result).toBe(summaries)
     expect(service.findSummaries).toHaveBeenCalledWith('user-1')
   })
 

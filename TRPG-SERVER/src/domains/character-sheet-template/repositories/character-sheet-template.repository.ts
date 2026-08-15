@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../character-sheet-template.constants'
 import { CharacterSheetTemplateEntity, CharacterSheetTemplateSummary } from '../models/character-sheet-template.entity'
 import {
   CHARACTER_SHEET_TEMPLATE_MODEL,
@@ -30,9 +31,15 @@ export class CharacterSheetTemplateRepository {
     return this.templateModel.findOne({ templateId }).select(FULL_TEMPLATE_SELECT).lean().exec()
   }
 
-  async findSummariesByAuthor(authorDiscordUserId: string): Promise<CharacterSheetTemplateSummary[]> {
+  async findListedSummariesForRequester(requesterDiscordUserId: string): Promise<CharacterSheetTemplateSummary[]> {
+    // system 所有の published だけを一覧で配布する読み取り特例。mutation は所有者限定のまま変更しない。
     return this.templateModel
-      .find({ authorDiscordUserId })
+      .find({
+        $or: [
+          { authorDiscordUserId: requesterDiscordUserId },
+          { authorDiscordUserId: SYSTEM_TEMPLATE_AUTHOR, status: 'published' }
+        ]
+      })
       .select(SUMMARY_TEMPLATE_SELECT)
       .sort({ updatedAt: -1 })
       .lean()

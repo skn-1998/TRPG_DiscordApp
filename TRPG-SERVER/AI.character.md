@@ -565,3 +565,17 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   details のみ表示は維持（details 末尾に評価値を含むため total を重複表示しない —
   両 UI 同一根拠へ収束）。RollOnCreateResult ↔ wire は contract spec の IsExact＋
   キー集合双方向差分で束縛（pure optional 追加も検出）
+
+## テンプレート配布特例（DL・2026-08-15）
+
+- 認可モデル: visibility は publish 前提条件のままで、**配布は owner `'system'` の特例**
+  （`SYSTEM_TEMPLATE_AUTHOR` = character-sheet-template.constants.ts）。
+- 読み取り特例は 3 点のみ: 一覧 `findListedSummariesForRequester`（$or = 自分の全件＋
+  system published）・`resolveForCreate`・`resolvePinnedRevision`（`assertRevisionReadableBy`
+  = owner or system）。**findOne（エディタ読み取り）と全 mutation は `assertOwner` を維持** —
+  system 所有への update/remove は分岐別（metadata patch / draft remove / deprecated remove）
+  に 403 pin があり、緩和は spec が赤になる（service.spec）。
+- front（TemplateListV3）: system カードは「配布」Badge＋編集/削除非表示・作成導線は維持。
+- 配布実体 = legacy-coc seed（owner system / private / published・pinned）。投入は
+  `pnpm seed:legacy-coc-template --execute`（冪等・dry-run 既定）。利用者向け手順と
+  画面用語集は document/character-sheet-user-guide.md が正本。

@@ -7,6 +7,7 @@ import {
   NotFoundException
 } from '@nestjs/common'
 import { v4 as uuidv4 } from 'uuid'
+import { SYSTEM_TEMPLATE_AUTHOR } from './character-sheet-template.constants'
 import { CreateCharacterSheetTemplateDto } from './dto/create-character-sheet-template.dto'
 import { UpdateCharacterSheetTemplateDto } from './dto/update-character-sheet-template.dto'
 import {
@@ -58,8 +59,8 @@ export class CharacterSheetTemplateService {
     return this.repository.create(entity)
   }
 
-  async findSummaries(authorDiscordUserId: string): Promise<CharacterSheetTemplateSummary[]> {
-    return this.repository.findSummariesByAuthor(authorDiscordUserId)
+  async findSummaries(requesterDiscordUserId: string): Promise<CharacterSheetTemplateSummary[]> {
+    return this.repository.findListedSummariesForRequester(requesterDiscordUserId)
   }
 
   async findOne(templateId: string, requesterDiscordUserId: string): Promise<CharacterSheetTemplateEntity> {
@@ -71,12 +72,12 @@ export class CharacterSheetTemplateService {
   async resolveForCreate(
     templateId: string,
     version: string,
-    ownerDiscordUserId: string
+    requesterDiscordUserId: string
   ): Promise<CharacterSheetTemplateEntity> {
-    return this.resolveOwnedRevision(
+    return this.resolveReadableRevision(
       templateId,
       version,
-      ownerDiscordUserId,
+      requesterDiscordUserId,
       ['published'],
       'sheet template for create must be published at the requested version'
     )
@@ -85,12 +86,12 @@ export class CharacterSheetTemplateService {
   async resolvePinnedRevision(
     templateId: string,
     version: string,
-    ownerDiscordUserId: string
+    requesterDiscordUserId: string
   ): Promise<CharacterSheetTemplateEntity> {
-    return this.resolveOwnedRevision(
+    return this.resolveReadableRevision(
       templateId,
       version,
-      ownerDiscordUserId,
+      requesterDiscordUserId,
       ['published', 'deprecated'],
       'pinned sheet template revision must be published or deprecated at the requested version'
     )
@@ -193,15 +194,15 @@ export class CharacterSheetTemplateService {
     return template
   }
 
-  private async resolveOwnedRevision(
+  private async resolveReadableRevision(
     templateId: string,
     version: string,
-    ownerDiscordUserId: string,
+    requesterDiscordUserId: string,
     allowedStatuses: readonly CharacterSheetTemplateEntity['status'][],
     conflictMessage: string
   ): Promise<CharacterSheetTemplateEntity> {
     const template = await this.findExisting(templateId)
-    this.assertOwner(template, ownerDiscordUserId)
+    this.assertRevisionReadableBy(template, requesterDiscordUserId)
 
     // Phase 2 は templateId ごとに単一バージョンのみを保持する。
     // 複数バージョン共存は Phase 4 の repository/schema 変更で扱う。
@@ -210,6 +211,16 @@ export class CharacterSheetTemplateService {
     }
 
     return template
+  }
+
+  private assertRevisionReadableBy(template: CharacterSheetTemplateEntity, requesterDiscordUserId: string): void {
+    // system 所有テンプレートの配布特例は版解決の読み取り限定。mutation は所有者限定のまま変更しない。
+    if (
+      template.authorDiscordUserId !== requesterDiscordUserId &&
+      template.authorDiscordUserId !== SYSTEM_TEMPLATE_AUTHOR
+    ) {
+      throw new ForbiddenException('sheet template owner mismatch')
+    }
   }
 
   private assertOwner(template: CharacterSheetTemplateEntity, requesterDiscordUserId: string): void {

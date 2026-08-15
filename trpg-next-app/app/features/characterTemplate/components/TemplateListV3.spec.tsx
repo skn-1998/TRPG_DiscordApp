@@ -11,6 +11,7 @@ import { MantineProvider } from '@mantine/core'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { createCharacter, createTemplate } from '../actions'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
 import { TemplateListV3 } from './TemplateListV3'
 
@@ -34,6 +35,14 @@ const anotherPublishedSummary: CharacterSheetTemplateSummary = {
   templateId: 'template-2',
   name: '別テンプレート',
   version: '2.0.0'
+}
+
+const systemPublishedSummary: CharacterSheetTemplateSummary = {
+  ...publishedSummary,
+  templateId: 'system-template-1',
+  name: '配布テンプレート',
+  visibility: 'public',
+  authorDiscordUserId: SYSTEM_TEMPLATE_AUTHOR
 }
 
 // details に含まれない負の対照値で、total の誤表示を部分一致でも検出する。
@@ -83,6 +92,49 @@ async function submitCharacterCreation(): Promise<void> {
 afterEach(cleanup)
 
 describe('TemplateListV3', () => {
+  it('system 所有の published カードは配布 Badge と作成操作だけを表示する', () => {
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[systemPublishedSummary]} />
+      </MantineProvider>
+    )
+
+    expect(screen.getByText('配布')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'このテンプレートで作成' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: '編集' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '削除' })).toBeNull()
+  })
+
+  it('自分所有のカードは編集・削除操作を表示し、配布 Badge を表示しない', () => {
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[publishedSummary]} />
+      </MantineProvider>
+    )
+
+    expect(screen.getByRole('link', { name: '編集' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '削除' })).toBeTruthy()
+    expect(screen.queryByText('配布')).toBeNull()
+  })
+
+  it('system 所有のカードから作成 Modal を開いてキャラクターを作成できる', async () => {
+    mockedCreateCharacter.mockResolvedValue({ error: null, rollOnCreateResults })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[systemPublishedSummary]} />
+      </MantineProvider>
+    )
+
+    await submitCharacterCreation()
+
+    expect(mockedCreateCharacter).toHaveBeenCalledWith({
+      templateId: systemPublishedSummary.templateId,
+      templateVersion: systemPublishedSummary.version,
+      characterName: '探索者'
+    })
+    expect(await screen.findByText('作成時の出目')).toBeTruthy()
+  })
+
   it('server error prop なしでも list action のエラーを表示する', async () => {
     mockedCreateTemplate.mockResolvedValue({ error: GENERIC_NETWORK_ERROR_MESSAGE })
     render(

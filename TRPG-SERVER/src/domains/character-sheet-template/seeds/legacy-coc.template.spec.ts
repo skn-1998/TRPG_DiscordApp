@@ -1,7 +1,13 @@
 import { evaluateTemplate, validatePublishTemplate } from '@trpg/sheet-engine'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../character-sheet-template.constants'
 import { LEGACY_COC_TEMPLATE } from './legacy-coc.template'
 
 describe('LEGACY_COC_TEMPLATE', () => {
+  it('uses the domain-pinned system template author', () => {
+    expect(SYSTEM_TEMPLATE_AUTHOR).toBe('system')
+    expect(LEGACY_COC_TEMPLATE.authorDiscordUserId).toBe(SYSTEM_TEMPLATE_AUTHOR)
+  })
+
   it('passes sheet-engine publish validation', () => {
     const result = validatePublishTemplate(LEGACY_COC_TEMPLATE)
 

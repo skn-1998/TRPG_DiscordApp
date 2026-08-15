@@ -4,7 +4,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { CharacterSheetTemplateService } from './character-sheet-template.service'
 import { CharacterSheetTemplateRepository } from './repositories/character-sheet-template.repository'
 import { TEMPLATE_VALIDATION_PORT, TemplateValidationPort } from './validation/template-validation.port'
-import { CharacterSheetTemplateEntity } from './models/character-sheet-template.entity'
+import {
+  CharacterSheetTemplateEntity,
+  CharacterSheetTemplateSummary,
+  SheetTemplateStatus,
+  SheetTemplateVisibility
+} from './models/character-sheet-template.entity'
 
 jest.mock('uuid', () => ({ v4: jest.fn() }))
 
@@ -33,11 +38,28 @@ describe('CharacterSheetTemplateService', () => {
     draftRevision: 1
   }
 
+  const summary = (
+    templateId: string,
+    authorDiscordUserId: string,
+    status: SheetTemplateStatus,
+    visibility: SheetTemplateVisibility
+  ): CharacterSheetTemplateSummary => ({
+    templateId,
+    status,
+    version: '1.0.0',
+    schemaVersion: 3,
+    name: templateId,
+    tags: [],
+    visibility,
+    authorDiscordUserId,
+    draftRevision: 1
+  })
+
   beforeEach(async () => {
     const repositoryMock = {
       create: jest.fn(),
       findById: jest.fn(),
-      findSummariesByAuthor: jest.fn(),
+      findListedSummariesForRequester: jest.fn(),
       updateDraft: jest.fn(),
       patchMetadata: jest.fn(),
       publish: jest.fn(),
@@ -97,18 +119,33 @@ describe('CharacterSheetTemplateService', () => {
     expect(result.authorDiscordUserId).toBe('user-1')
   })
 
-  it('一覧は自分のサマリー取得に委譲する', async () => {
-    const summaries = [{ templateId: 'template-1', name: 'Template' }] as any
-    repository.findSummariesByAuthor.mockResolvedValue(summaries)
+  it('一覧は自分の全テンプレートと system published のサマリー取得に委譲する', async () => {
+    const summaries = [
+      summary('own-private', 'user-1', 'draft', 'private'),
+      summary('system-published', 'system', 'published', 'private')
+    ]
+    repository.findListedSummariesForRequester.mockResolvedValue(summaries)
 
-    await expect(service.findSummaries('user-1')).resolves.toBe(summaries)
-    expect(repository.findSummariesByAuthor).toHaveBeenCalledWith('user-1')
+    const result = await service.findSummaries('user-1')
+
+    expect(result).toBe(summaries)
+    expect(repository.findListedSummariesForRequester).toHaveBeenCalledWith('user-1')
   })
 
   it('単体取得は所有者のみ許可する', async () => {
     repository.findById.mockResolvedValue(template)
 
     await expect(service.findOne('template-1', 'other-user')).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('findOne は system published でも非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status: 'published',
+      authorDiscordUserId: 'system'
+    })
+
+    await expect(service.findOne('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
   })
 
   it('存在しないテンプレートは 404', async () => {
@@ -129,6 +166,18 @@ describe('CharacterSheetTemplateService', () => {
     expect(repository.findById).toHaveBeenCalledWith('template-1')
   })
 
+  it.each([
+    ['resolveForCreate', 'published'],
+    ['resolvePinnedRevision', 'published'],
+    ['resolvePinnedRevision', 'deprecated']
+  ] as const)('%s は system 所有の status=%s / version 一致を非所有者にも許可する', async (method, status) => {
+    const resolved = { ...template, status, version: '1.0.0', authorDiscordUserId: 'system' }
+    repository.findById.mockResolvedValue(resolved)
+
+    await expect(service[method]('template-1', '1.0.0', 'user-1')).resolves.toBe(resolved)
+    expect(repository.findById).toHaveBeenCalledWith('template-1')
+  })
+
   it.each(['resolveForCreate', 'resolvePinnedRevision'] as const)(
     '%s は存在しないテンプレートを 404 にする',
     async (method) => {
@@ -138,11 +187,14 @@ describe('CharacterSheetTemplateService', () => {
     }
   )
 
-  it.each(['resolveForCreate', 'resolvePinnedRevision'] as const)('%s は所有者不一致を 403 にする', async (method) => {
-    repository.findById.mockResolvedValue({ ...template, status: 'published', version: '1.0.0' })
+  it.each(['resolveForCreate', 'resolvePinnedRevision'] as const)(
+    '%s は第三者所有テンプレートを従来どおり 403 にする',
+    async (method) => {
+      repository.findById.mockResolvedValue({ ...template, status: 'published', version: '1.0.0' })
 
-    await expect(service[method]('template-1', '1.0.0', 'other-user')).rejects.toBeInstanceOf(ForbiddenException)
-  })
+      await expect(service[method]('template-1', '1.0.0', 'other-user')).rejects.toBeInstanceOf(ForbiddenException)
+    }
+  )
 
   it.each([
     ['resolveForCreate', 'draft', '1.0.0', 'sheet template for create must be published at the requested version'],
@@ -171,6 +223,21 @@ describe('CharacterSheetTemplateService', () => {
     }
   )
 
+  it.each([
+    ['resolveForCreate', 'draft'],
+    ['resolveForCreate', 'deprecated'],
+    ['resolvePinnedRevision', 'draft']
+  ] as const)('%s は system 所有でも status=%s を 409 にする', async (method, status) => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status,
+      version: '1.0.0',
+      authorDiscordUserId: 'system'
+    })
+
+    await expect(service[method]('template-1', '1.0.0', 'user-1')).rejects.toBeInstanceOf(ConflictException)
+  })
+
   it('draft autosave は draftRevision 不一致を 409 にする', async () => {
     repository.findById.mockResolvedValue(template)
 
@@ -179,6 +246,27 @@ describe('CharacterSheetTemplateService', () => {
     )
     expect(repository.updateDraft).not.toHaveBeenCalled()
   })
+
+  it('system 所有 draft の更新は非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({ ...template, authorDiscordUserId: 'system' })
+
+    await expect(service.update('template-1', { draftRevision: 1, name: 'Updated' }, 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException
+    )
+    expect(repository.updateDraft).not.toHaveBeenCalled()
+  })
+
+  it.each(['published', 'deprecated'] as const)(
+    'system 所有 %s の metadata patch は非所有者を 403 にする',
+    async (status) => {
+      repository.findById.mockResolvedValue({ ...template, status, authorDiscordUserId: 'system' })
+
+      await expect(service.update('template-1', { name: 'Patched', tags: ['coc'] }, 'user-1')).rejects.toBeInstanceOf(
+        ForbiddenException
+      )
+      expect(repository.patchMetadata).not.toHaveBeenCalled()
+    }
+  )
 
   it('draft autosave は構造を検証して draftRevision をインクリメントする repository に委譲する', async () => {
     const updated = { ...template, name: 'Updated', draftRevision: 2 }
@@ -230,6 +318,14 @@ describe('CharacterSheetTemplateService', () => {
     expect(result).toBe(published)
   })
 
+  it('system 所有 draft の publish は非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({ ...template, authorDiscordUserId: 'system', visibility: 'public' })
+
+    await expect(service.publish('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
+    expect(validationPort.validateForPublish).not.toHaveBeenCalled()
+    expect(repository.publish).not.toHaveBeenCalled()
+  })
+
   it('publish は validateForPublish 後に draftRevision 競合が起きたら 409', async () => {
     repository.findById.mockResolvedValue({ ...template, visibility: 'public' })
     repository.publish.mockResolvedValue(null)
@@ -252,6 +348,37 @@ describe('CharacterSheetTemplateService', () => {
       deleted: true
     })
     expect(repository.removeDraft).toHaveBeenCalledWith('template-1', 'user-1')
+  })
+
+  it('system 所有 draft の物理削除は非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({ ...template, authorDiscordUserId: 'system' })
+
+    await expect(service.remove('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
+    expect(repository.removeDraft).not.toHaveBeenCalled()
+  })
+
+  it('system 所有 published の delete は非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status: 'published',
+      authorDiscordUserId: 'system'
+    })
+
+    await expect(service.remove('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
+    expect(repository.removeDraft).not.toHaveBeenCalled()
+    expect(repository.deprecatePublished).not.toHaveBeenCalled()
+  })
+
+  it('system 所有 deprecated の remove は非所有者を 403 にする', async () => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status: 'deprecated',
+      authorDiscordUserId: 'system'
+    })
+
+    await expect(service.remove('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
+    expect(repository.removeDraft).not.toHaveBeenCalled()
+    expect(repository.deprecatePublished).not.toHaveBeenCalled()
   })
 
   it('published delete は deprecated へ遷移する', async () => {

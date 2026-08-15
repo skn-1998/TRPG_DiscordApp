@@ -79,14 +79,20 @@ describe('CharacterSheetTemplateRepository', () => {
     expect(result).toBe(template)
   })
 
-  it('findSummariesByAuthor は sections/tables を含まない projection で一覧取得する', async () => {
+  it('findListedSummariesForRequester は自分の全テンプレートと system published だけを一覧取得する', async () => {
     const summaries = [{ templateId: 'template-1', name: 'Template' }]
     const query = createQuery(summaries)
     model.find.mockReturnValue(query)
 
-    const result = await repository.findSummariesByAuthor('user-1')
+    const result = await repository.findListedSummariesForRequester('user-1')
 
-    expect(model.find).toHaveBeenCalledWith({ authorDiscordUserId: 'user-1' })
+    const listFilter = model.find.mock.calls[0][0]
+    expect(listFilter).toStrictEqual({
+      $or: [{ authorDiscordUserId: 'user-1' }, { authorDiscordUserId: 'system', status: 'published' }]
+    })
+    expect(listFilter.$or).not.toContainEqual(expect.objectContaining({ authorDiscordUserId: 'other-user' }))
+    expect(listFilter.$or).not.toContainEqual({ authorDiscordUserId: 'system', status: 'draft' })
+    expect(listFilter.$or).not.toContainEqual({ authorDiscordUserId: 'system', status: 'deprecated' })
     expect(query.select).toHaveBeenCalledWith(
       'templateId status version schemaVersion name gameSystemId tags visibility authorDiscordUserId forkedFrom license draftRevision publishedAt createdAt updatedAt -_id'
     )

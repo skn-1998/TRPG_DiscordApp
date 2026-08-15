@@ -3208,6 +3208,34 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   rollable role 編集 UI / scalar+partsKeys への resource 適用 /
   materializer 複製統合（チップ完了後）/ `messages.join(' / ')` 9 複製の統合スライス。
 
+## 【DL レーン 2026-08-15】旧 CoC テンプレート配布＋使い方ガイド（Task #35）
+
+- **発端（ユーザー要望 2026-08-15）**: 「全く使い方がわからない」＋「旧 CoC で誰でも
+  キャラクター作成できるようテンプレートとして配布したい」。
+- **裁定（ユーザー・AskUserQuestion）= system 特例方式**。visibility ベース共有・isSystem
+  フラグ新設は却下。owner `'system'` の published テンプレートだけを読み取り特例で開放する。
+- **使い方ガイド = document/character-sheet-user-guide.md（新設・Fable 直筆 = 司令塔成果物）**:
+  ログイン→ /templates 直打ち→エディタ→publish（public 必須）→キャラ作成→シート編集→
+  Discord /create-character-thread の全導線＋**画面の全用語の用語集（英語ラベルは日本語読みつき
+  — ユーザー指示「翻訳すら億劫だから書け」）**。配布実装後の制限節・配布バッジ・seeder 手順も反映済み。
+- **DL-1 server 完了（core＋FIX・未コミット→本コミットで確定）**: SYSTEM_TEMPLATE_AUTHOR 定数・
+  一覧 `$or`（自分の全件＋system published）・resolveForCreate / resolvePinnedRevision のみ
+  `assertRevisionReadableBy`（owner or system）。findOne・全 mutation は assertOwner 維持。
+  Codex 認可監査 = blocking 0（迂回経路なし・identity は JWT＋保存済み所有者のみ）。
+  FIX = 分岐別 403 pin 補完（metadata patch / draft remove / deprecated remove＋repository
+  未呼出検証）・自明負 assert 除去。検収 = 51 tests 緑（Fable 再実行）・変異 MO1〜MO4＋
+  MQ1/MQ2（update/remove の system 免除緩和）**6/6 赤**・eslint・diff --check。
+- **DL-2 front 完了**: 「配布」Badge＋system カードの編集/削除非表示（作成導線は維持）。
+  8 tests 緑・変異 MP1a/MP1b/MP2/MP3 **4/4 赤**。
+- 証跡 = review-results/impl-u14/dl-acceptance.md（＋dl1-review / dl1-fix / dl2-code）。
+  台帳 L-13b = 裁定・実装済みへ更新。
+- **残**: seeder 実走はユーザーの運営作業
+  （`cd TRPG-SERVER && pnpm seed:legacy-coc-template --execute`・dry-run 既定・冪等）。
+  実機確認は D-3 実機受入に含める。
+- **次 = DL-3（Task #36・ユーザー承認済み「これは実施する 基本日本語で記載する」）**:
+  エディタ文言の日本語化（表示テキストのみ・構造変更なし・spec のラベル参照追随が主コスト・
+  ガイド用語集と訳語を揃える）。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）
