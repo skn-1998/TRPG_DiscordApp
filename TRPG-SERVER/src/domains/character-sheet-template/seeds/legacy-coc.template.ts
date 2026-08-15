@@ -45,7 +45,8 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
   name: 'Legacy Call of Cthulhu',
   version: '1.0.0',
   schemaVersion: 3,
-  gameSystemId: 'coc',
+  // BCDice StaticLoader requires an existing system ID; an unknown ID makes creation-time rolls fail.
+  gameSystemId: 'Cthulhu',
   tags: ['legacy', 'coc'],
   visibility: 'private',
   authorDiscordUserId: 'system',

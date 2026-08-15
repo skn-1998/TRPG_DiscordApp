@@ -1,4 +1,5 @@
 import { evaluateTemplate, validatePublishTemplate } from '@trpg/sheet-engine'
+import StaticLoader from 'bcdice/lib/loader/static_loader'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../character-sheet-template.constants'
 import { LEGACY_COC_TEMPLATE } from './legacy-coc.template'
 
@@ -13,6 +14,10 @@ describe('LEGACY_COC_TEMPLATE', () => {
 
     expect(result.issues).toEqual([])
     expect(result.ok).toBe(true)
+  })
+
+  it('uses a game system ID that BCDice StaticLoader can load', async () => {
+    await expect(new StaticLoader().dynamicLoad(LEGACY_COC_TEMPLATE.gameSystemId!)).resolves.toBeDefined()
   })
 
   it('evaluates HP, MP, and DB for sample legacy CoC values', () => {

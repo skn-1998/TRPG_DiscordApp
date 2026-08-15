@@ -101,7 +101,7 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     const executedNotations = diceExecutionService.executeEvaluatedDiceRoll.mock.calls.map((call) => call[0])
     expect(executedNotations.sort()).toEqual(EXPECTED_CREATION_ROLLS.map((roll) => roll.notation).sort())
     for (const call of diceExecutionService.executeEvaluatedDiceRoll.mock.calls) {
-      expect(call[1]).toBe('coc')
+      expect(call[1]).toBe('Cthulhu')
     }
   })
 

@@ -163,7 +163,7 @@ describe('seed-legacy-coc-template', () => {
       version: '1.0.0',
       schemaVersion: 3,
       name: LEGACY_COC_TEMPLATE.name,
-      gameSystemId: 'coc',
+      gameSystemId: 'Cthulhu',
       tags: LEGACY_COC_TEMPLATE.tags,
       visibility: 'private',
       authorDiscordUserId: 'system',

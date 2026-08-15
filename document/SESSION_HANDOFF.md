@@ -3236,6 +3236,26 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   エディタ文言の日本語化（表示テキストのみ・構造変更なし・spec のラベル参照追随が主コスト・
   ガイド用語集と訳語を揃える）。
 
+## 【DLX 2026-08-15】実機投入で出た不具合 2 件の恒久修正（Task #37）
+
+- **経緯**: ユーザーの seeder 実走で (1) ts-node が ambient 型（src/types/express）を読まず
+  TS2339 でコンパイル失敗 →（2）`--files` で通した後、キャラ作成の作成時ロールが
+  「GameSystem is not found」で 500。根因 = seed の `gameSystemId: 'coc'` が BCDice に
+  実在しない ID（旧 CoC 6 版の正式 ID は `Cthulhu`）。
+- **修正（Codex 委譲・検収済み）**: seed を 'Cthulhu' へ＋Why コメント・
+  **「seed の gameSystemId を StaticLoader で実ロードできる」spec を新設**（seed 値を動的参照 —
+  pin 追随に依存せず任意の実在しない ID を赤にする。変異 MR1 'coc'/MR2 任意 ID = 2/2 赤・
+  byte 一致復元）・payload/作成時ロール pin の 'Cthulhu' 追随・package.json の
+  seed/backfill 2 スクリプトへ `--files` 恒久化。検収 = 3 suites/20 tests 緑（Fable 再実行・
+  Codex は domain 一括 6 suites/87 緑）・eslint・diff --check。
+- **運用ノート**: pnpm workspace は `verifyDepsBeforeRun: error` のため package.json 編集後は
+  一度 `pnpm install`（状態更新のみ・lockfile 無変更）が要る（実施済み）。
+  **ユーザーの実機 DB は投入済み行が 'coc' のまま**（seeder は skip-existing で上書きしない）—
+  mongosh / Atlas GUI での `$set: { gameSystemId: 'Cthulhu' }` を案内済み・実施結果は未報告。
+- **台帳 L-13c 新設**: publish 検証は gameSystemId 実在性を検査しない（エディタ製テンプレートは
+  今も同じ事故を踏める・ユーザー裁定枠）＋試しロール = DiceBot / 作成時 = テンプレート方言の
+  非対称（既知乖離・未修正）。ガイドの誤例 `coc` → `Cthulhu` 修正済み。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

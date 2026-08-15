@@ -16,7 +16,8 @@
 3. エディタ上部のメタ入力を埋める:
    - **テンプレート名**・**version**
    - **公開範囲**（private / unlisted / public）— 後述のとおり **publish には public が必須**
-   - **gameSystemId**（例: `coc`。ダイス記法の方言が変わる）・tags・rounding
+   - **gameSystemId**（BCDice の正式 ID。例: `Cthulhu` = クトゥルフ 6 版。
+     実在しない ID だと作成時ロールが失敗する）・tags・rounding
 4. セクションとフィールドを組む。フィールドの型:
    - **scalar**: 数値・文字列の単一値
    - **track**: HP/MP/SAN のような現在値/最大値（max・min・style = gauge か checkboxes）
@@ -130,7 +131,7 @@
 |---|---|
 | テンプレート名 | テンプレートの表示名。 |
 | 公開範囲 | private（非公開）/ unlisted（リンク限定）/ public（公開）。**現時点では publish の前提条件としてだけ機能する**（public でないと publish できない。自分のテンプレートが他人に見える効果はまだ無い。全員に見えるのは運営配布のみ）。 |
-| gameSystemId（ゲームシステム ID） | ダイスロールに使う BCDice のシステム名（例: `coc` = クトゥルフ神話 TRPG）。ダイス記法の方言がこれで決まる。 |
+| gameSystemId（ゲームシステム ID） | ダイスロールに使う BCDice の正式なシステム ID（例: `Cthulhu` = クトゥルフ 6 版・`Cthulhu7th` = 7 版）。ダイス記法の方言がこれで決まる。実在しない ID を入れると作成時ロールが失敗する。 |
 | tags（タグ） | 検索・整理用の目印。動作には影響しない。 |
 | rounding（ラウンディング＝端数処理） | 式の計算結果の端数の扱い。floor = 切り捨て / ceil = 切り上げ / round = 四捨五入。 |
 
