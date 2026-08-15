@@ -512,7 +512,9 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - palette 上限 512 は api-contract 内で1本化・server materializer とは同値要求コメントで連結
   （パッケージ跨ぎの定数統合はしない）。TABLE_ROW_LIMIT=512・SOFT_CAP=128 との一致は
   偶然 — 統合禁止
-- front の ID 規則複製（ID_PATTERN/RESERVED_IDS 14語×2セット）は統合タスク起票済み。
+- front の ID 規則複製（ID_PATTERN/RESERVED_IDS 15 語×2 セット）は **2026-08-15 big24-f3 で解消**:
+  engine が `SHEET_ID_PATTERN` を export し、front は `SHEET_RESERVED_ID_VALUES` と併せて
+  直接参照（等価テスト削除・規則定義 4→2。旧記録の「14語」は実カウント 15 語の誤記）。
   front validateLocalTemplate が attrs/itemFields へ再帰しない非対称は別議題として記録
 
 ## palette 契約の drift 検出（OV10-a/#47・2026-08-02・コミット 561786f）

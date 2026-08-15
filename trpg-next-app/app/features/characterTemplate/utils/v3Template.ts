@@ -1,4 +1,4 @@
-import { normalizeTemplateLayout } from '@trpg/sheet-engine'
+import { normalizeTemplateLayout, SHEET_ID_PATTERN, SHEET_RESERVED_ID_VALUES } from '@trpg/sheet-engine'
 import type { Template } from '../types/v2'
 import type {
   CharacterSheetTemplateEntity,
@@ -9,27 +9,9 @@ import type {
   V3EditorFieldType
 } from '../types/v3'
 
-// `@trpg/sheet-engine` は ID pattern を export せず、SHEET_RESERVED_ID_VALUES のみ公開するため同じ規則を複製している。
-// 型定義は `../types/v2`・`../types/v3` に分割済みで、pattern の drift は `./v3Template.spec.ts` の等価テストが pin する。
-const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]{0,31}$/
-const SECTION_ID_PATTERN = FIELD_ID_PATTERN
-export const RESERVED_IDS: ReadonlySet<string> = new Set([
-  'row',
-  'values',
-  'parts',
-  'constructor',
-  'base',
-  'other',
-  'floor',
-  'ceil',
-  'round',
-  'max',
-  'min',
-  'lookup',
-  'if',
-  'sum',
-  'count'
-])
+// ID 規則の正本は engine（SHEET_ID_PATTERN / SHEET_RESERVED_ID_VALUES）に置き、保存前のローカル UX 検証も同じ規則を参照する。
+// ここでは top-level の section/field id だけを検査し、list.itemFields / relation.attrs のネスト id は engine の publish 検証に委ねる。
+const RESERVED_IDS: ReadonlySet<string> = new Set(SHEET_RESERVED_ID_VALUES)
 
 export function createStableUid(existingUids: Set<string>, prefix = 'uid'): string {
   const randomPart = () => {
@@ -194,14 +176,16 @@ export function validateLocalTemplate(template: CharacterSheetTemplateEntity): s
   const errors: string[] = []
 
   if (!template.name.trim()) errors.push('テンプレート名が必須です')
+  // `SHEET_ID_PATTERN.source` は `^...$` 付きでアンカー無しの表示用写しと一致しないため、literal を `${SHEET_ID_PATTERN.source}` の補間へ置換できない。
+  // pattern 変更時は section/field の 2 literal と `v3Template.spec.ts` の期待文字列 pin を手動で追随させる。
   for (const section of template.sections) {
-    if (!SECTION_ID_PATTERN.test(section.id) || RESERVED_IDS.has(section.id)) {
+    if (!SHEET_ID_PATTERN.test(section.id) || RESERVED_IDS.has(section.id)) {
       errors.push(`section id must match [a-z][a-z0-9_]{0,31}: ${section.id}`)
     }
 
     const ids = new Set<string>()
     for (const field of section.fields) {
-      if (!FIELD_ID_PATTERN.test(field.id) || RESERVED_IDS.has(field.id)) {
+      if (!SHEET_ID_PATTERN.test(field.id) || RESERVED_IDS.has(field.id)) {
         errors.push(`field id must match [a-z][a-z0-9_]{0,31}: ${field.id}`)
       }
       if (ids.has(field.id)) errors.push(`同一セクション内の field id が重複しています: ${section.id}.${field.id}`)

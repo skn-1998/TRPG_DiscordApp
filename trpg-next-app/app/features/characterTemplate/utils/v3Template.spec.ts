@@ -1,5 +1,5 @@
 // この import は engine のビルド済み dist を読む。現存の `pnpm test` は `ensure:workspace-dist` を前置するが、素の `pnpm exec jest` 直叩きは stale dist で偽の緑になり得る。
-import { SHEET_RESERVED_ID_VALUES, validatePublishTemplate } from '@trpg/sheet-engine'
+import { validatePublishTemplate } from '@trpg/sheet-engine'
 import type { Template } from '../types/v2'
 import type { CharacterSheetTemplateEntity, LookupTable, SheetSection, V3EditorFieldType } from '../types/v3'
 import {
@@ -14,7 +14,6 @@ import {
   migrateV2TemplateToCreateRequest,
   normalizeTemplateReferences,
   parseTags,
-  RESERVED_IDS,
   safeParseTables,
   slugifyId,
   stringifyTables,
@@ -391,58 +390,6 @@ describe('v3Template validation and JSON helpers', () => {
       '同一セクション内の field id が重複しています: 1bad.valid'
     ])
   })
-
-  const fixedTopLevelIdCases: Array<readonly [id: string, accepted: boolean]> = [
-    ['a', true],
-    [`a${'b'.repeat(31)}`, true],
-    ['', false],
-    [`a${'b'.repeat(32)}`, false],
-    ['aB', false],
-    ['1abc', false],
-    ['a-b', false],
-    ['Abc', false],
-    ['a1', true],
-    ['a_', true],
-    ['_a', false],
-    ['a.b', false]
-  ]
-  const topLevelIdCases = [
-    ...fixedTopLevelIdCases,
-    ...SHEET_RESERVED_ID_VALUES.map((id) => [id, false] as const)
-  ].flatMap(([id, accepted]) => [
-    { id, accepted, placement: 'section' as const },
-    { id, accepted, placement: 'field' as const }
-  ])
-
-  // 集合等価は予約語集合の差をすべて捕捉する。捕捉しないのは「同じ集合が同じように適用されるか」で、それは下の等価テスト（固定標本 ∪ engine 予約語 × section/field）が担う。
-  // front 未検査の list.itemFields / relation.attrs のネスト id と、受理真偽のみの比較で reject 理由を検証しない点は非目標。ネスト id は Task #50 で扱う。
-  it('front と sheet-engine の予約語集合が一致する', () => {
-    expect(RESERVED_IDS.has('constructor')).toBe(true)
-    expect([...RESERVED_IDS].sort()).toEqual([...SHEET_RESERVED_ID_VALUES].sort())
-  })
-
-  it.each(topLevelIdCases)(
-    'front と sheet-engine は top-level $placement id "$id" を同じ真偽で受理する',
-    ({ id, accepted, placement }) => {
-      const sectionId = placement === 'section' ? id : 'section'
-      const fieldId = placement === 'field' ? id : 'field'
-      const template = validTemplate({
-        sections: [
-          {
-            id: sectionId,
-            label: 'Section',
-            fields: [{ id: fieldId, uid: 'field_uid', label: 'Field', type: 'scalar', valueType: 'number' }]
-          }
-        ]
-      })
-
-      const frontAccepted = validateLocalTemplate(template).length === 0
-      const engineAccepted = validatePublishTemplate(toSheetTemplate(template)).ok
-
-      expect(frontAccepted).toBe(engineAccepted)
-      expect(frontAccepted).toBe(accepted)
-    }
-  )
 
   it('validateLocalTemplate は妥当な template では error を返さない', () => {
     expect(validateLocalTemplate(validTemplate())).toEqual([])

@@ -45,7 +45,9 @@ const SECTION_LAYOUT_PRESETS = new Set<unknown>(SHEET_SECTION_LAYOUT_PRESETS);
 const SECTION_GRID_COLUMNS = new Set<unknown>(SHEET_SECTION_GRID_COLUMNS);
 const FIELD_LAYOUT_SPANS = new Set<unknown>(SHEET_FIELD_LAYOUT_SPANS);
 
-const ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
+// engine の validateId が発行境界で使い、front は保存前検証で同じ ID 規則を単一正本として参照するため export する。
+// 値・フラグ変更は issue message `id must match ${SHEET_ID_PATTERN}` を変えて engine spec（src/__tests__/publish.spec.ts）の byte 一致 pin 7 箇所を赤にし、front（trpg-next-app/app/features/characterTemplate/utils/v3Template.ts）の表示用写し `[a-z][a-z0-9_]{0,31}` は自動追随しないため同時更新が必要。
+export const SHEET_ID_PATTERN = new RegExp(`^[a-z][a-z0-9_]{0,${MAX_ID_LENGTH - 1}}$`);
 const KNOWN_FUNCTIONS = new Set(['floor', 'ceil', 'round', 'max', 'min', 'lookup', 'if', 'sum', 'count']);
 // engine 内の runtime 参照は無いが削除不可。関数語彙の drift 等価テスト（src/__tests__/function-vocabulary.spec.ts）が唯一の consumer。
 export const SHEET_KNOWN_FUNCTION_VALUES: readonly string[] = Object.freeze([...KNOWN_FUNCTIONS]);
@@ -58,7 +60,7 @@ const RESERVED_IDS = new Set([
   ...RESERVED_PARTS_KEY_IDS,
   ...KNOWN_FUNCTIONS,
 ]);
-// engine 内の runtime 参照は無いが削除不可。front の ID 規則複製の drift 等価テスト（trpg-next-app/app/features/characterTemplate/utils/v3Template.spec.ts）が唯一の consumer。
+// engine 内の runtime 参照は無いが、front production（trpg-next-app/app/features/characterTemplate/utils/v3Template.ts）が保存前検証で同じ予約語集合を参照するため export する。
 export const SHEET_RESERVED_ID_VALUES: readonly string[] = Object.freeze([...RESERVED_IDS]);
 // 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
 // inferCallType は二重発行防止の停止マーカーを投げ、catch は前段発行済みの場合だけ握る（fail closed）。
@@ -1421,8 +1423,8 @@ function extractNotationTokens(notation: string): Array<{ path: string }> {
 }
 
 function validateId(path: string, id: string, issues: PublishIssue[]): void {
-  if (!ID_PATTERN.test(id)) {
-    issues.push({ path, message: `id must match ${ID_PATTERN}` });
+  if (!SHEET_ID_PATTERN.test(id)) {
+    issues.push({ path, message: `id must match ${SHEET_ID_PATTERN}` });
   }
   if (RESERVED_IDS.has(id)) {
     issues.push({ path, message: `id is reserved: ${truncateIssueInput(id)}` });

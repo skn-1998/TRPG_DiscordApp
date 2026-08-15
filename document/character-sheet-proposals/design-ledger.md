@@ -158,7 +158,7 @@
 | B-1 | palette 上限 512 の 2 宣言（api-contract `PALETTE_MAX_ENTRIES` ⇔ materializer `PALETTE_HARD_CAP`） | コメントのみ。値 drift は未固定 |
 | B-2 | **解消（2026-08-12・10-S4a round3）**: `DEFAULT_AST_NODE_LIMIT` と `DEFAULT_STEP_LIMIT` は evaluator.ts の単一宣言を publish が import する形へ一本化。さらに publish の options（astNodeLimit/evaluationStepLimit）は**既定値で上方 cap**（上方指定は publish 通過⇔runtime 完走の対応を壊すため。回帰 spec 固定済み） | 宣言の複製を復活させない。cap を外す場合は「予算を publish 成果物へ固定し全 runtime 境界へ同値伝播」の設計裁定が必要（大粒度 #5 high の条件） |
 | B-3 | `—`(U+2014) の 2 定義（palette-label ⇔ projection） | 結合コメント。片側変更で suffix 剥離が黙って壊れる |
-| B-4 | front の ID_PATTERN/RESERVED_IDS 複製 | 挙動等価テストは **top-level id のみ**（itemFields/attrs のネスト id は非目標・Task #50） |
+| B-4 | **解消（2026-08-15・big24-f3）**: front の ID_PATTERN/RESERVED_IDS 複製は engine `SHEET_ID_PATTERN` / `SHEET_RESERVED_ID_VALUES` の直接参照へ一本化し、等価テストを削除（production 定義 4→2・手動同期ペア 2→0） | **残存リスク**: top-level id の front⇔engine 外延一致を pin するテストは無い。`validateId` へ pattern/予約語**以外**の規則を足すときは front `validateLocalTemplate` を同時更新する。ネスト id（itemFields/attrs）は従来どおり publish 検証のみが担う（Task #50） |
 | B-5 | server DTO ⇄ api-contract interface の同形は「S5 で機械固定**予定**」のまま未実装。**同類の新顔（SM-D2a・2026-08-12）**: server MergeConflictPayload（operation.service.ts:114）⇔ 契約 sheetMergeConflictSchema の機械結合ゼロ＋内側 .strict() のため、server が conflicts 要素へフィールドを足すと**全緑のまま** front ダイアログが汎用文言へ退化（fail-back・データ破壊なし）。**inner 要素は B13-FIX（f188370）で型結合済み**: server の MergeConflictPayload = 契約 `SheetMergeConflictWire['conflicts'][number]` の再利用 — conflicts 要素への field 追加は契約更新なしに compile が止まる。**外側 envelope（characterId/currentRevision の生成 :652-657）は依然コード上の複製**で、実行 conformance は未固定のまま | コメントを「固定済み」と誤読しない |
 | B-8 | **characterId / discordUserId の update 不変は `convertUpdateDtoToCharacter`（`character.service.ts:61-77`）の allow-list の副作用のみ**。負のアサーション spec ゼロ | **最優先明記**。スプレッドへ「簡略化」すると全緑のまま書換可能になる |
 | B-9/B-10 | **欠番（round1 で REFUTED）**: `$literal` と `findByChannelId` の `.select()` はどちらも spec 固定済みと判明 → **§2-1 へ移動** | — |
@@ -241,8 +241,12 @@
   実測に合わせて数値を更新するのは禁止。増減が必要なら停止して報告する。
 - spec に lint --fix を当てない（no-duplicate-type-constituents の auto-fix が
   AssertBothNever を単方向化して契約を壊す）。
-- SHEET_KNOWN_FUNCTION_VALUES / SHEET_RESERVED_ID_VALUES は runtime 参照 0 だが削除禁止
-  （等価テストが唯一の consumer。static:deps の死蔵判定は裁定に使わない）。
+- SHEET_KNOWN_FUNCTION_VALUES は runtime 参照 0 だが削除禁止（関数語彙の drift 等価テスト
+  function-vocabulary.spec.ts が唯一の consumer。static:deps の死蔵判定は裁定に使わない）。
+- SHEET_RESERVED_ID_VALUES / SHEET_ID_PATTERN は front production
+  （trpg-next-app/app/features/characterTemplate/utils/v3Template.ts）が runtime 参照する正本。
+  削除・改名・値変更は front の保存前検証を壊す。ID 規則の等価テストは big24-f3（2026-08-15）で
+  削除済みなので、drift を spec が止めてくれると仮定しない。
 - convertUpdateDtoToCharacter の allow-list を簡略化しない（characterId/discordUserId 不変の唯一の防御）。
 - findByChannelId の .select() 列挙から語を落とさない（S-1 実バグ）。
 - publish の issue/warning message へユーザー入力を反響させるときは必ず truncateIssueInput() で
