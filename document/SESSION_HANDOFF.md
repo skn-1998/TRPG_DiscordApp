@@ -3275,6 +3275,25 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   Atlas で `charactersheettemplates` の `templateId: 'legacy-coc'` の行を**削除** →
   `pnpm seed:legacy-coc-template --execute` を再実行。作成済みキャラの pin は
   templateId＋version で再解決されるため壊れない。
+  **〔2026-08-15 ユーザー報告で解消〕入れ替え後「治った」と確認済み。**
+
+## 【DL-3 完了 2026-08-15】エディタ文言の日本語化（Task #36）
+
+- **実装 = Opus 委譲**（Codex writer ロックが DLX/DLY で占有のため）。TemplateEditorV3 本体＋
+  spec の 2 ファイルのみ。訳語辞書・除外境界は prompt-dl3-code.txt が正本。
+  新設はラベルマップ 3 本のみ（SECTION_LAYOUT_PRESET_LABELS / FIELD_LAYOUT_SPAN_LABELS /
+  SECTION_LOCATION_LABELS — .map 生成で label を value から作っていた箇所の value/label 分離用）。
+  i18n 機構なし・保存 payload 不変・Select/SegmentedControl の value 語彙は英語のまま。
+- **検収で変異 MV1（公開範囲の option value を '公開' へ破壊）が生存** → FIX 差し戻しで
+  保存語彙 pin 2 本を追加（公開範囲 → visibility 'public'・端数処理 → rounding 'floor'。
+  端数処理は初期値 round から floor へ選び直す形 — 初期値のままだと autosave が発火しない）。
+  FIX 後 MV1/MV3 とも赤・byte 一致復元。
+- ゲート = editor spec 96 tests・characterTemplate 一括 7 suites/259・**front 全 suite
+  33 suites/606 全緑（レーンクローズ実測）**・eslint・diff --check。
+- 未消化の既知残: 未選択 option（リンク限定/非公開/切り上げ/四捨五入）の value 破壊は
+  依然 spec 生存（選択経路の代表 pin のみ。全網羅 it.each は YAGNI 見送り・実カウント記録）。
+  ガイド §6 は「英語 = 内部名・検証メッセージ用語の対照」へ改訂済み。
+- **次 = DL-4（ユーザー要望 2026-08-15）: `/templates` への画面内導線**（現状 URL 直打ちのみ）。
 
 ## 参照
 

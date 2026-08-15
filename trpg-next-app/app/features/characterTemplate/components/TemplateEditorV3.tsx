@@ -85,7 +85,24 @@ type SectionLayoutPreset = (typeof SHEET_SECTION_LAYOUT_PRESETS)[number]
 type SectionGridColumns = (typeof SHEET_SECTION_GRID_COLUMNS)[number]
 type FieldLayoutSpan = (typeof SHEET_FIELD_LAYOUT_SPANS)[number]
 
-const SECTION_LAYOUT_PRESET_OPTIONS = SHEET_SECTION_LAYOUT_PRESETS.map((value) => ({ value, label: value }))
+// value は保存・publish 契約の語彙（sheet-engine 正本）なので不変。表示名だけを日本語にするため label を分ける。
+// 網羅 Record にすることで、sheet-engine 側で選択肢が増えたらコンパイルエラーとして気づける。
+const SECTION_LAYOUT_PRESET_LABELS: Record<SectionLayoutPreset, string> = {
+  stack: '縦一列',
+  grid: '格子状',
+  table: '表形式'
+}
+const FIELD_LAYOUT_SPAN_LABELS: Record<FieldLayoutSpan, string> = {
+  1: '1',
+  2: '2',
+  3: '3',
+  full: '全幅'
+}
+
+const SECTION_LAYOUT_PRESET_OPTIONS = SHEET_SECTION_LAYOUT_PRESETS.map((value) => ({
+  value,
+  label: SECTION_LAYOUT_PRESET_LABELS[value]
+}))
 const SECTION_GRID_COLUMNS_OPTIONS = SHEET_SECTION_GRID_COLUMNS.map((value) => ({
   value: String(value),
   label: String(value)
@@ -128,13 +145,13 @@ function ConstraintInput({ label, value, required = false, onChange }: Constrain
     <Group grow align="end">
       <Stack gap={4}>
         <Text size="sm" fw={500}>
-          {label} 入力方式
+          {label}の入力方式
         </Text>
         <SegmentedControl
-          aria-label={`${label} 入力方式`}
+          aria-label={`${label}の入力方式`}
           data={[
-            { value: 'number', label: 'number' },
-            { value: 'formula', label: 'formula' }
+            { value: 'number', label: '数値' },
+            { value: 'formula', label: '式' }
           ]}
           value={mode}
           onChange={(nextMode) => {
@@ -153,7 +170,7 @@ function ConstraintInput({ label, value, required = false, onChange }: Constrain
         />
       ) : (
         <TextInput
-          label={`${label} formula`}
+          label={`${label}の式`}
           value={typeof value === 'object' ? value.formula : ''}
           onChange={(event) => onChange({ formula: event.currentTarget.value })}
         />
@@ -193,24 +210,24 @@ function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
 
   return (
     <Stack gap="xs">
-      <Text fw={500}>blocks</Text>
+      <Text fw={500}>ブロック</Text>
       {value.map((block, index) => (
         <Paper key={index} withBorder p="sm" radius="sm">
           <Stack gap="xs">
             <Group grow align="end">
               <TextInput
-                label={`blocks ${index + 1} id`}
+                label={`ブロック ${index + 1} の id`}
                 value={block.id}
                 onChange={(event) => updateBlock(index, { id: event.currentTarget.value })}
               />
               <TextInput
-                label={`blocks ${index + 1} label`}
+                label={`ブロック ${index + 1} の表示名`}
                 value={block.label}
                 onChange={(event) => updateBlock(index, { label: event.currentTarget.value })}
               />
               <Group gap={4} grow={false} wrap="nowrap">
                 <Button
-                  aria-label={`blocks ${index + 1} を上へ`}
+                  aria-label={`ブロック ${index + 1} を上へ`}
                   variant="subtle"
                   disabled={index === 0}
                   onClick={() => moveBlock(index, -1)}
@@ -218,7 +235,7 @@ function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
                   ↑
                 </Button>
                 <Button
-                  aria-label={`blocks ${index + 1} を下へ`}
+                  aria-label={`ブロック ${index + 1} を下へ`}
                   variant="subtle"
                   disabled={index === value.length - 1}
                   onClick={() => moveBlock(index, 1)}
@@ -226,7 +243,7 @@ function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
                   ↓
                 </Button>
                 <Button
-                  aria-label={`blocks ${index + 1} を削除`}
+                  aria-label={`ブロック ${index + 1} を削除`}
                   color="red"
                   variant="subtle"
                   onClick={() => removeBlock(index)}
@@ -236,7 +253,7 @@ function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
               </Group>
             </Group>
             <ConstraintInput
-              label={`blocks ${index + 1} cap`}
+              label={`ブロック ${index + 1} の上限予算`}
               value={block.cap}
               onChange={(cap) => updateBlock(index, { cap })}
             />
@@ -249,7 +266,7 @@ function SectionBlocksInput({ value = [], onChange }: SectionBlocksInputProps) {
         leftSection={<IconPlus size={16} />}
         onClick={() => onChange([...value, { id: '', label: '' }])}
       >
-        block 追加
+        ブロック追加
       </Button>
     </Stack>
   )
@@ -280,23 +297,23 @@ function SectionPoolsInput({ section, onChange }: SectionPoolsInputProps) {
 
   return (
     <Stack gap="xs">
-      <Text fw={500}>pools</Text>
+      <Text fw={500}>プール</Text>
       {value.map((pool, index) => (
         <Paper key={index} withBorder p="sm" radius="sm">
           <Stack gap="xs">
             <Group grow align="end">
               <TextInput
-                label={`pools ${index + 1} id`}
+                label={`プール ${index + 1} の id`}
                 value={pool.id}
                 onChange={(event) => updatePool(index, { id: event.currentTarget.value })}
               />
               <TextInput
-                label={`pools ${index + 1} label`}
+                label={`プール ${index + 1} の表示名`}
                 value={pool.label}
                 onChange={(event) => updatePool(index, { label: event.currentTarget.value })}
               />
               <Button
-                aria-label={`pools ${index + 1} を削除`}
+                aria-label={`プール ${index + 1} を削除`}
                 color="red"
                 variant="subtle"
                 onClick={() => removePool(index)}
@@ -305,20 +322,20 @@ function SectionPoolsInput({ section, onChange }: SectionPoolsInputProps) {
               </Button>
             </Group>
             <ConstraintInput
-              label={`pools ${index + 1} total`}
+              label={`プール ${index + 1} の予算`}
               value={pool.total}
               required
               onChange={(total) => updatePool(index, { total })}
             />
             <Group grow align="end">
               <Autocomplete
-                label={`pools ${index + 1} partsKey`}
+                label={`プール ${index + 1} のパーツキー`}
                 data={partsKeyOptions}
                 value={pool.partsKey}
                 onChange={(partsKey) => updatePool(index, { partsKey })}
               />
               <MultiSelect
-                label={`pools ${index + 1} scope`}
+                label={`プール ${index + 1} のスコープ`}
                 data={blockOptions}
                 value={pool.scope ?? []}
                 onChange={(scope) => updatePool(index, { scope: scope.length > 0 ? scope : undefined })}
@@ -326,12 +343,12 @@ function SectionPoolsInput({ section, onChange }: SectionPoolsInputProps) {
             </Group>
             {pool.scope && pool.scope.length > 0 && (
               <Button
-                aria-label={`pools ${index + 1} scope clear`}
+                aria-label={`プール ${index + 1} のスコープをクリア`}
                 size="xs"
                 variant="subtle"
                 onClick={() => updatePool(index, { scope: undefined })}
               >
-                scope を全解除
+                スコープを全解除
               </Button>
             )}
           </Stack>
@@ -343,7 +360,7 @@ function SectionPoolsInput({ section, onChange }: SectionPoolsInputProps) {
         leftSection={<IconPlus size={16} />}
         onClick={() => onChange([...value, { id: '', label: '', total: 0, partsKey: '' }])}
       >
-        pool 追加
+        プール追加
       </Button>
     </Stack>
   )
@@ -367,7 +384,7 @@ function PartsKeysInput({ value = [], disabled, onChange }: PartsKeysInputProps)
 
   return (
     <Stack gap="xs">
-      <Text fw={500}>partsKeys</Text>
+      <Text fw={500}>パーツキー</Text>
       {disabled && (
         <Text size="sm" c="orange">
           parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。
@@ -376,19 +393,19 @@ function PartsKeysInput({ value = [], disabled, onChange }: PartsKeysInputProps)
       {value.map((partKey, index) => (
         <Group key={index} grow align="end" wrap="nowrap">
           <TextInput
-            label={`partsKeys ${index + 1} id`}
+            label={`パーツキー ${index + 1} の id`}
             value={partKey.id}
             disabled={disabled}
             onChange={(event) => updatePartKey(index, { id: event.currentTarget.value })}
           />
           <TextInput
-            label={`partsKeys ${index + 1} label`}
+            label={`パーツキー ${index + 1} の表示名`}
             value={partKey.label}
             disabled={disabled}
             onChange={(event) => updatePartKey(index, { label: event.currentTarget.value })}
           />
           <Button
-            aria-label={`partsKeys ${index + 1} を削除`}
+            aria-label={`パーツキー ${index + 1} を削除`}
             color="red"
             variant="subtle"
             disabled={disabled}
@@ -405,7 +422,7 @@ function PartsKeysInput({ value = [], disabled, onChange }: PartsKeysInputProps)
         disabled={disabled}
         onClick={() => onChange([...value, { id: '', label: '' }])}
       >
-        parts キー追加
+        パーツキー追加
       </Button>
     </Stack>
   )
@@ -453,13 +470,13 @@ function DeltasInput({ value, onChange }: DeltasInputProps) {
       {value.map((delta, index) => (
         <Group key={index} grow align="end" wrap="nowrap">
           <NumberInput
-            label={`delta ${index + 1}`}
+            label={`増減量 ${index + 1}`}
             value={drafts[index] ?? delta}
             onChange={(nextDelta) => updateDelta(index, nextDelta)}
             onBlur={() => discardDraft(index)}
           />
           <Button
-            aria-label={`delta ${index + 1} を削除`}
+            aria-label={`増減量 ${index + 1} を削除`}
             color="red"
             variant="subtle"
             onClick={() => removeDelta(index)}
@@ -474,7 +491,7 @@ function DeltasInput({ value, onChange }: DeltasInputProps) {
         leftSection={<IconPlus size={16} />}
         onClick={() => onChange([...value, DEFAULT_RESOURCE_DELTA])}
       >
-        delta 追加
+        増減量追加
       </Button>
     </Stack>
   )
@@ -535,7 +552,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     resolvedActiveSectionLayout.mode === 'grid'
       ? SHEET_FIELD_LAYOUT_SPANS.filter(
           (span) => span === 'full' || span < resolvedActiveSectionLayout.columns
-        ).map((span) => ({ value: String(span), label: String(span) }))
+        ).map((span) => ({ value: String(span), label: FIELD_LAYOUT_SPAN_LABELS[span] }))
       : []
 
   const isSaving = inFlightIntent !== null
@@ -911,7 +928,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
             loading={isSaving}
             onClick={() => void submitDraft('publish')}
           >
-            publish
+            公開する
           </Button>
         </Group>
       </Group>
@@ -974,16 +991,16 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
             onChange={(event) => updateTemplate({ name: event.currentTarget.value })}
           />
           <TextInput
-            label="version"
+            label="バージョン"
             value={template.version}
             onChange={(event) => updateTemplate({ version: event.currentTarget.value })}
           />
           <Select
             label="公開範囲"
             data={[
-              { value: 'private', label: 'private' },
-              { value: 'unlisted', label: 'unlisted' },
-              { value: 'public', label: 'public' }
+              { value: 'private', label: '非公開' },
+              { value: 'unlisted', label: 'リンク限定' },
+              { value: 'public', label: '公開' }
             ]}
             value={template.visibility}
             onChange={(value) =>
@@ -991,22 +1008,22 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
             }
           />
           <TextInput
-            label="gameSystemId"
+            label="ゲームシステム ID"
             value={template.gameSystemId ?? ''}
             onChange={(event) => updateTemplate({ gameSystemId: event.currentTarget.value || undefined })}
           />
           <TextInput
-            label="tags"
+            label="タグ"
             description="カンマ区切り"
             value={stringifyTags(template.tags)}
             onChange={(event) => updateTemplate({ tags: parseTags(event.currentTarget.value) })}
           />
           <Select
-            label="rounding"
+            label="端数処理"
             data={[
-              { value: 'floor', label: 'floor' },
-              { value: 'ceil', label: 'ceil' },
-              { value: 'round', label: 'round' }
+              { value: 'floor', label: '切り捨て' },
+              { value: 'ceil', label: '切り上げ' },
+              { value: 'round', label: '四捨五入' }
             ]}
             value={template.settings.rounding}
             onChange={(value) =>
@@ -1059,7 +1076,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
               <Stack gap="md">
                 <Group justify="space-between" align="end">
                   <TextInput
-                    label="section id"
+                    label="セクション id"
                     value={activeSection.id}
                     onChange={(event) => {
                       const nextId = event.currentTarget.value
@@ -1068,7 +1085,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     }}
                   />
                   <TextInput
-                    label="section label"
+                    label="セクション表示名"
                     value={activeSection.label}
                     onChange={(event) => updateSection(activeSection.id, { label: event.currentTarget.value })}
                   />
@@ -1139,13 +1156,13 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                   <Select
                     label="型"
                     data={[
-                      { value: 'text', label: 'text' },
-                      { value: 'number', label: 'number' },
-                      { value: 'select', label: 'select' },
-                      { value: 'checkbox', label: 'checkbox' },
-                      { value: 'computed', label: 'computed' },
-                      { value: 'roll', label: 'roll' },
-                      { value: 'track', label: 'track' }
+                      { value: 'text', label: '文字' },
+                      { value: 'number', label: '数値' },
+                      { value: 'select', label: '選択式' },
+                      { value: 'checkbox', label: 'チェック' },
+                      { value: 'computed', label: '自動計算' },
+                      { value: 'roll', label: 'ダイスロール' },
+                      { value: 'track', label: 'トラック' }
                     ]}
                     value={newFieldType}
                     onChange={(value) => setNewFieldType((value ?? 'text') as V3EditorFieldType)}
@@ -1204,7 +1221,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     }
                   />
                   <TextInput
-                    label="label"
+                    label="表示名"
                     value={selectedField.label}
                     onChange={(event) =>
                       updateField(selectedField.uid, { label: event.currentTarget.value } as Partial<SheetField>)
@@ -1212,7 +1229,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                   />
                   </SimpleGrid>
                 <Textarea
-                  label="description"
+                  label="説明"
                   value={selectedField.description ?? ''}
                   onChange={(event) =>
                     updateField(selectedField.uid, {
@@ -1222,7 +1239,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                   />
                 {/* SectionPoolsInput の blockOptions と同じ導出。片側だけ変更しない。 */}
                 <Autocomplete
-                  label="blockId"
+                  label="ブロック ID"
                   data={[...new Set((activeSection?.blocks ?? []).map((block) => block.id).filter(Boolean))]}
                   value={selectedField.blockId ?? ''}
                   onChange={(blockId) =>
@@ -1251,7 +1268,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 {selectedField.type === 'scalar' && selectedField.valueType === 'number' && (
                   <>
                     <ConstraintInput
-                      label="max"
+                      label="上限"
                       value={selectedField.max}
                       onChange={(max) => updateField(selectedField.uid, { max })}
                     />
@@ -1264,7 +1281,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 )}
                 {selectedField.type === 'scalar' && selectedField.valueType === 'select' && (
                   <Textarea
-                    label="options"
+                    label="選択肢"
                     description="1行1項目。label=value 形式も可"
                     value={(selectedField.options ?? []).map((option) => `${option.label}=${option.value}`).join('\n')}
                     onChange={(event) =>
@@ -1277,12 +1294,12 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 {selectedField.type === 'computed' && (
                   <Group grow align="end">
                     <Select
-                      label="resultType"
+                      label="結果の型"
                       data={[
-                        { value: 'number', label: 'number' },
-                        { value: 'text', label: 'text' },
-                        { value: 'boolean', label: 'boolean' },
-                        { value: 'dice', label: 'dice' }
+                        { value: 'number', label: '数値' },
+                        { value: 'text', label: '文字' },
+                        { value: 'boolean', label: '成否' },
+                        { value: 'dice', label: 'ダイス結果' }
                       ]}
                       value={selectedField.resultType}
                       onChange={(value) =>
@@ -1292,7 +1309,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       }
                     />
                     <TextInput
-                      label="formula"
+                      label="式"
                       value={selectedField.formula}
                       onChange={(event) =>
                         updateField(selectedField.uid, { formula: event.currentTarget.value } as Partial<SheetField>)
@@ -1303,13 +1320,13 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 {selectedField.type === 'track' && (
                   <>
                     <ConstraintInput
-                      label="max"
+                      label="上限"
                       value={selectedField.max}
                       required
                       onChange={(max) => updateField(selectedField.uid, { max })}
                     />
                     <NumberInput
-                      label="min"
+                      label="下限"
                       value={selectedField.min ?? ''}
                       onChange={(min) =>
                         updateField(selectedField.uid, {
@@ -1318,10 +1335,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       }
                     />
                     <Select
-                      label="style"
+                      label="スタイル"
                       data={[
-                        { value: 'gauge', label: 'gauge' },
-                        { value: 'checkboxes', label: 'checkboxes' }
+                        { value: 'gauge', label: 'ゲージ' },
+                        { value: 'checkboxes', label: 'チェックボックス' }
                       ]}
                       value={selectedField.style}
                       onChange={(value) =>
@@ -1332,7 +1349,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                     />
                     <Stack gap={4}>
                       <TextInput
-                        label="rollOnCreate notation"
+                        label="作成時ロール記法"
                         value={selectedField.rollOnCreate?.notation ?? ''}
                         disabled={rollingTrackFieldUid === selectedField.uid}
                         onChange={(event) => {
@@ -1369,7 +1386,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       <Stack gap="xs">
                         <Text fw={500}>{RESOURCE_OPERATION_HEADING}</Text>
                         <Text size="sm" c="orange">
-                          この track には {selectedField.role.kind} role が設定されています。リソース操作（±）へ置き換えると現在の
+                          このトラックには {selectedField.role.kind} role が設定されています。リソース操作（±）へ置き換えると現在の
                           role は失われます。
                         </Text>
                         <Button
@@ -1402,7 +1419,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                 )}
                 {selectedField.type === 'roll' && (
                   <TextInput
-                    label="notation"
+                    label="ダイス記法"
                     value={selectedField.notation}
                     onChange={(event) =>
                       updateField(selectedField.uid, { notation: event.currentTarget.value } as Partial<SheetField>)
@@ -1483,6 +1500,9 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   )
 }
 
+// path のキー（section 配下の配列名）はそのまま位置表示に出るため、表示用の訳語だけを別に持つ。
+const SECTION_LOCATION_LABELS: Record<'blocks' | 'pools', string> = { blocks: 'ブロック', pools: 'プール' }
+
 function describeIssuePath(path: string, template: CharacterSheetTemplateEntity): string {
   const segments = path.split('.')
   const interpretationCandidates: string[] = []
@@ -1543,7 +1563,7 @@ function describeIssuePath(path: string, template: CharacterSheetTemplateEntity)
         remainingSegments.length === 2 ||
         (remainingSegments.length === 3 && (remainingSegments[2] === 'id' || remainingSegments[2] === 'label'))
       ) {
-        resolvedLocations.push(`${location} / partsKeys ${partsKeyIndex + 1}`)
+        resolvedLocations.push(`${location} / パーツキー ${partsKeyIndex + 1}`)
       }
       return resolvedLocations
     }
@@ -1620,7 +1640,9 @@ function describeIssuePath(path: string, template: CharacterSheetTemplateEntity)
           if (location.id === locationKey) locationCandidates.push({ location, index })
         }
         for (const { location, index } of locationCandidates) {
-          interpretationCandidates.push(`${sectionLabel} / ${locationKind} ${index + 1} (${displayName(location)})`)
+          interpretationCandidates.push(
+            `${sectionLabel} / ${SECTION_LOCATION_LABELS[locationKind]} ${index + 1} (${displayName(location)})`
+          )
         }
       }
     }

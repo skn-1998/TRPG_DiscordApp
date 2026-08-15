@@ -182,6 +182,27 @@ describe('TemplateEditorV3 autosave', () => {
     )
   })
 
+  // Test intent: Select は表示ラベルだけを和訳し、保存語彙（value）は英語 enum のままという分離を固定する。
+  // option の value を表示ラベルで置き換える退行は、ラベル文字列を見る既存 pin では検出できない。
+  it('公開範囲は表示ラベルではなく英語 enum 値を保存する', async () => {
+    renderEditor()
+
+    selectOption('公開範囲', '公開')
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].visibility).toBe('public')
+  })
+
+  it('端数処理は表示ラベルではなく英語 enum 値を保存する', async () => {
+    // Test prerequisite: 既定の floor を選んでも state が変わらず autosave が起きないため、別の値から選び直す。
+    renderEditor({ ...initialTemplate, settings: { rounding: 'round' } })
+
+    selectOption('端数処理', '切り捨て')
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].settings.rounding).toBe('floor')
+  })
+
   it('draft 更新後の template state を Immer auto-freeze で凍結する', () => {
     const reactModule = jest.requireActual<typeof import('react')>('react')
     const originalUseMemo = reactModule.useMemo
@@ -226,7 +247,7 @@ describe('TemplateEditorV3 autosave', () => {
   it('section layout preset と columns を保存し、clear では対象 property を落とす', async () => {
     renderEditor()
 
-    selectOption('レイアウトプリセット', 'grid')
+    selectOption('レイアウトプリセット', '格子状')
     const columnsSelect = screen.getByRole('combobox', { name: 'グリッド列数' }) as HTMLInputElement
     expect(columnsSelect.value).toBe('')
     selectOption('グリッド列数', '3')
@@ -254,15 +275,15 @@ describe('TemplateEditorV3 autosave', () => {
     expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
 
-    selectOption('レイアウトプリセット', 'grid')
+    selectOption('レイアウトプリセット', '格子状')
     expect(screen.getByRole('combobox', { name: 'グリッド列数' })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: '表示幅' })).toBeTruthy()
 
-    selectOption('レイアウトプリセット', 'table')
+    selectOption('レイアウトプリセット', '表形式')
     expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
 
-    selectOption('レイアウトプリセット', 'stack')
+    selectOption('レイアウトプリセット', '縦一列')
     expect(screen.queryByRole('combobox', { name: 'グリッド列数' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: '表示幅' })).toBeNull()
   })
@@ -305,8 +326,8 @@ describe('TemplateEditorV3 autosave', () => {
   })
 
   it.each([
-    ['columns 3', { preset: 'grid', columns: 3 }, ['1', '2', 'full']],
-    ['columns 未設定（実効 2）', { preset: 'grid' }, ['1', 'full']]
+    ['columns 3', { preset: 'grid', columns: 3 }, ['1', '2', '全幅']],
+    ['columns 未設定（実効 2）', { preset: 'grid' }, ['1', '全幅']]
   ] as Array<[string, SheetSection['layout'], string[]]>)(
     'grid %s の span 選択肢を 1〜columns−1 ＋全幅に絞る',
     (_caseName, layout, expectedOptions) => {
@@ -335,7 +356,7 @@ describe('TemplateEditorV3 autosave', () => {
       })
     )
 
-    selectOption('レイアウトプリセット', 'grid')
+    selectOption('レイアウトプリセット', '格子状')
 
     expect((screen.getByRole('combobox', { name: 'グリッド列数' }) as HTMLInputElement).value).toBe('3')
     await advanceAutosave()
@@ -346,10 +367,10 @@ describe('TemplateEditorV3 autosave', () => {
   it('選択済み preset の再クリックでは layout を消さない', async () => {
     renderEditor()
 
-    const presetSelect = selectOption('レイアウトプリセット', 'grid') as HTMLInputElement
-    selectOption('レイアウトプリセット', 'grid')
+    const presetSelect = selectOption('レイアウトプリセット', '格子状') as HTMLInputElement
+    selectOption('レイアウトプリセット', '格子状')
 
-    expect(presetSelect.value).toBe('grid')
+    expect(presetSelect.value).toBe('格子状')
     expect(screen.getByRole('combobox', { name: 'グリッド列数' })).toBeTruthy()
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.layout).toEqual({ preset: 'grid', columns: 2 })
@@ -555,7 +576,7 @@ describe('TemplateEditorV3 autosave', () => {
     })
     renderEditor()
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+      fireEvent.click(screen.getByRole('button', { name: '公開する' }))
     })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '再試行' }))
@@ -575,7 +596,7 @@ describe('TemplateEditorV3 autosave', () => {
     renderEditor()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+      fireEvent.click(screen.getByRole('button', { name: '公開する' }))
     })
 
     expect(screen.getByText('保存しました。')).toBeTruthy()
@@ -595,7 +616,7 @@ describe('TemplateEditorV3 autosave', () => {
   })
 
   it.each([
-    ['publish 連打', 'publish'],
+    ['publish 連打', '公開する'],
     ['publish 中の保存押下', '保存']
   ])('%s は同一 tick に UI disabled を迂回しても送信を 1 回だけ開始する', async (_caseName, secondButtonName) => {
     let resolveSave!: (result: Awaited<ReturnType<typeof saveTemplateDraft>>) => void
@@ -606,7 +627,7 @@ describe('TemplateEditorV3 autosave', () => {
         })
     )
     renderEditor()
-    const publishButton = screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement
+    const publishButton = screen.getByRole('button', { name: '公開する' }) as HTMLButtonElement
     const secondButton = screen.getByRole('button', { name: secondButtonName }) as HTMLButtonElement
 
     act(() => {
@@ -633,10 +654,10 @@ describe('TemplateEditorV3 autosave', () => {
     )
     renderEditor()
 
-    fireEvent.click(screen.getByRole('button', { name: 'publish' }))
+    fireEvent.click(screen.getByRole('button', { name: '公開する' }))
 
     expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '公開する' }) as HTMLButtonElement).disabled).toBe(true)
     const payload = mockedSaveTemplateDraft.mock.calls[0]?.[2]
     if (!payload) throw new Error('publish payload was not captured')
     await act(async () => {
@@ -820,7 +841,7 @@ describe('TemplateEditorV3 publish validation warnings', () => {
       '[旧レイアウト] section layout without preset is ignored',
       '[旧レイアウト] section has no fields',
       '[技能 / 技能値] field layout span is ignored outside grid',
-      '[技能 / blocks 1 (戦闘)] declared block has no fields: combat'
+      '[技能 / ブロック 1 (戦闘)] declared block has no fields: combat'
     ]
 
     renderEditor(warningTemplate)
@@ -840,7 +861,7 @@ describe('TemplateEditorV3 publish validation warnings', () => {
     expect(renderedPositions.every((position) => position >= 0)).toBe(true)
     expect(renderedPositions).toEqual([...renderedPositions].sort((left, right) => left - right))
     expect(screen.queryByText('検証エラー')).toBeNull()
-    expect((screen.getByRole('button', { name: 'publish' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '公開する' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('engine の警告がゼロなら警告 Alert を表示しない', () => {
@@ -880,7 +901,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
         fields: [{ ...field, blockId: 'Bad' }]
       }),
       expectedPath: 'sections.skills.blocks.0.id',
-      expectedLocation: '技能 / blocks 1 (戦闘)'
+      expectedLocation: '技能 / ブロック 1 (戦闘)'
     },
     {
       name: 'pools の意味検証 id path',
@@ -891,7 +912,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
         fields: [field]
       }),
       expectedPath: 'sections.skills.pools.0.partsKey',
-      expectedLocation: '技能 / pools 1 (職業ポイント)'
+      expectedLocation: '技能 / プール 1 (職業ポイント)'
     },
     {
       name: 'field label の Zod index path',
@@ -919,7 +940,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
         ]
       }),
       expectedPath: 'skills.skill.partsKeys.1.id',
-      expectedLocation: '技能 / 技能値 / partsKeys 2'
+      expectedLocation: '技能 / 技能値 / パーツキー 2'
     },
     {
       name: '解決不能 path',
@@ -965,7 +986,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
         fields: [{ ...field, blockId: 'combat' }]
       } as unknown as SheetSection),
       expectedPath: 'sections.0.blocks.0.label',
-      expectedLocation: '技能 / blocks 1 (combat)'
+      expectedLocation: '技能 / ブロック 1 (combat)'
     }
   ]
 
@@ -1202,7 +1223,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     expect(errorAlert).not.toBeNull()
     expect(
       within(errorAlert as HTMLElement).getByText(
-        `[メイン / 所有者 / 幸運 / partsKeys 2] ${publishIssue!.message}`
+        `[メイン / 所有者 / 幸運 / パーツキー 2] ${publishIssue!.message}`
       )
     ).toBeTruthy()
   })
@@ -1224,7 +1245,7 @@ describe('TemplateEditorV3 publish validation issue locations', () => {
     const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
     expect(errorAlert).not.toBeNull()
     expect(
-      within(errorAlert as HTMLElement).getByText(`[技能 / blocks 1 (combat)] ${publishIssue!.message}`)
+      within(errorAlert as HTMLElement).getByText(`[技能 / ブロック 1 (combat)] ${publishIssue!.message}`)
     ).toBeTruthy()
   })
 })
@@ -1252,13 +1273,13 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'blockId' }), { target: { value: 'combat' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'ブロック ID' }), { target: { value: 'combat' } })
     await advanceAutosave()
 
     const setField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
     expect(setField?.blockId).toBe('combat')
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'blockId' }), { target: { value: '' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'ブロック ID' }), { target: { value: '' } })
     await advanceAutosave()
 
     const clearedField = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]
@@ -1288,7 +1309,7 @@ describe('TemplateEditorV3 field annotations', () => {
       ]
     })
 
-    fireEvent.focus(screen.getByRole('combobox', { name: 'blockId' }))
+    fireEvent.focus(screen.getByRole('combobox', { name: 'ブロック ID' }))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['combat', 'social'])
     expect(screen.queryByRole('option', { name: 'foreign' })).toBeNull()
   })
@@ -1323,18 +1344,18 @@ describe('TemplateEditorV3 field annotations', () => {
       templateWithField({ id: 'score', uid: 'uid_score', label: 'score', type: 'scalar', valueType: 'number' })
     )
 
-    fireEvent.change(screen.getByLabelText('max'), { target: { value: '99' } })
+    fireEvent.change(screen.getByLabelText('上限'), { target: { value: '99' } })
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({ max: 99 })
 
-    fireEvent.click(screen.getByRole('radio', { name: 'formula' }))
-    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '{ability.edu}' } })
+    fireEvent.click(screen.getByRole('radio', { name: '式' }))
+    fireEvent.change(screen.getByLabelText('上限の式'), { target: { value: '{ability.edu}' } })
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
       max: { formula: '{ability.edu}' }
     })
 
-    fireEvent.click(screen.getByRole('radio', { name: 'number' }))
+    fireEvent.click(screen.getByRole('radio', { name: '数値' }))
     await advanceAutosave()
     const clearedField = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]?.fields[0]
     expect((clearedField as { max?: unknown }).max).toBeUndefined()
@@ -1345,8 +1366,8 @@ describe('TemplateEditorV3 field annotations', () => {
     renderEditor(templateWithSection({ id: 'status', label: 'ステータス', fields: [] }))
 
     fireEvent.click(screen.getByRole('combobox', { name: '型' }))
-    expect(screen.getByRole('option', { name: 'track' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('option', { name: 'track' }))
+    expect(screen.getByRole('option', { name: 'トラック' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('option', { name: 'トラック' }))
     fireEvent.click(screen.getByRole('button', { name: 'フィールド追加' }))
     await advanceAutosave()
 
@@ -1378,11 +1399,11 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    expect(screen.getByLabelText('max 入力方式')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('max'), { target: { value: '' } })
-    fireEvent.change(screen.getByLabelText('min'), { target: { value: '' } })
-    selectOption('style', 'checkboxes')
-    fireEvent.change(screen.getByLabelText('rollOnCreate notation'), { target: { value: '' } })
+    expect(screen.getByLabelText('上限の入力方式')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('上限'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('下限'), { target: { value: '' } })
+    selectOption('スタイル', 'チェックボックス')
+    fireEvent.change(screen.getByLabelText('作成時ロール記法'), { target: { value: '' } })
     await advanceAutosave()
 
     const clearedConstraints = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1399,7 +1420,7 @@ describe('TemplateEditorV3 field annotations', () => {
     expect((clearedConstraints as { rollOnCreate?: unknown }).rollOnCreate).toBeUndefined()
     expect(JSON.stringify(clearedConstraints)).not.toContain('rollOnCreate')
 
-    fireEvent.change(screen.getByLabelText('rollOnCreate notation'), { target: { value: '1d20+10' } })
+    fireEvent.change(screen.getByLabelText('作成時ロール記法'), { target: { value: '1d20+10' } })
     await advanceAutosave()
 
     expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
@@ -1420,10 +1441,10 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'delta 追加' }))
-    fireEvent.click(screen.getByRole('button', { name: 'delta 追加' }))
-    fireEvent.change(screen.getByLabelText('delta 1'), { target: { value: '-2' } })
-    fireEvent.change(screen.getByLabelText('delta 2'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: '増減量追加' }))
+    fireEvent.click(screen.getByRole('button', { name: '増減量追加' }))
+    fireEvent.change(screen.getByLabelText('増減量 1'), { target: { value: '-2' } })
+    fireEvent.change(screen.getByLabelText('増減量 2'), { target: { value: '3' } })
     await advanceAutosave()
 
     const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1443,8 +1464,8 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'delta 1 を削除' }))
-    fireEvent.click(screen.getByRole('button', { name: 'delta 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: '増減量 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: '増減量 1 を削除' }))
     await advanceAutosave()
 
     const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1469,7 +1490,7 @@ describe('TemplateEditorV3 field annotations', () => {
 
     expect(publishIssue).toBeDefined()
     renderEditor(templateWithField(trackField))
-    fireEvent.change(screen.getByLabelText('delta 1'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('増減量 1'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: '検証' }))
 
     const errorAlert = screen.getByText('検証エラー').closest('[role="alert"]')
@@ -1491,12 +1512,12 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    expect(screen.getByText(/この track には rollable role が設定されています/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'delta 追加' })).toBeNull()
-    expect(screen.queryByLabelText('delta 1')).toBeNull()
+    expect(screen.getByText(/このトラックには rollable role が設定されています/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '増減量追加' })).toBeNull()
+    expect(screen.queryByLabelText('増減量 1')).toBeNull()
 
-    fireEvent.change(screen.getByLabelText('label'), { target: { value: 'HP 上限' } })
-    fireEvent.change(screen.getByLabelText('max'), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('表示名'), { target: { value: 'HP 上限' } })
+    fireEvent.change(screen.getByLabelText('上限'), { target: { value: '20' } })
     await advanceAutosave()
 
     const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1516,12 +1537,12 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    expect(screen.queryByRole('button', { name: 'delta 追加' })).toBeNull()
-    expect(screen.queryByLabelText('delta 1')).toBeNull()
+    expect(screen.queryByRole('button', { name: '増減量追加' })).toBeNull()
+    expect(screen.queryByLabelText('増減量 1')).toBeNull()
     expect(mockedSaveTemplateDraft).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'resource role へ置き換える' }))
-    expect((screen.getByLabelText('delta 1') as HTMLInputElement).value).toBe('-1')
+    expect((screen.getByLabelText('増減量 1') as HTMLInputElement).value).toBe('-1')
     await advanceAutosave()
 
     const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1545,8 +1566,8 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.change(screen.getByLabelText('label'), { target: { value: 'HP 更新' } })
-    const deltaInput = screen.getByLabelText('delta 1') as HTMLInputElement
+    fireEvent.change(screen.getByLabelText('表示名'), { target: { value: 'HP 更新' } })
+    const deltaInput = screen.getByLabelText('増減量 1') as HTMLInputElement
     fireEvent.change(deltaInput, { target: { value: draftValue } })
     fireEvent.blur(deltaInput)
 
@@ -1572,7 +1593,7 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.change(screen.getByLabelText('label'), { target: { value: '幸運値' } })
+    fireEvent.change(screen.getByLabelText('表示名'), { target: { value: '幸運値' } })
     await advanceAutosave()
 
     const savedField = mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]
@@ -1592,14 +1613,14 @@ describe('TemplateEditorV3 field annotations', () => {
       })
     )
 
-    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '' } })
-    expect(screen.getByLabelText('max formula')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('上限の式'), { target: { value: '' } })
+    expect(screen.getByLabelText('上限の式')).toBeTruthy()
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
       max: { formula: '' }
     })
 
-    fireEvent.change(screen.getByLabelText('max formula'), { target: { value: '{ability.dex} * 2' } })
+    fireEvent.change(screen.getByLabelText('上限の式'), { target: { value: '{ability.dex} * 2' } })
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]).toMatchObject({
       max: { formula: '{ability.dex} * 2' }
@@ -1612,8 +1633,8 @@ describe('TemplateEditorV3 field annotations', () => {
   ] as Array<[string, SheetField]>)('%s には max/partsKeys を表示しない', (_fieldType, field) => {
     renderEditor(templateWithField(field))
 
-    expect(screen.queryByLabelText('max')).toBeNull()
-    expect(screen.queryByText('partsKeys')).toBeNull()
+    expect(screen.queryByLabelText('上限')).toBeNull()
+    expect(screen.queryByText('パーツキー')).toBeNull()
   })
 
   it('partsKeys の id/label 行を追加・編集し、最終行の削除で property を落とす', async () => {
@@ -1621,17 +1642,17 @@ describe('TemplateEditorV3 field annotations', () => {
       templateWithField({ id: 'score', uid: 'uid_score', label: 'score', type: 'scalar', valueType: 'number' })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'parts キー追加' }))
-    fireEvent.change(screen.getByLabelText('partsKeys 1 id'), { target: { value: 'career' } })
-    fireEvent.change(screen.getByLabelText('partsKeys 1 label'), { target: { value: '職業' } })
-    expect(screen.queryByLabelText('partsKeys 1 formula')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'パーツキー追加' }))
+    fireEvent.change(screen.getByLabelText('パーツキー 1 の id'), { target: { value: 'career' } })
+    fireEvent.change(screen.getByLabelText('パーツキー 1 の表示名'), { target: { value: '職業' } })
+    expect(screen.queryByLabelText('パーツキー 1 の式')).toBeNull()
     await advanceAutosave()
 
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
       partsKeys: [{ id: 'career', label: '職業' }]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'partsKeys 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'パーツキー 1 を削除' }))
     await advanceAutosave()
 
     const clearedField = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]
@@ -1652,7 +1673,7 @@ describe('TemplateEditorV3 field annotations', () => {
     )
 
     expect(screen.getByText('parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'parts キー追加' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'パーツキー追加' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })
 
@@ -1710,7 +1731,7 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
     })
     expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'rollOnCreate notation' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
       target: { value: '2d6' }
     })
 
@@ -1728,7 +1749,7 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
     })
     expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'rollOnCreate notation' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
       target: { value: '' }
     })
 
@@ -1745,7 +1766,7 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
     )
     renderTrackEditor('1d6')
     const notationInput = screen.getByRole('textbox', {
-      name: 'rollOnCreate notation'
+      name: '作成時ロール記法'
     }) as HTMLInputElement
 
     fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
@@ -1829,17 +1850,17 @@ describe('TemplateEditorV3 section blocks and pools', () => {
   it('blocks を追加・編集・並べ替えし、cap と最終行の clear で property を落とす', async () => {
     renderEditor(templateWithSection({ id: 'test', label: 'test', fields: [] }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'block 追加' }))
-    fireEvent.click(screen.getByRole('button', { name: 'block 追加' }))
-    fireEvent.change(screen.getByLabelText('blocks 1 id'), { target: { value: 'combat' } })
-    fireEvent.change(screen.getByLabelText('blocks 1 label'), { target: { value: '戦闘' } })
-    fireEvent.change(screen.getByLabelText('blocks 1 cap'), { target: { value: '80' } })
-    fireEvent.change(screen.getByLabelText('blocks 2 id'), { target: { value: 'social' } })
-    fireEvent.change(screen.getByLabelText('blocks 2 label'), { target: { value: '交渉' } })
-    const secondCapMode = screen.getByLabelText('blocks 2 cap 入力方式')
-    fireEvent.click(within(secondCapMode).getByRole('radio', { name: 'formula' }))
-    fireEvent.change(screen.getByLabelText('blocks 2 cap formula'), { target: { value: '{ability.edu}' } })
-    fireEvent.click(screen.getByRole('button', { name: 'blocks 2 を上へ' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ブロック追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ブロック追加' }))
+    fireEvent.change(screen.getByLabelText('ブロック 1 の id'), { target: { value: 'combat' } })
+    fireEvent.change(screen.getByLabelText('ブロック 1 の表示名'), { target: { value: '戦闘' } })
+    fireEvent.change(screen.getByLabelText('ブロック 1 の上限予算'), { target: { value: '80' } })
+    fireEvent.change(screen.getByLabelText('ブロック 2 の id'), { target: { value: 'social' } })
+    fireEvent.change(screen.getByLabelText('ブロック 2 の表示名'), { target: { value: '交渉' } })
+    const secondCapMode = screen.getByLabelText('ブロック 2 の上限予算の入力方式')
+    fireEvent.click(within(secondCapMode).getByRole('radio', { name: '式' }))
+    fireEvent.change(screen.getByLabelText('ブロック 2 の上限予算の式'), { target: { value: '{ability.edu}' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ブロック 2 を上へ' }))
     await advanceAutosave()
 
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.blocks).toEqual([
@@ -1847,15 +1868,15 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       { id: 'combat', label: '戦闘', cap: 80 }
     ])
 
-    const firstCapMode = screen.getByLabelText('blocks 1 cap 入力方式')
-    fireEvent.click(within(firstCapMode).getByRole('radio', { name: 'number' }))
+    const firstCapMode = screen.getByLabelText('ブロック 1 の上限予算の入力方式')
+    fireEvent.click(within(firstCapMode).getByRole('radio', { name: '数値' }))
     await advanceAutosave()
     const clearedCap = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.blocks?.[0]
     expect(clearedCap?.cap).toBeUndefined()
     expect(JSON.stringify(clearedCap)).not.toContain('cap')
 
-    fireEvent.click(screen.getByRole('button', { name: 'blocks 1 を削除' }))
-    fireEvent.click(screen.getByRole('button', { name: 'blocks 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ブロック 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ブロック 1 を削除' }))
     await advanceAutosave()
     const clearedBlocksSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
     expect(clearedBlocksSection?.blocks).toBeUndefined()
@@ -1872,9 +1893,9 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       })
     )
 
-    const capMode = screen.getByLabelText('blocks 1 cap 入力方式')
-    fireEvent.click(within(capMode).getByRole('radio', { name: 'formula' }))
-    const formulaInput = screen.getByLabelText('blocks 1 cap formula')
+    const capMode = screen.getByLabelText('ブロック 1 の上限予算の入力方式')
+    fireEvent.click(within(capMode).getByRole('radio', { name: '式' }))
+    const formulaInput = screen.getByLabelText('ブロック 1 の上限予算の式')
     expect(formulaInput).toBeTruthy()
     await advanceAutosave()
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.blocks?.[0]?.cap).toEqual({ formula: '' })
@@ -1900,9 +1921,9 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'pools 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'プール 1 を削除' }))
 
-    const formulaInput = screen.getByLabelText('pools 1 total formula') as HTMLInputElement
+    const formulaInput = screen.getByLabelText('プール 1 の予算の式') as HTMLInputElement
     expect(formulaInput.value).toBe('{x}')
     await advanceAutosave()
 
@@ -1936,16 +1957,16 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'pool 追加' }))
-    fireEvent.change(screen.getByLabelText('pools 1 id'), { target: { value: 'career_pool' } })
-    fireEvent.change(screen.getByLabelText('pools 1 label'), { target: { value: '職業ポイント' } })
-    const totalMode = screen.getByLabelText('pools 1 total 入力方式')
-    fireEvent.click(within(totalMode).getByRole('radio', { name: 'formula' }))
-    fireEvent.change(screen.getByLabelText('pools 1 total formula'), {
+    fireEvent.click(screen.getByRole('button', { name: 'プール追加' }))
+    fireEvent.change(screen.getByLabelText('プール 1 の id'), { target: { value: 'career_pool' } })
+    fireEvent.change(screen.getByLabelText('プール 1 の表示名'), { target: { value: '職業ポイント' } })
+    const totalMode = screen.getByLabelText('プール 1 の予算の入力方式')
+    fireEvent.click(within(totalMode).getByRole('radio', { name: '式' }))
+    fireEvent.change(screen.getByLabelText('プール 1 の予算の式'), {
       target: { value: '{ability.edu} * 2' }
     })
 
-    const partsKeyInput = screen.getByRole('combobox', { name: 'pools 1 partsKey' })
+    const partsKeyInput = screen.getByRole('combobox', { name: 'プール 1 のパーツキー' })
     fireEvent.focus(partsKeyInput)
     const partsKeyOptions = screen.getAllByRole('option').map((option) => option.textContent)
     expect(partsKeyOptions).toEqual(['career', 'hobby'])
@@ -1953,7 +1974,7 @@ describe('TemplateEditorV3 section blocks and pools', () => {
     expect(partsKeyOptions).not.toContain('other')
     fireEvent.change(partsKeyInput, { target: { value: 'custom' } })
 
-    const scopeInput = screen.getByRole('combobox', { name: 'pools 1 scope' })
+    const scopeInput = screen.getByRole('combobox', { name: 'プール 1 のスコープ' })
     fireEvent.click(scopeInput)
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['combat', 'social'])
     fireEvent.click(screen.getByRole('option', { name: 'combat' }))
@@ -1970,15 +1991,15 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       }
     ])
 
-    fireEvent.click(screen.getByRole('button', { name: 'pools 1 scope clear' }))
-    fireEvent.change(screen.getByLabelText('pools 1 total formula'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'プール 1 のスコープをクリア' }))
+    fireEvent.change(screen.getByLabelText('プール 1 の予算の式'), { target: { value: '' } })
     await advanceAutosave()
     const clearedPool = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.pools?.[0]
     expect(clearedPool?.total).toEqual({ formula: '' })
     expect(clearedPool?.scope).toBeUndefined()
     expect(JSON.stringify(clearedPool)).not.toContain('scope')
 
-    fireEvent.click(screen.getByRole('button', { name: 'pools 1 を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'プール 1 を削除' }))
     await advanceAutosave()
     const clearedPoolsSection = mockedSaveTemplateDraft.mock.calls[2]?.[2].sections[0]
     expect(clearedPoolsSection?.pools).toBeUndefined()
@@ -2008,7 +2029,7 @@ describe('TemplateEditorV3 section blocks and pools', () => {
       })
     )
 
-    const scopeInput = screen.getByRole('combobox', { name: 'pools 1 scope' })
+    const scopeInput = screen.getByRole('combobox', { name: 'プール 1 のスコープ' })
     fireEvent.keyDown(scopeInput, { key: 'Backspace' })
     fireEvent.keyDown(scopeInput, { key: 'Backspace' })
     await advanceAutosave()
