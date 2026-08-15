@@ -3295,6 +3295,19 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   ガイド §6 は「英語 = 内部名・検証メッセージ用語の対照」へ改訂済み。
 - **次 = DL-4（ユーザー要望 2026-08-15）: `/templates` への画面内導線**（現状 URL 直打ちのみ）。
 
+## 【DL-4 完了 2026-08-15】/templates への画面内導線（Task #38）
+
+- Codex 委譲。Header のアバターメニュー（「ユーザーページ」直後）と UserPageNav
+  （「キャラクター一覧」直後）へ「シートテンプレート」リンクを追加。追加のみ・
+  spec 新設なし（このリポジトリのナビ系は spec なし運用に合わせた・記録済み判断）。
+  **layout.tsx（ユーザー並行変更中）は非接触**。検収 = eslint・diff --check・対象 2 ファイルの
+  型エラーなし。ガイドの前提節・制限節から「導線なし」を消し込み。
+- **既知の front 型負債（DL レーン外・実測 2026-08-15）**: `pnpm exec tsc --noEmit` が 3 件で赤 —
+  character.service.server.ts:38 TS2698・TemplateEditorV3.tsx の updateDelta（TD6 由来で
+  DL-3 以前から存在を git show で確認済み。draft 配列 string へ非有限 number を代入しうる型穴）・
+  dicePreview.spec.ts:159 TS2352。**front には tsc ゲートが無く、jest は transpile 実行のため
+  型エラーが素通りする**（server は typecheck:test あり）。修正はチップ化してユーザーへ提示済み。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

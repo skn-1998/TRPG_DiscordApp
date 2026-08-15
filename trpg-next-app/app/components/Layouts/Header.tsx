@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ActionIcon, Avatar, Button, darken, Group, Menu, Text, useMantineTheme } from '@mantine/core'
-import { IconDice6, IconLogin, IconLogout, IconMenu2, IconUser } from '@tabler/icons-react'
+import { IconDice6, IconLogin, IconLogout, IconMenu2, IconTemplate, IconUser } from '@tabler/icons-react'
 import { logout } from '../../features/auth/actions'
 import type { AuthState } from '../../lib/auth-state.server'
 import { getDefaultDiscordAvatarUrl, getDiscordAvatarUrl } from '../../utils/discordAvatar'
@@ -78,6 +78,9 @@ export function Header({ authState, toggle }: HeaderProps) {
             <Menu.Dropdown>
               <Menu.Item leftSection={<IconUser size={16} />} component={Link} href="/user">
                 ユーザーページ
+              </Menu.Item>
+              <Menu.Item leftSection={<IconTemplate size={16} />} component={Link} href="/templates">
+                シートテンプレート
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item leftSection={<IconLogout size={16} />} onClick={handleLogout} color="red">

@@ -4,7 +4,7 @@ import type { ElementType } from 'react'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Badge, Box, Group, NavLink, rem, Stack, Text, useMantineTheme } from '@mantine/core'
-import { IconBook, IconChevronRight, IconRobot, IconShield, IconUsers } from '@tabler/icons-react'
+import { IconBook, IconChevronRight, IconRobot, IconShield, IconTemplate, IconUsers } from '@tabler/icons-react'
 import { navigationStyles } from '../../../theme'
 
 interface LinkData {
@@ -22,6 +22,12 @@ const navData: LinkData[] = [
     href: '/user/character',
     description: 'キャラクターの作成・管理',
     badge: 'NEW'
+  },
+  {
+    icon: IconTemplate,
+    label: 'シートテンプレート',
+    href: '/templates',
+    description: 'キャラクターシートの型を作成・選択'
   },
   {
     icon: IconBook,
