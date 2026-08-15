@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
-import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
+import { validatePublishTemplate } from '@trpg/sheet-engine'
 import { CharacterSheetTemplateEntity } from '../models/character-sheet-template.entity'
-import { collectProjectionKeyErrors } from './projection-key-validation'
 import { toEngineTemplate } from './sheet-engine-template.mapper'
 import { TemplateValidationPort } from './template-validation.port'
+import { collectTemplatePublishValidationIssues } from './template-publish-validation-issue.collector'
+import type { TemplatePublishValidationIssue } from './template-publish-validation-issue.collector'
 
 @Injectable()
 export class SheetEngineTemplateValidationService implements TemplateValidationPort {
@@ -15,30 +16,21 @@ export class SheetEngineTemplateValidationService implements TemplateValidationP
     if (template.visibility !== 'public') {
       throw new BadRequestException('published template visibility must be public')
     }
-    // engine 検証が先に throw することを、後続 assert の無検査キャスト・無防備走査の前提とする。
-    this.assertEngineValid(template)
-    this.assertStandaloneRollNotationsValid(template)
-    this.assertProjectionKeysUnique(template)
+
+    const firstInvalidStage = collectTemplatePublishValidationIssues(template).find(({ issues }) => issues.length > 0)
+    if (firstInvalidStage !== undefined) {
+      throw new BadRequestException(firstInvalidStage.issues.map(formatValidationIssue))
+    }
   }
 
   private assertEngineValid(template: CharacterSheetTemplateEntity): void {
     const result = validatePublishTemplate(toEngineTemplate(template))
     if (!result.ok) {
-      throw new BadRequestException(result.issues.map((issue) => `${issue.path}: ${issue.message}`))
+      throw new BadRequestException(result.issues.map(formatValidationIssue))
     }
   }
+}
 
-  private assertProjectionKeysUnique(template: CharacterSheetTemplateEntity): void {
-    const errors = collectProjectionKeyErrors(template)
-    if (errors.length > 0) {
-      throw new BadRequestException(errors)
-    }
-  }
-
-  private assertStandaloneRollNotationsValid(template: CharacterSheetTemplateEntity): void {
-    const issues = validateStandaloneRollNotations(toEngineTemplate(template))
-    if (issues.length > 0) {
-      throw new BadRequestException(issues.map((issue) => `${issue.path}: ${issue.message}`))
-    }
-  }
+function formatValidationIssue(issue: TemplatePublishValidationIssue): string {
+  return issue.path === undefined ? issue.message : `${issue.path}: ${issue.message}`
 }

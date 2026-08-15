@@ -146,6 +146,41 @@ describe('SheetEngineTemplateValidationService', () => {
     })
   })
 
+  it('publish は standalone と projection が同時に失敗しても最初の standalone 段だけを返す', () => {
+    const broken: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'profile',
+          label: 'Profile',
+          fields: [
+            { id: 'fixed', uid: 'uid-fixed', label: 'Fixed', type: 'roll', notation: '10' },
+            { id: 'memo', uid: 'uid-profile-memo', label: 'Profile memo', type: 'scalar', valueType: 'text' }
+          ]
+        },
+        {
+          id: 'notes',
+          label: 'Notes',
+          fields: [{ id: 'memo', uid: 'uid-notes-memo', label: 'Notes memo', type: 'scalar', valueType: 'text' }]
+        }
+      ]
+    }
+
+    let caught: unknown
+    try {
+      service.validateForPublish(broken)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException)
+    expect((caught as BadRequestException).getResponse()).toStrictEqual({
+      message: ['profile.fixed.notation: standalone roll expression must contain at least one literal dice term'],
+      error: 'Bad Request',
+      statusCode: 400
+    })
+  })
+
   it.each([
     'd6',
     '2d6+1d4',

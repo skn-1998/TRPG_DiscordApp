@@ -1,4 +1,5 @@
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../character-sheet-template.constants'
 
 type LegacyAbilityDefinition = {
   id: string
@@ -49,7 +50,7 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
   gameSystemId: 'Cthulhu',
   tags: ['legacy', 'coc'],
   visibility: 'private',
-  authorDiscordUserId: 'system',
+  authorDiscordUserId: SYSTEM_TEMPLATE_AUTHOR,
   settings: { rounding: 'floor' },
   sections: [
     {

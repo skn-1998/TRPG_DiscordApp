@@ -3,15 +3,13 @@ import 'tsconfig-paths/register'
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import type { INestApplicationContext } from '@nestjs/common'
-import { validatePublishTemplate, validateStandaloneRollNotations } from '@trpg/sheet-engine'
 import type {
   CharacterSheetTemplateEntity,
   SheetTemplateSection,
   SheetTemplateTable
 } from '../domains/character-sheet-template/models/character-sheet-template.entity'
 import { LEGACY_COC_TEMPLATE } from '../domains/character-sheet-template/seeds/legacy-coc.template'
-import { collectProjectionKeyErrors } from '../domains/character-sheet-template/validation/projection-key-validation'
-import { toEngineTemplate } from '../domains/character-sheet-template/validation/sheet-engine-template.mapper'
+import { collectTemplatePublishValidationIssues } from '../domains/character-sheet-template/validation/template-publish-validation-issue.collector'
 
 /**
  * legacy-coc テンプレートの行を character-sheet-template コレクションへ 1 件だけ投入する seeder。
@@ -98,17 +96,9 @@ export function parseSeedMode(args: string[]): SeedMode {
  * 投影キー衝突）は同じ関数・同じ順序で再利用する。検証を弱める・飛ばす経路は作らない。
  */
 export function collectSeedPublishIssues(entity: CharacterSheetTemplateEntity): string[] {
-  const engineTemplate = toEngineTemplate(entity)
-  const engineResult = validatePublishTemplate(engineTemplate)
-  if (!engineResult.ok) {
-    return engineResult.issues.map((issue) => `${issue.path}: ${issue.message}`)
-  }
-
-  // engine 検証を先に通すことを、後続 2 検証の前提とする（domain service と同じ順序）
-  return [
-    ...validateStandaloneRollNotations(engineTemplate).map((issue) => `${issue.path}: ${issue.message}`),
-    ...collectProjectionKeyErrors(entity)
-  ]
+  return collectTemplatePublishValidationIssues(entity).flatMap(({ issues }) =>
+    issues.map((issue) => (issue.path === undefined ? issue.message : `${issue.path}: ${issue.message}`))
+  )
 }
 
 function decideSeedAction(

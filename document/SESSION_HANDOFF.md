@@ -3308,6 +3308,48 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   dicePreview.spec.ts:159 TS2352。**front には tsc ゲートが無く、jest は transpile 実行のため
   型エラーが素通りする**（server は typecheck:test あり）。修正はチップ化してユーザーへ提示済み。
 
+## 【大粒度 #24 2026-08-15】DL レーン横断・認知負荷レビュー（Task #39）
+
+- Codex --mode review。verdict = needs-fix（blocking 1 / should 3 / 問題なし 2）。
+  裁定正本 = review-results/impl-u14/big24-adjudication.md。
+- **blocking = damage_bonus 番兵値は ±999999 まで**（有限入力はそれを超えられるので
+  「全実数域」は過大主張 → 台帳 L-13d と handoff の主張を訂正済み）。本修正 =
+  LookupRow 開放端の engine 導入だが、seed 構造変更 = ユーザー DB 再投入を伴うため
+  **裁定枠へ**（直後の実機を再度壊さない判断）。
+- should 消化 = **DLZ スライス（完了・検収済み）**: seed の 'system' 直書き → 定数 import・
+  publish 検証 3 段の domain/seeder 複製 → 共有 collector
+  （validation/template-publish-validation-issue.collector.ts）1 本へ集約。値・挙動不変 =
+  DB 再投入不要。検収 = 8 suites/105 tests 緑（Fable 再実行）・段脱落変異 MT1/MT2 = 2/2 赤・
+  eslint・diff --check・build＋check:circular 緑（Codex）・seeder dry-run skip-existing
+  （= Nest 全 context 起動の実測を兼ねる）。台帳 L-13 の 2-2 記述を「残る手組みは front のみ」へ縮小。
+  **これで DL レーン（DL-1〜DL-4・DLX/DLY/DLZ・大粒度 #24）は全クローズ**。
+  残チップ 2 枚 = front 型負債＋tsc ゲート（task_3c6ff45b）・engine/front ID 語彙統合
+  （task_c2314809）。裁定枠 = L-13c（gameSystemId 実在性の publish 検査・試しロール方言非対称)/
+  L-13d（lookup 開放端＋per-field 封じ込め）。
+- should チップ化 = engine/front の ID pattern＋予約語 4 定義（task_c2314809・
+  drift pin 束ねコミット要件つき）。
+- 問題なし（統合しない判断の実カウント記録）= 訳語 42 行突合ゼロ矛盾・ラベルマップ統合不要・
+  認可述語 2 本は mode 引数化すると同時保持 4→5 で悪化。
+
+## 【front tsc 型負債 3 件解消 2026-08-15】チップ（別セッション・develop 本体で実施）
+
+- DL-4 節の既知負債 3 件を解消。**挙動不変の型のみ修正**（実装 = Opus 委譲〔codex writer lock
+  回避のため〕・レビュー = Codex adversarial pass）:
+  - character.service.server.ts: 受け値を union 型（`Wire | Omit<Wire,'rollOnCreateResults'>`）で
+    受けて `in` narrowing の never 化を解消（TS2698）。指示書例の Omit＋optional 形は
+    `in` narrowing が declared optional の undefined を落とさず不成立（実装者実測）→ union 形採用
+  - TemplateEditorV3 DeltasInput: drafts を `Array<string | number | undefined>` へ拡幅
+    （TD6 防御ガードの実態へ型を正直化・TS2322）
+  - dicePreview.spec.ts: `as unknown as Response` 二段 cast（TS2352）
+- `typecheck` スクリプトは依頼前提と異なり**既存**（package.json:10・追加不要だった）。
+  CI/ゲート接続は依然無し（deferred・再発しうる）
+- 検収（Fable 独立再実行）= tsc 0・jest 33 suites/606 全緑（ベースライン一致）・diff 3 ファイル限定。
+  Codex レビューはコメント除去 transpile の SHA-256 一致で挙動不変を機械証明。
+  証跡 = `review-results/front-tsc-gate/`
+- FIX 1 件 = コメント断定の弱化（「非有限 number も返す」→ onChange 契約ベースの表現。
+  メモリ ai-md-claim-scoping の新例・委譲先コードコメント面）
+- **未コミット**。コミット時は 3 ファイルを pathspec 明示（並行セッションの変更が同居中）
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）
