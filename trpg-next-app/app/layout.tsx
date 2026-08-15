@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { ColorSchemeScript, MantineProvider } from '@mantine/core'
+import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core'
 import '@mantine/core/styles.css'
 import './globals.css'
 import { AppLayout } from './components/Layouts/AppLayout'
@@ -16,12 +16,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const authState = await getAuthState()
 
   return (
-    <html lang="ja">
+    <html lang="ja" {...mantineHtmlProps}>
       <head>
-        <ColorSchemeScript forceColorScheme="dark" defaultColorScheme="dark" />
+        <ColorSchemeScript forceColorScheme="dark" />
       </head>
       <body>
-        <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
+        <MantineProvider theme={theme} forceColorScheme="dark">
           <AppLayout authState={authState}>{children}</AppLayout>
         </MantineProvider>
       </body>
