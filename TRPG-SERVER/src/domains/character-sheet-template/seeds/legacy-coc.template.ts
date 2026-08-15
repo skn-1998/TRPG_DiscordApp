@@ -111,12 +111,15 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
     {
       id: 'damage_bonus',
       resultType: 'dice',
+      // LookupRow ranges require min and max, so open-ended bounds cannot be expressed.
+      // A lookup miss aborts the entire template evaluation, so sentinel bounds cover the numeric domain.
+      // This guarantees a row for missing inputs (evaluated as 0) and extreme manual values.
       rows: [
-        { min: 2, max: 64, result: '-2' },
+        { min: -999999, max: 64, result: '-2' },
         { min: 65, max: 84, result: '-1' },
         { min: 85, max: 124, result: '0' },
         { min: 125, max: 164, result: '+1d4' },
-        { min: 165, max: 204, result: '+1d6' }
+        { min: 165, max: 999999, result: '+1d6' }
       ]
     }
   ]

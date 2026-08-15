@@ -35,6 +35,30 @@ describe('LEGACY_COC_TEMPLATE', () => {
     expect(evaluated.values.lgc_db).toEqual({ type: 'dice', value: '0' })
   })
 
+  it('evaluates DB as -2 when values are empty', () => {
+    const evaluated = evaluateTemplate(LEGACY_COC_TEMPLATE, { values: {} })
+
+    expect(evaluated.values.lgc_db).toEqual({ type: 'dice', value: '-2' })
+  })
+
+  it('covers damage bonus values outside the original table bounds', () => {
+    const belowOriginalRange = evaluateTemplate(LEGACY_COC_TEMPLATE, {
+      values: {
+        lgc_str: 0,
+        lgc_siz: 0
+      }
+    })
+    const aboveOriginalRange = evaluateTemplate(LEGACY_COC_TEMPLATE, {
+      values: {
+        lgc_str: 999,
+        lgc_siz: 0
+      }
+    })
+
+    expect(belowOriginalRange.values.lgc_db).toEqual({ type: 'dice', value: '-2' })
+    expect(aboveOriginalRange.values.lgc_db).toEqual({ type: 'dice', value: '+1d6' })
+  })
+
   it('evaluates damage bonus boundary values at STR plus SIZ 124 and 125', () => {
     const belowBoundary = evaluateTemplate(LEGACY_COC_TEMPLATE, {
       values: {

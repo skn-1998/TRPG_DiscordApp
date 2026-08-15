@@ -3256,6 +3256,26 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   今も同じ事故を踏める・ユーザー裁定枠）＋試しロール = DiceBot / 作成時 = テンプレート方言の
   非対称（既知乖離・未修正）。ガイドの誤例 `coc` → `Cthulhu` 修正済み。
 
+## 【DLY 2026-08-15】実機事故 2 件目: lookup miss でシート評価全面停止（Task #37 続き）
+
+- **経緯**: gameSystemId 修復後、ユーザーが「lookup did not match table damage_bonus」に遭遇。
+  Fable の再現実測（scratch script・削除済み）= damage_bonus 表は合計 2〜204 のみカバーで、
+  STR/SIZ 両方欠損（missing = 0 評価）だと key 0 が miss → **evaluator は per-field 封じ込め
+  なしで evaluateTemplate 全体を throw**（evaluator.ts:413）。出目が入った作成済みキャラは正常。
+  発生面はユーザーへ確認中（legacy キャラの backfill pin 解決面が有力 — seeder 投入によって
+  解決が 404 → 成功へ変わり、値未マッピングのまま評価される経路が開通した可能性）。
+- **修正（Codex 委譲・検収済み）**: seed の表外周を番兵値へ（-999999〜64 / 165〜999999・
+  中間 3 行無改変・Why コメント）＋spec 3 ケース（空 values で throw せず db '-2'・合計 0・
+  合計 999）。検収 = 3 suites/22 tests 緑（Fable 再実行）・変異 MS1/MS2（外周を旧値へ戻す）
+  2/2 赤・byte 一致復元・eslint・diff --check。
+- **台帳 L-13d 新設（ユーザー裁定枠 2 件）**: engine の lookup miss per-field 封じ込め
+  （SM-14 語彙への接続・LookupRow range 形の min/max 必須型制約含む）／publish 検証の
+  表全域カバー要求（エディタ製の穴あき表は今も全面クラッシュ可能）。
+- **ユーザー DB の入れ替えが必要**（構造変更のため $set では済まない・seeder は skip-existing）:
+  Atlas で `charactersheettemplates` の `templateId: 'legacy-coc'` の行を**削除** →
+  `pnpm seed:legacy-coc-template --execute` を再実行。作成済みキャラの pin は
+  templateId＋version で再解決されるため壊れない。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）
