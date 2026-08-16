@@ -20,13 +20,23 @@ interface UpdateCharacterSheetVisibilityResult {
   visibility: CharacterSheetVisibility
 }
 
+/**
+ * 受信側だけの緩い写し。公開 wire は rollOnCreateResults を required に保つが、
+ * 実際に届く JSON は旧 server 応答だと field ごと欠落しうる。
+ * union で受けるのは、`in` チェックで「在る側」を公開 wire そのものへ絞り込み、
+ * 欠落側だけを下の補完経路へ落とすため。
+ */
+type CreateCharacterFromTemplateResponseWire =
+  | CreateCharacterFromTemplateResultWire
+  | Omit<CreateCharacterFromTemplateResultWire, 'rollOnCreateResults'>
+
 export async function createCharacterFromTemplate(input: {
   templateId: string
   templateVersion: string
   characterName: string
   values?: Record<string, unknown>
 }): Promise<CreateCharacterFromTemplateResultWire> {
-  const response = await apiClient.post<SuccessEnvelope<CreateCharacterFromTemplateResultWire>>(
+  const response = await apiClient.post<SuccessEnvelope<CreateCharacterFromTemplateResponseWire>>(
     '/character/from-template',
     input
   )

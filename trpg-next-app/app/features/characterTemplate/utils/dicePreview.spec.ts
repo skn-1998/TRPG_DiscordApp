@@ -156,11 +156,12 @@ describe('requestDicePreview', () => {
   })
 
   it('response.json が reject しても throw せず network エラーを返す', async () => {
+    // json() 以外の Response member はこの経路で参照されないため、部分モックを二段 cast で渡す。
     globalThis.fetch = jest.fn().mockResolvedValue({
       json: async () => {
         throw new Error('invalid json')
       }
-    } as Response)
+    } as unknown as Response)
 
     await expect(requestDicePreview({ notation: '1d6' })).resolves.toEqual({
       ok: false,

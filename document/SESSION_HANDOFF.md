@@ -3305,8 +3305,11 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
 - **既知の front 型負債（DL レーン外・実測 2026-08-15）**: `pnpm exec tsc --noEmit` が 3 件で赤 —
   character.service.server.ts:38 TS2698・TemplateEditorV3.tsx の updateDelta（TD6 由来で
   DL-3 以前から存在を git show で確認済み。draft 配列 string へ非有限 number を代入しうる型穴）・
-  dicePreview.spec.ts:159 TS2352。**front には tsc ゲートが無く、jest は transpile 実行のため
-  型エラーが素通りする**（server は typecheck:test あり）。修正はチップ化してユーザーへ提示済み。
+  dicePreview.spec.ts:159 TS2352。**〔訂正 2026-08-15〕** 当初「front には tsc ゲートが無い」と
+  書いたが誤り — `trpg-next-app/package.json:10` に `typecheck`（ensure:workspace-dist → tsc --noEmit）
+  が以前から存在する。正しくは**「ゲートは在るが誰も回していなかった」**（jest は transpile 実行で
+  型を見ないため、スライス検収で jest だけ回すと型エラーが素通りする）。以後 front スライスの
+  受入に typecheck を含める。修正はチップ化 → 下記で消化。
 
 ## 【大粒度 #24 2026-08-15】DL レーン横断・認知負荷レビュー（Task #39）
 
@@ -3349,6 +3352,55 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
 - FIX 1 件 = コメント断定の弱化（「非有限 number も返す」→ onChange 契約ベースの表現。
   メモリ ai-md-claim-scoping の新例・委譲先コードコメント面）
 - **未コミット**。コミット時は 3 ファイルを pathspec 明示（並行セッションの変更が同居中）
+
+## 【big24-f3 完了 2026-08-15】大粒度 #24 findings[3] 消化: ID 規則 4 定義→engine 正本 2（チップ task_c2314809・コミット `1464378b`）
+
+- チップセッション（Fable 司令塔・実装 = Codex 委譲 prompt-big24f3-code.txt）。engine publish の
+  `ID_PATTERN` を `SHEET_ID_PATTERN` へ改名 export（構築式・issue message byte 不変 =
+  engine spec の pin 7 箇所無改変が証明）。front v3Template は既存 1 行目 import への named 追加で
+  `SHEET_ID_PATTERN` / `SHEET_RESERVED_ID_VALUES` を直接参照（`RESERVED_IDS` は engine 由来の
+  module-local view 化・export 剥がし）。等価 spec（集合等価＋per-id 54 ケース）削除。
+  計 +13/−82（doc 込み +25/−86）
+- **bundle-cost ゼロの裏取り済み**: v3Template は変更前から同 barrel を runtime import 済み
+  （normalizeTemplateLayout）。メモリ cross-package-runtime-value-blindspot の旧差し戻し
+  （Vite/trpg-remix-app・347KB 膨張）とは前提が異なることを確認してから実施
+- 二重レビュー = Codex pass（findings 0）・Opus pass。**Opus B1 = 正本 doc の反証**を司令塔が消化:
+  design-ledger 委譲定型文（SHEET_RESERVED_ID_VALUES の保全根拠を「front production が runtime
+  参照する正本」へ・SHEET_ID_PATTERN 追加）・B-4 行（解消＋**残存リスク: top-level id の
+  front⇔engine 外延一致 pin は無い** — validateId へ pattern/予約語以外の規則を足すときは front
+  validateLocalTemplate を同時更新）・AI.character の統合起票記録（「14語」→実カウント 15 語訂正）。
+  N1/N2（コメント boundary: `.source` はアンカー付きで表示用写しへ drop-in 不可等）は FIX
+  ラウンドで反映。N3（engine spec テスト名の旧名残渣 1 語）はチップ task_2cb8c08e が作業ツリーで
+  実施済み・本コミット非含有（pin 無改変証明の純度維持・コミットは当該チップ側）
+- 検収（Fable 再実行・FIX 後）= engine build＋13 suites/530・front characterTemplate
+  7 suites/204・eslint 0・front typecheck rc=0（既知 3 件は上記チップの並行修正で解消済みを実測）・
+  pathspec 5 ファイルのみ・コミット後 index 残渣なし
+- 認知負荷純減の実測（両レビュー一致）: production 定義 4→2・pattern const 名 3→1・
+  手動同期ペア 2→0・語彙変更時の同時保持 3→1・新規 helper/層/別名 0。
+  読む側ホップ 0→1（`SHEET_` prefix が正本所在を自己申告・受容済みの対価）
+
+## 【チップ 2 本の取り込み 2026-08-15】ID 規則残渣＋front 型負債（Task #41・ユーザー許可「あなたがチップのコミットしてOK」）
+
+- 対象 = (a) チップ task_2cb8c08e: engine publish.spec のテスト名に残った旧名
+  `ID_PATTERN` → `SHEET_ID_PATTERN`（1464378b の純度維持のため別コミットにされていた残渣）
+  (b) チップ task_3c6ff45b: front 型エラー 3 件（character.service.server.ts の受信側 union 化・
+  DeltasInput の draft 型に `number` を許容・dicePreview.spec の二段 cast）。いずれも
+  **Why コメント付きで型穴の意図を明示**しており、挙動変更なし。
+- **`typecheck` スクリプトは既存**（上記訂正）。チップは新設せず既存を使う判断で正しい。
+- Fable 独立検収: 全 4 パッケージ suite ＋ front typecheck ＋ engine 正本化の実効性変異
+  （engine の SHEET_ID_PATTERN を壊すと front spec が赤 = front が本当に engine を見ている）。
+- **未コミット残 = ユーザー環境ファイル 4 本**（TRPG-SERVER/AI.development.md・start-dev.bat・
+  trpg-next-app/AI.md・trpg-next-app/app/layout.tsx）。ユーザー管轄のため触らない。
+
+## 【DL-5 進行中 2026-08-15】gameSystemId を検索セレクト化（Task #40・ユーザー要望）
+
+- 要望「gameSystemId はユーザーに入力させるのではなく検索式のセレクトにして作成させたい」。
+  自由入力は L-13c（実在しない ID を publish できる → 作成時ロールで 500）の入口そのもので、
+  セレクト化は**入力面からの実効的な封じ込め**になる（server 検証の要否は L-13c の裁定枠として別）。
+- 事前実測 = workflow wf_41d945a5-328（bcdice 一覧 API・server 公開点の慣習・front のデータ取得と
+  Mantine searchable の慣習・gameSystemId の現行全経路と pin・未知値を持つ既存テンプレートの扱い）。
+- **スライス順は並行作業の都合で server → front**。front の TemplateEditorV3 はチップ側が
+  未コミットで触っていたため（コミット単位の巻き込み回避）。上記チップ取り込み後は解消。
 
 ## 参照
 

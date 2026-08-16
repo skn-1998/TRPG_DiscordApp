@@ -434,7 +434,9 @@ interface DeltasInputProps {
 }
 
 function DeltasInput({ value, onChange }: DeltasInputProps) {
-  const [drafts, setDrafts] = useState<Array<string | undefined>>([])
+  // NumberInput の onChange 契約（string | number）は有限性を保証しないため、非有限 number も防御的に draft 側で保持する。
+  // 不変条件: onChange で親へ確定するのは有限 number のみ。それ以外は blur まで draft に留める。
+  const [drafts, setDrafts] = useState<Array<string | number | undefined>>([])
 
   const discardDraft = (index: number) => {
     setDrafts((current) => {
