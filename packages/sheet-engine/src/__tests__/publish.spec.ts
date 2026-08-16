@@ -1383,7 +1383,7 @@ describe('publish reference key uniqueness', () => {
     });
   });
 
-  it('reports duplicate table ids one character beyond the ID_PATTERN maximum', () => {
+  it('reports duplicate table ids one character beyond the SHEET_ID_PATTERN maximum', () => {
     const overlongId = `a${'b'.repeat(32)}`;
     const path = `tables.${overlongId}.id`;
     const template = baseTemplate({
