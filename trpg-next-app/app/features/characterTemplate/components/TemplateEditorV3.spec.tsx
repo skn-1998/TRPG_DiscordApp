@@ -193,6 +193,34 @@ describe('TemplateEditorV3 autosave', () => {
     expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].visibility).toBe('public')
   })
 
+  // Test intent: 日本語 label と保存値を分離し、BCDice の ID だけが payload に入ることを固定する。
+  it('ゲームシステムは日本語ラベルではなく BCDice の ID を保存する', async () => {
+    renderEditor()
+
+    const select = screen.getByRole('combobox', { name: 'ゲームシステム' })
+    fireEvent.change(select, { target: { value: 'Cthulhu' } })
+    fireEvent.click(screen.getByRole('option', { name: 'クトゥルフ神話TRPG（Cthulhu）' }))
+    await advanceAutosave()
+
+    const savedGameSystemId = mockedSaveTemplateDraft.mock.calls[0]?.[2].gameSystemId
+    expect(savedGameSystemId).toBe('Cthulhu')
+    expect(savedGameSystemId).not.toBe('クトゥルフ神話TRPG')
+  })
+
+  it('一覧に無い既存 gameSystemId を表示し、別項目の autosave でも保持する', async () => {
+    renderEditor({ ...initialTemplate, gameSystemId: 'coc7' })
+
+    const select = screen.getByRole('combobox', { name: 'ゲームシステム' }) as HTMLInputElement
+    expect(select.value).toBe('coc7（一覧に無い ID）')
+    fireEvent.click(select)
+    expect(screen.getByRole('option', { name: 'coc7（一覧に無い ID）' })).toBeTruthy()
+
+    editTables()
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].gameSystemId).toBe('coc7')
+  })
+
   it('端数処理は表示ラベルではなく英語 enum 値を保存する', async () => {
     // Test prerequisite: 既定の floor を選んでも state が変わらず autosave が起きないため、別の値から選び直す。
     renderEditor({ ...initialTemplate, settings: { rounding: 'round' } })
@@ -1687,18 +1715,17 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
     }
   })
 
-  function renderTrackEditor(notation?: string) {
-    renderEditor(
-      templateWithField({
-        id: 'hp',
-        uid: 'uid_hp',
-        label: 'HP',
-        type: 'track',
-        max: 10,
-        style: 'gauge',
-        ...(notation === undefined ? {} : { rollOnCreate: { notation } })
-      })
-    )
+  function renderTrackEditor(notation?: string, gameSystemId?: string) {
+    const template = templateWithField({
+      id: 'hp',
+      uid: 'uid_hp',
+      label: 'HP',
+      type: 'track',
+      max: 10,
+      style: 'gauge',
+      ...(notation === undefined ? {} : { rollOnCreate: { notation } })
+    })
+    renderEditor(gameSystemId ? { ...template, gameSystemId } : template)
   }
 
   it('notation を POST し、details を結果として表示する', async () => {
@@ -1717,6 +1744,24 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notation: '3d6*5' })
+    })
+  })
+
+  it('template.gameSystemId を試しロール request に渡す', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+    } as Response)
+    globalThis.fetch = fetchMock
+    renderTrackEditor('3d6*5', 'Cthulhu7th')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notation: '3d6*5', gameSystemId: 'Cthulhu7th' })
     })
   })
 

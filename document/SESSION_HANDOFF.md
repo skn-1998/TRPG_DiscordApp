@@ -3397,10 +3397,39 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
 - 要望「gameSystemId はユーザーに入力させるのではなく検索式のセレクトにして作成させたい」。
   自由入力は L-13c（実在しない ID を publish できる → 作成時ロールで 500）の入口そのもので、
   セレクト化は**入力面からの実効的な封じ込め**になる（server 検証の要否は L-13c の裁定枠として別）。
-- 事前実測 = workflow wf_41d945a5-328（bcdice 一覧 API・server 公開点の慣習・front のデータ取得と
-  Mantine searchable の慣習・gameSystemId の現行全経路と pin・未知値を持つ既存テンプレートの扱い）。
-- **スライス順は並行作業の都合で server → front**。front の TemplateEditorV3 はチップ側が
-  未コミットで触っていたため（コミット単位の巻き込み回避）。上記チップ取り込み後は解消。
+- 事前実測 = workflow wf_41d945a5-328（5 面並列・read-only）。**設計を変えた実測 5 点**:
+  1. **front に既に `app/static/gameSystemList.json`（224 件）があり、`SEARCH_KEY_KANJI` /
+     `SEARCH_KEY_HIRAGANA` を持つ**（＝日本語検索がそのまま作れる）。既に client component が
+     import 済みでバンドル増分ゼロ。→ **server の一覧エンドポイントは新設しない**。
+     bcdice は 294 件持つが、名前解決が front 224 件と割れる・kana 検索キーが無い・
+     api-contract の完全一致 pin と front eslint allowlist の同時更新が要るため採らない。
+  2. **静的一覧の 224 ID は全件 BCDice でロード可能**（実測）。＝ここから選ばせれば DLX 級の
+     500 事故は起きない。逆に **'DiceBot'（wrapper の既定）は一覧に無いがロード可能**なので
+     「一覧に無い＝不正」ではない。
+  3. **`null` / `''` を送ると autosave 全体が 400 で死ぬ**（DTO は通すが永続化 zod の min(1) が
+     拒否）。Mantine Select の onChange 型は `Value | null` なので **null ガードが必須**。
+     現行は undefined が key ごと落ちるため**そもそもクリア不能**（既存バグ）。クリア契約は
+     DTO・zod・pickDraftUpdate の 3 層設計が要るので DL-5 では扱わない（clearable を付けない）。
+  4. **Mantine 9.5.1 は data に無い value を空白表示にする**（実装読み取り）。'coc7' のような
+     一覧外の既存値を持つテンプレートで「未設定に見える → 選び直す → 上書き確定」の事故になるため、
+     既存値は必ず選択肢として残す。
+  5. **台帳 L-13c の記述誤りを発見・訂正済み**（下記）。
+- **台帳 L-13c 訂正**: 「試しロール = DiceBot の非対称が現存」は誤り。front は両 preview 経路で
+  template.gameSystemId を渡している。真の非対称は **Discord のシート内ロール**
+  （dice-roll-logic.service.ts:95-97）が常に DiceBot である点。また front が渡すことの
+  **機械固定が無い**（preview spec は body 未検証・editor spec は gameSystemId 0 件）ため、
+  DL-5 の pin で塞ぐ。
+- 実装 = Codex 委譲（prompt-dl5-code.txt が設計正本）。front 単独スライス・4 ファイル。
+- **完了・検収済み（証跡 = review-results/impl-u14/dl5-acceptance.md）**:
+  jest 11 suites/242・tsc・eslint・diff --check 全緑。変異 = 一覧外値の補完 / ひらがな検索 /
+  試しロールの方言転送 の 3 本が spec で赤、**null ガードは tsc が検出器**（素直な除去は TS2322。
+  `as string` で握り潰した場合だけ生存 = 今日の「front 受入に typecheck を含める」運用変更が
+  そのまま担保になっている）。
+- **ハーネス知見**: 変異残渣の判定を部分文字列で行うと偽陽性が出る（2 スペース版が 4 スペース版の
+  部分文字列）。**残渣は sha256 一致を正とする**。
+- 残る既知 = 静的一覧 224 件は bcdice 294 件より古く 'DiceBot' も一覧外（＝「一覧に無い＝不正」では
+  ない）。一覧の再生成は別スライス候補。クリア操作・published 時 disable・server 実在性検証は
+  いずれもスコープ外（理由は acceptance 記録）。
 
 ## 参照
 

@@ -47,6 +47,7 @@ import {
   validateStandaloneRollNotations
 } from '@trpg/sheet-engine'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
+import { filterGameSystemOptions, resolveGameSystemOptions } from '../../../lib/gameSystem'
 import { saveTemplateDraft, type EditorIntent } from '../actions'
 import type {
   CharacterSheetTemplateEntity,
@@ -1009,10 +1010,22 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
               updateTemplate({ visibility: (value ?? 'private') as CharacterSheetTemplateEntity['visibility'] })
             }
           />
-          <TextInput
-            label="ゲームシステム ID"
-            value={template.gameSystemId ?? ''}
-            onChange={(event) => updateTemplate({ gameSystemId: event.currentTarget.value || undefined })}
+          <Select
+            label="ゲームシステム"
+            description="未選択のままなら DiceBot 方言で判定されます"
+            placeholder="検索して選択"
+            searchable
+            nothingFoundMessage="該当なし"
+            data={resolveGameSystemOptions(template.gameSystemId)}
+            filter={filterGameSystemOptions}
+            value={template.gameSystemId ?? null}
+            allowDeselect={false}
+            // 224 件を一度に DOM へ描画せず、検索結果の先頭 50 件だけを表示する。
+            limit={50}
+            // null / 空文字は永続化 zod の min(1) で 400 となり、autosave 全体を止めるため state に入れない。
+            onChange={(value) => {
+              if (value) updateTemplate({ gameSystemId: value })
+            }}
           />
           <TextInput
             label="タグ"
