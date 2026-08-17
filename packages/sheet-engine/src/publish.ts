@@ -62,6 +62,8 @@ const RESERVED_IDS = new Set([
 ]);
 // engine 内の runtime 参照は無いが、front production（trpg-next-app/app/features/characterTemplate/utils/v3Template.ts）が保存前検証で同じ予約語集合を参照するため export する。
 export const SHEET_RESERVED_ID_VALUES: readonly string[] = Object.freeze([...RESERVED_IDS]);
+// 内訳の予約キー（base / other）。既定値・作成時ロールの行き先の検査が id 単位で参照するため Set で持つ。
+const RESERVED_PARTS_KEY_ID_SET: ReadonlySet<string> = new Set<string>(RESERVED_PARTS_KEY_IDS);
 // 未知 function・max/min arity の診断は validateFunctionCalls だけが発行する。
 // inferCallType は二重発行防止の停止マーカーを投げ、catch は前段発行済みの場合だけ握る（fail closed）。
 const FUNCTION_CALL_ISSUE_ALREADY_REPORTED = new Error('function call issue already reported (internal sentinel)');
@@ -101,7 +103,14 @@ const fieldBaseSchema = {
 };
 
 const numberOrFormulaSchema = z.union([z.number(), z.object({ formula: z.string() })]);
-const partsKeySchema = z.object({ id: z.string(), label: nonBlankLabelSchema }).passthrough();
+// 内訳の既定値は max / cap と同じ「数値か式」型を再利用する。新しい値型を増やすと式の静的検査を二重に持つことになる。
+const partsKeySchema = z.object({
+  id: z.string(),
+  label: nonBlankLabelSchema,
+  default: numberOrFormulaSchema.optional(),
+}).passthrough();
+// scalar と track で同一形。片方にだけ partsKey が生えて行き先の検証規則が分かれるのを防ぐため 1 箇所で持つ。
+const rollOnCreateSchema = z.object({ notation: z.string(), partsKey: z.string().optional() });
 const scalarFieldSchema = z.object({
   ...fieldBaseSchema,
   type: z.literal('scalar'),
@@ -109,6 +118,7 @@ const scalarFieldSchema = z.object({
   parts: z.boolean().optional(),
   max: numberOrFormulaSchema.optional(),
   partsKeys: z.array(partsKeySchema).min(1, 'partsKeys must contain at least one entry').optional(),
+  rollOnCreate: rollOnCreateSchema.optional(),
   options: z.array(z.object({ label: labelSchema, value: z.string() })).optional(),
 }).passthrough();
 
@@ -117,7 +127,7 @@ const fieldSchema: z.ZodType<SheetField> = z.lazy(() =>
     scalarFieldSchema,
     z.object({ ...fieldBaseSchema, type: z.literal('computed'), resultType: z.enum(['number', 'text', 'boolean', 'dice']), formula: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string(), rerollable: z.boolean().optional() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), rollOnCreate: z.object({ notation: z.string() }).optional(), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), rollOnCreate: rollOnCreateSchema.optional(), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: roleSchema.optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(scalarFieldSchema).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('tag'), catalog: z.array(z.string()).optional(), allowFreeInput: z.boolean().optional() }).passthrough(),
@@ -256,6 +266,9 @@ function validateStaticEvaluationStepLimit(
  * D-R3（2026-08-12）により max / cap / pool total 等の注釈式は evaluateConstraint の
  * 呼び出しごとに既定 10,000 の独立予算を得る仕様であり、共有見積もりには加算しない。
  * track.max は server の TrackRangePolicy が別呼び出しで評価し、track.resetTo の評価系は未実装（C-1）。
+ *
+ * 例外は partsKeys[].default の式で、これは evaluateTemplate も evaluateConstraint も通らない
+ * （適用経路は PV-2 で未実装）。独立予算を持つと言い切れないため、上界としてここへ加算する。
  */
 // engine 内 runtime 参照は validateStaticEvaluationStepLimit の 1 件のみだが export は削除不可。publish spec と scripts/h18-bench.ts が直接 consume する。
 export function estimateStaticEvaluationSteps(template: SheetTemplate): number {
@@ -277,6 +290,11 @@ function estimateStaticFieldSteps(field: SheetField): number {
     return LIST_ROW_LIMIT * rowSteps;
   }
   if (field.type === 'computed') return countFormulaSteps({ formula: field.formula });
+  // 内訳の既定値の式は max / cap と違い evaluateConstraint の独立予算を持つ経路がまだ無い（適用は PV-2）。
+  // 独立予算を前提にできない以上、共有見積もりへ数えて publish 側を厳しい方へ倒す。
+  if (field.type === 'scalar') {
+    return (field.partsKeys ?? []).reduce((sum, partsKey) => sum + countFormulaSteps(partsKey.default), 0);
+  }
   return 0;
 }
 
@@ -406,9 +424,19 @@ function validateSectionFormulaAnnotations(
   astNodeLimit: number,
 ): void {
   for (const field of section.fields) {
-    if (field.type === 'scalar' && field.valueType === 'number' && typeof field.max === 'object') {
+    if (field.type !== 'scalar' || field.valueType !== 'number') continue;
+    if (typeof field.max === 'object') {
       validateNumberFormulaAnnotation(
         template, field.max.formula, field.id, issues, refs, astNodeLimit, `${section.id}.${field.id}.max.formula`,
+      );
+    }
+    // 内訳の既定値の式を max と同じ静的検査（参照解決・型検査・AST 上限）へ合流させる。
+    // ここを通さないと「publish は通るが適用時に throw する既定値」を受理してしまう。
+    for (const [index, partsKey] of (field.partsKeys ?? []).entries()) {
+      if (typeof partsKey.default !== 'object') continue;
+      validateNumberFormulaAnnotation(
+        template, partsKey.default.formula, field.id, issues, refs, astNodeLimit,
+        `${section.id}.${field.id}.partsKeys.${index}.default.formula`,
       );
     }
   }
@@ -542,6 +570,7 @@ function validateField(
 
   if (field.type === 'scalar') {
     validateScalarPartsKeys(field, issues, path);
+    validateScalarRollOnCreate(field, issues, path);
   }
   if (field.type === 'computed') {
     const actual = validateFormula(template, field.formula, issues, refs, astNodeLimit, `${path}.formula`, parentList);
@@ -559,6 +588,14 @@ function validateField(
   }
   if (field.type === 'relation') {
     for (const attr of field.attrs ?? []) {
+      // 作成時ロールの走査は top-level のみで、relation 属性は list row と同じく作成時に走査されない。
+      // 宣言できるが発火しない面を残さないため、list itemFields と同じ形で publish/save から閉じる。
+      // 内訳の既定値に同じ禁止が要らないのは、属性へ partsKeys を付けること自体を
+      // validateNumericAnnotationTarget が既に拒否しており（section 直下の number scalar 限定）、
+      // 既定値の置き場が生じないため。
+      if (attr.rollOnCreate !== undefined) {
+        issues.push({ path: `${path}.${attr.id}.rollOnCreate`, message: 'scalar rollOnCreate is not allowed inside relation attrs' });
+      }
       validateField(template, attr, issues, warnings, refs, uids, canonicalFieldPaths, astNodeLimit, `${path}.${attr.id}`, parentList);
     }
   }
@@ -572,8 +609,9 @@ function validateField(
         issues.push({ path: `${path}.${subField.id}`, message: 'list inside list is not supported' });
       }
       // 作成時ロールの走査は top-level のみで、list row は作成時に存在しない。宣言できるが発火しない面を残さないため save/publish で閉じる（正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の司令塔裁定）。
-      if (subField.type === 'track' && subField.rollOnCreate !== undefined) {
-        issues.push({ path: `${path}.${subField.id}.rollOnCreate`, message: 'track rollOnCreate is not allowed inside list itemFields' });
+      // track と scalar は同じ理由で同じ形の診断を出す。片方だけ許す差を作らないため 1 箇所で判定する。
+      if ((subField.type === 'track' || subField.type === 'scalar') && subField.rollOnCreate !== undefined) {
+        issues.push({ path: `${path}.${subField.id}.rollOnCreate`, message: `${subField.type} rollOnCreate is not allowed inside list itemFields` });
       }
       validateField(template, subField, issues, warnings, refs, uids, canonicalFieldPaths, astNodeLimit, `${path}.${subField.id}`, field);
     }
@@ -586,6 +624,7 @@ function validateScalarPartsKeys(
   path: string,
 ): void {
   if (field.partsKeys === undefined) return;
+  // 既定値は partsKeys の要素にしか書けないため、自由キーモード（parts: true）との併用はこの併存拒否が兼ねる。
   if (field.parts === true) {
     issues.push({ path: `${path}.partsKeys`, message: 'parts and partsKeys must not be specified together' });
   }
@@ -597,11 +636,72 @@ function validateScalarPartsKeys(
     if (UNSAFE_PARTS_KEYS.has(partsKey.id)) {
       issues.push({ path: idPath, message: `partsKey id is reserved: ${truncateIssueInput(partsKey.id)}` });
     }
+    // 既定値を持てるのは宣言済みの内訳キーだけ。base / other は予約キーで宣言できず（validateId が拒否）、
+    // 既定値の置き場も無い。構造上は到達しにくいが、規則を宣言の側から読めるよう明示的に検査する。
+    if (partsKey.default !== undefined && RESERVED_PARTS_KEY_ID_SET.has(partsKey.id)) {
+      issues.push({
+        path: `${path}.partsKeys.${index}.default`,
+        message: `partsKey default is not supported on the reserved parts key: ${truncateIssueInput(partsKey.id)}`,
+      });
+    }
     if (seenIds.has(partsKey.id)) {
       issues.push({ path: idPath, message: `partsKey id must be unique within field: ${truncateIssueInput(partsKey.id)}` });
     }
     seenIds.add(partsKey.id);
   }
+}
+
+/**
+ * scalar の作成時ロール宣言を検査する。track（validateTrack）と同じ検査へ scalar を合流させる。
+ */
+function validateScalarRollOnCreate(
+  field: Extract<SheetField, { type: 'scalar' }>,
+  issues: PublishIssue[],
+  path: string,
+): void {
+  if (field.rollOnCreate === undefined) return;
+
+  // track と同じく、宣言時点で placeholder を許さないため publish/save 共通のこの経路で記法を封止する。
+  for (const issue of validateStandaloneRollNotation(field.rollOnCreate.notation)) {
+    issues.push({ path: `${path}.rollOnCreate.${issue.path}`, message: issue.message });
+  }
+  if (field.valueType !== 'number') {
+    issues.push({
+      path: `${path}.rollOnCreate`,
+      message: 'scalar rollOnCreate is only supported on number scalar fields',
+    });
+  }
+  validateRollOnCreatePartsKey(field.partsKeys, field.rollOnCreate.partsKey, issues, `${path}.rollOnCreate.partsKey`);
+}
+
+/**
+ * 作成時ロールの出目の行き先（partsKey）を検査する。scalar / track 共通。
+ *
+ * 受理するのは field が宣言した partsKeys の id と `base` だけ。track は partsKeys を宣言できない
+ * （validateNumericAnnotationTarget が拒否する）ので、track で通るのは実質 `base` のみになる。
+ */
+function validateRollOnCreatePartsKey(
+  declaredPartsKeys: ReadonlyArray<{ id: string }> | undefined,
+  partsKey: string | undefined,
+  issues: PublishIssue[],
+  path: string,
+): void {
+  // 未指定は宣言として合法。既定の行き先をどこにするかは書き込み側（PV-2）の裁量であり publish は決めない。
+  if (partsKey === undefined) return;
+
+  // `other` は Discord の ±（resource role）が書き込む領分。出目と手動増減が同じ内訳に混ざると、
+  // 振り直しで ± の増減が消える／出目に ± が乗るという取り違えが起きるため、行き先には選ばせない。
+  if (partsKey === 'other') {
+    issues.push({ path, message: 'rollOnCreate partsKey must not be other' });
+    return;
+  }
+  if (partsKey === 'base') return;
+  if ((declaredPartsKeys ?? []).some((declared) => declared.id === partsKey)) return;
+
+  issues.push({
+    path,
+    message: `rollOnCreate partsKey must be base or a declared parts key: ${truncateIssueInput(partsKey)}`,
+  });
 }
 
 function validateSectionLayout(section: SheetSection, warnings: PublishWarning[]): void {
@@ -727,6 +827,8 @@ function validateTrack(
     for (const issue of validateStandaloneRollNotation(field.rollOnCreate.notation)) {
       issues.push({ path: `${path}.rollOnCreate.${issue.path}`, message: issue.message });
     }
+    // track は partsKeys を宣言できないため、宣言済みキーの集合は常に空（= `base` だけが通る）。
+    validateRollOnCreatePartsKey(undefined, field.rollOnCreate.partsKey, issues, `${path}.rollOnCreate.partsKey`);
   }
 
   const min = field.min ?? 0;
@@ -1286,6 +1388,14 @@ function detectCycles(template: SheetTemplate, issues: PublishIssue[]): void {
           graph.set(field.uid, deps);
         }
       }
+      // 既定値の式も参照先を持つので computed と同じ辺としてグラフへ載せる。
+      // 載せないと循環した既定値が publish を通り、適用時（PV-2）に初めて壊れる。
+      if (field.type === 'scalar') {
+        const deps = partsKeyDefaultDeps(template, field);
+        if (deps) {
+          graph.set(field.uid, deps);
+        }
+      }
       if (field.type === 'list') {
         for (const subField of field.itemFields) {
           if (subField.type === 'computed') {
@@ -1327,6 +1437,29 @@ function detectCycles(template: SheetTemplate, issues: PublishIssue[]): void {
       return;
     }
   }
+}
+
+/**
+ * scalar 1 件の内訳の既定値の式が参照する uid をまとめて返す。
+ *
+ * 式の既定値を 1 件も持たない field は undefined を返し、循環グラフの頂点にしない
+ * （既定値を宣言していない既存テンプレートのグラフを変えないため）。
+ * 解析できない式は safeFormulaDeps と同じく無視する（構文の issue は validateFormula が発行済み）。
+ */
+function partsKeyDefaultDeps(
+  template: SheetTemplate,
+  field: Extract<SheetField, { type: 'scalar' }>,
+): Set<string> | undefined {
+  const deps = new Set<string>();
+  let hasFormulaDefault = false;
+  for (const partsKey of field.partsKeys ?? []) {
+    if (typeof partsKey.default !== 'object') continue;
+    hasFormulaDefault = true;
+    for (const dep of safeFormulaDeps(template, partsKey.default.formula) ?? []) {
+      deps.add(dep);
+    }
+  }
+  return hasFormulaDefault ? deps : undefined;
 }
 
 function safeFormulaDeps(template: SheetTemplate, formula: string, parentList?: ListField): Set<string> | undefined {

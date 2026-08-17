@@ -2217,3 +2217,264 @@ describe('H-18 static aggregate evaluation bound', () => {
     expect(estimateStaticEvaluationSteps(template)).toBe(0);
   });
 });
+
+/**
+ * 内訳の既定値（partsKeys[].default）の宣言と publish 検証を検証する。
+ *
+ * 本スライスは宣言と検証だけを持ち、既定値をシートへ適用する処理は対象外（PV-2）。
+ * 既定値の式が静的検査から漏れると publish は通るのに適用時に壊れるため、
+ * 参照解決・型検査・循環検査・ステップ見積もりの 4 経路をそれぞれ 1 条件ずつ固定する。
+ */
+describe('parts key default publish validation', () => {
+  function templateWithPartsKeys(partsKeys: unknown, extraFields: unknown[] = []) {
+    return {
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [
+          {
+            type: 'scalar', id: 'library', uid: 'main.library', label: 'Library', valueType: 'number', partsKeys,
+          },
+          ...extraFields,
+        ],
+      }],
+    };
+  }
+
+  const dexField = {
+    type: 'scalar', id: 'dex', uid: 'main.dex', label: 'DEX', valueType: 'number',
+  };
+
+  it('accepts a numeric parts key default', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys([{ id: 'initial', label: 'Initial', default: 25 }]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('accepts a formula parts key default', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: '{main.dex} / 2' } }],
+      [dexField],
+    ));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('accepts a parts key declaration without a default', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys([{ id: 'initial', label: 'Initial' }]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('rejects a parts key default formula that references an undefined field', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: '{main.missing}' } }],
+    ));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      path: 'main.library.partsKeys.0.default.formula',
+      message: 'Unknown field reference: main.missing',
+    });
+  });
+
+  it('rejects a parts key default formula that does not return a number', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: "'high'" } }],
+    ));
+
+    expect(result.issues).toEqual([{
+      path: 'main.library.partsKeys.0.default.formula',
+      message: 'field library expected number, got text',
+    }]);
+  });
+
+  // 既定値の式を循環検査へ合流させないと、publish は通るのに適用時（PV-2）に初めて壊れる宣言を受理してしまう。
+  it('rejects a parts key default formula that closes a cycle with a computed field', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: '{main.derived}' } }],
+      [{
+        type: 'computed', id: 'derived', uid: 'main.derived', label: 'Derived', resultType: 'number',
+        formula: '{main.library} + 1',
+      }],
+    ));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({ path: 'main.library', message: 'Circular reference detected' });
+  });
+
+  it('rejects a parts key default formula that references its own field', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: '{main.library} + 1' } }],
+    ));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({ path: 'main.library', message: 'Circular reference detected' });
+  });
+
+  it('counts a parts key default formula in the shared static step estimate', () => {
+    const template = templateWithPartsKeys(
+      [{ id: 'initial', label: 'Initial', default: { formula: '{main.dex} / 2' } }],
+      [dexField],
+    );
+
+    expect(estimateStaticEvaluationSteps(template as unknown as SheetTemplate)).toBe(3);
+    expect(validatePublishTemplate(template, { evaluationStepLimit: 2 }).issues).toContainEqual({
+      path: '$',
+      message: 'Static evaluation step limit exceeded: 3 > 2',
+    });
+  });
+
+  it('rejects a default declared on a reserved parts key', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys([{ id: 'base', label: 'Base', default: 25 }]));
+
+    expect(result.issues).toEqual([
+      { path: 'main.library.partsKeys.0.id', message: 'id is reserved: base' },
+      {
+        path: 'main.library.partsKeys.0.default',
+        message: 'partsKey default is not supported on the reserved parts key: base',
+      },
+    ]);
+  });
+
+  it('rejects a non-numeric, non-formula default as a structural issue', () => {
+    const result = validatePublishTemplate(templateWithPartsKeys([{ id: 'initial', label: 'Initial', default: '25' }]));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 作成時ロールの行き先（rollOnCreate.partsKey）と、scalar へ新設した作成時ロールの publish 検証。
+ *
+ * 行き先の受理集合は「宣言済みの内訳キー + base」で、`other` は Discord の ± の領分なので拒否する。
+ * 出目を実際に書き込む処理は対象外（PV-2 / PV-3）。
+ */
+describe('creation roll destination publish validation', () => {
+  function templateWithField(field: Record<string, unknown>) {
+    return {
+      ...baseTemplate(),
+      sections: [{ id: 'main', label: 'Main', fields: [field] }],
+    };
+  }
+
+  function scalarField(fieldPatch: Record<string, unknown>) {
+    return { type: 'scalar', id: 'str', uid: 'main.str', label: 'STR', valueType: 'number', ...fieldPatch };
+  }
+
+  function trackField(fieldPatch: Record<string, unknown>) {
+    return { type: 'track', id: 'hp', uid: 'main.hp', label: 'HP', max: 10, style: 'gauge', ...fieldPatch };
+  }
+
+  const rolledPartsKeys = [{ id: 'rolled', label: 'Rolled' }];
+
+  it('accepts a scalar creation roll targeting a declared parts key', () => {
+    const result = validatePublishTemplate(templateWithField(scalarField({
+      partsKeys: rolledPartsKeys, rollOnCreate: { notation: '3d6*5', partsKey: 'rolled' },
+    })));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('accepts a scalar creation roll without a destination', () => {
+    const result = validatePublishTemplate(templateWithField(scalarField({
+      rollOnCreate: { notation: '3d6*5' },
+    })));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['scalar', scalarField({ partsKeys: rolledPartsKeys, rollOnCreate: { notation: '3d6*5', partsKey: 'base' } })],
+    ['track', trackField({ rollOnCreate: { notation: '3d6*5', partsKey: 'base' } })],
+  ])('accepts a %s creation roll targeting base', (_case, field) => {
+    const result = validatePublishTemplate(templateWithField(field));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['scalar', scalarField({ partsKeys: rolledPartsKeys, rollOnCreate: { notation: '3d6*5', partsKey: 'growth' } }),
+      'main.str.rollOnCreate.partsKey', 'growth'],
+    // track は partsKeys を宣言できないため、scalar なら通る行き先も未宣言として落ちる。
+    ['track', trackField({ rollOnCreate: { notation: '3d6*5', partsKey: 'rolled' } }),
+      'main.hp.rollOnCreate.partsKey', 'rolled'],
+  ])('rejects a %s creation roll targeting an undeclared parts key', (_case, field, path, partsKey) => {
+    const result = validatePublishTemplate(templateWithField(field));
+
+    expect(result.issues).toEqual([{
+      path,
+      message: `rollOnCreate partsKey must be base or a declared parts key: ${partsKey}`,
+    }]);
+  });
+
+  // other は Discord の ± が書く領分。ロールの出目と手動増減が混ざる宣言を publish で閉じる。
+  it.each([
+    ['scalar', scalarField({ partsKeys: rolledPartsKeys, rollOnCreate: { notation: '3d6*5', partsKey: 'other' } }),
+      'main.str.rollOnCreate.partsKey'],
+    ['track', trackField({ rollOnCreate: { notation: '3d6*5', partsKey: 'other' } }), 'main.hp.rollOnCreate.partsKey'],
+  ])('rejects a %s creation roll targeting other', (_case, field, path) => {
+    const result = validatePublishTemplate(templateWithField(field));
+
+    expect(result.issues).toEqual([{ path, message: 'rollOnCreate partsKey must not be other' }]);
+  });
+
+  it('routes a scalar creation roll notation through the standalone roll check', () => {
+    const result = validatePublishTemplate(templateWithField(scalarField({ rollOnCreate: { notation: '1d20+' } })));
+
+    expect(result.issues).toEqual([{
+      path: 'main.str.rollOnCreate.notation',
+      message: 'invalid standalone roll expression',
+    }]);
+  });
+
+  it('rejects a scalar creation roll declared on a non-number scalar', () => {
+    const result = validatePublishTemplate(templateWithField(scalarField({
+      valueType: 'text', rollOnCreate: { notation: '3d6*5' },
+    })));
+
+    expect(result.issues).toEqual([{
+      path: 'main.str.rollOnCreate',
+      message: 'scalar rollOnCreate is only supported on number scalar fields',
+    }]);
+  });
+
+  it('rejects a scalar creation roll declared inside relation attrs', () => {
+    const result = validatePublishTemplate(templateWithField({
+      type: 'relation', id: 'ally', uid: 'main.ally', label: 'Ally',
+      attrs: [{
+        type: 'scalar', id: 'score', uid: 'ally.score', label: 'Score', valueType: 'number',
+        rollOnCreate: { notation: '3d6*5' },
+      }],
+    }));
+
+    expect(result.issues).toEqual([{
+      path: 'main.ally.score.rollOnCreate',
+      message: 'scalar rollOnCreate is not allowed inside relation attrs',
+    }]);
+  });
+
+  it('rejects a scalar creation roll declared inside list itemFields', () => {
+    const result = validatePublishTemplate({
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'list', id: 'items', uid: 'main.items', label: 'Items',
+          itemFields: [{
+            type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+            rollOnCreate: { notation: '3d6*5' },
+          }],
+        }],
+      }],
+    });
+
+    expect(result.issues).toEqual([{
+      path: 'main.items.score.rollOnCreate',
+      message: 'scalar rollOnCreate is not allowed inside list itemFields',
+    }]);
+  });
+});
