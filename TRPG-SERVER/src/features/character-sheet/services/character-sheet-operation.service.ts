@@ -26,6 +26,8 @@ import { CharacterRepository } from '../../../domains/character/repositories/cha
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
+import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
+import { rollOnCreateNotation } from './roll-on-create-notation.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 import { allowsParts, isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
 import { buildBoundedNonFiniteErrorEnvelope, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
@@ -62,6 +64,30 @@ export interface SaveSheetResult {
   revision: number
   noOp: boolean
   appliedChanges: number
+}
+
+/**
+ * 作成時ロールの振り直し要求。
+ *
+ * 値を受け取らないのは意図的である。出目はサーバの実行結果だけを採用するため、
+ * クライアントが数値を持ち込める入口を作らない。
+ */
+export interface RerollCreationRollInput {
+  characterId: string
+  /** 認証済み要求者。所有者でない要求は、不在の characterId と同じ 404 に畳む（触れないシートの存在を開示しないため）。 */
+  requesterDiscordUserId: string
+  fieldUid: string
+  baseRevision: number
+}
+
+export interface RerollCreationRollResult {
+  character: CharacterEntity
+  revision: number
+  fieldUid: string
+  /** 実際に実行した記法。テンプレート宣言をそのまま実行するので補間はしていない。 */
+  notation: string
+  total: number
+  details: string
 }
 
 interface ApplyResourceDeltaResultBase {
@@ -113,7 +139,8 @@ export class CharacterSheetOperationService {
   constructor(
     private readonly characterRepository: CharacterRepository,
     private readonly templateService: CharacterSheetTemplateService,
-    private readonly materializer: SheetMaterializerService
+    private readonly materializer: SheetMaterializerService,
+    private readonly diceExecutionService: DiceExecutionService
   ) {}
 
   /** Discord hub 境界向けの materialized character 読み取り。legacy は明示的に対象外とする。 */
@@ -323,6 +350,63 @@ export class CharacterSheetOperationService {
     }
 
     throw this.retryConflict(current.characterId)
+  }
+
+  /**
+   * テンプレートが宣言している作成時ロールを、作成済みキャラクターに対して振り直す。
+   *
+   * 対象条件は「作成時ロールの記法を宣言しているか」（rollOnCreateNotation）であり、
+   * saveSheet が使う assertWritablePath（track / scalar だけを入力項目とみなす規則）とは別の述語である。
+   * assertWritablePath 側に roll を足して通すと、roll 型がクライアント提出の入力項目にも同時に昇格し、
+   * サーバ実行を経ない値が roll 型へ書ける経路が開く。だからここでは流用しない。
+   *
+   * 入力に値を持たないため、この経路で保存されうる値は executeEvaluatedDiceRoll の結果だけである。
+   */
+  async rerollCreationRoll(input: RerollCreationRollInput): Promise<RerollCreationRollResult> {
+    this.assertBaseRevision(input.baseRevision)
+    const current = await this.findMaterializedById(input.characterId)
+    this.assertSheetOwner(current, input.requesterDiscordUserId)
+
+    const sheet = this.requireSheet(current)
+    if (sheet.revision !== input.baseRevision) {
+      throw this.staleRevisionConflict(input.characterId)
+    }
+
+    const template = await this.resolvePinnedTemplate(current)
+    const field = this.findTopLevelField(toEngineTemplate(template), input.fieldUid)
+    const notation = rollOnCreateNotation(field)
+    if (notation === undefined) {
+      throw new UnprocessableEntityException(`field ${input.fieldUid} does not declare a creation roll (${field.type})`)
+    }
+
+    // 実行を保存より前に完結させる。失敗はここで throw され、values の組み立ても CAS も走らないので、
+    // 失敗した振り直しは値も revision も残さない。
+    const rolled = await this.executeCreationRollOrThrow(notation, template.gameSystemId, input.fieldUid)
+
+    // 作成時（CharacterInstantiationService.applyRollOnCreate）と同じく、出目をそのまま値にする。
+    // parts へ畳み込むと、同じ項目が作成直後と振り直し後で違う形になる。
+    const values = { ...sheet.values, [input.fieldUid]: rolled.total }
+    // 兄弟経路（saveSheet / applyResourceDelta）が materialize の前に置く assertFiniteTrackValues と
+    // evaluateTemplateOrThrow はここでは呼ばない。materializeOrThrow が保存前に全値の有限性検査
+    // （SheetMaterializerService.validateStoredValues）と evaluateTemplate を再実行し、失敗は CAS より前に 422 になるため。
+    // 未検証: 変更された track の max 式の有限性（track-range.policy の track-max 診断）だけは materialize が持たない。
+    // 振り直しでこれが非有限になりうるかは確認していない。
+    const materialized = this.materializeOrThrow(template, current, values)
+    const savePayload = this.toSavePayload(materialized, sheet.revision + 1, current.appliedInteractionIds ?? [])
+    const saved = await this.characterRepository.saveSheetMaterialized(current.characterId, savePayload, sheet.revision)
+    if (saved === null) {
+      // saveSheet と違い再試行しない。再実行すれば別の出目になり、要求者が見た版に対する 1 回の振り直しでなくなる。
+      throw this.staleRevisionConflict(input.characterId)
+    }
+
+    return {
+      character: saved,
+      revision: this.requireSheet(saved).revision,
+      fieldUid: input.fieldUid,
+      notation,
+      total: rolled.total,
+      details: rolled.details
+    }
   }
 
   private async findMaterializedById(characterId: string): Promise<CharacterEntity> {
@@ -594,9 +678,56 @@ export class CharacterSheetOperationService {
   }
 
   private assertSaveSheetInput(input: SaveSheetInput): void {
-    if (!Number.isInteger(input.baseRevision) || input.baseRevision < 0) {
+    this.assertBaseRevision(input.baseRevision)
+  }
+
+  private assertBaseRevision(baseRevision: number): void {
+    if (!Number.isInteger(baseRevision) || baseRevision < 0) {
       throw new BadRequestException('baseRevision must be a non-negative integer')
     }
+  }
+
+  /**
+   * シートを変更できるのは所有者だけ、という既存のシート編集認可と同じ条件を課す（新しい権限概念は増やさない）。
+   * 「存在しない characterId」と「他人のシート」を区別せず、どちらも findMaterializedById と同じ
+   * 404 / character not found に畳む。区別すると、要求者が触れないシートの存在が応答から読めてしまう。
+   */
+  private assertSheetOwner(character: CharacterEntity, requesterDiscordUserId: string): void {
+    if (character.discordUserId !== requesterDiscordUserId) {
+      throw new NotFoundException('character not found')
+    }
+  }
+
+  private async executeCreationRollOrThrow(
+    notation: string,
+    gameSystemId: string | undefined,
+    fieldUid: string
+  ): Promise<{ total: number; details: string }> {
+    try {
+      // 作成時ロールと同じ executeEvaluatedDiceRoll（式修飾子込みの評価済み値）を使う。
+      // executeDiceRoll は rands 合算の legacy 互換 total なので、取り違えると
+      // 同じ項目が振り直しただけで別の分布になる。
+      // notation はテンプレート宣言のまま渡す。作成時も補間しないため、placeholder を含む宣言は
+      // 作成時と同じく実行境界（cleanDiceExpression）で拒否される。
+      return await this.diceExecutionService.executeEvaluatedDiceRoll(notation, gameSystemId)
+    } catch (error) {
+      // 未対応記法・解析失敗はテンプレート宣言に起因するドメイン拒否なので 422 に写像する。
+      throw new UnprocessableEntityException({
+        message: `creation roll execution failed for field ${fieldUid}`,
+        fieldUid,
+        notation,
+        detail: this.errorMessage(error)
+      })
+    }
+  }
+
+  /** 出目は再現できないため、版がずれていれば最新版の取り直しを求める（保存経路の conflict と同じ 409）。 */
+  private staleRevisionConflict(characterId: string): ConflictException {
+    return new ConflictException({
+      message: 'sheet revision changed; refetch the latest revision and retry',
+      characterId,
+      refetchRequired: true
+    })
   }
 
   private assertResourceDeltaInput(input: ApplyResourceDeltaInput): void {

@@ -82,4 +82,53 @@ describe('CharacterSheetController HTTP validation', () => {
       ]
     })
   })
+
+  // 振り直し DTO に値の受け口が無いことを HTTP 境界で固定する。
+  // 値の入口が復活すると、クライアントが任意の数値をダイスの出目として保存できてしまう。
+  it('POST /character/:id/sheet/reroll は APP_PIPE の whitelist で値プロパティを除去する', async () => {
+    const characterId = 'character-http-reroll'
+    const rerollCreationRoll = jest.fn().mockResolvedValue({ revision: 2, total: 55 })
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [CharacterSheetController],
+      providers: [
+        { provide: CharacterService, useValue: { findOneForOwner: jest.fn() } },
+        { provide: CHARACTER_SHEET_OPERATION_USE_CASE, useValue: { saveSheet: jest.fn(), rerollCreationRoll } },
+        { provide: CHARACTER_INSTANTIATION_USE_CASE, useValue: { instantiate: jest.fn() } },
+        APP_VALIDATION_PIPE_PROVIDER
+      ]
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const req = context.switchToHttp().getRequest<Request>()
+          req.user = { username: 'Alice', discordUserId: 'owner-1' }
+          return true
+        }
+      })
+      .compile()
+
+    const app: INestApplication = module.createNestApplication()
+    await app.init()
+    try {
+      await request(app.getHttpServer())
+        .post(`/character/${characterId}/sheet/reroll`)
+        .send({
+          fieldUid: 'uid-hp',
+          baseRevision: 1,
+          value: 100,
+          total: 100
+        })
+        .expect(200)
+    } finally {
+      await app.close()
+    }
+
+    expect(rerollCreationRoll).toHaveBeenCalledTimes(1)
+    expect(rerollCreationRoll).toHaveBeenCalledWith({
+      characterId,
+      requesterDiscordUserId: 'owner-1',
+      fieldUid: 'uid-hp',
+      baseRevision: 1
+    })
+  })
 })

@@ -11,6 +11,7 @@ import {
   InstantiateCharacterResult,
   RollOnCreateResult
 } from '../types/character-sheet.types'
+import { rollOnCreateNotation } from './roll-on-create-notation.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
 @Injectable()
@@ -101,7 +102,7 @@ export class CharacterInstantiationService {
         })
       }
 
-      const notation = this.rollOnCreateNotation(field)
+      const notation = rollOnCreateNotation(field)
       if (!notation) {
         continue
       }
@@ -118,16 +119,6 @@ export class CharacterInstantiationService {
     }
 
     return { values, rollOnCreateResults }
-  }
-
-  private rollOnCreateNotation(field: SheetField): string | undefined {
-    if (field.type === 'roll') {
-      return field.notation
-    }
-    if (field.type !== 'track') {
-      return undefined
-    }
-    return field.rollOnCreate?.notation
   }
 
   private collectTopLevelFields(template: CharacterSheetTemplateEntity): SheetField[] {

@@ -2,6 +2,7 @@ import * as sheetProjection from '@trpg/sheet-projection'
 import type { CharacterSheetTemplateEntity } from '../../../../domains/character-sheet-template/models/character-sheet-template.entity'
 import type { CharacterSheetTemplateService } from '../../../../domains/character-sheet-template/character-sheet-template.service'
 import type { CharacterRepository } from '../../../../domains/character/repositories/character.repository'
+import type { DiceExecutionService } from '../../../../domains/dice-roll/services/dice-execution.service'
 import {
   CharacterSheetOperationService,
   type HubProjectionCharacter
@@ -167,7 +168,9 @@ describe('HubProjectionService', () => {
     const operations = new CharacterSheetOperationService(
       { findById: jest.fn().mockResolvedValue(sourceCharacter) } as unknown as CharacterRepository,
       { resolvePinnedRevision: jest.fn().mockResolvedValue(template) } as unknown as CharacterSheetTemplateService,
-      {} as SheetMaterializerService
+      {} as SheetMaterializerService,
+      // hub 投影はダイスを実行しないため、振り直し用の依存は未呼び出しのまま渡す。
+      {} as DiceExecutionService
     )
 
     const projectionCharacter = await operations.getHubCharacter('character-1')

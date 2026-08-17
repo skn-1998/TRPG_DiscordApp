@@ -20,7 +20,11 @@ import { JwtAuthGuard } from '../../domains/auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../../domains/auth/models/auth.token.model'
 import { CharacterService } from '../../domains/character/character.service'
 import { CharacterIdParamDto } from '../../domains/character/dto/create-character.dto'
-import { CreateCharacterFromTemplateDto, SaveCharacterSheetDto } from '../../domains/character/dto/character-sheet.dto'
+import {
+  CreateCharacterFromTemplateDto,
+  RerollSheetFieldDto,
+  SaveCharacterSheetDto
+} from '../../domains/character/dto/character-sheet.dto'
 import { ResponseInterceptor, ResponseMessage } from '../../core/http'
 import { CharacterSheetHttpExceptionFilter } from './character-sheet-http-exception.filter'
 import type { RollOnCreateResult } from './types/character-sheet.types'
@@ -33,6 +37,12 @@ interface CharacterSheetOperationUseCase {
     characterId: string
     baseRevision: number
     changes: SaveCharacterSheetDto['changes']
+  }): Promise<unknown>
+  rerollCreationRoll(input: {
+    characterId: string
+    requesterDiscordUserId: string
+    fieldUid: string
+    baseRevision: number
   }): Promise<unknown>
 }
 
@@ -93,6 +103,36 @@ export class CharacterSheetController {
       characterId: params.id,
       baseRevision: dto.baseRevision,
       changes: dto.changes
+    })
+  }
+
+  /**
+   * 所有者確認を use case 側へ寄せる唯一のルート。
+   * 振り直しは対象 character を use case 内で読むため、所有者判定もそこに閉じて二重読み取りを避ける。
+   * 「見つからない」と「他人のもの」をどちらも 404 に畳む点は saveSheet の findOneForOwner と同じで、
+   * 兄弟エンドポイント間で存在の開示規則を変えない。
+   */
+  @Post(':id/sheet/reroll')
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('作成時ロールを振り直しました')
+  @ApiOperation({ summary: '作成時ロールを宣言している項目の振り直し' })
+  @ApiParam({ name: 'id', description: 'キャラクターID' })
+  @ApiResponse({ status: 200, description: '振り直し成功' })
+  @ApiResponse({ status: 404, description: 'キャラクター不在または他人のシート' })
+  @ApiResponse({ status: 409, description: 'baseRevision の不一致・保存 CAS 敗北・character が materialized でない' })
+  @ApiResponse({ status: 422, description: '作成時ロール未宣言・記法の実行失敗' })
+  async rerollCreationRoll(
+    @Param() params: CharacterIdParamDto,
+    @Body() dto: RerollSheetFieldDto,
+    @Req() req: Request
+  ): Promise<unknown> {
+    const user = this.extractAuthenticatedUser(req)
+
+    return this.sheetOperationService.rerollCreationRoll({
+      characterId: params.id,
+      requesterDiscordUserId: user.discordUserId,
+      fieldUid: dto.fieldUid,
+      baseRevision: dto.baseRevision
     })
   }
 

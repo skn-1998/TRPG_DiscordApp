@@ -11,6 +11,7 @@ import type { CharacterSheetTemplateEntity } from '../../../domains/character-sh
 import { CharacterSheetTemplateRepository } from '../../../domains/character-sheet-template/repositories/character-sheet-template.repository'
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
+import type { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import type { TemplateValidationPort } from '../../../domains/character-sheet-template/validation/template-validation.port'
 import {
   type CharacterSheetChange,
@@ -198,6 +199,9 @@ describe('CharacterSheetOperationService', () => {
   }
   let templateService: { resolvePinnedRevision: jest.Mock }
   let materializer: { validateInputValues: jest.Mock; materialize: jest.Mock }
+  // saveSheet / applyResourceDelta はダイスを実行しない。振り直し経路の検証は
+  // character-sheet-reroll.spec.ts が担うため、ここでは未呼び出しの依存として渡す。
+  let diceExecutionService: { executeEvaluatedDiceRoll: jest.Mock }
   let service: CharacterSheetOperationService
 
   const evaluateTemplate =
@@ -289,7 +293,8 @@ describe('CharacterSheetOperationService', () => {
     return new CharacterSheetOperationService(
       repository as unknown as CharacterRepository,
       pinnedTemplateService,
-      materializer as unknown as SheetMaterializerService
+      materializer as unknown as SheetMaterializerService,
+      diceExecutionService as unknown as DiceExecutionService
     )
   }
 
@@ -334,10 +339,12 @@ describe('CharacterSheetOperationService', () => {
         palette: input.existingPalette
       }))
     }
+    diceExecutionService = { executeEvaluatedDiceRoll: jest.fn() }
     service = new CharacterSheetOperationService(
       repository as unknown as CharacterRepository,
       templateService as unknown as CharacterSheetTemplateService,
-      materializer as unknown as SheetMaterializerService
+      materializer as unknown as SheetMaterializerService,
+      diceExecutionService as unknown as DiceExecutionService
     )
   })
 
@@ -848,7 +855,8 @@ describe('CharacterSheetOperationService', () => {
       service = new CharacterSheetOperationService(
         repository as unknown as CharacterRepository,
         templateService as unknown as CharacterSheetTemplateService,
-        new SheetMaterializerService()
+        new SheetMaterializerService(),
+        diceExecutionService as unknown as DiceExecutionService
       )
 
       await expect(
@@ -972,7 +980,8 @@ describe('CharacterSheetOperationService', () => {
       service = new CharacterSheetOperationService(
         repository as unknown as CharacterRepository,
         templateService as unknown as CharacterSheetTemplateService,
-        new SheetMaterializerService()
+        new SheetMaterializerService(),
+        diceExecutionService as unknown as DiceExecutionService
       )
       const baseValue = current.sheet!.values['uid-hp']
 

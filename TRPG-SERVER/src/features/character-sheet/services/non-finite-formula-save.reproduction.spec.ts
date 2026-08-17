@@ -14,6 +14,7 @@ import type { CharacterSheetTemplateEntity } from '../../../domains/character-sh
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import type { CharacterEntity } from '../../../domains/character/models/character.entity'
 import { CharacterRepository } from '../../../domains/character/repositories/character.repository'
+import type { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { JwtAuthGuard } from '../../../domains/auth/guards/jwt-auth.guard'
 import { APP_GLOBAL_EXCEPTION_FILTER_PROVIDER } from '../../../core/http/global-exception.filter'
 import { APP_VALIDATION_PIPE_PROVIDER } from '../../../core/http/validation-pipe.provider'
@@ -145,7 +146,9 @@ describe('non-finite formula save reproduction', () => {
     return new CharacterSheetOperationService(
       repository as unknown as CharacterRepository,
       templateService as unknown as CharacterSheetTemplateService,
-      new SheetMaterializerService()
+      new SheetMaterializerService(),
+      // save 経路はダイスを実行しないため、振り直し用の依存は未呼び出しのまま渡す。
+      { executeEvaluatedDiceRoll: jest.fn() } as unknown as DiceExecutionService
     )
   }
 

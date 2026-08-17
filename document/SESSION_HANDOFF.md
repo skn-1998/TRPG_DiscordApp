@@ -3431,6 +3431,179 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
   ない）。一覧の再生成は別スライス候補。クリア操作・published 時 disable・server 実在性検証は
   いずれもスコープ外（理由は acceptance 記録）。
 
+## 現在の feature: ロール／技能レーン（RL）— 設計中・実装未着手
+
+**発端**: ユーザーがいあきゃら相当のキャラシを作れるか質問 → 実測レポートを作成 →
+「全部できるようにしたい」＋「`/route-design-work` で反復委譲に耐える仕様へ」と指示（2026-08-17）。
+
+**対象 5 項目**: ①ロール用役割の編集 UI ②技能行の一括生成／複製 ③プレビューへの内訳入力配線
+④計算結果のシート画面表示 ⑤Web でのロール実行。
+
+**ユーザー裁定（確定・再議論しない）**
+- **D-1**: ⑤の達成条件は「出目と成功/失敗まで」。多段判定（クリティカル／ファンブル）は射程外。
+- **D-2**: 技能ロールの記法は `1d100<={value}` のまま。**ダイス式の許可リストと評価済み総和の
+  抽出方法には触らない**（`dice-execution.service.ts:18,199-203` の連動警告を尊重）。
+
+**実測で判明した重要事実（レポートの記述を訂正するもの）**
+- ダイス実行コアは既に discord.js 非依存で、**REST 呼び出し元が稼働中**（エディタの試しロール＝
+  `dice-preview.service.ts:19`）。⑤の新規部分は「キャラクター文脈のエンドポイント 1 本」のみで、
+  残りは配線＋返り値の構造化。レポートの「⑤は新規」分類は過大だった。
+- 成否は**自前の 2 値判定**（`dice-execution.service.ts:188-197`）で、`details` 文字列末尾に
+  畳み込まれ構造化されて返らない。**多段判定はどこにも存在しない**
+  （`dice-calculation.service.ts:194-206` のコメントが明言。`DiceRollResult.successNumber` は死に枠）。
+- `role.notation` は NotationFragment 契約で **standalone roll 検証の対象外**。試しロール API は
+  standalone 検証しか持たないため、**役割の記法を試す手段が無い**（`standalone-roll.ts:35`）。
+  ①を作った瞬間に露出する（下記 I-2）。
+
+**⑤は①に依存する（I-1）**: 役割が付いていない項目はシート画面にもボタンを出せないため、
+①なしに⑤を作っても成果が観測できない。実装順序は G-1 → G-2 に拘束。
+③→②も品質上の拘束（確認できないまま 60 行を量産しない）。
+
+**成果物**: `document/character-sheet-proposals/roll-lane-framing.md`（Order 1 の追跡表・正本）。
+台帳は `design-ledger.md`（L-14/L-15 を今回追加）。
+
+**ルート（route-design-work / Route and orchestrate）**
+1. `frame-purpose-goal-means` — **完了（Partial）**。⑤は取り違えのため再定義済み
+2. `model-invisible-concepts` — **完了（Partial）**。I-5 解消（②は複製で足り、雛形は別目的として切り離す）。
+   B-3 発見（「役割＝記法」という隠れた前提。①の UI を記法入力にすると実装の都合を作者へ転嫁する）
+3. `model-domain-invariants` — **完了（Partial）**。⑤の OP-R1 契約を確定。
+   **最重要不変条件 = 出目はサーバだけが決める（C-R2）／対象条件は「作成時ロールの記法を宣言しているか」
+   であって「入力可能な型か」ではない（C-R1）**。この 2 件はどちらも **2-2（規約頼み・全緑でも壊れる）**
+   なので委譲プロンプトで名指し必須。残 = G-b（記法取り出しの一本化）, G-c（`rerollable` の扱い）
+4. `abstract-by-purpose` — **起動しない**（除外理由は framing doc に記録）。主要論点の④経路は D-12 で決着し、
+   G-b は 4 行のヘルパーで抽象化の採否に当たらない
+5. `loop-ledger-design` — **スライス計画まで完了**（framing doc の末尾）。台帳本体への転記は委譲開始時
+
+**追加裁定（すべて決着・再議論しない）**
+- **D-11**: `rerollable` フラグは使わない。振り直しの対象は「roll 式を宣言しているか」だけで区別する。
+  engine の `rerollable` 宣言・publish 検証・seed・front の 2 箇所は掃除スライス（RL-8）で削る
+- **D-12**: ④は front で再評価しない。サーバの計算結果を返す
+- **D-13**: ②は複製ボタンのみ。技能セットの取り込みは範囲外
+- **D-14**: 元の⑤（Web で技能判定）は範囲外で確定
+
+**I-1 訂正**: 「⑤は①に依存」は古い⑤（卓ロール）の話。新しい⑤（振り直し）は role ではなく
+作成時ロールの記法を見るので**①と⑤は独立**。並行可。
+
+**スライス**: RL-1〜RL-8（framing doc に表）。並行可能な鎖は {RL-1→RL-2} {RL-3→RL-4} {RL-6→RL-7} RL-5 RL-8。
+**RL-6 が最も事故りやすい** — C-R1/C-R2 は 2-2（全緑でも壊れる）。`assertWritablePath` を緩める最短経路を
+取られるとクライアントが任意の数値を出目として書けるようになる。委譲プロンプトで禁止を明示すること。
+
+### RL-6 完了（2026-08-17・**未コミット**）
+
+Opus サブエージェントへ委譲（ユーザー指示で Codex は使わない）。証跡 = `review-results/roll-lane/rl6-acceptance.md`。
+
+- `POST /character/:id/sheet/reroll` を新設。`CharacterSheetOperationService.rerollCreationRoll`。
+  入力は `fieldUid` と `baseRevision` のみで**値を受け取らない**（C-R2）
+- 対象条件は新設 util `roll-on-create-notation.util.ts` の `rollOnCreateNotation`（track の
+  `rollOnCreate.notation` / roll の `notation`）。`assertWritablePath` は**無改変で saveSheet 専用のまま**（C-R1）。
+  作成時の private 述語を行単位でこの util へ移動したので、作成と振り直しが同じ対象集合になることが構造で保たれる
+- 実行は作成時と同じ `executeEvaluatedDiceRoll`（`executeDiceRoll` は rands 合算の legacy 互換で意味が違う）
+- CAS 敗北時は**再試行しない**（再実行すると別の出目になり「見た版に対する 1 回の振り直し」でなくなる）
+- **Fable の指示書ミスを 1 件 FIX**: 他人のシートを 403 にしていたが、兄弟の `PUT :id/sheet` は
+  不在と他人を 404 に畳んで存在を隠している。**404 へ揃えた**（委譲先が自力で発見・報告）
+- **検収**: 全ゲート Fable 再実行（build / circular 573 files / **全 225 suites 3182 tests**）。
+  変異 3 本（述語の広げ・入力値の採用・所有者判定の恒偽化）はいずれも Fable が独自選定し**全て DETECTED**、
+  復元 sha256 一致。**C-R1/C-R2 は 2-2 から 2-1 へ移った**
+
+### PV-1 完了（2026-08-17・**未コミット**）
+
+証跡 = `review-results/roll-lane/pv1-acceptance.md`。変更は `packages/sheet-engine` の 3 ファイルのみ。
+
+- `partsKeys[].default?: ConstraintSource`（既存の `numberOrFormulaSchema` を再利用・新語彙なし）
+- `RollOnCreate { notation, partsKey? }` を新設し **scalar と track で共有**（scalar の作成時ロールは新規）
+- publish 検証: 行き先は `base` か宣言済みキーのみ（**`other` は ± の領分なので専用診断で拒否**）／
+  scalar の記法は track と同一経路（`validateStandaloneRollNotation`）／`valueType === 'number'` 限定／
+  list itemFields と **relation attrs** で配置拒否／予約キーへの既定値を拒否
+- **既定値の式は 4 経路すべてに合流**（参照解決・型検査・**循環検査** `publish.ts:1385-1390`・見積もり `:293-297`）
+- 検収: engine 552 / server 3182 / 循環ゼロ。**変異 4 本を Fable が独自選定し全て DETECTED**（うち MP2/MP4 は
+  識別変異で、テストが診断内容まで固定していることを確認）
+
+**Fable の指示書の誤りを委譲先が 2 件訂正**（どちらも Fable が実測で裏取り済み）:
+①「`max`/`cap` は既に循環検査と見積もりに乗っている」は誤り（`computed` のみ）。結果として
+**既定値は max/cap より厳しい**。**厳しい側を維持する裁定**（緩めるのは後から安全・厳しくするのは破壊的）。
+再判断条件は `estimateStaticEvaluationSteps` の JSDoc に残置。
+②「`validateField` は relation attrs へ再帰していない」は誤り（`publish.ts:599` で再帰）。
+欠けていたのは配置拒否だけで、FIX はその 1 点。
+
+**環境の穴（記録）**: `packages/sheet-engine` を対象にする eslint 設定が存在せず、engine のファイルは
+lint が一度も走っていない。engine を触るスライスで lint ゲートを成果として主張しない。
+
+**PV-2 への申し送り**: `parts: true`（自由キー）だと行き先は `base` しか通らない。
+**legacy-coc の能力値は `parts: true`** なので、行き先を宣言キーにしたいなら宣言モードへ移す判断が要る。
+
+**ユーザー裁定待ち（RL-6 の欠陥ではない仕様の穴）**: 作成時ロールを持つ **track** を振り直すと
+Discord の ± で積んだ `parts.other` が失われる（生の数値で上書きするため）。配布中の legacy-coc は
+track を持たないので**到達しない**が、作者が track に `rollOnCreate` とリソース役割の両方を付けると到達する。
+
+**⚠️ ⑤の対象取り違え（2026-08-17・要注意）**: Fable は⑤を「Web から卓のロールを実行して
+結果を共有する」と解釈して設計を進めたが、ユーザーの意図は **「キャラクター編集画面で
+そのキャラクターの値をダイスロールで振り直す」**。Web からの卓ロールは**保留**。
+卓ロール前提の論点（振る権利・履歴・多段判定・Discord 整合）は⑤の射程外になった。
+**決定的制約**: `value-input.ts:137-156` の保存境界は **track と scalar のみ**受理。`roll` 型の値は
+保存経路が無い。にもかかわらず `rerollable?: boolean` はその RollField 側に宣言されている
+（`types.ts:78`・`publish.ts:119`）。振り直しは書ける型（track / scalar）へ結果を書く形にしないと成立しない。
+
+**Fable の誤り 3 件（実測で自己訂正・メモリ `ai-md-claim-scoping` 11例目に記録）**:
+「多段判定はどこにも無い」→ 実在（`dice-roll-logic.service.ts:169-185` に CoC7 6 段階・spec 固定）。
+「履歴は残らない」→ 両ロール経路とも DB 保存。「権限は未定義」→ `roll-palette.handler.ts:39` に
+「ロールは参加者全員可」の明示決定。**誤った前提のまま裁定質問を出し、ユーザーの決定を汚染した**。
+
+**人間裁定待ち**: I-2（役割を公開前に試せる手段を①の射程に含めるか）／⑤の振り直し対象。
+
+### 認知負荷レビュー（2026-08-17・RL-6 + PV-1 の小粒度＋大粒度）
+
+証跡 = `review-results/roll-lane/cognitive-load-rl6-pv1.md`。Opus read-only 2 本（小粒度 = RL-6 server 差分 /
+大粒度 = engine+server 横断）。Fable はレビュー本文を書かず、**処方箋の根拠になっている事実主張だけを実測**。
+
+**確定した欠陥 3 件（記述のみ・FIX ラウンド中。挙動・例外・メッセージ文字列は不変）**
+1. `op.service:77` の JSDoc が 403、実装は 404（両レビュー独立検出・**Fable の指示書の残骸**）
+2. `roll-on-create-notation.util.ts` の完結列挙が、PV-1 と同時着地した瞬間に偽になる（scalar を無言で落とす）
+3. reroll だけ materialize 前の 2 段前検査が無い理由が書かれていない（`op.service:389`）
+
+**却下した処方箋（重要）**: 大粒度が front の述語 3 複製を Medium とし
+「`index.ts` に named re-export を足して統合せよ」と処方したが、**二重に反証**。
+①`annotation-runtime.ts:293` / `constraint-evaluator.ts:169` に「barrel 非公開を保つため
+**named export 化しない・削除不可**」と明記（漏れではなく意図的な非公開化）。
+②「機械的等価ガードが無い」が偽 — `TemplateFormRenderer.spec.tsx:339,355` に 9 型マトリクスの
+等価 spec が実在し、**処方箋が消そうとしている deep import そのもの**で突合している。
+真に残るのは `sheet-edit.ts:21-24` の `usesPartsEditor` に engine への等価 pin が無い点のみ（Low）。
+
+**PV-2 / PV-3 の指示書へ転記する不変条件**
+- `rollOnCreateNotation` の戻り値を PV-3 で `{ notation, partsKey? }` へ広げ、**同時に scalar を対象へ含める**。
+  `string` のままだと PV-3 の最短経路が「呼び出し側で partsKey を再読」になり、RL-6 が 1 本化した述語が即再分裂
+- `op.service:497-501` の許可集合構築は `value-input.ts:87-89` の**逐語複製**（Fable 実測）。
+  PV-3 が周辺を触るので engine 側へ 1 本化できる（既存ロジックの抽出・新概念なし）
+
+**PV-2 の決定点（欠陥と断定しない）**: `parts`/`partsKeys` を持たない素の number scalar に
+`partsKey:'base'` を宣言すると publish は受理するが `allowsParts` は false。
+`base` を「値そのもの」と解釈すれば成立しうるので、死んだ宣言になるかは PV-2 の設計次第。
+
+**統合候補（中・独立スライス）**: `rollOnCreate` の配置規則が `validateNumericAnnotationTarget`
+（既に attrs `:510` / itemFields `:515` へ再帰し max/partsKeys の配置規則を保持）を迂回して
+`validateField` 側に書かれ、配置ルール走査が 2 本並走。統合は純減だが
+**非 section 分岐の追加**と**メッセージ文字列を保ったままの移送**が着手条件。
+
+**メモリ追記**: `verify-claims-before-prescribing` 24例目（レビュアの処方箋・否定的主張も検証対象）／
+`ai-md-claim-scoping` 12例目（並行スライスは合流後のツリーで主張を再評価する）。
+
+**FIX ラウンド完了・受入（2026-08-17・なお未コミット）**: 6 件対応。差分は JSDoc・行コメント・
+ローカル定数名・`@ApiResponse` description のみで、条件式・例外・status・メッセージ文字列は不変。
+Fable がゲート再実行: build exit 0 ／ `√ No circular dependency found!`（573 files）／
+**全 suite 225 suites・3182 passed**（PV-1 検収時と同一件数 = テスト増減なし）。
+実物確認: `403` は振り直し経路から消滅（残る 2 件は filter spec のテンプレート閲覧権 403・別経路）／
+`expectSheetUntouched` 残存 0 ／ 兄弟エンドポイントの `@ApiResponse` 未変更 ／ util の実装は無改変。
+**変異テストは実施しない**（変異させる挙動が無く、検証命題は「挙動不変」なので実物確認と件数同一で担保）。
+
+**正本の欠陥を Fable が修正**: `roll-lane-framing.md` の OP-R1 行と T-R5 行が **403** のままだった
+（`op.service:77` と同じ出所）。spec がこの表を正本として指すようになったため 404 へ訂正。
+あわせて T-R5 の対応条件が **C-R5 の誤り**だったのを訂正（C-R5 は実行失敗の条件で認可とは無関係・
+T-R3 が既に担当）。正しくは OP-R1 の呼出し側前提。
+
+**PV-3 で再訪する未解決 1 件**: `assertFiniteTrackValues` のうち「変更された track の `max` 式の有限性」
+だけは materialize が持たず、振り直しで非有限に到達しうるかは**未検証**（コードにも `未検証:` と明記）。
+legacy-coc は track を持たないので到達せず、`min`/`max` は全経路 advisory なのでデータ整合性ではなく
+表示・検証の問題。ただし保存経路は非有限 max を拒否しており**経路間で判断が食い違う**。
+
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

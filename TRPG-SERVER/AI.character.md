@@ -581,3 +581,25 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - 配布実体 = legacy-coc seed（owner system / private / published・pinned）。投入は
   `pnpm seed:legacy-coc-template --execute`（冪等・dry-run 既定）。利用者向け手順と
   画面用語集は document/character-sheet-user-guide.md が正本。
+
+## 作成時ロールの振り直し（RL-6・サーバ側のみ・2026-08-17）
+
+正本 = review-results/roll-lane/prompt-rl6-code.txt。画面は未実装（RL-7）。
+
+- 経路: `POST /character/:id/sheet/reroll`（body = `{ fieldUid, baseRevision }`）→
+  `CharacterSheetOperationService.rerollCreationRoll`。値のフィールドは DTO にも service 入力にも
+  持たせていない。出目は `DiceExecutionService.executeEvaluatedDiceRoll`（作成時ロールと同じメソッド・
+  pin 済みテンプレートの gameSystemId）の結果だけを `values[fieldUid]` へ上書きし、revision は +1。
+- **対象条件は「作成時ロールの記法を宣言しているか」**（`services/roll-on-create-notation.util.ts` の
+  `rollOnCreateNotation` = track の `rollOnCreate.notation` と roll の `notation`）。
+  `assertWritablePath`（track/scalar だけを入力項目とする規則）とは別の述語で、流用も緩和もしない。
+  作成側（CharacterInstantiationService）も同じ関数を使うため、対象集合は 1 箇所で決まる。
+- roll 型は依然としてクライアント提出の入力項目ではない（`packages/sheet-engine/src/value-input.ts`
+  の `inputSchemaFor` は track/scalar 以外に undefined を返す。saveSheet も 422）。
+  roll 型の値が書けるのはこの振り直し経路のみ。
+- 拒否: 記法未宣言 / 未定義 fieldUid / 実行失敗 = 422、他人のシート = 404（所有者判定は use case 側の
+  `assertSheetOwner` だが、不在と他人を 404 に畳む点は saveSheet 経路の findOneForOwner と同じ）、
+  baseRevision 不一致と保存 CAS 敗北 = 409（`refetchRequired: true`・出目を再現できないので再試行しない）。
+- テスト = `services/character-sheet-reroll.spec.ts`（11 tests）。値混入時もサーバ出目が保存されること・
+  saveSheet 側の roll 拒否・失敗時に値と revision が動かないことを含む。前 2 者は変異注入で
+  検出できることを確認済み。
