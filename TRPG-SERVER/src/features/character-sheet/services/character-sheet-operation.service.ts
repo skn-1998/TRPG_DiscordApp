@@ -27,7 +27,7 @@ import type { CharacterSheetTemplateEntity } from '../../../domains/character-sh
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
-import { rollOnCreateNotation } from './roll-on-create-notation.util'
+import { creationRollValue, rollOnCreateSpec } from './roll-on-create-spec.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 import { allowsParts, isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
 import { buildBoundedNonFiniteErrorEnvelope, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'
@@ -355,7 +355,7 @@ export class CharacterSheetOperationService {
   /**
    * テンプレートが宣言している作成時ロールを、作成済みキャラクターに対して振り直す。
    *
-   * 対象条件は「作成時ロールの記法を宣言しているか」（rollOnCreateNotation）であり、
+   * 対象条件は「作成時ロールを宣言しているか」（rollOnCreateSpec）であり、
    * saveSheet が使う assertWritablePath（track / scalar だけを入力項目とみなす規則）とは別の述語である。
    * assertWritablePath 側に roll を足して通すと、roll 型がクライアント提出の入力項目にも同時に昇格し、
    * サーバ実行を経ない値が roll 型へ書ける経路が開く。だからここでは流用しない。
@@ -374,18 +374,22 @@ export class CharacterSheetOperationService {
 
     const template = await this.resolvePinnedTemplate(current)
     const field = this.findTopLevelField(toEngineTemplate(template), input.fieldUid)
-    const notation = rollOnCreateNotation(field)
-    if (notation === undefined) {
+    const spec = rollOnCreateSpec(field)
+    if (spec === undefined) {
       throw new UnprocessableEntityException(`field ${input.fieldUid} does not declare a creation roll (${field.type})`)
     }
 
     // 実行を保存より前に完結させる。失敗はここで throw され、values の組み立ても CAS も走らないので、
     // 失敗した振り直しは値も revision も残さない。
-    const rolled = await this.executeCreationRollOrThrow(notation, template.gameSystemId, input.fieldUid)
+    const rolled = await this.executeCreationRollOrThrow(spec.notation, template.gameSystemId, input.fieldUid)
 
-    // 作成時（CharacterInstantiationService.applyRollOnCreate）と同じく、出目をそのまま値にする。
-    // parts へ畳み込むと、同じ項目が作成直後と振り直し後で違う形になる。
-    const values = { ...sheet.values, [input.fieldUid]: rolled.total }
+    // 作成時（CharacterInstantiationService.applyRollOnCreate）と同じ規則で書く。規則が食い違うと、
+    // 同じ項目が作成直後と振り直し後で違う保存形になる。内訳を持てる field では行き先キーだけを
+    // 差し替えるので、Discord の ±（addToOtherPart）が積んだ parts.other は振り直しでも残る。
+    const values = {
+      ...sheet.values,
+      [input.fieldUid]: creationRollValue(field, sheet.values[input.fieldUid], rolled.total, spec.partsKey)
+    }
     // 兄弟経路（saveSheet / applyResourceDelta）が materialize の前に置く assertFiniteTrackValues と
     // evaluateTemplateOrThrow はここでは呼ばない。materializeOrThrow が保存前に全値の有限性検査
     // （SheetMaterializerService.validateStoredValues）と evaluateTemplate を再実行し、失敗は CAS より前に 422 になるため。
@@ -403,7 +407,7 @@ export class CharacterSheetOperationService {
       character: saved,
       revision: this.requireSheet(saved).revision,
       fieldUid: input.fieldUid,
-      notation,
+      notation: spec.notation,
       total: rolled.total,
       details: rolled.details
     }

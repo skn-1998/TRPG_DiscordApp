@@ -3488,7 +3488,7 @@ U14/U15/SM/U16 の設計確定（`7a79246d`・adversarial 監査全収束）を�
 **RL-6 が最も事故りやすい** — C-R1/C-R2 は 2-2（全緑でも壊れる）。`assertWritablePath` を緩める最短経路を
 取られるとクライアントが任意の数値を出目として書けるようになる。委譲プロンプトで禁止を明示すること。
 
-### RL-6 完了（2026-08-17・**未コミット**）
+### RL-6 完了（2026-08-17・コミット `404a8946`）
 
 Opus サブエージェントへ委譲（ユーザー指示で Codex は使わない）。証跡 = `review-results/roll-lane/rl6-acceptance.md`。
 
@@ -3505,7 +3505,7 @@ Opus サブエージェントへ委譲（ユーザー指示で Codex は使わ�
   変異 3 本（述語の広げ・入力値の採用・所有者判定の恒偽化）はいずれも Fable が独自選定し**全て DETECTED**、
   復元 sha256 一致。**C-R1/C-R2 は 2-2 から 2-1 へ移った**
 
-### PV-1 完了（2026-08-17・**未コミット**）
+### PV-1 完了（2026-08-17・コミット `0a3fde2d`）
 
 証跡 = `review-results/roll-lane/pv1-acceptance.md`。変更は `packages/sheet-engine` の 3 ファイルのみ。
 
@@ -3586,7 +3586,17 @@ track を持たないので**到達しない**が、作者が track に `rollOnC
 **メモリ追記**: `verify-claims-before-prescribing` 24例目（レビュアの処方箋・否定的主張も検証対象）／
 `ai-md-claim-scoping` 12例目（並行スライスは合流後のツリーで主張を再評価する）。
 
-**FIX ラウンド完了・受入（2026-08-17・なお未コミット）**: 6 件対応。差分は JSDoc・行コメント・
+**コミット済み（2026-08-18・ユーザー許可）**: PV-1 = `0a3fde2d`（engine 3 ファイル＋レーン設計正本
+`roll-lane-framing.md`）／RL-6 = `404a8946`（server 10 ファイル＋`AI.character.md`＋SESSION_HANDOFF）。
+順序制約: FIX で RL-6 の util JSDoc が `ScalarField.rollOnCreate`（PV-1 が足す型）を参照するため、
+**PV-1 を先に**コミットする必要があった。TRPG-SERVER は pathspec `--only`。
+`--only` 使用時に pre-commit の整形が index にだけ残る churn が再発したので、hook の整形版を正として
+amend で吸収（該当 spec 11 tests 再実行済み）。HEAD で全 suite 225 suites・3182 passed を再確認。
+**意図的に未コミットのまま残したもの**: `design-ledger.md`（L-14/L-15＋能力マトリクス行）と
+`character-sheet-user-guide.md`（cap の定義訂正）はイアキャラ調査由来でコードに依存しないため別単位。
+`AI.development.md`・`start-dev.bat`・`trpg-next-app/*` は別レーン。
+
+**FIX ラウンド完了・受入（2026-08-17）**: 6 件対応。差分は JSDoc・行コメント・
 ローカル定数名・`@ApiResponse` description のみで、条件式・例外・status・メッセージ文字列は不変。
 Fable がゲート再実行: build exit 0 ／ `√ No circular dependency found!`（573 files）／
 **全 suite 225 suites・3182 passed**（PV-1 検収時と同一件数 = テスト増減なし）。
@@ -3603,6 +3613,85 @@ T-R3 が既に担当）。正しくは OP-R1 の呼出し側前提。
 だけは materialize が持たず、振り直しで非有限に到達しうるかは**未検証**（コードにも `未検証:` と明記）。
 legacy-coc は track を持たないので到達せず、`min`/`max` は全経路 advisory なのでデータ整合性ではなく
 表示・検証の問題。ただし保存経路は非有限 max を拒否しており**経路間で判断が食い違う**。
+
+### PV-2 を 2 スライスへ分割（2026-08-18・着手中）
+
+順序は **PV-2a（ロールの行き先）→ PV-2b（既定値の焼き込み）**。逆にできない。
+先に既定値を入れても、作成時ロールの**フィールド全体を生の数値で上書き**する現行の書き込み
+（`character-instantiation.service.ts:111`）がそれを消すため。
+
+**初版 PV-2a は誤った前提で書かれ、委譲先が着手前に停止して切り直した（2026-08-18）。**
+指示書に「scalar にはガードが無い」と書いたが、正しくは **scalar の作成時ロールはそもそも発火しない**
+（`rollOnCreateNotation` が scalar を読まない）。これは Fable が同じセッションの FIX ラウンドで
+当該 util の JSDoc に書かせた内容であり、認知負荷レビューの統合判定にも書いていた。
+**自分の 3 つの記述と矛盾する指示書を出した**（メモリ `verify-claims-before-prescribing` 25例目）。
+委譲先の指摘どおり、scalar を発火させる手段は「util を直す（振り直しに scalar が入り生値で内訳を壊す）」か
+「呼び出し側だけで読む（util の文書化された不変条件を破棄）」の 2 つしかなく、どちらも境界外だった。
+
+改訂後のスライス（順序どおり）:
+
+- **PV-R 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/pvr-acceptance.md`。
+  述語を `rollOnCreateSpec`（`roll-on-create-spec.util.ts`・旧 `rollOnCreateNotation` を改名）へ広げ、
+  共有の書き込み規則 `creationRollValue` を `sheet-values.util.ts` に追加して作成・振り直しの両方から呼ぶ。
+  ゲート = build 0 / 循環ゼロ / **225 suites・3188 passed**（+6 = 追加テスト数と一致）。
+  差分は server 6 ファイルのみで `packages/` 無変更。
+  **変異 4 本を Fable が独自選定し全て DETECTED**。MR4（振り直しだけ共有規則を迂回）は識別変異で、
+  作成側を正しいまま振り直し側だけ壊しても 3 tests が落ちる = 「両経路の規則一致」が機械固定されている。
+  T-R2 の反転は牙が抜けていないことを個別確認（混入値 99 は `base` 側で落ちる・元より強い）。
+  **主目的だった「作成時ロールを持つ track の振り直しで ± が消える」穴は閉じた**（旧「ユーザー裁定待ち」解消）。
+  **小粒度認知負荷レビュー＋FIX ラウンド完了（2026-08-18）**。総評は「差分は認知負荷を net で下げている」。
+  確定した欠陥 3 件はいずれも **Fable の記述が原因**で、Fable が実測で裏取りしてから修正:
+  ①「`partsKey` は常に undefined」が偽（`publish.spec.ts:2389-2396` が track の `partsKey: 'base'` を pin。
+  `partsKeys` と `rollOnCreate.partsKey` を同一視した誤り・挙動は不変・伝播 4 経路を訂正）／
+  ②「二重の防壁」が経路の取り違え（保存経路と提出経路に 1 段ずつ）／
+  ③ 早期 return が宣言された行き先を捨てる差集合の存在（**PV-S の設計判断として記録**）。
+  あわせて `creationRollValue` を `roll-on-create-spec.util.ts` へ移送（importer 4 → 2・ホップ 2 → 1・
+  `@nestjs/common` 依存の局所化。測定された純減・新概念ゼロ）。
+  FIX 後ゲート = build 0 / 循環ゼロ / **226 suites・3188 passed**（suite +1 は移送先 spec・件数不変）。
+  **検出器を再測**（テストの表明を狭めたため必須）: MR1=1・MR3=5・MR4=3 と**失敗件数が FIX 前と完全一致**。
+  射程を名前に合わせる改善が負の対照の牙を削っていない。
+  `sheet-values.util.ts` が Nest 例外を投げる層の問題は、移送により解消（同ファイルから Nest import が消えた）。
+  **コミット時の注意**: 移送で `sheet-values.util.ts` と同 spec が **HEAD と完全一致に戻り `git status` に現れない**。
+  「触ったのに出てこない」を欠落と誤認しないこと。
+
+- **PV-R の設計**（指示書 `review-results/roll-lane/prompt-pv2a-code.txt`。旧 PV-2a ＋ 旧 PV-3 を統合）:
+  **scalar を発火させないまま、作成と振り直しの「書き込み側」だけを内訳対応にする**。
+  `allowsParts` が true なら内訳 1 キーへ書き既存キーを保持、roll 型は生の数値のまま。
+  述語 util の戻り値を `{ notation, partsKey? }` へ広げて改名する（後回しにすると書き込み側が
+  `field.rollOnCreate?.partsKey` を再読して述語が再分裂する — 認知負荷レビュー大粒度 CL-1）。
+  **track の既存ガードは無改変**。
+  主目的 = **作成時ロールを持つ track を振り直すと Discord の ± が消える穴を閉じる**
+  （旧「ユーザー裁定待ち」項目はこれで解消する）。
+- **PV-S**: util に scalar 分岐を足して発火させる。PV-R で受け皿ができているので分岐 1 つで済み、
+  「scalar が黙って振り直し対象になり生値で内訳を壊す」窓が発生しない。
+  ここで初めて `partsKey` が `base` 以外になりうる。scalar 側の提出値排他ガードもここ。
+  **PV-S の設計入力（認知負荷レビュー CL-4・Fable 実測済み）**: `validateScalarRollOnCreate`
+  （`publish.ts:657-674`）は `valueType === 'number'` しか要求せず `parts`/`partsKeys` を要求しない
+  （`publish.spec.ts:2381-2387` が「行き先なしの scalar 作成時ロール」を `ok: true` で pin）。
+  一方 `allowsParts` は `parts === true || partsKeys !== undefined` を追加で要求する。
+  **差集合（number scalar・rollOnCreate あり・parts 未宣言）は publish 合法だが、
+  `creationRollValue` の早期 return に落ちて宣言された行き先も `other` 拒否も素通りする。**
+  この扱いを決めるのが PV-S の主要な設計判断（publish で拒否するか、`base` を全体値と解釈するか）。
+  反転する pin = `character-instantiation.service.spec.ts:240-270` の 'object' ケース（非発火 → 発火）。
+- **PV-2b**: `partsKeys[].default` を作成時に評価して内訳へ入れる。式の評価は既存の
+  `evaluateConstraint`（`constraint-evaluator.ts:38`）。提出値との合成規則を決めて固定する。
+
+**委譲先が発見した第 2 の防壁（不変条件の根拠として採用）**: roll 型への内訳形書き込みは
+`value-input.ts:40` より手前、`sheet-materializer.service.ts:342-363` で先に落ちる
+（roll 型の保存値は有限数か文字列のみで経路が別）。「roll 型は生の数値のまま」は二重に機械固定されている。
+
+**実測でわかった重要事項（期待値の調整が要る）**: **配布中の legacy-coc は PV-2a の影響を受けない。**
+能力値 scalar は `parts: true` だが `rollOnCreate` を持たず、作成時ロールは **roll 型フィールド**に
+乗っている（`seeds/legacy-coc.template.ts:38` の `notation: ability.rollNotation`）。
+roll 型は `allowsParts` が false なので保存形は変わらない。
+**イアキャラのように「能力値そのものが 振った値 ＋ 修正」になるには、能力値を roll 型併存から
+scalar の `rollOnCreate` ＋ 宣言 partsKeys へ移す必要があり、これは seed（配布テンプレート）の
+構造変更**（PV-5 圏・公開済みテンプレートの不変契約に触れるので単独の裁定が要る）。
+
+**保存境界の追加確認（検収記録の裏取り）**: `value-input.ts:40` に
+`isPartsValue(value) && !allowsParts(field)` の拒否が実在する。先の統合判定では
+「`allowsParts` が false だから保存境界が内訳形を受け付けない」を推論で確認扱いにしていたが、
+直接の根拠はこの行。結論は変わらない。
 
 ## 参照
 

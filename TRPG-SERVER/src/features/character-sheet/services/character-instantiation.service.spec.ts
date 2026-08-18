@@ -237,11 +237,14 @@ describe('CharacterInstantiationService', () => {
     expect(result.materialized).toBe(materialized)
   })
 
+  // boolean / string は契約外のまま DB に残存しうる形、object は PV-1 で正式形になった
+  // ScalarField.rollOnCreate。正式形でも発火しないのは意図的な段階分割で、scalar の発火は
+  // 別スライス PV-S の担当（正本: roll-on-create-spec.util.ts の JSDoc）。
   it.each([
     ['boolean', { rollOnCreate: true, notation: '1d20' }],
     ['string', { rollOnCreate: '1d20' }],
     ['object', { rollOnCreate: { notation: '1d20' } }]
-  ])('契約外 rollOnCreate の %s 形を持つ scalar は作成時ロールしない', async (_caseName, legacyProperties) => {
+  ])('rollOnCreate の %s 形を持つ scalar は作成時ロールしない', async (_caseName, legacyProperties) => {
     const dependencies = createDependencies()
     const scalarTemplate: CharacterSheetTemplateEntity = {
       ...template,
@@ -333,16 +336,10 @@ describe('CharacterInstantiationService', () => {
     const result = await dependencies.service.instantiate(instantiateInput)
 
     expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('1d20+10', 'DiceBot')
-    expect(dependencies.sheetMaterializer.materialize).toHaveBeenCalledWith({
-      template: rollOnCreateTrackTemplate,
-      sheet: {
-        templateId: 'template-1',
-        templateVersion: '1.0.0',
-        revision: 1,
-        visibility: 'private',
-        values: { 'uid-hp': 25 }
-      }
-    })
+    // max 10 の track へ出目 25 を clamp せずに渡すこと。保存形そのものの pin は本ファイルの専用テストが持つ。
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.template).toBe(rollOnCreateTrackTemplate)
+    expect(materializeArgument.sheet.values['uid-hp'].parts.base).toBe(25)
     expect(result.rollOnCreateResults).toEqual([
       {
         uid: 'uid-hp',
@@ -353,6 +350,29 @@ describe('CharacterInstantiationService', () => {
       }
     ])
     expect(dependencies.characterRepository.createMaterializedCharacter).toHaveBeenCalledTimes(1)
+  })
+
+  it('rollOnCreate 宣言 track の出目は内訳の base へ書かれる（生の数値では保存しない）', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolveForCreate.mockResolvedValue(
+      trackCreationTemplate(100, { rollOnCreate: { notation: '3d6*5' } })
+    )
+
+    const result = await dependencies.service.instantiate(instantiateInput)
+
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.sheet.values['uid-hp']).toEqual({ parts: { base: 55 } })
+    // 行き先が変わるだけで出目そのものは加工しない。
+    expect(result.rollOnCreateResults[0]).toMatchObject({ uid: 'uid-hp', total: 55 })
+  })
+
+  it('roll 型の出目は生の数値のまま保存される（内訳形にすると保存境界が拒否する）', async () => {
+    const dependencies = createDependencies()
+
+    await dependencies.service.instantiate(instantiateInput)
+
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.sheet.values['uid-dex']).toBe(55)
   })
 
   it('rollOnCreate 宣言 track への明示提出値を 422 にして roll と insert を実行しない', async () => {

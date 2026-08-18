@@ -6,6 +6,8 @@
  * - 対象条件は「作成時ロールの記法を宣言しているか」であり、入力可能な型かどうかではない
  * - 出目はサーバだけが決める（操作の入力に値を混ぜても保存されるのはサーバ実行の結果）
  * - roll 型はクライアント提出（saveSheet）の入力項目にならないまま
+ * - 内訳を持てる項目の振り直しは行き先キーだけを差し替え、他の内訳（± が積む parts.other）を残す
+ * - 保存形は作成時（CharacterInstantiationService.applyRollOnCreate）と一致する
  * - 拒否経路は保存自体を試みない（値も revision も動かないのは fixture 上その帰結。
  *   保存が走る唯一の失敗系である CAS 敗北の原子性は本 spec の対象外）
  *
@@ -181,20 +183,47 @@ describe('CharacterSheetOperationService 作成時ロールの振り直し', () 
     ['track の rollOnCreate', 'uid-hp', '3d6*5'],
     ['roll の notation', 'uid-dex', '1d100']
   ])(
-    '%s を宣言している項目は、作成時と同じ pin 済み gameSystem で振り直して値を上書きする',
+    '%s を宣言している項目は、作成時と同じ実行メソッドと pin 済み gameSystem で振り直し、結果を返す',
     async (_caseName, fieldUid, notation) => {
       const result = await service.rerollCreationRoll(rerollInput({ fieldUid }))
 
       // 作成時ロールと同じ実行メソッドであること（executeDiceRoll は rands 合算の legacy 互換値で意味が違う）。
       expect(diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith(notation, 'DiceBot')
       expect(diceExecutionService.executeDiceRoll).not.toHaveBeenCalled()
-      const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
-      expect(payload.values[fieldUid]).toBe(ROLLED_TOTAL)
       expect(result).toEqual(
         expect.objectContaining({ fieldUid, notation, total: ROLLED_TOTAL, details: ROLLED_DETAILS, revision: 2 })
       )
     }
   )
+
+  it('track の振り直しは内訳の base を差し替える（生の数値では保存しない）', async () => {
+    await service.rerollCreationRoll(rerollInput({ fieldUid: 'uid-hp' }))
+
+    const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
+    expect(payload.values['uid-hp']).toEqual({ parts: { base: ROLLED_TOTAL } })
+  })
+
+  /**
+   * 本スライスの存在理由。全体上書きだった頃は、± が積んだ parts.other が振り直しのたびに消えていた。
+   */
+  it('parts.other を持つ track の振り直しは base だけを差し替え、± が積んだ other を保持する', async () => {
+    const otherBeforeReroll = -3
+    current.sheet!.values['uid-hp'] = { parts: { base: 40, other: otherBeforeReroll } }
+
+    await service.rerollCreationRoll(rerollInput({ fieldUid: 'uid-hp' }))
+
+    const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
+    const stored = payload.values['uid-hp'] as { parts: Record<string, number> }
+    expect(stored.parts.other).toBe(otherBeforeReroll)
+    expect(stored.parts.base).toBe(ROLLED_TOTAL)
+  })
+
+  it('roll 型の振り直しは生の数値のまま保存される（内訳形にすると保存境界が拒否する）', async () => {
+    await service.rerollCreationRoll(rerollInput({ fieldUid: 'uid-dex' }))
+
+    const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
+    expect(payload.values['uid-dex']).toBe(ROLLED_TOTAL)
+  })
 
   it('振り直しは対象項目以外の値を書き換えない', async () => {
     await service.rerollCreationRoll(rerollInput({ fieldUid: 'uid-hp' }))
@@ -230,7 +259,10 @@ describe('CharacterSheetOperationService 作成時ロールの振り直し', () 
     const result = await service.rerollCreationRoll(inputWithInjectedValue)
 
     const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
-    expect(payload.values['uid-hp']).toBe(ROLLED_TOTAL)
+    // 混ぜた 99 ではなくサーバ実行の出目が入っていること。表明の主眼は値の出所なので行き先キーだけを見る
+    // （保存形そのものの pin は本ファイルの専用テストが持つ）。
+    const stored = payload.values['uid-hp'] as { parts: Record<string, number> }
+    expect(stored.parts.base).toBe(ROLLED_TOTAL)
     expect(result.total).toBe(ROLLED_TOTAL)
   })
 

@@ -11,7 +11,7 @@ import {
   InstantiateCharacterResult,
   RollOnCreateResult
 } from '../types/character-sheet.types'
-import { rollOnCreateNotation } from './roll-on-create-notation.util'
+import { creationRollValue, rollOnCreateSpec } from './roll-on-create-spec.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
 @Injectable()
@@ -102,17 +102,19 @@ export class CharacterInstantiationService {
         })
       }
 
-      const notation = rollOnCreateNotation(field)
-      if (!notation) {
+      const spec = rollOnCreateSpec(field)
+      if (spec === undefined) {
         continue
       }
 
-      const result = await this.diceExecutionService.executeEvaluatedDiceRoll(notation, template.gameSystemId)
-      values[field.uid] = result.total
+      const result = await this.diceExecutionService.executeEvaluatedDiceRoll(spec.notation, template.gameSystemId)
+      // 出目は field 全体ではなく内訳の行き先キーへ書く（内訳を持てる field のとき）。
+      // 全体を生の数値で上書きすると他の内訳が消えるため、書き込み規則は振り直しと共有する。
+      values[field.uid] = creationRollValue(field, values[field.uid], result.total, spec.partsKey)
       rollOnCreateResults.push({
         uid: field.uid,
         label: field.label,
-        notation,
+        notation: spec.notation,
         total: result.total,
         details: result.details
       })

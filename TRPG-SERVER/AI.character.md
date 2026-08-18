@@ -589,9 +589,10 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - 経路: `POST /character/:id/sheet/reroll`（body = `{ fieldUid, baseRevision }`）→
   `CharacterSheetOperationService.rerollCreationRoll`。値のフィールドは DTO にも service 入力にも
   持たせていない。出目は `DiceExecutionService.executeEvaluatedDiceRoll`（作成時ロールと同じメソッド・
-  pin 済みテンプレートの gameSystemId）の結果だけを `values[fieldUid]` へ上書きし、revision は +1。
-- **対象条件は「作成時ロールの記法を宣言しているか」**（`services/roll-on-create-notation.util.ts` の
-  `rollOnCreateNotation` = track の `rollOnCreate.notation` と roll の `notation`）。
+  pin 済みテンプレートの gameSystemId）の結果だけを `values[fieldUid]` へ書き、revision は +1。
+  **書き込み形は PV-R で内訳対応になった**（下記）。
+- **対象条件は「作成時ロールを宣言しているか」**（`services/roll-on-create-spec.util.ts` の
+  `rollOnCreateSpec` = track の `rollOnCreate` と roll の `notation`）。
   `assertWritablePath`（track/scalar だけを入力項目とする規則）とは別の述語で、流用も緩和もしない。
   作成側（CharacterInstantiationService）も同じ関数を使うため、対象集合は 1 箇所で決まる。
 - roll 型は依然としてクライアント提出の入力項目ではない（`packages/sheet-engine/src/value-input.ts`
@@ -600,6 +601,29 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - 拒否: 記法未宣言 / 未定義 fieldUid / 実行失敗 = 422、他人のシート = 404（所有者判定は use case 側の
   `assertSheetOwner` だが、不在と他人を 404 に畳む点は saveSheet 経路の findOneForOwner と同じ）、
   baseRevision 不一致と保存 CAS 敗北 = 409（`refetchRequired: true`・出目を再現できないので再試行しない）。
-- テスト = `services/character-sheet-reroll.spec.ts`（11 tests）。値混入時もサーバ出目が保存されること・
+- テスト = `services/character-sheet-reroll.spec.ts`。値混入時もサーバ出目が保存されること・
   saveSheet 側の roll 拒否・失敗時に値と revision が動かないことを含む。前 2 者は変異注入で
   検出できることを確認済み。
+
+## 作成時ロールの保存形は内訳（parts）へ（PV-R・2026-08-18）
+
+正本 = review-results/roll-lane/prompt-pv2a-code.txt（改訂版）／検収 = `pvr-acceptance.md`。
+
+- **作成と振り直しが同一の書き込み規則を共有する**。正本は `services/roll-on-create-spec.util.ts` の
+  `creationRollValue`。経路ごとに規則が食い違うと、同じ項目が作成直後と振り直し後で違う保存形になる。
+- `allowsParts(field)` が true なら**行き先キーだけを差し替え、他の内訳は保持する**。
+  行き先は `rollOnCreate.partsKey ?? 'base'`。これにより
+  **Discord の ±（`addToOtherPart`）が積んだ `parts.other` が振り直しで消えなくなった**（本スライスの主目的）。
+- `allowsParts(field)` が false（現時点では roll 型）へは**生の数値**。内訳形は保存経路の防壁
+  （`SheetMaterializerService.validateStoredValues` が roll 型を先に処理して schema へ渡さない）が拒否する。
+  `value-input.ts:40` の `isPartsValue && !allowsParts` は**クライアント提出経路**に立つ別の 1 段で、
+  同じ規則を提出側で独立に守っている（2 段が同一経路に重なっているわけではない）。
+- 述語の戻り値は `RollOnCreateSpec { notation, partsKey? }`。行き先を呼び出し側が
+  `field.rollOnCreate?.partsKey` から読み直すと、1 本化した述語がその場で再分裂するため型に載せている。
+- **scalar はまだ発火しない**（`rollOnCreateSpec` が読まない）。publish は受理するので意図的な段階分割で、
+  発火は PV-S。`allowsParts` は型ではなくインスタンスの宣言（`parts: true` か `partsKeys`）を見る述語なので、
+  **publish 合法だが `allowsParts` false になる差集合**（number scalar・`rollOnCreate` あり・parts 未宣言）が
+  存在する。PV-S ではこの扱いが主要な設計判断になる。
+- **配布中の legacy-coc は本スライスの影響を受けない**。作成時ロールが roll 型に乗っており
+  `allowsParts` が false のため。`character-instantiation.legacy-coc.reproduction.spec.ts` が
+  無改変で緑のまま = 負の対照として機能している。
