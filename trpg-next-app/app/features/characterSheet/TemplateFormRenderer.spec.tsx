@@ -16,7 +16,9 @@ import {
   type SheetTemplate,
   validatePublishTemplate
 } from '@trpg/sheet-engine'
+import { rollOnCreateSpec } from '@trpg/sheet-engine'
 import engineIsNumberScalar from '../../../../packages/sheet-engine/src/annotation-runtime'
+import { rollOnCreateSpec as engineRollOnCreateSpec } from '../../../../packages/sheet-engine/src/roll-on-create'
 import styles from './TemplateFormRenderer.module.css'
 import { TemplateFormRenderer } from './TemplateFormRenderer'
 import { isPresentablePartsKey } from './parts-key-visibility'
@@ -231,6 +233,69 @@ function readRendererCss() {
   )
 }
 
+// 9 型に、作成時ロールの述語が読む track の宣言変種（正常宣言・契約外形）を足した対象集合。
+const creationRollFixtures = [
+  ...fieldPredicateFixtures,
+  {
+    name: 'track: rollOnCreate 宣言',
+    field: {
+      ...fieldPredicateBase,
+      type: 'track',
+      max: 10,
+      style: 'gauge',
+      rollOnCreate: { notation: '3d6*5', partsKey: 'base' }
+    } as SheetField
+  },
+  {
+    name: 'track: 契約外形の rollOnCreate',
+    // publish を経ずに保存された契約外形。述語は宣言なしとして扱う。
+    field: {
+      ...fieldPredicateBase,
+      type: 'track',
+      max: 10,
+      style: 'gauge',
+      rollOnCreate: true
+    } as unknown as SheetField
+  }
+] satisfies Array<{ name: string; field: SheetField }>
+
+function renderRerollForm(
+  fields: SheetField[],
+  creationRollReroll?: { onRequest: (fieldUid: string) => void; pendingFieldUid?: string }
+) {
+  return render(
+    <MantineProvider>
+      <TemplateFormRenderer
+        template={{ ...template, sections: [{ ...template.sections[0], fields }] }}
+        values={{}}
+        creationRollReroll={creationRollReroll}
+      />
+    </MantineProvider>
+  )
+}
+
+function withDistinctUids(fixtures: typeof creationRollFixtures) {
+  return fixtures.map(({ field }, index) => ({ ...field, uid: `${field.uid}-reroll-${index}` }) as SheetField)
+}
+
+/** 同 uid の衝突を避けたうえで、名前で選んだ fixture だけを描画対象にする。 */
+function creationRollFieldsNamed(...names: Array<(typeof creationRollFixtures)[number]['name']>) {
+  return withDistinctUids(creationRollFixtures).filter((_, index) =>
+    names.includes(creationRollFixtures[index].name)
+  )
+}
+
+function hasRerollControl(fieldUid: string) {
+  return document.querySelector(`[data-creation-roll-reroll="${fieldUid}"]`) !== null
+}
+
+function readPreviewSource() {
+  return readFileSync(
+    join(process.cwd(), 'app/features/characterTemplate/components/TemplatePreviewV3.tsx'),
+    'utf8'
+  )
+}
+
 function readRendererSource() {
   return readFileSync(
     join(process.cwd(), 'app/features/characterSheet/TemplateFormRenderer.tsx'),
@@ -332,6 +397,75 @@ describe('isPresentablePartsKey', () => {
     ['安全', 'career', true]
   ] as const)('%s キーの提示可否を固定する', (_caseName, partsKey, expected) => {
     expect(isPresentablePartsKey(partsKey)).toBe(expected)
+  })
+})
+
+describe('TemplateFormRenderer の作成時ロール振り直し導線', () => {
+  // Test intent: cross-package の named import は CJS 変換の都合で型だけ通り runtime で undefined に
+  // なりうる（既知の盲点）。公開 import 経路の述語が実際に関数として届き、engine src の実装と
+  // 同じ判定を返すことを、9 型＋track 宣言変種で固定する。
+  it('公開 import の rollOnCreateSpec が runtime に届き、engine 実装と同じ spec を返す', () => {
+    expect(typeof rollOnCreateSpec).toBe('function')
+
+    expect(creationRollFixtures.map(({ field }) => rollOnCreateSpec(field))).toEqual(
+      creationRollFixtures.map(({ field }) => engineRollOnCreateSpec(field))
+    )
+  })
+
+  it('導線を描く field 集合が engine の述語と一致する', () => {
+    const fields = withDistinctUids(creationRollFixtures)
+    renderRerollForm(fields, { onRequest: jest.fn() })
+
+    expect(fields.map((field) => hasRerollControl(field.uid))).toEqual(
+      fields.map((field) => rollOnCreateSpec(field) !== undefined)
+    )
+  })
+
+  // Test intent: 不変条件「プレビューに振り直しの導線が出ない」を、prop 非受領時の挙動として固定する。
+  it('creationRollReroll 未指定なら宣言済み field にも導線を描かない', () => {
+    const fields = withDistinctUids(creationRollFixtures)
+    renderRerollForm(fields)
+
+    expect(fields.some((field) => hasRerollControl(field.uid))).toBe(false)
+    expect(screen.queryByRole('button', { name: /振り直す/ })).toBeNull()
+  })
+
+  // Test intent: 上の「未指定なら描かない」が preview を守るのは、preview が prop を渡さない限りである。
+  // TemplatePreviewV3 の spec は別 feature の所掌なので、その前提だけをここで固定する。
+  // 測っているのはソース文字列の不在であって「渡していない」ことではない。今日の TemplatePreviewV3 は
+  // JSX spread を使わないので両者は一致するが、この不変条件を当該ファイルにコメントとして書くだけでも
+  // このテストは落ちる。緑を「渡していない」の証明として読まないこと。
+  it('TemplatePreviewV3 のソースに creationRollReroll の文字列が現れない', () => {
+    expect(readPreviewSource()).not.toContain('creationRollReroll')
+  })
+
+  it('宣言された記法を導線の脇に提示する', () => {
+    const [field] = creationRollFieldsNamed('track: rollOnCreate 宣言')
+    renderRerollForm([field], { onRequest: jest.fn() })
+
+    expect(document.querySelector(`[data-creation-roll-notation="${field.uid}"]`)?.textContent).toBe('3d6*5')
+  })
+
+  it('押下すると対象 uid で振り直しを要求する', () => {
+    const onRequest = jest.fn()
+    const [field] = creationRollFieldsNamed('track: rollOnCreate 宣言')
+    renderRerollForm([field], { onRequest })
+
+    fireEvent.click(screen.getByRole('button', { name: `${field.label}: 作成時ロールを振り直す` }))
+
+    expect(onRequest).toHaveBeenCalledWith(field.uid)
+  })
+
+  // Test intent: 実行中の多重送信防止。実行中の field だけでなく、他の宣言済み field も押せなくする。
+  it('実行中は全 field の導線を disabled にする', () => {
+    const fields = creationRollFieldsNamed('roll', 'track: rollOnCreate 宣言')
+    renderRerollForm(fields, { onRequest: jest.fn(), pendingFieldUid: fields[0].uid })
+
+    const buttons = screen.getAllByRole('button', { name: /作成時ロールを振り直す/ })
+    expect(buttons).toHaveLength(2)
+    expect(buttons.every((button) => button.hasAttribute('disabled'))).toBe(true)
+    expect(buttons[0].dataset.loading).toBe('true')
+    expect(buttons[1].dataset.loading).toBeUndefined()
   })
 })
 

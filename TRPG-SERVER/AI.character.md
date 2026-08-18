@@ -684,6 +684,45 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   **結果型を変えるときはこの橋が落ちる**（負の対照で実測済み: キー追加は `IsExact` と
   キー集合差分の両方が発火、optionality だけのずれは `IsExact` のみが発火）。
 
+### 振り直しボタン（RL-7c・front・2026-08-18）
+
+正本 = `review-results/roll-lane/prompt-rl7c-code.txt` ＋ `prompt-rl7c-fix.txt`、
+検収 = `review-results/roll-lane/rl7c-acceptance.md`。
+**これでテンプレート作成 → キャラクター作成 → 振り直しが通しで使える。**
+RL-6 のサーバ経路は 2 スライスのあいだ消費者ゼロだった。
+
+- `TemplateFormRenderer` に `creationRollReroll?: { onRequest, pendingFieldUid }` を追加。
+  対象判定は **engine の `rollOnCreateSpec` だけ**を使い、記法もその戻り値から採る
+  （`field.rollOnCreate` を読み直すと 1 本化した述語がその場で分裂する）。
+  front での述語の書き直しはゼロ（大粒度レビューが grep 実測で確認）
+- **「prop 未指定なら描かない」は TFR で初めての形**。既存の optional prop
+  （`onChange` / `onPartsChange`）は未指定でも UI を描き続け `?.()` で編集だけが無効になる。
+  設計時に「既存イディオムと同じ」と書いたのは**誤りで、指示書経由でコードコメントまで伝播した**
+  （レビューが実測で反証・訂正済み）。保証は `renderCreationRollReroll` の early return 1 行だけで、
+  **プレビュー漏れの pin は描画側と呼び出し側の 2 本**
+  （「未指定なら宣言済み field にも描かない」＋「TemplatePreviewV3 は渡さない」）
+- 応答からの書き戻しは `revision` と `value` の 2 つ。`baseline` への書き戻しは**今日は観測者がいない**
+  （track / roll は `editableScalarFields` の対象外で `deriveSheetChanges` が読まない。
+  この行を落とす変異が spec 全緑のまま生存することを実測）。PV-S で scalar が対象になったとき
+  必要になるので残してある
+- **保存競合パネル表示中は導線を出さない**（FIX-1・唯一の挙動変更）。パネルを開く経路は
+  `baseRevision` を進めないので、その間の振り直しは server 入口の revision 比較で必ず 409 になる。
+  失敗時の案内が「ページを再読み込みしてから再入力」なので、**従うと未保存編集とパネルの選択を
+  両方失う**。prop を渡さない形で塞いだので新概念ゼロ
+- **振り直しに再試行は出さない**（`retryable` を返さない）。`saveSheet` の再送は path ごとの
+  `baseValue` CAS に守られ、1 回目が実は成功していれば 2 回目が弾かれる。振り直しの失敗応答は
+  保存されたかどうかを伝えないので、応答が失われただけの場合の再送は**利用者が意図しない
+  2 回目の出目**になる。この非対称は `actions.ts` の 409 分岐の近くに書いてある
+- action の 409 は **3 種**（入口の revision 不一致・保存 CAS 敗北・未 materialize）。
+  どれも同じ baseRevision の再送では解消しないので、まとめて非再試行に分類する
+- ゲート = typecheck 0 / `eslint .` 0 / **front 34 suites・588 passed**。
+  変異 9 本を Fable が実測し、検出されるべき 7 本は全て DETECTED
+
+**RL-7c が作った状態（RL-8 の優先度が上がっている）**: `RollField.rerollable` は読み手 0 の
+死蔵だったが、振り直し UI が出たことで**「`rerollable: false` を publish できるのにボタンは出る」**
+という嘘の宣言になった。削除箇所は実測 9 箇所（設計台帳の「4 箇所」は不正確）。
+`publish.ts` の roll schema は `.passthrough()` なので保存済みテンプレートは壊れない。
+
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 
 **〔同日更新〕本節の「設計のみ・実装ゼロ」は実装完了で置き換わった。** 実装の正本記録 =

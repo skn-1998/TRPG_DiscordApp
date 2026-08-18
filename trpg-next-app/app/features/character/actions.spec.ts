@@ -19,6 +19,7 @@ jest.mock('../../lib/api-response.util', () => ({
 
 jest.mock('./api/character.service.server', () => ({
   getUserCharacterSummaries: jest.fn(),
+  rerollCreationRoll: jest.fn(),
   saveCharacterSheet: jest.fn(),
   updateCharacterSheetVisibility: jest.fn()
 }))
@@ -29,10 +30,11 @@ import { extractApiErrorMessages, GENERIC_NETWORK_ERROR_MESSAGE } from '../../li
 import { requireJwt } from '../../lib/auth-guard.server'
 import {
   getUserCharacterSummaries,
+  rerollCreationRoll,
   saveCharacterSheet,
   updateCharacterSheetVisibility
 } from './api/character.service.server'
-import { refreshCharacterList, saveSheet, updateSheetVisibility } from './actions'
+import { refreshCharacterList, rerollSheetField, saveSheet, updateSheetVisibility } from './actions'
 
 const mockedRevalidatePath = jest.mocked(revalidatePath)
 const mockedRedirect = jest.mocked(redirect)
@@ -43,6 +45,7 @@ const actualExtractApiErrorMessages = jest.requireActual<typeof import('../../li
 ).extractApiErrorMessages
 const mockedGetUserCharacterSummaries = jest.mocked(getUserCharacterSummaries)
 const mockedSaveCharacterSheet = jest.mocked(saveCharacterSheet)
+const mockedRerollCreationRoll = jest.mocked(rerollCreationRoll)
 const mockedUpdateCharacterSheetVisibility = jest.mocked(updateCharacterSheetVisibility)
 
 beforeEach(() => {
@@ -303,6 +306,76 @@ describe('saveSheet', () => {
     await expect(saveSheet('character-1', { baseRevision: 1, changes: [] })).resolves.toEqual({
       error: '入力値が不正です',
       retryable: false
+    })
+  })
+})
+
+describe('rerollSheetField', () => {
+  const roll = {
+    revision: 3,
+    fieldUid: 'uid-dex',
+    notation: '3d6*5',
+    total: 55,
+    details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55',
+    value: { parts: { base: 55 } }
+  }
+
+  it('成功時は wire をそのまま返し、シート面だけを再検証して redirect しない', async () => {
+    mockedRerollCreationRoll.mockResolvedValue(roll)
+
+    await expect(rerollSheetField('character-1', 'uid-dex', 2)).resolves.toEqual({ error: null, roll })
+
+    expect(mockedRequireJwt).toHaveBeenCalledTimes(1)
+    expect(mockedRerollCreationRoll).toHaveBeenCalledWith({
+      characterId: 'character-1',
+      fieldUid: 'uid-dex',
+      baseRevision: 2
+    })
+    // 一覧（CharacterSummaryWire）はシート値を持たないため対象外。振り直しは画面に留まる操作なので redirect しない。
+    expect(mockedRevalidatePath).toHaveBeenCalledWith('/user/character/character-1/sheet')
+    expect(mockedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('409 は再試行不可の競合として汎用文言を返し、再検証しない', async () => {
+    mockedRerollCreationRoll.mockRejectedValue({ response: { status: 409 } })
+
+    await expect(rerollSheetField('character-1', 'uid-dex', 2)).resolves.toEqual({
+      error: '他の操作でシートが更新されました。ページを再読み込みしてから再入力してください。',
+      conflict: true
+    })
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('422 の未宣言 field は抽出したメッセージを返す', async () => {
+    mockedRerollCreationRoll.mockRejectedValue({ response: { status: 422 } })
+    mockedExtractApiErrorMessages.mockReturnValue(['field uid-dex does not declare a creation roll (scalar)'])
+
+    await expect(rerollSheetField('character-1', 'uid-dex', 2)).resolves.toEqual({
+      error: 'field uid-dex does not declare a creation roll (scalar)'
+    })
+    expect(mockedRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('response のないネットワーク断は内部情報を含まない定型文を返す', async () => {
+    mockedRerollCreationRoll.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:3000'))
+
+    await expect(rerollSheetField('character-1', 'uid-dex', 2)).resolves.toEqual({
+      error: GENERIC_NETWORK_ERROR_MESSAGE
+    })
+    expect(mockedExtractApiErrorMessages).not.toHaveBeenCalled()
+  })
+
+  // Test intent: saveSheet が再試行可へ分類する status でも、振り直しは分類を返さない。
+  // toEqual の完全一致が retryable の復活を検出する（再送は意図しない 2 回目の出目を作りうる）。
+  it.each([
+    ['429', { response: { status: 429 } }],
+    ['5xx', { response: { status: 503 } }]
+  ])('%s も再試行の分類を持たず文言だけを返す', async (_label, error) => {
+    mockedRerollCreationRoll.mockRejectedValue(error)
+    mockedExtractApiErrorMessages.mockReturnValue(['振り直しに失敗しました'])
+
+    await expect(rerollSheetField('character-1', 'uid-dex', 2)).resolves.toEqual({
+      error: '振り直しに失敗しました'
     })
   })
 })

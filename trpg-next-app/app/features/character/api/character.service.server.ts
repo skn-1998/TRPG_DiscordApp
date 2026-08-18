@@ -5,6 +5,7 @@ import type {
   CharacterSummaryWire,
   CharacterWire,
   CreateCharacterFromTemplateResultWire,
+  RerollCreationRollResultWire,
   SaveCharacterSheetResultWire,
   SuccessEnvelope
 } from '@trpg/api-contract'
@@ -66,6 +67,24 @@ export async function saveCharacterSheet(input: {
   const response = await apiClient.put<SuccessEnvelope<SaveCharacterSheetResultWire>>(
     `/character/${input.characterId}/sheet`,
     { baseRevision: input.baseRevision, changes: input.changes }
+  )
+  return response.data.data
+}
+
+/**
+ * 作成時ロールを宣言している field を振り直す。値は送らない（出目は server の実行結果だけを採用する）。
+ *
+ * 保存経路と違い baseRevision は情報値ではなく、server 側で sheet.revision との不一致がそのまま 409 になる。
+ * 応答の revision を呼び出し側が次の基準へ書き戻す前提で、wire がそのキーを保証している。
+ */
+export async function rerollCreationRoll(input: {
+  characterId: string
+  fieldUid: string
+  baseRevision: number
+}): Promise<RerollCreationRollResultWire> {
+  const response = await apiClient.post<SuccessEnvelope<RerollCreationRollResultWire>>(
+    `/character/${input.characterId}/sheet/reroll`,
+    { fieldUid: input.fieldUid, baseRevision: input.baseRevision }
   )
   return response.data.data
 }

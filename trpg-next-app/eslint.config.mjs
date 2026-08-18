@@ -28,6 +28,7 @@ export default defineConfig([
                 'DicePreviewResponse',
                 'DiscordGuildWire',
                 'DiscordGuildsPayloadWire',
+                'RerollCreationRollResultWire',
                 'RollOnCreateResultWire',
                 'SaveCharacterSheetResultWire',
                 'SheetMergeConflictWire',

@@ -6,11 +6,11 @@ import type { CharacterWire } from '@trpg/api-contract'
 import { Component, type ReactNode } from 'react'
 import type { CharacterSheetTemplateEntity, SheetField } from '../../characterTemplate/types/v3'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
-import { saveSheet } from '../actions'
+import { rerollSheetField, saveSheet } from '../actions'
 import { GENERIC_SHEET_CONFLICT_MESSAGE } from '../sheet-edit'
 import { CharacterSheetEditClient } from './CharacterSheetEditClient'
 
-jest.mock('../actions', () => ({ saveSheet: jest.fn() }))
+jest.mock('../actions', () => ({ saveSheet: jest.fn(), rerollSheetField: jest.fn() }))
 // この spec は編集境界の配線を検証するため、視覚スタイルではなく TFR の実描画と callback 契約を jsdom へ通す。
 jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
   __esModule: true,
@@ -22,6 +22,7 @@ jest.mock('../../characterSheet/TemplateFormRenderer.module.css', () => ({
 }))
 
 const mockedSaveSheet = jest.mocked(saveSheet)
+const mockedRerollSheetField = jest.mocked(rerollSheetField)
 const character: CharacterWire = {
   characterId: 'character-1',
   characterName: '探索者',
@@ -144,6 +145,65 @@ const declaredPartsTemplate: CharacterSheetTemplateEntity = {
   }]
 }
 
+// 振り直しの対象は作成時ロールを宣言した track。editableScalarFields の対象外なので保存差分を作らない。
+// other は Discord の ± が積む内訳キーで、合計から保存形を組み立て直すと失われる値の代表。
+const rerollTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'dex',
+        uid: 'main.dex',
+        label: '敏捷',
+        type: 'track',
+        max: 100,
+        style: 'gauge',
+        rollOnCreate: { notation: '3d6*5', partsKey: 'base' }
+      }
+    ]
+  }]
+}
+const rerollCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.dex': { parts: { base: 40, other: 2 } } }
+  }
+}
+
+/** Fixture source: RerollCreationRollResultWire。value は server の creationRollValue が決めた保存形。 */
+function rerollResult(revision: number, base: number) {
+  return {
+    error: null,
+    roll: {
+      revision,
+      fieldUid: 'main.dex',
+      notation: '3d6*5',
+      total: base,
+      details: `(3D6*5) ＞ 11[2,4,5]*5 ＞ ${base}`,
+      value: { parts: { base, other: 2 } }
+    }
+  }
+}
+
+function renderRerollEditor() {
+  return render(
+    <MantineProvider>
+      <CharacterSheetEditClient character={rerollCharacter} template={rerollTemplate} />
+    </MantineProvider>
+  )
+}
+
+function rerollButton() {
+  return screen.getByRole('button', { name: '敏捷: 作成時ロールを振り直す' }) as HTMLButtonElement
+}
+
+function trackDisplayValue() {
+  return document.querySelector('[data-track-display-value="main.dex"]')?.textContent
+}
+
 function mergeConflict(fieldUid = 'main.hp', current: unknown = 8, currentRevision = 4) {
   return {
     error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
@@ -231,8 +291,141 @@ async function submitHpChange(result = mergeConflict()) {
   return screen.findByRole('region', { name: '保存競合' })
 }
 
-beforeEach(() => mockedSaveSheet.mockReset())
+beforeEach(() => {
+  mockedSaveSheet.mockReset()
+  mockedRerollSheetField.mockReset()
+})
 afterEach(cleanup)
+
+describe('CharacterSheetEditClient の作成時ロール振り直し', () => {
+  // Test intent: baseRevision は useState の初期化子で保持され router.refresh() では更新されない。
+  // 応答から書き戻さないと、2 回目の振り直しが古い revision を送って server 側で必ず 409 になる。
+  it('応答の revision を書き戻し、2 回目の振り直しが新しい baseRevision を送る', async () => {
+    renderRerollEditor()
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(2, 55))
+
+    fireEvent.click(rerollButton())
+    await screen.findByText(/合計 55/)
+    expect(mockedRerollSheetField).toHaveBeenNthCalledWith(1, 'character-1', 'main.dex', 1)
+
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(3, 60))
+    fireEvent.click(rerollButton())
+    await screen.findByText(/合計 60/)
+
+    expect(mockedRerollSheetField).toHaveBeenNthCalledWith(2, 'character-1', 'main.dex', 2)
+  })
+
+  // Test intent: 保存形は server が返した value をそのまま採る。出目の合計から組み立て直すと
+  // 宣言外の内訳キー（other）が落ちるので、合計 55 ではなく 57 が表示されることで区別する。
+  // 観測できるのは values 側だけ。applyRerollResult の setBaseline はこの fixture（track）には
+  // 観測者がいない（下の「保存差分」assertion はクリック前から成立するトートロジーだったので外した）。
+  it('応答の value を保存形のまま表示へ反映する（出目の合計から組み立て直さない）', async () => {
+    renderRerollEditor()
+    expect(trackDisplayValue()).toBe('42 / 100')
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(2, 55))
+
+    fireEvent.click(rerollButton())
+    await screen.findByText(/合計 55/)
+
+    expect(trackDisplayValue()).toBe('57 / 100')
+  })
+
+  it('未保存の scalar 編集は振り直しで失われない', async () => {
+    renderRerollEditor()
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(2, 55))
+
+    fireEvent.click(rerollButton())
+    await screen.findByText(/合計 55/)
+
+    expect((screen.getByRole('textbox', { name: /^HP/ }) as HTMLInputElement).value).toBe('9')
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 2,
+      changes: [{ path: { fieldUid: 'main.hp' }, baseValue: 10, newValue: 9 }]
+    }))
+  })
+
+  it('出目の記法・合計・内訳を提示する', async () => {
+    renderRerollEditor()
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(2, 55))
+
+    fireEvent.click(rerollButton())
+
+    await screen.findByText(/敏捷: 3d6\*5 → 合計 55/)
+    expect(screen.getByText('内訳: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).not.toBeNull()
+  })
+
+  it('実行中は多重送信しない', async () => {
+    renderRerollEditor()
+    let resolveReroll!: (result: ReturnType<typeof rerollResult>) => void
+    mockedRerollSheetField.mockReturnValueOnce(new Promise((resolve) => {
+      resolveReroll = resolve
+    }))
+
+    fireEvent.click(rerollButton())
+    await waitFor(() => expect(rerollButton().disabled).toBe(true))
+    fireEvent.click(rerollButton())
+
+    expect(mockedRerollSheetField).toHaveBeenCalledTimes(1)
+
+    await act(async () => resolveReroll(rerollResult(2, 55)))
+    expect(rerollButton().disabled).toBe(false)
+  })
+
+  it('409 は競合として提示し、baseRevision を進めない', async () => {
+    renderRerollEditor()
+    mockedRerollSheetField.mockResolvedValueOnce({ error: GENERIC_SHEET_CONFLICT_MESSAGE, conflict: true })
+
+    fireEvent.click(rerollButton())
+    await screen.findByText(GENERIC_SHEET_CONFLICT_MESSAGE)
+
+    expect(trackDisplayValue()).toBe('42 / 100')
+    mockedRerollSheetField.mockResolvedValueOnce(rerollResult(2, 55))
+    fireEvent.click(rerollButton())
+    await screen.findByText(/合計 55/)
+
+    expect(mockedRerollSheetField).toHaveBeenNthCalledWith(2, 'character-1', 'main.dex', 1)
+  })
+
+  it('action の reject は通信失敗として提示し、値を変えない', async () => {
+    renderRerollEditor()
+    mockedRerollSheetField.mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+
+    fireEvent.click(rerollButton())
+    await screen.findByText(GENERIC_NETWORK_ERROR_MESSAGE)
+
+    expect(trackDisplayValue()).toBe('42 / 100')
+    expect(rerollButton().disabled).toBe(false)
+  })
+
+  // Test intent: 競合パネルが開いている間の baseRevision は stale。パネルを開く経路（presentSaveResult の
+  // mergeConflict 分岐）は baseRevision を進めず、進める writer は applyRerollResult と handleConflictApply
+  // しかない。その状態で振り直すと server 入口の revision 比較で 409 になり、案内文（再読み込み）に従った
+  // 利用者は未保存編集とパネルの両方を失う。冒頭の rerollButton() でこの fixture が導線を描くことを示し、
+  // 「導線が無い」がトートロジーにならないようにしている。
+  it('保存競合パネル表示中は振り直しの導線を描かない', async () => {
+    renderRerollEditor()
+    expect(rerollButton()).toBeTruthy()
+
+    await submitHpChange()
+
+    expect(screen.queryByRole('button', { name: '敏捷: 作成時ロールを振り直す' })).toBeNull()
+  })
+
+  it('競合の選択を適用してパネルを閉じると導線が戻る', async () => {
+    renderRerollEditor()
+    await submitHpChange()
+
+    fireEvent.click(screen.getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+    expect(rerollButton()).toBeTruthy()
+  })
+})
 
 describe('CharacterSheetEditClient', () => {
   it('初期状態と保存成功時は未保存バナーを表示しない', async () => {

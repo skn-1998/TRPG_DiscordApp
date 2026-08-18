@@ -3772,7 +3772,7 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
 
 **3 スライスに分割した。1 スライス = 1 パッケージ境界。**
 
-- **RL-7a 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/rl7a-acceptance.md`。
+- **RL-7a 完了・受入・コミット済み（2026-08-18・`bc41e9ef`）**。証跡 `review-results/roll-lane/rl7a-acceptance.md`。
   移送先は `packages/sheet-engine/src/roll-on-create.ts`（新規）、server 側は
   `creation-roll-value.util.ts` へ改名して `creationRollValue` だけが残る。
   **純粋移送であることを機械比較で確認**（コメント・空白・セミコロンを正規化したトークン列で
@@ -3797,7 +3797,7 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
   front 側から等価 spec で固定できない（既存の等価 pin は engine に対して張られている。
   例 `TemplateFormRenderer.spec.tsx:339,355` の 9 型マトリクス）。
   複製を作ってから統合するより先に移す
-- **RL-7b 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/rl7b-acceptance.md`。
+- **RL-7b 完了・受入・コミット済み（2026-08-18・`3655764`）**。証跡 `review-results/roll-lane/rl7b-acceptance.md`。
   `RerollCreationRollResultWire`（型のみ・6 キー）を api-contract に追加し、controller の戻り型を
   `Promise<unknown>` から置き換え、service 応答に**保存値 `value`** を載せた。
   ゲート = api-contract 7/27 ／ server build Done / 循環ゼロ / **226 suites・3207 passed**（3204→3207）。
@@ -3819,13 +3819,89 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
   応答に同乗している `character` 全体から読ませる案は採らない
   （`SaveCharacterSheetResultWire` の JSDoc どおり `character` は保証面の外に置く方針）。
   `index.spec.ts` が公開面を型名とランタイム値 19 名で pin しているので、その更新を伴う
-- **RL-7c**: `CharacterSheetEditClient` に導線を足す。
-  TFR へ optional な `onReroll` を追加し、渡されたときだけ描画する。
-  TFR の利用は 2 箇所（編集画面と `TemplatePreviewV3`）で、プレビューに振り直しが漏れてはいけない。
-  **プレビューは `onPartsChange` を渡していない**ので、オプショナル prop の有無で機能を
-  出し分けるのはこの component の既存イディオムである
+- **RL-7c 完了・受入（2026-08-18・未コミット / ユーザー許可待ち）**。
+  証跡 `review-results/roll-lane/rl7c-acceptance.md`。
+  指示書 `prompt-rl7c-code.txt` ＋ FIX 指示書 `prompt-rl7c-fix.txt`。
+  差分 9 ファイル・**+683/-18**。ゲート = typecheck 0 / `eslint .` 0 / **front 34 suites・588 passed**。
+  実装形は `creationRollReroll?: { onRequest, pendingFieldUid }` の 1 オブジェクト prop。
+  プレビュー漏れは**描画側と呼び出し側の両方**に pin がある。
+  **変異 9 本を Fable が実測**（復元 sha256 全一致）。検出されるべき 7 本は全て DETECTED。
+  沈黙する 2 本は理由が特定済み: **MF5**（`setBaseline` 削除）は今日の対象が track / roll で
+  `deriveSheetChanges` が読まないため観測者を作れない（負の対照 MF6 は落ちるので spec 故障ではない）、
+  **MF7b**（`handleReroll` の `!canReroll` ガード削除）は DOM ゲートが先に効く多層防御。
+  **小粒度レビュー 7 件は全件 Fable が実物で裏取りし、6 件を FIX で消化**（FIX-1 のみ挙動変更）。
+  1 件（CL-6・位置引数 10→11）はレビュア自身が「本スライスでは不要」と判定したので対応せず。
+  **FIX-1 = 保存競合パネル表示中は振り直しの導線を出さない。**
+  パネルを開く経路が `baseRevision` を進めないため、その間の振り直しは server 入口の
+  revision 比較で必ず 409 になる。失敗時の案内が「ページを再読み込みしてから再入力」なので、
+  **従うと未保存編集と競合パネルの両方を失う**（パネル自身は「他の項目は引き続き編集できます」と案内）。
+  prop を渡さない形で塞いだので**新概念ゼロ**。判別力は Fable の変異 MF7a で確認済み
+- **RL-7c の検収で判明した Fable 自身の誤り 3 件**（いずれも指示書経由でコードコメントまで伝播）。
+  ①「`retryable` の判定を `saveSheet` に揃えろ」→ 消費者ゼロの値を生んだ（FIX-2 で削除。
+  そもそも振り直しの再試行は安全でない。saveSheet の再送は `baseValue` CAS に守られるが、
+  振り直しの失敗応答は保存有無を伝えないので再送は意図しない 2 回目の出目になる）。
+  ② 先例参照の誤り（上の【訂正】）。③ 409 を 1 種と断定（実際は 3 種）。
+  メモリ `ai-md-claim-scoping`（16 件目）と `verify-claims-before-prescribing` に記録済み
+- **RL-7c の設計**: `CharacterSheetEditClient` に導線を足す。
+  TFR へ optional prop を追加し、渡されたときだけ描画する。
+  TFR の利用は 2 箇所（編集画面と `TemplatePreviewV3`）で、プレビューに振り直しが漏れてはいけない
+  （プレビューの field は未保存なので、押せば 422 になる）。
+  **【訂正 2026-08-18】** 設計時に「オプショナル prop の有無で機能を出し分けるのは
+  `onPartsChange` と同じ既存イディオム」と書いたが、**これは誤り**（Fable の未検証の前提が
+  指示書 → コードコメントまで伝播した）。実測すると TFR の既存 optional prop は
+  `onChange` も `onPartsChange` も**未指定でも描画し続け、`?.()` で無効化するだけ**
+  （`onPartsChange?.()` は :442 と :595、`onChange?.()` は :872/:885/:899/:911）。
+  `creationRollReroll` は**この component で最初の「未指定なら描かない」prop** であり、
+  保証を与えているのは early return 1 行だけ。だからこそテスト 2 本
+  （描画側「未指定なら描かない」＋呼び出し側「TemplatePreviewV3 は渡さない」）で固定してある
 
 **RL-7a → RL-7b は直列。** 両者とも `character-sheet-operation.service.ts` を触るため並行不可。
+
+### 大粒度認知負荷レビュー（2026-08-18・RL レーン = feature 完了ゲート）
+
+対象は engine の述語・publish 検証・server の書き込み規則と 2 経路・contract・front 消費の 3 パッケージ横断。
+前回の大粒度は RL-6＋PV-1 時点で、以後 PV-R / RL-7a / RL-7b / RL-7c の 4 フェーズが経過していた。
+
+**Fable が立てた複製仮説 6 本のうち 5 本が実測で否定された。**
+
+- 「作成時ロール対象か」の述語は `rollOnCreateSpec` **1 本**で、runtime 3 経路
+  （作成 `character-instantiation.service.ts:105` / 振り直し `character-sheet-operation.service.ts:382` /
+  導線表示 `TemplateFormRenderer.tsx:717`）**すべてが経由**している。
+  **front も server も `field.rollOnCreate` を直読みしていない**
+- 行き先規則も `creationRollValue` **1 本**を作成と振り直しが呼ぶ。二重実装なし
+- 2 つの結果 wire を同時に保持する必要があるのは `character.wire.ts` 1 ファイルだけで、
+  キー名を揃えていない理由が `:186-188` に書いてある
+- revision 意味論の 5 記述のうち 4 件はそれぞれの局所判断の理由で、全件が根拠コードを名指し
+
+**PV-R・RL-6・RL-7a が「1 本化」を目的に置いた設計が機械的に効いていることの独立確認**になった。
+
+残った findings は 4 件すべて RL-7c の差分外で、掃除スライスとして起票済み（**新しい層・抽象・contract を
+足す提案はゼロ**。全て削除・局所化・欠落キー 1 個の追加）。実施順は RL-8 → CI-2 → CI-1 → wire label。
+
+- **RL-8**（タスク #50・優先度上昇）: `rerollable` は読み手 0 の死蔵だが、**RL-7c で振り直し UI が
+  出た結果「`rerollable: false` を publish できるのにボタンは出る」という嘘の宣言になった**。
+  実測 **9 箇所 / 4 ファイル＋spec 1**（設計台帳の「4 箇所」は不正確）。
+  `publish.ts:129` の roll schema は `.passthrough()` なので**保存済みテンプレートは壊れない**。
+  engine + publish + seed を先行し、front（`characterTemplate/` 配下＝並行セッション範囲）は後追い可能
+- **CI-1**（タスク #51・**PV-S より前**・**ユーザー裁定が 1 件必要**):
+  `character-instantiation.service.ts:94-105` の提出値ガードだけが述語を経ず型直読み
+  （`field.type === 'track' && field.rollOnCreate !== undefined`）。同一ループ内 8 行の距離に
+  判定が 2 つある。PV-S で scalar を発火させるとガードが追随せず、**track は 422 で loud・
+  scalar は無言上書き**という非対称が生まれる。裁定点 = 契約外形 track（`rollOnCreate: true`）への
+  提出値を現行の 422 のままにするか受理へ変えるか。PV-S と同一 diff に混ぜない
+- **CI-2**（タスク #52）: `collectTopLevelFields` が同名・異本体で 2 実装
+  （instantiation 側は `Array.isArray` 防御あり、materializer 側はなし）。1 回の `instantiate()` で両方走る。
+  `findTopLevelField` は返り値型も throw も違うので統合対象にしない（フラグ引数が生えて共有抽象結合になる）
+- **wire label**（単独起票しない）: 振り直し wire に `label` が無いため front が 3 本目の top-level 走査
+  （`fieldLabels`）を持つ。**キー名の統一は提案されていない**（`fieldUid` 優勢の理由が wire に明記済み）
+
+**intrinsic として除外（Fable 追認）**: 出目と内訳の意味論、`other` 禁止の 2 層（宣言時検査と
+書き込み時防壁で役割が違う）、`@ResponseMessage` が front で未使用（全ルートの規約）、
+wire 型追加のたびに eslint allowlist を編集する儀式（永続化スキーマの front 使用禁止という理由がある）。
+
+**TFR の描画ヘルパの引数形が分裂している**（位置引数 2 本・object 引数 2 本）のは **RL-7c 以前から**で、
+RL-7c はどちらも既存形のまま末尾に 1 本足しただけ。将来 object 引数形へ寄せると
+呼び出し側の保持事項が「11 の順序」→「11 の名前」になり**新概念は 0**。RL-7c の受入条件には含めない。
 
 **フロント状態モデルの実測（RL-7c の設計入力）**
 

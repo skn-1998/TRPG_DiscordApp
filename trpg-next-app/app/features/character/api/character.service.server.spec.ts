@@ -7,7 +7,7 @@ jest.mock('../../../lib/api-client.server', () => ({
 }))
 
 import { apiClient } from '../../../lib/api-client.server'
-import { createCharacterFromTemplate } from './character.service.server'
+import { createCharacterFromTemplate, rerollCreationRoll } from './character.service.server'
 
 const mockedApiPost = jest.mocked(apiClient.post)
 
@@ -50,5 +50,29 @@ describe('createCharacterFromTemplate', () => {
     const result = await createCharacterFromTemplate(input)
 
     expect(result).toBe(data)
+  })
+})
+
+describe('rerollCreationRoll', () => {
+  it('値を送らずに fieldUid と baseRevision だけを POST し、封筒を剥がして返す', async () => {
+    // Fixture source: RerollCreationRollResultWire（api-contract）と server の RerollSheetFieldDto。
+    const data = {
+      revision: 3,
+      fieldUid: 'uid-dex',
+      notation: '3d6*5',
+      total: 55,
+      details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55',
+      value: { parts: { base: 55, other: 2 } }
+    }
+    mockedApiPost.mockResolvedValue({ data: { data } } as never)
+
+    await expect(
+      rerollCreationRoll({ characterId: 'character-1', fieldUid: 'uid-dex', baseRevision: 2 })
+    ).resolves.toBe(data)
+
+    expect(mockedApiPost).toHaveBeenCalledWith('/character/character-1/sheet/reroll', {
+      fieldUid: 'uid-dex',
+      baseRevision: 2
+    })
   })
 })

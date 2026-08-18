@@ -7,6 +7,7 @@ import {
   isSimpleField,
   resolveGridSpan,
   resolveSectionLayout,
+  rollOnCreateSpec,
   type ConstraintEvaluationResult,
   type ScalarField,
   type SectionAnnotationRuntime,
@@ -34,6 +35,32 @@ interface TemplateFormRendererProps {
    * table layout では labelledBy を渡さないため既定の aria-labelledby を再現できず、差し替え側が自前のラベルを要する。
    */
   renderField?: (field: SheetField, defaultNode: ReactNode) => ReactNode
+  /**
+   * 作成時ロールを宣言している field へ振り直しの導線を出す拡張点。未指定なら導線を一切描かない。
+   *
+   * この component は実シートの編集（CharacterSheetEditClient）とテンプレートのプレビュー
+   * （TemplatePreviewV3）の 2 箇所から使われる。プレビューには保存先のキャラクターが存在しないので
+   * 振り直しを出してはならず、prop を渡さないことでそれを保証する。
+   *
+   * この「未指定なら描かない」は TFR で初めての形。他の optional prop（onChange・onPartsChange）は
+   * 未指定でも UI を描き続け、`?.()` で編集だけが無効になる。よって既存 prop の読み方をこの prop へ
+   * 持ち込まないこと。保証を与えているのは renderCreationRollReroll の未指定 early return 1 行だけで、
+   * spec の「creationRollReroll 未指定なら宣言済み field にも導線を描かない」と
+   * 「TemplatePreviewV3 は creationRollReroll を渡さない」の 2 本がその不変条件を固定している。
+   *
+   * callback と実行中 uid を 1 つの prop にまとめているのは、片方だけを渡しても意味を成さない対であり、
+   * かつ内部の描画関数群へ 2 本ではなく 1 本の引数として通せるため。
+   */
+  creationRollReroll?: CreationRollReroll
+}
+
+export interface CreationRollReroll {
+  onRequest: (fieldUid: string) => void
+  /**
+   * 振り直し実行中の field uid。実行中は対象を問わず全導線を disabled にして多重送信を防ぐ
+   * （TemplatePreviewV3 の rollingFieldUid と同じ扱い）。
+   */
+  pendingFieldUid?: string
 }
 
 type RenderFieldEntry = {
@@ -56,7 +83,8 @@ export function TemplateFormRenderer({
   onChange,
   onPartsChange,
   headingLevel = 2,
-  renderField
+  renderField,
+  creationRollReroll
 }: TemplateFormRendererProps) {
   const blockHeadingLevel = headingLevel === 2 ? 3 : 4
   const annotationRuntime = useMemo(
@@ -88,9 +116,19 @@ export function TemplateFormRenderer({
                 renderField,
                 annotations,
                 fieldConstraintMessages,
-                blockHeadingLevel
+                blockHeadingLevel,
+                creationRollReroll
               )
-              : renderFieldContainer(fields, layout, values, onChange, onPartsChange, renderField, fieldConstraintMessages)}
+              : renderFieldContainer(
+                fields,
+                layout,
+                values,
+                onChange,
+                onPartsChange,
+                renderField,
+                fieldConstraintMessages,
+                creationRollReroll
+              )}
           </Stack>
         )
       })}
@@ -108,7 +146,8 @@ function renderBlockGroups(
   renderFieldOverride: TemplateFormRendererProps['renderField'],
   annotations: SectionAnnotationRuntime,
   fieldConstraintMessages: ReadonlyMap<string, string>,
-  blockHeadingLevel: 3 | 4
+  blockHeadingLevel: 3 | 4,
+  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
 ) {
   const blockLabels = new Map<string, string>()
   for (const block of section.blocks ?? []) {
@@ -135,7 +174,8 @@ function renderBlockGroups(
           onChange,
           onPartsChange,
           renderFieldOverride,
-          fieldConstraintMessages
+          fieldConstraintMessages,
+          creationRollReroll
         )
         : null}
       {[...blockGroups]
@@ -167,7 +207,8 @@ function renderBlockGroups(
                 onChange,
                 onPartsChange,
                 renderFieldOverride,
-                fieldConstraintMessages
+                fieldConstraintMessages,
+                creationRollReroll
               )}
             </Stack>
           )
@@ -283,7 +324,8 @@ function renderFieldContainer(
   onChange: TemplateFormRendererProps['onChange'],
   onPartsChange: TemplateFormRendererProps['onPartsChange'],
   renderFieldOverride: TemplateFormRendererProps['renderField'],
-  fieldConstraintMessages: ReadonlyMap<string, string>
+  fieldConstraintMessages: ReadonlyMap<string, string>,
+  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
 ) {
   const partColumns = layout.mode === 'table' ? buildTablePartColumns(fields) : []
 
@@ -322,6 +364,7 @@ function renderFieldContainer(
                   onPartsChange={onPartsChange}
                   renderField={renderFieldOverride}
                   warning={fieldConstraintMessages.get(field.uid)}
+                  creationRollReroll={creationRollReroll}
                 />
               ))}
             </Table.Tbody>
@@ -345,7 +388,8 @@ function renderFieldContainer(
               onChange,
               onPartsChange,
               renderField: renderFieldOverride,
-              warning: fieldConstraintMessages.get(field.uid)
+              warning: fieldConstraintMessages.get(field.uid),
+              creationRollReroll
             })}
           </div>
         )
@@ -363,7 +407,8 @@ function TableFieldRow({
   onChange,
   onPartsChange,
   renderField,
-  warning
+  warning,
+  creationRollReroll
 }: {
   field: SheetField
   value: unknown
@@ -374,6 +419,7 @@ function TableFieldRow({
   onPartsChange: TemplateFormRendererProps['onPartsChange']
   renderField: TemplateFormRendererProps['renderField']
   warning: string | undefined
+  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
 }) {
   const labelId = useId()
 
@@ -424,7 +470,17 @@ function TableFieldRow({
     return (
       <Table.Tr data-field-uid={field.uid} data-table-row-mode="full-width">
         <Table.Td colSpan={partColumns.length + 2}>
-          {renderFieldWithWarning({ field, value, displayValue, trackMax, onChange, onPartsChange, renderField, warning })}
+          {renderFieldWithWarning({
+            field,
+            value,
+            displayValue,
+            trackMax,
+            onChange,
+            onPartsChange,
+            renderField,
+            warning,
+            creationRollReroll
+          })}
         </Table.Td>
       </Table.Tr>
     )
@@ -446,6 +502,7 @@ function TableFieldRow({
           onPartsChange,
           renderField,
           warning,
+          creationRollReroll,
           labelledBy: labelId
         })}
       </Table.Td>
@@ -609,6 +666,7 @@ function renderFieldWithWarning({
   onPartsChange,
   renderField: renderFieldOverride,
   warning,
+  creationRollReroll,
   labelledBy
 }: {
   field: SheetField
@@ -619,6 +677,7 @@ function renderFieldWithWarning({
   onPartsChange: TemplateFormRendererProps['onPartsChange']
   renderField: TemplateFormRendererProps['renderField']
   warning: string | undefined
+  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
   labelledBy?: string
 }) {
   const hasPartsEditor = isPartsScalarField(field)
@@ -635,13 +694,50 @@ function renderFieldWithWarning({
     </>
   ) : renderDefaultField(field, value, trackMax, onChange, labelledBy)
   const control = renderFieldOverride === undefined ? defaultNode : renderFieldOverride(field, defaultNode)
-  if (!hasPartsEditor && warning === undefined) return control
+  const rerollControl = renderCreationRollReroll(field, creationRollReroll)
+  if (!hasPartsEditor && warning === undefined && rerollControl === null) return control
 
   return (
     <Stack gap={4}>
       {control}
+      {rerollControl}
       {renderFieldWarning(field.uid, warning)}
     </Stack>
+  )
+}
+
+/**
+ * 作成時ロールを宣言している field にだけ振り直しボタンを描く。
+ *
+ * 対象かどうかの判定は engine の rollOnCreateSpec だけを使う。同じ判定を front で書き直すと、
+ * 作成時の適用・server の振り直し・この表示が別々の対象集合を持ちうるため
+ * （engine 側 roll-on-create.ts の「対象集合を決める述語は 1 本」）。
+ * 記法も戻り値から採る（field.rollOnCreate を読み直すと 1 本化した述語がその場で分裂する）。
+ */
+function renderCreationRollReroll(
+  field: SheetField,
+  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
+) {
+  if (creationRollReroll === undefined) return null
+  const spec = rollOnCreateSpec(field)
+  if (spec === undefined) return null
+
+  const { onRequest, pendingFieldUid } = creationRollReroll
+  return (
+    <Group gap="xs" data-creation-roll-reroll={field.uid}>
+      <Button
+        aria-label={`${field.label}: 作成時ロールを振り直す`}
+        disabled={pendingFieldUid !== undefined}
+        loading={pendingFieldUid === field.uid}
+        onClick={() => onRequest(field.uid)}
+        size="xs"
+        type="button"
+        variant="light"
+      >
+        振り直す
+      </Button>
+      <Text c="dimmed" data-creation-roll-notation={field.uid} size="xs">{spec.notation}</Text>
+    </Group>
   )
 }
 

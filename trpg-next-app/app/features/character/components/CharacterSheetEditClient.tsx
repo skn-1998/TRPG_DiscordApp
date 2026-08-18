@@ -2,14 +2,14 @@
 
 import { Alert, Button, Card, Container, Group, Radio, Stack, Text, Title } from '@mantine/core'
 import { IconAlertCircle, IconArrowLeft, IconDeviceFloppy } from '@tabler/icons-react'
-import type { CharacterWire, SheetMergeConflictWire } from '@trpg/api-contract'
+import type { CharacterWire, RerollCreationRollResultWire, SheetMergeConflictWire } from '@trpg/api-contract'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
 import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
-import { saveSheet } from '../actions'
+import { rerollSheetField, saveSheet, type RerollSheetFieldResult } from '../actions'
 import {
   deriveSheetChanges,
   editableScalarFields,
@@ -88,7 +88,15 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const [actionData, setActionData] = useState<SheetActionData | null>(null)
   const [conflictPanel, setConflictPanel] = useState<ConflictPanelState | null>(null)
   const [isPending, startTransition] = useTransition()
+  // 振り直しは保存とは別操作なので pending も分ける。保存ボタンの loading を巻き込まない。
+  const [rerollingFieldUid, setRerollingFieldUid] = useState<string>()
+  const [rerollFeedback, setRerollFeedback] = useState<RerollSheetFieldResult | null>(null)
   const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
+  // 振り直しの対象は track / roll で editableScalarFields に含まれないため、全 field から label を引く。
+  const fieldLabels = useMemo(
+    () => new Map(template.sections.flatMap((section) => section.fields.map((field) => [field.uid, field.label]))),
+    [template]
+  )
 
   const changes = deriveSheetChanges(fields, baseline, values)
   const savableChanges = conflictPanel
@@ -155,6 +163,57 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     // 宣言モードの未宣言キーが callback 境界を越えて state に入ることを防ぐ。
     if (!listEditablePartsKeys(field, baseline, values).includes(partsKey)) return
     setValues((current) => writeSheetPathValue(field, partsKey, value, current))
+  }
+
+  /**
+   * baseline・values・baseRevision は props から useState の初期化子で保持しており、初期化子は
+   * 再レンダーで再実行されない（router.refresh() では更新されない）。よって応答から直接書き戻す。
+   */
+  const applyRerollResult = (roll: RerollCreationRollResultWire) => {
+    // 書き戻しを省くと、2 回目の振り直しは server 入口の revision 比較で必ず 409 になる
+    // （1 回目の成功で sheet.revision が進んでいるため）。この入口ガードは sheet.revision との
+    // 直接比較で、saveSheet の path ごとの CAS とは非対称。
+    setBaseRevision(roll.revision)
+    // server が保存した値をそのまま採る。出目の合計から保存形を組み立て直すと、その変換規則
+    // （server の creationRollValue）が front にも分裂する。応答に value が載っているのはこのため。
+    //
+    // baseline への書き戻しは今日の振り直し対象（track / roll）では観測者がいない。
+    // deriveSheetChanges が読むのは editableScalarFields だけで、track / roll はその対象外
+    // （この行を落とす変異が spec 全緑のまま生存することを確認済み）。
+    // それでも書くのは PV-S で scalar が振り直し対象になったときに必要になるため。
+    // baseline を欠くと、振り直し直後の値が偽の未保存差分として保存対象に入る。
+    setBaseline((current) => ({ ...current, [roll.fieldUid]: roll.value }))
+    setValues((current) => ({ ...current, [roll.fieldUid]: roll.value }))
+  }
+
+  /**
+   * 競合パネルが開いている間は振り直しを受け付けない。パネルを開く経路（presentSaveResult の
+   * mergeConflict 分岐）は baseRevision を進めず、進めるのは applyRerollResult と handleConflictApply
+   * だけなので、パネル表示中の baseRevision は必ず stale。server の rerollCreationRoll は入口で
+   * revision を比較して 409 にするため、この状態の振り直しは失敗しかしない。
+   * 失敗時の案内（GENERIC_SHEET_CONFLICT_MESSAGE）は再読み込みを促すので、従うと未保存編集と
+   * パネルの選択の両方を失う。導線を出さないことでその袋小路を作らない。
+   */
+  const canReroll = conflictPanel === null
+
+  const handleReroll = (fieldUid: string) => {
+    // 保存と振り直しは別の非同期なので、振り直しが飛行中にパネルが開く重なりがありうる。
+    if (rerollingFieldUid !== undefined || !canReroll) return
+    setRerollingFieldUid(fieldUid)
+    setRerollFeedback(null)
+
+    void (async () => {
+      try {
+        const result = await rerollSheetField(character.characterId, fieldUid, baseRevision)
+        setRerollFeedback(result)
+        if (result.error === null) applyRerollResult(result.roll)
+      } catch (error) {
+        unstable_rethrow(error)
+        setRerollFeedback({ error: GENERIC_NETWORK_ERROR_MESSAGE })
+      } finally {
+        setRerollingFieldUid(undefined)
+      }
+    })()
   }
 
   const handleConflictApply = () => {
@@ -274,6 +333,24 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
           </Alert>
         )}
 
+        {rerollFeedback && (rerollFeedback.error === null ? (
+          <Alert color="green" title="振り直しました">
+            <Text>
+              {fieldLabels.get(rerollFeedback.roll.fieldUid) ?? rerollFeedback.roll.fieldUid}:
+              {' '}{rerollFeedback.roll.notation} → 合計 {rerollFeedback.roll.total}
+            </Text>
+            <Text size="sm" c="dimmed">内訳: {rerollFeedback.roll.details}</Text>
+          </Alert>
+        ) : (
+          <Alert
+            color={rerollFeedback.conflict ? 'yellow' : 'red'}
+            icon={<IconAlertCircle size={16} />}
+            title={rerollFeedback.conflict ? '振り直し競合' : '振り直せませんでした'}
+          >
+            {rerollFeedback.error}
+          </Alert>
+        ))}
+
         {hasUnsavedFailure && (
           <Alert color="orange" icon={<IconAlertCircle size={16} />} title="保存されていません">
             編集内容はこの画面に保持されています。
@@ -293,6 +370,9 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                 values={values}
                 onChange={handleRendererChange}
                 onPartsChange={handleRendererPartsChange}
+                creationRollReroll={
+                  canReroll ? { onRequest: handleReroll, pendingFieldUid: rerollingFieldUid } : undefined
+                }
               />
               <Group justify="flex-end">
                 <Button
