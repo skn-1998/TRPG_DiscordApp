@@ -11,6 +11,7 @@ import {
   type CharacterTemplatePinWire,
   type CharacterWire,
   type CreateCharacterFromTemplateResultWire,
+  type RerollCreationRollResultWire,
   type RollOnCreateResultWire,
   type SaveCharacterSheetResultWire,
   type SheetMergeConflictWire
@@ -152,6 +153,40 @@ type RollOnCreateResultWireShape = Assert<
   >
 >
 
+type RerollCreationRollResultWireRequiredKeys = Exclude<
+  keyof RerollCreationRollResultWire,
+  OptionalKeys<RerollCreationRollResultWire>
+>
+// 保存値 value も required に数える。front が値を持たない応答を受け取ると、
+// 出目から保存形を組み立て直す実装を持つしかなくなり、この wire を足した意味が消える。
+type ExpectedRerollCreationRollResultWireRequiredKeys =
+  | 'revision'
+  | 'fieldUid'
+  | 'notation'
+  | 'total'
+  | 'details'
+  | 'value'
+type UnexpectedRerollCreationRollResultWireRequiredKeys = AssertNever<
+  Exclude<RerollCreationRollResultWireRequiredKeys, ExpectedRerollCreationRollResultWireRequiredKeys>
+>
+type MissingRerollCreationRollResultWireRequiredKeys = AssertNever<
+  Exclude<ExpectedRerollCreationRollResultWireRequiredKeys, RerollCreationRollResultWireRequiredKeys>
+>
+type UnexpectedRerollCreationRollResultWireOptionalKeys = AssertNever<OptionalKeys<RerollCreationRollResultWire>>
+type RerollCreationRollResultWireShape = Assert<
+  IsExact<
+    RerollCreationRollResultWire,
+    {
+      revision: number
+      fieldUid: string
+      notation: string
+      total: number
+      details: string
+      value: unknown
+    }
+  >
+>
+
 type CharacterSheetStateWireShape = Assert<
   IsExact<
     CharacterSheetStateWire,
@@ -172,6 +207,7 @@ type SaveCharacterSheetResultWireAnyKeys = AssertNever<AnyKeys<SaveCharacterShee
 type SheetMergeConflictWireAnyKeys = AssertNever<AnyKeys<SheetMergeConflictWire>>
 type CreateCharacterFromTemplateResultWireAnyKeys = AssertNever<AnyKeys<CreateCharacterFromTemplateResultWire>>
 type RollOnCreateResultWireAnyKeys = AssertNever<AnyKeys<RollOnCreateResultWire>>
+type RerollCreationRollResultWireAnyKeys = AssertNever<AnyKeys<RerollCreationRollResultWire>>
 type CharacterHubWireAnyKeys = AssertNever<AnyKeys<CharacterHubWire>>
 type CharacterSheetStateWireAnyKeys = AssertNever<AnyKeys<CharacterSheetStateWire>>
 type CharacterTemplatePinWireAnyKeys = AssertNever<AnyKeys<CharacterTemplatePinWire>>

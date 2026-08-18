@@ -23,6 +23,13 @@
   forkedFrom 書く（**初の production producer**）／version 継承／visibility **private 固定**
   （wire で受けない・payload 省略で強制）／wire = `POST /:id/fork` body なし（DEC-1）
 
+> **⚠ 他レーンからの申し送り（RL レーン・2026-08-18）**: 本節と `TRPG-SERVER/AI.character.md` の
+> fork 節（「実装完了・未コミット」）は、**RL-7a のコミット `bc41e9ef` に巻き込まれて既にコミット済み**です。
+> RL 側が共有 doc をファイル単位の pathspec で commit したため、fork レーンの doc 変更が同梱されました。
+> **コードは 1 行も混入していません**（`bc41e9ef` の非 doc ファイルは全て RL-7a のもの）。
+> fork レーンのコミット時は、doc 分が `git status` に現れないことを欠落と誤認しないでください。
+> 見出しの「全て未コミット」は doc について既に偽です。
+
 ### 実装の最終形（全て未コミット・変更 9 ファイル）
 
 | 面 | 内容 |
@@ -3790,7 +3797,21 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
   front 側から等価 spec で固定できない（既存の等価 pin は engine に対して張られている。
   例 `TemplateFormRenderer.spec.tsx:339,355` の 9 型マトリクス）。
   複製を作ってから統合するより先に移す
-- **RL-7b（指示書 `review-results/roll-lane/prompt-rl7b-code.txt`）**: 振り直し応答を
+- **RL-7b 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/rl7b-acceptance.md`。
+  `RerollCreationRollResultWire`（型のみ・6 キー）を api-contract に追加し、controller の戻り型を
+  `Promise<unknown>` から置き換え、service 応答に**保存値 `value`** を載せた。
+  ゲート = api-contract 7/27 ／ server build Done / 循環ゼロ / **226 suites・3207 passed**（3204→3207）。
+  **変異 3 本すべて DETECTED**（MW1=1・MW2=2・MW3=3。MW1 が 1 件なのは委譲先の自己申告
+  「生の数値の roll は total と一致するため単独では検出できない」と実測が一致したもの）。
+  **小粒度レビューの CL-1 が本命だった**: controller の wire 宣言は**実装と型検査されていなかった**
+  （DI が `useExisting` 経由で Nest 側が `any`。実例 = `character-sheet-http-validation.spec.ts` の
+  2 キー mock が型エラーにならない）。既存パターンで
+  `src/domains/character/character-wire.contract.spec.ts` に橋を張り直した。
+  **Fable が独自の負の対照で 2 本の腕を切り分け済み**: 結果型へのキー追加は `IsExact` と
+  キー集合差分の**両方**が発火、optionality だけのずれは **`IsExact` のみ**が発火。
+  FIX-3 の往復テスト（応答 revision を次の baseRevision に渡す／書き戻さないと 409）で
+  MW3 の検出器が 2→3 に強化された。**これは RL-7c が踏むはずだった退行そのもの**。
+- **RL-7b の設計**（指示書 `review-results/roll-lane/prompt-rl7b-code.txt`）: 振り直し応答を
   api-contract の wire として定義し、server 応答を合わせる。
   **wire には振り直し後の保存値を載せる。**
   載せないと front が出目の合計から保存形を自分で組み立てることになり、

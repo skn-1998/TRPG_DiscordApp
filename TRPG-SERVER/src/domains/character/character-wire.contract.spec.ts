@@ -5,8 +5,14 @@
  * discordChannelId? の拡幅根拠は create-character.dto.ts:90-92→character.service.ts:89,97-102
  * →repositories/character.repository.ts:74-77（optional 入力を素通しし、永続化前に undefined キーを除去する）。
  */
-import type { CharacterSummaryWire, CharacterWire, RollOnCreateResultWire } from '@trpg/api-contract'
+import type {
+  CharacterSummaryWire,
+  CharacterWire,
+  RerollCreationRollResultWire,
+  RollOnCreateResultWire
+} from '@trpg/api-contract'
 import type { ProjectionPaletteEntry } from '@trpg/sheet-projection'
+import type { RerollCreationRollResult } from '../../features/character-sheet/services/character-sheet-operation.service'
 import type { RollOnCreateResult } from '../../features/character-sheet/types/character-sheet.types'
 import type { CharacterSummaryDto } from './dto/character-summary.dto'
 import type { CharacterEntity, CharacterPaletteEntry } from './models/character.entity'
@@ -58,6 +64,24 @@ type RollOnCreateResultKeyMismatches = AssertBothNever<
   Exclude<keyof RollOnCreateResult, keyof RollOnCreateResultWire>,
   Exclude<keyof RollOnCreateResultWire, keyof RollOnCreateResult>
 >
+
+// POST /character/:id/sheet/reroll の実装結果と wire を突き合わせる。
+// controller (character-sheet.controller.ts) は use case interface の戻り型を wire で宣言しているが、
+// その宣言は実装と型検査されない: DI は character-sheet.module.ts の useExisting で、
+// Nest の ExistingProvider.useExisting が any のため実装との照合が起きない
+// （実例: character-sheet-http-validation.spec.ts は 2 キーだけの mock を useValue で差し替えても型エラーにならない）。
+// よって橋はここで実装の結果型に対して直接張る。
+// 実装は保証面より 1 キー広い（`character` 同乗）ので、そのキーだけ除いて一致を要求する。
+type RerollCreationRollPayload = Omit<RerollCreationRollResult, 'character'>
+type RerollCreationRollResultExact = AssertNever<
+  IsExact<RerollCreationRollPayload, RerollCreationRollResultWire> extends true ? never : 'Mismatch'
+>
+// IsExact が見逃す pure optional 追加を、キー集合の双方向差分で補う。
+type RerollCreationRollResultKeyMismatches = AssertBothNever<
+  Exclude<keyof RerollCreationRollPayload, keyof RerollCreationRollResultWire>,
+  Exclude<keyof RerollCreationRollResultWire, keyof RerollCreationRollPayload>
+>
+
 // IsExact が見逃す pure optional 追加を、両 variant と入れ子 fieldRef の双方向 optionality 差分で補う。
 type CharacterPaletteRollOptionalityMismatches = AssertBothNever<
   Exclude<

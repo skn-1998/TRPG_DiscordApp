@@ -88,6 +88,11 @@ export interface RerollCreationRollResult {
   notation: string
   total: number
   details: string
+  /**
+   * この振り直しでその field へ書いた値（`creationRollValue` が決めた保存形）。
+   * 出目の合計から保存形を導く規則を応答の読み手側に再実装させないために載せる。
+   */
+  value: unknown
 }
 
 interface ApplyResourceDeltaResultBase {
@@ -386,9 +391,12 @@ export class CharacterSheetOperationService {
     // 作成時（CharacterInstantiationService.applyRollOnCreate）と同じ規則で書く。規則が食い違うと、
     // 同じ項目が作成直後と振り直し後で違う保存形になる。内訳を持てる field では行き先キーだけを
     // 差し替えるので、Discord の ±（addToOtherPart）が積んだ parts.other は振り直しでも残る。
+    // 応答にも載せるため一度だけ束縛する。応答用に導出し直すと、保存した値と応答の値が
+    // 別々に決まる 2 経路になる（規則を 1 箇所に閉じたのが PV-R の主旨）。
+    const rolledValue = creationRollValue(field, sheet.values[input.fieldUid], rolled.total, spec.partsKey)
     const values = {
       ...sheet.values,
-      [input.fieldUid]: creationRollValue(field, sheet.values[input.fieldUid], rolled.total, spec.partsKey)
+      [input.fieldUid]: rolledValue
     }
     // 兄弟経路（saveSheet / applyResourceDelta）が materialize の前に置く assertFiniteTrackValues と
     // evaluateTemplateOrThrow はここでは呼ばない。materializeOrThrow が保存前に全値の有限性検査
@@ -409,7 +417,14 @@ export class CharacterSheetOperationService {
       fieldUid: input.fieldUid,
       notation: spec.notation,
       total: rolled.total,
-      details: rolled.details
+      details: rolled.details,
+      // 保存経路（SheetMaterializerService.validateStoredValues）は値を検査するだけで作り替えないため、
+      // ここで返す値は保存された値でもある。値を作り替える段が保存経路に入ったら、この前提を測り直すこと。
+      // 素通しの pin: sheet-materializer.service.spec.ts の
+      // 「T-5/T-22: parts を全保持し、resource palette を生成して kind 変更後も key を維持する」（未宣言の内訳キーごと保持）と
+      // 「T-22: track と server 生成 roll を正準形へ投影する」（内訳形・数値・文字列を入力のまま返す）。
+      // その先の CharacterRepository.saveSheetMaterialized も 'sheet.values' を $set で verbatim に書くだけで変換しない。
+      value: rolledValue
     }
   }
 

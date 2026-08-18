@@ -13,6 +13,7 @@ export type {
   CharacterTemplatePinWire,
   CharacterWire,
   CreateCharacterFromTemplateResultWire,
+  RerollCreationRollResultWire,
   RollOnCreateResultWire,
   SaveCharacterSheetResultWire,
   SheetMergeConflictWire

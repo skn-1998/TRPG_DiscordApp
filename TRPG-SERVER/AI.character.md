@@ -647,6 +647,43 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   絞るのは publish の `validateScalarRollOnCreate` だけなので、
   **publish だけが絞っている宣言を述語側でどう扱うかが PV-S の設計判断**になる。
 
+### 振り直し応答の wire 化（RL-7b・2026-08-18・挙動不変）
+
+正本 = review-results/roll-lane/prompt-rl7b-code.txt。消費は RL-7c（front）。
+
+- `RerollCreationRollResultWire`（`packages/api-contract/src/character/character.wire.ts`・型のみの
+  interface）を追加し、`POST /character/:id/sheet/reroll` の保証面を
+  `revision` / `fieldUid` / `notation` / `total` / `details` / `value` に定めた。
+  `CharacterSheetController.rerollCreationRoll` の戻り型はこの wire を参照する
+  （`Promise<unknown>` をやめた）。応答 body には従来どおり保証外の `character` が同乗し続ける
+  （`SaveCharacterSheetResultWire` と同じ方針で、絞るかは別スライス）。
+- **`value` = 振り直し後にその field へ保存された値**。載せる理由は front に保存形を
+  組み立て直させないこと。`creationRollValue` の変換規則（内訳を持てる field は宣言された
+  行き先キーへ書き、他の内訳キーは保持／持てないなら生の数値）を front へ再実装すると
+  規則が 2 実装に分裂する。service 側は `creationRollValue` の戻り値を 1 度だけ束縛し、
+  保存用 `values` と応答の両方に同じ値を使う（応答用に導出し直さない）。
+  型は `sheetMergeConflictSchema` の値扱いに合わせて `unknown`（parts の型は api-contract に持ち込まない）。
+- キー名は `RollOnCreateResultWire`（`uid` + `label`）と揃えていない。シートのパス語彙は
+  `fieldUid` が優勢（`CharacterSheetChange.path.fieldUid` / `sheetMergeConflictSchema` /
+  `RerollSheetFieldDto`）で、出荷済みの作成経路が使う `RollOnCreateResultWire` は無改変とした。
+  どちらへ寄せるかは未決。
+- 公開面 pin: `packages/api-contract/src/index.spec.ts` の型名は 44→45、
+  **ランタイム値は 19 のまま**（zod schema を足していない）。
+  キー集合の pin は `character.wire.spec.ts` に兄弟 wire と同形で追加。
+- server 側 spec は `character-sheet-reroll.spec.ts` に「応答の value が保存値と一致する」を
+  内訳あり / 生の数値の 2 ケース追加。さらに FIX で**応答 revision の往復**を 1 本追加
+  （1 回目の応答 revision を 2 回目の baseRevision に渡すと通り、書き戻さず再送すると 409）。
+  3204→3207。
+- **controller の wire 宣言は実装と型検査されない**。DI が `character-sheet.module.ts` の
+  `useExisting` を経由し、Nest の `ExistingProvider.useExisting` が `any` のため照合が起きない
+  （実例: `character-sheet-http-validation.spec.ts` は 2 キーだけの mock を `useValue` で
+  差し替えても型エラーにならない）。**機械の橋は
+  `src/domains/character/character-wire.contract.spec.ts`** に張ってある
+  （`IsExact` ＋ キー集合の双方向差分。兄弟の `RollOnCreateResult ↔ RollOnCreateResultWire` と同形）。
+  実装の結果型は保証面より 1 キー広い（`character` 同乗）ので、そのキーを除いて一致を要求する。
+  **結果型を変えるときはこの橋が落ちる**（負の対照で実測済み: キー追加は `IsExact` と
+  キー集合差分の両方が発火、optionality だけのずれは `IsExact` のみが発火）。
+
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 
 **〔同日更新〕本節の「設計のみ・実装ゼロ」は実装完了で置き換わった。** 実装の正本記録 =

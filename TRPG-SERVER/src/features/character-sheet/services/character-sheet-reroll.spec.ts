@@ -225,6 +225,22 @@ describe('CharacterSheetOperationService 作成時ロールの振り直し', () 
     expect(payload.values['uid-dex']).toBe(ROLLED_TOTAL)
   })
 
+  /**
+   * 応答の value が保存値と一致することを表明する（応答の値の出所までは測っていない）。
+   * 保存形の pin（上の 2 テスト）とは別に要る: 保存形が正しくても応答が食い違えば、
+   * front は「出目の合計から保存形を組み立て直す」実装を持つことになり、変換規則が 2 実装に分裂する。
+   * 内訳を持てる track が検出器で、生の数値の roll は total と一致してしまうため単独では検出できない。
+   */
+  it.each([
+    ['内訳を持てる track', 'uid-hp'],
+    ['内訳を持てない roll', 'uid-dex']
+  ])('%s の振り直し応答は、保存された値をそのまま載せる', async (_caseName, fieldUid) => {
+    const result = await service.rerollCreationRoll(rerollInput({ fieldUid }))
+
+    const payload = repository.saveSheetMaterialized.mock.calls[0][1] as SaveSheetMaterializedPayload
+    expect(result.value).toEqual(payload.values[fieldUid])
+  })
+
   it('振り直しは対象項目以外の値を書き換えない', async () => {
     await service.rerollCreationRoll(rerollInput({ fieldUid: 'uid-hp' }))
 
@@ -319,6 +335,24 @@ describe('CharacterSheetOperationService 作成時ロールの振り直し', () 
     expect(error).toBeInstanceOf(ConflictException)
     expect(diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
     expectNoSaveAttempted()
+  })
+
+  /**
+   * front が応答の revision を次の baseRevision に書き戻す往復を表明する。
+   * この経路の baseRevision は保存経路（saveSheet の path ごとの baseValue CAS）と非対称で、
+   * sheet.revision との不一致がそのまま 409 になる。書き戻しを省くと 2 回目以降が必ず落ちる。
+   * fixture 上の前提: saveSheetMaterialized モックが current.sheet.revision を expectedRevision + 1 へ
+   * 進め、findById がその current を返すので、往復は追加の道具なしで再現できる。
+   */
+  it('応答の revision を次の baseRevision に渡すと 2 回目の振り直しが通り、revision がさらに 1 つ進む', async () => {
+    const first = await service.rerollCreationRoll(rerollInput({ baseRevision: 1 }))
+    expect(first.revision).toBe(2)
+
+    const second = await service.rerollCreationRoll(rerollInput({ baseRevision: first.revision }))
+    expect(second.revision).toBe(3)
+
+    // 書き戻さずに 1 回目と同じ baseRevision を再送すると 409。front の書き戻しを必須にしているのはこの非対称。
+    await rejectionOf(service.rerollCreationRoll(rerollInput({ baseRevision: 1 })), 409)
   })
 
   it('保存 CAS に敗北した振り直しは再試行せず 409 を返す', async () => {

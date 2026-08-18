@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common'
 import { Request } from 'express'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger'
+import type { RerollCreationRollResultWire } from '@trpg/api-contract'
 import { JwtAuthGuard } from '../../domains/auth/guards/jwt-auth.guard'
 import { JwtTokenPayload } from '../../domains/auth/models/auth.token.model'
 import { CharacterService } from '../../domains/character/character.service'
@@ -38,12 +39,17 @@ interface CharacterSheetOperationUseCase {
     baseRevision: number
     changes: SaveCharacterSheetDto['changes']
   }): Promise<unknown>
+  /**
+   * 実装（CharacterSheetOperationService）は保証面より広い結果（`character` 同乗）を返し、
+   * 応答 body にもそれが載り続ける。ここで宣言を wire へ狭めるのは、
+   * front が読んでよいキーを型で名指しするためであって、body を絞るためではない。
+   */
   rerollCreationRoll(input: {
     characterId: string
     requesterDiscordUserId: string
     fieldUid: string
     baseRevision: number
-  }): Promise<unknown>
+  }): Promise<RerollCreationRollResultWire>
 }
 
 interface CharacterInstantiationUseCase {
@@ -125,7 +131,7 @@ export class CharacterSheetController {
     @Param() params: CharacterIdParamDto,
     @Body() dto: RerollSheetFieldDto,
     @Req() req: Request
-  ): Promise<unknown> {
+  ): Promise<RerollCreationRollResultWire> {
     const user = this.extractAuthenticatedUser(req)
 
     return this.sheetOperationService.rerollCreationRoll({
