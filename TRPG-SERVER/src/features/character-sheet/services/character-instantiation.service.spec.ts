@@ -239,7 +239,7 @@ describe('CharacterInstantiationService', () => {
 
   // boolean / string は契約外のまま DB に残存しうる形、object は PV-1 で正式形になった
   // ScalarField.rollOnCreate。正式形でも発火しないのは意図的な段階分割で、scalar の発火は
-  // 別スライス PV-S の担当（正本: roll-on-create-spec.util.ts の JSDoc）。
+  // 別スライス PV-S の担当（正本: packages/sheet-engine/src/roll-on-create.ts の JSDoc）。
   it.each([
     ['boolean', { rollOnCreate: true, notation: '1d20' }],
     ['string', { rollOnCreate: '1d20' }],

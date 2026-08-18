@@ -63,7 +63,9 @@ export type FieldRole =
  * notation は standalone roll 文法。placeholder（`{...}`）と `/` は publish が拒否する。
  * partsKey は出目の行き先となる内訳キー。publish が受理するのは field が宣言した partsKeys の id と
  * `base` だけで、`other` は拒否する（理由は publish.ts の validateRollOnCreatePartsKey のコメント）。
- * partsKey 未指定時の行き先と、出目を内訳へ書き込む処理そのものは本宣言の範囲外（PV-2 の担当）。
+ * partsKey 未指定時の行き先と、出目を内訳へ書き込む処理そのものは本宣言の範囲外で、どちらも PV-R で
+ * 書き込み側に実装済み。未指定を `base` へ畳む既定を決めているのも書き込み側であり、本宣言も publish も
+ * その既定を決めていない。
  */
 export interface RollOnCreate {
   notation: string;
@@ -79,7 +81,7 @@ export interface ScalarField extends FieldBase {
    * 内訳キーの宣言。`default` は内訳の既定値で、`max` / `cap` と同じ「数値か式」型を再利用する。
    * 式は publish で number 型検査・参照解決・循環検査・ステップ見積もりの対象になる
    * （publish.ts の validateSectionFormulaAnnotations / detectCycles / estimateStaticFieldSteps）。
-   * 既定値をシートの値へ適用する処理は本宣言の範囲外（PV-2 の担当）。
+   * 既定値をシートの値へ適用する処理は本宣言の範囲外で、未実装（PV-2b の担当）。
    */
   partsKeys?: Array<{ id: string; label: string; default?: ConstraintSource }>;
   /** 作成時ロール。publish が受理するのは valueType === 'number' のときだけ（text/boolean/select に出目は入らない）。 */

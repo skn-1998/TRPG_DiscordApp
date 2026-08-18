@@ -11,6 +11,57 @@
   冒頭〜中盤の節は 2026-07-29〜08-07 時点の追記ログでありそのまま保存
   （現況として読まないこと）
 
+## 【feature 完了 2026-08-18】シートテンプレート複製（fork）— 台帳キュー #19
+
+ユーザー依頼「シートテンプレートにコピーするボタン」。設計（5 Skill ルーティング＋レビュー 2 ラウンド）→
+実装（Codex 委譲 3 ラウンド＋FIX 3 ラウンド）→ 大粒度二重レビューまで全消化。**未コミット**
+（コミットはユーザー裁定待ち）。
+
+- **設計正本** = `document/character-sheet-proposals/template-fork-design.md`（§S4 契約・§S6/§S7 委譲定型文）
+- **大粒度統合判定** = `review-results/template-fork/big-f3-integration.md`（相互矛盾 0・境界行列 7 組整合）
+- 裁定済み: 複製元 = 自分所有（**status 不問**）∪ system published／name = `{元名} のコピー`／
+  forkedFrom 書く（**初の production producer**）／version 継承／visibility **private 固定**
+  （wire で受けない・payload 省略で強制）／wire = `POST /:id/fork` body なし（DEC-1）
+
+### 実装の最終形（全て未コミット・変更 9 ファイル）
+
+| 面 | 内容 |
+|---|---|
+| server | `service.fork()`（`assertRevisionReadableBy` 再利用＋system 非 published 409 の 1 条件・create() 合成・payload に visibility なし）＋ `POST :id/fork`（201・bare・body/DTO なし・@UsePipes なし）＋ spec 16 件（own 全 status it.each・system published/deprecated・第三者 it.each・404・validateForSave 失敗時 create 不呼出・元への update 系 0 呼出・body visibility 無視 2 引数 pin） |
+| front | `forkSheetTemplate`（bare 読み・adapter spec で path/body undefined/data 直返し pin）＋ `forkTemplate` action（`{error}` 規約・redirect は try 外・空 message 定型文 spec あり）＋ 全カード「複製して編集」ボタン（`loading={isListPending}` single-flight・連打 1 回 spec）＋ 一覧 spec 2 本の名前更新（『…だけ』の全称主張を除去） |
+
+### ゲート結果（Fable 独立再実行・Codex 申告と全一致）
+
+- server: build ✓・check:circular **0**・**full suite 226/3204 緑**・対象 suite 6/106（FIX-BIG 前後で同一カウント = 認可置換の同値性証明）
+- front: typecheck ✓・eslint 0・**full suite 34/564 緑**・対象 suite 7/213
+
+### レビュー履歴（全ラウンド）
+
+| ラウンド | 実施 | 結果 | 消化 |
+|---|---|---|---|
+| F-1 小粒度 | Opus read-only | pass（peak 6・コメント突合 6/6・変異 8 種検出可） | FIX-1: CR-6 完全 pin・C-6 API 形状 pin・コメント 2 分割 |
+| F-2 小粒度 | Opus read-only | **needs-fix**（CN-7 連打で draft 2 個生成・T-8 spec 欠落） | FIX-2: `loading={isListPending}`＋連打 spec＋空 message spec＋コメント精密化 |
+| F-3 大粒度 | **Codex＋Opus 二重** | needs-fix（一致 2 件） | FIX-BIG: 認可述語 3→2（−5 行・spec 不変）＋ adapter 契約 pin |
+
+- **F-2 の CN-7 は Fable の指示書事故が原因**（「削除ボタンと同じ = single-flight に乗る」が誤前提。
+  実際に single-flight を持つのは新規作成ボタンのみ）→ メモリ verify-claims-before-prescribing 26 例目
+- F-3 起票分 = 台帳 #20（catch helper 1 本化 −14 行・repo 10 コピー）＋ big-f3-integration.md の低優先 4 件
+
+### 残る人間の決定点（コードは触っていない）
+
+1. **コミット可否**（pathspec 方式・fork の 9 ファイル＋docs。並行セッション変更と分離可能）
+2. **DQ-4 = forkedFrom の事後可変性**（F-3 Codex が correctness で指摘。v1 出荷状態 = 可変
+   〔既存 update 経路の現状維持〕。選択肢 a/b = 設計 doc C-10 行）
+3. DQ-3 = license 継承規則（v1 暫定 = 元を継承・spec が暫定を pin 中）
+
+## 2026-08-03 完了: ts-morph 静的解析基盤（tools/static-analysis・第4群とは独立の feature）
+
+- 基線 git status = `review-results/template-fork/baseline-git-status.txt`（HEAD `20815545`・
+  並行セッションの未コミット変更あり — RL-7a 系と engine。fork の変更範囲と重ならないことを検収で確認）
+- コミットは**ユーザー未許可**（実装完了後に確認する）
+- 検収ゲート: F-1 = build → check:circular → 対象 suite／feature 完了 = server full suite＋front suite
+- 残未決（v1 非ブロック）: license 継承規則（DQ-3・暫定 = 元を継承）／forkedFrom 事後可変性（DQ-4）
+
 ## 2026-08-03 完了: ts-morph 静的解析基盤（tools/static-analysis・第4群とは独立の feature）
 
 ユーザー依頼「ts-morph をライブラリに導入して静的検証を簡単に＋依存関係や関数の独立性を確認する Skill」。
@@ -3630,7 +3681,7 @@ legacy-coc は track を持たないので到達せず、`min`/`max` は全経�
 
 改訂後のスライス（順序どおり）:
 
-- **PV-R 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/pvr-acceptance.md`。
+- **PV-R 完了・受入・コミット済み（2026-08-18・`20815545`）**。証跡 `review-results/roll-lane/pvr-acceptance.md`。
   述語を `rollOnCreateSpec`（`roll-on-create-spec.util.ts`・旧 `rollOnCreateNotation` を改名）へ広げ、
   共有の書き込み規則 `creationRollValue` を `sheet-values.util.ts` に追加して作成・振り直しの両方から呼ぶ。
   ゲート = build 0 / 循環ゼロ / **225 suites・3188 passed**（+6 = 追加テスト数と一致）。
@@ -3651,8 +3702,9 @@ legacy-coc は track を持たないので到達せず、`min`/`max` は全経�
   **検出器を再測**（テストの表明を狭めたため必須）: MR1=1・MR3=5・MR4=3 と**失敗件数が FIX 前と完全一致**。
   射程を名前に合わせる改善が負の対照の牙を削っていない。
   `sheet-values.util.ts` が Nest 例外を投げる層の問題は、移送により解消（同ファイルから Nest import が消えた）。
-  **コミット時の注意**: 移送で `sheet-values.util.ts` と同 spec が **HEAD と完全一致に戻り `git status` に現れない**。
-  「触ったのに出てこない」を欠落と誤認しないこと。
+  コミット時、移送で `sheet-values.util.ts` と同 spec が **HEAD と完全一致に戻り `git status` に現れなかった**。
+  同種の移送では「触ったのに出てこない」を欠落と誤認しないこと。
+  コミットは 9 ファイル・337+/66−、index 残渣なし。
 
 - **PV-R の設計**（指示書 `review-results/roll-lane/prompt-pv2a-code.txt`。旧 PV-2a ＋ 旧 PV-3 を統合）:
   **scalar を発火させないまま、作成と振り直しの「書き込み側」だけを内訳対応にする**。
@@ -3692,6 +3744,85 @@ scalar の `rollOnCreate` ＋ 宣言 partsKeys へ移す必要があり、これ
 `isPartsValue(value) && !allowsParts(field)` の拒否が実在する。先の統合判定では
 「`allowsParts` が false だから保存境界が内訳形を受け付けない」を推論で確認扱いにしていたが、
 直接の根拠はこの行。結論は変わらない。
+
+### RL-7 振り直しボタン（2026-08-18・着手・ユーザー選択）
+
+PV-R のコミット後、ユーザーが次の対象として**振り直しボタン**を選択した。
+RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐだけで成果が見える。
+
+**フロントの実測（着手前ベースライン）**
+
+- 振り直しの UI は**どこにも無い**（`trpg-next-app` に "reroll" の呼び出し 0 件）
+- `packages/api-contract` に "reroll" の語が **0 件**。この経路だけ wire を持たない
+  （兄弟の `PUT /sheet` は `SaveCharacterSheetResultWire`、`POST /from-template` は
+  `CreateCharacterFromTemplateResultWire` を持つ）
+- track はエディタで `rollOnCreate` を宣言できるので、作成から振り直しまでが
+  ボタンひとつで通しで使えるようになる
+
+**述語の所在は決着済み（D-11 の再確認）**: `rerollable` フラグは使わない。
+対象は「作成時ロールを宣言しているか」だけで区別する。`rerollable` の削除は RL-8。
+実装が `engine` / `publish` / `seed` / `front` の 4 箇所に散っているが、**動かない設定**である。
+
+**3 スライスに分割した。1 スライス = 1 パッケージ境界。**
+
+- **RL-7a 完了・受入（2026-08-18・未コミット）**。証跡 `review-results/roll-lane/rl7a-acceptance.md`。
+  移送先は `packages/sheet-engine/src/roll-on-create.ts`（新規）、server 側は
+  `creation-roll-value.util.ts` へ改名して `creationRollValue` だけが残る。
+  **純粋移送であることを機械比較で確認**（コメント・空白・セミコロンを正規化したトークン列で
+  HEAD と `identical`。関数 2 本と型 1 本すべて）。
+  ゲート = engine build 0 / **14 suites・564 passed**（+12）／server build Done / 循環ゼロ /
+  **226 suites・3188 passed**（±0）。
+  **dist の実物で barrel の named export を確認**（`typeof: function`・track の行き先が載る・
+  scalar は undefined）。engine → front の runtime 値は既知の盲点なので宣言では確認しない。
+  **変異 5 本すべて DETECTED**。うち跨ぎパッケージ変異（engine を壊して dist を再ビルドしてから
+  server 全 suite）で **server 8 tests / 3 suites** が失敗 = 移送後もサーバ側の安全網が生きている。
+  小粒度認知負荷レビュー（read-only Opus）＋ FIX ラウンド完了。総評は
+  「移送は機械比較で純粋、**JSDoc の保証主張は差し引きで弱められている**」。
+  **PV-S への申し送り（FIX-1 の実質・Fable が変異で切り分け）**: engine spec は
+  「ガード無しで scalar を読む」（2 tests 赤）と「publish と同じ `valueType` ガード付きで読む」
+  （1 test 赤）を**識別できる**ようになった。FIX 前は両設計が区別できなかった。
+  `types.ts` は `ScalarField.rollOnCreate` を `valueType` で絞っておらず、絞るのは publish の
+  `validateScalarRollOnCreate` だけ。**publish だけが絞っている宣言を述語側でどう扱うかが PV-S の判断点**。
+- **RL-7a の設計**: 述語 `rollOnCreateSpec` と型を `packages/sheet-engine` へ移送し
+  barrel から named export する。`creationRollValue` は Nest 例外を投げるので server 残留。
+  **理由**: 述語は現在 TRPG-SERVER にあり front から import できない。
+  このままだと front に **4 本目の複製**ができ、しかも正本が server なので
+  front 側から等価 spec で固定できない（既存の等価 pin は engine に対して張られている。
+  例 `TemplateFormRenderer.spec.tsx:339,355` の 9 型マトリクス）。
+  複製を作ってから統合するより先に移す
+- **RL-7b（指示書 `review-results/roll-lane/prompt-rl7b-code.txt`）**: 振り直し応答を
+  api-contract の wire として定義し、server 応答を合わせる。
+  **wire には振り直し後の保存値を載せる。**
+  載せないと front が出目の合計から保存形を自分で組み立てることになり、
+  PV-R で `creationRollValue` の 1 箇所に閉じたばかりの変換規則が 2 実装に分裂する。
+  応答に同乗している `character` 全体から読ませる案は採らない
+  （`SaveCharacterSheetResultWire` の JSDoc どおり `character` は保証面の外に置く方針）。
+  `index.spec.ts` が公開面を型名とランタイム値 19 名で pin しているので、その更新を伴う
+- **RL-7c**: `CharacterSheetEditClient` に導線を足す。
+  TFR へ optional な `onReroll` を追加し、渡されたときだけ描画する。
+  TFR の利用は 2 箇所（編集画面と `TemplatePreviewV3`）で、プレビューに振り直しが漏れてはいけない。
+  **プレビューは `onPartsChange` を渡していない**ので、オプショナル prop の有無で機能を
+  出し分けるのはこの component の既存イディオムである
+
+**RL-7a → RL-7b は直列。** 両者とも `character-sheet-operation.service.ts` を触るため並行不可。
+
+**フロント状態モデルの実測（RL-7c の設計入力）**
+
+`CharacterSheetEditClient` は `baseline`（サーバ既知値）・`values`（編集値）・`baseRevision` を
+props から `useState` 初期化子で保持する。初期化子は再レンダーで再実行されないので、
+`router.refresh()` だけでは state が古いまま残る。だから応答から更新する必要がある。
+
+- 振り直し対象（track / roll）は `editableScalarFields` の対象外なので `changes` に入らない。
+  `values` と `baseline` を同時に更新すれば差分は生じない
+- track の表示は `trackDisplayValue` が `raw.parts` を合算するので、内訳形の保存値をそのまま入れてよい
+- **revision の扱いが兄弟経路と非対称**: `rerollCreationRoll` は
+  `sheet.revision !== input.baseRevision` で即 409 になる（`character-sheet-operation.service.ts:371`）。
+  一方 `saveSheet` の競合判定は path ごとの `baseValue` CAS で、`baseRevision` は再送規約用の情報値
+  （`CharacterSheetEditClient.tsx:126` のコメント）。
+  よって振り直し後は応答の revision で `baseRevision` を更新しないと次の振り直しが落ちる。
+  未保存の scalar 編集は別 path なので per-path CAS を通り、振り直しでは失われない
+- front は global 80% coverage threshold があり、部分的な spec 追加が full test を赤にしうる
+  （メモリ `front-coverage-threshold-trap`）
 
 ## 参照
 

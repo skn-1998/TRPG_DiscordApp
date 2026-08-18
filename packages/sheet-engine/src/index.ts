@@ -13,6 +13,7 @@ export * from './layout-resolver';
 export * from './notation';
 export * from './parser';
 export * from './publish';
+export * from './roll-on-create';
 export {
   STANDALONE_ROLL_DIE_MAX_SIDES,
   STANDALONE_ROLL_EXPRESSION_MAX_LENGTH,

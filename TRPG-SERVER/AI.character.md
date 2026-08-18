@@ -591,8 +591,8 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   持たせていない。出目は `DiceExecutionService.executeEvaluatedDiceRoll`（作成時ロールと同じメソッド・
   pin 済みテンプレートの gameSystemId）の結果だけを `values[fieldUid]` へ書き、revision は +1。
   **書き込み形は PV-R で内訳対応になった**（下記）。
-- **対象条件は「作成時ロールを宣言しているか」**（`services/roll-on-create-spec.util.ts` の
-  `rollOnCreateSpec` = track の `rollOnCreate` と roll の `notation`）。
+- **対象条件は「作成時ロールを宣言しているか」**（`packages/sheet-engine/src/roll-on-create.ts` の
+  `rollOnCreateSpec` = track の `rollOnCreate` と roll の `notation`。RL-7a で server から engine へ移送）。
   `assertWritablePath`（track/scalar だけを入力項目とする規則）とは別の述語で、流用も緩和もしない。
   作成側（CharacterInstantiationService）も同じ関数を使うため、対象集合は 1 箇所で決まる。
 - roll 型は依然としてクライアント提出の入力項目ではない（`packages/sheet-engine/src/value-input.ts`
@@ -609,7 +609,7 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 
 正本 = review-results/roll-lane/prompt-pv2a-code.txt（改訂版）／検収 = `pvr-acceptance.md`。
 
-- **作成と振り直しが同一の書き込み規則を共有する**。正本は `services/roll-on-create-spec.util.ts` の
+- **作成と振り直しが同一の書き込み規則を共有する**。正本は `services/creation-roll-value.util.ts` の
   `creationRollValue`。経路ごとに規則が食い違うと、同じ項目が作成直後と振り直し後で違う保存形になる。
 - `allowsParts(field)` が true なら**行き先キーだけを差し替え、他の内訳は保持する**。
   行き先は `rollOnCreate.partsKey ?? 'base'`。これにより
@@ -627,3 +627,80 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - **配布中の legacy-coc は本スライスの影響を受けない**。作成時ロールが roll 型に乗っており
   `allowsParts` が false のため。`character-instantiation.legacy-coc.reproduction.spec.ts` が
   無改変で緑のまま = 負の対照として機能している。
+
+### 述語 `rollOnCreateSpec` の engine 移送（RL-7a・2026-08-18・挙動不変）
+
+- `rollOnCreateSpec` / `RollOnCreateSpec` は `packages/sheet-engine/src/roll-on-create.ts` へ移送し、
+  barrel（`index.ts`）から named export。**front が「どの項目を振り直せるか」を同じ述語で判定できる**ようにするため
+  （RL-7b = 振り直し応答の wire 化、**RL-7c = front の振り直しボタン**。述語を使うのは RL-7c）。
+  server の 2 経路は `@trpg/sheet-engine` から直接 import する。
+- 書き込み規則 `creationRollValue` は Nest 例外（`UnprocessableEntityException`）を投げるため server 残留。
+  ファイルは実態に合わせて `services/creation-roll-value.util.ts` へ改名。
+- 述語の spec は engine 側 `packages/sheet-engine/src/__tests__/roll-on-create.spec.ts`（+12 件）。
+  server 側 spec は `creation-roll-value.util.spec.ts` に改名し件数は不変。
+- **engine の src を変えたら `packages/sheet-engine` の build を挟むこと**。server の jest は
+  `@trpg/sheet-engine` を `dist` 経由で解決するため、build なしでは旧コードに対して緑になる。
+- **PV-S への申し送り**: engine spec は scalar の非発火を 2 ケース（`valueType: 'number'` と
+  `'text'`）で固定している。これにより「ガード無しで scalar を読む」実装（2 ケースとも赤）と
+  「publish と同じ `valueType === 'number'` ガード付きで読む」実装（number 側だけ赤）を
+  **識別できる**。`types.ts` の `ScalarField.rollOnCreate` は `valueType` を絞っておらず、
+  絞るのは publish の `validateScalarRollOnCreate` だけなので、
+  **publish だけが絞っている宣言を述語側でどう扱うかが PV-S の設計判断**になる。
+
+### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
+
+**〔同日更新〕本節の「設計のみ・実装ゼロ」は実装完了で置き換わった。** 実装の正本記録 =
+`document/SESSION_HANDOFF.md` の「feature 完了 2026-08-18」節・大粒度統合判定 =
+`review-results/template-fork/big-f3-integration.md`。要点:
+
+- server: `CharacterSheetTemplateService.fork()` — 読み取りゲートは **`assertRevisionReadableBy`
+  再利用＋「非所有者は published のみ」の 1 条件**（大粒度二重レビュー一致で認可述語 3→2 へ統合）。
+  生成は `create()` 合成（visibility を payload に**含めない**ことが private 強制の実装形）。
+  route = `POST /sheet-templates/:id/fork`（201・bare・body/DTO なし）
+- front: `forkTemplate` action（`{error}` 規約・成功時 edit へ redirect）＋全カード
+  「複製して編集」ボタン（`loading={isListPending}` single-flight）
+- 境界行列（7 組・矛盾 0）: **fork の許可集合は一覧の可視集合と完全一致**・
+  fork ⊆ findOne ∪ resolvePinnedRevision（C-8 成立）
+- 残る裁定枠: DQ-4（forkedFrom の事後可変性 — v1 は可変のまま出荷・設計 doc C-10 行に選択肢）・
+  DQ-3（license 継承 — v1 暫定 = 元を継承）
+
+（以下は設計時の記録。経緯として保存）
+
+### シートテンプレートの複製（fork）— 設計のみ・実装ゼロ（2026-08-18）
+
+ユーザー依頼「シートテンプレートにコピーするボタン」。`route-design-work` で
+目的整理 → 語義解釈 → 破壊分析 → 不変条件 → 命名の 5 Skill を実行した。
+**正本 = `document/character-sheet-proposals/template-fork-design.md`**、
+ワークキュー = 台帳 `design-ledger.md` §6-1 #19。
+**コードは 1 行も変更していない**（変更したのは上記 2 doc と本節のみ）。
+
+確定した形は `POST /sheet-templates/:id/fork` の新設で、複製元は
+「要求者所有」∪「system 所有かつ published」。生成物は新 `templateId` / `status='draft'` /
+`draftRevision=1` / `author`=要求者 / `visibility='private'` / `name`=`{元名} のコピー` /
+`version`=元を継承 / `forkedFrom={元 templateId, 元 version}`。
+
+設計中に実測で分かった、コードにしか書かれていなかった事実:
+
+- **`validateForSave` の検査集合は `validateForPublish` の真部分集合**。前者は
+  `validatePublishTemplate(toEngineTemplate(t))` 1 段（`sheet-engine-template-validation.service.ts:26-31`）で、
+  後者の collector stage 1（`template-publish-validation-issue.collector.ts:26`）が**同一関数**。
+  ゆえに published を通った構造は save を必ず通り、**複製が構造由来で 400 になることはない**。
+  当初「published が save を通る保証がない」を着手前ゲートに置いたが、これは誤りだったので撤回した。
+- **`validateForPublish` は `visibility === 'public'` を要求する**（同 service:16-17）。
+  ⇒ `publish()` を経由した行は必ず public。**ただし「published は例外なく public」は DB 全体の
+  保証ではない** — `legacy-coc` seed は published ∧ private を `publish()` 非経由で直接投入する
+  実在反例（`seed-legacy-coc-template.ts:60-79,93-96`・NOTE が「規約例外」と明記。R2 レビューで検出）。
+  複製の `visibility='private'` 固定は「継承元の値を信用しない」独立の防御として実装する
+  （ユーザー自身が publish した public テンプレの self-fork では継承が実害になる）。
+  逆に fork 出力は private なので**そのままでは publish できない**（新規作成と同じ既存挙動・バグではない）。
+- **`findOne` は system 特例を持たない**（`character-sheet-template.service.ts:66-70, 226-230`）。
+  配布テンプレの中身を非所有者が読める既存の面は `GET :id/revisions/:version` のみ
+  （`assertRevisionReadableBy`・同 :216-224）。複製元が 2 系統あるため**読み取り面も 2 つ**になる。
+- **`forkedFrom` は全層に配線済みで production の書き込み元が 0 件**。本機能が初の producer になる。
+  `repository.spec.ts:76,97,116,174` が select 文字列を完全一致で pin しているため select から外せない。
+- **`CharacterSheetTemplateController` は `ResponseInterceptor` 非適用**で、それを
+  `core/http/response-interceptor-application.spec.ts:29-33` が pin している。新 route も封筒なしで返る。
+
+未決（実装前にユーザー裁定が要る）: `license` の継承規則 ／ `forkedFrom` の事後可変性
+（`pickDraftUpdate` 同 :280 が draft 保存で上書きを許し、front の `toUpdateRequest`
+〔`trpg-next-app/.../actions.ts:200`〕が毎回 `forkedFrom` を送る。連鎖 fork の上書き規則が未定）。

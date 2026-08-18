@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import type { SheetMergeConflictWire } from '@trpg/api-contract'
-import { evaluateTemplate, RESERVED_PARTS_KEY_IDS, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
+import { evaluateTemplate, RESERVED_PARTS_KEY_IDS, rollOnCreateSpec, UNSAFE_PARTS_KEYS } from '@trpg/sheet-engine'
 import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { formatPaletteLabel } from '@trpg/sheet-projection'
 import type {
@@ -27,7 +27,7 @@ import type { CharacterSheetTemplateEntity } from '../../../domains/character-sh
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
-import { creationRollValue, rollOnCreateSpec } from './roll-on-create-spec.util'
+import { creationRollValue } from './creation-roll-value.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 import { allowsParts, isPartsValue, isResourceField, sheetValuesEqual } from './sheet-values.util'
 import { buildBoundedNonFiniteErrorEnvelope, toNonFiniteNumberKind, TrackRangePolicy } from './track-range.policy'

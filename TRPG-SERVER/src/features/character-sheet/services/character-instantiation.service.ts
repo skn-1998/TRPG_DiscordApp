@@ -5,13 +5,13 @@ import type { MaterializedCharacterEntity } from '../../../domains/character/mod
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
-import type { SheetField } from '@trpg/sheet-engine'
+import { rollOnCreateSpec, type SheetField } from '@trpg/sheet-engine'
 import {
   InstantiateCharacterInput,
   InstantiateCharacterResult,
   RollOnCreateResult
 } from '../types/character-sheet.types'
-import { creationRollValue, rollOnCreateSpec } from './roll-on-create-spec.util'
+import { creationRollValue } from './creation-roll-value.util'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
 @Injectable()

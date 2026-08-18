@@ -3,63 +3,12 @@ import type { SheetField } from '@trpg/sheet-engine'
 import { allowsParts, isPartsValue, type SheetPartsValue } from './sheet-values.util'
 
 /**
- * 作成時ロールの宣言を、書き込み側が必要とする形へ解決したもの。
- *
- * partsKey は出目の行き先となる内訳キー。undefined は「行き先の指定が無い」であって
- * 「行き先が base である」ではない。既定の行き先を決めるのは書き込み側であり、
- * publish はそこを決めていない（publish.ts の validateRollOnCreatePartsKey が未指定を合法にしている）。
- */
-export interface RollOnCreateSpec {
-  notation: string
-  partsKey?: string
-}
-
-/**
- * field が宣言している作成時ロールを返す。宣言がなければ undefined を返す。
- *
- * 現時点で読む宣言は track の rollOnCreate と roll の notation の 2 つ（列挙は現時点のもの）。
- * どちらも「作成時にサーバがロールする」同じ契約なので、判定はこの 1 本に閉じる。
- * 作成（CharacterInstantiationService）と振り直し（CharacterSheetOperationService）が
- * 同じ項目集合を対象にすることは、両者がこの関数だけを述語に使うことで保たれる。
- *
- * 戻り値に記法だけでなく partsKey も載せるのは、呼び出し側が行き先を知るために
- * field.rollOnCreate を読み直すと、1 本化したはずの述語がその場で再び分裂するため。
- * publish は track / scalar のどちらでも行き先 `base` を受理する（publish.ts の
- * validateRollOnCreatePartsKey。publish.spec.ts の 'accepts a %s creation roll targeting base' が
- * 両型を pin している）。したがって本関数は partsKey に `'base'` を載せて返しうる。
- * `undefined` との差は書き込み側では出ない（creationRollValue の既定が partsKey ?? 'base'）。
- * `'base'` 以外の行き先が載るのは partsKeys を宣言した scalar を読むようになってからで、
- * それは下記 PV-S の圏（track は partsKeys を宣言できない — validateNumericAnnotationTarget が拒否する）。
- * ただし宣言を検査するのは publish であり、publish を経ずに DB へ入った宣言まで型が保証しているわけではない。
- *
- * scalar も rollOnCreate を宣言でき publish はそれを受理する（sheet-engine の ScalarField.rollOnCreate）が、
- * 本関数は scalar を読まず undefined を返すため、作成時適用も振り直しも発火しない。
- * これは検出漏れではなく意図的な段階分割で、発火は別スライス PV-S の担当
- * （正本: document/character-sheet-proposals/roll-lane-framing.md の PV レーン）。
- *
- * 「入力可能な項目か」（CharacterSheetOperationService.assertWritablePath が判定する
- * track / scalar の規則）とは別の述語である。roll 型はクライアント提出の入力項目ではないまま、
- * この述語では対象になる。
- */
-export function rollOnCreateSpec(field: SheetField): RollOnCreateSpec | undefined {
-  if (field.type === 'roll') {
-    return { notation: field.notation }
-  }
-  if (field.type !== 'track') {
-    return undefined
-  }
-
-  const declared = field.rollOnCreate
-  // 契約外形（boolean・string 等）が DB に残存している場合、notation は取り出せない。
-  // 宣言なしとして扱い発火させないのは、記法だけを返していた旧実装から変えていない挙動。
-  if (declared?.notation === undefined) {
-    return undefined
-  }
-  return { notation: declared.notation, partsKey: declared.partsKey }
-}
-
-/**
  * 作成時ロールの出目を、その field の保存形へ変換して返す。
+ *
+ * 対になる述語 `rollOnCreateSpec`（どの field が作成時ロールを宣言しているか）は
+ * `@trpg/sheet-engine` の roll-on-create.ts が正本で、server の外（front の振り直し可否表示）からも
+ * 同じ述語を使えるようにするため engine に置いてある。書き込み規則である本関数は
+ * Nest の例外を投げるため server に残す。
  *
  * 作成（CharacterInstantiationService.applyRollOnCreate）と
  * 振り直し（CharacterSheetOperationService.rerollCreationRoll）が共有する書き込み規則。
@@ -92,6 +41,8 @@ export function creationRollValue(
   // この差集合をどう扱うかは PV-S の設計判断で、本スライスでは挙動を変えない。
   if (!allowsParts(field)) return total
 
+  // engine の rollOnCreateSpec は「行き先の指定が無い」を undefined のまま返し、既定を決めていない。
+  // 既定の行き先を base に畳むのはこの書き込み側であり、engine 側の述語には載っていない規則。
   const destination = partsKey ?? 'base'
   // publish は rollOnCreate.partsKey に other を許さない（validateRollOnCreatePartsKey）ため、
   // 通常経路では到達しない。publish を経ずに DB へ入ったテンプレート向けの防壁であり、
