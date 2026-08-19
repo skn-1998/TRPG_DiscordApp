@@ -2,6 +2,7 @@ import { normalizeTemplateLayout, SHEET_ID_PATTERN, SHEET_RESERVED_ID_VALUES } f
 import type { Template } from '../types/v2'
 import type {
   CharacterSheetTemplateEntity,
+  CreateSheetTemplateRequest,
   LookupTable,
   SheetField,
   SheetSection,
@@ -206,6 +207,30 @@ export function parseTags(value: string): string[] {
 
 export function stringifyTags(tags: string[]): string {
   return tags.join(', ')
+}
+
+// Boundary: client は JSON 構文・top-level object・name の入力事故だけを検査し、構造検証は server 保存時検証を正本とする。
+// 余分キーの除去は server ValidationPipe の whitelist に委ね、payload は補完・変換せず parse 結果をそのまま渡す。
+export function parseTemplateImportJson(
+  text: string
+): { ok: true; payload: CreateSheetTemplateRequest } | { ok: false; error: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text) as unknown
+  } catch {
+    return { ok: false, error: 'JSON として読み取れません' }
+  }
+
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, error: 'テンプレート JSON はオブジェクトである必要があります' }
+  }
+
+  const candidate = parsed as Record<string, unknown>
+  if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+    return { ok: false, error: 'name（テンプレート名）は必須です' }
+  }
+
+  return { ok: true, payload: parsed as CreateSheetTemplateRequest }
 }
 
 export function safeParseTables(value: string): LookupTable[] {

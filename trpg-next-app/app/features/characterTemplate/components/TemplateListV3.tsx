@@ -16,15 +16,25 @@ import {
   SimpleGrid,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Title
 } from '@mantine/core'
-import { IconAlertCircle, IconFilePlus, IconPencil, IconRefresh, IconTrash, IconUserPlus } from '@tabler/icons-react'
-import { createCharacter, createTemplate, deleteTemplate, importV2Template } from '../actions'
+import {
+  IconAlertCircle,
+  IconCopy,
+  IconFileImport,
+  IconFilePlus,
+  IconPencil,
+  IconRefresh,
+  IconTrash,
+  IconUserPlus
+} from '@tabler/icons-react'
+import { createCharacter, createTemplate, deleteTemplate, forkTemplate, importTemplate } from '../actions'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
 import type { Template } from '../types/v2'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
-import { isV2LocalTemplate, migrateV2TemplateToCreateRequest } from '../utils/v3Template'
+import { isV2LocalTemplate, migrateV2TemplateToCreateRequest, parseTemplateImportJson } from '../utils/v3Template'
 
 interface TemplateListV3Props {
   summaries: CharacterSheetTemplateSummary[]
@@ -38,12 +48,17 @@ type CharacterCreationOutcome =
 export function TemplateListV3({ summaries }: TemplateListV3Props) {
   const [legacyTemplates, setLegacyTemplates] = useState<Template[]>([])
   const [legacyReadError, setLegacyReadError] = useState<string | null>(null)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [templateImportJson, setTemplateImportJson] = useState('')
+  const [templateImportError, setTemplateImportError] = useState<string | null>(null)
   const [creationTemplate, setCreationTemplate] = useState<CharacterSheetTemplateSummary | null>(null)
   const [characterName, setCharacterName] = useState('')
   const [listActionError, setListActionError] = useState<string | null>(null)
   const [creationOutcome, setCreationOutcome] = useState<CharacterCreationOutcome>({ status: 'idle' })
   const [isListPending, startListTransition] = useTransition()
-  const [, startCreateCharacterTransition] = useTransition()
+  // モーダル内送信の pending を一覧側ボタンへ波及させない。
+  const [isCreateCharacterPending, startCreateCharacterTransition] = useTransition()
+  const importRequestGenerationRef = useRef(0)
   const creationRequestGenerationRef = useRef(0)
   const createCharacterError = creationOutcome.status === 'error' ? creationOutcome.message : null
 
@@ -81,6 +96,14 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
     })
   }
 
+  const resetImportModal = () => {
+    // close 後に完了した import action が、次に開く Modal のエラー state を上書きしないよう無効化する。
+    importRequestGenerationRef.current += 1
+    setIsImportModalOpen(false)
+    setTemplateImportJson('')
+    setTemplateImportError(null)
+  }
+
   const resetCreationModal = () => {
     // close 後に完了した旧リクエストが、次に開く Modal の状態を上書きしないよう無効化する。
     creationRequestGenerationRef.current += 1
@@ -100,16 +123,26 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
             </Text>
           </div>
 
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              runListAction(createTemplate)
-            }}
-          >
-            <Button type="submit" leftSection={<IconFilePlus size={16} />} loading={isListPending}>
-              新規作成
+          <Group gap="sm">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                runListAction(createTemplate)
+              }}
+            >
+              <Button type="submit" leftSection={<IconFilePlus size={16} />} loading={isListPending}>
+                新規作成
+              </Button>
+            </form>
+            <Button
+              type="button"
+              variant="outline"
+              leftSection={<IconFileImport size={16} />}
+              onClick={() => setIsImportModalOpen(true)}
+            >
+              JSON から作成
             </Button>
-          </form>
+          </Group>
         </Group>
 
         {listActionError && (
@@ -164,6 +197,22 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                           編集
                         </Button>
                       )}
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          runListAction(() => forkTemplate(summary.templateId))
+                        }}
+                      >
+                        <Button
+                          type="submit"
+                          size="xs"
+                          variant="outline"
+                          leftSection={<IconCopy size={14} />}
+                          loading={isListPending}
+                        >
+                          複製して編集
+                        </Button>
+                      </form>
                       {summary.status === 'published' && (
                         <Button
                           type="button"
@@ -186,12 +235,13 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                             runListAction(() => deleteTemplate(summary.templateId))
                           }}
                         >
-                          <Button
-                            type="submit"
-                            size="xs"
+                           <Button
+                             type="submit"
+                             size="xs"
                             color="red"
                             variant="subtle"
                             leftSection={<IconTrash size={14} />}
+                            loading={isListPending}
                           >
                             削除
                           </Button>
@@ -226,10 +276,10 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                   <form
                     onSubmit={(event) => {
                       event.preventDefault()
-                      runListAction(() => importV2Template(migrateV2TemplateToCreateRequest(template)))
+                      runListAction(() => importTemplate(migrateV2TemplateToCreateRequest(template)))
                     }}
                   >
-                    <Button type="submit" size="xs" variant="outline">
+                    <Button type="submit" size="xs" variant="outline" loading={isListPending}>
                       v3 draft として作成
                     </Button>
                   </form>
@@ -238,6 +288,57 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
             </Stack>
           </Card>
         )}
+
+        <Modal
+          opened={isImportModalOpen}
+          onClose={resetImportModal}
+          title="JSON からテンプレートを作成"
+          centered
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              const parsed = parseTemplateImportJson(templateImportJson)
+              if (!parsed.ok) {
+                setTemplateImportError(parsed.error)
+                return
+              }
+
+              setTemplateImportError(null)
+              const requestGeneration = ++importRequestGenerationRef.current
+              startListTransition(async () => {
+                const result = await importTemplate(parsed.payload)
+                if (requestGeneration !== importRequestGenerationRef.current) return
+                setTemplateImportError(result.error)
+              })
+            }}
+          >
+            <Stack gap="md">
+              <Textarea
+                label="テンプレート JSON"
+                value={templateImportJson}
+                onChange={(event) => setTemplateImportJson(event.currentTarget.value)}
+                minRows={12}
+                autosize={false}
+                placeholder='{"name": "テンプレート名", "sections": []}'
+                styles={{ input: { fontFamily: 'monospace' } }}
+              />
+              {templateImportError && (
+                <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                  {templateImportError}
+                </Alert>
+              )}
+              <Group justify="flex-end">
+                <Button type="button" variant="outline" onClick={resetImportModal}>
+                  キャンセル
+                </Button>
+                <Button type="submit" loading={isListPending}>
+                  作成
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Modal>
 
         <Modal
           opened={creationTemplate !== null}
@@ -312,7 +413,7 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                     <Button type="button" variant="outline" onClick={resetCreationModal}>
                       キャンセル
                     </Button>
-                    <Button type="submit" disabled={!characterName.trim()}>
+                    <Button type="submit" loading={isCreateCharacterPending} disabled={!characterName.trim()}>
                       作成
                     </Button>
                   </Group>

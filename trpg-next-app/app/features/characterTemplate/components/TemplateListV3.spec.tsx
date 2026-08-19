@@ -4,19 +4,23 @@ jest.mock('../actions', () => ({
   createCharacter: jest.fn(),
   createTemplate: jest.fn(),
   deleteTemplate: jest.fn(),
-  importV2Template: jest.fn()
+  forkTemplate: jest.fn(),
+  importTemplate: jest.fn()
 }))
 
 import { MantineProvider } from '@mantine/core'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
-import { createCharacter, createTemplate } from '../actions'
+import { createCharacter, createTemplate, deleteTemplate, forkTemplate, importTemplate } from '../actions'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
 import { TemplateListV3 } from './TemplateListV3'
 
 const mockedCreateCharacter = jest.mocked(createCharacter)
 const mockedCreateTemplate = jest.mocked(createTemplate)
+const mockedDeleteTemplate = jest.mocked(deleteTemplate)
+const mockedForkTemplate = jest.mocked(forkTemplate)
+const mockedImportTemplate = jest.mocked(importTemplate)
 
 const publishedSummary: CharacterSheetTemplateSummary = {
   templateId: 'template-1',
@@ -92,7 +96,81 @@ async function submitCharacterCreation(): Promise<void> {
 afterEach(cleanup)
 
 describe('TemplateListV3', () => {
-  it('system 所有の published カードは配布 Badge と作成操作だけを表示する', () => {
+  it('JSON から作成ボタンでテンプレート作成 Modal を開く', async () => {
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+    expect(within(dialog).getByRole('textbox', { name: 'テンプレート JSON' })).toBeTruthy()
+  })
+
+  it('不正 JSON では importTemplate を呼ばず Modal 内にエラーを表示する', async () => {
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+    const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'テンプレート JSON' }), {
+      target: { value: '{"name":' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '作成' }))
+
+    expect(await within(dialog).findByText('JSON として読み取れません')).toBeTruthy()
+    expect(mockedImportTemplate).not.toHaveBeenCalled()
+  })
+
+  it('正常 JSON では parse 済み payload で importTemplate を 1 回呼ぶ', async () => {
+    mockedImportTemplate.mockResolvedValue({ error: null })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+    const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'テンプレート JSON' }), {
+      target: { value: '{"name":"JSON テンプレート","sections":[]}' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '作成' }))
+
+    await waitFor(() =>
+      expect(mockedImportTemplate).toHaveBeenCalledWith({ name: 'JSON テンプレート', sections: [] })
+    )
+    expect(mockedImportTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it('JSON 作成ボタンを連打しても importTemplate は 1 回だけ呼ばれる', async () => {
+    mockedImportTemplate.mockResolvedValue({ error: null })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+    const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'テンプレート JSON' }), {
+      target: { value: '{"name":"JSON テンプレート"}' }
+    })
+    const createButton = within(dialog).getByRole('button', { name: '作成' })
+    fireEvent.click(createButton)
+    await act(async () => {
+      fireEvent.click(createButton)
+    })
+
+    expect(mockedImportTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it('system 所有の published カードは配布 Badge・作成・複製操作を表示し、編集・削除を表示しない', () => {
     render(
       <MantineProvider>
         <TemplateListV3 summaries={[systemPublishedSummary]} />
@@ -101,11 +179,12 @@ describe('TemplateListV3', () => {
 
     expect(screen.getByText('配布')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'このテンプレートで作成' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '複製して編集' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: '編集' })).toBeNull()
     expect(screen.queryByRole('button', { name: '削除' })).toBeNull()
   })
 
-  it('自分所有のカードは編集・削除操作を表示し、配布 Badge を表示しない', () => {
+  it('自分所有のカードは編集・複製・削除操作を表示し、配布 Badge を表示しない', () => {
     render(
       <MantineProvider>
         <TemplateListV3 summaries={[publishedSummary]} />
@@ -113,8 +192,90 @@ describe('TemplateListV3', () => {
     )
 
     expect(screen.getByRole('link', { name: '編集' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '複製して編集' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '削除' })).toBeTruthy()
     expect(screen.queryByText('配布')).toBeNull()
+  })
+
+  it('複製ボタン押下で該当 templateId の forkTemplate を呼ぶ', async () => {
+    mockedForkTemplate.mockResolvedValue({ error: null })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[publishedSummary]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '複製して編集' }))
+
+    await waitFor(() => expect(mockedForkTemplate).toHaveBeenCalledWith(publishedSummary.templateId))
+  })
+
+  it('複製ボタンを連打しても forkTemplate は 1 回だけ呼ばれる', async () => {
+    mockedForkTemplate.mockResolvedValue({ error: null })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[publishedSummary]} />
+      </MantineProvider>
+    )
+
+    const forkButton = screen.getByRole('button', { name: '複製して編集' })
+    fireEvent.click(forkButton)
+    await act(async () => {
+      fireEvent.click(forkButton)
+    })
+
+    expect(mockedForkTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it('削除ボタンを連打しても deleteTemplate は 1 回だけ呼ばれる', async () => {
+    mockedDeleteTemplate.mockResolvedValue({ error: null })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[publishedSummary]} />
+      </MantineProvider>
+    )
+
+    const deleteButton = screen.getByRole('button', { name: '削除' })
+    fireEvent.click(deleteButton)
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
+
+    expect(mockedDeleteTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it('v2 移行ボタンを連打しても importTemplate は 1 回だけ呼ばれる', async () => {
+    mockedImportTemplate.mockResolvedValue({ error: null })
+    localStorage.setItem(
+      'ct.templates.v2',
+      JSON.stringify([
+        {
+          id: 'legacy-template-1',
+          name: '旧テンプレート',
+          version: '1.0.0',
+          schemaVersion: 2,
+          fields: []
+        }
+      ])
+    )
+
+    try {
+      render(
+        <MantineProvider>
+          <TemplateListV3 summaries={[]} />
+        </MantineProvider>
+      )
+
+      const migrateButton = await screen.findByRole('button', { name: 'v3 draft として作成' })
+      fireEvent.click(migrateButton)
+      await act(async () => {
+        fireEvent.click(migrateButton)
+      })
+
+      expect(mockedImportTemplate).toHaveBeenCalledTimes(1)
+    } finally {
+      localStorage.removeItem('ct.templates.v2')
+    }
   })
 
   it('system 所有のカードから作成 Modal を開いてキャラクターを作成できる', async () => {
@@ -133,6 +294,27 @@ describe('TemplateListV3', () => {
       characterName: '探索者'
     })
     expect(await screen.findByText('作成時の出目')).toBeTruthy()
+  })
+
+  it('キャラクター作成ボタンを連打しても createCharacter は 1 回だけ呼ばれる', async () => {
+    mockedCreateCharacter.mockResolvedValue({ error: null, rollOnCreateResults })
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[publishedSummary]} />
+      </MantineProvider>
+    )
+
+    await openCharacterCreation()
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: '探索者' }
+    })
+    const createButton = screen.getByRole('button', { name: '作成' })
+    fireEvent.click(createButton)
+    await act(async () => {
+      fireEvent.click(createButton)
+    })
+
+    expect(mockedCreateCharacter).toHaveBeenCalledTimes(1)
   })
 
   it('server error prop なしでも list action のエラーを表示する', async () => {

@@ -55,6 +55,15 @@ export async function publishSheetTemplate(templateId: string): Promise<Characte
   return response.data
 }
 
+export async function forkSheetTemplate(templateId: string): Promise<CharacterSheetTemplateEntity> {
+  const response = await apiClient.post<CharacterSheetTemplateEntity>(
+    `/sheet-templates/${templateId}/fork`,
+    undefined
+  )
+  // ResponseInterceptor は sheet-templates controller に適用されないため、応答は封筒なしの entity。
+  return response.data
+}
+
 export async function deleteSheetTemplate(templateId: string): Promise<unknown> {
   const response = await apiClient.delete<unknown>(`/sheet-templates/${templateId}`)
   return response.data

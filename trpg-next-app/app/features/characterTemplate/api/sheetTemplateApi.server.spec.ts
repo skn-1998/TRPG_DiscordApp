@@ -2,15 +2,17 @@ jest.mock('server-only', () => ({}))
 
 jest.mock('../../../lib/api-client.server', () => ({
   apiClient: {
-    get: jest.fn()
+    get: jest.fn(),
+    post: jest.fn()
   }
 }))
 
 import { apiClient } from '../../../lib/api-client.server'
 import type { CharacterSheetTemplateEntity } from '../types/v3'
-import { getSheetTemplate, getSheetTemplateRevision } from './sheetTemplateApi.server'
+import { forkSheetTemplate, getSheetTemplate, getSheetTemplateRevision } from './sheetTemplateApi.server'
 
 const mockedApiGet = jest.mocked(apiClient.get)
+const mockedApiPost = jest.mocked(apiClient.post)
 
 const template: CharacterSheetTemplateEntity = {
   templateId: 'template-1',
@@ -27,7 +29,10 @@ const template: CharacterSheetTemplateEntity = {
   draftRevision: 1
 }
 
-afterEach(() => mockedApiGet.mockReset())
+afterEach(() => {
+  mockedApiGet.mockReset()
+  mockedApiPost.mockReset()
+})
 
 describe('getSheetTemplate', () => {
   it('封筒を unwrap せず response.data の entity を直接返す', async () => {
@@ -56,5 +61,14 @@ describe('getSheetTemplateRevision', () => {
     expect(mockedApiGet).toHaveBeenCalledWith(
       '/sheet-templates/template-1/revisions/feature%2F1%3Fx%23y%25%20z'
     )
+  })
+})
+
+describe('forkSheetTemplate', () => {
+  it('body なしで fork パスへ POST し response.data の entity を直接返す', async () => {
+    mockedApiPost.mockResolvedValue({ data: template } as never)
+
+    await expect(forkSheetTemplate('template-1')).resolves.toBe(template)
+    expect(mockedApiPost).toHaveBeenCalledWith('/sheet-templates/template-1/fork', undefined)
   })
 })

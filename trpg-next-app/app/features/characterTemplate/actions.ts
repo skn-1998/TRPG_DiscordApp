@@ -13,6 +13,7 @@ import { createCharacterFromTemplate } from '../character/api/character.service.
 import {
   createSheetTemplate,
   deleteSheetTemplate,
+  forkSheetTemplate,
   publishSheetTemplate,
   updateSheetTemplate
 } from './api/sheetTemplateApi.server'
@@ -63,14 +64,44 @@ export async function createTemplate(): Promise<{ error: string | null }> {
   redirect(`/templates/${created.templateId}/edit`)
 }
 
-export async function importV2Template(
+export async function forkTemplate(templateId: string): Promise<{ error: string | null }> {
+  await requireJwt()
+
+  // fork は front で payload を組まない（server が保存・検証済み entity を写す）ため、
+  // payload を受け取る importTemplate と異なり front 正規化（normalizeTemplateLayout 等）の対象そのものが存在しない。
+  let created
+  try {
+    created = await forkSheetTemplate(templateId)
+  } catch (error) {
+    const status = getResponseStatus(error)
+    const messages = status === undefined ? [GENERIC_NETWORK_ERROR_MESSAGE] : extractApiErrorMessages(error)
+    return {
+      error: messages.length > 0 ? messages.join(' / ') : GENERIC_NETWORK_ERROR_MESSAGE
+    }
+  }
+
+  redirect(`/templates/${created.templateId}/edit`)
+}
+
+// Why: v2 移行導線と JSON 貼り付け導線は同じ create 前正規化・エラー処理を必要とするため共用する。
+// client 正規化を適用できない sections の構造不正は server の 400 → {error} 経路へ渡す。
+export async function importTemplate(
   payload: CreateSheetTemplateRequest
 ): Promise<{ error: string | null }> {
   await requireJwt()
 
-  const requestBody = payload.sections
-    ? normalizeTemplateLayout(normalizeTemplateReferences({ ...payload, sections: payload.sections }))
-    : payload
+  let requestBody = payload
+  if (Array.isArray(payload.sections)) {
+    try {
+      requestBody = normalizeTemplateLayout(
+        normalizeTemplateReferences({ ...payload, sections: payload.sections })
+      )
+    } catch {
+      // 正規化は短縮参照・layout 既定値のベストエフォート救済に限る。
+      // 適用できない構造は素の payload を server の保存時検証へ送り、400 を {error} 経路に載せる。
+      requestBody = payload
+    }
+  }
 
   let created
   try {

@@ -13,6 +13,7 @@ import {
   makeUniqueId,
   migrateV2TemplateToCreateRequest,
   normalizeTemplateReferences,
+  parseTemplateImportJson,
   parseTags,
   safeParseTables,
   slugifyId,
@@ -398,6 +399,42 @@ describe('v3Template validation and JSON helpers', () => {
   it('parseTags/stringifyTags は空白と空要素を除外して相互変換する', () => {
     expect(parseTags(' coc, , dx3 ,  sword-world  ')).toEqual(['coc', 'dx3', 'sword-world'])
     expect(stringifyTags(['coc', 'dx3'])).toBe('coc, dx3')
+  })
+
+  it('parseTemplateImportJson は余分キーを含む object をそのまま payload として返す', () => {
+    expect(
+      parseTemplateImportJson('{"name":"JSON テンプレート","sections":[],"templateId":"server-managed"}')
+    ).toEqual({
+      ok: true,
+      payload: { name: 'JSON テンプレート', sections: [], templateId: 'server-managed' }
+    })
+  })
+
+  it('parseTemplateImportJson は JSON parse 失敗を定型文で返す', () => {
+    expect(parseTemplateImportJson('{"name":')).toEqual({
+      ok: false,
+      error: 'JSON として読み取れません'
+    })
+  })
+
+  it.each([
+    ['配列', '[]'],
+    ['null', 'null']
+  ])('parseTemplateImportJson はトップレベルが%sなら拒否する', (_label, text) => {
+    expect(parseTemplateImportJson(text)).toEqual({
+      ok: false,
+      error: 'テンプレート JSON はオブジェクトである必要があります'
+    })
+  })
+
+  it.each([
+    ['name 欠落', '{}'],
+    ['空白のみの name', '{"name":"   "}']
+  ])('parseTemplateImportJson は%sを拒否する', (_label, text) => {
+    expect(parseTemplateImportJson(text)).toEqual({
+      ok: false,
+      error: 'name（テンプレート名）は必須です'
+    })
   })
 
   it('safeParseTables/stringifyTables は空入力・配列 JSON・不正 JSON 型を区別する', () => {
