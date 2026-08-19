@@ -92,7 +92,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const [rerollingFieldUid, setRerollingFieldUid] = useState<string>()
   const [rerollFeedback, setRerollFeedback] = useState<RerollSheetFieldResult | null>(null)
   const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
-  // 振り直しの対象は track / roll で editableScalarFields に含まれないため、全 field から label を引く。
+  // 振り直しの対象には track / roll も含まれ、これらは editableScalarFields の外なので、全 field から label を引く。
   const fieldLabels = useMemo(
     () => new Map(template.sections.flatMap((section) => section.fields.map((field) => [field.uid, field.label]))),
     [template]
@@ -177,11 +177,12 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     // server が保存した値をそのまま採る。出目の合計から保存形を組み立て直すと、その変換規則
     // （server の creationRollValue）が front にも分裂する。応答に value が載っているのはこのため。
     //
-    // baseline への書き戻しは今日の振り直し対象（track / roll）では観測者がいない。
-    // deriveSheetChanges が読むのは editableScalarFields だけで、track / roll はその対象外
-    // （この行を落とす変異が spec 全緑のまま生存することを確認済み）。
-    // それでも書くのは PV-S で scalar が振り直し対象になったときに必要になるため。
-    // baseline を欠くと、振り直し直後の値が偽の未保存差分として保存対象に入る。
+    // baseline も進めるのは、振り直し直後の値が偽の未保存差分として保存対象に入るのを防ぐため。
+    // deriveSheetChanges が baseline と突き合わせるのは editableScalarFields（= 契約内 valueType の
+    // scalar）だけなので、差分が出るのは scalar を振り直したとき。作成時ロールは scalar でも宣言でき、
+    // 振り直しの対象になるため、この経路には観測者がいる。
+    // この行を落とすと本 component の spec の「scalar の振り直しは baseline も進め、振り直した値を
+    // 保存差分にしない」が赤になる（実測。62 tests 中その 1 本だけが落ちる）。
     setBaseline((current) => ({ ...current, [roll.fieldUid]: roll.value }))
     setValues((current) => ({ ...current, [roll.fieldUid]: roll.value }))
   }

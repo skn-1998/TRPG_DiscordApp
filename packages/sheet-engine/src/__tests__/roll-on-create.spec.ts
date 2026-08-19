@@ -43,9 +43,7 @@ describe('rollOnCreateSpec', () => {
     expect(rollOnCreateSpec(field)).toEqual({ notation: '1d6' });
   });
 
-  // publish が受理するのは valueType === 'number' の scalar だが、本述語は scalar を読まない。
-  // 検出漏れではなく段階分割（発火は PV-S）なので、undefined であることを固定して差分を可視化する。
-  it('scalar の rollOnCreate は宣言されていても発火させない（段階分割 PV-S）', () => {
+  it('scalar の rollOnCreate は notation と行き先をそのまま返す', () => {
     const field = {
       ...fieldBase,
       type: 'scalar',
@@ -54,15 +52,39 @@ describe('rollOnCreateSpec', () => {
       rollOnCreate: { notation: '3d6', partsKey: 'base' },
     } satisfies SheetField;
 
+    expect(rollOnCreateSpec(field)).toEqual({ notation: '3d6', partsKey: 'base' });
+  });
+
+  // partsKeys を宣言できるのは scalar だけなので、`base` 以外の行き先が載るのはこの型だけ。
+  // 書き込み側が既定へ畳む前の宣言をそのまま渡すことを固定する。
+  it('宣言済み partsKeys を行き先にした scalar は base 以外の行き先を載せて返す', () => {
+    const field = {
+      ...fieldBase,
+      type: 'scalar',
+      valueType: 'number',
+      partsKeys: [{ id: 'growth', label: 'Growth' }],
+      rollOnCreate: { notation: '1d10', partsKey: 'growth' },
+    } satisfies SheetField;
+
+    expect(rollOnCreateSpec(field)).toEqual({ notation: '1d10', partsKey: 'growth' });
+  });
+
+  it('rollOnCreate を宣言していない scalar は undefined', () => {
+    const field = {
+      ...fieldBase,
+      type: 'scalar',
+      valueType: 'number',
+      parts: true,
+    } satisfies SheetField;
+
     expect(rollOnCreateSpec(field)).toBeUndefined();
   });
 
   // 型は rollOnCreate を valueType で絞っていない（types.ts の ScalarField.rollOnCreate）。
-  // valueType === 'number' に絞るのは publish の検査だけ（publish.ts の validateScalarRollOnCreate）なので、
-  // publish を経ずに保存されればこの外形は成立する。現時点の述語は scalar 自体を読まないため valueType を問わず undefined。
-  // PV-S で scalar を読むようになったとき、この宣言を発火させるか（型ではなく publish だけが絞っている宣言を
-  // 述語側でどう扱うか）が設計判断になる。
-  it('valueType が number でない scalar の rollOnCreate も発火させない（型は valueType を絞らない）', () => {
+  // valueType === 'number' に絞るのは publish の検査だけ（publish.ts の validateScalarRollOnCreate）で、
+  // 本述語はそれを重ねない。publish の受理範囲とここの発火範囲を別々のゲートにしないための選択なので、
+  // publish を経ずに保存された text scalar の宣言もここでは宣言として返る。
+  it('valueType が number でない scalar の rollOnCreate も宣言として返す（valueType を絞るのは publish だけ）', () => {
     const field = {
       ...fieldBase,
       type: 'scalar',
@@ -70,28 +92,36 @@ describe('rollOnCreateSpec', () => {
       rollOnCreate: { notation: '3d6', partsKey: 'base' },
     } satisfies SheetField;
 
-    expect(rollOnCreateSpec(field)).toBeUndefined();
+    expect(rollOnCreateSpec(field)).toEqual({ notation: '3d6', partsKey: 'base' });
   });
 
   // publish を経ずに保存された宣言は型が保証しない。notation を取り出せない外形は宣言なしとして扱う。
+  // track / scalar のどちらも同じ扱いで、この点が両型で分岐していないことも併せて固定する。
   it.each([
     ['boolean', true],
     ['string', '1d6'],
     ['notation 欠落のオブジェクト', { partsKey: 'base' }],
-  ])('契約外形（%s）の track rollOnCreate は宣言なしとして扱う', (_case, declared) => {
-    const field = {
+  ])('契約外形（%s）の rollOnCreate は track でも scalar でも宣言なしとして扱う', (_case, declared) => {
+    const track = {
       ...fieldBase,
       type: 'track',
       max: 10,
       style: 'gauge',
       rollOnCreate: declared,
     } as unknown as SheetField;
+    const scalar = {
+      ...fieldBase,
+      type: 'scalar',
+      valueType: 'number',
+      parts: true,
+      rollOnCreate: declared,
+    } as unknown as SheetField;
 
-    expect(rollOnCreateSpec(field)).toBeUndefined();
+    expect(rollOnCreateSpec(track)).toBeUndefined();
+    expect(rollOnCreateSpec(scalar)).toBeUndefined();
   });
 
-  // ここに並ぶのは rollOnCreate プロパティ自体を型が持たない 4 型。scalar は型として持てるので含めない
-  // （scalar の非発火は上の 2 ケースが固定している）。
+  // ここに並ぶのは rollOnCreate プロパティ自体を型が持たない 4 型。
   it.each([
     ['computed', { ...fieldBase, type: 'computed', resultType: 'number', formula: '1' }],
     ['list', { ...fieldBase, type: 'list', itemFields: [] }],

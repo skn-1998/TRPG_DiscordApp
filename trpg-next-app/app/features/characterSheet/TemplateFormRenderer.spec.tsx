@@ -233,7 +233,7 @@ function readRendererCss() {
   )
 }
 
-// 9 型に、作成時ロールの述語が読む track の宣言変種（正常宣言・契約外形）を足した対象集合。
+// 9 型に、作成時ロールの述語が読む宣言変種（track の正常宣言・契約外形、scalar の正常宣言）を足した対象集合。
 const creationRollFixtures = [
   ...fieldPredicateFixtures,
   {
@@ -256,6 +256,16 @@ const creationRollFixtures = [
       style: 'gauge',
       rollOnCreate: true
     } as unknown as SheetField
+  },
+  {
+    name: 'scalar number: rollOnCreate 宣言',
+    // 内訳を宣言しない number scalar。publish はこの形の宣言を受理する。
+    field: {
+      ...fieldPredicateBase,
+      type: 'scalar',
+      valueType: 'number',
+      rollOnCreate: { notation: '2d6+3' }
+    } as SheetField
   }
 ] satisfies Array<{ name: string; field: SheetField }>
 
@@ -444,6 +454,17 @@ describe('TemplateFormRenderer の作成時ロール振り直し導線', () => {
     renderRerollForm([field], { onRequest: jest.fn() })
 
     expect(document.querySelector(`[data-creation-roll-notation="${field.uid}"]`)?.textContent).toBe('3d6*5')
+  })
+
+  // Test intent: scalar が作成時ロールの対象になった際、front を触らずに導線が出るという前提を
+  // 描画結果として固定する（判定を rollOnCreateSpec 1 本に閉じていることが front 側で効いている証拠）。
+  // 述語を spec 側で呼ばずボタンと記法の描画だけを見るので、述語の再実装ではない。
+  it('rollOnCreate を宣言した number scalar にも導線と記法を描く', () => {
+    const [field] = creationRollFieldsNamed('scalar number: rollOnCreate 宣言')
+    renderRerollForm([field], { onRequest: jest.fn() })
+
+    expect(screen.getByRole('button', { name: `${field.label}: 作成時ロールを振り直す` })).toBeTruthy()
+    expect(document.querySelector(`[data-creation-roll-notation="${field.uid}"]`)?.textContent).toBe('2d6+3')
   })
 
   it('押下すると対象 uid で振り直しを要求する', () => {

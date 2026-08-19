@@ -145,7 +145,8 @@ const declaredPartsTemplate: CharacterSheetTemplateEntity = {
   }]
 }
 
-// 振り直しの対象は作成時ロールを宣言した track。editableScalarFields の対象外なので保存差分を作らない。
+// 振り直しの対象を 2 種類そろえた fixture。track（main.dex）は editableScalarFields の対象外なので
+// 保存差分を作らず、number scalar（main.pow）は対象なので baseline を進めないと保存差分を作る。
 // other は Discord の ± が積む内訳キーで、合計から保存形を組み立て直すと失われる値の代表。
 const rerollTemplate: CharacterSheetTemplateEntity = {
   ...template,
@@ -161,6 +162,14 @@ const rerollTemplate: CharacterSheetTemplateEntity = {
         max: 100,
         style: 'gauge',
         rollOnCreate: { notation: '3d6*5', partsKey: 'base' }
+      },
+      {
+        id: 'pow',
+        uid: 'main.pow',
+        label: '精神力',
+        type: 'scalar',
+        valueType: 'number',
+        rollOnCreate: { notation: '2d6+3' }
       }
     ]
   }]
@@ -169,7 +178,7 @@ const rerollCharacter: CharacterWire = {
   ...character,
   sheet: {
     ...character.sheet!,
-    values: { ...character.sheet!.values, 'main.dex': { parts: { base: 40, other: 2 } } }
+    values: { ...character.sheet!.values, 'main.dex': { parts: { base: 40, other: 2 } }, 'main.pow': 9 }
   }
 }
 
@@ -184,6 +193,24 @@ function rerollResult(revision: number, base: number) {
       total: base,
       details: `(3D6*5) ＞ 11[2,4,5]*5 ＞ ${base}`,
       value: { parts: { base, other: 2 } }
+    }
+  }
+}
+
+/**
+ * Fixture source: RerollCreationRollResultWire。内訳を宣言していない number scalar の保存形は
+ * 生の数値（server の creationRollValue が allowsParts false で total をそのまま返す）。
+ */
+function scalarRerollResult(revision: number, total: number) {
+  return {
+    error: null,
+    roll: {
+      revision,
+      fieldUid: 'main.pow',
+      notation: '2d6+3',
+      total,
+      details: `(2D6+3) ＞ 8[3,5]+3 ＞ ${total}`,
+      value: total
     }
   }
 }
@@ -317,8 +344,10 @@ describe('CharacterSheetEditClient の作成時ロール振り直し', () => {
 
   // Test intent: 保存形は server が返した value をそのまま採る。出目の合計から組み立て直すと
   // 宣言外の内訳キー（other）が落ちるので、合計 55 ではなく 57 が表示されることで区別する。
-  // 観測できるのは values 側だけ。applyRerollResult の setBaseline はこの fixture（track）には
-  // 観測者がいない（下の「保存差分」assertion はクリック前から成立するトートロジーだったので外した）。
+  // ここで観測できるのは values 側だけ。track の振り直しは editableScalarFields の対象外で
+  // 保存差分を作らないため、applyRerollResult の setBaseline にはこの経路の観測者がいない
+  // （下の「保存差分」assertion はクリック前から成立するトートロジーだったので外した）。
+  // setBaseline の観測者は次の scalar 振り直しのテスト。
   it('応答の value を保存形のまま表示へ反映する（出目の合計から組み立て直さない）', async () => {
     renderRerollEditor()
     expect(trackDisplayValue()).toBe('42 / 100')
@@ -328,6 +357,28 @@ describe('CharacterSheetEditClient の作成時ロール振り直し', () => {
     await screen.findByText(/合計 55/)
 
     expect(trackDisplayValue()).toBe('57 / 100')
+  })
+
+  // Test intent: scalar は editableScalarFields の対象なので、applyRerollResult が baseline を
+  // 進めないと deriveSheetChanges が振り直したばかりの値を拾い、偽の未保存差分として保存対象に入る。
+  // 別 field（名前）を dirty にしてから保存し、payload がその 1 件だけであることで観測する。
+  // 差分ゼロを直接見る assertion はクリック前から成立してしまうため採らない。
+  it('scalar の振り直しは baseline も進め、振り直した値を保存差分にしない', async () => {
+    renderRerollEditor()
+    mockedRerollSheetField.mockResolvedValueOnce(scalarRerollResult(2, 11))
+
+    fireEvent.click(screen.getByRole('button', { name: '精神力: 作成時ロールを振り直す' }))
+    await screen.findByText(/合計 11/)
+
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '変更名' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(1))
+    expect(mockedSaveSheet.mock.calls[0]?.[1]).toEqual({
+      baseRevision: 2,
+      changes: [{ path: { fieldUid: 'main.name' }, baseValue: '初期名', newValue: '変更名' }]
+    })
   })
 
   it('未保存の scalar 編集は振り直しで失われない', async () => {

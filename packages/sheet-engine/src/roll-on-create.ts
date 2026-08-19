@@ -18,8 +18,8 @@ export interface RollOnCreateSpec {
 /**
  * field が宣言している作成時ロールを返す。宣言がなければ undefined を返す。
  *
- * 現時点で読む宣言は track の rollOnCreate と roll の notation の 2 つ（列挙は現時点のもの）。
- * どちらも「作成時にサーバがロールする」同じ契約なので、判定はこの 1 本に閉じる。
+ * 現時点で読む宣言は track / scalar の rollOnCreate と roll の notation の 3 つ（列挙は現時点のもの）。
+ * いずれも「作成時にサーバがロールする」同じ契約なので、判定はこの 1 本に閉じる。
  * 現時点の runtime 呼び出しは 3 経路（TRPG-SERVER の character-instantiation.service.ts が作成時の適用、
  * character-sheet-operation.service.ts が後からの振り直し、trpg-next-app の TemplateFormRenderer.tsx の
  * renderCreationRollReroll が振り直し導線の表示）。
@@ -37,14 +37,14 @@ export interface RollOnCreateSpec {
  * 'accepts a %s creation roll targeting base' が両型を pin している）。
  * したがって本関数は partsKey に `'base'` を載せて返しうる。`undefined` との差が観測されるかは
  * 書き込み側の既定次第で、未指定を `base` へ畳む書き込み側では差が出ない（既定は本関数が決めない）。
- * `'base'` 以外の行き先が載るのは partsKeys を宣言した scalar を読むようになってからで、
- * それは下記 PV-S の圏（track は partsKeys を宣言できない — validateNumericAnnotationTarget が拒否する）。
+ * `'base'` 以外の行き先が載るのは partsKeys を宣言した scalar だけで、track では起こらない
+ * （track は partsKeys を宣言できない — validateNumericAnnotationTarget が拒否する）。
  * ただし宣言を検査するのは publish であり、publish を経ずに保存された宣言まで型が保証しているわけではない。
  *
- * scalar も rollOnCreate を宣言でき publish はそれを受理する（types.ts の ScalarField.rollOnCreate）が、
- * 本関数は scalar を読まず undefined を返すため、作成時適用も振り直しも発火しない。
- * これは検出漏れではなく意図的な段階分割で、発火は別スライス PV-S の担当
- * （正本: document/character-sheet-proposals/roll-lane-framing.md の PV レーン）。
+ * scalar の rollOnCreate は track と同じ扱い方で読む（notation を取り出せるかだけを見る）。
+ * valueType が number であることを要求するのは publish だけで（publish.ts の validateScalarRollOnCreate）、
+ * 本関数はそれを再検査しない。型は valueType を絞っておらず（types.ts の ScalarField.rollOnCreate）、
+ * publish が絞っている条件をここでも重ねると、受理範囲と発火範囲が別々に動く 2 つのゲートになる。
  *
  * 「入力可能な項目か」（value-input.ts の inputSchemaFor が track / scalar にだけ schema を返す規則）
  * とは別の述語である。roll 型はクライアント提出の入力項目ではないまま、この述語では対象になる。
@@ -53,7 +53,7 @@ export function rollOnCreateSpec(field: SheetField): RollOnCreateSpec | undefine
   if (field.type === 'roll') {
     return { notation: field.notation };
   }
-  if (field.type !== 'track') {
+  if (field.type !== 'track' && field.type !== 'scalar') {
     return undefined;
   }
 

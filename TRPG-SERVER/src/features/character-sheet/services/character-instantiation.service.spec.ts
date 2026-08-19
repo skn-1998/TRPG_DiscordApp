@@ -82,7 +82,11 @@ describe('CharacterInstantiationService', () => {
 
   const trackCreationTemplate = (
     max: number | { formula: string },
-    { includeLimit = false, rollOnCreate }: { includeLimit?: boolean; rollOnCreate?: { notation: string } } = {}
+    // rollOnCreate は契約外形（publish を経ずに保存された boolean 等）も渡せるようにしてある。
+    {
+      includeLimit = false,
+      rollOnCreate
+    }: { includeLimit?: boolean; rollOnCreate?: { notation: string } | boolean } = {}
   ): CharacterSheetTemplateEntity => ({
     ...template,
     sections: [
@@ -117,6 +121,28 @@ describe('CharacterInstantiationService', () => {
             style: 'gauge',
             ...(rollOnCreate === undefined ? {} : { rollOnCreate }),
             role: { kind: 'resource', deltas: [-1, 1] }
+          }
+        ]
+      }
+    ]
+  })
+
+  // 作成時ロールを宣言した number scalar 1 本だけを持つテンプレート。内訳宣言（parts / partsKeys）の
+  // 有無で出目の保存形と衝突判定が変わるので、そこを呼び出し側から差し替えられるようにしてある。
+  const scalarCreationTemplate = (scalarProperties: Record<string, unknown>): CharacterSheetTemplateEntity => ({
+    ...template,
+    sections: [
+      {
+        id: 'parameter',
+        label: 'Parameter',
+        fields: [
+          {
+            id: 'luck',
+            uid: 'uid-luck',
+            label: 'Luck',
+            type: 'scalar',
+            valueType: 'number',
+            ...scalarProperties
           }
         ]
       }
@@ -237,39 +263,95 @@ describe('CharacterInstantiationService', () => {
     expect(result.materialized).toBe(materialized)
   })
 
-  // boolean / string は契約外のまま DB に残存しうる形、object は PV-1 で正式形になった
-  // ScalarField.rollOnCreate。正式形でも発火しないのは意図的な段階分割で、scalar の発火は
-  // 別スライス PV-S の担当（正本: packages/sheet-engine/src/roll-on-create.ts の JSDoc）。
+  // boolean / string は publish を経ずに DB へ残存しうる契約外形。notation を取り出せないので
+  // 宣言なしとして扱う（正本: packages/sheet-engine/src/roll-on-create.ts の rollOnCreateSpec）。
   it.each([
     ['boolean', { rollOnCreate: true, notation: '1d20' }],
-    ['string', { rollOnCreate: '1d20' }],
-    ['object', { rollOnCreate: { notation: '1d20' } }]
-  ])('rollOnCreate の %s 形を持つ scalar は作成時ロールしない', async (_caseName, legacyProperties) => {
+    ['string', { rollOnCreate: '1d20' }]
+  ])('rollOnCreate の契約外形（%s）を持つ scalar は作成時ロールしない', async (_caseName, legacyProperties) => {
     const dependencies = createDependencies()
-    const scalarTemplate: CharacterSheetTemplateEntity = {
-      ...template,
-      sections: [
-        {
-          id: 'parameter',
-          label: 'Parameter',
-          fields: [
-            {
-              id: 'luck',
-              uid: 'uid-luck',
-              label: 'Luck',
-              type: 'scalar',
-              valueType: 'number',
-              ...legacyProperties
-            }
-          ]
-        }
-      ]
-    }
-    dependencies.templateService.resolveForCreate.mockResolvedValue(scalarTemplate)
+    dependencies.templateService.resolveForCreate.mockResolvedValue(scalarCreationTemplate(legacyProperties))
 
     await dependencies.service.instantiate(instantiateInput)
 
     expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
+  })
+
+  it('内訳を宣言した number scalar の rollOnCreate は発火し、出目が内訳の base へ入る', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolveForCreate.mockResolvedValue(
+      scalarCreationTemplate({ parts: true, rollOnCreate: { notation: '3d6*5' } })
+    )
+
+    const result = await dependencies.service.instantiate(instantiateInput)
+
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).toHaveBeenCalledWith('3d6*5', 'DiceBot')
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.sheet.values['uid-luck']).toEqual({ parts: { base: 55 } })
+    expect(result.rollOnCreateResults).toEqual([
+      { uid: 'uid-luck', label: 'Luck', notation: '3d6*5', total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' }
+    ])
+  })
+
+  // 内訳を宣言していない number scalar にも publish は rollOnCreate を許す
+  // （publish.spec.ts の 'accepts a scalar creation roll without a destination'）。
+  // 書き込み側（creationRollValue）は内訳を持てない field へ生の数値を返すので、保存形もそうなる。
+  it('内訳を宣言していない number scalar の出目は生の数値のまま保存される', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolveForCreate.mockResolvedValue(
+      scalarCreationTemplate({ rollOnCreate: { notation: '3d6*5' } })
+    )
+
+    await dependencies.service.instantiate(instantiateInput)
+
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.sheet.values['uid-luck']).toBe(55)
+  })
+
+  // 衝突 = creationRollValue が提出値を残さない形。内訳を持てない scalar への提出は丸ごと、
+  // 内訳形でない提出は parts の作り直しで、行き先キーを含む提出はその上書きで失われる。
+  it.each([
+    ['内訳を持てない scalar への提出', { rollOnCreate: { notation: '3d6*5' } }, { 'uid-luck': 40 }],
+    ['内訳形でない提出', { parts: true, rollOnCreate: { notation: '3d6*5' } }, { 'uid-luck': 40 }],
+    [
+      '行き先キーを含む内訳の提出',
+      { parts: true, rollOnCreate: { notation: '3d6*5' } },
+      { 'uid-luck': { parts: { base: 40, other: 5 } } }
+    ]
+  ])(
+    'rollOnCreate 宣言 scalar への衝突する提出（%s）を 422 にして roll と insert を実行しない',
+    async (_caseName, scalarProperties, values) => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(scalarCreationTemplate(scalarProperties))
+
+      const instantiation = dependencies.service.instantiate({ ...instantiateInput, values })
+
+      await expect(instantiation).rejects.toBeInstanceOf(UnprocessableEntityException)
+      await expect(instantiation).rejects.toMatchObject({ response: { fieldUid: 'uid-luck' } })
+
+      expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
+      expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
+      expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+      expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+    }
+  )
+
+  // track の一律 422 と分かれる中心的なケース。scalar の出目は内訳の 1 キーにしか書かないので、
+  // 「職業ボーナスを other へ入れつつ base は振る」が成立する。
+  it('rollOnCreate 宣言 scalar への行き先以外の内訳の提出は受理し、提出した内訳を残したまま行き先を振る', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolveForCreate.mockResolvedValue(
+      scalarCreationTemplate({ parts: true, rollOnCreate: { notation: '3d6*5' } })
+    )
+
+    await dependencies.service.instantiate({
+      ...instantiateInput,
+      values: { 'uid-luck': { parts: { other: 5 } } }
+    })
+
+    const materializeArgument = dependencies.sheetMaterializer.materialize.mock.calls[0][0]
+    expect(materializeArgument.sheet.values['uid-luck']).toEqual({ parts: { other: 5, base: 55 } })
+    expect(dependencies.characterRepository.createMaterializedCharacter).toHaveBeenCalledTimes(1)
   })
 
   it('RollField は契約外 rollOnCreate より正本 notation を優先する', async () => {
@@ -395,6 +477,22 @@ describe('CharacterInstantiationService', () => {
     expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
     expect(dependencies.sheetMaterializer.materialize).not.toHaveBeenCalled()
     expect(dependencies.characterIdService.generateUniqueCharacterId).not.toHaveBeenCalled()
+    expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
+  })
+
+  // 契約外形の宣言では rollOnCreateSpec が undefined を返して発火しない。提出まで通ると、
+  // 著者が「作成時に振られる」と宣言した項目へクライアントの値だけが入る形になるため、
+  // 提出の拒否は宣言の有無だけを見る（発火の述語より外延が広い）。
+  it('契約外形 rollOnCreate を持つ track への明示提出値も 422 にする（発火しないが提出も通さない）', async () => {
+    const dependencies = createDependencies()
+    dependencies.templateService.resolveForCreate.mockResolvedValue(trackCreationTemplate(10, { rollOnCreate: true }))
+
+    const instantiation = dependencies.service.instantiate({ ...instantiateInput, values: { 'uid-hp': 7 } })
+
+    await expect(instantiation).rejects.toBeInstanceOf(UnprocessableEntityException)
+    await expect(instantiation).rejects.toMatchObject({ response: { fieldUid: 'uid-hp' } })
+
+    expect(dependencies.diceExecutionService.executeEvaluatedDiceRoll).not.toHaveBeenCalled()
     expect(dependencies.characterRepository.createMaterializedCharacter).not.toHaveBeenCalled()
   })
 

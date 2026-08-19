@@ -15,8 +15,8 @@ import { allowsParts, isPartsValue, type SheetPartsValue } from './sheet-values.
  * 経路ごとに規則が食い違うと、同じ項目が作成直後と振り直し後で違う保存形になり、
  * 読み手（front の内訳表示・track-range.policy の実効値解決）が両形を場当たりに扱うことになる。
  *
- * allowsParts が false の field へは生の数値を返す（現時点でここへ来るのは roll 型。PV-S で scalar が
- * 発火すると内訳を宣言していない number scalar も加わる — 下の早期 return のコメント）。
+ * allowsParts が false の field へは生の数値を返す（ここへ来るのは roll 型と、内訳を宣言していない
+ * scalar — 下の早期 return のコメント）。
  * この出力を受け止めるのは保存経路の防壁で、SheetMaterializerService.validateStoredValues が
  * roll 型を先に処理し（有限数か文字列だけを受理する）buildValueInputSchema へ渡さない。
  * value-input.ts の `isPartsValue && !allowsParts` 拒否はクライアント提出経路
@@ -36,9 +36,10 @@ export function creationRollValue(
   // allowsParts は型ではなくインスタンスの宣言を見る述語（value-input.ts。scalar には parts: true か
   // partsKeys の宣言を要求する）。一方 publish は number scalar の rollOnCreate にその宣言までは要求しない
   // （validateScalarRollOnCreate。publish.spec.ts の 'accepts a scalar creation roll without a destination'）。
-  // よって PV-S で scalar が発火した後は、内訳を宣言していない number scalar もここへ落ち、
-  // 宣言された行き先も下の other 拒否も通らないまま生の数値になる。
-  // この差集合をどう扱うかは PV-S の設計判断で、本スライスでは挙動を変えない。
+  // よって内訳を宣言していない number scalar もここへ落ち、宣言された行き先も下の other 拒否も
+  // 通らないまま生の数値になる。この差集合は生の数値のままにすると決めた（PV-S の裁定）。
+  // 内訳形を書くと、その field には value-input.ts の `isPartsValue && !allowsParts` 拒否が立っており、
+  // 保存はできても以後クライアントから提出し直せない値になる。
   if (!allowsParts(field)) return total
 
   // engine の rollOnCreateSpec は「行き先の指定が無い」を undefined のまま返し、既定を決めていない。

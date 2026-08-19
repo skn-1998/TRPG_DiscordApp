@@ -752,6 +752,61 @@ D-11 の決着（振り直しの対象は作成時ロールの記法の宣言だ
 assert 2 本がどちらも「issues / warnings が空」で、keep されたことを見る assert は 0 本。
 実際に pin しているのは「nested な非 scalar には gate が発火しない」こと。名前が射程より広い。
 
+### scalar の作成時ロールを発火させる（PV-S・2026-08-19・未コミット）
+
+正本 = `review-results/roll-lane/prompt-pvs-code.txt` ＋ `prompt-pvs-fix.txt` ＋ `prompt-pvs-fix2.txt`、
+検収 = `review-results/roll-lane/pvs-acceptance.md`。
+
+**発端**: 配布中の Legacy CoC テンプレートが**作成直後に HP / MP / SAN すべて 0** になっていた。
+8 能力値が scalar（`con`）と roll（`con_roll`）の二重宣言で、作成時ロールは
+`values[field.uid] = ...` と自分の uid にしか書かないため、出目は `con_roll` に入り
+式が読む `con` は空のまま。未入力 scalar は `numberOrZero` で 0 に畳まれて静かに通る。
+**この壊れ方は全ゲート緑のまま素通りする**（宣言としては正しく、間違っているのは宣言どうしの繋がりだけ）。
+
+`ScalarField.rollOnCreate` は型にも publish にも既にあったが、`rollOnCreateSpec` が
+scalar を読まなかったため発火しなかった。本スライスでそれを読ませ、
+同じ diff で作成時の提出値ガードを衝突判定へ広げた。**CI-1 を吸収**したのは、
+scalar が発火しないうちは scalar 側ガードが 1 度も通らず受入テストが書けないため。
+
+- **提出値は「衝突するときだけ 422」**（ユーザー裁定）。衝突 = `!allowsParts(field)` ／
+  提出が内訳形でない ／ 提出の `parts` が行き先キー（`spec.partsKey ?? 'base'`）を own property に持つ。
+  3 条件は `creationRollValue` の分岐から導いたもので独立した規則ではない。
+  これにより「職業ボーナスを `other` へ入れつつ `base` は振る」が成立する
+- **track の一律 422（裁定 5）は不変**。契約外形（`rollOnCreate: true` 等）への提出も 422 のまま。
+  **この分岐だけが述語を経ず宣言の有無を直読みする**。提出の拒否は発火の述語より外延が広いためで、
+  engine 側 `roll-on-create.ts` の JSDoc が元から明記していた。変異 MS4 で pin 済み
+- **述語は `valueType` を絞らない**。絞るのは publish の `validateScalarRollOnCreate` だけ。
+  受理範囲と発火範囲を別々のゲートにしないための選択。publish を経ずに保存された非 number scalar は
+  発火し、`validateStoredValues` の `z.string()` に数値が落ちて **422**（静かな破壊ではない）。
+  既存 pin `valueType が number でない scalar の rollOnCreate も発火させない` を反転させている
+- **内訳を宣言していない number scalar の出目は生の数値のまま**（PV-S の裁定）。内訳形にすると
+  `value-input.ts` の `isPartsValue && !allowsParts` 拒否に当たり、以後クライアントから提出し直せない値になる
+- **front のロジックは無変更**。`renderCreationRollReroll` が `rollOnCreateSpec` だけで対象を決めるので
+  scalar にも振り直しボタンが自動で出る。ただし**その主張を固定するテストが 0 本だった**ので追加した
+- **`applyRerollResult` の baseline 書き戻しが生きた挙動になった**。PV-S 前は振り直し対象が
+  track / roll だけで `deriveSheetChanges` の対象外だったので無害だったが、scalar は
+  `editableScalarFields` に含まれるため、baseline を進めないと振り直した値が偽の未保存差分になる。
+  `setBaseline` を落とすと新テスト 1 本だけが赤になることを実測して pin した
+- **到達不能な防御が 1 つある**: `assertSubmittedValueSurvivesCreationRoll` の
+  `if (field.type === 'roll') return`。削除しても該当 spec は 21 passed / 21 のまま
+  （`validateInputValues` が先に 422 にするため）。変異 MS5 で実測し、コメントに書いた
+- ゲート（Fable が全層で再実行）= engine build 0 / 14 suites・567 passed（+2）、
+  server build 0 / 循環ゼロ / 226 suites・3213 passed（+6）、
+  front tsc 0 / 34 suites・590 passed（+2）/ eslint 0
+
+**変異検証**: 7 変異すべて sha256 一致で復元。6 変異を検出、負の対照 MS5 のみ生存（上記）。
+
+**レビュー運用の教訓**: 3 レンズ独立で 10 所見が出たが、各所見を 1 対 1 で反証にかけたら全件棄却された。
+しかし**複数レンズが同じ問題に収束**しており（契約外形の非対称 3 レンズ、JSDoc 陳腐化 2 レンズ、
+valueType 2 レンズ）、実物で確かめると陳腐化は成立していた。反証者は 1 件しか見ないので
+「複数の新規読者が同じ箇所で詰まった」という測定結果を知らないまま棄却できてしまう。
+棄却理由の 1 つ「対象ファイル外だからスコープ外」は、スライスが無効化した記述の後始末を
+求める所見に対して循環している。メモリ `lens-convergence-outranks-solo-refutation` に記録。
+
+**残タスク**: エディタの scalar に記法入力欄（#54）、legacy-coc の二重宣言統合（#55）。
+#55 は seeder が insert しかしない（`seed-legacy-coc-template.ts:104-115`）ため、
+既に seed 済みの DB をどう更新するかのユーザー裁定が要る。
+
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 
 **〔同日更新〕本節の「設計のみ・実装ゼロ」は実装完了で置き換わった。** 実装の正本記録 =

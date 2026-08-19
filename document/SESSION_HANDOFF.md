@@ -3732,6 +3732,8 @@ legacy-coc は track を持たないので到達せず、`min`/`max` は全経�
   `creationRollValue` の早期 return に落ちて宣言された行き先も `other` 拒否も素通りする。**
   この扱いを決めるのが PV-S の主要な設計判断（publish で拒否するか、`base` を全体値と解釈するか）。
   反転する pin = `character-instantiation.service.spec.ts:240-270` の 'object' ケース（非発火 → 発火）。
+  **→ 2026-08-19 に #46 で決着済み**（差集合は生の数値のまま。理由込みで下記
+  「現在の feature: PV-S レーン」を参照。ここから下の PV-S 記述はすべて着手前の見立て）。
 - **PV-2b**: `partsKeys[].default` を作成時に評価して内訳へ入れる。式の評価は既存の
   `evaluateConstraint`（`constraint-evaluator.ts:38`）。提出値との合成規則を決めて固定する。
 
@@ -3790,6 +3792,7 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
   （1 test 赤）を**識別できる**ようになった。FIX 前は両設計が区別できなかった。
   `types.ts` は `ScalarField.rollOnCreate` を `valueType` で絞っておらず、絞るのは publish の
   `validateScalarRollOnCreate` だけ。**publish だけが絞っている宣言を述語側でどう扱うかが PV-S の判断点**。
+  **→ 2026-08-19 に #46 で決着済み**（述語は `valueType` を絞らない。下記「現在の feature: PV-S レーン」を参照）。
 - **RL-7a の設計**: 述語 `rollOnCreateSpec` と型を `packages/sheet-engine` へ移送し
   barrel から named export する。`creationRollValue` は Nest 例外を投げるので server 残留。
   **理由**: 述語は現在 TRPG-SERVER にあり front から import できない。
@@ -3903,12 +3906,14 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
   `TemplateEditorV3.spec.tsx` の重い 5 本が jest 既定 5000ms を超える負荷依存のタイムアウト。
   失敗 describe 内の `'roll'` 出現数 0・describe 単独なら 5 passed/22 秒・
   `--testTimeout=20000` で 99 passed。**失敗テスト数が 0 でないので競合の署名ではない**点に注意
-- **CI-1**（タスク #51・**PV-S より前**・**ユーザー裁定が 1 件必要**):
+- **CI-1**（旧タスク #51 → **#46 へ吸収・裁定済み 2026-08-19**):
   `character-instantiation.service.ts:94-105` の提出値ガードだけが述語を経ず型直読み
   （`field.type === 'track' && field.rollOnCreate !== undefined`）。同一ループ内 8 行の距離に
   判定が 2 つある。PV-S で scalar を発火させるとガードが追随せず、**track は 422 で loud・
-  scalar は無言上書き**という非対称が生まれる。裁定点 = 契約外形 track（`rollOnCreate: true`）への
-  提出値を現行の 422 のままにするか受理へ変えるか。PV-S と同一 diff に混ぜない
+  scalar は無言上書き**という非対称が生まれる。
+  **単独スライスにできないことが分かったので #46 へ畳んだ**。scalar が発火しないうちは
+  `rollOnCreateSpec` が scalar に undefined を返すため scalar 側のガードが 1 度も通らず、
+  受入テストが書けない。「PV-S と同一 diff に混ぜない」という以前の記載はこの理由で撤回する
 - **CI-2**（タスク #52）: `collectTopLevelFields` が同名・異本体で 2 実装
   （instantiation 側は `Array.isArray` 防御あり、materializer 側はなし）。1 回の `instantiate()` で両方走る。
   `findTopLevelField` は返り値型も throw も違うので統合対象にしない（フラグ引数が生えて共有抽象結合になる）
@@ -3938,8 +3943,98 @@ props から `useState` 初期化子で保持する。初期化子は再レン�
   （`CharacterSheetEditClient.tsx:126` のコメント）。
   よって振り直し後は応答の revision で `baseRevision` を更新しないと次の振り直しが落ちる。
   未保存の scalar 編集は別 path なので per-path CAS を通り、振り直しでは失われない
-- front は global 80% coverage threshold があり、部分的な spec 追加が full test を赤にしうる
-  （メモリ `front-coverage-threshold-trap`）
+- 【訂正】coverage threshold の罠は**旧 trpg-remix-app のもので、現行 trpg-next-app には閾値が無い**。
+  閾値を持つのは TRPG-SERVER 側（メモリ `front-coverage-threshold-trap`）。
+  「front は global 80% threshold」という以前の記載は誤りだったので撤回する
+
+## 現在の feature: PV-S レーン（scalar の作成時ロール）— 2026-08-19 着手
+
+**発端（ユーザー要望）**: 「式 `floor(({parameter.con} + {parameter.siz}) / 10)` があるとき、
+con と siz にダイスのような計算式を許してほしい」。
+
+**診断（実測）**: 配布中の Legacy CoC テンプレートは**作成直後に HP / MP / SAN が 0 になる**。
+`legacy-coc.template.ts` の 8 能力値が scalar（`con`）と roll（`con_roll`）の二重宣言で、
+作成時ロールは `values[field.uid] = ...`（`character-instantiation.service.ts:113`）と
+**自分の uid にしか書かない**。出目は `con_roll` に入り、式が読む `con` は空のまま。
+未入力 scalar は `numberOrZero` で 0 に落ちて静かに通るので `floor((0 + 0) / 10)` = 0 になる。
+「振る役」と「式が読む役」が別フィールドに分かれているのが原因。
+
+**宣言 4 形の実測**
+
+| 宣言 | 作成時に振れる | 式から数値で読める | 手で直せる | エディタで宣言できる |
+|---|---|---|---|---|
+| scalar 数値（今の `con`） | ✕ | ○ | ○ | ○ |
+| roll 型（今の `con_roll`） | ○ | 振った後だけ | ✕ | ○ |
+| track ＋ `rollOnCreate` | ○ | ○ | ○ | ○ |
+| **scalar ＋ `rollOnCreate`** | **✕ 発火しない** | ○ | ○ | **✕ 入力欄が無い** |
+
+- roll 型が手で直せないのは `inputSchemaFor` が scalar / track にしか schema を返さないため
+  （`value-input.ts:137-144`）。保存は `field ... is not an input field (roll)` で弾かれる
+- roll 型を式が参照すると未ロールのうちは `{type:'dice'}` になり
+  `Expected number, got dice` で式ごと落ちる（`evaluator.ts:181`, `:482`）
+- track は `max` と `style` が必須でゲージ UI が付く。能力値には形が合わない
+- scalar ＋ `rollOnCreate` は**型も publish も既に受理している**のに、
+  `rollOnCreateSpec` が scalar を読まない（`roll-on-create.ts:56`）ため発火しない。
+  エディタの scalar 分岐（1283-1334）内の `rollOnCreate` 出現数は**実測 0 件**
+
+**ユーザー裁定 2 件（2026-08-19）**
+
+1. **形は「scalar に作成時ロールを足す」**。con を数値 scalar のまま `rollOnCreate` で宣言し、
+   作成時に 1 回振れて・式は数値を読み・あとから手でも直せる形にする。
+   却下: seed の式を roll 側へ向け替える案（手で直せなくなる／点消費・年齢修正が不可）、
+   式が dice を評価する案（computed は保存のたび `buildComputedCache` で再評価されるので HP が毎回変わる）
+2. **提出値は「衝突するときだけ 422」**。track の一律 422（裁定 5）は不変。
+   scalar は内訳を持てて作成時ロールは**内訳の 1 キーにだけ書く**ので
+   （`creationRollValue(field, currentValue, total, spec.partsKey)`）、
+   「職業ボーナスを `other` に入れつつ `base` は振る」が原理的に成立する。track にこの事情はない
+
+**衝突の定義は `creationRollValue` の分岐から導ける**（実測。`creation-roll-value.util.ts`）:
+`!allowsParts(field)` なら生の数値を返して提出を丸ごと捨てる／内訳形でない提出は `parts = {}` から
+作り直されて捨てられる／内訳形の提出は行き先キー以外を保持する。よって衝突 =
+`!allowsParts(field)` または提出が内訳形でない、または提出の `parts` が `partsKey ?? 'base'` を含む。
+
+**射程の実測**: 今日クライアントから作成時に値が送られる経路は**無い**。
+front の `createCharacter` の入力型は `templateId` / `templateVersion` / `characterName` の 3 つだけ
+（`actions.ts:125-138`）。DTO 側は `values?` を optional で受けるので直接 API を叩けば到達する。
+
+**PV-S は front の振り直し導線へ自動で波及する**。`renderCreationRollReroll` は
+`rollOnCreateSpec` だけで対象を決める（`TemplateFormRenderer.tsx:722`）ので、
+scalar が発火した時点で編集欄の下に「振り直す」ボタンが出る。front の変更は要らない。
+
+**スライス**
+
+| # | タスク | 内容 | 状態 |
+|---|---|---|---|
+| 1 | #46 PV-S | engine の `rollOnCreateSpec` が scalar を読む ＋ server の提出値ガードを衝突判定へ。CI-1 を吸収 | **実装＋修正 2 ラウンド完了・検収済み・未コミット** |
+| 2 | #54 PV-S2 | エディタの scalar 分岐に「作成時ロール記法」入力欄を出す（track 分岐 1365-1397 と同型） | 未着手 |
+| 3 | #55 PV-S3 | legacy-coc の二重宣言を 1 本に畳む。既存 published / pinned revision への影響を先に実測 | 未着手・**seeder の制約でユーザー裁定が 1 件必要**（タスク #55 の説明を参照） |
+
+**#46 の変更は 8 ファイル**（engine 2・server 3・front 3）。検収記録 = `review-results/roll-lane/pvs-acceptance.md`。
+
+**#46 で確定した設計判断**
+
+- **提出値は「衝突するときだけ 422」**。衝突 = `!allowsParts(field)` ／ 提出が内訳形でない ／
+  提出の `parts` が行き先キー（`spec.partsKey ?? 'base'`）を own property に持つ。
+  この 3 条件は `creationRollValue` の分岐から導いたもので、独立した規則ではない
+- **track の一律 422 は不変**（裁定 5）。契約外形（`rollOnCreate: true` 等）への提出も 422 のまま。
+  この分岐だけが述語を経ず宣言の有無を直読みする。理由は「提出の拒否は発火の述語より外延が広い」で、
+  engine 側 `roll-on-create.ts` の JSDoc が元から明記していた
+- **述語は `valueType` を絞らない**。絞るのは publish の `validateScalarRollOnCreate` だけ。
+  publish を経ずに保存された非 number scalar は発火し、`materialize` の
+  `validateStoredValues` で **422 になる**（静かな破壊ではなく loud failure）。
+  受理範囲と発火範囲を別々のゲートにしないための選択
+- **内訳を宣言していない number scalar の出目は生の数値のまま**。内訳形にすると
+  `value-input.ts` の `isPartsValue && !allowsParts` 拒否に当たり、以後クライアントから提出し直せない値になる
+
+**#46 が front に波及した点（front のロジックは無変更）**
+
+- `renderCreationRollReroll` は `rollOnCreateSpec` だけで対象を決めるので、
+  **scalar にも振り直しボタンが自動で出る**。`TemplateFormRenderer.spec.tsx` に描画テストを 1 本追加して pin した
+- `applyRerollResult` の baseline 書き戻しが**生きた挙動になった**。PV-S 前は振り直し対象が
+  track / roll だけで `deriveSheetChanges` の対象外だったので無害だったが、scalar は
+  `editableScalarFields` に含まれるため、baseline を進めないと振り直した値が
+  偽の未保存差分として保存対象に入る。`CharacterSheetEditClient.spec.tsx` に検出テストを 1 本追加した
+  （`setBaseline` を落とすとその 1 本だけが赤になることを実測）
 
 ## 参照
 
