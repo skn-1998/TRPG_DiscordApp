@@ -19,30 +19,39 @@ const LEGACY_COC_ABILITIES: LegacyAbilityDefinition[] = [
   { id: 'edu', uid: 'lgc_edu', label: 'EDU', rollNotation: '(2d6+6)*5' }
 ]
 
+/**
+ * 能力値 1 つにつき scalar を 1 本だけ作り、作成時ロールをその scalar 自身に宣言する。
+ *
+ * 出目は宣言した field の uid にしか書かれない（character-instantiation.service.ts の
+ * applyRollOnCreate）。かつて能力値は scalar と `*_roll`（roll 型）の 2 本に分かれており、
+ * 出目は roll 側へ入る一方で HP / MP / SAN の式は scalar 側を参照していた。
+ * 未入力の数値 scalar は評価時に 0 へ畳まれる（evaluator.ts の numberOrZero）ため、
+ * 作成直後の HP / MP / SAN が例外も警告も無いまま 0 になっていた。
+ *
+ * parts と role は作成時ロールとは別の関心なので残す。parts は Discord の ± が積む内訳の器で、
+ * role は技能判定（1d100 以下）のパレット項目。
+ */
 function buildLegacyAbilityFields(): SheetField[] {
-  return LEGACY_COC_ABILITIES.flatMap((ability): SheetField[] => [
-    {
-      type: 'scalar',
-      id: ability.id,
-      uid: ability.uid,
-      label: ability.label,
-      valueType: 'number',
-      parts: true,
-      role: { kind: 'rollable', notation: '1d100<={value}', group: 'ability' }
-    },
-    {
-      type: 'roll',
-      id: `${ability.id}_roll`,
-      uid: `${ability.uid}_roll`,
-      label: `${ability.label} roll`,
-      notation: ability.rollNotation
-    }
-  ])
+  return LEGACY_COC_ABILITIES.map((ability): SheetField => ({
+    type: 'scalar',
+    id: ability.id,
+    uid: ability.uid,
+    label: ability.label,
+    valueType: 'number',
+    parts: true,
+    rollOnCreate: { notation: ability.rollNotation },
+    role: { kind: 'rollable', notation: '1d100<={value}', group: 'ability' }
+  }))
 }
 
 export const LEGACY_COC_TEMPLATE: SheetTemplate = {
-  templateId: 'legacy-coc',
-  name: 'Legacy Call of Cthulhu',
+  // 旧 `legacy-coc` の行は残したまま、別 id で出し直す。
+  // seeder（src/scripts/seed-legacy-coc-template.ts の decideSeedAction）は insert しか持たず、
+  // 同 templateId の既存行に対しては skip / conflict を報告するだけで上書きしない。
+  // さらに作成済みキャラは templateId と templateVersion を sheet へ固定保存する
+  // （character-instantiation.service.ts）ため、旧行を消すと既存キャラの template 解決が壊れる。
+  templateId: 'legacy-coc-v2',
+  name: 'Legacy Call of Cthulhu（能力値ロール修正版）',
   version: '1.0.0',
   schemaVersion: 3,
   // BCDice StaticLoader requires an existing system ID; an unknown ID makes creation-time rolls fail.

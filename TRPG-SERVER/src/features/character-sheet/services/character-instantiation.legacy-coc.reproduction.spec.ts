@@ -1,13 +1,22 @@
 /**
- * LEGACY_COC_TEMPLATE からのキャラ作成で、全 roll フィールドの作成時ロールが発火することを検証する。
+ * LEGACY_COC_TEMPLATE からのキャラ作成で、8 能力値の作成時ロールが発火し、出目が
+ * HP / MP / SAN の式が読む場所へ入ることを、実 materializer / 実 evaluator を通して検証する。
  *
- * 期待の根拠: design-v1 §「フィールド型」の RollField = 「作成時ロール（bcdice 記法）」・
+ * 期待の根拠: design-v1 §「フィールド型」の作成時ロール（bcdice 記法）・
  * phase2-operation-contracts OP-3 の供給側保証「rollOnCreate（server 実行）」。
- * roll フィールド値は作成入力として提出不可（value-input.ts が 422）・作成後も書込不可
- * （assertWritablePath は track/scalar のみ）のため、作成時ロールが唯一の値供給経路。
+ * 能力値 scalar は作成時ロールを宣言しているため作成入力として提出できず
+ * （提出すると出目に潰されるので character-instantiation.service.ts が 422 にする）、
+ * 作成時ロールが唯一の値供給経路になる。
  *
- * roll 型は常時ロールが正式挙動であるため、本 spec は緑が正しい。
- * 赤に戻る場合は常時ロールの退行を示すため、期待値をロール 0 回へ書き換えてはならない。
+ * 本 spec は以前、能力値 1 つにつき用意されていた `*_roll`（roll 型）8 件の発火を固定していた。
+ * その形では出目が `lgc_*_roll` に入り、式が読む `lgc_*` は未入力のまま 0 に畳まれるため
+ * （evaluator.ts の numberOrZero）、作成直後の HP / MP / SAN が静かに 0 になっていた。
+ * seed を scalar 1 本へ畳んだのに伴い、期待も「roll 型 8 件」から
+ * 「能力値 scalar 8 件が作成時ロールを宣言し、出目が式の参照先に入る」へ移した。
+ * 作成時ロールが 8 回発火するという保証の強さは落とさず、出目の行き先の検証を足している。
+ *
+ * 緑が正しい spec。赤に戻る場合は作成時ロールか出目の行き先の退行を示すため、
+ * ロール 0 回や HP 0 へ期待値を書き換えてはならない。
  */
 import type { CharacterEntity, MaterializedCharacterEntity } from '../../../domains/character/models/character.entity'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
@@ -15,29 +24,36 @@ import { LEGACY_COC_TEMPLATE } from '../../../domains/character-sheet-template/s
 import { CharacterInstantiationService } from './character-instantiation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
-describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）', () => {
+describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（作成時ロール）', () => {
   const publishedLegacyCocTemplate = {
     ...LEGACY_COC_TEMPLATE,
     status: 'published',
     draftRevision: 1
   } as unknown as CharacterSheetTemplateEntity
 
-  // seed の全 roll フィールド。3d6*5 が STR/CON/POW/DEX/APP、(2d6+6)*5 が SIZ/INT/EDU
+  // seed の全能力値。3d6*5 が STR/CON/POW/DEX/APP、(2d6+6)*5 が SIZ/INT/EDU
   const EXPECTED_CREATION_ROLLS = [
-    { uid: 'lgc_str_roll', label: 'STR roll', notation: '3d6*5' },
-    { uid: 'lgc_con_roll', label: 'CON roll', notation: '3d6*5' },
-    { uid: 'lgc_pow_roll', label: 'POW roll', notation: '3d6*5' },
-    { uid: 'lgc_dex_roll', label: 'DEX roll', notation: '3d6*5' },
-    { uid: 'lgc_app_roll', label: 'APP roll', notation: '3d6*5' },
-    { uid: 'lgc_siz_roll', label: 'SIZ roll', notation: '(2d6+6)*5' },
-    { uid: 'lgc_int_roll', label: 'INT roll', notation: '(2d6+6)*5' },
-    { uid: 'lgc_edu_roll', label: 'EDU roll', notation: '(2d6+6)*5' }
+    { uid: 'lgc_str', label: 'STR', notation: '3d6*5' },
+    { uid: 'lgc_con', label: 'CON', notation: '3d6*5' },
+    { uid: 'lgc_pow', label: 'POW', notation: '3d6*5' },
+    { uid: 'lgc_dex', label: 'DEX', notation: '3d6*5' },
+    { uid: 'lgc_app', label: 'APP', notation: '3d6*5' },
+    { uid: 'lgc_siz', label: 'SIZ', notation: '(2d6+6)*5' },
+    { uid: 'lgc_int', label: 'INT', notation: '(2d6+6)*5' },
+    { uid: 'lgc_edu', label: 'EDU', notation: '(2d6+6)*5' }
   ] as const
 
   const STUB_TOTAL_BY_NOTATION: Record<string, number> = {
     '3d6*5': 55,
     '(2d6+6)*5': 65
   }
+
+  /**
+   * 上の出目から seed の式が導く値。式そのものは seed が正本で、ここは実測の期待値。
+   * HP = floor((CON 55 + SIZ 65) / 10)、MP = floor(POW 55 / 5)、SAN = POW、
+   * DB = lookup(STR 55 + SIZ 65 = 120, damage_bonus) → 85..124 の行。
+   */
+  const EXPECTED_DERIVED_VALUES = { lgc_hp: 12, lgc_mp: 11, lgc_san: 55, lgc_db: '0' }
 
   const instantiateInput = {
     templateId: LEGACY_COC_TEMPLATE.templateId,
@@ -46,17 +62,8 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     characterName: 'Investigator',
     discordUserId: 'user-1',
     discordChannelId: 'channel-1',
-    // scalar 能力値はユーザー手入力扱い（roll フィールドの値供給とは独立）
-    values: {
-      lgc_str: 50,
-      lgc_con: 55,
-      lgc_pow: 60,
-      lgc_dex: 65,
-      lgc_app: 40,
-      lgc_siz: 60,
-      lgc_int: 70,
-      lgc_edu: 75
-    }
+    // 能力値は提出できないため、作成時ロールの対象外である description の項目だけを提出する
+    values: { lgc_occupation: 'Antiquarian' }
   }
 
   function createService() {
@@ -84,16 +91,20 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     return { service, diceExecutionService }
   }
 
-  it('seed の roll フィールド一覧が本 spec の期待ロール一覧と一致する（seed 側を削って緑化する改変の防止）', () => {
-    const seedRolls = LEGACY_COC_TEMPLATE.sections
-      .flatMap((section) => section.fields)
-      .filter((field) => field.type === 'roll')
-      .map((field) => ({ uid: field.uid, label: field.label, notation: field.notation }))
+  it('seed の作成時ロール宣言が本 spec の期待一覧と一致し、roll 型へ分裂していない', () => {
+    const fields = LEGACY_COC_TEMPLATE.sections.flatMap((section) => section.fields)
+    const declaredRolls = fields.flatMap((field) =>
+      field.type === 'scalar' && field.rollOnCreate !== undefined
+        ? [{ uid: field.uid, label: field.label, notation: field.rollOnCreate.notation }]
+        : []
+    )
 
-    expect(seedRolls).toEqual([...EXPECTED_CREATION_ROLLS])
+    expect(declaredRolls).toEqual([...EXPECTED_CREATION_ROLLS])
+    // 出目の行き先が式の参照先から再び分かれる形（能力値ごとの `*_roll`）への逆戻りを検出する
+    expect(fields.filter((field) => field.type === 'roll')).toEqual([])
   })
 
-  it('作成時に seed の全 roll フィールド（8 能力値ロール）の bcdice 実行が発火する', async () => {
+  it('作成時に seed の全能力値（8 件）の bcdice 実行が発火する', async () => {
     const { service, diceExecutionService } = createService()
 
     await service.instantiate(instantiateInput)
@@ -105,7 +116,7 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     }
   })
 
-  it('rollOnCreateResults が 8 件の roll フィールドを uid・label・notation 付きで報告する', async () => {
+  it('rollOnCreateResults が 8 件の能力値を uid・label・notation 付きで報告する', async () => {
     const { service } = createService()
 
     const result = await service.instantiate(instantiateInput)
@@ -115,17 +126,32 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（L-2 再現）',
     ])
   })
 
-  it('ロール結果が sheet.values へ保存され parameter 投影に現れる', async () => {
+  it('出目が式の参照先である能力値 scalar へ内訳 base として保存され parameter 投影に現れる', async () => {
     const { service } = createService()
 
     const result = await service.instantiate(instantiateInput)
 
     for (const roll of EXPECTED_CREATION_ROLLS) {
-      expect(result.materialized.sheet.values[roll.uid]).toBe(STUB_TOTAL_BY_NOTATION[roll.notation])
+      expect(result.materialized.sheet.values[roll.uid]).toEqual({
+        parts: { base: STUB_TOTAL_BY_NOTATION[roll.notation] }
+      })
     }
-    expect(result.materialized.projection.parameter['str_roll']).toMatchObject({
-      name: 'STR roll',
+    expect(result.materialized.projection.parameter['con']).toMatchObject({
+      name: 'CON',
       values: { base: STUB_TOTAL_BY_NOTATION['3d6*5'] }
+    })
+  })
+
+  it('作成直後の HP / MP / SAN / DB が出目から導かれ、0 に畳まれない', async () => {
+    const { service } = createService()
+
+    const result = await service.instantiate(instantiateInput)
+
+    expect(result.materialized.computedCache).toEqual(EXPECTED_DERIVED_VALUES)
+    expect(result.materialized.projection.status).toMatchObject({
+      hp: { values: { base: EXPECTED_DERIVED_VALUES.lgc_hp } },
+      mp: { values: { base: EXPECTED_DERIVED_VALUES.lgc_mp } },
+      san: { values: { base: EXPECTED_DERIVED_VALUES.lgc_san } }
     })
   })
 })

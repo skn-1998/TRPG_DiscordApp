@@ -1,5 +1,14 @@
 import type { CharacterSheetProjection } from '../types/character-sheet.types'
 
+/**
+ * legacy-coc テンプレートを materialize した投影の golden。値そのものの互換性を固定する。
+ *
+ * parameter の index は 2026-08-19 に 0,2,4,…,14 から 0..7 へ詰めた。index は
+ * `sectionIndex * 1000 + fieldIndex`（sheet-materializer.service.ts）で、seed が能力値ごとに
+ * 持っていた `*_roll` field を畳んだぶんだけ間隔が縮んだもの。表示順は変わらず、
+ * name / values / dice / isVisible も 1 件も動いていない。
+ * 値が動いたときは互換性の退行なので、ここを合わせて緑にしてはならない。
+ */
 export const REPRESENTATIVE_LEGACY_CHARACTER_PROJECTION = {
   status: {
     hp: {
@@ -36,43 +45,43 @@ export const REPRESENTATIVE_LEGACY_CHARACTER_PROJECTION = {
     },
     con: {
       name: 'CON',
-      index: 2,
+      index: 1,
       values: { base: 55 },
       isVisible: true
     },
     pow: {
       name: 'POW',
-      index: 4,
+      index: 2,
       values: { base: 60 },
       isVisible: true
     },
     dex: {
       name: 'DEX',
-      index: 6,
+      index: 3,
       values: { base: 65 },
       isVisible: true
     },
     app: {
       name: 'APP',
-      index: 8,
+      index: 4,
       values: { base: 70 },
       isVisible: true
     },
     siz: {
       name: 'SIZ',
-      index: 10,
+      index: 5,
       values: { base: 60 },
       isVisible: true
     },
     int: {
       name: 'INT',
-      index: 12,
+      index: 6,
       values: { base: 75 },
       isVisible: true
     },
     edu: {
       name: 'EDU',
-      index: 14,
+      index: 7,
       values: { base: 80 },
       isVisible: true
     }

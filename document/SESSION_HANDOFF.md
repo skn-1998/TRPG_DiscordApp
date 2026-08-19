@@ -4005,9 +4005,14 @@ scalar が発火した時点で編集欄の下に「振り直す」ボタンが�
 
 | # | タスク | 内容 | 状態 |
 |---|---|---|---|
-| 1 | #46 PV-S | engine の `rollOnCreateSpec` が scalar を読む ＋ server の提出値ガードを衝突判定へ。CI-1 を吸収 | **実装＋修正 2 ラウンド完了・検収済み・未コミット** |
-| 2 | #54 PV-S2 | エディタの scalar 分岐に「作成時ロール記法」入力欄を出す（track 分岐 1365-1397 と同型） | 未着手 |
-| 3 | #55 PV-S3 | legacy-coc の二重宣言を 1 本に畳む。既存 published / pinned revision への影響を先に実測 | 未着手・**seeder の制約でユーザー裁定が 1 件必要**（タスク #55 の説明を参照） |
+| 1 | #46 PV-S | engine の `rollOnCreateSpec` が scalar を読む ＋ server の提出値ガードを衝突判定へ。CI-1 を吸収 | **完了・コミット `e848ba1`** |
+| 2 | #54 PV-S2 | エディタの scalar 分岐に「作成時ロール記法」入力欄を出す（track 分岐 1365-1397 と同型） | **完了・受入・未コミット** |
+| 3 | #55 PV-S3 | legacy-coc の二重宣言を 1 本に畳む。既存 published / pinned revision への影響を先に実測 | **完了・受入・未コミット**（FIX ラウンド込み） |
+| 4 | #56 | 大粒度認知負荷レビュー（3 フェーズ経過・**必須ゲート**） | **完了**。判定 = `review-results/roll-lane/big-pvs-verdict.md` |
+| 5 | #58 PV-S4 | #56 の消化（front）。記法欄を scalar / track で 1 本化し、`partsKey` を落とさなくする | **完了・受入・未コミット** |
+| 6 | #59 PV-S5 | #56 の消化（server）。seeder が旧 `legacy-coc` を deprecate して一覧から落とす | **完了・受入・未コミット** |
+| — | #60〜#62 | #56 の後続（非 base 行き先の pin・振り直し spec の scalar ケース・参照正規化の scalar 素通し） | 未着手 |
+| — | #57 | 使い方ガイドを配布テンプレート 2 件前提に直す | 未着手（`character-sheet-user-guide.md` は別セッションが編集中） |
 
 **#46 の変更は 8 ファイル**（engine 2・server 3・front 3）。検収記録 = `review-results/roll-lane/pvs-acceptance.md`。
 
@@ -4035,6 +4040,46 @@ scalar が発火した時点で編集欄の下に「振り直す」ボタンが�
   `editableScalarFields` に含まれるため、baseline を進めないと振り直した値が
   偽の未保存差分として保存対象に入る。`CharacterSheetEditClient.spec.tsx` に検出テストを 1 本追加した
   （`setBaseline` を落とすとその 1 本だけが赤になることを実測）
+
+### #54 PV-S2（エディタ入力欄）— 完了・未コミット
+
+差分は `TemplateEditorV3.tsx`（+60/-8）と同 spec（+33）の 2 ファイルのみ。front 34 suites / 593 passed。
+scalar は **`valueType === 'number'` のときだけ**入力欄を出す（publish の
+`validateScalarRollOnCreate` が number 以外を拒否するため）。partsKey の指定 UI は置かない
+（宣言モードの内訳キーは別概念で、既定 `base` から動かす必要がまだ無い）。
+
+**持ち越し（#56 の入力）**: scalar ブロックが track ブロックを**約 33 行 逐語複製**している。
+複製された知識 = ラベル文言・空文字で宣言を落とす規則・disabled / loading の条件・フィードバック表示。
+
+### #55 PV-S3（配布テンプレートの作り直し）— 完了・未コミット
+
+**ユーザー要求が実データで満たされるのはこのスライス。** engine / server / エディタが揃っても、
+配布中の `legacy-coc` が旧構造のままでは HP / MP / SAN が **0** で作成され続ける。
+
+旧 seed は能力値ごとに `scalar`（式の参照先・出目なし）と `roll`（出目を振る・式から参照されない）へ
+**分裂**していた。宣言はどちらも単独で正しく publish 検証も型検査も通るので、
+**壊れているのは連結だけ**で静的ゲートには映らない。負の対照で実測（旧 → `hp:0, mp:0, san:0` /
+新 → `12, 11, 55`。実 materializer・実 evaluator 経由）。
+
+**確定した設計判断**
+
+- **別 `templateId` で出し直す**（`legacy-coc` → `legacy-coc-v2`・ユーザー裁定）。
+  seeder の `decideSeedAction` は insert しか持たず（published 同版なら `skip-existing`、
+  それ以外は `conflict-existing`）、`templateId` は unique index。既存行の更新経路が無い。
+  キャラは作成時に `templateId` + `templateVersion` を `sheet` へ焼くので、旧キャラは旧定義のまま動く
+- **`backfill-template-pin.ts` の pin は id も版もリテラル**。対象は旧 `legacy-coc` の行であり、
+  `LEGACY_COC_TEMPLATE` は v2 を指すようになった。定数から版を読むと、v2 を改版した瞬間に
+  旧行が**存在しない版**へ pin される。既存 spec は pin を参照で使うだけでこの drift を検出しないため、
+  値そのものを固定するテストを 1 本足した
+
+**変更 6 ファイル**: seed 本体・不具合検出 spec・seed spec・characterization fixture・backfill 2 ファイル。
+characterization fixture の差分は `index` 7 行のみ（`2,4,…,14` → `1..7`）で、field 対が単一 scalar へ
+畳まれた分の詰め。`values` / `name` / `isVisible` は不動。この fixture はコミット 1 本
+（`b2a95918`）しかなく、その時点の seed に既に `*_roll` があったので**実在キャラ由来ではない**。
+
+**検収**: server 226 suites / 3215 passed・循環ゼロ。変異 4 種すべて RED（sha256 復元一致）。
+うち MG1（作成時ロール宣言の除去）で「作成直後の HP / MP / SAN / DB が出目から導かれ、0 に畳まれない」が
+赤くなる = **ユーザーの不具合が機械で固定された**。記録 = `review-results/roll-lane/pvs-acceptance.md`。
 
 ## 参照
 

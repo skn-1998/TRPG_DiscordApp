@@ -1703,6 +1703,64 @@ describe('TemplateEditorV3 field annotations', () => {
     expect(screen.getByText('parts:true と partsKeys は併存できないため、partsKeys の編集を無効化しています。')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'パーツキー追加' }) as HTMLButtonElement).disabled).toBe(true)
   })
+
+  it('number scalar の作成時ロール記法を宣言し、空にすると宣言ごと落とす', async () => {
+    renderEditor(
+      templateWithField({ id: 'con', uid: 'uid_con', label: 'CON', type: 'scalar', valueType: 'number' })
+    )
+
+    fireEvent.change(screen.getByLabelText('作成時ロール記法'), { target: { value: '3d6*5' } })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
+      type: 'scalar',
+      valueType: 'number',
+      rollOnCreate: { notation: '3d6*5' }
+    })
+
+    fireEvent.change(screen.getByLabelText('作成時ロール記法'), { target: { value: '' } })
+    await advanceAutosave()
+
+    const clearedField = mockedSaveTemplateDraft.mock.calls[1]?.[2].sections[0]?.fields[0]
+    expect((clearedField as { rollOnCreate?: unknown }).rollOnCreate).toBeUndefined()
+    expect(JSON.stringify(clearedField)).not.toContain('rollOnCreate')
+  })
+
+  // Test intent: 記法欄が rollOnCreate を作り直すと、updateField の Object.assign で宣言済みの行き先が消える。
+  // publish は宣言済み partsKey を指す行き先を受理する（sheet-engine publish.spec.ts の
+  // 'accepts a scalar creation roll targeting a declared parts key'）ので、API / seed 由来の
+  // テンプレートを開いて記法を打ち直すと出目の行き先が parts.rolled から base へ黙って移る。
+  it('partsKey を宣言した number scalar の記法を打ち直しても partsKey を保持する', async () => {
+    renderEditor(
+      templateWithField({
+        id: 'con',
+        uid: 'uid_con',
+        label: 'CON',
+        type: 'scalar',
+        valueType: 'number',
+        partsKeys: [{ id: 'rolled', label: '出目' }],
+        rollOnCreate: { notation: '3d6*5', partsKey: 'rolled' }
+      })
+    )
+
+    fireEvent.change(screen.getByLabelText('作成時ロール記法'), { target: { value: '3d6*5+6' } })
+    await advanceAutosave()
+
+    expect(mockedSaveTemplateDraft.mock.calls[0]?.[2].sections[0]?.fields[0]).toMatchObject({
+      rollOnCreate: { notation: '3d6*5+6', partsKey: 'rolled' }
+    })
+  })
+
+  // Test intent: publish が scalar の rollOnCreate を受理するのは number だけなので
+  // （sheet-engine の publish.ts / validateScalarRollOnCreate）、他の valueType では宣言させない。
+  it.each([
+    ['text', { id: 'memo', uid: 'uid_memo', label: 'memo', type: 'scalar', valueType: 'text' }],
+    ['select', { id: 'job', uid: 'uid_job', label: 'job', type: 'scalar', valueType: 'select', options: [] }]
+  ] as Array<[string, SheetField]>)('%s scalar には作成時ロール記法を表示しない', (_valueType, field) => {
+    renderEditor(templateWithField(field))
+
+    expect(screen.queryByLabelText('作成時ロール記法')).toBeNull()
+  })
 })
 
 describe('TemplateEditorV3 rollOnCreate preview', () => {
@@ -1715,167 +1773,172 @@ describe('TemplateEditorV3 rollOnCreate preview', () => {
     }
   })
 
-  function renderTrackEditor(notation?: string, gameSystemId?: string) {
-    const template = templateWithField({
-      id: 'hp',
-      uid: 'uid_hp',
-      label: 'HP',
-      type: 'track',
-      max: 10,
-      style: 'gauge',
-      ...(notation === undefined ? {} : { rollOnCreate: { notation } })
-    })
+  // scalar / track は同一の入力欄を共有するので、以下の観点を両型で走らせて片型だけの退行を捕まえる。
+  // scalar を valueType: 'number' 固定にするのは、publish が number 以外の scalar 宣言を受理せず
+  // （sheet-engine の publish.ts / validateScalarRollOnCreate）入力欄自体が出ないため。
+  function renderRollOnCreateEditor(fieldType: 'scalar' | 'track', notation?: string, gameSystemId?: string) {
+    const declaration = notation === undefined ? {} : { rollOnCreate: { notation } }
+    const field: SheetField =
+      fieldType === 'scalar'
+        ? { id: 'con', uid: 'uid_con', label: 'CON', type: 'scalar', valueType: 'number', ...declaration }
+        : { id: 'hp', uid: 'uid_hp', label: 'HP', type: 'track', max: 10, style: 'gauge', ...declaration }
+    const template = templateWithField(field)
     renderEditor(gameSystemId ? { ...template, gameSystemId } : template)
   }
 
-  it('notation を POST し、details を結果として表示する', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
-    } as Response)
-    globalThis.fetch = fetchMock
-    renderTrackEditor('3d6*5')
+  describe.each(['scalar', 'track'] as const)('%s field', (fieldType) => {
+    const renderFieldEditor = (notation?: string, gameSystemId?: string) =>
+      renderRollOnCreateEditor(fieldType, notation, gameSystemId)
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-    })
+    it('notation を POST し、details を結果として表示する', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+      } as Response)
+      globalThis.fetch = fetchMock
+      renderFieldEditor('3d6*5')
 
-    expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
-    expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notation: '3d6*5' })
-    })
-  })
-
-  it('template.gameSystemId を試しロール request に渡す', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
-    } as Response)
-    globalThis.fetch = fetchMock
-    renderTrackEditor('3d6*5', 'Cthulhu7th')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-    })
-
-    expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notation: '3d6*5', gameSystemId: 'Cthulhu7th' })
-    })
-  })
-
-  it('ロール後に notation を変更すると旧結果を消す', async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
-    } as Response)
-    renderTrackEditor('1d6')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-    })
-    expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
-
-    fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
-      target: { value: '2d6' }
-    })
-
-    expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
-  })
-
-  it('notation を空にして rollOnCreate を削除すると旧結果を消す', async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
-    } as Response)
-    renderTrackEditor('1d6')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-    })
-    expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
-
-    fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
-      target: { value: '' }
-    })
-
-    expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
-    expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  it('試しロール実行中は notation 入力を無効化する', async () => {
-    let resolveFetch!: (response: Response) => void
-    globalThis.fetch = jest.fn().mockReturnValue(
-      new Promise<Response>((resolve) => {
-        resolveFetch = resolve
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
       })
-    )
-    renderTrackEditor('1d6')
-    const notationInput = screen.getByRole('textbox', {
-      name: '作成時ロール記法'
-    }) as HTMLInputElement
 
-    fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-
-    expect(notationInput.disabled).toBe(true)
-
-    await act(async () => {
-      resolveFetch({ json: async () => ({ total: 6, details: '(1D6) ＞ 6' }) } as Response)
-    })
-  })
-
-  it('不正 notation はサーバーへ送らず最初の検証 message を表示する', () => {
-    const fetchMock = jest.fn()
-    globalThis.fetch = fetchMock
-    renderTrackEditor('abc')
-
-    fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    const alert = screen.getByText('invalid standalone roll expression').closest('[role="alert"]')
-    expect(alert).not.toBeNull()
-  })
-
-  it('notation が空なら試しロールを無効化する', () => {
-    renderTrackEditor()
-
-    expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  it('429 応答は分類済みエラーメッセージを表示する', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      json: async () => ({ status: 429, messages: ['dice preview rate limit exceeded'] })
-    } as Response)
-    globalThis.fetch = fetchMock
-    renderTrackEditor('1d6')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
+      expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notation: '3d6*5' })
+      })
     })
 
-    const alert = screen
-      .getByText(
-        'ロール回数の上限に達しました。少し待ってから再試行してください。 dice preview rate limit exceeded'
+    it('template.gameSystemId を試しロール request に渡す', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        json: async () => ({ total: 55, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+      } as Response)
+      globalThis.fetch = fetchMock
+      renderFieldEditor('3d6*5', 'Cthulhu7th')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notation: '3d6*5', gameSystemId: 'Cthulhu7th' })
+      })
+    })
+
+    it('ロール後に notation を変更すると旧結果を消す', async () => {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
+      } as Response)
+      renderFieldEditor('1d6')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      })
+      expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
+
+      fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
+        target: { value: '2d6' }
+      })
+
+      expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
+    })
+
+    it('notation を空にして rollOnCreate を削除すると旧結果を消す', async () => {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        json: async () => ({ total: 6, details: '(1D6) ＞ 6' })
+      } as Response)
+      renderFieldEditor('1d6')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      })
+      expect(await screen.findByText('結果: (1D6) ＞ 6')).toBeTruthy()
+
+      fireEvent.change(screen.getByRole('textbox', { name: '作成時ロール記法' }), {
+        target: { value: '' }
+      })
+
+      expect(screen.queryByText('結果: (1D6) ＞ 6')).toBeNull()
+      expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('試しロール実行中は notation 入力を無効化する', async () => {
+      let resolveFetch!: (response: Response) => void
+      globalThis.fetch = jest.fn().mockReturnValue(
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        })
       )
-      .closest('[role="alert"]')
-    expect(alert).not.toBeNull()
-    expect((alert as HTMLElement).textContent).toContain(
-      'ロール回数の上限に達しました。少し待ってから再試行してください。'
-    )
-    expect((alert as HTMLElement).textContent).toContain('dice preview rate limit exceeded')
-  })
+      renderFieldEditor('1d6')
+      const notationInput = screen.getByRole('textbox', {
+        name: '作成時ロール記法'
+      }) as HTMLInputElement
 
-  it('legacy total は表示せず、評価値を含む details だけを表示する', async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      json: async () => ({ total: 987654321, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
-    } as Response)
-    renderTrackEditor('3d6*5')
-
-    await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+
+      expect(notationInput.disabled).toBe(true)
+
+      await act(async () => {
+        resolveFetch({ json: async () => ({ total: 6, details: '(1D6) ＞ 6' }) } as Response)
+      })
     })
 
-    expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
-    expect(screen.queryByText(/987654321/)).toBeNull()
+    it('不正 notation はサーバーへ送らず最初の検証 message を表示する', () => {
+      const fetchMock = jest.fn()
+      globalThis.fetch = fetchMock
+      renderFieldEditor('abc')
+
+      fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      const alert = screen.getByText('invalid standalone roll expression').closest('[role="alert"]')
+      expect(alert).not.toBeNull()
+    })
+
+    it('notation が空なら試しロールを無効化する', () => {
+      renderFieldEditor()
+
+      expect((screen.getByRole('button', { name: '試しロール' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('429 応答は分類済みエラーメッセージを表示する', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        json: async () => ({ status: 429, messages: ['dice preview rate limit exceeded'] })
+      } as Response)
+      globalThis.fetch = fetchMock
+      renderFieldEditor('1d6')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      })
+
+      const alert = screen
+        .getByText(
+          'ロール回数の上限に達しました。少し待ってから再試行してください。 dice preview rate limit exceeded'
+        )
+        .closest('[role="alert"]')
+      expect(alert).not.toBeNull()
+      expect((alert as HTMLElement).textContent).toContain(
+        'ロール回数の上限に達しました。少し待ってから再試行してください。'
+      )
+      expect((alert as HTMLElement).textContent).toContain('dice preview rate limit exceeded')
+    })
+
+    it('legacy total は表示せず、評価値を含む details だけを表示する', async () => {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        json: async () => ({ total: 987654321, details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55' })
+      } as Response)
+      renderFieldEditor('3d6*5')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '試しロール' }))
+      })
+
+      expect(await screen.findByText('結果: (3D6*5) ＞ 11[2,4,5]*5 ＞ 55')).toBeTruthy()
+      expect(screen.queryByText(/987654321/)).toBeNull()
+    })
   })
 })
 

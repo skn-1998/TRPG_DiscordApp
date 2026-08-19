@@ -8,20 +8,37 @@ import type {
   SheetTemplateSection,
   SheetTemplateTable
 } from '../domains/character-sheet-template/models/character-sheet-template.entity'
+import { SYSTEM_TEMPLATE_AUTHOR } from '../domains/character-sheet-template/character-sheet-template.constants'
 import { LEGACY_COC_TEMPLATE } from '../domains/character-sheet-template/seeds/legacy-coc.template'
 import { collectTemplatePublishValidationIssues } from '../domains/character-sheet-template/validation/template-publish-validation-issue.collector'
 
 /**
- * legacy-coc テンプレートの行を character-sheet-template コレクションへ 1 件だけ投入する seeder。
+ * 配布中の system テンプレートを `legacy-coc-v2`（LEGACY_COC_TEMPLATE）へ入れ替える seeder。
+ * v2 の published 行を 1 件投入し、置き換えられた旧 `legacy-coc` の行を deprecated へ落とす。
  *
- * Why: legacy-coc はコード側 seed（LEGACY_COC_TEMPLATE）としてしか存在せず DB に行が無い。
- * そのため legacy キャラクターの template 解決（findOne / resolvePinnedRevision）が
- * 「行が無い」ことで失敗する。この 1 件のギャップを埋めるのが目的で、汎用 seeder 基盤ではない。
+ * Why: 旧 `legacy-coc` は能力値が scalar と roll の 2 本に分かれており、そこから作った
+ * キャラは HP / MP / SAN が 0 になる（seeds/legacy-coc.template.ts の Why）。v2 の行を
+ * 足すだけでは足りない。一覧は requester を問わず system 所有の published 行を配る
+ * （repositories/character-sheet-template.repository.ts の findListedSummariesForRequester）ため、
+ * 旧行が published のままだと壊れた側が選択肢に残る。
+ * この 1 件の入れ替えが目的で、汎用 seeder 基盤ではない。
  *
- * 冪等キー: templateId + version。同じ published 行が既にあれば何もしない（再実行安全）。
- * 既定は dry-run。実際の挿入は `--execute` を明示したときだけ行い、本番 DB への誤爆を防ぐ。
+ * 冪等キー: templateId + version。同じ published 行が既にあれば挿入しない（再実行安全）。
+ * deprecate も published 行だけを対象にするので、2 回目以降は一致行なしで何も変えない。
+ * 既定は dry-run。書き込みは `--execute` を明示したときだけ行い、本番 DB への誤爆を防ぐ。
  * rollback 経路は持たない（誤投入時は該当 templateId の 1 行を手で削除する）。
  */
+
+/**
+ * v2 に置き換えられた旧テンプレートの id。
+ *
+ * この行は DB から消さず deprecated にするだけにする。旧 `legacy-coc` に pin された既存キャラが
+ * 残っている前提で backfill-template-pin.ts が書かれており、pin 解決
+ * （CharacterSheetTemplateService.resolvePinnedRevision）は deprecated を受理する一方、
+ * 新規作成の解決（resolveForCreate）と上記の一覧は published しか通さない。
+ * つまり deprecate だけで「新しく選べない・既存キャラは解決できる」になる。
+ */
+const PREVIOUS_TEMPLATE_ID = 'legacy-coc'
 
 export type SeedMode = 'dry-run' | 'execute'
 
@@ -36,6 +53,8 @@ export type SeedDecision = 'insert' | 'skip-existing' | 'conflict-existing' | 'v
 export interface SeedTemplateRepository {
   findById(templateId: string): Promise<CharacterSheetTemplateEntity | null>
   create(entity: CharacterSheetTemplateEntity): Promise<CharacterSheetTemplateEntity>
+  /** 一致する published 行が無ければ `null`。行を消さずに status だけを落とす。 */
+  deprecatePublished(templateId: string, authorDiscordUserId: string): Promise<CharacterSheetTemplateEntity | null>
 }
 
 export interface SeedLogger {
@@ -50,6 +69,8 @@ export interface SeedResult {
   decision: SeedDecision
   issues: string[]
   inserted: boolean
+  /** 旧行を published から deprecated へ落としたか。対象行が無かった場合も false になる。 */
+  deprecatedPrevious: boolean
   exitCode: 0 | 1
 }
 
@@ -152,7 +173,36 @@ export async function runLegacyCocTemplateSeed(options: {
   }
   logger.log(`inserted=${inserted}`)
 
-  const failed = insertFailed || decision === 'validation-failed' || decision === 'conflict-existing'
+  // 旧行を落としてよいのは v2 が published として在るときだけ。insert に失敗したまま
+  // 旧行を deprecate すると、一覧に出る system テンプレートが 1 つも無くなる。
+  // skip-existing は同版の published 行が既にあるので insert 無しでも成立する。
+  // dry-run は書き込まないので、insert 予定（decision='insert' かつ失敗なし）を成立扱いにして
+  // 「execute ならこうなる」をそのまま出力する。
+  const canDeprecatePrevious = decision === 'skip-existing' || (decision === 'insert' && !insertFailed)
+
+  let deprecatedPrevious = false
+  let deprecateFailed = false
+  if (canDeprecatePrevious) {
+    if (mode === 'dry-run') {
+      logger.log(`would deprecate templateId=${PREVIOUS_TEMPLATE_ID} author=${SYSTEM_TEMPLATE_AUTHOR}`)
+    } else {
+      try {
+        const previous = await repository.deprecatePublished(PREVIOUS_TEMPLATE_ID, SYSTEM_TEMPLATE_AUTHOR)
+        deprecatedPrevious = previous !== null
+        // 一致行なしは新規セットアップ・実行済みのどちらでも起きる正常系。失敗と読まれないよう文言で分ける。
+        logger.log(
+          deprecatedPrevious
+            ? `deprecated templateId=${PREVIOUS_TEMPLATE_ID}`
+            : `no published ${PREVIOUS_TEMPLATE_ID} row to deprecate (absent or already deprecated)`
+        )
+      } catch (error) {
+        deprecateFailed = true
+        logger.error(formatError(error))
+      }
+    }
+  }
+
+  const failed = insertFailed || deprecateFailed || decision === 'validation-failed' || decision === 'conflict-existing'
   return {
     mode,
     templateId: entity.templateId,
@@ -160,6 +210,7 @@ export async function runLegacyCocTemplateSeed(options: {
     decision,
     issues,
     inserted,
+    deprecatedPrevious,
     exitCode: failed ? 1 : 0
   }
 }

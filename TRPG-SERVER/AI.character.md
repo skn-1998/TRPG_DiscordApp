@@ -627,6 +627,10 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - **配布中の legacy-coc は本スライスの影響を受けない**。作成時ロールが roll 型に乗っており
   `allowsParts` が false のため。`character-instantiation.legacy-coc.reproduction.spec.ts` が
   無改変で緑のまま = 負の対照として機能している。
+  **→ 2026-08-19 に PV-S3 で状況が変わった**（この節は PV-R 時点の記録として残す）。
+  この「影響を受けない」構造こそが作成直後の HP / MP / SAN を 0 にしていた原因で、
+  上記 spec は二重宣言を畳むのに伴って書き換えた。詳細は下記「Legacy CoC テンプレートの
+  二重宣言を 1 本に畳む（PV-S3）」。scalar の非発火（`:623-626`）も PV-S で解消済み。
 
 ### 述語 `rollOnCreateSpec` の engine 移送（RL-7a・2026-08-18・挙動不変）
 
@@ -752,7 +756,7 @@ D-11 の決着（振り直しの対象は作成時ロールの記法の宣言だ
 assert 2 本がどちらも「issues / warnings が空」で、keep されたことを見る assert は 0 本。
 実際に pin しているのは「nested な非 scalar には gate が発火しない」こと。名前が射程より広い。
 
-### scalar の作成時ロールを発火させる（PV-S・2026-08-19・未コミット）
+### scalar の作成時ロールを発火させる（PV-S・2026-08-19・コミット e848ba1）
 
 正本 = `review-results/roll-lane/prompt-pvs-code.txt` ＋ `prompt-pvs-fix.txt` ＋ `prompt-pvs-fix2.txt`、
 検収 = `review-results/roll-lane/pvs-acceptance.md`。
@@ -803,9 +807,112 @@ valueType 2 レンズ）、実物で確かめると陳腐化は成立してい�
 棄却理由の 1 つ「対象ファイル外だからスコープ外」は、スライスが無効化した記述の後始末を
 求める所見に対して循環している。メモリ `lens-convergence-outranks-solo-refutation` に記録。
 
-**残タスク**: エディタの scalar に記法入力欄（#54）、legacy-coc の二重宣言統合（#55）。
-#55 は seeder が insert しかしない（`seed-legacy-coc-template.ts:104-115`）ため、
-既に seed 済みの DB をどう更新するかのユーザー裁定が要る。
+**続き**: エディタの scalar に記法入力欄（#54・下記）、legacy-coc の作り直し（#55・下記）。
+どちらも完了・受入済みで**未コミット**。
+
+### エディタの scalar に作成時ロール記法（PV-S2・front・2026-08-19・未コミット）
+
+正本 = `review-results/roll-lane/prompt-pvs2.txt`、検収 = `pvs-acceptance.md` の PV-S2 節。
+
+`TemplateEditorV3.tsx`（+60/-8）と同 spec（+33）のみ。track 分岐と同型の
+「作成時ロール記法」入力＋試しロールを、数値 scalar の分岐へ足した。
+
+- **`valueType === 'number'` のときだけ出す**。publish の `validateScalarRollOnCreate` が
+  number 以外を拒否するため、エディタで宣言できてしまうと publish で初めて弾かれる
+- **partsKey の指定 UI は置かない**。宣言モードの内訳キーは別概念で、既定 `base` から
+  動かす必要がまだ無い（変えられるようにするのは別スライス）
+- 状態名 `rollingTrackFieldUid` → `rollingFieldUid`（5 箇所）。track 専用でなくなったため
+- `previewRollOnCreate` の引数型を `Extract<SheetField, { type: 'track' }>` から
+  `{ type: 'scalar' | 'track' }` へ拡張。委譲先の指示範囲外だったが、本体・分岐・DOM が
+  1 行も変わらず呼び出し側キャストより良いので採用
+- ゲート = front tsc 0 / eslint 0 / 34 suites・593 passed（+3）。変異 2 種とも RED（sha256 一致）
+
+### legacy-coc を作成時ロール込みで作り直す（PV-S3・2026-08-19・未コミット）
+
+正本 = `review-results/roll-lane/prompt-pvs3.txt` ＋ `prompt-pvs3-fix.txt`、
+検収 = `pvs-acceptance.md` の PV-S3 節。**ユーザー要求が実データで満たされるのはここ**。
+
+能力値 8 件の `scalar` ＋ `roll` 分裂を、`rollOnCreate` を持つ単一 scalar へ畳んだ。
+負の対照で実測（旧 → `hp:0, mp:0, san:0` / 新 → `12, 11, 55`。実 materializer・実 evaluator 経由）。
+
+- **別 `templateId` で出し直す**（`legacy-coc` → `legacy-coc-v2`・ユーザー裁定）。
+  `decideSeedAction` は insert しか持たず（published 同版なら `skip-existing`、
+  それ以外は `conflict-existing`）、`templateId` は unique index なので既存行の更新経路が無い。
+  キャラは作成時に `templateId` + `templateVersion` を `sheet` へ焼く（`character-instantiation.service.ts:86-87`）ので、
+  旧 `legacy-coc` のキャラは旧定義のまま動き続ける
+- **`backfill-template-pin.ts` の pin は id も版もリテラルにした**（PV-S3-FIX）。
+  対象は旧 `legacy-coc` の行だが `LEGACY_COC_TEMPLATE` は v2 を指すようになったため、
+  定数から版を読むと v2 改版の瞬間に旧行が**存在しない版**へ pin される。
+  既存 spec は pin を参照で使うだけでこの drift を検出しないので、値そのものを固定する spec を 1 本足した
+  （変異 MF1/MF2 で「新テストだけが赤・既存 5 本は緑」を実測）
+- **characterization fixture の `index` 7 行が動いた**（`2,4,…,14` → `1..7`）。
+  field 対が単一 scalar へ畳まれた分の詰めで、`values` / `name` / `isVisible` は不動。
+  この fixture はコミット 1 本（`b2a95918`）しかなく、その時点の seed に既に `*_roll` があったので
+  **実在キャラ由来ではない**（分裂後の形から生成された値）。合わせて緑にしてよいと判断した根拠がこれ
+- ゲート = server build 0 / 循環ゼロ / 226 suites・3215 passed。変異 4 種すべて RED（sha256 一致）。
+  うち MG1（作成時ロール宣言の除去）で
+  「作成直後の HP / MP / SAN / DB が出目から導かれ、0 に畳まれない」が赤くなる
+  = **ユーザーの不具合が機械で固定された**
+
+**配布テンプレートは 2 本立てになった**。使い方ガイドの追随は #57（`character-sheet-user-guide.md` は
+別セッションが編集中のため保留）。
+
+### 大粒度レビュー #56 とその消化（PV-S4 / PV-S5・2026-08-19・未コミット）
+
+3 フェーズ経過の必須ゲート。read-only の Opus 2 本（認知負荷・変更容易性）。
+統合判定 = `review-results/roll-lane/big-pvs-verdict.md`。
+
+**この大粒度が捕まえたものは、小粒度レビューが 3 回素通ししていた**:
+
+- **未コミットの PV-S2 に欠陥**。`updateField` は `Object.assign` なので、記法欄の patch
+  `{ rollOnCreate: { notation } }` が**既存の `partsKey` を無言で捨てる**。非 base の行き先は
+  publish が受理する到達可能な形（`publish.spec.ts:2373` が `ok: true` で pin）。
+  さらに PV-S2 で承認したコメントが「partsKeys を宣言した scalar でも出目は base」と**全称**で書いており、
+  真なのはこのエディタ発の宣言に限る。**コードが宣言を破壊することでコメントを事後的に真にしていた**ので、
+  コードとコメントを並べて読む小粒度では整合して見えた（→ PV-S4 で解消）
+- **PV-S3 だけではユーザーの問題が解けていなかった**。一覧は system 所有の published 行を
+  無条件に配るため、壊れた旧 `legacy-coc` が並んだまま選べる（→ PV-S5 で解消）
+
+**却下した所見**（統合の確度より実測を優先）:
+
+- `?? 'base'` の 2 箇所は成立するが**統合しない**。相互参照コメントがあり両側が独立に pin 済みで、
+  片方だけ変えると必ず赤くなる。共有定数化は概念 +1・import +1 に対し複製 −1 で純減にならない
+- 「知識が 3 層に散っている」は**複製ではなく分業**。ホップ 11・同時保持 10 項目は大きいが、
+  発火・受理・提出値衝突・書き込み・振り直し表示はいずれも正本 1 箇所ずつで、
+  front が判定を書き直している箇所は 0 件。複製由来は 11 ホップ中 2 件だけ
+- **受理範囲（publish）と発火範囲（述語）が別ゲートである構造は intrinsic**。
+  同じ規則の複製ではなく別の問い（保存してよいか／振るか）に答えている
+
+#### PV-S4（front・エディタ）
+
+`TemplateEditorV3.tsx` と同 spec の 2 ファイル。
+
+- 記法欄・試しロール・フィードバック表示の **35 行逐語複製**（scalar / track。実測で完全一致）を
+  **同一ファイル内のローカル関数** `renderRollOnCreateInput` へ 1 本化。新ファイル・新層は作らない。
+  engine 側が `rollOnCreateSchema` を 1 箇所に持つのと同じ規律
+- 記法の patch を `{ ...field.rollOnCreate, notation }` にして**既存キーを保持**。
+  空文字で宣言ごと落とす挙動は不変。**track も同じ欠陥を持っていた**ので
+  （`publish.spec.ts:2391` が track の `partsKey: 'base'` を受理と pin）共有関数化で両型が守られる
+- コメントの主語を「このエディタが宣言する作成時ロールは行き先を持たない」へ限定し、
+  publish が非 base を受理する事実を併記
+- 試しロールの既存 9 テストが `describe.each(['scalar','track'])` で**両型を走る**ようになった
+  （それまで track のみ・scalar 0 本）
+- ゲート = front tsc 0 / eslint 0 / 34 suites・**603 passed**（593 → +10 = 9×2 の増分 +9 と新規 1）
+
+#### PV-S5（server・seeder）
+
+`seed-legacy-coc-template.ts` と同 spec の 2 ファイル。repository / service は無変更。
+
+- v2 が published として在ることを確かめてから旧 `legacy-coc` を deprecated へ落とす。
+  条件は `decision === 'skip-existing' || (decision === 'insert' && !insertFailed)`。
+  **先に deprecate して挿入が失敗すると、一覧に出る system テンプレートが 0 になる**
+- 一致行なしの `null` は失敗にしない（新規環境・実行済みのどちらでも起きる）。
+  `exitCode` を上げるのは deprecate が例外を投げたときだけ
+- dry-run は書き込まず `would deprecate ...` を出すだけ
+- 旧 id は `PREVIOUS_TEMPLATE_ID` として定数化。**`LEGACY_COC_TEMPLATE.templateId` を使わない**
+  （それは v2 を指すので、入れたばかりの行を落とす）
+- PV-S3 で偽になっていた seeder の Why も同じ差分で書き直した
+- ゲート = server build 0 / 循環ゼロ / 226 suites・**3221 passed**（3215 → +6）
 
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 

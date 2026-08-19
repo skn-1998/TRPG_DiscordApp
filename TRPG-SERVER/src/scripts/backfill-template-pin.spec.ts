@@ -66,6 +66,13 @@ function createHarness(initialCharacters: FakeCharacter[]) {
 }
 
 describe('backfill-template-pin', () => {
+  // 他のテストは BACKFILL_TEMPLATE_PIN を参照で使うだけなので、値が別テンプレートの
+  // ものへ差し替わっても気付けない。ここだけは実際の値そのものを固定する。
+  it('pin は旧 legacy-coc テンプレートの id と版を指す', () => {
+    expect(BACKFILL_TEMPLATE_PIN.templateId).toBe('legacy-coc')
+    expect(BACKFILL_TEMPLATE_PIN.templateVersion).toBe('1.0.0')
+  })
+
   it('引数なしは dry-run、相反・未知引数は拒否する', () => {
     expect(parseBackfillMode([])).toBe('dry-run')
     expect(parseBackfillMode(['--execute'])).toBe('execute')

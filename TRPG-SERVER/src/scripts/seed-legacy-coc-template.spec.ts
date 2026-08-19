@@ -12,9 +12,11 @@ import {
 
 /**
  * legacy-coc seeder が「seed 実体をそのまま published 行にする」「冪等」「dry-run 既定」
- * 「publish 検証に落ちたら挿入しない」を守ることを検証する。
+ * 「publish 検証に落ちたら挿入しない」「v2 が published になった後でだけ旧行を deprecate する」
+ * を守ることを検証する。
  *
- * 必要な前提: repository は findById / create だけをモックする（実 DB へは接続しない）。
+ * 必要な前提: repository は findById / create / deprecatePublished だけをモックする
+ * （実 DB へは接続しない）。
  * publish 検証の失敗経路だけは、seed 実体が実際には検証を通るため sheet-engine の
  * validatePublishTemplate をモックで落として確認する（既定は実装そのままを委譲）。
  *
@@ -36,16 +38,19 @@ function createHarness(existing: CharacterSheetTemplateEntity | null = null) {
     existing !== null && existing.templateId === templateId ? existing : null
   )
   const create = jest.fn(async (entity: CharacterSheetTemplateEntity) => entity)
+  // 既定は「対象の published 行なし」。deprecate 済み・未投入のどちらの環境もこの戻り値になる。
+  const deprecatePublished = jest.fn<Promise<CharacterSheetTemplateEntity | null>, [string, string]>(async () => null)
   const logger: SeedLogger = {
     log: jest.fn(),
     error: jest.fn()
   }
 
   return {
-    repository: { findById, create } as SeedTemplateRepository,
+    repository: { findById, create, deprecatePublished } as SeedTemplateRepository,
     logger,
     findById,
-    create
+    create,
+    deprecatePublished
   }
 }
 
@@ -54,16 +59,18 @@ function existingRow(overrides: Partial<CharacterSheetTemplateEntity> = {}): Cha
 }
 
 /**
- * seed 実体の sections を clone し、roll field の notation だけを定数へ差し替える。
+ * seed 実体の sections を clone し、定数 notation の roll field を parameter へ足す。
  *
- * 定数 notation は placeholder を含まないため engine 段（validatePublishTemplate）を通過し、
- * standalone roll 検証だけが落とせる欠陥になる。engine 段で落ちると後段 2 検証は
- * 早期 return で走らず、この段の退行を検出できない。
+ * seed 本体は roll field を持たない（能力値の作成時ロールは scalar 自身が宣言する）ため、
+ * standalone roll 検証だけが落ちる欠陥はここで注入するしかない。定数 notation は
+ * placeholder を含まないため engine 段（validatePublishTemplate）を通過する。
+ * engine 段で落ちると後段 2 検証は早期 return で走らず、この段の退行を検出できない。
  */
 function sectionsWithConstantRollNotation(): any[] {
   const sections: any[] = structuredClone(buildLegacyCocSeedEntity(PUBLISHED_AT).sections)
-  sections.find((section) => section.id === 'parameter').fields.find((field: any) => field.id === 'str_roll').notation =
-    '10'
+  sections
+    .find((section) => section.id === 'parameter')
+    .fields.push({ type: 'roll', id: 'str_roll', uid: 'lgc_str_roll', label: 'STR roll', notation: '10' })
   return sections
 }
 
@@ -141,7 +148,7 @@ describe('seed-legacy-coc-template', () => {
       publishedAt: PUBLISHED_AT
     })
 
-    expect(harness.findById).toHaveBeenCalledWith('legacy-coc')
+    expect(harness.findById).toHaveBeenCalledWith('legacy-coc-v2')
     expect(harness.create).not.toHaveBeenCalled()
     expect(result).toMatchObject({ decision: 'insert', inserted: false, issues: [], exitCode: 0 })
   })
@@ -158,7 +165,8 @@ describe('seed-legacy-coc-template', () => {
 
     expect(harness.create).toHaveBeenCalledTimes(1)
     expect(harness.create).toHaveBeenCalledWith({
-      templateId: 'legacy-coc',
+      // 旧 `legacy-coc` 行を残したまま出し直すため、seeder が触る id は v2 側だけになる
+      templateId: 'legacy-coc-v2',
       status: 'published',
       version: '1.0.0',
       schemaVersion: 3,
@@ -249,5 +257,100 @@ describe('seed-legacy-coc-template', () => {
 
     expect(result).toMatchObject({ decision: 'insert', inserted: false, exitCode: 1 })
     expect(harness.logger.error).toHaveBeenCalledWith('Error: write failed')
+  })
+
+  it('execute は v2 を挿入した後に旧 legacy-coc を deprecate する', async () => {
+    const harness = createHarness()
+    // 戻り値は「published 行が 1 件一致した」ことだけを表す。中身は deprecatedPrevious に影響しない。
+    harness.deprecatePublished.mockResolvedValueOnce(existingRow({ templateId: 'legacy-coc', status: 'deprecated' }))
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'execute',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc', 'system')
+    // 順序そのものを固定する。v2 が published になる前に旧行を落とすと選べる行が消える。
+    expect(harness.create.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.deprecatePublished.mock.invocationCallOrder[0]
+    )
+    expect(result).toMatchObject({ inserted: true, deprecatedPrevious: true, exitCode: 0 })
+  })
+
+  it('v2 の insert に失敗したら旧行を deprecate しない', async () => {
+    const harness = createHarness()
+    harness.create.mockRejectedValueOnce(new Error('write failed'))
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'execute',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    expect(harness.deprecatePublished).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ inserted: false, deprecatedPrevious: false, exitCode: 1 })
+  })
+
+  it('同版の published 行が既にあるときも旧行を deprecate する', async () => {
+    const harness = createHarness(existingRow())
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'execute',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc', 'system')
+    expect(result).toMatchObject({ decision: 'skip-existing', exitCode: 0 })
+  })
+
+  it('dry-run は deprecate を実行せず予定だけを記録する', async () => {
+    const harness = createHarness()
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'dry-run',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    expect(harness.deprecatePublished).not.toHaveBeenCalled()
+    expect(harness.logger.log).toHaveBeenCalledWith('would deprecate templateId=legacy-coc author=system')
+    expect(result).toMatchObject({ deprecatedPrevious: false, exitCode: 0 })
+  })
+
+  it('deprecate 対象の行が無くても成功として扱う', async () => {
+    const harness = createHarness()
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'execute',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    expect(harness.deprecatePublished).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ inserted: true, deprecatedPrevious: false, exitCode: 0 })
+    expect(harness.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('deprecate が例外を投げたら exit code 1 を返す', async () => {
+    const harness = createHarness()
+    harness.deprecatePublished.mockRejectedValueOnce(new Error('update failed'))
+
+    const result = await runLegacyCocTemplateSeed({
+      mode: 'execute',
+      repository: harness.repository,
+      logger: harness.logger,
+      publishedAt: PUBLISHED_AT
+    })
+
+    // v2 の挿入自体は成功しているので inserted は下げない
+    expect(result).toMatchObject({ inserted: true, deprecatedPrevious: false, exitCode: 1 })
+    expect(harness.logger.error).toHaveBeenCalledWith('Error: update failed')
   })
 })

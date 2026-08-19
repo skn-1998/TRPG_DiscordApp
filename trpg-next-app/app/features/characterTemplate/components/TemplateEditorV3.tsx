@@ -517,7 +517,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
   const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'conflict'>('idle')
   const [inFlightIntent, setInFlightIntent] = useState<EditorIntent | null>(null)
-  const [rollingTrackFieldUid, setRollingTrackFieldUid] = useState<string | null>(null)
+  const [rollingFieldUid, setRollingFieldUid] = useState<string | null>(null)
   const [rollOnCreateFeedback, setRollOnCreateFeedback] = useState<
     Record<string, { details?: string; error?: string }>
   >({})
@@ -827,8 +827,10 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     setSelectedFieldUid(null)
   }
 
-  const previewRollOnCreate = async (field: Extract<SheetField, { type: 'track' }>) => {
-    if (rollingTrackFieldUid !== null) return
+  // 記法だけを見て dice-preview を叩くので field の型には依存しない。作成時ロールを宣言できる
+  // track / scalar のどちらからも同じ経路で呼ぶ。
+  const previewRollOnCreate = async (field: Extract<SheetField, { type: 'scalar' | 'track' }>) => {
+    if (rollingFieldUid !== null) return
 
     const notation = field.rollOnCreate?.notation ?? ''
     const validationIssue = validateStandaloneRollNotation(notation)[0]
@@ -841,7 +843,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
     }
 
     setRollOnCreateFeedback((current) => ({ ...current, [field.uid]: {} }))
-    setRollingTrackFieldUid(field.uid)
+    setRollingFieldUid(field.uid)
 
     try {
       const requestResult = await requestDicePreview({
@@ -855,9 +857,53 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
           : { error: requestResult.error }
       }))
     } finally {
-      setRollingTrackFieldUid(null)
+      setRollingFieldUid(null)
     }
   }
+
+  // scalar / track で入力欄・ボタン・フィードバック表示が同一形。片方にだけ記法の扱いが生えて
+  // 保存される rollOnCreate の形が分かれるのを防ぐため 1 箇所で持つ（engine 側も同じ理由で
+  // rollOnCreateSchema を 1 箇所に置いている: packages/sheet-engine/src/publish.ts）。
+  const renderRollOnCreateInput = (field: Extract<SheetField, { type: 'scalar' | 'track' }>) => (
+    <Stack gap={4}>
+      <TextInput
+        label="作成時ロール記法"
+        value={field.rollOnCreate?.notation ?? ''}
+        disabled={rollingFieldUid === field.uid}
+        onChange={(event) => {
+          const notation = event.currentTarget.value || undefined
+          setRollOnCreateFeedback((current) => ({ ...current, [field.uid]: {} }))
+          updateField(field.uid, {
+            // Invariant: updateField は Object.assign なので、rollOnCreate を作り直すと既存キーが消える。
+            // publish は宣言済み partsKey を指す行き先を受理するため（sheet-engine の publish.ts
+            // rollOnCreateSchema）、API / seed 由来の行き先を残したまま記法だけ差し替える。
+            rollOnCreate: notation ? { ...field.rollOnCreate, notation } : undefined
+          } as Partial<SheetField>)
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        leftSection={<IconDice size={16} />}
+        loading={rollingFieldUid === field.uid}
+        disabled={!field.rollOnCreate?.notation || rollingFieldUid !== null}
+        onClick={() => void previewRollOnCreate(field)}
+      >
+        試しロール
+      </Button>
+      {rollOnCreateFeedback[field.uid]?.details && (
+        <Text size="xs" c="dimmed">
+          {/* dice-preview の total は評価値で作成値と一致するが、details 末尾にも評価値を含むため重複表示しない。 */}
+          結果: {rollOnCreateFeedback[field.uid].details}
+        </Text>
+      )}
+      {rollOnCreateFeedback[field.uid]?.error && (
+        <Text size="xs" c="red" role="alert">
+          {rollOnCreateFeedback[field.uid].error}
+        </Text>
+      )}
+    </Stack>
+  )
 
   const runValidation = () => {
     try {
@@ -1292,6 +1338,16 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                       disabled={selectedField.parts === true}
                       onChange={(partsKeys) => updateField(selectedField.uid, { partsKeys })}
                     />
+                    {/*
+                      出目の行き先（rollOnCreate.partsKey）はここでは選ばせない。よってこのエディタが
+                      宣言する作成時ロールは行き先を持たず、その出目は書き込み側で base へ畳まれる
+                      （TRPG-SERVER の creation-roll-value.util.ts）。限定が効くのはこのエディタ発の宣言だけ。
+                      publish は宣言済み partsKey を指す行き先も受理するので（sheet-engine の publish.ts
+                      rollOnCreateSchema）、API / seed 由来の宣言は base 以外を指しうる。
+                      publish が scalar の宣言を受理するのは valueType が number のときだけなので
+                      （sheet-engine の publish.ts / validateScalarRollOnCreate）、この分岐にだけ置く。
+                    */}
+                    {renderRollOnCreateInput(selectedField)}
                   </>
                 )}
                 {selectedField.type === 'scalar' && selectedField.valueType === 'select' && (
@@ -1362,41 +1418,7 @@ export function TemplateEditorV3({ initialTemplate }: TemplateEditorV3Props) {
                         } as Partial<SheetField>)
                       }
                     />
-                    <Stack gap={4}>
-                      <TextInput
-                        label="作成時ロール記法"
-                        value={selectedField.rollOnCreate?.notation ?? ''}
-                        disabled={rollingTrackFieldUid === selectedField.uid}
-                        onChange={(event) => {
-                          const notation = event.currentTarget.value || undefined
-                          setRollOnCreateFeedback((current) => ({ ...current, [selectedField.uid]: {} }))
-                          updateField(selectedField.uid, {
-                            rollOnCreate: notation ? { notation } : undefined
-                          } as Partial<SheetField>)
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        leftSection={<IconDice size={16} />}
-                        loading={rollingTrackFieldUid === selectedField.uid}
-                        disabled={!selectedField.rollOnCreate?.notation || rollingTrackFieldUid !== null}
-                        onClick={() => void previewRollOnCreate(selectedField)}
-                      >
-                        試しロール
-                      </Button>
-                      {rollOnCreateFeedback[selectedField.uid]?.details && (
-                        <Text size="xs" c="dimmed">
-                          {/* dice-preview の total は評価値で作成値と一致するが、details 末尾にも評価値を含むため重複表示しない。 */}
-                          結果: {rollOnCreateFeedback[selectedField.uid].details}
-                        </Text>
-                      )}
-                      {rollOnCreateFeedback[selectedField.uid]?.error && (
-                        <Text size="xs" c="red" role="alert">
-                          {rollOnCreateFeedback[selectedField.uid].error}
-                        </Text>
-                      )}
-                    </Stack>
+                    {renderRollOnCreateInput(selectedField)}
                     {selectedField.role !== undefined && selectedField.role.kind !== 'resource' ? (
                       <Stack gap="xs">
                         <Text fw={500}>{RESOURCE_OPERATION_HEADING}</Text>

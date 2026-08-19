@@ -6,13 +6,18 @@ import { NestFactory } from '@nestjs/core'
 import type { INestApplicationContext } from '@nestjs/common'
 import type { CharacterTemplatePin } from '../domains/character/models/character.entity'
 import { CHARACTER_MODEL } from '../domains/character/models/character.model'
-import { LEGACY_COC_TEMPLATE } from '../domains/character-sheet-template/seeds/legacy-coc.template'
 
 export const BACKFILL_PINNED_BY = 'backfill-2026-07'
 
+/**
+ * この pin が対象にするのは旧 `legacy-coc` で作られた未 pin のキャラなので、
+ * id も version もリテラルで書く。`LEGACY_COC_TEMPLATE` は別テンプレート
+ * （`legacy-coc-v2`）を指すようになったため、そこから version を読むと
+ * v2 側の改版がそのまま旧 `legacy-coc` の存在しない版への pin になる。
+ */
 export const BACKFILL_TEMPLATE_PIN: CharacterTemplatePin = {
   templateId: 'legacy-coc',
-  templateVersion: LEGACY_COC_TEMPLATE.version,
+  templateVersion: '1.0.0',
   pinnedBy: BACKFILL_PINNED_BY
 }
 
