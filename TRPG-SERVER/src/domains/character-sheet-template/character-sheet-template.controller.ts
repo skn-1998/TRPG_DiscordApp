@@ -86,6 +86,16 @@ export class CharacterSheetTemplateController {
     return this.service.update(params.id, dto, user.discordUserId)
   }
 
+  @Post(':id/fork')
+  @HttpCode(HttpStatus.CREATED)
+  async fork(
+    @Param() params: CharacterSheetTemplateIdParamDto,
+    @Req() req: Request
+  ): Promise<CharacterSheetTemplateEntity> {
+    const user = this.extractAuthenticatedUser(req)
+    return this.service.fork(params.id, user.discordUserId)
+  }
+
   @Post(':id/publish')
   @HttpCode(HttpStatus.OK)
   async publish(

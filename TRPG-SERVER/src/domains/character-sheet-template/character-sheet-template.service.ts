@@ -59,6 +59,37 @@ export class CharacterSheetTemplateService {
     return this.repository.create(entity)
   }
 
+  async fork(templateId: string, requesterDiscordUserId: string): Promise<CharacterSheetTemplateEntity> {
+    const source = await this.findExisting(templateId)
+
+    // 自分所有は status を検査せず draft も許可する。
+    // allowedStatuses 必須の resolveForCreate / resolvePinnedRevision を再利用すると、自分の draft が 409 になる。
+    this.assertRevisionReadableBy(source, requesterDiscordUserId)
+    // system 特例は複製元の読み取りだけで、mutation は所有者限定のまま。元は更新せず要求者名義で新規作成する。
+    if (source.authorDiscordUserId !== requesterDiscordUserId && source.status !== 'published') {
+      throw new ConflictException('only published system sheet templates can be forked')
+    }
+
+    // visibility は継承元を信用しない独立防御として payload から省き、
+    // create() の既定値 dto.visibility ?? 'private' で private にする。
+    // legacy-coc は published かつ private の seed 反例で、publish() は DB 全行の visibility を保証しない。
+    return this.create(
+      {
+        name: `${source.name} のコピー`,
+        version: source.version,
+        schemaVersion: 3,
+        gameSystemId: source.gameSystemId,
+        tags: source.tags,
+        forkedFrom: { templateId: source.templateId, version: source.version },
+        license: source.license,
+        sections: source.sections,
+        tables: source.tables,
+        settings: source.settings
+      },
+      requesterDiscordUserId
+    )
+  }
+
   async findSummaries(requesterDiscordUserId: string): Promise<CharacterSheetTemplateSummary[]> {
     return this.repository.findListedSummariesForRequester(requesterDiscordUserId)
   }

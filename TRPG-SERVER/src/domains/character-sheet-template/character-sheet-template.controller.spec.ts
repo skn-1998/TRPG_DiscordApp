@@ -62,6 +62,7 @@ describe('CharacterSheetTemplateController', () => {
 
     const serviceMock = {
       create: jest.fn(),
+      fork: jest.fn(),
       findSummaries: jest.fn(),
       findOne: jest.fn(),
       resolvePinnedRevision: jest.fn(),
@@ -121,6 +122,27 @@ describe('CharacterSheetTemplateController', () => {
       details: [{ message: 'first issue' }, { message: 'second issue' }]
     })
     expect(service.create).toHaveBeenCalledWith({ name: 'Template' }, 'user-1')
+  })
+
+  it('POST /sheet-templates/:id/fork は 201 で id と discordUserId を fork に渡す', async () => {
+    service.fork.mockResolvedValue(template)
+
+    const response = await request(app.getHttpServer()).post('/sheet-templates/template-1/fork').expect(201)
+
+    expect(response.body).toStrictEqual(template)
+    expect(service.fork).toHaveBeenCalledWith('template-1', 'user-1')
+  })
+
+  it('POST /sheet-templates/:id/fork は body の visibility を無視して 2 引数で service.fork へ委譲する', async () => {
+    service.fork.mockResolvedValue(template)
+
+    await request(app.getHttpServer())
+      .post('/sheet-templates/template-1/fork')
+      .send({ visibility: 'public' })
+      .expect(201)
+
+    expect(service.fork).toHaveBeenCalledWith('template-1', 'user-1')
+    expect(service.fork).toHaveBeenCalledTimes(1)
   })
 
   it('GET /sheet-templates は自分の全テンプレートと system published の summary 一覧を取得する', async () => {

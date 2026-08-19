@@ -119,6 +119,142 @@ describe('CharacterSheetTemplateService', () => {
     expect(result.authorDiscordUserId).toBe('user-1')
   })
 
+  it('自分所有の draft を新しい要求者所有 draft として fork できる', async () => {
+    repository.findById.mockResolvedValue(template)
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result.templateId).not.toBe(template.templateId)
+    expect(result).toMatchObject({
+      status: 'draft',
+      draftRevision: 1,
+      authorDiscordUserId: 'user-1'
+    })
+  })
+
+  it.each(['published', 'deprecated'] as const)('自分所有の status=%s も fork できる', async (status) => {
+    repository.findById.mockResolvedValue({ ...template, status })
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result.templateId).not.toBe(template.templateId)
+    expect(result).toMatchObject({
+      status: 'draft',
+      draftRevision: 1,
+      authorDiscordUserId: 'user-1'
+    })
+  })
+
+  it('published かつ public の複製元でも fork 生成物は private にする', async () => {
+    repository.findById.mockResolvedValue({ ...template, status: 'published', visibility: 'public' })
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result.visibility).toBe('private')
+  })
+
+  it('fork 生成物は名前を加工し version とテンプレート定義を複製元から継承する', async () => {
+    const source: CharacterSheetTemplateEntity = {
+      ...template,
+      version: '2.3.4',
+      name: 'CoC Template',
+      gameSystemId: 'Cthulhu7th',
+      tags: ['coc', 'horror'],
+      license: 'CC-BY-4.0',
+      tables: [{ id: 'damage-bonus', resultType: 'number', rows: [] }],
+      settings: { rounding: 'ceil', locale: 'ja' }
+    }
+    repository.findById.mockResolvedValue(source)
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result).toMatchObject({
+      name: 'CoC Template のコピー',
+      version: source.version,
+      gameSystemId: source.gameSystemId,
+      tags: source.tags,
+      license: source.license,
+      sections: source.sections,
+      tables: source.tables,
+      settings: source.settings
+    })
+  })
+
+  it('fork 生成物の forkedFrom に複製元の templateId と version を記録する', async () => {
+    repository.findById.mockResolvedValue({ ...template, version: '1.2.3' })
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result.forkedFrom).toStrictEqual({ templateId: 'template-1', version: '1.2.3' })
+  })
+
+  it('system 所有 published を非所有者が fork できる', async () => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status: 'published',
+      authorDiscordUserId: 'system'
+    })
+    repository.create.mockImplementation(async (entity) => entity)
+
+    const result = await service.fork('template-1', 'user-1')
+
+    expect(result).toMatchObject({ authorDiscordUserId: 'user-1', status: 'draft' })
+  })
+
+  it('system 所有 deprecated の fork は 409 にする', async () => {
+    repository.findById.mockResolvedValue({
+      ...template,
+      status: 'deprecated',
+      authorDiscordUserId: 'system'
+    })
+
+    await expect(service.fork('template-1', 'user-1')).rejects.toBeInstanceOf(ConflictException)
+    expect(repository.create).not.toHaveBeenCalled()
+  })
+
+  it.each(['draft', 'published', 'deprecated'] as const)(
+    '第三者所有の status=%s は fork を 403 にする',
+    async (status) => {
+      repository.findById.mockResolvedValue({ ...template, status, authorDiscordUserId: 'other-user' })
+
+      await expect(service.fork('template-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException)
+      expect(repository.create).not.toHaveBeenCalled()
+    }
+  )
+
+  it('存在しない templateId の fork は 404 にする', async () => {
+    repository.findById.mockResolvedValue(null)
+
+    await expect(service.fork('missing', 'user-1')).rejects.toBeInstanceOf(NotFoundException)
+    expect(repository.create).not.toHaveBeenCalled()
+  })
+
+  it('fork の保存前検証に失敗した場合は repository.create を呼ばない', async () => {
+    repository.findById.mockResolvedValue(template)
+    validationPort.validateForSave.mockRejectedValue(new BadRequestException('invalid template'))
+
+    await expect(service.fork('template-1', 'user-1')).rejects.toBeInstanceOf(BadRequestException)
+    expect(repository.create).not.toHaveBeenCalled()
+  })
+
+  it('fork は複製元に対する update 系 repository 操作を行わない', async () => {
+    repository.findById.mockResolvedValue(template)
+    repository.create.mockImplementation(async (entity) => entity)
+
+    await service.fork('template-1', 'user-1')
+
+    expect(repository.updateDraft).not.toHaveBeenCalled()
+    expect(repository.patchMetadata).not.toHaveBeenCalled()
+    expect(repository.publish).not.toHaveBeenCalled()
+    expect(repository.deprecatePublished).not.toHaveBeenCalled()
+    expect(repository.removeDraft).not.toHaveBeenCalled()
+  })
+
   it('一覧は自分の全テンプレートと system published のサマリー取得に委譲する', async () => {
     const summaries = [
       summary('own-private', 'user-1', 'draft', 'private'),
