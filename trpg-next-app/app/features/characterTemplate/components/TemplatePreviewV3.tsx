@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Alert, Button, Code, Group, Stack, Tabs, Text, TextInput } from '@mantine/core'
 import { IconAlertCircle, IconDice } from '@tabler/icons-react'
 import { evaluateTemplate } from '@trpg/sheet-engine'
+import { buildFormValues } from '../../characterSheet/form-values'
 import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import type { CharacterSheetTemplateEntity, PreviewValues, SheetField } from '../types/v3'
 import { buildDicePreviewRequest, requestDicePreview } from '../utils/dicePreview'
@@ -49,23 +50,13 @@ export function TemplatePreviewV3({ template }: TemplatePreviewV3Props) {
         })
       }]
   }), [activeEntitySection, activeSection, sheetTemplate])
-  // evaluated（engine 評価値と computed の失敗表示）を基底に、ユーザー編集値で後から上書きする順序が不変条件。
-  // updateValue が唯一の writer として undefined を弾くため、overlay は保持済みの編集値を無条件に最終値へできる。
-  const formValues = useMemo(() => {
-    const nextValues: Record<string, unknown> = {}
-    for (const [fieldUid, runtime] of Object.entries(evaluated.result?.values ?? {})) {
-      nextValues[fieldUid] = runtime.value
-    }
-    for (const field of activeSection?.fields ?? []) {
-      if (field.type === 'computed' && evaluated.result?.values[field.uid] === undefined) {
-        nextValues[field.uid] = 'Error'
-      }
-    }
-    for (const [fieldUid, value] of Object.entries(values)) {
-      nextValues[fieldUid] = value
-    }
-    return nextValues
-  }, [activeSection, evaluated.result, values])
+  // 評価値と編集値を重ねる順序は buildFormValues が持つ。updateValue が唯一の writer として undefined を
+  // 弾くため、preview の values に未入力を表すキーは無く、載っているキーはすべて利用者が入れた値になる。
+  // computed の失敗表示は active section の field だけを対象にする（描いていない section は表示先が無い）。
+  const formValues = useMemo(
+    () => buildFormValues({ evaluated: evaluated.result, fields: activeSection?.fields ?? [], values }),
+    [activeSection, evaluated.result, values]
+  )
 
   const updateValue = useCallback((uid: string, value: unknown) => {
     // 現状の TFR は primitive だけを渡すが onChange の契約は unknown なので、preview state の境界で絞る。

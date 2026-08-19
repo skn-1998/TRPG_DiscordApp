@@ -4006,13 +4006,31 @@ scalar が発火した時点で編集欄の下に「振り直す」ボタンが�
 | # | タスク | 内容 | 状態 |
 |---|---|---|---|
 | 1 | #46 PV-S | engine の `rollOnCreateSpec` が scalar を読む ＋ server の提出値ガードを衝突判定へ。CI-1 を吸収 | **完了・コミット `e848ba1`** |
-| 2 | #54 PV-S2 | エディタの scalar 分岐に「作成時ロール記法」入力欄を出す（track 分岐 1365-1397 と同型） | **完了・受入・未コミット** |
-| 3 | #55 PV-S3 | legacy-coc の二重宣言を 1 本に畳む。既存 published / pinned revision への影響を先に実測 | **完了・受入・未コミット**（FIX ラウンド込み） |
+| 2 | #54 PV-S2 | エディタの scalar 分岐に「作成時ロール記法」入力欄を出す（track 分岐 1365-1397 と同型） | **完了・コミット `4ec72186`** |
+| 3 | #55 PV-S3 | legacy-coc の二重宣言を 1 本に畳む。既存 published / pinned revision への影響を先に実測 | **完了・コミット `4ec72186`**（FIX ラウンド込み） |
 | 4 | #56 | 大粒度認知負荷レビュー（3 フェーズ経過・**必須ゲート**） | **完了**。判定 = `review-results/roll-lane/big-pvs-verdict.md` |
-| 5 | #58 PV-S4 | #56 の消化（front）。記法欄を scalar / track で 1 本化し、`partsKey` を落とさなくする | **完了・受入・未コミット** |
-| 6 | #59 PV-S5 | #56 の消化（server）。seeder が旧 `legacy-coc` を deprecate して一覧から落とす | **完了・受入・未コミット** |
+| 5 | #58 PV-S4 | #56 の消化（front）。記法欄を scalar / track で 1 本化し、`partsKey` を落とさなくする | **完了・コミット `4ec72186`** |
+| 6 | #59 PV-S5 | #56 の消化（server）。seeder が旧 `legacy-coc` を deprecate して一覧から落とす | **完了・コミット `4ec72186`** |
 | — | #60〜#62 | #56 の後続（非 base 行き先の pin・振り直し spec の scalar ケース・参照正規化の scalar 素通し） | 未着手 |
 | — | #57 | 使い方ガイドを配布テンプレート 2 件前提に直す | 未着手（`character-sheet-user-guide.md` は別セッションが編集中） |
+
+**実 DB へ適用済み（2026-08-19）**。`pnpm seed:legacy-coc-template --execute` を実行し、
+`inserted=true` ＋ `deprecated templateId=legacy-coc`。再 dry-run が `skip-existing` に変わったので
+v2 は published として在り、再実行は何も変えない。**一覧に出る system テンプレートは v2 の 1 件**で、
+旧行は deprecated（一覧に出ず新規作成も拒否・既存キャラの pin 解決は受理）。
+`document/` 側の記述追随は #57。
+
+**達成範囲の訂正（実機報告を受けて・重要）**。「ユーザー要求が実データまで通って満たされた」という
+直前の報告は**過大だった**。正しくは **`computedCache` / 投影 / Discord 経路では満たされており、
+web のシート編集画面では HP / MP / SAN は変更前から `—` のまま**。
+あの画面は保存値だけを `TemplateFormRenderer` へ渡しており、**保存値を持たない computed** を
+一度も表示していない（front の `computedCache` 参照コミットは 0 件・`—` は `ae9345a7` 由来・本レーンは
+`TemplateFormRenderer` を触っていない）。
+なお当初ここに「computed / roll」と並べて書いていたのは**誤り**で、roll は保存値を持つため
+（`roll-on-create.ts:52-54` が roll へ無条件に spec を返し、`sheet-materializer.service.ts:385` が
+`sheet.values` へ戻す）、**保存値のある roll は前から表示されていた**。2026-08-19 のレビューで訂正。**PV-S の回帰ではない**が、
+Fable が「値を spec で測ったこと」を「画面を見たこと」の代わりにしていた検収の穴である。
+調査と設計 = `document/character-sheet-proposals/computed-display-design.md`（タスク #63）。
 
 **#46 の変更は 8 ファイル**（engine 2・server 3・front 3）。検収記録 = `review-results/roll-lane/pvs-acceptance.md`。
 
@@ -4080,6 +4098,47 @@ characterization fixture の差分は `index` 7 行のみ（`2,4,…,14` → `1.
 **検収**: server 226 suites / 3215 passed・循環ゼロ。変異 4 種すべて RED（sha256 復元一致）。
 うち MG1（作成時ロール宣言の除去）で「作成直後の HP / MP / SAN / DB が出目から導かれ、0 に畳まれない」が
 赤くなる = **ユーザーの不具合が機械で固定された**。記録 = `review-results/roll-lane/pvs-acceptance.md`。
+
+## PV-C1: web シート編集画面に computed / roll を出す（2026-08-19・未コミット・受入済み）
+
+**実機報告**: 「`legacy-coc-v2` から新しく作ったキャラの HP / MP / SAN が `—` と表示される」。
+
+**原因は回帰ではなく未配線**。シート編集画面は `character.sheet.values`（保存値）だけを
+`TemplateFormRenderer` へ渡していた。computed は保存値ではないので常に undefined → `—`。
+`computedCache` は character 文書に永続化され front まで届いているが、front は一度も参照していない。
+
+直前の PV-S3 で「実データを 1 件作って HP=12 を確認した」と報告していたが、それは
+**materializer の返り値を spec で測ったもの**で、ユーザーが開く画面ではなかった。
+→ メモリ `seed-template-needs-runtime-acceptance` に「受入条件には画面の名前を書く」として記録済み。
+
+**採った方式（ユーザー裁定 = B）**: プレビュー画面と同じ client 評価をシート画面にも持たせる。
+プレビューにしかなかった 3 段の overlay（評価値を敷く → 評価不能な computed を 'Error' に →
+画面が持つ raw 値で上書き）を `characterSheet/form-values.ts` の `buildFormValues` へ抽出し、両画面から呼ぶ。
+
+`computedCache` を表示源にする案（A）は不採用。`buildComputedCache` は computed 型しか詰めないので
+roll が `—` のまま残り、かつプレビューの client 評価とは別の 2 つ目の仕組みになるため。
+代わりに **client 評価の結果が `computedCache` と一致すること**を spec で外から固定した。
+
+**変更 4 ファイル**: `characterSheet/form-values.ts`（新規）・`CharacterSheetEditClient.tsx` と同 spec・
+`TemplatePreviewV3.tsx`。
+
+**検収**: front 34 suites / **607 passed**（着手前 603）・tsc 0・eslint 0。
+変異 6 種すべて RED（sha256 復元一致）。うち MU-5 は実装を `computedCache` 読みへ差し替える変異で、
+「cache と一致する」spec は**通ってしまい**、「cache を持たない character でも表示する」spec が
+落ちた ＝ FIX-4 の対が設計どおり自明化を防いでいる。
+
+**実データ受入（画面の名前 = Web のシート編集画面）**: 配布中の `legacy-coc-v2` と、実
+`CharacterInstantiationService.applyRollOnCreate` ＋実 `materialize` が作った保存値で本物の
+component を描画し、Chromium で DOM 実測。修正前は `—` が 4 個、修正後は `11 / 8 / 40 / 0` で
+server の `computedCache` と一致。証跡 = `review-results/roll-lane/`（`sheet.html` / `sheet-before.html` ほか）。
+
+**実測で判明した事実**: 作成時ロールは `materialize` では走らない（空 values を渡すと保存値 0 件・
+computedCache 全 0）。ロールを回すのは `applyRollOnCreate`。
+未設定 track の表示は変わらない（`TemplateFormRenderer.tsx:792` が元から undefined を 0 に落としており、
+`trackDisplayValue(0)` も `0`）。
+
+**残**: 大粒度認知負荷レビュー（PV-S4 / PV-S5 / PV-C1 の 3 フェーズ分）と小粒度レビューを実施中。
+`trpg-next-app/AI.md` への front 記録は並行セッションが同ファイルを保持しているため未反映。
 
 ## 参照
 

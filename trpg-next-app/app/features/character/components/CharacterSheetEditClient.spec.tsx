@@ -145,6 +145,62 @@ const declaredPartsTemplate: CharacterSheetTemplateEntity = {
   }]
 }
 
+// computed を持つ fixture。式は保存済みテンプレートと同じ `{section.field}` 形で書く。
+// character fixture の保存値 main.hp = 10 から 耐久度 = 20、半減値 = 5 になる。
+const computedTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'derived',
+        uid: 'main.derived',
+        label: '耐久度',
+        type: 'computed',
+        resultType: 'number',
+        formula: '{main.hp} * 2'
+      },
+      {
+        id: 'halved',
+        uid: 'main.halved',
+        label: '半減値',
+        type: 'computed',
+        resultType: 'number',
+        formula: 'floor({main.hp} / 2)'
+      }
+    ]
+  }]
+}
+
+// 上限式が別の track を参照する fixture。参照元 main.san には保存値があり、参照先 main.sanmax には無い。
+// 式は保存済みテンプレートと同じ `{section.field}` 形で書く。
+const trackMaxRefTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'san',
+        uid: 'main.san',
+        label: '正気度',
+        type: 'track',
+        style: 'gauge',
+        max: { formula: '{main.sanmax}' }
+      },
+      { id: 'sanmax', uid: 'main.sanmax', label: '正気度上限', type: 'track', style: 'gauge', max: 99 }
+    ]
+  }]
+}
+const trackMaxRefCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.san': 5 }
+  }
+}
+
 // 振り直しの対象を 2 種類そろえた fixture。track（main.dex）は editableScalarFields の対象外なので
 // 保存差分を作らず、number scalar（main.pow）は対象なので baseline を進めないと保存差分を作る。
 // other は Discord の ± が積む内訳キーで、合計から保存形を組み立て直すと失われる値の代表。
@@ -281,6 +337,19 @@ function renderEditor() {
       <CharacterSheetEditClient character={character} template={template} />
     </MantineProvider>
   )
+}
+
+function renderComputedEditor(computedCharacter: CharacterWire = character) {
+  return render(
+    <MantineProvider>
+      <CharacterSheetEditClient character={computedCharacter} template={computedTemplate} />
+    </MantineProvider>
+  )
+}
+
+/** TFR は computed / roll を読み取り専用 TextInput で描く。label 完全一致で 1 本に絞る。 */
+function readOnlyFieldValue(label: string): string {
+  return (screen.getByRole('textbox', { name: label }) as HTMLInputElement).value
 }
 
 function deferredSaveResult() {
@@ -1538,5 +1607,96 @@ describe('CharacterSheetEditClient', () => {
     renderEditor()
 
     expect(screen.getByRole('heading', { level: 3, name: 'メイン' })).toBeTruthy()
+  })
+})
+
+/**
+ * computed の表示値は client 評価から出す（保存値ではないので values state には無い）。
+ * server も同じ式を評価して computedCache を保存しており、両者が食い違うと画面が嘘をつく。
+ */
+describe('CharacterSheetEditClient の computed 表示', () => {
+  // Test intent: client 評価の結果と server が保存した computedCache の一致を外から固定する。
+  // 一致を見るだけでは、実装が computedCache を読んでいても通ってしまう。それを排除するのは
+  // 次の「computedCache を持たない character」の spec で、実装が cache 依存なら値を出せず赤くなる。
+  it('未編集の computed 表示が server の computedCache と一致する', () => {
+    // Fixture source: server の materialize が同じ保存値と式から作る computedCache。
+    const cachedCharacter: CharacterWire = {
+      ...character,
+      computedCache: { 'main.derived': 20, 'main.halved': 5 }
+    }
+    renderComputedEditor(cachedCharacter)
+
+    expect([readOnlyFieldValue('耐久度'), readOnlyFieldValue('半減値')]).toEqual([
+      String(cachedCharacter.computedCache!['main.derived']),
+      String(cachedCharacter.computedCache!['main.halved'])
+    ])
+  })
+
+  it('computedCache を持たない character でも computed を client 評価で表示する', () => {
+    renderComputedEditor()
+
+    expect([readOnlyFieldValue('耐久度'), readOnlyFieldValue('半減値')]).toEqual(['20', '5'])
+  })
+
+  // Test intent: 編集への追従は client 評価を採った理由そのもの。pin が無いと次の変更で静かに失われる。
+  it('編集した scalar に computed の表示が追従する', () => {
+    renderComputedEditor()
+    expect(readOnlyFieldValue('耐久度')).toBe('20')
+
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '12' } })
+
+    expect([readOnlyFieldValue('耐久度'), readOnlyFieldValue('半減値')]).toEqual(['24', '6'])
+  })
+
+  // Test intent: evaluateTemplate は式 1 本の失敗で例外を投げる。受け止めないと画面全体が落ちる。
+  it('式評価に失敗しても編集欄を保ち、computed だけ Error を表示する', () => {
+    const brokenTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [{
+        ...template.sections[0]!,
+        fields: [
+          ...template.sections[0]!.fields,
+          {
+            id: 'broken',
+            uid: 'main.broken',
+            label: '壊れた算出値',
+            type: 'computed',
+            resultType: 'number',
+            // 自己参照は engine が循環として検出し、評価全体を例外で終わらせる。
+            formula: '{main.broken}'
+          }
+        ]
+      }]
+    }
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={character} template={brokenTemplate} />
+      </MantineProvider>
+    )
+
+    expect(readOnlyFieldValue('壊れた算出値')).toBe('Error')
+    expect((screen.getByRole('textbox', { name: /^HP/ }) as HTMLInputElement).value).toBe('10')
+  })
+})
+
+/**
+ * TFR へ渡す表示値は、TFR がそのまま engine へ差し戻して注釈と制約を評価する入力でもある。
+ * よってこの画面が「値を持たない」を表せるのは values state のキー不在だけで、そこに表示用の
+ * 評価値を残すと engine の未確定判定が壊れる。
+ */
+describe('CharacterSheetEditClient の track 上限表示', () => {
+  // Test intent: 未設定 track に評価値 0 が載ると、engine の「raw entry が無ければ indeterminate」が
+  // ok(0) へ転び、保存値 5 の track に対して上限 0 を主張する。上限の未確定表示だけを固定する
+  // （値表示側の未設定 track = 0 は TFR の既存契約で、ここでは変えない）。
+  it('上限式が未設定 track を参照する track は、上限を — のまま表示する', () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={trackMaxRefCharacter} template={trackMaxRefTemplate} />
+      </MantineProvider>
+    )
+
+    expect(document.querySelector('[data-track-display-value="main.san"]')?.textContent).toBe('5 / —')
+    expect(document.querySelector('[data-track-field="main.san"]')?.getAttribute('data-track-max-status'))
+      .toBe('indeterminate')
   })
 })

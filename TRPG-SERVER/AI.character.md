@@ -830,7 +830,17 @@ valueType 2 レンズ）、実物で確かめると陳腐化は成立してい�
 ### legacy-coc を作成時ロール込みで作り直す（PV-S3・2026-08-19・未コミット）
 
 正本 = `review-results/roll-lane/prompt-pvs3.txt` ＋ `prompt-pvs3-fix.txt`、
-検収 = `pvs-acceptance.md` の PV-S3 節。**ユーザー要求が実データで満たされるのはここ**。
+検収 = `pvs-acceptance.md` の PV-S3 節。
+
+**達成範囲の限定（2026-08-19 に実機で判明・当初の記述は過大だった）**:
+本スライスで正しくなるのは**保存値（能力値 scalar）と `computedCache` / 投影 / Discord 経路**であって、
+**web のシート編集画面ではない**。あの画面は `character.sheet.values`（保存値）だけを
+`TemplateFormRenderer` へ渡しており、computed / roll は常に `undefined` → `—` を描く
+（`TemplateFormRenderer.tsx:762-771`）。`computedCache` は front から一度も参照されていない
+（`git log -S computedCache -- trpg-next-app` が 0 件）。
+つまり HP / MP / SAN は**この画面では変更前から表示されていない**。詳細と設計は
+`document/character-sheet-proposals/computed-display-design.md`。
+この穴は **PV-C1（front・後述）で塞いだ**ので、上の限定は 2026-08-19 の PV-C1 以前の話。
 
 能力値 8 件の `scalar` ＋ `roll` 分裂を、`rollOnCreate` を持つ単一 scalar へ畳んだ。
 負の対照で実測（旧 → `hp:0, mp:0, san:0` / 新 → `12, 11, 55`。実 materializer・実 evaluator 経由）。
@@ -913,6 +923,58 @@ valueType 2 レンズ）、実物で確かめると陳腐化は成立してい�
   （それは v2 を指すので、入れたばかりの行を落とす）
 - PV-S3 で偽になっていた seeder の Why も同じ差分で書き直した
 - ゲート = server build 0 / 循環ゼロ / 226 suites・**3221 passed**（3215 → +6）
+
+#### 実 DB への適用（2026-08-19・実行済み）
+
+コミット `4ec72186` 後、コミット済み内容で全ゲートを再実行（226 suites / 3221 passed・循環ゼロ）した
+うえで seeder を実行した。
+
+```
+dry-run  : decision=insert          would deprecate templateId=legacy-coc author=system
+--execute: decision=insert  inserted=true   deprecated templateId=legacy-coc
+再 dry-run: decision=skip-existing
+```
+
+`deprecated templateId=legacy-coc`（「no published ... row」ではない）は
+**一致する published 行が実在して更新された**ことを示す。再 dry-run が `skip-existing` に
+変わったので v2 は published として在り、再実行は何も変えない（冪等）。
+
+以後、一覧に出る system テンプレートは `legacy-coc-v2` の 1 件。旧行は deprecated なので
+一覧に出ず新規作成も拒否されるが、旧行に pin 済みのキャラは `resolvePinnedRevision` が
+受理するので従来どおり解決できる。
+
+なおこの seeder は AppModule 全体を起動するため、副作用として Discord のコマンド登録が走る
+（本スライス以前からの挙動）。
+
+### PV-C1: web シート編集画面に computed / roll を出す（front・2026-08-19・未コミット）
+
+正本 = `review-results/roll-lane/prompt-pvc1-code.txt`、設計 =
+`document/character-sheet-proposals/computed-display-design.md`（案 A/B/C のうち **B をユーザーが裁定**）、
+検収 = `pvs-acceptance.md` の PV-C1 節。front 側の詳細は `trpg-next-app/AI.md` に別途記載する
+（並行セッションが同ファイルを保持しているため未反映）。
+
+実機報告「HP / MP / SAN が `—` と表示される」への修正。**回帰ではなく未配線**で、
+シート編集画面は保存値だけを `TemplateFormRenderer` へ渡していた。computed は保存値ではないので
+常に undefined だった。プレビュー画面にしかなかった 3 段の overlay を
+`characterSheet/form-values.ts` の `buildFormValues` へ抽出し、両画面から呼ぶ形にした。
+
+**`computedCache` を表示源にはしない**。理由は 2 つで、`buildComputedCache` は computed 型しか
+詰めない（`sheet-materializer.service.ts:141`）ので roll が `—` のまま残ること、
+プレビューの client 評価とは別の 2 つ目の仕組みになること。
+代わりに **client 評価の結果が `computedCache` と一致すること**を spec で外から固定した。
+
+実データ受入（**画面の名前 = Web のシート編集画面**）: 配布中の `legacy-coc-v2` と
+実 `applyRollOnCreate` ＋実 `materialize` が作った保存値で本物の component を描画し、Chromium で DOM 実測。
+修正前は `—` が 4 個、修正後は `11 / 8 / 40 / 0` で server の `computedCache` と一致。
+
+実測で判明した事実 2 件:
+
+- **作成時ロールは `materialize` では走らない**。`SheetMaterializerService.materialize` に
+  空の values を渡しても保存値は 0 件で computedCache は全 0。ロールを回すのは
+  `CharacterInstantiationService.applyRollOnCreate`（`:102-129`）
+- 未設定 track の表示は**変わらない**。`TemplateFormRenderer.tsx:792` が元から
+  `rawValue === undefined ? 0 : trackDisplayValue(rawValue)` で、`trackDisplayValue(0)` は
+  `0` を返す（`:647`）
 
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 

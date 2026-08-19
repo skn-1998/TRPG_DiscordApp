@@ -3,10 +3,13 @@
 import { Alert, Button, Card, Container, Group, Radio, Stack, Text, Title } from '@mantine/core'
 import { IconAlertCircle, IconArrowLeft, IconDeviceFloppy } from '@tabler/icons-react'
 import type { CharacterWire, RerollCreationRollResultWire, SheetMergeConflictWire } from '@trpg/api-contract'
+import { evaluateTemplate } from '@trpg/sheet-engine'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import type { CharacterSheetTemplateEntity } from '../../characterTemplate/types/v3'
+import { toSheetTemplate } from '../../characterTemplate/utils/v3Template'
+import { buildFormValues } from '../../characterSheet/form-values'
 import { TemplateFormRenderer } from '../../characterSheet/TemplateFormRenderer'
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { rerollSheetField, saveSheet, type RerollSheetFieldResult } from '../actions'
@@ -92,11 +95,53 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const [rerollingFieldUid, setRerollingFieldUid] = useState<string>()
   const [rerollFeedback, setRerollFeedback] = useState<RerollSheetFieldResult | null>(null)
   const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
+  const templateFields = useMemo(() => template.sections.flatMap((section) => section.fields), [template])
   // 振り直しの対象には track / roll も含まれ、これらは editableScalarFields の外なので、全 field から label を引く。
   const fieldLabels = useMemo(
-    () => new Map(template.sections.flatMap((section) => section.fields.map((field) => [field.uid, field.label]))),
-    [template]
+    () => new Map(templateFields.map((field) => [field.uid, field.label])),
+    [templateFields]
   )
+  // computed の値は保存値ではないので values state には無い（materialize が computed への保存を拒否する）。
+  // roll は保存値だが、保存値を持たない roll は評価値（記法文字列）が出る。どちらもプレビューと同じ
+  // client 評価から採る。
+  // engine 形への変換もプレビューと同じ toSheetTemplate を通す。そこが呼ぶ normalizeTemplateReferences が
+  // 書き換えるのは `{field}` 形の参照だけで、保存済みテンプレートが持つ `{section.field}` 形には効かない。
+  // Invariant: この画面が評価器へ渡すテンプレート実体はこれ 1 つに保つ。TFR も内部で評価器を呼ぶので
+  // （evaluateAnnotationRuntime / evaluateConstraint）、TFR へ正規化前の entity を渡すと同じ画面の評価器が
+  // 2 つの実体を見ることになり、`{field}` 形の参照の解決結果が両者で食い違いうる。
+  const sheetTemplate = useMemo(() => toSheetTemplate(template), [template])
+  // evaluateTemplate は式 1 本の失敗で例外を投げる。編集画面はテンプレートを直せる場所ではないので、
+  // 画面ごと落とさず null にし、computed だけを 'Error' 表示へ退化させる（プレビューと同じ扱い）。
+  const evaluated = useMemo(() => {
+    try {
+      return evaluateTemplate(sheetTemplate, { values })
+    } catch {
+      return null
+    }
+  }, [sheetTemplate, values])
+  const formValues = useMemo(() => {
+    // 「値を持たない」は values state のキー不在で表される。buildFormValues の 1 段目は評価値を全 uid に
+    // 敷くので、不在キーを undefined として明示的に載せない限り、engine の評価値がその不在を埋めてしまう。
+    // 埋まると、未入力の number 欄が 0（engine の未入力 number の評価値）と表示され、保存していない値を
+    // 画面が主張する。
+    //
+    // 補填の対象を「この画面が raw 値を所有しない型か」で決めるのが要。この画面が所有しないのは
+    // computed と roll の 2 つだけで、それ以外（scalar / track / relation / tag / list）は
+    // values state のキーの在不在がそのまま「保存値の有無」を表す。
+    //
+    // Invariant: 評価値をここに残してよいのは computed と roll だけ。TFR は受け取った values を
+    // engine へ差し戻して注釈と制約を評価するため（TFR の evaluateAnnotationRuntime と
+    // evaluateConstraint）、それ以外の型に評価値を残すと engine 側の「own かつ非 nullish な raw entry が
+    // 無ければ indeterminate」という契約（constraint-evaluator の isRawNumberDependencyMissing）が崩れる。
+    // 具体的には未設定 track に評価値 0 が載り、その track を参照する上限 / block cap / pool total が
+    // 未確定（—）から 0 の断定へ転ぶ。表示だけの理由で対象を絞ると、この壊れ方を素通しする。
+    const editorOwned: Record<string, unknown> = { ...values }
+    for (const field of templateFields) {
+      if (field.type === 'computed' || field.type === 'roll') continue
+      if (!(field.uid in editorOwned)) editorOwned[field.uid] = undefined
+    }
+    return buildFormValues({ evaluated, fields: templateFields, values: editorOwned })
+  }, [evaluated, templateFields, values])
 
   const changes = deriveSheetChanges(fields, baseline, values)
   const savableChanges = conflictPanel
@@ -365,10 +410,11 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
                 <Alert color="blue">このテンプレートには編集対象の scalar がありません。</Alert>
               ) : null}
               {/* design-v1-ui :117: 編集対象がなくても computed/roll と U14/U15 annotation を同一 TFR 経路で描画する。 */}
+              {/* 渡すのは表示用の formValues。保存差分の正本である values state には computed / roll を混ぜない。 */}
               <TemplateFormRenderer
-                template={template}
+                template={sheetTemplate}
                 headingLevel={3}
-                values={values}
+                values={formValues}
                 onChange={handleRendererChange}
                 onPartsChange={handleRendererPartsChange}
                 creationRollReroll={
