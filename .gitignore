@@ -63,6 +63,8 @@ out/
 
 # Claude Code compact snapshots (hook-generated, local-only)
 .claude/compact-log/
+# サブディレクトリを cwd にしたセッションの compact フックが書く（ルートと同じ扱い）
+trpg-next-app/.claude/compact-log/
 
 # Codex delegation evidence (local-only, plain text; see codex-delegate skills)
 review-results/

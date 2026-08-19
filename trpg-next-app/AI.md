@@ -137,6 +137,26 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   インライン警告のみ（隠さない）。TFR の 3 表示経路（cap バッジ・pool 行・field 近傍警告）が
   この契約を共有する — 「ok 以外は非表示」へ戻す変更は仕様違反
 
+## テンプレート JSON インポート（J1・2026-08-19）
+
+- 一覧ヘッダー「JSON から作成」→ 貼り付けモーダル → `parseTemplateImportJson`
+  （`features/characterTemplate/utils/v3Template.ts`）→ `importTemplate` action。
+  受理 JSON の正本 = `document/character-sheet-template-json-spec.md`
+- **client 検査は 3 点だけ**（JSON parse 可・plain object・name 非空）。構造検証を client に
+  足さないこと — 正本は server 保存時検証（`validatePublishTemplate`）で、余分キーの除去も
+  server ValidationPipe（whitelist: true）の責務
+- **`importTemplate` の正規化はベストエフォート**: `Array.isArray(payload.sections)` のときだけ
+  `normalizeTemplateReferences` → `normalizeTemplateLayout` を試み、throw したら素の payload を
+  server へ送って 400 → `{error}` 経路に載せる。正規化関数は `SheetSection[]` 型を信じる
+  書き方（任意 JSON に対して total ではない）なので、**try/catch を外すと
+  `{"sections":[{}]}` 級の貼り付けが action の未処理例外になる**（J1 round1〜3 で pin 済み。
+  actions.spec の実物正規化 spec が catch 除去変異を赤にする）
+- **TemplateListV3 の single-flight 規則**: submit 導線は必ず transition pending をボタン
+  `loading` に接続する（一覧側 5 導線 = `isListPending` 共有・キャラ作成モーダル =
+  専用 `isCreateCharacterPending`。モーダル内送信の pending を一覧側ボタンへ波及させない）。
+  導線を足すときは連打 spec（2 回クリック → action 1 回）も対で足す。
+  経緯と実測 = `review-results/template-json-import/big-j1-integration.md`（CL-1）
+
 ## テスト
 
 - jest は `testEnvironment: 'node'` のまま、client component の spec は**ファイル冒頭の
@@ -148,3 +168,26 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   1 件（autosave 4 ケース）。残 12 件は spec 0。render を伴う受入ゲートとしては薄い前提で扱う
 - 純関数・server ロジックは spec で契約 pin（OAuth URL・cookie 属性・認証失敗時の redirect・
   callback status・editor 署名など）
+- **型ゲートは `pnpm run typecheck`（tsc --noEmit）**。jest は ts-jest の transpile 実行で
+  型チェックをしないため、型エラーは jest 全緑でも素通りする（2026-08-15 に既存負債 3 件を
+  この経路で検出・解消し typecheck 緑化。CI への接続は無いので手動で回すこと）
+
+## Mantine / root layout
+
+- `app/layout.tsx` の `<html>` には公式の `{...mantineHtmlProps}` を付ける
+  （[Usage with Next.js](https://mantine.dev/guides/next/)・
+  [color-scheme hydration](https://help.mantine.dev/q/color-scheme-hydration-warning)）。
+  `ColorSchemeScript` が hydrate 前に `data-mantine-color-scheme` を書き換えるため、
+  html 要素だけの不一致は想定どおり。`suppressHydrationWarning` を自前で足さず、
+  公式オブジェクトを使う。`forceColorScheme="dark"` は維持する。
+
+## ローカル起動（start-dev.bat）
+
+- リポジトリ直下の `start-dev.bat` は `cmd.exe` 用。日本語 Windows の cmd は `.bat` を CP932 で読む。
+  UTF-8 の日本語（REM / echo）を入れるとコメントや `if` が壊れ、コマンドとして実行される
+  （2026-08-15: `chcp 932` 宣言だけでは防げない。ファイル本体が UTF-8 だと解析前に壊れる）。
+  メッセージは ASCII のみ、改行は CRLF。日本語メッセージが必要なら `.ps1` にする。
+- 起動はワークスペースルートで `pnpm --filter trpg-next-app run dev`。
+  `pnpm-workspace.yaml` の `verifyDepsBeforeRun: error` により、lockfile / `package.json` /
+  `node_modules` が食い違うと `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` で止まる。
+  直し方はルートで `pnpm install`（ゲートを bat 側で無効化しない）。

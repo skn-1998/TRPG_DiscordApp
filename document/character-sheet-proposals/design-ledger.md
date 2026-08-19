@@ -123,7 +123,7 @@
 | SM-1 の transaction 必須化 | 2 方式併存は 5 概念増。単一プロトコルで不変条件は満たせる | 「insert 失敗時に再ロールなしで復旧」が受入条件になったとき |
 | SM-6 の hub 再構築 CTA | 未実装機能の disabled 表示は L-4 概念を常時見せる | L-4 の復旧状態機械が裁定・実装されたとき（有効な操作として追加） |
 | 非所有者の公開閲覧 UI（SM-4・U16） | v1 は読取経路を作らない（フラグのみ） | **必ず入る**（ユーザー裁定）。allow-list の PublicCharacterSheetWire＋テンプレ表示スナップショット＋旧 public の再確認機構の設計が前提（U16 拘束条件） |
-| シートのコピー / フォーク | 今回スコープ外（ユーザー明示） | 公開閲覧の後。allow-list 構築の前提（values＋版 pin のみ継承・コピー専用 use case）は U16 out-of-scope に記録済み |
+| シートのコピー / フォーク | 今回スコープ外（ユーザー明示） | 公開閲覧の後。allow-list 構築の前提（values＋版 pin のみ継承・コピー専用 use case）は U16 out-of-scope に記録済み。**〔2026-08-18 追記・混同防止〕本行は `CharacterSheet`（キャラクターシート）の複製であり、`CharacterSheetTemplate`（シートテンプレート）の複製とは別物。テンプレート複製は 2026-08-18 のユーザー裁定で v1 実装対象になった（正本 = `template-fork-design.md`・キュー #19）。委譲先が本行を根拠にテンプレート複製を停止しないこと** |
 | エディタのモバイル対応（SM-7） | v1 非実装（ユーザー裁定「後から入れても問題ない」） | いつでも可。1 ペインのタブ切替案が起点 |
 
 ---
@@ -288,7 +288,7 @@
 | 能力 | engine | server | front エディタ | front シート | Discord |
 |---|---|---|---|---|---|
 | scalar number/text/select/boolean | ✅ | ✅ | ✅（4 種） | ⚠️ number/text のみ | — |
-| scalar `parts` | ✅ | ✅（± は parts.other） | ❌ | ⚠️ base のみ保存経路 | ✅（±） |
+| scalar `parts` | ✅ | ✅（± は parts.other） | ⚠️ `partsKeys` 宣言 UI あり（`parts: true` は不可） | ✅ 宣言 partsKey を保存（`other` は読み取り専用・`base` は常設） | ✅（±） |
 | computed（式・9 関数・lookup） | ✅ | ✅ computedCache | ✅ formula 編集 | ❌ **表示されない** | ⚠️ embed は resource のみ |
 | roll / standalone roll（3d6*5） | ✅ | ✅ rollOnCreate 正式契約（TR-3・2026-08-14） | ✅ notation 編集 | ❌ | ✅ palette roll |
 | lookup table（CoC DB） | ✅ 範囲表・resultType dice | ✅ | ⚠️ 生 JSON textarea | ❌ | ✅（notation 差し込み経由） |
@@ -327,6 +327,9 @@
 | **L-11** | #29 の待ち条件（E1b）は `a03d8c6` で解消済みだが再開記録なし | `SESSION_HANDOFF.md:112-114,141`（E1b 完了記録は `:755-766`。round1 で行参照を更新） | ブロック解除済みとして再開可 |
 | **L-12** | `findHubRefreshCandidates` が `findAll()` 全件取得後フィルタ（単一プロセス前提と宣言済み） | `character-sheet-operation.service.ts:143-154` | 宣言済み残置。**I3-2（429 回数のメモリ限定）とは別項目** — 「単一プロセス前提」一般と混同しない（round1 指摘） |
 | **L-13** | legacy-coc テンプレートを DB へ投入する **seeder が存在しない**（定数の利用者は backfill script と spec のみ）。**PH-7 は legacy-coc が publish 済みであることを前提とするため、D-3 の明示前提**（round1 H7 で昇格） | `seeds/legacy-coc.template.ts`・`backfill-template-pin.ts:9,14-15` | 投入主体・所有者・version・publish 方法（手動投入 or seeder 新設）は**ユーザー決定**（§5-2） |
+
+| **L-14** | **`block.cap` は「ブロック内合計の上限」ではない**。cap 未指定フィールドへの**個別上限の既定値**であり、比較対象は field 単位の表示値（`field.max ?? blockCap` → `displayValue > limit`）。合計に対する予算は pool（partsKey 単位）でしか表現できない。`design-v1-ui.md:162` の優先順位記述は正しく、user-guide の「合計に対する上限」が誤りだった（2026-08-16 訂正済み） | `annotation-runtime.ts:250,274` | 記録のみ。「合計上限」を実装する場合は pool の語彙で行う |
+| **L-15** | **エディタのプレビューで内訳（parts）を入力できない**。`TemplatePreviewV3` が `TemplateFormRenderer` に `onPartsChange` を渡さず、`formValues` も evaluated の number しか積まないため、内訳セルは無反応かつ常に 0 表示になる。**作者は自分が定義した内訳表・pool 消費を試せない** | `TemplatePreviewV3.tsx:179-185` ⇔ `CharacterSheetEditClient.tsx:151-158` | 小型候補。内訳表を実用にするなら前提 |
 
 **未確認事項（round1 で 3 件解消）**: ①② は **REFUTED**（`$literal` は 3 経路・`.select()` は完全文字列で spec 固定済み → §2-1 へ収載）。③ 旧 `AI.types.md` は N6b で**移設されず削除**（参照は git 履歴 `e179640^` 以前。README「関連する既存資産」節に追記済み）。残: ④ #48 の完了状態（review-results に round11 まであるが HANDOFF に完了行なし）⑤ GAP-B（posted-but-untracked reconciliation）の縮退裁定の記録有無。
 
@@ -405,6 +408,8 @@ L-9 残修正＋L-2 再現 spec の隔離（ループ可）
 | 15 | **大粒度 #8 の設計の穴（記録・裁定枠）**: (a) **H-13 は max/cap/total の符号を縛らない** — 負の有限 total/consumed で「バー 0%＋超過 5」「残り 14/10」の直感矛盾表示（実測・算術的には真値。publish で負 total を弾くのは挙動変更） (b) **scope 付き pool の予算バー配置が設計未規定**（v1 は section 冒頭固定 — どのブロックの予算か視覚帰属なし。エディタ/プレビュー系で再裁定） (c) F13/F15 保留（props object 化は両レビュア実測で便益不足・data 属性粒度不揃い） | 出典 = big8-integration.md。非有限 remaining は BIG8-FIXA で error 退化済み（こちらは消化済み） |
 
 | 18 | **Discord プレビュータブ**（エディタ右ペイン 3 枚目・契約 4「両プレビュー常設」の完全充足。正本 = design-v1-ui.md :45-56・:61-62〔ViewModel の warnings も表示・「ここで見えるもの＝実機」〕） | TAB-1（右ペインタブ化・2 枚）の後続。**packages/sheet-projection は実装済みだが trpg-next-app に依存辺がない**（package.json deps に無し・front import 0 件 — 2026-08-13 実測）。追加は新規依存＋feature 境界整備（AI.md 有向辺＋eslint）を伴い D-R1b 同格の独立スライス |
+| 19 | **〔完了 2026-08-18・未コミット〕シートテンプレートの複製（fork）**（設計正本 = `document/character-sheet-proposals/template-fork-design.md`）。**実装完了**: F-1 server＋F-2 front＋FIX 3 ラウンド＋大粒度二重レビュー（Codex/Opus 一致・`review-results/template-fork/big-f3-integration.md`）。ゲート = server full 226/3204・front full 34/564・circular 0（Fable 独立再実行）。残 = コミット可否・DQ-4（forkedFrom 事後可変性）・DQ-3（license）のユーザー裁定。以下は設計時の記録: server に `POST /sheet-templates/:id/fork` 新設 → front に `forkTemplate` action ＋「複製して編集」ボタン。**裁定済み（全 5 件）**: 複製元 = 自分所有 ∪ system 所有かつ published ／ name = `{元名} のコピー`（Modal なし・編集画面で変更）／ `forkedFrom` を書く（**本機能が当該フィールドの初の production producer** — 現状 entity/DTO/repository select/summary 投影まで配線済みで書き込み元 0 件）／ `version` は元を継承 ／ `visibility` は **`private` 固定**（`create` の `dto.visibility ?? 'private'` に載せると破れる = §2-2 級の急所）。**〔2026-08-18 訂正〕着手前ゲートは不要**（旧記載「DQ-1 の実測が必要」は誤り）: `validateForSave` は `validatePublishTemplate` 1 段（`sheet-engine-template-validation.service.ts:26-31`）で、`validateForPublish` の collector stage 1（`template-publish-validation-issue.collector.ts:26`）と**同一関数**。save の検査集合は publish の真部分集合ゆえ、published を通った構造は save を必ず通る。**代わりに確定した急所 = `validateForPublish` は `visibility === 'public'` を要求する**（同 service:16-17）。**〔R2 訂正〕「published は例外なく public」は `publish()` 経由の行に限る** — `legacy-coc` seed は published ∧ private を repository 直接投入する実在反例（`seed-legacy-coc-template.ts:60-79,93-96`）。fork の private 固定は「継承元を信用しない」独立防御として実装。**R2 追加確定（正本 = template-fork-design.md §S7）**: 読み取りゲートは分岐別（自分所有 = status 不問・draft も fork 可／system = published のみ。既存の版解決 2 メソッドへ寄せると自分の draft の fork が 409 で死ぬ）／wire は `POST /:id/fork` body なし・`forkedFrom.version` は server 読み取り時点の値（DEC-1）／api-contract・hub-projection・許可辺② は触らない／`@UsePipes` 禁止（app.module.spec 動的走査 pin）。未決 = `license` の継承規則（DQ-3）・`forkedFrom` の事後可変性（C-10: `pickDraftUpdate` service.ts:280 が draft 保存で上書きを許す） | #9〜#12 と独立・依存なし。**読み取り面が 2 つある**のが急所: 自分所有 = `GET /:id`（`assertOwner`）／配布 = `GET /:id/revisions/:version`（`assertRevisionReadableBy` の system 特例）。`findOne` は system 特例を持たないため、配布テンプレを `GET /:id` で取ろうとすると 403 で機能が成立しない |
+| 20 | **front action の catch イディオム 1 本化**（#19 の大粒度二重レビューが独立に一致した統合候補・出典 = `review-results/template-fork/big-f3-integration.md`）。`getResponseStatus → messages → join(' / ')` の逐語 3 行が repo 全体 **10 コピー・バイト一致**（characterTemplate 5・character 3・discord 2。fork が +1 した）。処方 = `api-response.util.ts` へ単一 action 向け変換 helper 1 本（5 行）→ **純減 −14〜15 行**・policy owner 10→1。saveTemplateDraft の 409 付き変種 2 は意味が異なるため統合しない | characterTemplate / character / discord の 3 feature を跨ぐ独立スライス。#19 とは分離して実施 |
 
 ### 6-2. 決定後に解禁される本流（D-P3-1〜4 の決定後）
 

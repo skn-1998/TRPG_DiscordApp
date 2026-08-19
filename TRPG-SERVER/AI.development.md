@@ -926,6 +926,23 @@ const improvements = {
 
 ---
 
+## ローカル起動: Atlas 接続（Windows / Node SRV）
+
+**[2026-08-15]** ホスト上の `pnpm run start:dev` が `querySrv ECONNREFUSED _mongodb._tcp.cluster0.*.mongodb.net` で落ちる場合、クラスタ障害ではなく **Node の DNS が `127.0.0.1:53` を見て SRV 照会に失敗している**ことが多い。Windows の `nslookup` と Atlas CLI（HTTPS）は通る。
+
+回避: `MONGODB_URI` を `mongodb+srv://` ではなく Atlas CLI の `standard` 文字列（ホスト直指定の `mongodb://`）にする。
+
+```powershell
+atlas auth whoami
+atlas clusters ls
+atlas clusters connectionStrings describe Cluster0 -o json
+atlas accessLists ls
+```
+
+`standard` に既存の DB ユーザー／パスワードを入れて `.env` の `MONGODB_URI` を差し替える。IP Access List に現在のグローバル IP が無い場合は `atlas accessLists create --currentIp`。
+
+---
+
 ## 🔗 **関連リソース**
 
 ### **開発ツール**

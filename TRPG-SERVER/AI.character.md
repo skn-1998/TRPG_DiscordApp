@@ -972,9 +972,32 @@ dry-run  : decision=insert          would deprecate templateId=legacy-coc author
 - **作成時ロールは `materialize` では走らない**。`SheetMaterializerService.materialize` に
   空の values を渡しても保存値は 0 件で computedCache は全 0。ロールを回すのは
   `CharacterInstantiationService.applyRollOnCreate`（`:102-129`）
-- 未設定 track の表示は**変わらない**。`TemplateFormRenderer.tsx:792` が元から
+- 未設定 track の**値表示**は変わらない。`TemplateFormRenderer.tsx:792` が元から
   `rawValue === undefined ? 0 : trackDisplayValue(rawValue)` で、`trackDisplayValue(0)` は
-  `0` を返す（`:647`）
+  `0` を返す（`:647`）。**ただし値表示が同じでも影響が無いわけではなかった** → PV-C1b
+
+### PV-C1b: 二重レビューの差し戻し対応（front・2026-08-19・コミット `9867c95`）
+
+正本 = `review-results/roll-lane/prompt-pvc1b-code.txt`、統合判定 = `big-pvc1-verdict.md`。
+
+**差し戻しの核**: TFR は受け取った values を **engine へ差し戻して**注釈と制約を評価する
+（`TemplateFormRenderer.tsx:90` の `evaluateAnnotationRuntime`・`:232` の `evaluateConstraint`）。
+PV-C1 の undefined 補填は `editableScalarFields` だけを対象にしていたため、未設定 track の uid に
+評価値 `0` が残り、engine 側の「own かつ非 nullish な raw entry が無ければ `indeterminate`」という
+契約が崩れる。実測で **`HP 5 / —` → `HP 5 / 0`**（値 5 に対して上限 0 を主張する）。
+
+修正は補填述語の変更で、対象を「**この画面が raw を所有しない型（computed / roll）以外すべて**」にした。
+track / relation / tag / list は `values` state のキーの在不在がそのまま TFR へ伝わる。
+
+あわせて 3 件: コメント「roll の値は保存値ではない」の訂正（roll は保存値）・
+`buildFormValues` の JSDoc の過剰主張（不変条件は「3 が最後」だけで 1 と 2 は可換）・
+TFR へ渡すテンプレートを正規化後（`sheetTemplate`）に揃えて同一画面の評価器が見る実体を 1 つにする。
+
+**変異で分かったこと**: TFR へ正規化前を戻す変異は**全緑で生存**する。pin 漏れではなく
+**観測できない差**で、publish が短縮形参照を拒否するため
+（`validatePublishTemplate` に `{cap}` を渡すと `Unknown field reference: cap`）、
+保存済みテンプレートに正規化前後を区別できる入力が存在しない。守りは pin ではなく
+`sheetTemplate` 宣言箇所の Invariant コメント。
 
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 
@@ -1033,3 +1056,18 @@ dry-run  : decision=insert          would deprecate templateId=legacy-coc author
 未決（実装前にユーザー裁定が要る）: `license` の継承規則 ／ `forkedFrom` の事後可変性
 （`pickDraftUpdate` 同 :280 が draft 保存で上書きを許し、front の `toUpdateRequest`
 〔`trpg-next-app/.../actions.ts:200`〕が毎回 `forkedFrom` を送る。連鎖 fork の上書き規則が未定）。
+
+## 2026-08-19: テンプレート受理 JSON 仕様書の新設（doc のみ・コード無変更）
+
+ユーザー依頼「どのような JSON を受け付けられるかの設計を出してほしい」に対し、
+検証コードを直接読んで受理仕様を文書化した。
+**正本 = `document/character-sheet-template-json-spec.md`**（schemaVersion 3）。
+
+- 内容: 3 層検証（DTO 素通し → save = `validatePublishTemplate` → publish 追加 3 stage）／
+  id・uid・label 規則と予約語／7 field 型別の受理・拒否／式文法（関数 9 個・型規則・循環）／
+  **notation 3 契約の使い分け**（role = 補間・BCDice 方言可 ／ roll = publish で standalone 文法
+  ・literal dice 必須・比較記法不可 ／ rollOnCreate = placeholder 全面禁止）／
+  tables／量的上限一覧／拒否例早見表
+- 主張は publish.ts・standalone-roll.ts・parser.ts・service.ts・collector・spec の pin
+  （standalone-roll.spec.ts の受理/拒否 it.each 等）へ紐付けて裏取り済み。
+  未知キーが passthrough で保持される点・rows が保存時未検証で lookup 参照時にのみ検査される点も明記

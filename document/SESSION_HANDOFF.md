@@ -5,11 +5,86 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-13（**U14/U15 feature 完了** = D-R2 配線＋大粒度 #17 FIX 全消化・
-  `e4468ab6`）。**現況の正本は本ファイル末尾近くの「キュー #9〜#12 ループ」節**
+- 最終更新: 2026-08-19（**J1 feature 完了** = JSON 貼り付けインポート・直下の節が正本・
+  未コミット）。それ以前の現況は「キュー #9〜#12 ループ」節
   （検索: `U14/U15 feature 完了`）と台帳 `design-ledger.md` §0。
   冒頭〜中盤の節は 2026-07-29〜08-07 時点の追記ログでありそのまま保存
   （現況として読まないこと）
+
+## 【feature 完了 2026-08-19】JSON 貼り付けからのテンプレート作成（J1・front のみ）
+
+> 2026-08-19 ユーザー許可により fork feature と合わせて全コミット済み（構成 5 コミット:
+> server fork ／ front 統合〔fork front 分＋J1＋FIX-3 が同居ファイルのため単一〕／
+> Mantine hydration ／ start-dev.bat ／ docs。hash は `git log --oneline` 参照）。
+
+ユーザー依頼「キャラクターテンプレートの作成を json からも受け付けるようにしたい」。
+AskUserQuestion 裁定: **貼り付けのみ（ファイル選択なし）・インポートのみ（エクスポートなし）**。
+
+- 前段成果物（同日）: 受理 JSON 仕様書 `document/character-sheet-template-json-spec.md` を新設済み
+  （検証 3 層・notation 3 契約・passthrough 挙動。AI.character.md 末尾に記録済み）
+- 設計の要点: **サーバー変更ゼロ**（POST /sheet-templates が既に受理・ValidationPipe
+  whitelist:true が余分キーを剥がす）。front は既存 `importV2Template` action を
+  `importTemplate` へリネームして共用し、`parseTemplateImportJson`（v3Template.ts・
+  検査は parse 可/plain object/name 非空の 3 点だけ）＋一覧ヘッダー「JSON から作成」
+  ボタン＋貼り付けモーダル（モーダル内エラー・isListPending single-flight）を追加
+- 委譲: Codex code モード起動済み。指示書 =
+  `review-results/template-json-import/prompt-j1-code.txt`（許可 6 ファイル・D1〜D5・
+  out-of-scope にファイル選択/エクスポート/v2 自動変換/client 構造検証を明記）、
+  ログ = 同 dir `run-j1-code/`
+- 実装ラウンド完了（rc=0）: 編集ファイルは events.jsonl 機械抽出で許可 6 ファイルちょうど。
+  Fable 独立検収 = typecheck ✓・lint 0・**236/236 緑（7 suites・Codex 申告と一致）**
+- レビュー round1（Codex adversarial・schema）= **needs-fix 1 件（CN-J1-1 high）**:
+  `importTemplate` の正規化が try 外で、sections 非配列（`{"sections":{}}`）の貼り付けが
+  TypeError になり {error} 規約に乗らない。清書 =
+  `review-results/template-json-import/review-20260819-template-json-import-round1.md`。
+  認知負荷実測（state 9→13・同時保持 5・2 hop）と D1〜D5 準拠は pass（蒸し返し禁止）
+- FIX-1 完了（Array.isArray ガード＋回帰 spec 2 本・238 緑）だが **Fable 机上確認で不完全と確定**:
+  round1 finding 本文の falsifier `sections:[{}]` が残存する（normalizeTemplateReferences が
+  `for (const field of section.fields)` を無ガード走査 → 配列内不正要素で try 外 TypeError）。
+  recommendation だけを処方箋化して finding 本文の falsifier 全数と突合しなかったのが原因
+  （→ 収束後にメモリ記録予定）。
+- **確定した設計事実**: normalizeTemplateReferences / normalizeTemplateLayout は
+  「短縮参照・layout 既定値の救済」であり、**適用しなくても server 保存時検証は正しく 400 を返す**
+  （ベストエフォート）。layout 側は全域防御的・references 側は型を信じる書き方。
+- FIX-2 完了（ベストエフォート化・239 緑）→ **round3 pass で小粒度収束**
+  （falsifier 7 件全数追跡・清書 = review-round3.md）。メモリ新設 =
+  `review-finding-falsifier-coverage`（recommendation は「等」を覆わない・全数突合）
+- **大粒度二重レビュー完了・統合判定 = `big-j1-integration.md`**: 事実矛盾 0。
+  CL-1（single-flight 抜け 3 箇所 = 削除・v2 移行・キャラ作成〔pending 破棄〕・
+  F-2 CN-7 と同一機構の実害構造）→ **FIX-3 で閉じる**（Opus high 採用・新概念 0）。
+  CL-2 catch 複製 10 コピーは J1 増分 0 で台帳 #20 のまま。CL-3 safeParseTables 命名は
+  起票せず。CL-4 JSON.parse / モーダル統合は負荷増で不採用（両レビュー一致）
+- FIX-3 完了（single-flight 6/6 化・242 緑）→ **round4 pass で全ループ収束**
+  （収束履歴表 = `review-results/template-json-import/review-20260819-template-json-import-round4.md`）
+
+### 最終形（全て未コミット・J1 の変更 6 ファイル＋doc 4 ファイル）
+
+| 面 | 内容 |
+|---|---|
+| util | `parseTemplateImportJson`（v3Template.ts・3 点検査のみ・Boundary コメント）＋ spec 6 本 |
+| action | `importV2Template`→`importTemplate` リネーム共用・正規化ベストエフォート（`Array.isArray` ガード＋try/catch 素通し）・回帰 spec 3 本 |
+| UI | 一覧ヘッダー「JSON から作成」＋貼り付けモーダル（モーダル内エラー・世代ガード・single-flight）＋既存 3 導線の single-flight 補完（削除・v2 移行・キャラ作成）＋連打 spec 計 7 本 |
+| doc | 仕様書 §1 に導線追記・user-guide に「JSON から作る」節・trpg-next-app/AI.md に不変条件節・本 doc |
+
+### ゲート結果（Fable 独立再実行・Codex 申告と全一致）
+
+- front: typecheck ✓・eslint 0・**対象 suite 7/7・242/242 緑**（開始時 236 → +6）
+- server: **変更ゼロ**（受理は既存 POST /sheet-templates・whitelist:true が余分キーを剥離）
+- 差分範囲: J1 実装 = 許可 6 ファイルちょうど（events.jsonl 機械抽出で毎ラウンド確認）
+
+### 学び（メモリ済み）
+
+`review-finding-falsifier-coverage`: round1 recommendation の部分カバーを処方箋化（FIX-1）→
+round2 スコープ指定漏れで pass 空振り → Fable 机上反例で棄却、の 2 連鎖。
+処方箋と再レビュースコープの両方で finding 本文の falsifier を全数展開する。
+
+### 残る人間の決定点
+
+1. ~~コミット可否~~ → **2026-08-19 ユーザー許可で全コミット実施済み**（fork front 分と
+   J1/FIX-3 は同居ファイルのため front は単一コミット・メッセージに明記）
+2. 台帳 #20（catch helper 1 本化・3 feature 横断）: J1 増分 0 を大粒度で再確認。裁定は保留のまま
+3. 次候補（起票なし・観察のみ）: `safeParseTables` の命名（throw 契約と矛盾・実害 0・
+   次に v3Template.ts を触るスライスでリネーム）
 
 ## 【feature 完了 2026-08-18】シートテンプレート複製（fork）— 台帳キュー #19
 
@@ -4099,7 +4174,7 @@ characterization fixture の差分は `index` 7 行のみ（`2,4,…,14` → `1.
 うち MG1（作成時ロール宣言の除去）で「作成直後の HP / MP / SAN / DB が出目から導かれ、0 に畳まれない」が
 赤くなる = **ユーザーの不具合が機械で固定された**。記録 = `review-results/roll-lane/pvs-acceptance.md`。
 
-## PV-C1: web シート編集画面に computed / roll を出す（2026-08-19・未コミット・受入済み）
+## PV-C1 / PV-C1b: web シート編集画面に computed を出す（2026-08-19・コミット `9867c95`）
 
 **実機報告**: 「`legacy-coc-v2` から新しく作ったキャラの HP / MP / SAN が `—` と表示される」。
 
@@ -4137,8 +4212,33 @@ computedCache 全 0）。ロールを回すのは `applyRollOnCreate`。
 未設定 track の表示は変わらない（`TemplateFormRenderer.tsx:792` が元から undefined を 0 に落としており、
 `trackDisplayValue(0)` も `0`）。
 
-**残**: 大粒度認知負荷レビュー（PV-S4 / PV-S5 / PV-C1 の 3 フェーズ分）と小粒度レビューを実施中。
-`trpg-next-app/AI.md` への front 記録は並行セッションが同ファイルを保持しているため未反映。
+### 二重レビューで差し戻し → PV-C1b で解消
+
+大粒度認知負荷レビュー（PV-S4 / PV-S5 / PV-C1 の 3 フェーズ分）と小粒度レビューを実施し、
+**PV-C1 は一度差し戻した**。統合判定 = `review-results/roll-lane/big-pvc1-verdict.md`。
+
+**差し戻しの核（小粒度 F-1）**: TFR は受け取った values を **engine へ差し戻して**注釈と制約を
+評価する（`TemplateFormRenderer.tsx:90`・`:232`）。未設定 track の uid に評価値 `0` が載ることで、
+その track を参照する上限が `indeterminate` から `ok(0)` へ転ぶ。実測で
+**`HP 5 / —` → `HP 5 / 0`**（値 5 に対して上限 0 を主張する）。配布中の `legacy-coc-v2` に
+track は 0 本なので現行データでは発火しないが、実挙動の退行である。
+
+**PV-C1b の修正 4 件**: 補填述語を「この画面が raw を所有しない型（computed / roll）以外」へ変更＋
+退行を固定する spec 1 本 / roll コメントの訂正 / JSDoc の過剰主張の是正 /
+TFR へ渡すテンプレートを正規化後に揃える。
+
+**再検収**: tsc 0・eslint 0・34 suites **608 passed**。変異 8 種中 7 検出。
+生存 1 件（TFR へ正規化前を戻す変異）は pin 漏れではなく**観測できない差**であることを実測で確定
+（publish が短縮形参照を拒否するので、保存済みテンプレートに区別できる入力が無い）。
+実データは `11 / 8 / 40 / 0` のまま、track の上限は `5 / —` へ復帰。
+
+**この検収で得た教訓（メモリ `ai-md-claim-scoping` 19・20 件目）**:
+(a) 描画上の同居から値の出自を推論しない（computed と roll を同じ分岐で扱っていることから
+「どちらも保存値でない」と書いたが roll は保存値だった）。
+(b)「表示は変わらない」で懸念を閉じない。渡した値の消費者を数える。
+
+**残**: `trpg-next-app/AI.md` への front 記録は並行セッションが同ファイルを保持しているため未反映。
+レビュー所見 10 件を別スライスへ（判定ファイルの「別スライスへ回すもの」表）。
 
 ## 参照
 
