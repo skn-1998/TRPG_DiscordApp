@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { ColorSchemeScript, MantineProvider } from '@mantine/core'
+import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core'
 import '@mantine/core/styles.css'
 import './globals.css'
 import { AppLayout } from './components/Layouts/AppLayout'
@@ -15,8 +15,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const authState = await getAuthState()
 
+  // ColorSchemeScript が hydrate 前に html[data-mantine-color-scheme] を書き換える。
+  // 不一致は FOUC 防止の想定動作なので、公式 mantineHtmlProps で html 要素だけ警告を抑止する。
   return (
-    <html lang="ja">
+    <html lang="ja" {...mantineHtmlProps}>
       <head>
         <ColorSchemeScript forceColorScheme="dark" defaultColorScheme="dark" />
       </head>
