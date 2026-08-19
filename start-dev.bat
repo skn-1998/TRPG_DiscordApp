@@ -1,42 +1,37 @@
 @echo off
-chcp 65001 >nul
 echo ========================================
-echo Next アプリ開発サーバー起動 (port 3100)
+echo Next app dev server (port 3100)
 echo ========================================
 echo.
 
-REM バッチファイルのディレクトリパスを取得
 set "SCRIPT_DIR=%~dp0"
 set "NEXT_APP_DIR=%SCRIPT_DIR%trpg-next-app"
 
-REM ディレクトリの存在確認
 if not exist "%NEXT_APP_DIR%" (
-    echo [エラー] trpg-next-app ディレクトリが見つかりません: %NEXT_APP_DIR%
+    echo [ERROR] trpg-next-app directory not found: %NEXT_APP_DIR%
     pause
     exit /b 1
 )
 
-REM trpg-next-appディレクトリに移動
-cd /d "%NEXT_APP_DIR%"
+cd /d "%SCRIPT_DIR%"
 if errorlevel 1 (
-    echo [エラー] ディレクトリへの移動に失敗しました: %NEXT_APP_DIR%
+    echo [ERROR] Failed to change directory: %SCRIPT_DIR%
     pause
     exit /b 1
 )
 
-echo ディレクトリ: %CD%
-echo コマンド: pnpm run dev
+echo Workspace: %CD%
+echo Command: pnpm --filter trpg-next-app run dev
 echo.
 echo ========================================
 echo.
 
-REM pnpm run devを実行
-pnpm run dev
+pnpm --filter trpg-next-app run dev
 
-REM エラーが発生した場合
 if errorlevel 1 (
     echo.
-    echo [エラー] 開発サーバーの起動に失敗しました
+    echo [ERROR] Failed to start the dev server
+    echo If ERR_PNPM_VERIFY_DEPS_BEFORE_RUN, run: pnpm install
     pause
     exit /b 1
 )
