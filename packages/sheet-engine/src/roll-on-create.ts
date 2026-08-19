@@ -20,8 +20,9 @@ export interface RollOnCreateSpec {
  *
  * 現時点で読む宣言は track の rollOnCreate と roll の notation の 2 つ（列挙は現時点のもの）。
  * どちらも「作成時にサーバがロールする」同じ契約なので、判定はこの 1 本に閉じる。
- * 現時点の runtime 呼び出しは 2 経路（作成時の適用と、後からの振り直し）。
- * 「振り直せるかの表示」は未実装で、front で実装するときに 3 経路目として加わる予定（RL-7c）。
+ * 現時点の runtime 呼び出しは 3 経路（TRPG-SERVER の character-instantiation.service.ts が作成時の適用、
+ * character-sheet-operation.service.ts が後からの振り直し、trpg-next-app の TemplateFormRenderer.tsx の
+ * renderCreationRollReroll が振り直し導線の表示）。
  * これらの経路が同じ項目集合を対象にすることは、作成時ロールの対象集合を決める述語が
  * この関数 1 本しかないことで保たれる。1 本なのは対象集合の判定についてであり、
  * 同じ rollOnCreate 宣言を別目的で読む述語は他にもある（提出値の拒否は契約外形も true にする

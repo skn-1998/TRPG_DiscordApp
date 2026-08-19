@@ -718,10 +718,39 @@ RL-6 のサーバ経路は 2 スライスのあいだ消費者ゼロだった。
 - ゲート = typecheck 0 / `eslint .` 0 / **front 34 suites・588 passed**。
   変異 9 本を Fable が実測し、検出されるべき 7 本は全て DETECTED
 
-**RL-7c が作った状態（RL-8 の優先度が上がっている）**: `RollField.rerollable` は読み手 0 の
-死蔵だったが、振り直し UI が出たことで**「`rerollable: false` を publish できるのにボタンは出る」**
-という嘘の宣言になった。削除箇所は実測 9 箇所（設計台帳の「4 箇所」は不正確）。
-`publish.ts` の roll schema は `.passthrough()` なので保存済みテンプレートは壊れない。
+### rerollable フラグの削除（RL-8・2026-08-18・挙動不変）
+
+正本 = `review-results/roll-lane/prompt-rl8-code.txt` ＋ `prompt-rl8-fix.txt`、
+検収 = `review-results/roll-lane/rl8-acceptance.md`。
+
+RL-7c までは無害な死蔵だったが、振り直し UI が出たことで
+**「`rerollable: false` を publish できるのにボタンは出る」**という嘘の宣言になったので削除した。
+D-11 の決着（振り直しの対象は作成時ロールの記法の宣言だけで決まる）の後始末で、代わりの仕組みは作らない。
+
+- 削除は **9 箇所 / 5 ファイル**（設計台帳の「4 箇所」は書き手のカテゴリ数で行数ではない）。
+  production の読み手は削除前から **0 件**
+- **順序の制約**: front の `characterTemplate/types/v3` は engine の `SheetField` を
+  再エクスポートしているだけで独自型を持たない。`createField(): SheetField` と
+  `section.fields.push({...})` はどちらも余剰プロパティ検査の対象なので、
+  **書き手を先に消してから宣言を消す**順序でないと中間状態が赤くなる
+  （大粒度レビューの「engine 先行でも壊れない」は**保存済みデータの publish についてのみ**正しい）
+- publish の spec に「出荷済みテンプレートが持つ `rerollable` は publish を通る」を 1 本追加。
+  **テスト名から退役キーの名前を消していない**のがこのテストの目的
+- **`.passthrough()` の意味論**（`publish.ts` の union 直上にコメント化）: zod object の既定は
+  reject ではなく **strip**。`.passthrough()` は publish の合否ではなく
+  **未知キーを保持して H-6 gate に届けること**を担っている
+  （`validateNumericAnnotationTarget` は scalar だけ早期 return し、残りは `hasOwnProperty` で読む）。
+  外しても**型エラーを出さないまま gate が黙って効かなくなる**。
+  依存しているのは非 scalar の **6 メンバー全部**で、番人は `it.each` 系列
+  `rejects passthrough numeric annotations on a section-level %s field`。
+  変異で実測済み（roll を外すと roll ケース・relation を外すと relation ケースが赤）
+- ゲート = engine build 0 / 565 passed（+1）、server build 0 / 循環ゼロ / 3207 passed（±0）、
+  front typecheck 0 / eslint 0
+
+**未解決（別スライス）**: `publish.spec.ts` の
+`keeps passthrough max and partsKeys on nested non-scalar fields outside the new H-6 gate` は
+assert 2 本がどちらも「issues / warnings が空」で、keep されたことを見る assert は 0 本。
+実際に pin しているのは「nested な非 scalar には gate が発火しない」こと。名前が射程より広い。
 
 ### シートテンプレートの複製（fork）— 実装完了・未コミット（2026-08-18）
 

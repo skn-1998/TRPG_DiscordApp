@@ -2478,3 +2478,32 @@ describe('creation roll destination publish validation', () => {
     }]);
   });
 });
+
+// RL-8 で RollField の型宣言と publish schema から `rerollable` を削除した（D-11: 振り直しの対象は
+// 作成時ロールの記法を宣言しているかだけで決まり、フラグは使わない）。
+// 削除しても出荷済みテンプレートの保存データには `rerollable` が残るため、roll schema が未知キーを
+// 拒否に転じると、それらが publish を通らなくなる。本 test はその一線を固定する。
+//
+// 判別力は実測済み（RL-8）。roll schema を `.strict()` 化すると
+// `Unrecognized key: "rerollable"` で ok:false になり本 test は赤くなる。
+// 一方 `.passthrough()` を単に外しただけでは zod 既定の strip が働き、未知キーは黙って捨てられて
+// publish は通るので本 test は赤くならない。その除去を捕まえるのは同ファイルの H-6 roll ケース
+// （'rejects passthrough numeric annotations on a section-level roll field'）で、
+// strip されると gate が未知の max/partsKeys を読めなくなり期待した issue が消える。
+describe('publish compatibility for the retired rerollable key', () => {
+  it('accepts a shipped roll field that still carries the retired rerollable key', () => {
+    const result = validatePublishTemplate({
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'roll', id: 'str_roll', uid: 'main.str_roll', label: 'STR roll', notation: '3d6*5',
+          rerollable: true,
+        }],
+      }],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+});

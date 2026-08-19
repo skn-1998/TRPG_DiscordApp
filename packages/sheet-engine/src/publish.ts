@@ -123,10 +123,15 @@ const scalarFieldSchema = z.object({
 }).passthrough();
 
 const fieldSchema: z.ZodType<SheetField> = z.lazy(() =>
+  // 以下の非 scalar メンバー全部（computed / roll / track / list / relation / tag）で `.passthrough()` は H-6 gate の前提。
+  // validateNumericAnnotationTarget は scalar だけを早期 return し（scalar は宣言済みの max / partsKeys を型のまま読むので事情が違う）、
+  // 残りは宣言の無い max / partsKeys を hasOwnProperty で読んで拒否するため、保持されていないと読む対象そのものが消える。
+  // zod object の既定は reject ではなく strip なので、外しても型エラーは出ないまま gate だけが黙って効かなくなる。捕まえるのは
+  // __tests__/publish.spec.ts の it.each 系列 'rejects passthrough numeric annotations on a section-level %s field'。
   z.discriminatedUnion('type', [
     scalarFieldSchema,
     z.object({ ...fieldBaseSchema, type: z.literal('computed'), resultType: z.enum(['number', 'text', 'boolean', 'dice']), formula: z.string() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string(), rerollable: z.boolean().optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), rollOnCreate: rollOnCreateSchema.optional(), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: roleSchema.optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(scalarFieldSchema).optional() }).passthrough(),

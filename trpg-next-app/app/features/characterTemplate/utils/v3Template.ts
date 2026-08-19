@@ -94,7 +94,7 @@ export function createField(type: V3EditorFieldType, section: SheetSection, labe
   }
   if (type === 'checkbox') return { ...base, type: 'scalar', valueType: 'boolean' }
   if (type === 'computed') return { ...base, type: 'computed', resultType: 'number', formula: '0' }
-  if (type === 'roll') return { ...base, type: 'roll', notation: '1d100', rerollable: true }
+  if (type === 'roll') return { ...base, type: 'roll', notation: '1d100' }
   // autosave の save が publish 検証を通るよう、track は検証通過形の既定値で作る。
   if (type === 'track') return { ...base, type: 'track', max: 10, style: 'gauge' }
   return { ...base, type: 'scalar', valueType: 'text' }
@@ -306,8 +306,7 @@ export function migrateV2TemplateToCreateRequest(template: Template): CreateShee
       section.fields.push({
         ...base,
         type: 'roll',
-        notation: field.diceFormula.replace(/^\[|\]$/g, ''),
-        rerollable: true
+        notation: field.diceFormula.replace(/^\[|\]$/g, '')
       })
     else section.fields.push({ ...base, type: 'scalar', valueType: 'text' })
   }

@@ -35,8 +35,7 @@ function buildLegacyAbilityFields(): SheetField[] {
       id: `${ability.id}_roll`,
       uid: `${ability.uid}_roll`,
       label: `${ability.label} roll`,
-      notation: ability.rollNotation,
-      rerollable: true
+      notation: ability.rollNotation
     }
   ])
 }

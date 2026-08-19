@@ -97,8 +97,11 @@ export interface ComputedField extends FieldBase {
 
 export interface RollField extends FieldBase {
   type: 'roll';
+  /**
+   * roll 型は例外なく作成時ロール／振り直しの対象になり、対象を絞るフラグは持たない（D-11 の裁定。
+   * かつて `rerollable` があったが読み手ゼロで削除）。対象判定の正本は roll-on-create.ts の rollOnCreateSpec。
+   */
   notation: string;
-  rerollable?: boolean;
 }
 
 export interface TrackField extends FieldBase {

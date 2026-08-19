@@ -3878,11 +3878,31 @@ RL-6 のサーバ経路は完成済みで**消費者ゼロ**なので、繋ぐ�
 残った findings は 4 件すべて RL-7c の差分外で、掃除スライスとして起票済み（**新しい層・抽象・contract を
 足す提案はゼロ**。全て削除・局所化・欠落キー 1 個の追加）。実施順は RL-8 → CI-2 → CI-1 → wire label。
 
-- **RL-8**（タスク #50・優先度上昇）: `rerollable` は読み手 0 の死蔵だが、**RL-7c で振り直し UI が
-  出た結果「`rerollable: false` を publish できるのにボタンは出る」という嘘の宣言になった**。
-  実測 **9 箇所 / 4 ファイル＋spec 1**（設計台帳の「4 箇所」は不正確）。
-  `publish.ts:129` の roll schema は `.passthrough()` なので**保存済みテンプレートは壊れない**。
-  engine + publish + seed を先行し、front（`characterTemplate/` 配下＝並行セッション範囲）は後追い可能
+- **RL-8 完了・受入（2026-08-18・未コミット / ユーザー許可待ち）**。
+  証跡 `review-results/roll-lane/rl8-acceptance.md`。差分 **8 ファイル・+50/-14**。
+  削除 9 箇所・production の読み手は削除前から 0 件。
+  ゲート = engine build 0 / **565 passed**（+1）、server build 0 / **循環ゼロ** / **3207 passed**（±0）、
+  front typecheck 0 / eslint 0。
+  **順序の制約（大粒度レビューの推奨を Fable が訂正）**: front の `types/v3` は engine の
+  `SheetField` を再エクスポートするだけなので、engine の型を先に消すと余剰プロパティ検査で front が赤くなる。
+  「engine 先行でも壊れない」は**保存済みデータの publish についてのみ**正しい。よって 1 スライスにまとめ、
+  **書き手 → 宣言**の順で消した。
+  publish spec に「出荷済みテンプレートが持つ `rerollable` は publish を通る」を 1 本追加（テスト名に退役キー名を残す）。
+  **`.passthrough()` の意味論を union 直上にコメント化**（下記）。
+  小粒度レビュー 2 巡・findings 6 件を全件 Fable が裏取りして全件消化。
+  変異 RE1/RE2/RE3 で検出器を確定
+- **`.passthrough()` について確定した事実（Fable の指示書の誤りを実測で訂正）**:
+  **zod object の既定は reject ではなく strip**。`.passthrough()` は publish の合否ではなく
+  **未知キーを保持して H-6 gate（`validateNumericAnnotationTarget`）へ届けること**を担う。
+  外しても型エラーを出さないまま gate が黙って効かなくなる。合否が変わるのは `.strict()` 化したときだけ。
+  依存しているのは非 scalar の **6 メンバー全部**（scalar だけ早期 return するので事情が違う）。
+  番人は `it.each` 系列 `rejects passthrough numeric annotations on a section-level %s field`。
+  **RE2（roll を外す）だけを測って「射程は roll に閉じている」と追認したのは Fable の推論ミスで、
+  RE3（relation を外す）で反証した**。変異は自分が壊した場所しか測らない
+- **front 全 suite の 5 件失敗は RL-8 と無関係**（タスク #53 TE-1）。
+  `TemplateEditorV3.spec.tsx` の重い 5 本が jest 既定 5000ms を超える負荷依存のタイムアウト。
+  失敗 describe 内の `'roll'` 出現数 0・describe 単独なら 5 passed/22 秒・
+  `--testTimeout=20000` で 99 passed。**失敗テスト数が 0 でないので競合の署名ではない**点に注意
 - **CI-1**（タスク #51・**PV-S より前**・**ユーザー裁定が 1 件必要**):
   `character-instantiation.service.ts:94-105` の提出値ガードだけが述語を経ず型直読み
   （`field.type === 'track' && field.rollOnCreate !== undefined`）。同一ループ内 8 行の距離に

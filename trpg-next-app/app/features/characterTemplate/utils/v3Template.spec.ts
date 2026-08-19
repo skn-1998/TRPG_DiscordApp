@@ -118,7 +118,7 @@ describe('v3Template editor field builders', () => {
     ],
     ['checkbox', { type: 'scalar', valueType: 'boolean' }],
     ['computed', { type: 'computed', resultType: 'number', formula: '0' }],
-    ['roll', { type: 'roll', notation: '1d100', rerollable: true }],
+    ['roll', { type: 'roll', notation: '1d100' }],
     ['track', { type: 'track', max: 10, style: 'gauge' }],
     ['text', { type: 'scalar', valueType: 'text' }]
   ] satisfies Array<[V3EditorFieldType, Record<string, unknown>]>)(
@@ -513,7 +513,7 @@ describe('v3Template validation and JSON helpers', () => {
         fields: [{ id: 'roll_field', tab: 'skill', type: 'roll', diceFormula: '[1d100]' }]
       },
       'skill',
-      { id: 'roll_field', type: 'roll', notation: '1d100', rerollable: true }
+      { id: 'roll_field', type: 'roll', notation: '1d100' }
     ]
   ]
 
@@ -695,8 +695,8 @@ describe('migrateV2TemplateToCreateRequest', () => {
       { id: 'pow', type: 'scalar', valueType: 'number' }
     ])
     expect(findSection(migrated.sections, 'skill').fields).toMatchObject([
-      { id: 'san_check', type: 'roll', notation: '1d100', rerollable: true },
-      { id: 'free_roll', type: 'roll', notation: '2d6+6', rerollable: true }
+      { id: 'san_check', type: 'roll', notation: '1d100' },
+      { id: 'free_roll', type: 'roll', notation: '2d6+6' }
     ])
   })
 
