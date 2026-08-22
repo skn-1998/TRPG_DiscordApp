@@ -5,11 +5,54 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-19（**J1 feature 完了** = JSON 貼り付けインポート・直下の節が正本・
-  未コミット）。それ以前の現況は「キュー #9〜#12 ループ」節
-  （検索: `U14/U15 feature 完了`）と台帳 `design-ledger.md` §0。
+- 最終更新: 2026-08-20（**J2 feature 完了** = 生成用プロンプトのコピー導線・直下の節が正本・
+  **未コミット＝ユーザー裁定待ち**）。J1 は次節（コミット済み）。それ以前の現況は
+  「キュー #9〜#12 ループ」節（検索: `U14/U15 feature 完了`）と台帳 `design-ledger.md` §0。
   冒頭〜中盤の節は 2026-07-29〜08-07 時点の追記ログでありそのまま保存
   （現況として読まないこと）
+- **並行レーン（別セッション）: 2026-08-22 技能ポイントの振り分け（legacy-coc-v3）完了・配布済み。**
+  正本は末尾の「## 技能ポイントの振り分け」節。PV-2b = 95c707c・v3 = 4f0d3a0・seed 実行済み。
+  上の J2 とはファイルが重ならないが、**本 doc だけは両レーンの未コミット変更が同居している**
+
+## 【feature 完了 2026-08-20】J2: 生成用プロンプトのコピー導線（front のみ・未コミット）
+
+ユーザー依頼「このプロンプトをユーザーにコピーさせて、好きなボードゲームや TRPG 名から
+キャラクターシートテンプレートを作成可能なようにする」。
+
+- 実装（Codex 2 round: run-j2-code → run-j2-fix1）: `templateGenerationPrompt.ts`（新規・
+  定数 6,702 文字が**正本**・Why コメントに 9 モデル 19 生成の実測 pin と再実測手順）＋
+  「JSON から作成」モーダル内の案内 Text＋CopyButton（新規 state なし・copied 切替）＋
+  spec 3 本（強化後 assertion 10 個。既存テスト無改変・245/245 緑）
+- 検収（オーケストレータ独立・各段全緑）: typecheck / lint 0 / suite 245 ＋
+  定数↔scratchpad 正本の復号 byte 照合 2 回（FIX 前後とも EXACT MATCH・\` 240・\${ 0）
+- レビュー = Codex＋Opus 並行二重 round1 → FIX-J2-1 → Codex round2。
+  **収束・全 falsifier 8/8 充足**。台帳 = `review-results/template-json-import/j2-rounds.md`
+  （採用 8 点・不採用/認容の根拠・A4 の Opus F2 反証〔Mantine UnstyledButton が type="button" を
+  補う — 属性脱落変異は無害・検出対象は type="submit" 書き換え〕まで記録）
+- 証拠ベース拡張: 並行セッションの Cursor 7 モデル比較 15 JSON を発見・カタログ部の byte 一致を
+  照合・全件を独立再検証 PASS。Claude Code 経由 4 件（`*-cc-*.json`）と汎用検証器
+  `validate-any.cjs` を `document/character-sheet-proposals/llm-prompt-trials/` へ保全し
+  README 追記（正本宣言つき）。**pin = 9 モデル・計 19 生成 JSON**
+- docs 更新済み: user-guide「AI に JSON を作らせる」節 / spec 書 §1 導線追記 /
+  trpg-next-app/AI.md「生成用プロンプトのコピー導線（J2）」節（正本・再実測必須・
+  コピー失敗通知の構造的不在・bundle 同梱認容・spec 防御線）
+- **プロンプト v2 消化（2026-08-20・ユーザー依頼「いあきゃら型をプロンプトでも作れるように」で着手）**:
+  本文 5 点改稿（素値×5 判定と computed 判定ボタンの明記・「省略は常に安全」の限定〔C-F2〕・
+  uid 重複確認〔C-F3〕・予約語 15 語明記・末尾例文更新）→ 再実測 3/3（Haiku: いあきゃら型 CoC6
+  詳細＝要件完全一致＋学園もの回帰、Sonnet: 名のみ回帰）→ Codex 転記（run-j2-promptv2・
+  復号 byte EXACT MATCH 7,197 字・\` 256）→ ゲート独立再実行全緑（245/245）。
+  記録 = trials README の v2 節（計測ハーネスの罠 2 件〔indexOf 自己参照先当たり・通知の
+  HTML エスケープ表示〕も記載）。付随成果物 = いあきゃら型 CoC6 テンプレ JSON をユーザーへ納品
+  （scratchpad/coc6-iachara-style.json・検証検算済み。いあきゃら実物のチャパレ出力も実測済み:
+  素値保存＋`CCB<=n*5` 行生成）
+- **繰り越し 2 系統**（着手前にユーザー裁定）:
+  1. **コピー失敗通知** = CopyButton が error 非公開で通知不能（LAN `http://<IP>:3100` で無反応の
+     実在経路）。useClipboard 直接利用＋既存 Alert パターンの別スライス
+  2. 台帳 #20 catch 統一（J1 から継続・ユーザー裁定待ち）
+- 残作業: **コミットのみ（ユーザー許可が必要）**。変更 = front 3 ファイル＋doc 4 面
+  （user-guide / spec 書 / AI.md / SESSION_HANDOFF）＋ trials フォルダ（untracked・
+  並行セッション分と保全分〔v1 4 件・v2 3 件・validate-any〕が同居）＋
+  AI.character.md（並行セッションの記録 10 行）
 
 ## 【feature 完了 2026-08-19】JSON 貼り付けからのテンプレート作成（J1・front のみ）
 
@@ -4022,7 +4065,7 @@ props から `useState` 初期化子で保持する。初期化子は再レン�
   閾値を持つのは TRPG-SERVER 側（メモリ `front-coverage-threshold-trap`）。
   「front は global 80% threshold」という以前の記載は誤りだったので撤回する
 
-## 現在の feature: PV-S レーン（scalar の作成時ロール）— 2026-08-19 着手
+## PV-S レーン（scalar の作成時ロール）— 2026-08-19・完了
 
 **発端（ユーザー要望）**: 「式 `floor(({parameter.con} + {parameter.siz}) / 10)` があるとき、
 con と siz にダイスのような計算式を許してほしい」。
@@ -4240,6 +4283,136 @@ TFR へ渡すテンプレートを正規化後に揃える。
 **残**: `trpg-next-app/AI.md` への front 記録は並行セッションが同ファイルを保持しているため未反映。
 レビュー所見 10 件を別スライスへ（判定ファイルの「別スライスへ回すもの」表）。
 
+## 技能ポイントの振り分け（legacy-coc-v3）— 2026-08-22 完了・配布済み
+
+**発端（ユーザー要望）**: 「いあきゃらみたいに、技能を振るときに特定の値を参照して
+それを最大値として割り振れるようなこともしたい」。
+
+**診断（実測）**: 要望の機構は 3 層とも実装済みだった。不足していたのは
+**配布テンプレートが技能セクションを持っていないこと**だけ。
+
+| 層 | 実測結果 |
+|---|---|
+| engine | `SheetSection.pools: Array<{ id, label, total: ConstraintSource, partsKey, scope? }>`。`total` は式可 |
+| engine | `AnnotationPoolRuntime` が `consumed / total / remaining / over` を返す。`pool-over` 診断あり |
+| シート画面 | 「残り N / M」＋予算バー。超過で `data-pool-status="danger"`（赤） |
+| エディタ | `SectionPoolsInput`（予算 / パーツキー / スコープ）で作者が宣言できる |
+
+**ユーザー選択**: (1) CoC テンプレートに技能を追加 ＋ 内訳の既定値を適用する（PV-2b）、
+(2) 配布は v3 を出して v2 を非推奨に、(3) 技能は CoC6 標準の一式。
+「上限を強制する」「doc だけ」は選ばれていない。
+
+### なぜ新しい templateId になるのか
+
+`resolveReadableRevision` に「Phase 2 は templateId ごとに単一バージョンのみを保持する」と明記がある。
+版を上げると既存キャラの pin（templateId + templateVersion）が解決できず 409 になる。
+`update` も published/deprecated の構造変更を `published/deprecated template structure is immutable` で拒否する。
+したがって `legacy-coc-v3` を新規 insert し、`legacy-coc-v2` を deprecate する（PV-S5 の経路を使う）。
+
+**構造不変の帰結**: 技能リストを後から直すには v4 が要る。だからリストは実装前に確定させる。
+
+### PV-2b（内訳の既定値を作成時に焼き込む）— 完了・コミット `95c707c`
+
+`CharacterInstantiationService.applyPartsDefaults` を `applyRollOnCreate` と
+`materializeOrThrow` の間に挟む。section 直下の number scalar で `allowsParts` が真の field について、
+`partsKeys[].default` を `evaluateConstraint` に通し、まだ無いキーだけを内訳へ書く。
+
+PV-2b が先である理由: 回避と母国語の初期値は式なので、焼き込みが無いと **0 になる**。
+seed を先に書くと、その 2 件だけ壊れた状態で配布される。
+
+- 差分 2 ファイル / +320（実装 +73-2、spec +249）
+- ゲート（Fable が自分で実行）: build exit 0 / `No circular dependency found!`（575 files） /
+  **226 suites・3246 passed**（基準 3244 から +2 = 追加 spec の本数と一致）
+- 変異 7 種。第 1 ラウンドで MD-6（既定値どうしの依存）と MD-7（空の内訳 `{ parts: {} }`）が**生存**。
+  spec だけを足す修正ラウンドで両方 detected。復元 sha256 `e96c79ce5176 OK`
+- 実装が負の対照の後で元へ戻ったことを sha256 で照合（`E96C79CE51767B2E` 一致）
+- 記録: `review-results/roll-lane/pvs-acceptance.md`
+
+**空の内訳が危険な理由**（engine で実測）: 参照元のキーが無ければ `indeterminate` だが、
+`{ parts: {} }` を書くと `ok, value: 0` になる。未確定（画面の「—」）が 0 の断定へ転ぶ。
+PV-C1 の F-1 で実際に出た退行と同型。
+
+### 確定事項（2026-08-22・ユーザー裁定）
+
+| 論点 | 決定 |
+|---|---|
+| 技能リスト | CoC6 標準 60 技能＋「他の言語」3 枠 = **62 本**。初期値も CoC6 標準 |
+| クトゥルフ神話 | **職業・興味ポイントの振り先に含める**（原典と異なるハウスルール） |
+| 他の言語 | **固定 3 枠**の scalar |
+| list（行追加）対応 | **後回し**。先に v3 を出して振り分けを使える状態にする |
+| 配布 | v3 を insert し v2 を deprecate（PV-S5 の経路） |
+
+### 進行中: V3-SEED（Opus サブエージェントへ委譲・2026-08-22）
+
+指示書は `review-results/roll-lane/prompt-v3-seed.txt`、仕様の正本は
+`document/character-sheet-proposals/legacy-coc-v3-skills.md`。
+
+対象は seed テンプレート（`legacy-coc.template.ts`）＋その spec、
+seeder（`seed-legacy-coc-template.ts` の `PREVIOUS_TEMPLATE_ID` を `'legacy-coc-v2'` へ）＋その spec、
+影響する場合のみ reproduction / characterization spec。
+
+指示書で名指しした不変条件（要点）:
+
+- 既存フィールド（能力値 8・status 4・description 5）の id / uid / 型 / 式 / rollOnCreate / role / parts を変えない
+- `version` は `'1.0.0'` のまま。変えるのは `templateId` だけ
+- section id は **`skill`**（投影のセクション名に対応。別 id だと技能が投影に載らない）
+- 技能は **section 直下の number scalar**（PV-2b の適用条件。ネストすると初期値が焼き込まれず 0 になる）
+- seeder の `canDeprecatePrevious` ガードを変えない（insert 成功時のみ deprecate＝一覧が空になるのを防ぐ）
+
+### 運用変更（2026-08-22・ユーザー指示）
+
+- **親モデルを Fable に切り替える**（ユーザーがモデルピッカーで実施。以後の親セッションは Fable）
+- **このレーンの「Codex 不使用」制約を解除**。Codex `--mode review` を再開する。
+  Bash ツールと WSL bash は壊れたままなので、起動は
+  `& 'C:\Program Files\Git\bin\bash.exe' <retry-codex.sh> review <prompt> <outdir>`
+  の形で Git Bash 実体を直接叩く（PowerShell から）。code 委譲は writer ロック 1 本の制約に注意
+
+### V3-SEED 検収の途中経過（2026-08-22）
+
+- Fable 再実行ゲート: build 0 / 循環ゼロ / 226 suites・3251 passed / eslint クリーン
+- 技能 62 本を正本文書と機械突合: 全数一致・uid 重複 0
+- 実シート編集画面で受入 6 項目すべて通過（skill-v3-*.html、予算が出目に追随することも確認）
+- 変異 10 種中 8 検出・**2 生存**: MS-9（技能 id ずらし）・MS-10（初期値ずらし）が素通り
+  = roster（62 本の id/初期値）を pin する spec が無い。レビュー所見（high）と独立に一致
+- 【訂正】Discord スキルボタン 20 件切りは**到達不能**。`slice(0, 20)` は実在するが、
+  v3 キャラは必ず materialized になり `thread-orchestrator.service.ts:75` が旧表示投稿群を
+  丸ごとスキップする（既存 spec が pin 済み）。旧ボタン UI 自体が v3 スレッドに出ない
+- stale 3 件確認: seeder spec:352「v2 の挿入」表記・`backfill-template-pin.ts:13-16` の
+  「LEGACY_COC_TEMPLATE は v2」コメント・正本文書の「60 技能のまま」と「計 62」の併記
+- 進行中: 検証 workflow の再開（finder 23 所見の反証）＋ Codex `--mode review`
+  （`review-results/roll-lane/codex-v3-review/`）。両方の結果が出たら修正ラウンドを 1 回にまとめる
+### 検収時に自分で測ること
+
+- 技能 62 本の id を正本文書の表と**全数突合**（recommendation の「等」で済ませない）
+- `applyPartsDefaults` が実際に効き、回避と母国語の初期値が 0 でないこと
+- publish 検証（既存 it の `expect(result.issues).toEqual([])`）が緑のまま
+- 変異検証: セクション id を `skill` 以外にする / partsKeys を 2 種に減らす /
+  プールの partsKey を宣言しない / 技能をネストさせる、が**赤くなる**こと
+- 全 suite（基準 226 / 3246）
+
+### 完了（2026-08-22・feature 完了ゲート通過）
+
+- **コミット `4f0d3a0`**（コード 6 ファイル＋正本文書）。PV-2b は `95c707c`
+- **seed 実行済み**: dry-run（decision=insert / would deprecate v2）→ execute
+  （inserted=true / deprecated legacy-coc-v2）→ dry-run 再実行で skip-existing（冪等確認）
+- **実 DB の最終状態**（読み取り probe `probe_db_state.mjs` で確認）:
+  system published は **`legacy-coc-v3` の 1 件のみ**。v1 / v2 は deprecated。
+  v3 行は技能 62 本・プール occupation/interest・role 付きで保存されている
+- 検収: 変異 12 種全検出・画面受入 6 項目・二重レビュー（Opus 51 エージェント＋Codex）。
+  記録は `review-results/roll-lane/pvs-acceptance.md`、別スライスは `followups.md`
+
+### 次にやること
+
+1. ユーザーによる実画面確認（Web で v3 から新規キャラを作成 → 技能・プール表示）
+2. followups の別スライス: seeder の skip-existing 同一性チェック／v2 凍結 fixture／
+   `character-display.service.ts` の旧契約（到達不能の潜在欠陥）／list 対応
+   （ユーザーが欄を増やせる形。engine のプール集計拡張が必要）／parts 判定 3 定義の統合
+3. 未コミットの記録類（AI.character.md・本 doc）は並行レーンの裁定後にまとめる
+### 持ち越し
+
+タスク管理 MCP が切断されたため `review-results/roll-lane/followups.md` に集約した。
+PV-2b が失効させた engine コメント 2 件（`types.ts:84` / `publish.ts` の step 見積 JSDoc）と、
+PV-C1 二重レビュー由来の 7 件。engine は本レーンの範囲外なので未着手。
 ## 参照
 
 - 設計・経緯の詳細: AI.md / AI.refactor.md ほか AI.*.md（正本はそちら。ここは復帰用の要約）

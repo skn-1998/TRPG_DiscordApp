@@ -1071,3 +1071,84 @@ TFR へ渡すテンプレートを正規化後（`sheetTemplate`）に揃えて�
 - 主張は publish.ts・standalone-roll.ts・parser.ts・service.ts・collector・spec の pin
   （standalone-roll.spec.ts の受理/拒否 it.each 等）へ紐付けて裏取り済み。
   未知キーが passthrough で保持される点・rows が保存時未検証で lookup 参照時にのみ検査される点も明記
+
+## 2026-08-20: LLM によるテンプレ JSON 生成の試し（doc のみ）
+
+ユーザー依頼「Cursor の各 LLM に生成プロンプトを投げて CoC キャラシが作れるか試したい」。
+比較用の固定プロンプトと Grok 4.6 の出力を
+`document/character-sheet-proposals/llm-prompt-trials/` に置いた。
+
+- 正本プロンプト（他モデルへ貼る）: `prompt-coc6.md`
+- Grok 4.6 出力: `coc6-grok-4.6.json`（`validatePublishTemplate` 通過・HP/MP/SAN/DB の数値検算済み）
+- サーバー / front のコードは未変更。貼り付け導線は既存の「JSON から作成」を使う
+
+## 2026-08-22: 内訳の既定値を作成時に焼き込む（PV-2b）
+
+**発端**: ユーザー要望「いあきゃらのように、技能を振るときに特定の値を参照して
+それを最大値として割り振れるようにしたい」。要望の機構（`SheetSection.pools` による予算配分）は
+engine・シート画面・エディタの 3 層とも実装済みで、不足していたのは配布テンプレートが
+技能セクションを持っていないことだけだった。本スライスはその配布テンプレート
+（`legacy-coc-v3`）が依存する前提を先に用意する。
+
+**実装**: `CharacterInstantiationService.applyPartsDefaults`。
+`instantiate` の `applyRollOnCreate` と `materializeOrThrow` の間で呼ぶ。
+section 直下の number scalar かつ `allowsParts` が真の field について、
+`partsKeys[].default` を `evaluateConstraint` に通し、まだ存在しないキーだけを内訳へ書く。
+
+**この処理の 4 つの安全条件**（いずれも spec で固定済み・変異で検出を確認）
+
+| 条件                                                | 破ると起きること                                               |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| 評価の入力は `rolledValues`（焼き込み結果ではない） | 既定値どうしが依存し、宣言順を変えただけで結果が変わる         |
+| `evaluateConstraint` が `ok` でなければ書かない     | 評価不能を 0 として焼き込む。このリポジトリで 2 回起きた壊れ方 |
+| 提出値・出目が書いたキーは上書きしない              | 入力が既定値に潰される                                         |
+| 1 つも入らなければ field 自体を作らない             | 空の内訳 `{ parts: {} }` が「値がある」に化ける                |
+
+最後の 1 点は engine で実測した。参照元のキーが無ければ `evaluateConstraint` は
+`indeterminate` を返すが、`{ parts: {} }` を書くと `ok, value: 0` になる。
+それを参照する上限・block cap・pool total が未確定（画面の「—」）から 0 の断定へ転ぶ。
+front 側の PV-C1 で実際に出た退行と同型である。
+
+**`seedParts` との違い**: `CharacterSheetOperationService.seedParts` は生の数値を `base` に残す。
+これは意図的な分岐であって統合してはいけない（PV-2b は生の数値の保存値には触れない）。
+
+**ゲート**: build exit 0 / `No circular dependency found!`（575 files） /
+226 suites・3246 passed（基準 3244 から +2）。
+検収記録は `review-results/roll-lane/pvs-acceptance.md`。
+
+**engine 側の失効コメント（未修正・範囲外）**: `packages/sheet-engine/src/types.ts:84` の
+「未実装（PV-2b の担当）」と、`publish.ts` の `estimateStaticEvaluationSteps` JSDoc の
+「`partsKeys[].default` は evaluateConstraint を通らない」は、本スライスで偽になった。
+挙動は正しいままなので不具合ではない。`review-results/roll-lane/followups.md` に記載。
+
+## 2026-08-22: legacy-coc-v3 配布（技能 62 本＋技能ポイントのプール＋role）
+
+コミット `4f0d3a0`（コード 6＋正本文書）。seed は同日 execute 済みで、実 DB の最終状態は
+**system の published = `legacy-coc-v3` の 1 件のみ**（v1 / v2 は deprecated。読み取り probe で確認）。
+
+**内容**: section `skill` に CoC6 標準 62 本（section 直下 number scalar・内訳キー
+initial / occupation / interest）、プール 2 本（職業 = `{parameter.edu} * 4`・
+興味 = `{parameter.int} * 2`）、全技能に role（`1d100<={value}`・group `skill`）。
+仕様の正本は `document/character-sheet-proposals/legacy-coc-v3-skills.md`。
+
+**設計判断の要点**（詳細は正本文書と seed の Why コメント）
+
+- 新 templateId になるのは published の構造不変＋templateId ごと単一バージョン保持のため。
+  技能リストの誤りは v4 でしか直せない。だから roster（id/label/初期値/宣言順）を
+  spec の期待配列（正本文書から転記）で全数 pin した
+- 能力値はパーセンタイル（raw × 5）なのでプール係数は原典の 1/5。技能値はスケールしない
+- クトゥルフ神話も振り先に含める・「他の言語」固定 3 枠・技能個別 max なし
+  （すべて 2026-08-22 ユーザー裁定）
+- 職業/興味キーは default を持たない（持つと振る前から予算が消費された状態で配布される。
+  spec で禁止を pin・変異で検出確認）
+- palette は 70 件（能力値 8＋技能 62）。`{value}` は materializer の `interpolateNotation` が
+  実値へ展開する（例: 目星 → `1d100<=25`）
+
+**検収**: 変異 12 種全検出（生存 0）・実シート編集画面で受入 6 項目通過・
+二重レビュー（Opus 5 レンズ×2 レンズ反証 51 エージェント＋Codex adversarial）。
+記録は `review-results/roll-lane/pvs-acceptance.md`。
+
+**レビューで棄却された注意点**: Discord スキルボタンの `slice(0,20)` は v3 キャラに
+**到達しない**（materialized 分岐が旧表示投稿群をスキップ。既存 spec が pin 済み）。
+`character-display.service.ts` の旧契約（単数 `value`）も同様に到達不能の潜在欠陥。
+別スライス項目は `review-results/roll-lane/followups.md`。
