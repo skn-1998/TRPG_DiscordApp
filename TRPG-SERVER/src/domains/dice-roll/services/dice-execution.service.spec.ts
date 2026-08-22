@@ -129,6 +129,95 @@ describe('DiceExecutionService', () => {
       }
     )
 
+    it.each([
+      {
+        expression: '1d100<=65*5',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 42',
+        rands: [[42]],
+        legacyTotal: 42,
+        target: 325,
+        details: '(1D100) ＞ 42 ≤ 325 → 成功'
+      },
+      {
+        expression: '1d100<=70+1',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 42',
+        rands: [[42]],
+        legacyTotal: 42,
+        target: 71,
+        details: '(1D100) ＞ 42 ≤ 71 → 成功'
+      },
+      {
+        expression: '1d100<=(13+2)*5',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 42',
+        rands: [[42]],
+        legacyTotal: 42,
+        target: 75,
+        details: '(1D100) ＞ 42 ≤ 75 → 成功'
+      },
+      {
+        expression: '3d6*5>=50*2',
+        rollExpression: '3d6*5',
+        text: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55',
+        rands: [[2], [4], [5]],
+        legacyTotal: 11,
+        target: 100,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55 ≥ 100 → 失敗'
+      },
+      {
+        expression: '1d100<=650/2',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 42',
+        rands: [[42]],
+        legacyTotal: 42,
+        target: 325,
+        details: '(1D100) ＞ 42 ≤ 325 → 成功'
+      },
+      {
+        expression: '1d100<=13/2',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 6',
+        rands: [[6]],
+        legacyTotal: 6,
+        target: 6.5,
+        details: '(1D100) ＞ 6 ≤ 6.5 → 成功'
+      },
+      {
+        expression: '1d100<=-5*3',
+        rollExpression: '1d100',
+        text: '(1D100) ＞ 42',
+        rands: [[42]],
+        legacyTotal: 42,
+        target: -15,
+        details: '(1D100) ＞ 42 ≤ -15 → 失敗'
+      }
+    ])(
+      '算術比較右辺 $expression を target $target として実行する',
+      async ({ expression, rollExpression, text, rands, legacyTotal, details }) => {
+        mockedDice.mockResolvedValue(diceResult(text, rands))
+
+        const result = await service.executeDiceRoll(expression)
+
+        expect(mockedDice).toHaveBeenCalledWith(rollExpression, undefined)
+        expect(result).toEqual({ total: legacyTotal, details })
+      }
+    )
+
+    it.each(['1d100<=65*', '1d100<=*5', '1d100<=65**5', '1d100<=()', '1d100<=65/0', '1d100<=9007199254740991*2'])(
+      '不正または安全に評価できない算術比較右辺 %s を明示拒否する',
+      async (expression) => {
+        const rejection: unknown = await service.executeDiceRoll(expression).catch((error: unknown) => error)
+
+        expect(rejection).toMatchObject({
+          name: 'UnsupportedDiceNotationError',
+          message: `未対応のダイス記法です: ${expression}`
+        })
+        expect(mockedDice).not.toHaveBeenCalled()
+      }
+    )
+
     it('従来の NdM+K 式は変更せず BCDice へ渡し、既存の詳細表現を維持する', async () => {
       mockedDice.mockResolvedValue(diceResult('(2D6+3) ＞ 7[3,4]+3 ＞ 10', [[3], [4]]))
 
@@ -208,6 +297,26 @@ describe('DiceExecutionService', () => {
         details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55 ≥ 50 → 成功'
       })
     })
+
+    it('算術比較右辺を分離し、評価済み total と target で成否を表示する', async () => {
+      mockedDice.mockResolvedValue(diceResult('(3D6*5) ＞ 11[2,4,5]*5 ＞ 55'))
+
+      const result = await service.executeEvaluatedDiceRoll('3d6*5>=50*2')
+
+      expect(mockedDice).toHaveBeenCalledWith('3d6*5', undefined)
+      expect(result).toEqual({
+        total: 55,
+        details: '(3D6*5) ＞ 11[2,4,5]*5 ＞ 55 ≥ 100 → 失敗'
+      })
+    })
+
+    it('不正な算術比較右辺は evaluated 経路でも BCDice 前に明示拒否する', async () => {
+      await expect(service.executeEvaluatedDiceRoll('1d100<=65*')).rejects.toMatchObject({
+        name: 'UnsupportedDiceNotationError',
+        message: '未対応のダイス記法です: 1d100<=65*'
+      })
+      expect(mockedDice).not.toHaveBeenCalled()
+    })
   })
 
   describe('cleanDiceExpression', () => {
@@ -215,7 +324,7 @@ describe('DiceExecutionService', () => {
       expect(service.cleanDiceExpression(' 1D100 ')).toBe('1d100')
     })
 
-    it.each(['1d100<70', '1d100=70', '1d100<=70+1', '1d100;rm', '@@@'])(
+    it.each(['1d100<70', '1d100=70', '1d100;rm', '@@@'])(
       '未対応文字を含む %s は黙って削除せず throw する',
       (expression) => {
         expect(() => service.cleanDiceExpression(expression)).toThrow(`未対応のダイス記法です: ${expression}`)
@@ -229,6 +338,10 @@ describe('DiceExecutionService', () => {
 
     it('小数の目標値を比較記法として受理する', () => {
       expect(service.cleanDiceExpression('1d100<=70.5')).toBe('1d100<=70.5')
+    })
+
+    it('算術比較右辺は空白だけを正規化し、元の右辺テキストを保持する', () => {
+      expect(service.cleanDiceExpression(' 1D100 <= (13 + 2) * 5 ')).toBe('1d100<=(13+2)*5')
     })
 
     it.each(['1d100<=9007199254740991', '1d100>=-9007199254740991'])(

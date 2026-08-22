@@ -16,7 +16,119 @@ export class UnsupportedDiceNotationError extends Error {
 }
 
 const SUPPORTED_ROLL_NOTATION_PATTERN = /^[\d+\-*/()d]+$/
-const TRAILING_COMPARISON_PATTERN = /^(.+?)(<=|>=)(-?\d+(?:\.\d+)?)$/
+const PLAIN_COMPARISON_TARGET_PATTERN = /^-?\d+(?:\.\d+)?$/
+// 右辺から比較記号を除外しておくことで、lazy な左辺は最後の <= / >= までをロール式として保持する。
+const TRAILING_COMPARISON_PATTERN = /^(.+?)(<=|>=)([\d.+\-*/()]+)$/
+
+/**
+ * 比較右辺だけを評価する再帰下降パーサ。
+ *
+ * 文法境界: expr = term ((+|-) term)* / term = factor ((*|/) factor)* /
+ * factor = '-'? (number | '(' expr ')') / number = \d+(\.\d+)?。
+ * ダイス記法はロール側の既存 whitelist と BCDice に委ね、ここへ混在させない。
+ */
+class ComparisonTargetParser {
+  private position = 0
+
+  constructor(
+    private readonly targetExpression: string,
+    private readonly sourceExpression: string
+  ) {}
+
+  parse(): number {
+    const value = this.parseExpression()
+    if (this.position !== this.targetExpression.length) {
+      this.throwUnsupportedNotation()
+    }
+
+    return this.assertSupportedValue(value)
+  }
+
+  private parseExpression(): number {
+    let value = this.parseTerm()
+
+    while (this.currentToken() === '+' || this.currentToken() === '-') {
+      const operator = this.consumeToken()
+      const right = this.parseTerm()
+      value = this.assertSupportedValue(operator === '+' ? value + right : value - right)
+    }
+
+    return value
+  }
+
+  private parseTerm(): number {
+    let value = this.parseFactor()
+
+    while (this.currentToken() === '*' || this.currentToken() === '/') {
+      const operator = this.consumeToken()
+      const right = this.parseFactor()
+      if (operator === '/' && right === 0) {
+        this.throwUnsupportedNotation()
+      }
+      value = this.assertSupportedValue(operator === '*' ? value * right : value / right)
+    }
+
+    return value
+  }
+
+  private parseFactor(): number {
+    let sign = 1
+    if (this.currentToken() === '-') {
+      this.consumeToken()
+      sign = -1
+    }
+
+    if (this.currentToken() === '(') {
+      this.consumeToken()
+      const value = this.parseExpression()
+      if (this.currentToken() !== ')') {
+        this.throwUnsupportedNotation()
+      }
+      this.consumeToken()
+      return this.assertSupportedValue(sign * value)
+    }
+
+    return this.assertSupportedValue(sign * this.parseNumber())
+  }
+
+  private parseNumber(): number {
+    const numberMatch = this.targetExpression.slice(this.position).match(/^\d+(?:\.\d+)?/)
+    if (!numberMatch) {
+      this.throwUnsupportedNotation()
+    }
+
+    this.position += numberMatch[0].length
+    return this.assertSupportedValue(Number(numberMatch[0]))
+  }
+
+  private currentToken(): string | undefined {
+    return this.targetExpression[this.position]
+  }
+
+  private consumeToken(): string {
+    const token = this.targetExpression[this.position]
+    if (!token) {
+      this.throwUnsupportedNotation()
+    }
+    this.position += 1
+    return token
+  }
+
+  private assertSupportedValue(value: number): number {
+    // 安全域を一度でも外れた Number は後続演算で範囲内へ戻っても精度を復元できないため、中間値ごと拒否する。
+    if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+      this.throwUnsupportedNotation()
+    }
+    return value
+  }
+
+  private throwUnsupportedNotation(): never {
+    throw new UnsupportedDiceNotationError(`未対応のダイス記法です: ${this.sourceExpression}`)
+  }
+}
+
+const evaluateComparisonTarget = (targetExpression: string, sourceExpression: string): number =>
+  new ComparisonTargetParser(targetExpression, sourceExpression).parse()
 
 /**
  * BCDice 実行コアサービス
@@ -144,7 +256,12 @@ export class DiceExecutionService {
     }
 
     if (comparisonMatch?.[3]) {
-      this.assertSupportedComparisonTarget(comparisonMatch[3], expression)
+      const targetExpression = comparisonMatch[3]
+      if (PLAIN_COMPARISON_TARGET_PATTERN.test(targetExpression)) {
+        this.assertSupportedComparisonTarget(targetExpression, expression)
+      } else {
+        evaluateComparisonTarget(targetExpression, expression)
+      }
     }
 
     return comparisonMatch ? `${rollExpression}${comparisonMatch[2]}${comparisonMatch[3]}` : rollExpression
@@ -156,17 +273,20 @@ export class DiceExecutionService {
       return { rollExpression: cleanExpression }
     }
 
-    const [, rollExpression, matchedOperator, targetLiteral] = comparisonMatch
-    if (!rollExpression || !targetLiteral) {
+    const [, rollExpression, matchedOperator, targetExpression] = comparisonMatch
+    if (!rollExpression || !targetExpression) {
       throw new Error(`Invalid cleaned dice expression: ${cleanExpression}`)
     }
     const operator = matchedOperator as DiceComparison['operator']
+    const target = PLAIN_COMPARISON_TARGET_PATTERN.test(targetExpression)
+      ? Number(targetExpression)
+      : evaluateComparisonTarget(targetExpression, cleanExpression)
 
     return {
       rollExpression,
       comparison: {
         operator,
-        target: Number(targetLiteral)
+        target
       }
     }
   }
