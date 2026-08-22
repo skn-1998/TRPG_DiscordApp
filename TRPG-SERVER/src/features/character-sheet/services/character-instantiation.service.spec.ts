@@ -149,6 +149,49 @@ describe('CharacterInstantiationService', () => {
     ]
   })
 
+  // 内訳キーの既定値（partsKeys[].default）を宣言した number scalar「evade」と、その既定値が参照しうる
+  // 2 本の能力値を持つテンプレート。dex は作成時ロールで決まり、bonus は誰も値を入れない。
+  // 既定値の評価がロールの後であること（dex）と、参照先が未確定なら何も書かないこと（bonus）を
+  // 同じテンプレートで観測できるようにしてある。
+  const partsDefaultTemplate = (
+    partsKeys: Array<{ id: string; label: string; default?: number | { formula: string } }>,
+    evadeProperties: Record<string, unknown> = {}
+  ): CharacterSheetTemplateEntity => ({
+    ...template,
+    sections: [
+      {
+        id: 'parameter',
+        label: 'Parameter',
+        fields: [
+          {
+            id: 'dex',
+            uid: 'uid-dex',
+            label: 'DEX',
+            type: 'scalar',
+            valueType: 'number',
+            rollOnCreate: { notation: '3d6*5' }
+          },
+          {
+            id: 'bonus',
+            uid: 'uid-bonus',
+            label: 'Bonus',
+            type: 'scalar',
+            valueType: 'number'
+          },
+          {
+            id: 'evade',
+            uid: 'uid-evade',
+            label: 'Evade',
+            type: 'scalar',
+            valueType: 'number',
+            partsKeys,
+            ...evadeProperties
+          }
+        ]
+      }
+    ]
+  })
+
   const created: CharacterEntity = {
     characterId: 'char-1',
     characterName: 'Investigator',
@@ -525,6 +568,212 @@ describe('CharacterInstantiationService', () => {
       expect(dependencies.characterRepository.createMaterializedCharacter).toHaveBeenCalledTimes(1)
     }
   )
+
+  // 内訳キーの既定値（partsKeys[].default）の焼き込み。適用時点を作成時に固定するのは D-17 の裁定で、
+  // 評価時に動的へ倒す実装との差はここで観測する（materialize へ渡る値に既に入っているか）。
+  describe('内訳キーの既定値', () => {
+    function materializedValues(dependencies: ReturnType<typeof createDependencies>): Record<string, any> {
+      return dependencies.sheetMaterializer.materialize.mock.calls[0][0].sheet.values
+    }
+
+    it('式の既定値は作成時ロールで決まった値を参照して焼き込まれる', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([
+          { id: 'initial', label: '初期値', default: { formula: '{parameter.dex} * 2' } },
+          { id: 'occupation', label: '職業' }
+        ])
+      )
+      dependencies.diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue({
+        total: 40,
+        details: '(3D6*5) ＞ 8[2,3,3]*5 ＞ 40'
+      })
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      // 出目 40 の 2 倍。評価が作成時ロールより前だと dex が生入力欠落のままとなり、
+      // evaluateConstraint が indeterminate を返して initial 自体が作られない（= この期待が赤くなる）。
+      expect(materializedValues(dependencies)['uid-dex']).toBe(40)
+      // 既定値の無い occupation は作られない。
+      expect(materializedValues(dependencies)['uid-evade']).toStrictEqual({ parts: { initial: 80 } })
+    })
+
+    it('数値の既定値はそのまま焼き込まれる', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([{ id: 'initial', label: '初期値', default: 25 }])
+      )
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      expect(materializedValues(dependencies)['uid-evade']).toStrictEqual({ parts: { initial: 25 } })
+    })
+
+    it('提出値が既に持つ内訳キーには既定値を書かない', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([{ id: 'initial', label: '初期値', default: 25 }])
+      )
+
+      await dependencies.service.instantiate({
+        ...instantiateInput,
+        values: { 'uid-evade': { parts: { initial: 5 } } }
+      })
+
+      expect(materializedValues(dependencies)['uid-evade']).toStrictEqual({ parts: { initial: 5 } })
+    })
+
+    // 依頼の実測ケース（回避 = 初期値 DEX*2 + 職業）。提出済みの他の内訳を残したまま既定値が乗り、
+    // 合計が 15 ではなく 95 になる。既定値だけで内訳を作り直す実装はここで赤くなる。
+    it('提出済みの他の内訳を残したまま既定値を足す', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([
+          { id: 'initial', label: '初期値', default: { formula: '{parameter.dex} * 2' } },
+          { id: 'occupation', label: '職業' }
+        ])
+      )
+      dependencies.diceExecutionService.executeEvaluatedDiceRoll.mockResolvedValue({
+        total: 40,
+        details: '(3D6*5) ＞ 8[2,3,3]*5 ＞ 40'
+      })
+
+      await dependencies.service.instantiate({
+        ...instantiateInput,
+        values: { 'uid-evade': { parts: { occupation: 15 } } }
+      })
+
+      expect(materializedValues(dependencies)['uid-evade']).toStrictEqual({
+        parts: { occupation: 15, initial: 80 }
+      })
+    })
+
+    // 本スライスの最重要点。「宣言は正しいのに静かに 0 になる」不具合を作らないため、評価が ok に
+    // ならなかった既定値はキー自体を作らないことを固定する（0 でも null でも undefined でもない）。
+    it.each([
+      ['参照先の値が未入力（indeterminate）', { formula: '{parameter.bonus}' }],
+      ['参照が解決できない（error）', { formula: '{parameter.unknown}' }]
+    ])('評価が ok にならない既定値（%s）は内訳キー自体を作らない', async (_caseName, defaultSource) => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([
+          { id: 'initial', label: '初期値', default: 25 },
+          { id: 'growth', label: '成長', default: defaultSource }
+        ])
+      )
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      const parts = materializedValues(dependencies)['uid-evade'].parts
+      // toEqual は値が undefined のキーを無視するので、キーの不在は hasOwnProperty で直接見る。
+      // 同じ field の解決できた既定値（initial）は入ること込みで固定し、評価失敗が field 全体を
+      // 落としているだけの実装では緑にならないようにする。
+      expect(Object.prototype.hasOwnProperty.call(parts, 'growth')).toBe(false)
+      expect(parts).toStrictEqual({ initial: 25 })
+    })
+
+    // 上のテストがキー単位で固定していることを field 単位でも固定する。既定値が 1 つも入らなかった field へ
+    // 空の内訳（`{ parts: {} }`）を書くと、値を持たない field が「値がある」状態へ化ける。
+    // 参照側の evaluateConstraint はこの差を見ており、キー自体が無ければ indeterminate、`{ parts: {} }` があれば
+    // ok / 0 を返す。つまりその field を参照する上限・block cap・pool 合計の表示が、未確定（—）から
+    // 0 の断定へ転ぶ。同じ機能の front 側で実際に出た退行と同型なので、field を作らないことまで固定する。
+    it('既定値が 1 つも入らなかった field には値そのものを作らない（空の内訳を書かない）', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        // 参照先の bonus には誰も値を入れないので、この既定値は indeterminate にしかならない。
+        // よって evade は提出値も出目も既定値も持たない field になる。
+        partsDefaultTemplate([{ id: 'initial', label: '初期値', default: { formula: '{parameter.bonus}' } }])
+      )
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      const values = materializedValues(dependencies)
+      // toEqual は値が undefined のキーを無視するので、キーの不在は hasOwnProperty で直接見る。
+      expect(Object.prototype.hasOwnProperty.call(values, 'uid-evade')).toBe(false)
+      // 作成時ロールで決まった値は残る（既定値の焼き込みが他の field を巻き添えに落としていないこと）。
+      expect(values).toStrictEqual({ 'uid-dex': 55 })
+    })
+
+    // publish は number 以外の scalar への partsKeys を拒否する（validateNumericAnnotationTarget）ため、
+    // publish を経ずに DB へ入った契約外形に対する防壁。内訳を書くと value-input.ts の
+    // `isPartsValue && !allowsParts` 拒否に引っかかる値になる。
+    it('内訳を持てない field（allowsParts が false）には既定値を適用しない', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([{ id: 'initial', label: '初期値', default: 25 }], { valueType: 'text' })
+      )
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      expect(Object.prototype.hasOwnProperty.call(materializedValues(dependencies), 'uid-evade')).toBe(false)
+    })
+
+    // 生値をどの内訳に属すると解釈するかは feature 内で規則が割れている（creation-roll-value.util.ts）。
+    // 既定値の焼き込みはその裁定を先取りせず、内訳形でない値には手を出さない。
+    it('値が内訳形でない（生の数値）field には既定値を適用しない', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(
+        partsDefaultTemplate([{ id: 'initial', label: '初期値', default: 25 }])
+      )
+
+      await dependencies.service.instantiate({ ...instantiateInput, values: { 'uid-evade': 30 } })
+
+      expect(materializedValues(dependencies)['uid-evade']).toBe(30)
+    })
+
+    // 既定値どうしの依存を観測するための最小テンプレート。参照される bonus を参照する側の evade より
+    // 前に宣言してある。焼き込んだ端から次の評価へ渡す逐次適用なら、この順序でだけ evade から
+    // bonus の既定値が見える（= 宣言順を入れ替えるだけで結果が変わる形）。
+    const chainedDefaultTemplate: CharacterSheetTemplateEntity = {
+      ...template,
+      sections: [
+        {
+          id: 'parameter',
+          label: 'Parameter',
+          fields: [
+            {
+              id: 'bonus',
+              uid: 'uid-bonus',
+              label: 'Bonus',
+              type: 'scalar',
+              valueType: 'number',
+              partsKeys: [{ id: 'base', label: '基本', default: 10 }]
+            },
+            {
+              id: 'evade',
+              uid: 'uid-evade',
+              label: 'Evade',
+              type: 'scalar',
+              valueType: 'number',
+              partsKeys: [
+                { id: 'initial', label: '初期値', default: { formula: '{parameter.bonus}' } },
+                // 解決できる既定値を 1 つ持たせ、evade 自体は必ず作られる状態にしておく。こうしないと
+                // 「1 つも入らなかった field を作らない」防壁の方でも赤くなり、どちらが壊れたか分からなくなる。
+                { id: 'occupation', label: '職業', default: 5 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    // 評価は全ての既定値について「作成時ロール適用後の同一スナップショット」に対して行う、を固定する。
+    // 焼き込んだ端から次の評価へ渡す逐次適用にすると、宣言順を変えただけで結果が変わる形になり、
+    // 同じテンプレートから作ったキャラの値が並び替え次第で食い違う。依存の解決（トポロジカルソート）が
+    // 要るならそれを設計してから入れるのが裁定で、この期待はその未設計状態を守っている。
+    it('既定値どうしの依存は解決しない（他 field の既定値は評価から見えない）', async () => {
+      const dependencies = createDependencies()
+      dependencies.templateService.resolveForCreate.mockResolvedValue(chainedDefaultTemplate)
+
+      await dependencies.service.instantiate(instantiateInput)
+
+      const values = materializedValues(dependencies)
+      // 参照される側の既定値は入る。逐次適用なら参照側から見えたはずの値が実在することの確認。
+      expect(values['uid-bonus']).toStrictEqual({ parts: { base: 10 } })
+      // それでも参照側からは見えないので bonus 参照は indeterminate 止まりで、initial は作られない。
+      expect(values['uid-evade']).toStrictEqual({ parts: { occupation: 5 } })
+    })
+  })
 
   it('version/published 解決失敗時は後続処理も insert も実行しない', async () => {
     const dependencies = createDependencies()

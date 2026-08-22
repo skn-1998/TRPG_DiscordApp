@@ -5,7 +5,8 @@ import type { MaterializedCharacterEntity } from '../../../domains/character/mod
 import { CharacterSheetTemplateService } from '../../../domains/character-sheet-template/character-sheet-template.service'
 import { DiceExecutionService } from '../../../domains/dice-roll/services/dice-execution.service'
 import { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
-import { rollOnCreateSpec, type RollOnCreateSpec, type SheetField } from '@trpg/sheet-engine'
+import { evaluateConstraint, rollOnCreateSpec, type RollOnCreateSpec, type SheetField } from '@trpg/sheet-engine'
+import { toEngineTemplate } from '../../../domains/character-sheet-template/validation/sheet-engine-template.mapper'
 import {
   InstantiateCharacterInput,
   InstantiateCharacterResult,
@@ -50,7 +51,9 @@ export class CharacterInstantiationService {
     )
     const submittedValues = this.sheetMaterializer.validateInputValues(template, input.values ?? {})
     const { values, rollOnCreateResults } = await this.applyRollOnCreate(template, submittedValues)
-    const materialized = this.materializeOrThrow(template, values)
+    // 既定値の焼き込みは作成時ロールの後・materialize の前でなければならない（理由は applyPartsDefaults）。
+    const valuesWithDefaults = this.applyPartsDefaults(template, values)
+    const materialized = this.materializeOrThrow(template, valuesWithDefaults)
     const characterId = await this.characterIdService.generateUniqueCharacterId()
     const entity: MaterializedCharacterEntity = {
       characterId,
@@ -130,6 +133,72 @@ export class CharacterInstantiationService {
     }
 
     return { values, rollOnCreateResults }
+  }
+
+  /**
+   * 内訳キーの既定値（`partsKeys[].default`）をシートの値へ焼き込む。
+   *
+   * 適用時点を作成時に固定するのは D-17 の裁定
+   * （正本 = document/character-sheet-proposals/roll-lane-framing.md の「確定した裁定」）。
+   * 評価時に既定値を動的に返す形にはしない。焼き込んでしまえば内訳はシートの値だけで完結し、
+   * テンプレート側の既定値を後から直しても既存キャラには波及しない（pinned revision と同じ考え方）。
+   *
+   * 呼ぶ位置は applyRollOnCreate の後・materialize の前でなければならない。既定値の式は能力値を
+   * 参照でき（`{parameter.dex} * 2`）、その能力値は作成時ロールで決まる。ロールの前に評価すると
+   * 参照先が生入力欠落のまま evaluateConstraint に入り indeterminate になって、既定値が 1 つも入らない。
+   * この順序は spec の「式の既定値は作成時ロールで決まった値を参照して焼き込まれる」が固定している。
+   *
+   * 評価は全ての既定値について「ロール適用後の同一スナップショット」に対して行う。よって既定値どうしの
+   * 依存は解決しない（ある既定値が別 field の既定値由来の値を参照しても、その値は見えない）。
+   * 焼き込んだ端から次の評価へ渡す逐次適用にすると、宣言順を変えただけで結果が変わる形になるため、
+   * 依存の解決（トポロジカルソート）が要るならそれを設計してから入れること。本スライスの範囲外。
+   */
+  private applyPartsDefaults(
+    template: CharacterSheetTemplateEntity,
+    rolledValues: Record<string, unknown>
+  ): Record<string, unknown> {
+    const engineTemplate = toEngineTemplate(template)
+    const values = { ...rolledValues }
+
+    for (const field of this.collectTopLevelFields(template)) {
+      // 既定値を宣言できるのは section 直下 number scalar の partsKeys だけで、それ以外の型・階層への
+      // partsKeys は publish の validateNumericAnnotationTarget が拒否している。
+      if (field.type !== 'scalar' || field.partsKeys === undefined) continue
+      // 内訳を持てない field には書き込み先が無い。partsKeys を宣言しつつ allowsParts が false になるのは
+      // valueType が number でない契約外形（publish を経ずに DB へ入った形）だけで、そこへ内訳形を書くと
+      // value-input.ts の `isPartsValue && !allowsParts` 拒否に引っかかり以後提出し直せない値になる。
+      if (!allowsParts(field)) continue
+
+      const currentValue = values[field.uid]
+      // 生の数値には適用しない。生値をどの内訳に属すると解釈するかは同じ feature の中でも規則が割れており
+      // （creationRollValue は捨てて作り直す／CharacterSheetOperationService の seedParts は base に残す。
+      // creation-roll-value.util.ts に食い違いとして明記されている）、既定値のためにその裁定を先取りしない。
+      if (currentValue !== undefined && !isPartsValue(currentValue)) continue
+
+      const parts = isPartsValue(currentValue) ? { ...currentValue.parts } : {}
+      let applied = false
+      for (const partsKey of field.partsKeys) {
+        if (partsKey.default === undefined) continue
+        // 提出値と作成時ロールが既に書いたキーには触らない。
+        if (Object.prototype.hasOwnProperty.call(parts, partsKey.id)) continue
+        // 評価対象は values ではなく rolledValues。values を渡すと先に焼き込んだ既定値が後続の評価から
+        // 見えるようになり、上の JSDoc が禁じている宣言順依存が入り込む。
+        const evaluated = evaluateConstraint(partsKey.default, engineTemplate, rolledValues)
+        // ok 以外（indeterminate / error）では何も書かない。ここで 0 を書かないことが本経路の要点で、
+        // 「宣言は正しいのに値が静かに 0 になる」不具合をこの焼き込み自体が塞いでいる。未確定を 0 として
+        // 焼き込むと、テンプレートを直しても波及しない保存値としてその 0 が恒久化する。
+        if (evaluated.status !== 'ok') continue
+        parts[partsKey.id] = evaluated.value
+        applied = true
+      }
+
+      // 1 つも入らなかった field には触らない。値の無い field へ空の内訳（`{ parts: {} }`）を書くと
+      // 「値がある」状態になり、その field を参照する式の生入力欠落判定
+      // （constraint-evaluator の isRawNumberDependencyMissing）が成立しなくなって、未入力が 0 として評価される。
+      if (applied) values[field.uid] = { parts }
+    }
+
+    return values
   }
 
   /**
