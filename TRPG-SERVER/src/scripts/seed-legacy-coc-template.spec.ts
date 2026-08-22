@@ -12,7 +12,7 @@ import {
 
 /**
  * legacy-coc seeder が「seed 実体をそのまま published 行にする」「冪等」「dry-run 既定」
- * 「publish 検証に落ちたら挿入しない」「v2 が published になった後でだけ旧行を deprecate する」
+ * 「publish 検証に落ちたら挿入しない」「v3 が published になった後でだけ旧行を deprecate する」
  * を守ることを検証する。
  *
  * 必要な前提: repository は findById / create / deprecatePublished だけをモックする
@@ -148,7 +148,7 @@ describe('seed-legacy-coc-template', () => {
       publishedAt: PUBLISHED_AT
     })
 
-    expect(harness.findById).toHaveBeenCalledWith('legacy-coc-v2')
+    expect(harness.findById).toHaveBeenCalledWith('legacy-coc-v3')
     expect(harness.create).not.toHaveBeenCalled()
     expect(result).toMatchObject({ decision: 'insert', inserted: false, issues: [], exitCode: 0 })
   })
@@ -165,8 +165,8 @@ describe('seed-legacy-coc-template', () => {
 
     expect(harness.create).toHaveBeenCalledTimes(1)
     expect(harness.create).toHaveBeenCalledWith({
-      // 旧 `legacy-coc` 行を残したまま出し直すため、seeder が触る id は v2 側だけになる
-      templateId: 'legacy-coc-v2',
+      // 旧 `legacy-coc-v2` 行を残したまま出し直すため、seeder が挿入する id は v3 側だけになる
+      templateId: 'legacy-coc-v3',
       status: 'published',
       version: '1.0.0',
       schemaVersion: 3,
@@ -259,10 +259,10 @@ describe('seed-legacy-coc-template', () => {
     expect(harness.logger.error).toHaveBeenCalledWith('Error: write failed')
   })
 
-  it('execute は v2 を挿入した後に旧 legacy-coc を deprecate する', async () => {
+  it('execute は v3 を挿入した後に旧 legacy-coc-v2 を deprecate する', async () => {
     const harness = createHarness()
     // 戻り値は「published 行が 1 件一致した」ことだけを表す。中身は deprecatedPrevious に影響しない。
-    harness.deprecatePublished.mockResolvedValueOnce(existingRow({ templateId: 'legacy-coc', status: 'deprecated' }))
+    harness.deprecatePublished.mockResolvedValueOnce(existingRow({ templateId: 'legacy-coc-v2', status: 'deprecated' }))
 
     const result = await runLegacyCocTemplateSeed({
       mode: 'execute',
@@ -271,15 +271,15 @@ describe('seed-legacy-coc-template', () => {
       publishedAt: PUBLISHED_AT
     })
 
-    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc', 'system')
-    // 順序そのものを固定する。v2 が published になる前に旧行を落とすと選べる行が消える。
+    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc-v2', 'system')
+    // 順序そのものを固定する。v3 が published になる前に旧行を落とすと選べる行が消える。
     expect(harness.create.mock.invocationCallOrder[0]).toBeLessThan(
       harness.deprecatePublished.mock.invocationCallOrder[0]
     )
     expect(result).toMatchObject({ inserted: true, deprecatedPrevious: true, exitCode: 0 })
   })
 
-  it('v2 の insert に失敗したら旧行を deprecate しない', async () => {
+  it('v3 の insert に失敗したら旧行を deprecate しない', async () => {
     const harness = createHarness()
     harness.create.mockRejectedValueOnce(new Error('write failed'))
 
@@ -304,7 +304,7 @@ describe('seed-legacy-coc-template', () => {
       publishedAt: PUBLISHED_AT
     })
 
-    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc', 'system')
+    expect(harness.deprecatePublished).toHaveBeenCalledWith('legacy-coc-v2', 'system')
     expect(result).toMatchObject({ decision: 'skip-existing', exitCode: 0 })
   })
 
@@ -319,7 +319,7 @@ describe('seed-legacy-coc-template', () => {
     })
 
     expect(harness.deprecatePublished).not.toHaveBeenCalled()
-    expect(harness.logger.log).toHaveBeenCalledWith('would deprecate templateId=legacy-coc author=system')
+    expect(harness.logger.log).toHaveBeenCalledWith('would deprecate templateId=legacy-coc-v2 author=system')
     expect(result).toMatchObject({ deprecatedPrevious: false, exitCode: 0 })
   })
 
@@ -349,7 +349,7 @@ describe('seed-legacy-coc-template', () => {
       publishedAt: PUBLISHED_AT
     })
 
-    // v2 の挿入自体は成功しているので inserted は下げない
+    // v3 の挿入自体は成功しているので inserted は下げない
     expect(result).toMatchObject({ inserted: true, deprecatedPrevious: false, exitCode: 1 })
     expect(harness.logger.error).toHaveBeenCalledWith('Error: update failed')
   })

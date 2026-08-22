@@ -1,4 +1,4 @@
-import type { SheetField, SheetTemplate } from '@trpg/sheet-engine'
+import type { ConstraintSource, SheetField, SheetTemplate } from '@trpg/sheet-engine'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../character-sheet-template.constants'
 
 type LegacyAbilityDefinition = {
@@ -44,13 +44,147 @@ function buildLegacyAbilityFields(): SheetField[] {
   }))
 }
 
+type LegacySkillDefinition = {
+  id: string
+  label: string
+  /** 内訳キー `initial` の既定値。CoC6 の標準初期値で、能力値から導く 2 件（回避・母国語）だけが式になる。 */
+  initial: ConstraintSource
+}
+
+/**
+ * CoC6 標準の 62 技能。追加・削除・初期値の改変はしない（2026-08-22 ユーザー裁定）。
+ * 正本は document/character-sheet-proposals/legacy-coc-v3-skills.md。
+ *
+ * 初期値に能力値を参照する式が 2 件だけ混ざる理由:
+ * この seed は能力値を**パーセンタイル（原典の raw 値 × 5）**で持っている。根拠は既存 computed 式で、
+ * HP = floor((CON + SIZ) / 10) が原典の (raw CON + raw SIZ) / 2 に、MP = floor(POW / 5) が raw POW に、
+ * SAN = POW が raw POW × 5 に対応する。つまり raw = パーセンタイル / 5。
+ * 一方で技能値はパーセンテージそのもの（目星 25 は 25%）なのでスケールしない。
+ * よって「raw 能力値 × N」で決まる初期値だけ /5 を挟む必要がある。
+ *   回避   : 原典 raw DEX × 2 → floor({parameter.dex} * 2 / 5)
+ *   母国語 : 原典 raw EDU × 5 → {parameter.edu}（× 5 と ÷ 5 が相殺して素の参照になる）
+ * 同じ換算がプールの予算式にも効く（section skill の pools を参照）。
+ */
+const LEGACY_COC_SKILLS: LegacySkillDefinition[] = [
+  // --- 戦闘技能 ---
+  { id: 'dodge', label: '回避', initial: { formula: 'floor({parameter.dex} * 2 / 5)' } },
+  { id: 'kick', label: 'キック', initial: 25 },
+  { id: 'grapple', label: '組み付き', initial: 25 },
+  { id: 'punch', label: 'こぶし（パンチ）', initial: 50 },
+  { id: 'headbutt', label: '頭突き', initial: 10 },
+  { id: 'throw', label: '投擲', initial: 25 },
+  { id: 'martial_arts', label: 'マーシャルアーツ', initial: 1 },
+  { id: 'handgun', label: '拳銃', initial: 20 },
+  { id: 'smg', label: 'サブマシンガン', initial: 15 },
+  { id: 'shotgun', label: 'ショットガン', initial: 30 },
+  { id: 'machinegun', label: 'マシンガン', initial: 15 },
+  { id: 'rifle', label: 'ライフル', initial: 25 },
+  // --- 探索技能 ---
+  { id: 'first_aid', label: '応急手当', initial: 30 },
+  { id: 'locksmith', label: '鍵開け', initial: 1 },
+  { id: 'conceal', label: '隠す', initial: 15 },
+  { id: 'hide', label: '隠れる', initial: 10 },
+  { id: 'listen', label: '聞き耳', initial: 25 },
+  { id: 'sneak', label: '忍び歩き', initial: 10 },
+  { id: 'photography', label: '写真術', initial: 10 },
+  { id: 'psychoanalysis', label: '精神分析', initial: 1 },
+  { id: 'track', label: '追跡', initial: 10 },
+  { id: 'climb', label: '登攀', initial: 40 },
+  { id: 'library', label: '図書館', initial: 25 },
+  { id: 'spot_hidden', label: '目星', initial: 25 },
+  // --- 行動技能 ---
+  { id: 'drive', label: '運転（自動車）', initial: 20 },
+  { id: 'mech_repair', label: '機械修理', initial: 20 },
+  { id: 'operate_heavy_machine', label: '重機械操作', initial: 1 },
+  { id: 'ride', label: '乗馬', initial: 5 },
+  { id: 'swim', label: '水泳', initial: 25 },
+  { id: 'craft', label: '製作', initial: 5 },
+  { id: 'pilot', label: '操縦', initial: 1 },
+  { id: 'jump', label: '跳躍', initial: 25 },
+  { id: 'electr_repair', label: '電気修理', initial: 10 },
+  { id: 'navigate', label: 'ナビゲート', initial: 10 },
+  { id: 'disguise', label: '変装', initial: 1 },
+  // --- 交渉技能 ---
+  { id: 'fast_talk', label: '言いくるめ', initial: 5 },
+  { id: 'credit_rating', label: '信用', initial: 15 },
+  { id: 'persuade', label: '説得', initial: 15 },
+  { id: 'bargain', label: '値切り', initial: 5 },
+  { id: 'own_language', label: '母国語', initial: { formula: '{parameter.edu}' } },
+  // 「他の言語」を固定 3 枠にしているのは、行をユーザーが増やす機構（list 型）の行には
+  // 職業・興味ポイントを振れないため。プールの集計は packages/sheet-engine/src/annotation-runtime.ts が
+  // section 直下の field しか走査しないので、list の行は予算の対象にならない。
+  // 使わない枠は初期値 1 のまま残る。
+  { id: 'other_language_1', label: '他の言語 1', initial: 1 },
+  { id: 'other_language_2', label: '他の言語 2', initial: 1 },
+  { id: 'other_language_3', label: '他の言語 3', initial: 1 },
+  // --- 知識技能 ---
+  { id: 'medicine', label: '医学', initial: 5 },
+  { id: 'occult', label: 'オカルト', initial: 5 },
+  { id: 'chemistry', label: '化学', initial: 1 },
+  // クトゥルフ神話は原典では作成時に職業・興味ポイントを振れない。ハウスルールとして
+  // 他技能と同じ 3 内訳キーを持たせ、振り先に含めることをユーザーが選択した（2026-08-22 裁定）。
+  { id: 'cthulhu_mythos', label: 'クトゥルフ神話', initial: 0 },
+  { id: 'art', label: '芸術', initial: 5 },
+  { id: 'accounting', label: '経理', initial: 10 },
+  { id: 'archaeology', label: '考古学', initial: 1 },
+  { id: 'computer', label: 'コンピューター', initial: 1 },
+  { id: 'psychology', label: '心理学', initial: 5 },
+  { id: 'anthropology', label: '人類学', initial: 1 },
+  { id: 'biology', label: '生物学', initial: 1 },
+  { id: 'geology', label: '地質学', initial: 1 },
+  { id: 'electronics', label: '電子工学', initial: 1 },
+  { id: 'astronomy', label: '天文学', initial: 1 },
+  { id: 'natural_history', label: '博物学', initial: 10 },
+  { id: 'physics', label: '物理学', initial: 1 },
+  { id: 'law', label: '法律', initial: 5 },
+  { id: 'pharmacy', label: '薬学', initial: 1 },
+  { id: 'history', label: '歴史', initial: 20 }
+]
+
+/**
+ * 技能 1 つにつき section 直下の number scalar を 1 本作り、内訳キーを 3 種に固定する。
+ *
+ * この「section 直下の number scalar」という形は 2 つの機構の適用条件そのものなので崩せない。
+ * 1 つはプールの集計（annotation-runtime.ts）で section 直下の field しか走査しない。
+ * もう 1 つは作成時の既定値の焼き込み（character-instantiation.service.ts の applyPartsDefaults）で、
+ * section 直下 number scalar かつ内訳を持てる field にしか効かない。後者を外すと、初期値が式である
+ * 回避と母国語だけが焼き込まれず、例外も警告も無いまま 0 のキャラが配布される。
+ *
+ * `parts: true` は付けない。publish が partsKeys との併用を拒否する一方（publish.ts）、
+ * 内訳の可否（value-input.ts の allowsParts）は partsKeys の宣言だけで真になる。
+ *
+ * 技能判定は CoC の中心操作であり、role が無い技能はロールパレットから振れず手入力ダイスへ落ちる。
+ * そのためクトゥルフ神話を含む全 62 本を例外なく rollable にする（2026-08-22 ユーザー裁定）。
+ */
+function buildLegacySkillFields(): SheetField[] {
+  return LEGACY_COC_SKILLS.map((skill): SheetField => ({
+    type: 'scalar',
+    id: skill.id,
+    // 既存 uid（能力値の `lgc_str` 等・description の `lgc_occupation` 等）と衝突させないための前缀。
+    uid: `lgc_skill_${skill.id}`,
+    label: skill.label,
+    valueType: 'number',
+    role: { kind: 'rollable', notation: '1d100<={value}', group: 'skill' },
+    partsKeys: [
+      { id: 'initial', label: '初期値', default: skill.initial },
+      { id: 'occupation', label: '職業' },
+      { id: 'interest', label: '興味' }
+    ]
+  }))
+}
+
 export const LEGACY_COC_TEMPLATE: SheetTemplate = {
-  // 旧 `legacy-coc` の行は残したまま、別 id で出し直す。
+  // 技能セクションを足すために、旧 `legacy-coc-v2` の行は残したまま別 id で出し直す。
+  // 版だけを上げる形は採れない。resolveReadableRevision に「Phase 2 は templateId ごとに単一バージョンのみを
+  // 保持する」と明記があり、版を上げると既存キャラの pin（templateId + templateVersion）が解決できず 409 になる。
+  // update 経路も published/deprecated の構造変更を
+  // `published/deprecated template structure is immutable` で拒否する。
   // seeder（src/scripts/seed-legacy-coc-template.ts の decideSeedAction）は insert しか持たず、
   // 同 templateId の既存行に対しては skip / conflict を報告するだけで上書きしない。
   // さらに作成済みキャラは templateId と templateVersion を sheet へ固定保存する
   // （character-instantiation.service.ts）ため、旧行を消すと既存キャラの template 解決が壊れる。
-  templateId: 'legacy-coc-v2',
+  // 帰結として、この技能リストを後から直すにも版上げではなく次の id（v4）が要る。
+  templateId: 'legacy-coc-v3',
   name: 'Legacy Call of Cthulhu（能力値ロール修正版）',
   version: '1.0.0',
   schemaVersion: 3,
@@ -105,6 +239,24 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
       ]
     },
     {
+      // section id は投影先 5 種（status / parameter / skill / item / description）の名前と一致させる。
+      // 一致しない id は projection-key-validation.ts の projectionTarget が description へ寄せるため、
+      // 技能が skill 投影に載らなくなる。
+      id: 'skill',
+      label: '技能',
+      // 予算式のスケール換算は LEGACY_COC_SKILLS の Why と同じ（原典 raw EDU × 20・raw INT × 10 に対し、
+      // ここの能力値は raw × 5 なので係数が 1/5 になる）。
+      // partsKey は同じ section の field が宣言していなければならず、宣言が無いと publish が
+      // `pool partsKey must be declared by a field in scope` で拒否する（publish.ts の validateSectionReferences）。
+      // 職業技能の限定（pool.scope + blocks）は行わない。振れる技能は職業ごとのキャラ側の選択であって
+      // テンプレートには書けないため、両プールとも全技能を振り先にする。
+      pools: [
+        { id: 'occupation', label: '職業ポイント', total: { formula: '{parameter.edu} * 4' }, partsKey: 'occupation' },
+        { id: 'interest', label: '興味ポイント', total: { formula: '{parameter.int} * 2' }, partsKey: 'interest' }
+      ],
+      fields: buildLegacySkillFields()
+    },
+    {
       id: 'description',
       label: 'Description',
       fields: [
@@ -134,6 +286,7 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
   ]
 }
 
-// Skills use arbitrary legacy keys, so this template does not include a skill section
-// until Phase 3 introduces list fields. Legacy character skills remain authoritative
-// through the compatibility projection described in design-v1 section 3.
+// 技能は v3 で CoC6 標準 62 本の固定枠として載せた（section skill）。技能ごとの上限（scalar.max）は
+// 置かない。要望の「最大値」は職業・興味ポイントというプールの予算のことで、技能個別の上限は CoC6 に無く、
+// 置くと正当な高技能値へ警告が出るだけになる。
+// 旧 `legacy-coc` から取り込んだキャラの技能は、引き続き design-v1 section 3 の互換投影が正本。

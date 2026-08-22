@@ -17,6 +17,9 @@
  *
  * 緑が正しい spec。赤に戻る場合は作成時ロールか出目の行き先の退行を示すため、
  * ロール 0 回や HP 0 へ期待値を書き換えてはならない。
+ *
+ * v3 で技能セクションが入ったのに伴い、内訳の既定値の焼き込み（applyPartsDefaults）も同じ作成経路で
+ * 実測する。既定値の式は作成時ロールで決まった能力値を参照するため、ロールと同じ経路でしか測れない。
  */
 import type { CharacterEntity, MaterializedCharacterEntity } from '../../../domains/character/models/character.entity'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
@@ -153,5 +156,58 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（作成時ロー
       mp: { values: { base: EXPECTED_DERIVED_VALUES.lgc_mp } },
       san: { values: { base: EXPECTED_DERIVED_VALUES.lgc_san } }
     })
+  })
+
+  /**
+   * Test intent: 技能の初期値（partsKeys の `initial`）が作成経路で内訳 `initial` へ焼き込まれることを、
+   * 実 service（applyPartsDefaults）を通して固定する。式で書いた回避・母国語は焼き込みが無いと 0 になり、
+   * 例外も警告も出ないまま配布される。上の出目から DEX 55 → 回避 floor(55 * 2 / 5) = 22、EDU 65 → 母国語 65。
+   * 62 本すべてを走査して、数値初期値の一部だけが焼き込みから漏れても緑にならないようにする。
+   * 回避・母国語・目星の名指し assertion は代表値と式の導出結果を読み手へ示すために残す。
+   */
+  it('技能の初期値が作成時に内訳 initial へ焼き込まれ、式のものが能力値から導かれる', async () => {
+    const { service } = createService()
+
+    const result = await service.instantiate(instantiateInput)
+    const skillSection = LEGACY_COC_TEMPLATE.sections.find((section) => section.id === 'skill')
+    if (skillSection === undefined) {
+      throw new Error('legacy-coc template does not contain the skill section')
+    }
+
+    expect(skillSection.fields).toHaveLength(62)
+    for (const field of skillSection.fields) {
+      expect(result.materialized.sheet.values[field.uid]).toEqual({
+        parts: { initial: expect.any(Number) }
+      })
+    }
+
+    expect(result.materialized.sheet.values['lgc_skill_dodge']).toEqual({ parts: { initial: 22 } })
+    expect(result.materialized.sheet.values['lgc_skill_own_language']).toEqual({ parts: { initial: 65 } })
+    expect(result.materialized.sheet.values['lgc_skill_spot_hidden']).toEqual({ parts: { initial: 25 } })
+    expect(result.materialized.projection.skill).toMatchObject({
+      dodge: { name: '回避', values: { initial: 22 } },
+      own_language: { name: '母国語', values: { initial: 65 } }
+    })
+  })
+
+  /**
+   * Test intent: 全 62 技能の role が作成時に materializer を通り、能力値 8 件と合わせて palette 70 件になることを
+   * 固定する。role の `{value}` は保存済み内訳の合計へ展開されるため、目星は初期値 25 を使う `1d100<=25` になる。
+   */
+  it('作成結果の palette に技能判定が載り、能力値 8 件と技能 62 件で 70 件になる', async () => {
+    const { service } = createService()
+
+    const result = await service.instantiate(instantiateInput)
+
+    expect(result.materialized.palette).toHaveLength(70)
+    expect(result.materialized.palette).toContainEqual(
+      expect.objectContaining({
+        fieldRef: { uid: 'lgc_skill_spot_hidden' },
+        label: '目星 (25)',
+        kind: 'roll',
+        notation: '1d100<=25',
+        group: 'skill'
+      })
+    )
   })
 })

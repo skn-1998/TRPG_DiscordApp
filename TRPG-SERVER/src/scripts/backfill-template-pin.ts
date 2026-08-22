@@ -11,9 +11,9 @@ export const BACKFILL_PINNED_BY = 'backfill-2026-07'
 
 /**
  * この pin が対象にするのは旧 `legacy-coc` で作られた未 pin のキャラなので、
- * id も version もリテラルで書く。`LEGACY_COC_TEMPLATE` は別テンプレート
- * （`legacy-coc-v2`）を指すようになったため、そこから version を読むと
- * v2 側の改版がそのまま旧 `legacy-coc` の存在しない版への pin になる。
+ * id も version もリテラルで書く。`LEGACY_COC_TEMPLATE` は現行配布版（v3 以降）を指し、
+ * 配布版の更新に合わせて変わり得る。そこから version を読むと、現行版の改版がそのまま
+ * 旧 `legacy-coc` の存在しない版への pin になる。
  */
 export const BACKFILL_TEMPLATE_PIN: CharacterTemplatePin = {
   templateId: 'legacy-coc',
