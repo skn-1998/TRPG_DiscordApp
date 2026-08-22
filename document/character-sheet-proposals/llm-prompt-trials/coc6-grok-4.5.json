@@ -1,0 +1,405 @@
+{
+  "name": "クトゥルフ神話TRPG 6版 探索者シート",
+  "version": "1.0.0",
+  "schemaVersion": 3,
+  "gameSystemId": "Cthulhu",
+  "settings": {
+    "rounding": "floor"
+  },
+  "sections": [
+    {
+      "id": "profile",
+      "label": "プロフィール",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "name",
+          "uid": "profile_name",
+          "label": "名前",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "job",
+          "uid": "profile_job",
+          "label": "職業",
+          "valueType": "select",
+          "options": [
+            {
+              "label": "私立探偵",
+              "value": "private_detective"
+            },
+            {
+              "label": "医師",
+              "value": "doctor"
+            },
+            {
+              "label": "教授",
+              "value": "professor"
+            },
+            {
+              "label": "記者",
+              "value": "journalist"
+            },
+            {
+              "label": "古物商",
+              "value": "antiquarian"
+            },
+            {
+              "label": "軍人",
+              "value": "soldier"
+            }
+          ]
+        },
+        {
+          "type": "scalar",
+          "id": "age",
+          "uid": "profile_age",
+          "label": "年齢",
+          "valueType": "number"
+        },
+        {
+          "type": "scalar",
+          "id": "gender",
+          "uid": "profile_gender",
+          "label": "性別",
+          "valueType": "select",
+          "options": [
+            {
+              "label": "男性",
+              "value": "male"
+            },
+            {
+              "label": "女性",
+              "value": "female"
+            },
+            {
+              "label": "未設定",
+              "value": "unset"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "abilities",
+      "label": "能力値",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "str",
+          "uid": "abilities_str",
+          "label": "STR",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "3d6*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "con",
+          "uid": "abilities_con",
+          "label": "CON",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "3d6*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "pow",
+          "uid": "abilities_pow",
+          "label": "POW",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "3d6*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "dex",
+          "uid": "abilities_dex",
+          "label": "DEX",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "3d6*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "app",
+          "uid": "abilities_app",
+          "label": "APP",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "3d6*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "siz",
+          "uid": "abilities_siz",
+          "label": "SIZ",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "(2d6+6)*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "int",
+          "uid": "abilities_int",
+          "label": "INT",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "(2d6+6)*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        },
+        {
+          "type": "scalar",
+          "id": "edu",
+          "uid": "abilities_edu",
+          "label": "EDU",
+          "valueType": "number",
+          "rollOnCreate": {
+            "notation": "(2d6+6)*5"
+          },
+          "role": {
+            "kind": "rollable",
+            "notation": "1d100<={value}",
+            "group": "ability"
+          }
+        }
+      ]
+    },
+    {
+      "id": "status",
+      "label": "ステータス",
+      "fields": [
+        {
+          "type": "track",
+          "id": "hp",
+          "uid": "status_hp",
+          "label": "HP",
+          "style": "gauge",
+          "max": {
+            "formula": "floor(({abilities.con} + {abilities.siz}) / 10)"
+          },
+          "role": {
+            "kind": "resource",
+            "deltas": [
+              -1,
+              1
+            ]
+          }
+        },
+        {
+          "type": "track",
+          "id": "mp",
+          "uid": "status_mp",
+          "label": "MP",
+          "style": "gauge",
+          "max": {
+            "formula": "floor({abilities.pow} / 5)"
+          },
+          "role": {
+            "kind": "resource",
+            "deltas": [
+              -1,
+              1
+            ]
+          }
+        },
+        {
+          "type": "track",
+          "id": "san",
+          "uid": "status_san",
+          "label": "SAN",
+          "style": "gauge",
+          "max": {
+            "formula": "{abilities.pow}"
+          },
+          "role": {
+            "kind": "resource",
+            "deltas": [
+              -1,
+              1
+            ]
+          }
+        },
+        {
+          "type": "computed",
+          "id": "idea",
+          "uid": "status_idea",
+          "label": "アイデア",
+          "resultType": "number",
+          "formula": "{abilities.int}"
+        },
+        {
+          "type": "computed",
+          "id": "luck",
+          "uid": "status_luck",
+          "label": "幸運",
+          "resultType": "number",
+          "formula": "{abilities.pow}"
+        },
+        {
+          "type": "computed",
+          "id": "know",
+          "uid": "status_know",
+          "label": "知識",
+          "resultType": "number",
+          "formula": "{abilities.edu}"
+        },
+        {
+          "type": "computed",
+          "id": "db",
+          "uid": "status_db",
+          "label": "ダメージボーナス",
+          "resultType": "dice",
+          "formula": "lookup({abilities.str} + {abilities.siz}, damage_bonus)"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "label": "技能",
+      "fields": [
+        {
+          "type": "list",
+          "id": "list",
+          "uid": "skills_list",
+          "label": "技能一覧",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "skills_list_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "skills_list_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": {
+            "kind": "rollable",
+            "notation": "1d100<={row.value}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "memo",
+      "label": "メモ",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "background",
+          "uid": "memo_background",
+          "label": "経歴",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "belongings",
+          "uid": "memo_belongings",
+          "label": "持ち物",
+          "valueType": "text"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "damage_bonus",
+      "resultType": "dice",
+      "rows": [
+        {
+          "min": -999999,
+          "max": 64,
+          "result": "-1D6"
+        },
+        {
+          "min": 65,
+          "max": 84,
+          "result": "-1D4"
+        },
+        {
+          "min": 85,
+          "max": 124,
+          "result": "0"
+        },
+        {
+          "min": 125,
+          "max": 164,
+          "result": "+1D4"
+        },
+        {
+          "min": 165,
+          "max": 204,
+          "result": "+1D6"
+        },
+        {
+          "min": 205,
+          "max": 284,
+          "result": "+2D6"
+        },
+        {
+          "min": 285,
+          "max": 364,
+          "result": "+3D6"
+        },
+        {
+          "min": 365,
+          "max": 444,
+          "result": "+4D6"
+        },
+        {
+          "min": 445,
+          "max": 999999,
+          "result": "+5D6"
+        }
+      ]
+    }
+  ]
+}

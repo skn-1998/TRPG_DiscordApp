@@ -23,6 +23,9 @@
 「**JSON から作成**」（貼り付けモーダル・2026-08-19 追加）がある。貼り付け時の client 検査は
 「JSON として読めるか・オブジェクトか・name 非空か」の 3 点だけで、構造検証は下記②が正本
 （`trpg-next-app/.../utils/v3Template.ts` の `parseTemplateImportJson`）。
+同モーダルには外部 LLM 向け生成プロンプトのコピー導線（2026-08-20 追加）があり、その正本は
+コード内定数 `trpg-next-app/.../characterTemplate/templateGenerationPrompt.ts`
+（実測記録は `document/character-sheet-proposals/llm-prompt-trials/`）。
 
 ```
 POST /sheet-templates          PUT /sheet-templates/:id       POST /sheet-templates/:id/publish

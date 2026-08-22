@@ -1,0 +1,512 @@
+{
+  "name": "クトゥルフ神話TRPG 6版 探索者シート",
+  "version": "1.0.0",
+  "schemaVersion": 3,
+  "gameSystemId": "Cthulhu",
+  "settings": {
+    "rounding": "floor"
+  },
+  "sections": [
+    {
+      "id": "profile",
+      "label": "プロフィール",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "pc_name",
+          "uid": "profile_pc_name",
+          "label": "探索者名",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "occupation",
+          "uid": "profile_occupation",
+          "label": "職業",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "age",
+          "uid": "profile_age",
+          "label": "年齢",
+          "valueType": "number"
+        },
+        {
+          "type": "scalar",
+          "id": "sex",
+          "uid": "profile_sex",
+          "label": "性別",
+          "valueType": "select",
+          "options": [
+            { "label": "男性", "value": "male" },
+            { "label": "女性", "value": "female" },
+            { "label": "不明・その他", "value": "unspecified" }
+          ]
+        },
+        {
+          "type": "scalar",
+          "id": "birthplace",
+          "uid": "profile_birthplace",
+          "label": "出身",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "school",
+          "uid": "profile_school",
+          "label": "学校・大学",
+          "valueType": "text"
+        }
+      ]
+    },
+    {
+      "id": "abilities",
+      "label": "能力値",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "str",
+          "uid": "abilities_str",
+          "label": "STR（筋力）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "con",
+          "uid": "abilities_con",
+          "label": "CON（体力）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "pow",
+          "uid": "abilities_pow",
+          "label": "POW（精神力）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "dex",
+          "uid": "abilities_dex",
+          "label": "DEX（敏捷性）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "app",
+          "uid": "abilities_app",
+          "label": "APP（外見）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "siz",
+          "uid": "abilities_siz",
+          "label": "SIZ（体格）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "2d6+6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "int",
+          "uid": "abilities_int",
+          "label": "INT（知性）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "2d6+6" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        },
+        {
+          "type": "scalar",
+          "id": "edu",
+          "uid": "abilities_edu",
+          "label": "EDU（教育）",
+          "valueType": "number",
+          "rollOnCreate": { "notation": "3d6+3" },
+          "role": { "kind": "rollable", "notation": "1d100<={value}*5", "group": "ability" }
+        }
+      ]
+    },
+    {
+      "id": "status",
+      "label": "ステータス",
+      "fields": [
+        {
+          "type": "track",
+          "id": "hp",
+          "uid": "status_hp",
+          "label": "耐久力（HP）",
+          "style": "gauge",
+          "max": { "formula": "round(({abilities.con} + {abilities.siz}) / 2)" },
+          "role": { "kind": "resource", "deltas": [-1, 1] }
+        },
+        {
+          "type": "track",
+          "id": "mp",
+          "uid": "status_mp",
+          "label": "マジックポイント（MP）",
+          "style": "gauge",
+          "max": { "formula": "{abilities.pow}" },
+          "role": { "kind": "resource", "deltas": [-1, 1] }
+        },
+        {
+          "type": "track",
+          "id": "san",
+          "uid": "status_san",
+          "label": "正気度（SAN）",
+          "style": "gauge",
+          "max": { "formula": "{abilities.pow} * 5" },
+          "role": { "kind": "resource", "deltas": [-1, 1] }
+        },
+        {
+          "type": "computed",
+          "id": "idea",
+          "uid": "status_idea",
+          "label": "アイデア",
+          "resultType": "number",
+          "formula": "{abilities.int} * 5"
+        },
+        {
+          "type": "computed",
+          "id": "luck",
+          "uid": "status_luck",
+          "label": "幸運",
+          "resultType": "number",
+          "formula": "{abilities.pow} * 5"
+        },
+        {
+          "type": "computed",
+          "id": "knowledge",
+          "uid": "status_knowledge",
+          "label": "知識",
+          "resultType": "number",
+          "formula": "{abilities.edu} * 5"
+        },
+        {
+          "type": "computed",
+          "id": "db",
+          "uid": "status_db",
+          "label": "ダメージボーナス",
+          "resultType": "dice",
+          "formula": "lookup({abilities.str} + {abilities.siz}, damage_bonus)"
+        }
+      ]
+    },
+    {
+      "id": "points",
+      "label": "技能ポイント",
+      "fields": [
+        {
+          "type": "computed",
+          "id": "occupation_points",
+          "uid": "points_occupation_points",
+          "label": "職業技能ポイント",
+          "resultType": "number",
+          "formula": "{abilities.edu} * 20"
+        },
+        {
+          "type": "computed",
+          "id": "interest_points",
+          "uid": "points_interest_points",
+          "label": "興味技能ポイント",
+          "resultType": "number",
+          "formula": "{abilities.int} * 10"
+        }
+      ]
+    },
+    {
+      "id": "combat",
+      "label": "戦闘技能",
+      "fields": [
+        {
+          "type": "list",
+          "id": "list",
+          "uid": "combat_list",
+          "label": "戦闘技能一覧",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "combat_list_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "combat_list_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "label": "探索・行動・交渉・知識技能",
+      "fields": [
+        {
+          "type": "list",
+          "id": "explore",
+          "uid": "skills_explore",
+          "label": "探索技能",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "skills_explore_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "skills_explore_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+        },
+        {
+          "type": "list",
+          "id": "action",
+          "uid": "skills_action",
+          "label": "行動技能",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "skills_action_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "skills_action_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+        },
+        {
+          "type": "list",
+          "id": "talk",
+          "uid": "skills_talk",
+          "label": "交渉技能",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "skills_talk_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "skills_talk_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+        },
+        {
+          "type": "list",
+          "id": "lore",
+          "uid": "skills_lore",
+          "label": "知識技能",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "skills_lore_name",
+              "label": "技能名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "value",
+              "uid": "skills_lore_value",
+              "label": "技能値",
+              "valueType": "number"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+        }
+      ]
+    },
+    {
+      "id": "weapons",
+      "label": "武器・装備",
+      "fields": [
+        {
+          "type": "list",
+          "id": "list",
+          "uid": "weapons_list",
+          "label": "武器一覧",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "weapons_list_name",
+              "label": "名称",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "hit",
+              "uid": "weapons_list_hit",
+              "label": "成功率",
+              "valueType": "number"
+            },
+            {
+              "type": "scalar",
+              "id": "damage",
+              "uid": "weapons_list_damage",
+              "label": "ダメージ",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "attacks",
+              "uid": "weapons_list_attacks",
+              "label": "攻撃回数",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "ammo",
+              "uid": "weapons_list_ammo",
+              "label": "装弾数",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "malfunction",
+              "uid": "weapons_list_malfunction",
+              "label": "故障ナンバー",
+              "valueType": "text"
+            }
+          ],
+          "rowRole": { "kind": "rollable", "notation": "1d100<={row.hit}" }
+        }
+      ]
+    },
+    {
+      "id": "items",
+      "label": "所持品・財産",
+      "fields": [
+        {
+          "type": "list",
+          "id": "list",
+          "uid": "items_list",
+          "label": "所持品一覧",
+          "itemFields": [
+            {
+              "type": "scalar",
+              "id": "name",
+              "uid": "items_list_name",
+              "label": "品名",
+              "valueType": "text"
+            },
+            {
+              "type": "scalar",
+              "id": "note",
+              "uid": "items_list_note",
+              "label": "備考",
+              "valueType": "text"
+            }
+          ]
+        },
+        {
+          "type": "scalar",
+          "id": "cash",
+          "uid": "items_cash",
+          "label": "現金",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "property",
+          "uid": "items_property",
+          "label": "資産・不動産",
+          "valueType": "text"
+        }
+      ]
+    },
+    {
+      "id": "memo",
+      "label": "メモ",
+      "fields": [
+        {
+          "type": "scalar",
+          "id": "background",
+          "uid": "memo_background",
+          "label": "経歴・設定",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "appearance",
+          "uid": "memo_appearance",
+          "label": "容姿・特徴",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "insanity",
+          "uid": "memo_insanity",
+          "label": "狂気・後遺症",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "mythos",
+          "uid": "memo_mythos",
+          "label": "遭遇した神話生物・呪文",
+          "valueType": "text"
+        },
+        {
+          "type": "scalar",
+          "id": "note",
+          "uid": "memo_note",
+          "label": "自由メモ",
+          "valueType": "text"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "damage_bonus",
+      "resultType": "dice",
+      "rows": [
+        { "min": -999999, "max": 12, "result": "-1d6" },
+        { "min": 13, "max": 16, "result": "-1d4" },
+        { "min": 17, "max": 24, "result": "0" },
+        { "min": 25, "max": 32, "result": "+1d4" },
+        { "min": 33, "max": 40, "result": "+1d6" },
+        { "min": 41, "max": 56, "result": "+2d6" },
+        { "min": 57, "max": 72, "result": "+3d6" },
+        { "min": 73, "max": 999999, "result": "+4d6" }
+      ]
+    }
+  ]
+}

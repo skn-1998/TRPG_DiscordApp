@@ -13,6 +13,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { createCharacter, createTemplate, deleteTemplate, forkTemplate, importTemplate } from '../actions'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
+import { TEMPLATE_GENERATION_PROMPT } from '../templateGenerationPrompt'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
 import { TemplateListV3 } from './TemplateListV3'
 
@@ -107,6 +108,56 @@ describe('TemplateListV3', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
     expect(within(dialog).getByRole('textbox', { name: 'テンプレート JSON' })).toBeTruthy()
+  })
+
+  it('JSON から作成 Modal に生成用プロンプトのコピーボタンを表示する', async () => {
+    render(
+      <MantineProvider>
+        <TemplateListV3 summaries={[]} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+    expect(within(dialog).getByRole('button', { name: '生成用プロンプトをコピー' })).toBeTruthy()
+    expect(within(dialog).getByText(/JSON の生成を依頼できます/)).toBeTruthy()
+  })
+
+  it('生成用プロンプト全文を clipboard に 1 回書き込む', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+    try {
+      render(
+        <MantineProvider>
+          <TemplateListV3 summaries={[]} />
+        </MantineProvider>
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'JSON から作成' }))
+      const dialog = await screen.findByRole('dialog', { name: 'JSON からテンプレートを作成' })
+      await act(async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: '生成用プロンプトをコピー' }))
+      })
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+      expect(writeText).toHaveBeenCalledWith(TEMPLATE_GENERATION_PROMPT)
+      expect(within(dialog).queryByText('JSON として読み取れません')).toBeNull()
+      expect(mockedImportTemplate).not.toHaveBeenCalled()
+      await within(dialog).findByRole('button', { name: 'コピーしました' })
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard')
+    }
+  })
+
+  it('生成用プロンプトに必須セクションを含む', () => {
+    expect(TEMPLATE_GENERATION_PROMPT).toContain('\n# 作るもの\n')
+    expect(TEMPLATE_GENERATION_PROMPT).toContain('# 部品カタログ')
+    expect(TEMPLATE_GENERATION_PROMPT).toContain('# 完全な出力例')
+    expect(TEMPLATE_GENERATION_PROMPT.length).toBeGreaterThan(6000)
   })
 
   it('不正 JSON では importTemplate を呼ばず Modal 内にエラーを表示する', async () => {

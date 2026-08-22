@@ -157,6 +157,29 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   導線を足すときは連打 spec（2 回クリック → action 1 回）も対で足す。
   経緯と実測 = `review-results/template-json-import/big-j1-integration.md`（CL-1）
 
+## 生成用プロンプトのコピー導線（J2・2026-08-20）
+
+- 「JSON から作成」モーダル内に案内 Text＋`CopyButton`（`templateGenerationPrompt.ts` の定数を
+  クリップボードへ）。**プロンプト本文の正本はこの定数自身** — `document/character-sheet-proposals/`
+  `llm-prompt-trials/` の `prompt-coc6*.md` は試行用変種で正本ではない
+- **本文の変更は再実測が必須**（記録と検証器 `validate-any.cjs` は上記フォルダ）。
+  現行は **v2**（2026-08-20 改稿: 素値保存×判定だけ ×5 の記法と computed への判定ボタンを明記＝
+  いあきゃら型を生成可能に・「省略は常に安全」の限定・uid 重複確認・予約語 15 語明記・末尾例文更新。
+  J2 レビューで繰り越した本文瑕疵 2 件はここで消化済み）。
+  実測 pin: v2 = Haiku 2 件＋Sonnet 1 件クリア、v1 本文 = 9 モデル・計 19 生成クリア（据え置き記録）
+- コピー導線は CopyButton の内部状態のみで、新規 useState/useRef/useTransition を追加しない。
+  **コピー失敗の通知は構造的に無い**（CopyButton は error を render-prop に公開しない。
+  非 secure context — LAN から `http://<IP>:3100` — では無反応になる実在経路あり）。
+  失敗通知を足すなら `useClipboard` 直接利用＋既存 Alert パターンの別スライスで
+- 定数 11,001 bytes は client bundle に常時同梱（認容済み。外部 fetch 化は不採用と裁定）
+- spec の防御線: submit 化変異（`type="submit"` への書き換え）は「コピー押下で error Alert 不出現＋
+  `importTemplate` 不呼出」で検出。**`type="button"` の単純脱落は無害** — Mantine の
+  UnstyledButton が未指定時に `type="button"` を補う（`UnstyledButton.cjs` の
+  `type: component === "button" ? "button" : void 0` を実物確認済み。`...others` が後勝ちのため
+  明示 `type="submit"` だけが submit 化する）。smoke は `'\n# 作るもの\n'` アンカー＋長さ >6000
+  （先頭 17% 切り詰め変異と自己参照 needle の空振りを防ぐ）。
+  経緯 = `review-results/template-json-import/`（prompt-j2-*・run-j2-*）
+
 ## テスト
 
 - jest は `testEnvironment: 'node'` のまま、client component の spec は**ファイル冒頭の

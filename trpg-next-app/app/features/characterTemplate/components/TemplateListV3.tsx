@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Container,
+  CopyButton,
   Group,
   Modal,
   SimpleGrid,
@@ -22,6 +23,7 @@ import {
 } from '@mantine/core'
 import {
   IconAlertCircle,
+  IconClipboard,
   IconCopy,
   IconFileImport,
   IconFilePlus,
@@ -32,6 +34,7 @@ import {
 } from '@tabler/icons-react'
 import { createCharacter, createTemplate, deleteTemplate, forkTemplate, importTemplate } from '../actions'
 import { SYSTEM_TEMPLATE_AUTHOR } from '../constants'
+import { TEMPLATE_GENERATION_PROMPT } from '../templateGenerationPrompt'
 import type { Template } from '../types/v2'
 import type { CharacterSheetTemplateSummary } from '../types/v3'
 import { isV2LocalTemplate, migrateV2TemplateToCreateRequest, parseTemplateImportJson } from '../utils/v3Template'
@@ -323,6 +326,27 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                 placeholder='{"name": "テンプレート名", "sections": []}'
                 styles={{ input: { fontFamily: 'monospace' } }}
               />
+              <Stack gap="xs">
+                <Text size="xs" c="dimmed">
+                  JSON の作り方が分からないときは、下のボタンでプロンプトをコピーして ChatGPT や Claude などの
+                  AI に貼り付け、続けて作りたいゲーム名やルールの説明を書いて送ると、JSON の生成を依頼できます。返答のうち JSON
+                  オブジェクトの部分だけをここに貼り付けてください。作成時に検証エラーが出たら、エラー文を AI
+                  に貼り返すと修正しやすくなります。
+                </Text>
+                <CopyButton value={TEMPLATE_GENERATION_PROMPT}>
+                  {({ copied, copy }) => (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconClipboard size={14} />}
+                      onClick={copy}
+                    >
+                      {copied ? 'コピーしました' : '生成用プロンプトをコピー'}
+                    </Button>
+                  )}
+                </CopyButton>
+              </Stack>
               {templateImportError && (
                 <Alert color="red" icon={<IconAlertCircle size={16} />}>
                   {templateImportError}
