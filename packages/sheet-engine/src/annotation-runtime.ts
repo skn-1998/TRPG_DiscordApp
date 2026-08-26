@@ -1,12 +1,12 @@
 import { evaluateConstraint } from './constraint-evaluator';
-import { resolveNumberValue } from './evaluator';
-import { isPartsValue } from './parts-value';
+import { LIST_ROW_LIMIT, resolveNumberValue } from './evaluator';
+import { isPartsRecordValue } from './parts-value';
 import {
   canonicalFieldPath,
   fieldCandidateKeys,
   readAliasedValue,
 } from './template-index';
-import { ScalarField, SheetField, SheetSection, SheetTemplate } from './types';
+import { ListField, ScalarField, SheetField, SheetSection, SheetTemplate } from './types';
 
 // 識別子のみ・表示文言は caller 所有（publish の PublishWarning とは所有権が逆）。
 export interface AnnotationRuntimeWarning {
@@ -77,11 +77,20 @@ export interface AnnotationRuntimeResult {
 
 type SectionBlock = NonNullable<SheetSection['blocks']>[number];
 type SectionPool = NonNullable<SheetSection['pools']>[number];
-type ResolvedNumberScalar = {
+type ResolvedSectionNumberScalar = {
+  kind: 'section-field';
   field: ScalarField;
   blockId?: string;
   partsKeys: ReadonlySet<string>;
 };
+type ResolvedListNumberScalar = {
+  kind: 'list-item-field';
+  list: ListField;
+  field: ScalarField;
+  blockId?: string;
+  partsKeys: ReadonlySet<string>;
+};
+type ResolvedPoolSource = ResolvedSectionNumberScalar | ResolvedListNumberScalar;
 
 /**
  * Resolves display-only block, pool, and effective-limit annotations for draft-safe rendering.
@@ -131,16 +140,32 @@ function evaluateSection(
   }
 
   const fieldBlocks: SectionAnnotationRuntime['fieldBlocks'] = [];
-  const numberScalars: ResolvedNumberScalar[] = [];
+  const limitSources: ResolvedSectionNumberScalar[] = [];
+  // runtime 集計は行 source も含むが、pool の publish 資格・scope 充足・label 整合は
+  // Q-C 裁定により section 直下だけを対象にする（publish.ts の validateSectionReferences 参照）。
+  const poolSources: ResolvedPoolSource[] = [];
   for (const field of section.fields) {
     const blockId = resolveFieldBlock(section.id, field, blocks, warnings);
     const fieldBlock = blockId === undefined ? { fieldUid: field.uid } : { fieldUid: field.uid, blockId };
+    if (field.type === 'list') {
+      for (const itemField of field.itemFields) {
+        if (!isNumberScalar(itemField)) continue;
+        // scope 付き pool では行の所属を itemField ではなく、行を所有する親 list の blockId で決める。
+        poolSources.push({
+          kind: 'list-item-field',
+          list: field,
+          field: itemField,
+          blockId,
+          partsKeys: collectPartsKeys(section.id, itemField, warnings),
+        });
+      }
+    }
     if (!isNumberScalar(field)) {
       fieldBlocks.push(fieldBlock);
       continue;
     }
 
-    const raw = readRawFieldValue(section.id, field, rawValues);
+    const raw = readRawSectionFieldValue(section.id, field, rawValues);
     if (raw === undefined) {
       fieldBlocks.push(fieldBlock);
     } else {
@@ -152,17 +177,11 @@ function evaluateSection(
       }
     }
 
-    const partsKeys = new Set<string>();
-    for (const part of field.partsKeys ?? []) {
-      if (partsKeys.has(part.id)) {
-        warnings.push({
-          code: 'duplicate-parts-key-id', sectionId: section.id, fieldUid: field.uid, partsKey: part.id,
-        });
-      } else {
-        partsKeys.add(part.id);
-      }
-    }
-    numberScalars.push({ field, blockId, partsKeys });
+    const resolvedField: ResolvedSectionNumberScalar = {
+      kind: 'section-field', field, blockId, partsKeys: collectPartsKeys(section.id, field, warnings),
+    };
+    limitSources.push(resolvedField);
+    poolSources.push(resolvedField);
   }
 
   return {
@@ -170,9 +189,25 @@ function evaluateSection(
     blockIds: [...blocks.keys()],
     blocks: blockRuntimes,
     fieldBlocks,
-    pools: pools.map((pool) => evaluatePool(template, section.id, pool, blocks, numberScalars, rawValues, warnings)),
-    limits: evaluateLimits(template, section.id, blocks, numberScalars, rawValues, warnings),
+    pools: pools.map((pool) => evaluatePool(template, section.id, pool, blocks, poolSources, rawValues, warnings)),
+    limits: evaluateLimits(template, section.id, blocks, limitSources, rawValues, warnings),
   };
+}
+
+function collectPartsKeys(
+  sectionId: string,
+  field: ScalarField,
+  warnings: AnnotationRuntimeWarning[],
+): ReadonlySet<string> {
+  const partsKeys = new Set<string>();
+  for (const part of field.partsKeys ?? []) {
+    if (partsKeys.has(part.id)) {
+      warnings.push({ code: 'duplicate-parts-key-id', sectionId, fieldUid: field.uid, partsKey: part.id });
+    } else {
+      partsKeys.add(part.id);
+    }
+  }
+  return partsKeys;
 }
 
 function resolveFieldBlock(
@@ -192,7 +227,7 @@ function evaluatePool(
   sectionId: string,
   pool: SectionPool,
   blocks: ReadonlyMap<string, SectionBlock>,
-  fields: ResolvedNumberScalar[],
+  sources: ResolvedPoolSource[],
   rawValues: Record<string, unknown>,
   warnings: AnnotationRuntimeWarning[],
 ): AnnotationPoolRuntime {
@@ -205,25 +240,26 @@ function evaluatePool(
     }
   }
 
-  // 宣言 field のみを合算し、parts: true の自由キー一致は H-10 行3と書込契約のため除外する。
-  const declaredFields = fields.filter(({ blockId, partsKeys }) =>
+  // 宣言 source のみを合算し、parts: true の自由キー一致は H-10 行3と書込契約のため除外する。
+  const declaredSources = sources.filter(({ blockId, partsKeys }) =>
     (scope === undefined || (blockId !== undefined && scope.has(blockId))) && partsKeys.has(pool.partsKey));
-  if (declaredFields.length === 0) {
+  if (declaredSources.length === 0) {
     warnings.push({
       code: 'missing-pool-parts-key-declaration', sectionId, poolId: pool.id, partsKey: pool.partsKey,
     });
   }
 
   let consumed = 0;
-  for (const { field } of declaredFields) {
-    const raw = readRawFieldValue(sectionId, field, rawValues);
-    if (!isPartsValue(raw) || !isRecord(raw.parts) || !hasOwn(raw.parts, pool.partsKey)) continue;
-    const partValue = raw.parts[pool.partsKey];
-    // 基本 evaluator は不正 parts を throw するが、pool 表示は draft skew を部分合算して継続する。
-    if (typeof partValue !== 'number' || !Number.isFinite(partValue)) continue;
-    const nextConsumed = consumed + partValue;
-    if (!Number.isFinite(nextConsumed)) continue;
-    consumed = nextConsumed;
+  for (const source of declaredSources) {
+    if (source.kind === 'section-field') {
+      consumed = addDeclaredPart(consumed, readRawSectionFieldValue(sectionId, source.field, rawValues), pool.partsKey);
+      continue;
+    }
+    for (const row of readListRows(sectionId, source.list, rawValues)) {
+      // evaluator と同じ uid -> id 順で読む。保存境界は uid へ正規化するが、runtime は保存前 draft も受けるため両対応する。
+      const raw = readAliasedValue(row, [source.field.uid, source.field.id]);
+      consumed = addDeclaredPart(consumed, raw, pool.partsKey);
+    }
   }
 
   const total = evaluateConstraint(pool.total, template, rawValues);
@@ -236,16 +272,36 @@ function evaluatePool(
   return { sectionId, poolId: pool.id, consumed, status: 'ok', total: total.value, remaining, over };
 }
 
+function addDeclaredPart(consumed: number, raw: unknown, partsKey: string): number {
+  if (!isPartsRecordValue(raw) || !hasOwn(raw.parts, partsKey)) return consumed;
+  const partValue = raw.parts[partsKey];
+  // 基本 evaluator は不正 parts を throw するが、pool 表示は draft skew を部分合算して継続する。
+  if (typeof partValue !== 'number' || !Number.isFinite(partValue)) return consumed;
+  const nextConsumed = consumed + partValue;
+  return Number.isFinite(nextConsumed) ? nextConsumed : consumed;
+}
+
+function readListRows(
+  sectionId: string,
+  list: ListField,
+  rawValues: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const raw = readRawSectionFieldValue(sectionId, list, rawValues);
+  if (!Array.isArray(raw)) return [];
+  // evaluator は非 object 行を空行として残し、value-input は不正行と上限超過を拒否する。3 境界の退化規則は意図的に異なる。
+  return raw.slice(0, LIST_ROW_LIMIT).filter(isRecord);
+}
+
 function evaluateLimits(
   template: SheetTemplate,
   sectionId: string,
   blocks: ReadonlyMap<string, SectionBlock>,
-  fields: ResolvedNumberScalar[],
+  sources: ResolvedSectionNumberScalar[],
   rawValues: Record<string, unknown>,
   warnings: AnnotationRuntimeWarning[],
 ): AnnotationLimitRuntime[] {
   const results: AnnotationLimitRuntime[] = [];
-  for (const { field, blockId } of fields) {
+  for (const { field, blockId } of sources) {
     const blockCap = blockId === undefined ? undefined : blocks.get(blockId)?.cap;
     const source = field.max ?? blockCap;
     if (source === undefined) continue;
@@ -258,7 +314,7 @@ function evaluateLimits(
       continue;
     }
 
-    const raw = readRawFieldValue(sectionId, field, rawValues);
+    const raw = readRawSectionFieldValue(sectionId, field, rawValues);
     if (raw === undefined) {
       results.push({ ...base, status: 'ok', limit: limit.value, over: false });
       continue;
@@ -278,9 +334,9 @@ function evaluateLimits(
   return results;
 }
 
-function readRawFieldValue(
+function readRawSectionFieldValue(
   sectionId: string,
-  field: ScalarField,
+  field: Pick<SheetField, 'id' | 'uid'>,
   rawValues: Record<string, unknown>,
 ): unknown {
   return readAliasedValue(rawValues, fieldCandidateKeys(
@@ -292,7 +348,7 @@ function readRawFieldValue(
 
 // superset 等価 spec（field-predicates.spec / TemplateFormRenderer.spec）の deep import 用 default export。barrel（export *）非公開を保つため named export 化しない・削除不可。
 export default function isNumberScalar(field: SheetField): field is ScalarField {
-  // H-6 適用対象 = セクション直下の number scalar（track を含まない）。
+  // H-6: section 直下 number scalar の判定として導入し、S2 以降は pool source 解決だけが list itemField にも同じ述語を適用する。
   return field.type === 'scalar' && field.valueType === 'number';
 }
 

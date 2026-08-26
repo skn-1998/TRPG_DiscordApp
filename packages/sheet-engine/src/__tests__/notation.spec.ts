@@ -60,8 +60,11 @@ describe('notation publish validation', () => {
               id: 'weapons',
               uid: 'main.weapons',
               label: 'Weapons',
-              rowRole: { kind: 'rollable', notation: '1d20{value}' },
-              itemFields: [{ type: 'scalar', id: 'atk', uid: 'weapons.atk', label: 'Atk', valueType: 'number' }],
+              rowRole: { kind: 'rollable', notation: '1d20{value}', labelSubFieldId: 'name' },
+              itemFields: [
+                { type: 'scalar', id: 'name', uid: 'weapons.name', label: 'Name', valueType: 'text' },
+                { type: 'scalar', id: 'atk', uid: 'weapons.atk', label: 'Atk', valueType: 'number' },
+              ],
             },
           ],
         },

@@ -5,6 +5,7 @@ export {
   DEFAULT_AST_NODE_LIMIT,
   DEFAULT_STEP_LIMIT,
   EPSILON,
+  LIST_ROW_LIMIT,
   evaluateExpression,
   evaluateTemplate,
 } from './evaluator';
@@ -12,6 +13,7 @@ export * from './layout-normalizer';
 export * from './layout-resolver';
 export * from './notation';
 export * from './parser';
+export * from './parts-value';
 export * from './publish';
 export * from './roll-on-create';
 export {

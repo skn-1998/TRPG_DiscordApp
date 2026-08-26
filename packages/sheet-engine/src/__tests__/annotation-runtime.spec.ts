@@ -4,6 +4,7 @@
  */
 import {
   AnnotationRuntimeResult,
+  ListField,
   ScalarField,
   SheetSection,
   SheetTemplate,
@@ -17,6 +18,18 @@ function numberField(overrides: Partial<ScalarField> = {}): ScalarField {
 
 function skillsTemplate(overrides: Partial<SheetSection> = {}): SheetTemplate {
   return baseTemplate({ sections: [{ id: 'skills', label: 'Skills', fields: [numberField()], ...overrides }] });
+}
+
+function numberList(
+  id: string,
+  partsKeys?: ScalarField['partsKeys'],
+  blockId?: string,
+): ListField {
+  return {
+    type: 'list', id, uid: `skills.${id}`, label: id,
+    ...(blockId === undefined ? {} : { blockId }),
+    itemFields: [numberField({ id: 'value', uid: `${id}.value`, partsKeys })],
+  };
 }
 
 type SkewCase = {
@@ -315,6 +328,119 @@ describe('evaluateAnnotationRuntime pools', () => {
     expect(result.sections[0].pools).toEqual([
       { sectionId: 'skills', poolId: 'career', consumed: Number.MAX_VALUE, status: 'error' },
     ]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('adds declared list item contributions to the section field total', () => {
+    // Test intent: section 直下 10 と宣言済み行 5 を同じ pool の 1 本の合計へ入れる。
+    const template = skillsTemplate({
+      pools: [{ id: 'career', label: 'Career', total: 30, partsKey: 'career' }],
+      fields: [
+        numberField({ partsKeys: [{ id: 'career', label: 'Career' }] }),
+        numberList('custom', [{ id: 'career', label: 'Career' }]),
+      ],
+    });
+    const result = evaluateAnnotationRuntime(template, {
+      'skills.skill': { parts: { career: 10 } },
+      'skills.custom': [{ rowId: 'row-1', 'custom.value': { parts: { career: 5 } } }],
+    });
+
+    expect(result.sections[0].pools).toEqual([{
+      sectionId: 'skills', poolId: 'career', consumed: 15,
+      status: 'ok', total: 30, remaining: 15, over: false,
+    }]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('does not count parts from a list itemField without a declaration', () => {
+    // Test intent: 値に同名 parts があっても、itemField の資格宣言が無ければ consumed へ参加させない。
+    const template = skillsTemplate({
+      pools: [{ id: 'career', label: 'Career', total: 10, partsKey: 'career' }],
+      fields: [
+        numberField({ partsKeys: [{ id: 'career', label: 'Career' }] }),
+        numberList('custom'),
+      ],
+    });
+    const result = evaluateAnnotationRuntime(template, {
+      'skills.custom': [{ rowId: 'row-1', 'custom.value': { parts: { career: 5 } } }],
+    });
+
+    expect(result.sections[0].pools[0]).toEqual({
+      sectionId: 'skills', poolId: 'career', consumed: 0,
+      status: 'ok', total: 10, remaining: 10, over: false,
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('keeps a declared list itemField qualified when the list has zero rows', () => {
+    // Test intent: missing 警告は行数ではなく宣言の有無を表し、宣言あり・行 0 本では出さない。
+    const template = skillsTemplate({
+      pools: [{ id: 'career', label: 'Career', total: 10, partsKey: 'career' }],
+      fields: [numberList('custom', [{ id: 'career', label: 'Career' }])],
+    });
+    const result = evaluateAnnotationRuntime(template, { 'skills.custom': [] });
+
+    expect(result.sections[0].pools[0]).toEqual({
+      sectionId: 'skills', poolId: 'career', consumed: 0,
+      status: 'ok', total: 10, remaining: 10, over: false,
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('marks a pool over from the combined list item contribution', () => {
+    // Test intent: 行込みの合計で remaining・over・pool-over warning を同時に決める。
+    const template = skillsTemplate({
+      pools: [{ id: 'career', label: 'Career', total: 10, partsKey: 'career' }],
+      fields: [numberList('custom', [{ id: 'career', label: 'Career' }])],
+    });
+    const result = evaluateAnnotationRuntime(template, {
+      'skills.custom': [{ rowId: 'row-1', 'custom.value': { parts: { career: 12 } } }],
+    });
+
+    expect(result.sections[0].pools[0]).toEqual({
+      sectionId: 'skills', poolId: 'career', consumed: 12,
+      status: 'ok', total: 10, remaining: -2, over: true,
+    });
+    expect(result.warnings).toEqual([{ code: 'pool-over', sectionId: 'skills', poolId: 'career' }]);
+  });
+
+  it('skips a non-finite list item part and continues later rows without throwing', () => {
+    // Test intent: draft skew の不正な 1 行を局所スキップし、後続の有限寄与を失わない。
+    const template = skillsTemplate({
+      pools: [{ id: 'career', label: 'Career', total: 10, partsKey: 'career' }],
+      fields: [numberList('custom', [{ id: 'career', label: 'Career' }])],
+    });
+    const result = evaluateAnnotationRuntime(template, {
+      'skills.custom': [
+        { rowId: 'bad', 'custom.value': { parts: { career: Number.POSITIVE_INFINITY } } },
+        { rowId: 'good', 'custom.value': { parts: { career: 5 } } },
+      ],
+    });
+
+    expect(result.sections[0].pools[0]).toEqual({
+      sectionId: 'skills', poolId: 'career', consumed: 5,
+      status: 'ok', total: 10, remaining: 5, over: false,
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('uses the parent list block for scoped pool membership', () => {
+    // Test intent: scope 内 list の行だけを数え、scope 外 list の同名宣言・値は除外する。
+    const declaration = [{ id: 'career', label: 'Career' }];
+    const template = skillsTemplate({
+      blocks: [{ id: 'inside', label: 'Inside' }, { id: 'outside', label: 'Outside' }],
+      pools: [{ id: 'career', label: 'Career', total: 20, partsKey: 'career', scope: ['inside'] }],
+      fields: [numberList('inside_rows', declaration, 'inside'), numberList('outside_rows', declaration, 'outside')],
+    });
+    const result = evaluateAnnotationRuntime(template, {
+      'skills.inside_rows': [{ rowId: 'inside', 'inside_rows.value': { parts: { career: 5 } } }],
+      'skills.outside_rows': [{ rowId: 'outside', 'outside_rows.value': { parts: { career: 100 } } }],
+    });
+
+    expect(result.sections[0].pools[0]).toEqual({
+      sectionId: 'skills', poolId: 'career', consumed: 5,
+      status: 'ok', total: 20, remaining: 15, over: false,
+    });
     expect(result.warnings).toEqual([]);
   });
 });

@@ -90,6 +90,7 @@ const roleSchema = z.discriminatedUnion('kind', [
   }).passthrough(),
   z.object({ kind: z.literal('profile'), secret: z.boolean().optional() }).passthrough(),
 ]);
+const rowRoleSchema = roleSchema.and(z.object({ labelSubFieldId: z.string() }));
 
 const fieldBaseSchema = {
   id: z.string(),
@@ -133,7 +134,7 @@ const fieldSchema: z.ZodType<SheetField> = z.lazy(() =>
     z.object({ ...fieldBaseSchema, type: z.literal('computed'), resultType: z.enum(['number', 'text', 'boolean', 'dice']), formula: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('roll'), notation: z.string() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('track'), min: z.number().optional(), max: numberOrFormulaSchema, style: z.enum(['gauge', 'checkboxes']), rollOnCreate: rollOnCreateSchema.optional(), thresholds: z.array(z.object({ at: z.number(), label: labelSchema })).optional(), resetOn: z.enum(['scene', 'session', 'rest']).optional(), resetTo: z.union([z.literal('zero'), z.literal('max'), z.object({ formula: z.string() })]).optional() }).passthrough(),
-    z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: roleSchema.optional() }).passthrough(),
+    z.object({ ...fieldBaseSchema, type: z.literal('list'), itemFields: z.array(fieldSchema), rowRole: rowRoleSchema.optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('relation'), targetKind: z.enum(['character', 'freeText']).optional(), attrs: z.array(scalarFieldSchema).optional() }).passthrough(),
     z.object({ ...fieldBaseSchema, type: z.literal('tag'), catalog: z.array(z.string()).optional(), allowFreeInput: z.boolean().optional() }).passthrough(),
   ]),
@@ -219,13 +220,13 @@ export function validatePublishTemplate(
       for (const field of section.fields) {
         const path = canonicalFieldPath(section.id, field.id);
         validateField(sheet, field, issues, warnings, resolvedRefs, uids, canonicalFieldPaths, astNodeLimit, path);
-        validateNumericAnnotationTarget(field, issues, path, true);
+        validateNumericAnnotationTarget(field, issues, path, 'section');
       }
       validateEmptyContentWarnings(section, warnings);
     }
 
     // --- 4. template 横断の実行量・循環を検証して結果を確定する ---
-    // 保存境界は list 値を全拒否し、見積もりだけが評価境界の先頭 LIST_ROW_LIMIT 行と一致する。
+    // 保存側の cap と評価側の slice は LIST_ROW_LIMIT を共有し、静的見積もりも同じ行数上限に揃える。
     validateStaticEvaluationStepLimit(sheet, evaluationStepLimit, issues);
     detectCycles(sheet, issues);
   } else {
@@ -266,7 +267,8 @@ function validateStaticEvaluationStepLimit(
  * formula cost multiplied by LIST_ROW_LIMIT. if evaluates only one branch and sum/count skip their
  * ref argument in evalAst; countAstNodes includes those skipped nodes, so this remains an upper bound.
  * LIST_ROW_LIMIT（512）倍が上界なのは readListRows の slice に依存し、evaluator.spec.ts:58 が固定する。
- * 保存境界では value-input が list 値そのものを受理せず、この倍率は skewed stored input への防御上限である。
+ * 保存境界の cap と readListRows の slice は LIST_ROW_LIMIT を共有し、この倍率は受理可能な最大行数と
+ * skewed stored input への防御上限の双方に一致する。
  *
  * D-R3（2026-08-12）により max / cap / pool total 等の注釈式は evaluateConstraint の
  * 呼び出しごとに既定 10,000 の独立予算を得る仕様であり、共有見積もりには加算しない。
@@ -341,7 +343,7 @@ function validateSectionReferences(section: SheetSection, issues: PublishIssue[]
   }
 
   for (const field of section.fields) {
-    validateFieldBlockReferences(field, blockIds, issues, canonicalFieldPath(section.id, field.id));
+    validateFieldBlockReferences(field, blockIds, issues, canonicalFieldPath(section.id, field.id), 'section');
   }
 
   for (const [poolIndex, pool] of (section.pools ?? []).entries()) {
@@ -355,6 +357,8 @@ function validateSectionReferences(section: SheetSection, issues: PublishIssue[]
     }
 
     const scopedBlockIds = pool.scope === undefined ? undefined : new Set(pool.scope);
+    // Q-C 裁定: 行宣言は保存・runtime 集計だけに開き、pool の publish 資格・scope 充足・label 整合は
+    // section 直下 scalar の宣言に限定する。行だけで pool を成立させると v1 の資格境界まで暗黙に広がるため。
     const hasDeclaredPartsKey = section.fields.some((field) =>
       field.type === 'scalar'
       && (scopedBlockIds === undefined || (field.blockId !== undefined && scopedBlockIds.has(field.blockId)))
@@ -396,27 +400,35 @@ function validateConsistentPartsKeyLabels(section: SheetSection, issues: Publish
   }
 }
 
+type FieldPlacement = 'section' | 'list-item' | 'nested';
+
 function validateFieldBlockReferences(
   field: SheetField,
   blockIds: ReadonlySet<string>,
   issues: PublishIssue[],
   path: string,
+  placement: FieldPlacement,
 ): void {
-  if (field.blockId !== undefined && !blockIds.has(field.blockId)) {
-    issues.push({
-      path: `${path}.blockId`,
-      message: `field blockId must reference a declared block: ${truncateIssueInput(field.blockId)}`,
-    });
+  if (field.blockId !== undefined) {
+    if (!blockIds.has(field.blockId)) {
+      issues.push({
+        path: `${path}.blockId`,
+        message: `field blockId must reference a declared block: ${truncateIssueInput(field.blockId)}`,
+      });
+    } else if (placement === 'list-item') {
+      // S2 で行の pool scope は親 list の blockId に統一した。runtime が読まない itemField 側の宣言を残さない。
+      issues.push({ path: `${path}.blockId`, message: 'blockId is not supported on list itemFields' });
+    }
   }
 
   if (field.type === 'relation') {
     for (const attr of field.attrs ?? []) {
-      validateFieldBlockReferences(attr, blockIds, issues, `${path}.${attr.id}`);
+      validateFieldBlockReferences(attr, blockIds, issues, `${path}.${attr.id}`, 'nested');
     }
   }
   if (field.type === 'list') {
     for (const itemField of field.itemFields) {
-      validateFieldBlockReferences(itemField, blockIds, issues, `${path}.${itemField.id}`);
+      validateFieldBlockReferences(itemField, blockIds, issues, `${path}.${itemField.id}`, 'list-item');
     }
   }
 }
@@ -482,20 +494,35 @@ function validateNumericAnnotationTarget(
   field: SheetField,
   issues: PublishIssue[],
   path: string,
-  isSectionField: boolean,
+  placement: FieldPlacement,
 ): void {
   if (field.type === 'scalar') {
-    if (isSectionField && field.valueType === 'number') return;
+    const isNumberScalar = field.valueType === 'number';
+    if (placement === 'section' && isNumberScalar) return;
     if (field.max !== undefined) {
       issues.push({ path: `${path}.max`, message: 'scalar max is only supported on section-level number scalar fields' });
     }
+    if (placement === 'list-item' && isNumberScalar) {
+      for (const [index, partsKey] of (field.partsKeys ?? []).entries()) {
+        if (partsKey.default === undefined) continue;
+        // list 行は applyPartsDefaults の走査時には存在しないため、default を許すと焼き込まれない死んだ宣言になる。
+        issues.push({
+          path: `${path}.partsKeys.${index}.default`,
+          message: 'partsKey default is not supported on list item fields',
+        });
+      }
+      return;
+    }
     if (field.partsKeys !== undefined) {
-      issues.push({ path: `${path}.partsKeys`, message: 'scalar partsKeys are only supported on section-level number scalar fields' });
+      issues.push({
+        path: `${path}.partsKeys`,
+        message: 'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields',
+      });
     }
     return;
   }
 
-  if (isSectionField) {
+  if (placement === 'section') {
     if (field.type !== 'track' && Object.prototype.hasOwnProperty.call(field, 'max')) {
       issues.push({
         path: `${path}.max`,
@@ -512,12 +539,12 @@ function validateNumericAnnotationTarget(
 
   if (field.type === 'relation') {
     for (const attr of field.attrs ?? []) {
-      validateNumericAnnotationTarget(attr, issues, `${path}.${attr.id}`, false);
+      validateNumericAnnotationTarget(attr, issues, `${path}.${attr.id}`, 'nested');
     }
   }
   if (field.type === 'list') {
     for (const itemField of field.itemFields) {
-      validateNumericAnnotationTarget(itemField, issues, `${path}.${itemField.id}`, false);
+      validateNumericAnnotationTarget(itemField, issues, `${path}.${itemField.id}`, 'list-item');
     }
   }
 }
@@ -595,9 +622,8 @@ function validateField(
     for (const attr of field.attrs ?? []) {
       // 作成時ロールの走査は top-level のみで、relation 属性は list row と同じく作成時に走査されない。
       // 宣言できるが発火しない面を残さないため、list itemFields と同じ形で publish/save から閉じる。
-      // 内訳の既定値に同じ禁止が要らないのは、属性へ partsKeys を付けること自体を
-      // validateNumericAnnotationTarget が既に拒否しており（section 直下の number scalar 限定）、
-      // 既定値の置き場が生じないため。
+      // relation attrs は nested 配置として partsKeys 自体を拒否するため、default の個別禁止は不要。
+      // list itemFields は number scalar の partsKeys を受理するので、そちらだけ上の分岐で default を明示拒否する。
       if (attr.rollOnCreate !== undefined) {
         issues.push({ path: `${path}.${attr.id}.rollOnCreate`, message: 'scalar rollOnCreate is not allowed inside relation attrs' });
       }
@@ -605,21 +631,71 @@ function validateField(
     }
   }
   if (field.type === 'list') {
+    validateRowRoleLabelSource(field, issues, `${path}.rowRole`);
     validateRole(template, field.rowRole, field, issues, refs, `${path}.rowRole`, field, true);
     for (const subField of field.itemFields) {
-      if (subField.type === 'roll') {
-        issues.push({ path: `${path}.${subField.id}`, message: 'RollField in itemFields is not supported in v1' });
-      }
-      if (subField.type === 'list') {
-        issues.push({ path: `${path}.${subField.id}`, message: 'list inside list is not supported' });
-      }
-      // 作成時ロールの走査は top-level のみで、list row は作成時に存在しない。宣言できるが発火しない面を残さないため save/publish で閉じる（正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の司令塔裁定）。
-      // track と scalar は同じ理由で同じ形の診断を出す。片方だけ許す差を作らないため 1 箇所で判定する。
-      if ((subField.type === 'track' || subField.type === 'scalar') && subField.rollOnCreate !== undefined) {
-        issues.push({ path: `${path}.${subField.id}.rollOnCreate`, message: `${subField.type} rollOnCreate is not allowed inside list itemFields` });
-      }
+      validateListItemDeclaration(subField, issues, `${path}.${subField.id}`);
       validateField(template, subField, issues, warnings, refs, uids, canonicalFieldPaths, astNodeLimit, `${path}.${subField.id}`, field);
     }
+  }
+}
+
+function validateRowRoleLabelSource(
+  field: Extract<SheetField, { type: 'list' }>,
+  issues: PublishIssue[],
+  path: string,
+): void {
+  if (field.rowRole === undefined) return;
+
+  const { labelSubFieldId } = field.rowRole;
+  const labelSubField = field.itemFields.find((itemField) => itemField.id === labelSubFieldId);
+  // palette label を暗黙の name 規約から推測すると、S5 の行 materialize 時に出所が一意に決まらない。
+  // 同じ list の text scalar を宣言で固定し、存在しない／表示文字列にならない参照を publish で閉じる。
+  if (labelSubField?.type !== 'scalar' || labelSubField.valueType !== 'text') {
+    issues.push({
+      path: `${path}.labelSubFieldId`,
+      message: `rowRole labelSubFieldId must reference a text scalar itemField: ${truncateIssueInput(labelSubFieldId)}`,
+    });
+  }
+}
+
+function validateListItemDeclaration(
+  itemField: SheetField,
+  issues: PublishIssue[],
+  path: string,
+): void {
+  // S5 が行ごとに発火させるのは list 直下の rowRole だけ。itemField role の行ごと palette 化は
+  // design-v1 の将来スライスへ保留し、resource / rollable を含む全種の死んだ宣言を v1 から閉じる。
+  if (itemField.role !== undefined) {
+    issues.push({ path: `${path}.role`, message: 'role is not supported on list itemFields' });
+  }
+  // 行の parts は宣言キー限定で、section 直下の自由キーモードに相当する runtime 契約は持たない。
+  if (itemField.type === 'scalar' && itemField.parts === true && itemField.partsKeys === undefined) {
+    issues.push({ path: `${path}.parts`, message: 'parts is not supported on list itemFields' });
+  }
+  // evaluator も TrackRangePolicy も行 track の max を評価しないため、式を受理すると誰も評価しない宣言になる。
+  // TrackRangePolicy の行対応は followup とし、v1 の行 track は固定値だけに限定する。
+  if (itemField.type === 'track' && typeof itemField.max !== 'number') {
+    issues.push({ path: `${path}.max`, message: 'track max formula is not supported on list itemFields' });
+  }
+  // S1 で rowId は行オブジェクトの予約キーになった。itemField の保存キーと衝突すると値を保存できないため、
+  // id と uid のどちらの別名からも宣言できないよう publish で閉じる。
+  if (itemField.id === 'rowId') {
+    issues.push({ path: `${path}.id`, message: 'itemField id is reserved: rowId' });
+  }
+  if (itemField.uid === 'rowId') {
+    issues.push({ path: `${path}.uid`, message: 'itemField uid is reserved: rowId' });
+  }
+  if (itemField.type === 'roll') {
+    issues.push({ path, message: 'RollField in itemFields is not supported in v1' });
+  }
+  if (itemField.type === 'list') {
+    issues.push({ path, message: 'list inside list is not supported' });
+  }
+  // 作成時ロールの走査は top-level のみで、list row は作成時に存在しない。宣言できるが発火しない面を残さないため save/publish で閉じる（正本: document/character-sheet-proposals/track-roll-on-create-promotion-draft.md の司令塔裁定）。
+  // track と scalar は同じ理由で同じ形の診断を出す。片方だけ許す差を作らないため 1 箇所で判定する。
+  if ((itemField.type === 'track' || itemField.type === 'scalar') && itemField.rollOnCreate !== undefined) {
+    issues.push({ path: `${path}.rollOnCreate`, message: `${itemField.type} rollOnCreate is not allowed inside list itemFields` });
   }
 }
 

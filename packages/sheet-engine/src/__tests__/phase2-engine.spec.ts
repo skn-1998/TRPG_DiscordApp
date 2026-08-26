@@ -5,7 +5,6 @@ import {
   UNSAFE_PARTS_KEYS,
   validatePublishTemplate,
 } from '..';
-import { LIST_ROW_LIMIT } from '../evaluator';
 import { baseTemplate } from './test-utils';
 
 describe('parts-aware value resolution', () => {
@@ -130,18 +129,10 @@ describe('buildValueInputSchema', () => {
     }).success).toBe(true);
   });
 
-  it('rejects list values as non-input fields regardless of row count', () => {
-    for (const rowCount of [0, LIST_ROW_LIMIT, LIST_ROW_LIMIT + 1]) {
-      const rows = Array.from({ length: rowCount }, (_, index) => ({ rowId: `row-${index}` }));
-      const result = schema.safeParse({ uid_items: rows });
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues).toContainEqual(expect.objectContaining({
-          path: ['uid_items'],
-          message: 'field uid_items is not an input field (list)',
-        }));
-      }
+  it('keeps rejecting non-array list values at the input boundary', () => {
+    // Test intent: list 受理の追加後も、旧境界が拒否していた非配列値へ受理面を広げない。
+    for (const value of [null, 1, 'row', { 0: { rowId: 'row-0' }, length: 1 }]) {
+      expect(schema.safeParse({ uid_items: value }).success).toBe(false);
     }
   });
 

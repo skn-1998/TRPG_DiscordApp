@@ -96,7 +96,7 @@ describe('sheet-engine', () => {
                 { type: 'computed', id: 'eff_weight', uid: 'gear.eff_weight', label: 'Eff weight', resultType: 'number', formula: 'if({row.carried}, {row.weight} * {row.qty}, 0)' },
                 { type: 'computed', id: 'carried_count', uid: 'gear.carried_count', label: 'Count', resultType: 'number', formula: 'if({row.carried}, 1, 0)' },
               ],
-              rowRole: { kind: 'rollable', notation: '1d20{+row.atk_bonus}' },
+              rowRole: { kind: 'rollable', notation: '1d20{+row.atk_bonus}', labelSubFieldId: 'name' },
             },
           ],
         },

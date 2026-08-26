@@ -123,7 +123,7 @@ export interface TrackField extends FieldBase {
 export interface ListField extends FieldBase {
   type: 'list';
   itemFields: SheetField[];
-  rowRole?: FieldRole;
+  rowRole?: FieldRole & { labelSubFieldId: string };
 }
 
 export interface RelationField extends FieldBase {

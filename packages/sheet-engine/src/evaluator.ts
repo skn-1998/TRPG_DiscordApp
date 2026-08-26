@@ -131,7 +131,9 @@ export function evaluateExpression(
 function readListRows(state: EvalState, list: ListField): RowState[] {
   const raw = readRaw(state, list);
   const rows = Array.isArray(raw) ? raw : [];
-  // 保存境界は list 値そのものを全拒否し、評価境界だけが保存済みデータの skew に備えて先頭行へ防御退化する。
+  // 保存境界は value-input.ts の list 分岐を正本として cap・行内容を検査する。
+  // この slice は保存境界を通らない skew データへの防御退化として維持する。
+  // annotation-runtime.ts は非 object 行を除去するため、3 境界の退化規則は意図的に異なる。
   return rows.slice(0, LIST_ROW_LIMIT).map((row) => {
     const rawRow = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
     const rowState: RowState = { list, raw: rawRow, values: {}, evaluating: new Set() };

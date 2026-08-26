@@ -497,20 +497,23 @@ describe('publish U15 vocabulary validation', () => {
       type: 'relation', id: 'ally', uid: 'skills.ally', label: 'Ally',
       attrs: [{ type: 'scalar', id: 'score', uid: 'ally.score', label: 'Score', valueType: 'number', parts: true,
         partsKeys: [{ id: 'base', label: 'Base' }, { id: 'career', label: 'Career' }, { id: 'career', label: 'Duplicate' }] }],
-    }, 'skills.ally.score'],
+    }, 'skills.ally.score', true],
     ['list item field', {
       type: 'list', id: 'items', uid: 'skills.items', label: 'Items',
       itemFields: [{ type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number', parts: true,
         partsKeys: [{ id: 'base', label: 'Base' }, { id: 'career', label: 'Career' }, { id: 'career', label: 'Duplicate' }] }],
-    }, 'skills.items.score'],
-  ])('applies all partsKey rules to a nested %s', (_case, fieldPatch, path) => {
+    }, 'skills.items.score', false],
+  ])('applies all partsKey rules to a nested %s', (_case, fieldPatch, path, rejectsPlacement) => {
     const result = validatePublishTemplate(u15Template({}, fieldPatch));
 
     expect(result.issues).toEqual([
       { path: `${path}.partsKeys`, message: 'parts and partsKeys must not be specified together' },
       { path: `${path}.partsKeys.0.id`, message: 'id is reserved: base' },
       { path: `${path}.partsKeys.2.id`, message: 'partsKey id must be unique within field: career' },
-      { path: `${path}.partsKeys`, message: 'scalar partsKeys are only supported on section-level number scalar fields' },
+      ...(rejectsPlacement ? [{
+        path: `${path}.partsKeys`,
+        message: 'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields',
+      }] : []),
     ]);
     expect(result.warnings).toEqual([]);
   });
@@ -732,21 +735,20 @@ describe('publish U15 vocabulary validation', () => {
     ['section-level text scalar', { type: 'scalar', id: 'score', uid: 'skills.score', label: 'Score', valueType: 'text', max: 99,
       partsKeys: [{ id: 'career', label: 'Career' }] }, [
       'scalar max is only supported on section-level number scalar fields',
-      'scalar partsKeys are only supported on section-level number scalar fields',
+      'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields',
     ]],
     ['relation attr', { type: 'relation', id: 'ally', uid: 'skills.ally', label: 'Ally', attrs: [
       { type: 'scalar', id: 'score', uid: 'ally.score', label: 'Score', valueType: 'number', max: 99,
         partsKeys: [{ id: 'career', label: 'Career' }] },
     ] }, [
       'scalar max is only supported on section-level number scalar fields',
-      'scalar partsKeys are only supported on section-level number scalar fields',
+      'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields',
     ]],
     ['list item field', { type: 'list', id: 'items', uid: 'skills.items', label: 'Items', itemFields: [
       { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number', max: 99,
         partsKeys: [{ id: 'career', label: 'Career' }] },
     ] }, [
       'scalar max is only supported on section-level number scalar fields',
-      'scalar partsKeys are only supported on section-level number scalar fields',
     ]],
   ])('enforces numeric annotation target for %s', (_case, fieldPatch, expectedMessages) => {
     const result = validatePublishTemplate(u15Template({}, fieldPatch));
@@ -755,14 +757,58 @@ describe('publish U15 vocabulary validation', () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it('accepts partsKeys without defaults on a number scalar list itemField', () => {
+    // Test intent: 行の宣言面を number scalar の partsKeys に限って開き、default なしなら publish できることを固定する。
+    const result = validatePublishTemplate(u15Template({}, {
+      type: 'list', id: 'items', uid: 'skills.items', label: 'Items', itemFields: [
+        { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+          partsKeys: [{ id: 'career', label: 'Career' }] },
+      ],
+    }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('rejects a partsKey default on a number scalar list itemField at its declaration path', () => {
+    // Test intent: applyPartsDefaults が走査しない行に、宣言できるが焼き込まれない default を残さない。
+    const result = validatePublishTemplate(u15Template({}, {
+      type: 'list', id: 'items', uid: 'skills.items', label: 'Items', itemFields: [
+        { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+          partsKeys: [{ id: 'career', label: 'Career', default: 5 }] },
+      ],
+    }));
+
+    expect(result.issues).toContainEqual({
+      path: 'skills.items.score.partsKeys.0.default',
+      message: 'partsKey default is not supported on list item fields',
+    });
+  });
+
+  it('keeps pool publish eligibility limited to section-level declarations', () => {
+    // Test intent: Q-C 裁定どおり、行だけが partsKey を宣言しても pool の publish 資格を満たさない。
+    const result = validatePublishTemplate(u15Template({
+      pools: [{ id: 'career', label: 'Career', total: 10, partsKey: 'career' }],
+    }, {
+      type: 'list', id: 'items', uid: 'skills.items', label: 'Items', itemFields: [
+        { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+          partsKeys: [{ id: 'career', label: 'Career' }] },
+      ],
+    }));
+
+    expect(result.issues).toEqual([{
+      path: 'sections.skills.pools.0.partsKey',
+      message: 'pool partsKey must be declared by a field in scope: career',
+    }]);
+  });
+
   it.each([
     ['boolean scalar max/partsKeys', { valueType: 'boolean', max: { formula: "'bad'" }, partsKeys: [{ id: 'career', label: 'Career' }] }, [
       { path: 'skills.skill.max', message: 'scalar max is only supported on section-level number scalar fields' },
-      { path: 'skills.skill.partsKeys', message: 'scalar partsKeys are only supported on section-level number scalar fields' },
+      { path: 'skills.skill.partsKeys', message: 'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields' },
     ]],
     ['select scalar max/partsKeys', { valueType: 'select', max: 99, partsKeys: [{ id: 'career', label: 'Career' }] }, [
       { path: 'skills.skill.max', message: 'scalar max is only supported on section-level number scalar fields' },
-      { path: 'skills.skill.partsKeys', message: 'scalar partsKeys are only supported on section-level number scalar fields' },
+      { path: 'skills.skill.partsKeys', message: 'scalar partsKeys are only supported on number scalar fields at section level or in list itemFields' },
     ]],
     ['relation attr max only', { type: 'relation', id: 'ally', uid: 'skills.ally', label: 'Ally', attrs: [
       { type: 'scalar', id: 'score', uid: 'ally.score', label: 'Score', valueType: 'number', max: { formula: "'bad'" } },
@@ -1622,7 +1668,7 @@ describe('relation attr and role when validation', () => {
           id: 'items',
           uid: 'main.items',
           label: 'Items',
-          rowRole: { kind: 'resource', deltas: [-1, 1], when: '{row.enabled}' },
+          rowRole: { kind: 'resource', deltas: [-1, 1], labelSubFieldId: 'name', when: '{row.enabled}' },
           itemFields: [{ type: 'scalar', id: 'name', uid: 'items.name', label: 'Name', valueType: 'text' }],
         }],
       }],
@@ -2476,6 +2522,238 @@ describe('creation roll destination publish validation', () => {
       path: 'main.items.score.rollOnCreate',
       message: 'scalar rollOnCreate is not allowed inside list itemFields',
     }]);
+  });
+});
+
+describe('list item publish declaration boundary', () => {
+  function listTemplate(itemFields: unknown[], rowRole?: unknown): unknown {
+    return {
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'list',
+          id: 'items',
+          uid: 'main.items',
+          label: 'Items',
+          itemFields,
+          ...(rowRole === undefined ? {} : { rowRole }),
+        }],
+      }],
+    };
+  }
+
+  const nameField = {
+    type: 'scalar', id: 'name', uid: 'items.name', label: 'Name', valueType: 'text',
+  };
+
+  it('accepts list itemFields that do not declare roles', () => {
+    // Test intent: 行 role を閉じても、role を持たない従来の行入力構成は publish 可能なままにする。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number' },
+    ]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['resource', { kind: 'resource', deltas: [-1, 1] }],
+    ['rollable', { kind: 'rollable', notation: '1d20+{value}' }],
+  ])('rejects a %s role on a list itemField', (_kind, role) => {
+    // Test intent: runtime が発火させない itemField role は種類にかかわらず publish 面から閉じる。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number', role },
+    ]));
+
+    expect(result.issues).toContainEqual({
+      path: 'main.items.score.role',
+      message: 'role is not supported on list itemFields',
+    });
+  });
+
+  it('accepts a numeric literal max on a list item track', () => {
+    // Test intent: v1 で実行可能な固定 max の行 track は受理面を維持する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'track', id: 'hp', uid: 'items.hp', label: 'HP', max: 99, style: 'gauge' },
+    ]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['formula', { formula: '1 + 98' }, []],
+    ['row reference', { formula: '{row.limit}' }, [
+      { type: 'scalar', id: 'limit', uid: 'items.limit', label: 'Limit', valueType: 'number' },
+    ]],
+  ])('rejects a %s max on a list item track', (_case, max, supportingFields) => {
+    // Test intent: evaluator / TrackRangePolicy が評価しない行 track の式 max を、参照の有無によらず拒否する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      ...supportingFields,
+      { type: 'track', id: 'hp', uid: 'items.hp', label: 'HP', max, style: 'gauge' },
+    ]));
+
+    expect(result.issues).toContainEqual({
+      path: 'main.items.hp.max',
+      message: 'track max formula is not supported on list itemFields',
+    });
+  });
+
+  it('accepts row partsKeys and a rowRole with an explicit text label source', () => {
+    // Test intent: S2 の行 partsKeys 受理 pin を保ちつつ、S3 の明示 label 宣言を満たす構成を publish できる。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      {
+        type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+        partsKeys: [{ id: 'career', label: 'Career' }],
+      },
+    ], {
+      kind: 'rollable', notation: '1d100<={row.score}', group: 'skills', labelSubFieldId: 'name',
+    }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('accepts declared partsKeys on a number scalar list itemField', () => {
+    // Test intent: 行の parts 契約は自由キーではなく、宣言済みキーだけを受理する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      {
+        type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number',
+        partsKeys: [{ id: 'career', label: 'Career' }],
+      },
+    ]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('rejects free-key parts on a number scalar list itemField', () => {
+    // Test intent: 保存・集計が発火させない行の parts:true を publish 境界で閉じる。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      {
+        type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number', parts: true,
+      },
+    ]));
+
+    expect(result.issues).toContainEqual({
+      path: 'main.items.score.parts',
+      message: 'parts is not supported on list itemFields',
+    });
+  });
+
+  it('keeps free-key parts accepted on a section-level number scalar', () => {
+    // Test intent: parts:true の拒否は list itemField だけに限定し、section 直下の既存契約を狭めない。
+    const result = validatePublishTemplate({
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        fields: [{
+          type: 'scalar', id: 'score', uid: 'main.score', label: 'Score', valueType: 'number', parts: true,
+        }],
+      }],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('rejects a rowRole without labelSubFieldId', () => {
+    // Test intent: palette label の出所を暗黙の name 規約へ退行させず、宣言欠落を構造境界で拒否する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number' },
+    ], { kind: 'rollable', notation: '1d100<={row.score}' }));
+
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      path: 'sections.0.fields.0.rowRole.labelSubFieldId',
+    }));
+  });
+
+  it.each([
+    ['missing itemField', 'missing'],
+    ['number itemField', 'score'],
+  ])('rejects a rowRole labelSubFieldId that references a %s', (_case, labelSubFieldId) => {
+    // Test intent: labelSubFieldId は同じ list に実在する text scalar の id だけを参照できる。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'score', uid: 'items.score', label: 'Score', valueType: 'number' },
+    ], { kind: 'rollable', notation: '1d100<={row.score}', labelSubFieldId }));
+
+    expect(result.issues).toContainEqual({
+      path: 'main.items.rowRole.labelSubFieldId',
+      message: `rowRole labelSubFieldId must reference a text scalar itemField: ${labelSubFieldId}`,
+    });
+  });
+
+  it('accepts ordinary list itemField id and uid values', () => {
+    // Test intent: rowId だけを予約し、既存規則に従う通常の id / uid まで受理面を狭めない。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'value', uid: 'items.value', label: 'Value', valueType: 'number' },
+    ]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it.each([
+    ['id', { type: 'scalar', id: 'rowId', uid: 'items.value', label: 'Value', valueType: 'number' }],
+    ['uid', { type: 'scalar', id: 'value', uid: 'rowId', label: 'Value', valueType: 'number' }],
+  ])('rejects rowId as a list itemField %s', (key, itemField) => {
+    // Test intent: 保存済み行の予約キー rowId と itemField の保存キーが衝突する宣言を id/uid の両面で閉じる。
+    const result = validatePublishTemplate(listTemplate([nameField, itemField]));
+
+    expect(result.issues).toContainEqual({
+      path: `main.items.${itemField.id}.${key}`,
+      message: `itemField ${key} is reserved: rowId`,
+    });
+  });
+
+  it('accepts a list itemField without blockId', () => {
+    // Test intent: 親 list から scope を継承する通常構成は、itemField 側の死んだ blockId を閉じても受理する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+      { type: 'scalar', id: 'value', uid: 'items.value', label: 'Value', valueType: 'number' },
+    ]));
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, issues: [], warnings: [] }));
+  });
+
+  it('rejects blockId on a list itemField', () => {
+    // Test intent: 行の scope は親 list の blockId だけから決まり、runtime が無視する子側 blockId を受理しない。
+    const template = {
+      ...baseTemplate(),
+      sections: [{
+        id: 'main',
+        label: 'Main',
+        blocks: [{ id: 'group', label: 'Group' }],
+        fields: [{
+          type: 'list', id: 'items', uid: 'main.items', label: 'Items', blockId: 'group',
+          itemFields: [{ ...nameField, blockId: 'group' }],
+        }],
+      }],
+    };
+
+    expect(validatePublishTemplate(template).issues).toContainEqual({
+      path: 'main.items.name.blockId',
+      message: 'blockId is not supported on list itemFields',
+    });
+  });
+
+  it('rejects a text subfield reference in rowRole notation', () => {
+    // Test intent: 行 label 用 text を dice notation fragment として補間できない既存境界を退行 pin する。
+    const result = validatePublishTemplate(listTemplate([
+      nameField,
+    ], { kind: 'rollable', notation: '1d20+{row.name}', labelSubFieldId: 'name' }));
+
+    expect(result.issues).toContainEqual({
+      path: 'main.items.rowRole',
+      message: 'notation reference {row.name} must be number or validated fragment',
+    });
   });
 });
 

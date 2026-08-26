@@ -107,8 +107,9 @@ describe('standalone roll template validation', () => {
               id: 'items',
               uid: 'main.items',
               label: 'Items',
-              rowRole: { kind: 'rollable', notation: '10' },
+              rowRole: { kind: 'rollable', notation: '10', labelSubFieldId: 'name' },
               itemFields: [
+                { type: 'scalar', id: 'name', uid: 'items.name', label: 'Name', valueType: 'text' },
                 { type: 'roll', id: 'broken', uid: 'items.broken', label: 'Broken', notation: '1d6/' },
               ],
             },
