@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import type {
-  DiscordButtonModel,
-  DiscordButtonRowModel,
-  DiscordProjectionViewModel,
-  EphemeralPanelViewModel,
-  GroupBrowserViewModel
+import {
+  DISCORD_BUTTON_LABEL_MAX_LENGTH,
+  type DiscordButtonModel,
+  type DiscordButtonRowModel,
+  type DiscordProjectionViewModel,
+  type EphemeralPanelViewModel,
+  type GroupBrowserViewModel
 } from '@trpg/sheet-projection'
 import {
   ActionRowBuilder,
@@ -97,9 +98,12 @@ export class HubDiscordViewBuilder {
   }
 
   private button(model: DiscordButtonModel): ButtonBuilder {
+    const label = this.labelOrFallback(model.label, model.paletteKey ?? model.customId)
+    // 80 字は button label 固有の上限。projection.ts は型別上限と warning を処理済みだが、
+    // 上流を通らない将来経路でも hub を壊さない C-07 の最後の砦として builder 側でも切り詰める。
     return new ButtonBuilder()
       .setCustomId(model.customId)
-      .setLabel(this.labelOrFallback(model.label, model.paletteKey ?? model.customId))
+      .setLabel(label.slice(0, DISCORD_BUTTON_LABEL_MAX_LENGTH))
       .setStyle(this.buttonStyle(model.style))
   }
 

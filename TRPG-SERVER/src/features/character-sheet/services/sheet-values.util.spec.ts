@@ -1,4 +1,4 @@
-import type { SheetField } from '@trpg/sheet-engine'
+import { isPartsRecordValue, type SheetField } from '@trpg/sheet-engine'
 import { isPartsValue, isResourceField, partsTotal, sheetValuesEqual } from './sheet-values.util'
 
 describe('sheet-values.util', () => {
@@ -10,6 +10,21 @@ describe('sheet-values.util', () => {
 
     it.each([null, [], {}, { parts: null }, { parts: [] }])('parts recordでない値を拒否する: %p', (value) => {
       expect(isPartsValue(value)).toBe(false)
+    })
+
+    it.each([
+      [{ parts: { base: 1 } }, true],
+      [{ parts: {} }, true],
+      [{ parts: { base: 'not-checked-here' } }, true],
+      [{ parts: new Date(0) }, true],
+      [null, false],
+      [[], false],
+      [{}, false],
+      [{ parts: null }, false],
+      [{ parts: [] }, false]
+    ] as const)('engine 正本が旧 server 厳格形の真理値を維持する: %p', (value, legacyExpected) => {
+      expect(isPartsRecordValue(value)).toBe(legacyExpected)
+      expect(isPartsValue(value)).toBe(legacyExpected)
     })
   })
 

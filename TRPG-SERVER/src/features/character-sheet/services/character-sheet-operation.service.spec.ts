@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
-import { sheetMergeConflictSchema } from '@trpg/api-contract'
+import { sheetMergeConflictSchema, type SheetMergeConflictWire } from '@trpg/api-contract'
 import * as sheetEngine from '@trpg/sheet-engine'
 import type { SheetField } from '@trpg/sheet-engine'
 import {
@@ -17,7 +17,8 @@ import {
   type CharacterSheetChange,
   CharacterSheetOperationService,
   type CharacterSheetValuePath,
-  HubProjectionPreparationError
+  HubProjectionPreparationError,
+  MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT
 } from './character-sheet-operation.service'
 import { SheetMaterializerService } from './sheet-materializer.service'
 
@@ -181,6 +182,41 @@ describe('CharacterSheetOperationService', () => {
     ]
   })
 
+  const LIST_UID = 'uid-list'
+  const LIST_NAME_UID = 'uid-list-name'
+  const LIST_SCORE_UID = 'uid-list-score'
+  const listTemplate: CharacterSheetTemplateEntity = {
+    ...template,
+    sections: [
+      {
+        ...template.sections[0],
+        fields: [
+          ...(template.sections[0].fields as SheetField[]),
+          {
+            id: 'entries',
+            uid: LIST_UID,
+            label: 'Entries',
+            type: 'list',
+            itemFields: [
+              { id: 'name', uid: LIST_NAME_UID, label: 'Name', type: 'scalar', valueType: 'text' },
+              {
+                id: 'score',
+                uid: LIST_SCORE_UID,
+                label: 'Score',
+                type: 'scalar',
+                valueType: 'number',
+                partsKeys: [
+                  { id: 'occupation', label: 'Occupation' },
+                  { id: 'interest', label: 'Interest' }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
   const projection = {
     status: {},
     parameter: {},
@@ -276,6 +312,22 @@ describe('CharacterSheetOperationService', () => {
     appliedInteractionIds: [],
     ...overrides
   })
+
+  const useListTemplateWithRealMaterializer = (rows: unknown[]): void => {
+    templateService.resolvePinnedRevision.mockResolvedValue(listTemplate)
+    current = makeCharacter({
+      sheet: {
+        ...current.sheet!,
+        values: { ...current.sheet!.values, [LIST_UID]: rows }
+      }
+    })
+    service = new CharacterSheetOperationService(
+      repository as unknown as CharacterRepository,
+      templateService as unknown as CharacterSheetTemplateService,
+      new SheetMaterializerService(),
+      diceExecutionService as unknown as DiceExecutionService
+    )
+  }
 
   const makeDeprecatedPinnedOperationService = (): CharacterSheetOperationService => {
     const templateRepository = {
@@ -698,6 +750,118 @@ describe('CharacterSheetOperationService', () => {
       expect(current.sheet?.visibility).toBe('public')
     })
 
+    it('list uid の行配列を丸ごと置換し、revision だけを進めて他 field を保持する', async () => {
+      const previousRows = [{ rowId: 'old-row', [LIST_NAME_UID]: 'Old', [LIST_SCORE_UID]: 1 }]
+      const newRows = [
+        { rowId: 'row-1', [LIST_NAME_UID]: 'First', [LIST_SCORE_UID]: 10 },
+        { rowId: 'row-2', [LIST_NAME_UID]: 'Second', [LIST_SCORE_UID]: { parts: { occupation: 5 } } }
+      ]
+      useListTemplateWithRealMaterializer(previousRows)
+      const otherFieldBefore = current.sheet!.values['uid-score']
+
+      const result = await service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [{ path: { fieldUid: LIST_UID }, baseValue: previousRows, newValue: newRows }]
+      })
+
+      expect(result).toEqual(expect.objectContaining({ noOp: false, appliedChanges: 1, revision: 2 }))
+      expect(current.sheet!.values[LIST_UID]).toEqual(newRows)
+      expect(current.sheet!.values['uid-score']).toEqual(otherFieldBefore)
+    })
+
+    it.each([
+      ['未宣言キー', [{ rowId: 'row-1', unknown: 1 }], [LIST_UID, '0', 'unknown']],
+      ['rowId 重複', [{ rowId: 'same' }, { rowId: 'same' }], [LIST_UID, '1', 'rowId']],
+      [
+        '非有限 parts 合計',
+        [
+          {
+            rowId: 'row-1',
+            [LIST_SCORE_UID]: { parts: { occupation: Number.MAX_VALUE, interest: Number.MAX_VALUE } }
+          }
+        ],
+        [LIST_UID, '0', LIST_SCORE_UID, 'parts']
+      ]
+    ] as const)('%s の list 行を422にし、issue path と保存状態を保持する', async (_case, newRows, issuePath) => {
+      const previousRows = [{ rowId: 'old-row', [LIST_NAME_UID]: 'Old' }]
+      useListTemplateWithRealMaterializer(previousRows)
+      const valuesBefore = current.sheet!.values
+      const revisionBefore = current.sheet!.revision
+
+      const failure = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: LIST_UID }, baseValue: previousRows, newValue: newRows }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(UnprocessableEntityException)
+      expect((failure as UnprocessableEntityException).getResponse()).toMatchObject({
+        issues: [expect.objectContaining({ path: [...issuePath] })]
+      })
+      expect(current.sheet!.values).toEqual(valuesBefore)
+      expect(current.sheet!.revision).toBe(revisionBefore)
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('partsKey 付き list path を422にし、行の内訳を top-level path から更新しない', async () => {
+      const previousRows = [{ rowId: 'row-1', [LIST_SCORE_UID]: { parts: { occupation: 5 } } }]
+      useListTemplateWithRealMaterializer(previousRows)
+
+      const promise = service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [{ path: { fieldUid: LIST_UID, partsKey: 'occupation' }, baseValue: undefined, newValue: 9 }]
+      })
+
+      await expect(promise).rejects.toMatchObject({ status: 422, message: expect.stringContaining('parts paths') })
+      expect(current.sheet!.values[LIST_UID]).toEqual(previousRows)
+      expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('list 許可後も track 全体と scalar partsKey の保存、および競合形を維持する', async () => {
+      const hpBefore = current.sheet!.values['uid-hp']
+
+      await service.saveSheet({
+        characterId: 'character-1',
+        baseRevision: 1,
+        changes: [
+          { path: { fieldUid: 'uid-hp' }, baseValue: hpBefore, newValue: 9 },
+          { path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 5, newValue: 6 }
+        ]
+      })
+
+      expect(current.sheet!.values).toEqual(
+        expect.objectContaining({
+          'uid-hp': 9,
+          'uid-score': { parts: { base: 6, buff: 0, temp: 0, other: 0 } }
+        })
+      )
+
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 1,
+          changes: [{ path: { fieldUid: 'uid-score', partsKey: 'base' }, baseValue: 4, newValue: 7 }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      expect((conflict as ConflictException).getResponse()).toMatchObject({
+        currentRevision: 2,
+        conflicts: [
+          {
+            path: { fieldUid: 'uid-score', partsKey: 'base' },
+            current: 6,
+            base: 4,
+            yours: 7
+          }
+        ]
+      })
+    })
+
     it("partsKey='__proto__' は422で拒否し、値の書き込みも保存もしない", async () => {
       const before = current.sheet!.values['uid-score']
 
@@ -1094,6 +1258,118 @@ describe('CharacterSheetOperationService', () => {
       })
       await expect(promise).rejects.toBeInstanceOf(ConflictException)
       expect(repository.saveSheetMaterialized).not.toHaveBeenCalled()
+    })
+
+    it('上限を超える scalar text の競合値は切り詰めず全文を保持する', async () => {
+      const fieldUid = 'uid-background'
+      const textTemplate: CharacterSheetTemplateEntity = {
+        ...template,
+        sections: [
+          {
+            ...template.sections[0],
+            fields: [
+              ...(template.sections[0].fields as SheetField[]),
+              { id: 'background', uid: fieldUid, label: 'Background', type: 'scalar', valueType: 'text' }
+            ]
+          }
+        ]
+      }
+      const largeText = 'あ'.repeat(MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT)
+      const currentText = `current-${largeText}`
+      const baseText = `base-${largeText}`
+      const yoursText = `yours-${largeText}`
+      templateService.resolvePinnedRevision.mockResolvedValue(textTemplate)
+      current = makeCharacter({
+        sheet: {
+          ...current.sheet!,
+          values: { ...current.sheet!.values, [fieldUid]: currentText }
+        }
+      })
+
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 0,
+          changes: [{ path: { fieldUid }, baseValue: baseText, newValue: yoursText }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse() as SheetMergeConflictWire
+      expect(payload.conflicts[0]).toEqual({
+        path: { fieldUid },
+        current: currentText,
+        base: baseText,
+        yours: yoursText
+      })
+      for (const value of [currentText, baseText, yoursText]) {
+        expect(Buffer.byteLength(JSON.stringify(value), 'utf8')).toBeGreaterThan(MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT)
+      }
+      expect(sheetMergeConflictSchema.safeParse(JSON.parse(JSON.stringify(payload))).success).toBe(true)
+    })
+
+    it('上限内の list 競合値は全文を保持し、従来の競合 wire を維持する', async () => {
+      const currentRows = [{ rowId: 'current', [LIST_NAME_UID]: 'Current' }]
+      const baseRows = [{ rowId: 'base', [LIST_NAME_UID]: 'Base' }]
+      const yoursRows = [{ rowId: 'yours', [LIST_NAME_UID]: 'Yours' }]
+      useListTemplateWithRealMaterializer(currentRows)
+
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 0,
+          changes: [{ path: { fieldUid: LIST_UID }, baseValue: baseRows, newValue: yoursRows }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse() as SheetMergeConflictWire
+      expect(payload.conflicts[0]).toEqual({
+        path: { fieldUid: LIST_UID },
+        current: currentRows,
+        base: baseRows,
+        yours: yoursRows
+      })
+      for (const value of [payload.conflicts[0].current, payload.conflicts[0].base, payload.conflicts[0].yours]) {
+        expect(Buffer.byteLength(JSON.stringify(value), 'utf8')).toBeLessThanOrEqual(
+          MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT
+        )
+      }
+      expect(sheetMergeConflictSchema.safeParse(JSON.parse(JSON.stringify(payload))).success).toBe(true)
+    })
+
+    it('上限を超える list 競合の各値を $truncated marker へ置換する', async () => {
+      const largeRows = (prefix: string) =>
+        Array.from({ length: 512 }, (_, index) => ({
+          rowId: `${prefix}-${index}`,
+          [LIST_NAME_UID]: 'x'.repeat(64)
+        }))
+      const currentRows = largeRows('current')
+      const baseRows = largeRows('base')
+      const yoursRows = largeRows('yours')
+      useListTemplateWithRealMaterializer(currentRows)
+
+      const conflict = await service
+        .saveSheet({
+          characterId: 'character-1',
+          baseRevision: 0,
+          changes: [{ path: { fieldUid: LIST_UID }, baseValue: baseRows, newValue: yoursRows }]
+        })
+        .catch((error: unknown) => error)
+
+      expect(conflict).toBeInstanceOf(ConflictException)
+      const payload = (conflict as ConflictException).getResponse() as SheetMergeConflictWire
+      expect(payload.conflicts[0]).toEqual({
+        path: { fieldUid: LIST_UID },
+        current: { $truncated: true },
+        base: { $truncated: true },
+        yours: { $truncated: true }
+      })
+      for (const value of [payload.conflicts[0].current, payload.conflicts[0].base, payload.conflicts[0].yours]) {
+        expect(Buffer.byteLength(JSON.stringify(value), 'utf8')).toBeLessThanOrEqual(
+          MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT
+        )
+      }
     })
 
     // undefined の JSON 欠落で構造化競合応答全体が無効にならないよう、現在値なしは null で固定する。

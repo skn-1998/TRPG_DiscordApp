@@ -5,11 +5,12 @@
  * discordChannelId? の拡幅根拠は create-character.dto.ts:90-92→character.service.ts:89,97-102
  * →repositories/character.repository.ts:74-77（optional 入力を素通しし、永続化前に undefined キーを除去する）。
  */
-import type {
-  CharacterSummaryWire,
-  CharacterWire,
-  RerollCreationRollResultWire,
-  RollOnCreateResultWire
+import {
+  saveSheetMaterializedPayloadSchema,
+  type CharacterSummaryWire,
+  type CharacterWire,
+  type RerollCreationRollResultWire,
+  type RollOnCreateResultWire
 } from '@trpg/api-contract'
 import type { ProjectionPaletteEntry } from '@trpg/sheet-projection'
 import type { RerollCreationRollResult } from '../../features/character-sheet/services/character-sheet-operation.service'
@@ -159,5 +160,32 @@ type CharacterSummaryValueTypeMismatches = AssertNever<
 describe('character wire contract', () => {
   it('有効な entity・summary payload と wire の型橋を通過する', () => {
     expect(true).toBe(true)
+  })
+
+  it('save payload の palette は 512 entry を受理し 513 entry を拒否する', () => {
+    const payloadWithPaletteSize = (size: number) => ({
+      values: {},
+      computedCache: {},
+      palette: Array.from({ length: size }, (_, index) => ({
+        key: `roll-${index}`,
+        fieldRef: { uid: `uid-${index}` },
+        label: `Roll ${index}`,
+        kind: 'roll' as const,
+        notation: '1d100',
+        group: 'test'
+      })),
+      status: {},
+      skill: {},
+      parameter: {},
+      item: {},
+      description: {},
+      pendingRevision: 1,
+      appliedInteractionIds: []
+    })
+
+    // Why: server PALETTE_HARD_CAP と api-contract PALETTE_MAX_ENTRIES の等値を挙動で突合する。
+    // 片側だけの変更は character.repository.ts の保存時 parse を失敗させる。
+    expect(saveSheetMaterializedPayloadSchema.safeParse(payloadWithPaletteSize(512)).success).toBe(true)
+    expect(saveSheetMaterializedPayloadSchema.safeParse(payloadWithPaletteSize(513)).success).toBe(false)
   })
 })

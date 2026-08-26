@@ -71,6 +71,7 @@ const NON_FINITE_LABEL_CHARACTER_LIMIT = 256
 const NON_FINITE_FORMULA_CHARACTER_LIMIT = 120
 const NON_FINITE_DETAIL_CHARACTER_LIMIT = 256
 const NON_FINITE_INPUT_LOCATION_CHARACTER_LIMIT = 128
+// character-sheet-operation.service.ts の競合値上限と同値だが、こちらは診断封筒全体の予算。対象が異なるため独立に変更してよい。
 const NON_FINITE_HTTP_BODY_BYTE_BUDGET = 4_096
 const NON_FINITE_COMPONENT_JSON_LENGTH_LIMITS = [1_024, 512, 256, 128, 64, 32, 16] as const
 const NON_FINITE_ISSUE_LIMITS = ['unlimited', 3, 1, 0] as const

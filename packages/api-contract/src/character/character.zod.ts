@@ -48,6 +48,8 @@ export const characterTemplatePinSchema = z
 const paletteFieldRefSchema = z
   .object({
     uid: z.string().min(1),
+    // Why: palette は server 発行値の echo で、保存時の rowId 形式は engine が検査する。
+    // 読取側を engine pattern へ強化すると api-contract の挙動変更になるため、ここは意図的に min(1) のままにする。
     rowId: z.string().min(1).optional()
   })
   .strict()

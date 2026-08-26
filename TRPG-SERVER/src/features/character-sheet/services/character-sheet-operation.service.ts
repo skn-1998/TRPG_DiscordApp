@@ -34,6 +34,25 @@ import { buildBoundedNonFiniteErrorEnvelope, toNonFiniteNumberKind, TrackRangePo
 
 const MAX_SAVE_ATTEMPTS = 5
 const SAVE_RETRY_BUDGET_MS = 2_000
+// track-range.policy.ts の 4,096 bytes と同値だが、こちらは競合の値ごとの上限。対象が異なるため独立に変更してよい。
+export const MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT = 4_096
+const TRUNCATED_MERGE_CONFLICT_VALUE = { $truncated: true } as const
+
+/**
+ * list は行配列全体 3 本が競合封筒に載るため値ごとに制限する。
+ * scalar text は保存境界が無上限で front が marker を解釈しないため、呼び出し側は list のみに限定する。
+ */
+function boundMergeConflictValue(value: unknown): unknown {
+  try {
+    const serialized = JSON.stringify(value)
+    if (serialized !== undefined && Buffer.byteLength(serialized, 'utf8') <= MERGE_CONFLICT_VALUE_JSON_BYTE_LIMIT) {
+      return value
+    }
+  } catch {
+    // JSON 化できない値も、競合応答自体を失わないよう切り詰めとして扱う。
+  }
+  return TRUNCATED_MERGE_CONFLICT_VALUE
+}
 
 export interface CharacterSheetValuePath {
   fieldUid: string
@@ -218,7 +237,7 @@ export class CharacterSheetOperationService {
       let appliedChanges = 0
 
       for (const change of input.changes) {
-        this.assertWritablePath(template, change.path)
+        const field = this.assertWritablePath(template, change.path)
         const currentValue = this.readPathValue(values, change.path)
 
         if (sheetValuesEqual(change.newValue, change.baseValue)) {
@@ -232,16 +251,17 @@ export class CharacterSheetOperationService {
         if (sheetValuesEqual(currentValue, change.newValue)) {
           continue
         }
+        const toConflictValue = field.type === 'list' ? boundMergeConflictValue : (value: unknown): unknown => value
         conflicts.push({
           path: { ...change.path },
           // current/base は「その path に値なし」を undefined で表すが、JSON 化で undefined の own キーごと落ちる。
           // 競合 wire (sheetMergeConflictSchema) は 3 値とも nonoptional なので、キーが欠けると front の
           // safeParse ごと失敗し、構造化競合パネルが汎用エラーへ落ちる。current: null は front が undefined へ
           // 復号する。base: null は wire 必須キーを保持して schema parse を通すための sentinel とする。
-          // yours は保存要求の必須値なので正規化対象にしない。
-          current: currentValue ?? null,
-          base: change.baseValue ?? null,
-          yours: change.newValue
+          // yours は DTO の @IsDefined で undefined が HTTP 境界を通らない必須値なので null 正規化しない。
+          current: toConflictValue(currentValue ?? null),
+          base: toConflictValue(change.baseValue ?? null),
+          yours: toConflictValue(change.newValue)
         })
       }
 
@@ -260,7 +280,7 @@ export class CharacterSheetOperationService {
       const engineTemplate = toEngineTemplate(template)
       const trackRangePolicy = new TrackRangePolicy(engineTemplate)
       trackRangePolicy.assertFiniteTrackValues(sheet.values, values)
-      this.evaluateTemplateOrThrow(engineTemplate, values)
+      // materializeOrThrow は保存境界検査（validateStoredValues）→評価を内包し、保存可否の単一 gate になる。
       const materialized = this.materializeOrThrow(template, current, values)
       const savePayload = this.toSavePayload(materialized, sheet.revision + 1, current.appliedInteractionIds ?? [])
       const saved = await this.characterRepository.saveSheetMaterialized(
@@ -361,7 +381,7 @@ export class CharacterSheetOperationService {
    * テンプレートが宣言している作成時ロールを、作成済みキャラクターに対して振り直す。
    *
    * 対象条件は「作成時ロールを宣言しているか」（rollOnCreateSpec）であり、
-   * saveSheet が使う assertWritablePath（track / scalar だけを入力項目とみなす規則）とは別の述語である。
+   * saveSheet が使う assertWritablePath（track / scalar / list を入力項目とみなす規則）とは別の述語である。
    * assertWritablePath 側に roll を足して通すと、roll 型がクライアント提出の入力項目にも同時に昇格し、
    * サーバ実行を経ない値が roll 型へ書ける経路が開く。だからここでは流用しない。
    *
@@ -507,11 +527,15 @@ export class CharacterSheetOperationService {
 
   private assertWritablePath(template: CharacterSheetTemplateEntity, path: CharacterSheetValuePath): SheetField {
     const field = this.findTopLevelField(toEngineTemplate(template), path.fieldUid)
-    if (field.type !== 'track' && field.type !== 'scalar') {
+    if (field.type !== 'track' && field.type !== 'scalar' && field.type !== 'list') {
       throw new UnprocessableEntityException(`field ${path.fieldUid} is not an input field (${field.type})`)
     }
     const partsKey = path.partsKey
     if (partsKey === undefined) return field
+    if (field.type === 'list') {
+      // list 行の parts は行オブジェクト内の itemField 値で表現し、top-level path 語彙では指さない。
+      throw new UnprocessableEntityException(`field ${path.fieldUid} does not allow parts paths`)
+    }
     if (!allowsParts(field)) {
       throw new UnprocessableEntityException(`field ${path.fieldUid} does not allow parts`)
     }
