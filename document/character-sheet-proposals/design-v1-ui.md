@@ -349,10 +349,11 @@ CoC の職業/趣味ポイントのような複数予算の配分を、面 (1)(2
   `PublishValidationOptions.evaluationStepLimit` を実際の判定へ接続し（現在は宣言のみ）、
   **上記 1,024×11 反例を publish/materialize の回帰テストに固定**する。
   **list 行数上限（D-R3 前半 = 案 (a)）**: list 行は **LIST_ROW_LIMIT（既定 512・仮置き）** を
-  上限とし、最悪コスト算出の行反復分は「行上限 × 行内式コスト」で数える。**保存境界は現状
-  list 値そのものを不受理**（cap より厳しい fail-closed。値検証 schema に list 分岐を設けない —
-  受理を導入する将来スライスで行内容検証〔itemFields 準拠・UNSAFE キー封止〕と保存側 cap を
-  セットで設計する。D-R3-IMPL-R2 差し戻し 2026-08-12）。**評価境界は先頭 LIST_ROW_LIMIT 行のみの
+  上限とし、最悪コスト算出の行反復分は「行上限 × 行内式コスト」で数える。**保存境界は 2026-08-26 の S1
+  スライス（web-free-add）で list 受理を導入済み**（D-R3-IMPL-R2 の差し戻し解消。行内容検証 =
+  itemFields 準拠・UNSAFE キー封止・rowId 必須/一意・保存側 cap は `LIST_ROW_LIMIT` を import。
+  行の parts 形だけは行 partsKeys の宣言と検査を同時に開く S2 まで不受理。正本 =
+  `web-free-add-design-route.md` スライス計画）。**評価境界は先頭 LIST_ROW_LIMIT 行のみの
   防御退化**（skew データでも fail しない）。
   実装は evaluator 内の**単一定数（公開 options での差し替え不可）** — 見積もり倍率だけを動かす
   公開 listRowLimit オプションは二重レビュー裁定で撤去済み・再導入しない（D-R3-IMPL-R3・

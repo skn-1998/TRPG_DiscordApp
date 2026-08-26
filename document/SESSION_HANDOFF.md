@@ -5,7 +5,11 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-20（**J2 feature 完了** = 生成用プロンプトのコピー導線・直下の節が正本・
+- 最終更新: 2026-08-26（**web-free-add（M-D）設計フェーズ完了・実装未着手**・直下の
+  【設計完了 2026-08-26】節参照。正本 = `document/character-sheet-proposals/web-free-add-design-route.md`）
+- それ以前: 2026-08-24（**シナリオ×マップ機能のアイデア出し完了**・コード変更なし・
+  【アイデア出し完了 2026-08-24】節参照。正本 = `document/scenario-map-ideation-2026-08-24.md`）
+- それ以前: 2026-08-20（**J2 feature 完了** = 生成用プロンプトのコピー導線・J2 節が正本・
   **未コミット＝ユーザー裁定待ち**）。J1 は次節（コミット済み）。それ以前の現況は
   「キュー #9〜#12 ループ」節（検索: `U14/U15 feature 完了`）と台帳 `design-ledger.md` §0。
   冒頭〜中盤の節は 2026-07-29〜08-07 時点の追記ログでありそのまま保存
@@ -13,6 +17,101 @@
 - **並行レーン（別セッション）: 2026-08-22 技能ポイントの振り分け（legacy-coc-v3）完了・配布済み。**
   正本は末尾の「## 技能ポイントの振り分け」節。PV-2b = 95c707c・v3 = 4f0d3a0・seed 実行済み。
   上の J2 とはファイルが重ならないが、**本 doc だけは両レーンの未コミット変更が同居している**
+
+## 【設計完了 2026-08-26】web-free-add（M-D）: Web で HP・技能を自由に追加（実装未着手）
+
+ユーザー依頼「キャラクター編集について、WebでもHPやskillを自由に追加できるようにしたい」。
+`/route-design-work` → interpret-design-context ＋ frame-purpose-goal-means（上流 2 段）→
+ユーザー裁定 **M-D**（list 行追加＋v4 に「カスタム技能」「カスタムステータス」標準搭載・
+プール参加要る・新規キャラから）→ R-3 model-domain-invariants ＋ R-4 analyze-data-destruction
+（Opus read-only 並列・全所見 probe 実測）→ 2026-08-26 追加裁定 → スライス計画まで完了。
+
+- **正本 = `document/character-sheet-proposals/web-free-add-design-route.md`**
+  （決定 2 表・7 層拡張表・R-3/R-4 統合・スライス計画 S1〜S8）。
+  分析生データ = `review-results/web-free-add/`（invariants.md: C-1〜C-35 / destruction.md: DS-01〜22・C-01〜12）
+- 主要裁定（2026-08-26）: 保存 path は **list 全体 1 path**（契約変更ゼロ）・行 resource は
+  **v1 Web 専用**（publish で拒否）・pool 宣言は **section 直下必須のまま**・行 name 重複**許す**。
+  既定: rowId は front nanoid 採番・palette label は rowRole に出所宣言・行 track max 固定値のみ・
+  行数実効上限「512−rollable 本数」・pool 超過は advisory 維持・行 parts の base/other 拒否
+- 要注意の実測: 保存境界の list 全拒否の正体は **engine `value-input.ts:137-156`**（コメントが
+  本スライスを D-R3-IMPL-R2 差し戻しとして予約済み）・`{row.x}` 展開は engine 実装済み・
+  **投影は list 分岐が存在せず新規経路**・`allocatePaletteKey` は uid のみで行の key がずれる
+  → **rowId 必須（design-v1 §8-7 決着・当初ドラフトから脱落していたのを R-3/R-4 が独立指摘）**・
+  拡張 1（行 partsKeys 受理）と 2（pool 集計）は**同一スライス不可分**（C-04）
+- スライス: フェーズ A engine（S1 保存境界 list 受理 / S2 プール参加不可分 / S3 publish 閉じ込め）→
+  大粒度①、フェーズ B server（S4 保存開通 / S5 palette / S6 投影新規）→ 大粒度②、
+  フェーズ C（S7 front UI / S8 v4 seed 実データ受入）→ 大粒度③＋本 doc 全面更新
+- followups は `review-results/roll-lane/followups.md` の web-free-add 節（section 負 parts の
+  既存穴 E-D31・`section[key]` 棚卸し・hub 例外写像・seed 書込口列挙・行 resource / policy 統合）
+- **実装開始（2026-08-26 ユーザー go）**。S1 = engine 保存境界の list 受理を Codex `--mode code` で
+  実装済み（value-input.ts +167・index.ts barrel・新 spec 37 tests・phase2 の旧全拒否 pin を
+  非配列 pin へ置換）。Fable 独立検収: 全ゲート再実行緑（engine 604/604・server 226/3256・
+  front 34/627・循環ゼロ）・変異 6/6 検出（Codex 負の対照 4/4 と合わせ検査 10 点機械検証）・
+  Opus 3 軸レビュー = blocking 1（evaluator:134 / publish:228 の stale コメント）＋non-blocking 7。
+  → S1-FIX（8 件・挙動変更なし）も Codex 実装 → Fable 検収済み: 全ゲート再実行緑
+  （engine 605/605・server 226/3256・front 34/627・循環ゼロ）・stale バックアップ破棄後に
+  変異 7/7 再検出（リテラル pin 追加で定数変異 MV-7 も捕捉）。**S1 受入確定（2026-08-26・未コミット）**。
+  design-v1-ui.md:352-355 の stale は Fable が追随済み。publish.ts:269 の stale JSDoc 1 行だけ
+  S2 送り（S2 が publish を触るため）。証跡 = `review-results/web-free-add/`
+  （prompt-s1.txt / codex-s1/ / s1-review-opus.md / prompt-s1-fix.txt / codex-s1-fix/）。
+  → S2（行のプール参加・3 点不可分）= Codex 実装 → Fable 検収: 変異 5/5（scope 破壊・行読出遮断・
+  relation attr 受理拡大・Q-C pin 無効化・予約キー拒否除去）＋Codex 負の対照 4/4。
+  Opus レビュー blocking 0・non-blocking 10 → S2-FIX（C-1 行 parts 有限**合計**検査 = 不変条件 C-9 の
+  対の欠落・コメント/命名 6 件）も Codex 実装 → Fable 検収（MW-1 変異検出・復元後ゲート全緑
+  engine 622/622・server 226/3256・front 34/627）。**S2 受入確定（2026-08-26・未コミット）**。
+  doc 追随は Fable 実施（template-json-spec 4 箇所・IS-5 fact 行）。C-2（itemField blockId の
+  死んだ宣言）は S3 スコープへ。検収手順の教訓 = 変異とゲートの並行禁止（メモリ
+  no-concurrent-mutation-and-gates。初回ゲートを証拠無効として取り直した）。
+  → S3（publish の行宣言の閉じ込め）= Codex 実装（engine 638/638・負の対照 3/3）→
+  **Codex が front 波及を検出して正しく停止**: テンプレート生成プロンプト正本
+  `templateGenerationPrompt.ts` が labelSubFieldId 抜き rowRole を配布（§7 例＋完全出力例。
+  自己チェックが「無いキーを使うな」と拘束するため生成 JSON が新 publish で必ず拒否）。
+  Fable 実物裏取り済み。engine 側検収完了: 変異 3/3（rowId 予約・blockId 拒否・label text 限定）＋
+  復元後ゲート全緑（engine 638/638・server 226/3256・front 34/627）。
+  → S3-FIX（front プロンプト追随・1 ファイル 3 行）= Codex 実装。Codex は「JSON をそのまま」の
+  検証指定を守って正例 fail（保存用メタデータ 4 項目欠落）で保留 → Fable が server と同一の
+  メタデータ合成（validate-any.cjs と同じ）で受け入れ probe を実測: **正例 ok:true・
+  labelSubFieldId 抜き負例は該当 1 issue のみで fail**（scratchpad/accept_prompt_example.cjs）。
+  front 34/627 緑・typecheck 0。**S3 受入確定 = フェーズ A（engine 3 スライス）完了
+  （2026-08-26・全て未コミット）**。
+  → 大粒度認知負荷レビュー①（Opus read-only・`phase-a-large-grain-review.md`）: blocking 1
+  （CL-L1 = itemField `parts:true` が publish 通過・保存不可の死んだ宣言）＋純減 3＋Low 群。
+  好結果: 予約語彙は rowId 以外すべて定義 1・server/front への値複製 0・list 分岐の隣接層漏れなし・
+  front 3 定義複製の悪化なし。CL-L4（rowId リテラル散在＋wire `min(1)` が engine パターンより弱い）は
+  S5 必読として設計正本へ焼き込み。
+  → A-FIX（Codex）: parts:true 拒否＋placement 型統合＋宣言ゲート 6→5＋parts 厳格形判定
+  4 表現→`parts-value.ts` の `isPartsRecordValue` 1 本（barrel export・server 分は S4 で畳む）＋
+  コメント 3 件。真理値比較 12/12 一致・負の対照 1/1。
+  **フェーズ A 完了・受入確定（2026-08-26）**: 最終ゲート Fable 独立実行で全緑
+  （engine 641/641・server 226/3256・front 34/627・循環ゼロ）。機械検証の累計 =
+  Codex 負の対照 12 点＋Fable 変異 16 点。**全て未コミット・コミット可否はユーザー確認中**。
+  次 = フェーズ B（S4 保存経路開通 → S5 palette → S6 投影）
+
+## 【アイデア出し完了 2026-08-24】シナリオ×マップ機能の発散（コード変更なし）
+
+ユーザー依頼「シナリオ作成を行えるようにしたい。シナリオからマップを創るのではなく、
+**マップを用意して、そのマップにシナリオを結びつける**ものが作りたい」の発散フェーズ。
+`/route-design-work` 起点・発散はサブエージェント直接オーケストレーション（ユーザー指示）。
+
+- 実施: Opus サブエージェント 10 レーン（GM×2 / ドメイン / 先行事例 / PL / 作者 / 異ジャンル /
+  AI ネイティブ / 非同期 / ノベルティ）＋ Codex read-only 2 本 ＝ **12 レーン・69 案**。
+  第 2 波 6 レーンは既出結果を渡さない独立サンプル、J と Codex R2 だけに既出 7 クラスタを渡し外側探索。
+  途中のユーザー中断で 4 レーンが死亡し再起動 1 回（ListAgents で生存ゼロを確認して再投入）
+- **成果物の正本 = `document/scenario-map-ideation-2026-08-24.md`**
+  （クラスタ別カタログ C1〜C11・独立収束 8 信号・横断制約 F1〜F12・積層モデル・未決 9 項目・残経路）
+- 生データ = `review-results/scenario-map-ideation/`（`lanes/lane-{a..j}-*.md` 全文保全・
+  Codex は `run-ideation{,-2}/last_message.txt`。ローカル・gitignore 配下）
+- 主要な独立収束: **場所ノード構造が全ての土台**（12 推し中 9）／Discord 構造＝マップ（8 レーン）／
+  テンプレ v3 配布モデルの第 2 適用（ほぼ全レーン）／場所シート（3 レーン独立）／時間軸マップ（4 レーン）
+- 主要な横断制約: 構造化 outcome 露出が前提工事（c1-outcome-effects と同一工事）・Discord 上限→
+  lazy materialization 必須・Character の channel 1:1 束縛と衝突・「正本は自前 DB・Discord は投影」・
+  SceneThread 前倒し（M1 順序逆転）は裁定要・盤面非スコープ 4 項目の明文化が画像系の採用条件
+- **次: ユーザーの方向選定待ち**（最低限 2 点 = 最初の顧客・「マップ」の初出体験）。
+  選定後は frame-purpose-goal-means → interpret-design-context → domain 系 Skill の収束フェーズへ
+  （カタログ §7 に Route only で記載）
+- コミットなし（追加は doc 2 面のみ: カタログ・本節）。2026-08-24 セッション開始時点で
+  作業ツリーはクリーン＝J2 含め全コミット済み（〜6ba8349c）。ヘッダーの J2「未コミット」表記は
+  当時のものであり現状はコミット済み
 
 ## 【feature 完了 2026-08-20】J2: 生成用プロンプトのコピー導線（front のみ・未コミット）
 

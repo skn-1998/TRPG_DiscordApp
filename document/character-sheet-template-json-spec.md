@@ -167,7 +167,11 @@ POST /sheet-templates          PUT /sheet-templates/:id       POST /sheet-templa
 
 - `total`（必須）: 数値 or 式。`partsKey`（必須）: 集計対象の内訳キー
 - `scope`（省略可）: block id の配列。**宣言済み block のみ参照可**
-- `partsKey` は scope 内のいずれかの scalar が `partsKeys` で宣言している id であること（拒否）
+- `partsKey` は scope 内のいずれかの**セクション直下** scalar が `partsKeys` で宣言している id で
+  あること（拒否）。list itemField の宣言（§6.6）はこの充足判定に**数えない**
+  （2026-08-26 Q-C 裁定: 宣言受理は行まで・pool の publish 資格は section 直下まで）。
+  runtime の消費集計（consumed）は、同 section の list 行のうち当該 partsKey を宣言した
+  itemField を持つものも合算する（行の scope 所属は親 list の blockId に従う）
 
 ---
 
@@ -224,12 +228,15 @@ POST /sheet-templates          PUT /sheet-templates/:id       POST /sheet-templa
 
 制約:
 
-- **`max` / `partsKeys` を書けるのは「セクション直下の valueType=number の scalar」だけ**。
-  text/boolean/select や、list 内・relation 内の scalar に書くと拒否。
-  さらに scalar 以外の型（computed 等）に `max` / `partsKeys` キーが存在するだけで拒否
-  （track の `max` は別契約で必須。§6.4）。
+- **`max` を書けるのは「セクション直下の valueType=number の scalar」だけ**。
+  `partsKeys` は「セクション直下の number scalar」に加えて **list itemField の number scalar**
+  にも書ける（2026-08-26 S2 で拡張。ただし list 内では `partsKeys[].default` 不可 —
+  行は作成時に存在せず焼き込まれない死んだ宣言になるため拒否）。relation 内は両方拒否。
+  text/boolean/select や scalar 以外の型（computed 等）に `max` / `partsKeys` キーが
+  存在するだけで拒否（track の `max` は別契約で必須。§6.4）。
 - `partsKeys[].id` は §3.1 の id 規則＋予約キー `base` / `other` 不可・field 内で一意。
-- `partsKeys[].default` の式は number 型・参照解決・循環検査・ステップ見積もりの対象。
+- `partsKeys[].default` の式は number 型・参照解決・循環検査・ステップ見積もりの対象
+  （宣言できるのはセクション直下のみ。list 内では default 自体が拒否 — §6.6）。
 - 同一 block 内で同じ partsKey id を複数フィールドが宣言する場合、**label は一致必須**。
 
 #### 6.1.1 rollOnCreate（scalar / track 共通の作成時ロール）
@@ -315,7 +322,9 @@ itemFields 内で【拒否】されるもの:
 - `roll` 型（v1 未対応）
 - `list` 型（入れ子リスト不可）
 - `rollOnCreate` を持つ scalar / track（作成時に行が存在しないため）
-- `max` / `partsKeys` を持つ scalar（セクション直下限定のため）
+- `max` を持つ scalar（セクション直下限定のため）
+- `partsKeys[].default` を持つ scalar（行は作成時に存在せず焼き込まれないため。
+  default なしの `partsKeys` 宣言は 2026-08-26 S2 から受理 — §6.1 参照）
 
 `rowRole.notation` では `{value}` は使えず `{row.サブフィールドid}` を使う（逆に通常の
 `role.notation` では `{row.…}` は使えない）。
