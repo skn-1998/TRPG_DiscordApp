@@ -123,11 +123,12 @@ export const TEMPLATE_GENERATION_PROMPT = `あなたは TRPG キャラクター�
     { "type": "scalar", "id": "name", "uid": "skills_list_name", "label": "技能名", "valueType": "text" },
     { "type": "scalar", "id": "value", "uid": "skills_list_value", "label": "技能値", "valueType": "number" }
   ],
-  "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}" }
+  "rowRole": { "kind": "rollable", "notation": "1d100<={row.value}", "labelSubFieldId": "name" }
 }
 \`\`\`
 
 - \`rowRole\` の中では \`{row.項目id}\` で同じ行の値を参照する（\`{value}\` は使えない）。
+- \`labelSubFieldId\` は**必須**で、同じリストの text 項目（例では \`name\`）の id を指す。行ごとの判定ボタン名がこの項目の値になる。
 - **リストの中に入れてよいのは部品 2〜4（プレーンな scalar）だけ**。
   リスト内に \`rollOnCreate\`・track・list を入れてはいけない。
 
@@ -179,7 +180,7 @@ export const TEMPLATE_GENERATION_PROMPT = `あなたは TRPG キャラクター�
 
 # 完全な出力例（この形をまねる）
 
-{"name":"サンプル: 簡易シート","version":"1.0.0","schemaVersion":3,"settings":{"rounding":"floor"},"sections":[{"id":"abilities","label":"能力値","fields":[{"type":"scalar","id":"str","uid":"abilities_str","label":"筋力","valueType":"number","rollOnCreate":{"notation":"3d6"},"role":{"kind":"rollable","notation":"1d100<={value}","group":"ability"}},{"type":"scalar","id":"con","uid":"abilities_con","label":"体力","valueType":"number","rollOnCreate":{"notation":"3d6"}}]},{"id":"status","label":"ステータス","fields":[{"type":"track","id":"hp","uid":"status_hp","label":"HP","style":"gauge","max":{"formula":"floor(({abilities.str} + {abilities.con}) / 2)"},"role":{"kind":"resource","deltas":[-1,1]}},{"type":"computed","id":"db","uid":"status_db","label":"ダメージ補正","resultType":"dice","formula":"lookup({abilities.str}, damage_bonus)"}]},{"id":"skills","label":"技能","fields":[{"type":"list","id":"list","uid":"skills_list","label":"技能一覧","itemFields":[{"type":"scalar","id":"name","uid":"skills_list_name","label":"技能名","valueType":"text"},{"type":"scalar","id":"value","uid":"skills_list_value","label":"技能値","valueType":"number"}],"rowRole":{"kind":"rollable","notation":"1d100<={row.value}"}}]},{"id":"memo","label":"メモ","fields":[{"type":"scalar","id":"background","uid":"memo_background","label":"経歴","valueType":"text"}]}],"tables":[{"id":"damage_bonus","resultType":"dice","rows":[{"min":-999999,"max":12,"result":"-1"},{"min":13,"max":16,"result":"0"},{"min":17,"max":999999,"result":"+1d4"}]}]}
+{"name":"サンプル: 簡易シート","version":"1.0.0","schemaVersion":3,"settings":{"rounding":"floor"},"sections":[{"id":"abilities","label":"能力値","fields":[{"type":"scalar","id":"str","uid":"abilities_str","label":"筋力","valueType":"number","rollOnCreate":{"notation":"3d6"},"role":{"kind":"rollable","notation":"1d100<={value}","group":"ability"}},{"type":"scalar","id":"con","uid":"abilities_con","label":"体力","valueType":"number","rollOnCreate":{"notation":"3d6"}}]},{"id":"status","label":"ステータス","fields":[{"type":"track","id":"hp","uid":"status_hp","label":"HP","style":"gauge","max":{"formula":"floor(({abilities.str} + {abilities.con}) / 2)"},"role":{"kind":"resource","deltas":[-1,1]}},{"type":"computed","id":"db","uid":"status_db","label":"ダメージ補正","resultType":"dice","formula":"lookup({abilities.str}, damage_bonus)"}]},{"id":"skills","label":"技能","fields":[{"type":"list","id":"list","uid":"skills_list","label":"技能一覧","itemFields":[{"type":"scalar","id":"name","uid":"skills_list_name","label":"技能名","valueType":"text"},{"type":"scalar","id":"value","uid":"skills_list_value","label":"技能値","valueType":"number"}],"rowRole":{"kind":"rollable","notation":"1d100<={row.value}","labelSubFieldId":"name"}}]},{"id":"memo","label":"メモ","fields":[{"type":"scalar","id":"background","uid":"memo_background","label":"経歴","valueType":"text"}]}],"tables":[{"id":"damage_bonus","resultType":"dice","rows":[{"min":-999999,"max":12,"result":"-1"},{"min":13,"max":16,"result":"0"},{"min":17,"max":999999,"result":"+1d4"}]}]}
 
 # 作るもの
 
