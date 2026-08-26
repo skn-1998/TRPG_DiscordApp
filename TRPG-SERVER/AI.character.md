@@ -332,12 +332,19 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - `character-sheet-operation.service.ts` の `writePathValue` は parts 許可検査を持たない。
   検査は呼び出し前の `assertWritablePath` が唯一の担当（到達不能だった末尾ガードは
   U1 で削除。破壊的代入の後に置かれた潜在バグでもあった）。
-  残余観察: `assertWritablePath` の戻り値 `SheetField` は現在消費者ゼロ（void 化は未実施・
-  レビュー L-1 記録のみ）
-- **`isPartsValue` は2系統あり意図的に別物**: engine 版
-  （`packages/sheet-engine/src/parts-value.ts`・緩い `'parts' in value` 検査・index.ts 非公開）と
-  server 版（`features/character-sheet/services/sheet-values.util.ts`・parts の型まで検査する
-  厳格版）。統合すると挙動変更になるため統合しない（U1 裁定）
+  戻り値 `SheetField` は web-free-add S4-FIX（2026-08-26）から saveSheet が消費し、
+  競合封筒の切り詰めを list field に限定する分岐に使う（旧記録「消費者ゼロ」は解消）
+- **`isPartsValue` の server 複製は web-free-add S4（2026-08-26）で engine へ委譲済み**:
+  A-FIX で engine `parts-value.ts` に厳格版 `isPartsRecordValue`（barrel export）が新設され、
+  server 版（`sheet-values.util.ts`）は `SheetPartsValue` への narrowing wrapper として
+  これに委譲する（真理値比較 9/9 一致を検収済み）。旧 U1 / 俯瞰#10 F3 裁定
+  「統合すると挙動変更になるため統合しない」の前提は「engine には緩い
+  `'parts' in value` 版しか無い」だったため、厳格版新設で解消。緩い engine 版
+  `isPartsValue` は schema 分岐用として engine に併存し、**A-FIX の `export * from './parts-value'`
+  （index.ts:16）で緩い版も barrel 公開されている** — `@trpg/sheet-engine` の `isPartsValue`（緩）と
+  server `sheet-values.util.ts` の `isPartsValue`（厳格）は同名で同時 import 可能なので、
+  server 側では util の厳格版だけを import すること（大粒度② CL-B1・誤 import は現状 0 件）。
+  真理値が割れる入力（`{parts:5}` 等）の扱いは engine 内 2 述語の使い分けに移った
 
 ## palette ラベル書式の1本化（U3・2026-07-30・コミット d584020）
 
@@ -494,9 +501,12 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
 - **assertArity は engine arity.ts（index 非公開の葉）1本**。root barrel へ公開しないこと
 - server custom-id barrel の死蔵5 re-export・regex alias 2名は削除済み（consumer-zero 実測）。
   復活させる場合は消費者の実在を先に示すこと
-- 兄弟述語の意図的二重: **isPartsValue は engine（緩・schema 分岐用）と server
-  （厳格・SheetPartsValue 判定）で異責務の2実装**。真理値が割れる入力（{parts:5} 等）が
-  存在するのは仕様 — 1本化しない（俯瞰#10 F3 裁定・server 側に差分コメントあり）
+- 兄弟述語の二重は **web-free-add S4（2026-08-26）で解消**: A-FIX が engine に厳格版
+  `isPartsRecordValue`（barrel export）を新設し、server の `isPartsValue` は narrowing
+  wrapper としてこれへ委譲する（旧 F3 裁定の「1本化しない」は緩い engine 版しか
+  無かった時点の判断。緩い版は schema 分岐用として engine に併存し、A-FIX の
+  `export *` で barrel 公開もされている — 同名 2 述語の import 先に注意）。
+  詳細は本ファイルの「isPartsValue の server 複製は…委譲済み」節
 
 ## 俯瞰#10 の裁定記録（2026-08-01・正本 = review-results/overview-batch5/integration-verdict.md）
 
@@ -593,10 +603,12 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   **書き込み形は PV-R で内訳対応になった**（下記）。
 - **対象条件は「作成時ロールを宣言しているか」**（`packages/sheet-engine/src/roll-on-create.ts` の
   `rollOnCreateSpec` = track の `rollOnCreate` と roll の `notation`。RL-7a で server から engine へ移送）。
-  `assertWritablePath`（track/scalar だけを入力項目とする規則）とは別の述語で、流用も緩和もしない。
+  `assertWritablePath`（track / scalar / list を入力項目とする規則。list は web-free-add S4 で
+  追加・行配列の丸ごと差し替えのみで partsKey 付き list path は 422）とは別の述語で、
+  流用も緩和もしない。
   作成側（CharacterInstantiationService）も同じ関数を使うため、対象集合は 1 箇所で決まる。
 - roll 型は依然としてクライアント提出の入力項目ではない（`packages/sheet-engine/src/value-input.ts`
-  の `inputSchemaFor` は track/scalar 以外に undefined を返す。saveSheet も 422）。
+  の `inputSchemaFor` は track / scalar / list 以外に undefined を返す。saveSheet も 422）。
   roll 型の値が書けるのはこの振り直し経路のみ。
 - 拒否: 記法未宣言 / 未定義 fieldUid / 実行失敗 = 422、他人のシート = 404（所有者判定は use case 側の
   `assertSheetOwner` だが、不在と他人を 404 に畳む点は saveSheet 経路の findOneForOwner と同じ）、
@@ -616,7 +628,7 @@ repository 未到達を確認）、将来1行でも現れた場合は一度き�
   **Discord の ±（`addToOtherPart`）が積んだ `parts.other` が振り直しで消えなくなった**（本スライスの主目的）。
 - `allowsParts(field)` が false（現時点では roll 型）へは**生の数値**。内訳形は保存経路の防壁
   （`SheetMaterializerService.validateStoredValues` が roll 型を先に処理して schema へ渡さない）が拒否する。
-  `value-input.ts:40` の `isPartsValue && !allowsParts` は**クライアント提出経路**に立つ別の 1 段で、
+  `value-input.ts:70` の `isPartsValue && !allowsParts` は**クライアント提出経路**に立つ別の 1 段で、
   同じ規則を提出側で独立に守っている（2 段が同一経路に重なっているわけではない）。
 - 述語の戻り値は `RollOnCreateSpec { notation, partsKey? }`。行き先を呼び出し側が
   `field.rollOnCreate?.partsKey` から読み直すと、1 本化した述語がその場で再分裂するため型に載せている。

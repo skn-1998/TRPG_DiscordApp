@@ -84,8 +84,162 @@
   コメント 3 件。真理値比較 12/12 一致・負の対照 1/1。
   **フェーズ A 完了・受入確定（2026-08-26）**: 最終ゲート Fable 独立実行で全緑
   （engine 641/641・server 226/3256・front 34/627・循環ゼロ）。機械検証の累計 =
-  Codex 負の対照 12 点＋Fable 変異 16 点。**全て未コミット・コミット可否はユーザー確認中**。
+  Codex 負の対照 12 点＋Fable 変異 16 点。
+  **コミット済み（ユーザー裁定・3 コミット構成）**: engine=`18bfb688`・front=`7cc88cd1`・
+  docs=`e0543346`（scenario-map の 08-24 doc 2 面も docs へ同梱）。
+  push 済み `6ba8349c..e0543346` → origin/develop。作業ツリーはクリーン。
   次 = フェーズ B（S4 保存経路開通 → S5 palette → S6 投影）
+  → S4（server 保存開通・list 全体 1 path）= Codex 実装（初回は Fable の記録 diff を検出して
+  正しく停止 → 指示書修正のうえ codex-s4b で納品）。内容 = assertWritablePath の list 許可
+  （partsKey 付き list path は 422）・保存境界検査を評価より先に（issue が行とキーを指す 422）・
+  競合封筒の値ごと 4,096 bytes 切り詰め（`{$truncated:true}`）・sheet-values.util の parts 判定を
+  engine `isPartsRecordValue` へ委譲。Fable 検収: ゲート全緑（server build 0・循環ゼロ・
+  226 suites/3273 tests = +17）・変異 3/3 検出（partsKey-path 拒否解除・閾値無効化・判定緩和）＋
+  Codex 負の対照 3/3・真理値比較 9/9。
+  Opus 3 軸レビュー = **blocking 2＋CL High 1 → S4-FIX へ差し戻し（2026-08-26）**。
+  Fable が全主張を実物裏取り済み: B-1 = 切り詰めが全 field 型に無条件適用され、無上限の
+  scalar text（legacy-coc `lgc_background` 等・境界は `z.string()`）が 4,096 bytes 超で marker 化 →
+  front `sheet-edit.ts:52` が undefined へ落とし「未入力」誤表示・theirs 選択で `:97` キー削除 →
+  競合ループ（S4 導入の退行。front に `$truncated` 認識コード 0 件）。修正 = 切り詰めを
+  list field 限定（assertWritablePath の戻り値 SheetField を :239 で消費）。
+  B-2 = AI.character.md :337/:497/:596 が本差分と正反対（isPartsValue 統合しない裁定・
+  assertWritablePath track/scalar のみ）→ **S4-FIX 受入後に Fable が doc 更新**（旧裁定の前提
+  「真理値が割れる」は A-FIX 新設の厳格版には不適用のため、コード差し戻しではなく doc 追随が正）。
+  CL-1 = materializeOrThrow が内部で validateStoredValues → evaluate 済みのため後段
+  `evaluateTemplateOrThrow`（:284）は到達不能の死んだ gate → 削除。レビューの前提訂正 =
+  二重評価は S4 以前から存在（S4 は順序のみ変更）。minor: 4,096 二定数の相互参照・wrapper の
+  narrowing コメント・`yours: undefined`→marker とコメント :259 の整合。
+  NB-1（C-10 は部分達成・changes 件数上限なし）と NB-3（marker 詐称）は followups.md へ記録済み。
+  → S4-FIX = Codex 実装（初回は指示書のスコープ漏れ = 修正 3 の対象 track-range.policy.ts が
+  変更対象列挙に無く正しく停止 → メモリ delegation-scope-must-cover-item-files 記録・
+  指示書修正のうえ codex-s4-fix-b で納品）。内容 = 切り詰めを list field 限定
+  （assertWritablePath 戻り値を消費した三項分岐・scalar/track は全文素通し復元）・
+  到達不能な後段 evaluateTemplateOrThrow 削除（メソッド自体は resource delta / hub 用の
+  実呼び出し 3 件が残るため存置）・4,096 二定数の相互参照コメント・wrapper narrowing コメント・
+  yours undefined は DTO @IsDefined で HTTP 不達（400）と実測しコメントのみ。
+  Fable 検収: 正味 delta を S4 バックアップ比較で精読・変異 2/2 検出（MF-1 yours だけ
+  切り詰めから逃がす→1 failed・MF-2 閾値無効化→2 failed。stale .s4.bak は破棄済み・
+  復元 sha 一致・focused 122/122 緑）＋Codex 負の対照 2/2。復元後ゲート Fable 独立実行
+  全緑（build 0・循環ゼロ・226 suites/3274 tests）。**S4 受入確定・クローズ（2026-08-26）**。
+  B-2 の doc 追随 = TRPG-SERVER/AI.character.md 3 箇所を Fable が更新済み
+  （isPartsValue 委譲・assertWritablePath 戻り値消費・track/scalar/list 規則。
+  inputSchemaFor の現況は実測してから記載）。
+  証跡 = prompt-s4.txt / codex-s4(拒否)/ / codex-s4b/ / s4-review-opus.md /
+  prompt-s4-fix.txt / codex-s4-fix(拒否)/ / codex-s4-fix-b/。
+  S4 の 5 ファイルは未コミット（フェーズ B は S6 後の大粒度②を経てコミット許可を仰ぐ）。
+  → S5（palette の行対応）= prompt-s5.txt で Codex へ委譲。CL-L4 裁定 = wire fieldRef.rowId は
+  **意図的に min(1) のまま**＋api-contract 側 Why コメント（保存側は engine LIST_ROW_ID_PATTERN が
+  正本・読取不一致は lookup 失敗で無害・強化は Q-B「契約変更ゼロ」に反する契約変更のため）。
+  実測済みの前提 = entity fieldRef.rowId? 実装済み（character.entity.ts:22）・
+  PALETTE_HARD_CAP=512・buildPalette は list を無条件 skip・key 再利用判定は uid のみ。
+  → S5 = Codex 納品（materializer +127・spec +246 = 7 spec・character.zod.ts コメント 2 行のみ。
+  全 suite 3274→3281・負の対照 3/3 = rowId 一致条件/事前検査/label 差し替え）。
+  Fable 検収進行中: delta 精読で engine API 主張を全裏取り済み（EvaluationResult.rows
+  types.ts:229・interpolateNotation の row/parentListUid と refs 形状・isNotationFragment
+  notation.ts:54 barrel 済み・evaluator readListRows は slice(0,512).map で filter なし =
+  検証済み values 前提の index 対応成立・wire label は z.string() で空 label も parse 可）。
+  変異 3/3 検出（MS5-1 fieldRef.rowId 落とし→2 failed・MS5-2 行文脈空→4 failed・
+  MS5-3 notation 検査素通し→1 failed。復元 sha 一致・focused 18/18 緑）。
+  ゲート再実行 = Fable 独立実行で全緑（build 0・循環ゼロ・226 suites/3281 tests）。
+  Opus 3 軸レビュー = **needs-fix（blocking 2）→ S5-FIX へ差し戻し（2026-08-26）**。
+  Fable 裏取り済み: B-1 = C-08 原文（destruction.md:131「指数・小数・負数を拒否」）に対し
+  実装は isNotationFragment のみで、regex（notation.ts:61）は `0.5` も `-5` も通す =
+  決着済み制約の部分実装（設計文書自体も処方箋欄「isNotationFragment 相当」と原文が
+  内部矛盾 → 裁定 = **原文どおり実装**。行経路のみ・section 既存経路は followup）。
+  B-2 = `>` を `>=` へ緩める変異が 18/18 緑で素通り（Fable が MS5-4 として機械実証・
+  復元済み）= 実効上限ちょうど 510 行成功の pin 欠落。
+  non-blocking 群: N-1 listSubField 分岐到達不能（catch 経路 spec 0 本とセットで S5-FIX）・
+  N-2 label fallback 到達不能・N-5 issue path の rowId/index 二義・N-6 上限負のときの
+  誤名指し（以上 S5-FIX）。N-3 空 label 行の projection 識別不能（C-17）・N-4 行 label の
+  「名前 (値)」書式未実装・C-08 の section 側非対称は followups.md へ記録済み。
+  好結果: raw↔evaluated index 対応は連鎖確認で崩れない・事前 422 と backstop の閾値一致・
+  弱い pin ゼロ。
+  → S5-FIX = Codex 納品（materializer＋spec の 2 ファイルのみ・3281→3286）。内容 =
+  C-08 原文実装（isNotationFragment＋`.`/`-` 含有拒否。`-` は減算 fragment も保守拒否 =
+  followups 記録・裁定は widening 互換）・510 行ちょうど成功 pin・listSubField 死分岐削除
+  ＋catch 経路 spec（`{parameter.custom_skills.value}` 形で到達実証）・label fallback 削除
+  （Invariant 明記）・行 0 本ガード（513 宣言 spec が backstop 経路を pin する強形）。
+  Fable 検収: delta 精読適合・変異 2/2 検出（MS5F-1 負数拒否のみ外す→1 failed・
+  MS5F-2 行 0 本ガード外す→2 failed。復元 sha 一致・focused 23/23 緑）＋Codex 負の対照 2/2。
+  復元後ゲート Fable 独立実行全緑（build 0・循環ゼロ・226 suites/3286 tests）。
+  **S5 受入確定・クローズ（2026-08-26）**。doc 追随済み = design doc S5 行に CL-L4 裁定
+  （wire min(1) 維持）と C-08 原文実装を記録・destruction.md C-08 処方箋欄に実装記録・
+  followups に `-` 全面拒否の narrowing。
+  証跡 = prompt-s5.txt / codex-s5/ / s5-review-opus.md / prompt-s5-fix.txt / codex-s5-fix/。
+  → S6（投影の新規経路）= 指示書 prompt-s6.txt（Fable 実測ベース: `<listId>:<rowId>` の
+  衝突不能性 = SHEET_ID_PATTERN と rowId pattern がともに `:` 不可・assertCanonicalProjection は
+  キー形式を制約しない・**AttributeValue.index の並び順消費者ゼロ実測 → 行 index は
+  親 list slot 共有と裁定**（R-3 U-3 決着）・hub builder labelOrFallback:106 に切り詰めなし）。
+  Codex 納品（4 ファイル・3286→3292・負の対照 3/3・lastWriters は行キー不登録 =
+  assertFiniteComputedValues が top-level computed 限定のため）。実装は
+  `projectRollableRows`: 投影値 = rowRole.notation を再補間して最初の `row.` 参照 subfield、
+  name = labelSubFieldId 行値、`toAttributeValue` に name パラメータ追加、
+  hub は fallback 適用後 `slice(0,80)`。
+  Fable 検収進行中: delta 精読適合・変異 3/3 検出（MS6-1 行 index 共有崩し→4 failed・
+  MS6-2 切り詰め off-by-one→1 failed・MS6-3 名前空間区切りを `_` へ→4 failed。
+  復元 sha 一致・focused 30/30 緑）。残り = 全ゲート再実行（実行中）＋Opus 3 軸レビュー
+  （実行中・出力先 s6-review-opus.md。重点 P-1 = 投影値の選定規則が設計に明文なし・
+  固定 notation 行が投影から静かに脱落する非対称の裁定、P-2 = palette と投影の二重補間、
+  mongo の `:` キー合法性、多バイト label の slice）。
+  ゲート再実行 = Fable 独立実行で全緑（build 0・循環ゼロ・226 suites/3292 tests）。
+  Opus 3 軸レビュー = **needs-fix（blocking 1）→ S6-FIX へ差し戻し（2026-08-26）**。
+  S6-B1（Fable 裏取り済み）: labelOrFallback への一律 slice(0,80) が 80 字制約でない
+  6 呼出元（embed field name 256・select option 100・placeholder 150・content 2000）を
+  巻き込み、100 字 field label（engine 上限 128）が embed で無言欠損する退行。
+  唯一正当な button 経路は上流 sheet-projection/projection.ts:324,357 が型別上限＋warning で
+  切り詰め済み。指示書の「Discord label 上限 80 字」一律指定は Fable の未検証主張が原因
+  （メモリ verify-claims 29 例目に記録）。修正 = button() 限定＋誤挙動 pin
+  （select 81→80）の置換＋P-1 現行挙動の明文 pin 3 本＋catch の評価順序依存コメント。
+  P-1 裁定 = followup（rowRole valueSubFieldId 宣言化は engine 変更・S8 seed は
+  `{row.value}` 形で回避）。P-2 = 二重補間の統合は勧めない（P-1 宣言化で自然解消）。
+  S6-N1（`-` 入り合成キーの custom-id 誤分割）は legacy 到達可能な既存面 = Q-04 族で followup。
+  好結果: 宣言 field 投影 1 bit 不変・`:` 起因の破壊ゼロ（mapper verbatim・Mongo Mixed 合法・
+  front は projection 未読）・lastWriters 分離整合・index 並び順消費者ゼロの再確認。
+  → S6-FIX = Codex 納品（4 ファイル・3292→3298 = hub 誤 pin 1→4 置換＋P-1 pin 3 本）。
+  内容 = 切り詰めを button() 限定（labelOrFallback は fallback 解決のみへ復元・上流と
+  backstop の関係を Why コメント）・select/embed/placeholder/content の非切り詰め pin・
+  P-1 現行挙動 pin（固定 notation 行は palette のみ・複数 row 参照は先頭勝ち・行 0 本）・
+  catch の評価順序依存コメント。
+  Fable 検収: delta 精読適合・変異 2/2 検出（MSF6-1 button 境界 off-by-one→2 failed・
+  MSF6-2 は findLast がコンパイルエラーの退化変異だったため **MSF6-2b reverse().find の
+  有効コード形で再測定**→1 failed。復元 sha 一致・focused 36/36 緑）＋Codex 負の対照 2/2。
+  検収教訓: 変異がコンパイル不能だと suite 赤でも pin の検出力の証明にならない —
+  有効なプログラムのまま挙動だけ変わる形へ差し替えて測り直す。
+  復元後ゲート Fable 独立実行全緑（build 0・循環ゼロ・226 suites/3298 tests）。
+  **S6 受入確定・クローズ（2026-08-26）= フェーズ B 3 スライス完了（全て未コミット）**。
+  証跡 = prompt-s6.txt / codex-s6/ / s6-review-opus.md / prompt-s6-fix.txt / codex-s6-fix/。
+  front ゲートも Fable 独立実行で全緑（typecheck 0・34 suites/627 tests）。
+  → **大粒度認知負荷レビュー② = accept（blocking ゼロ・統合フェーズ不要）**。ただし
+  コミット前手当 = CL-B1: Fable が今セッションで書いた AI.character.md の
+  「緩い isPartsValue は index.ts 非公開」が**事実と逆**（A-FIX の `export * from './parts-value'`
+  で緩い版も barrel 公開・同名 2 述語が同時 import 可能・誤 import は 0 件）→ Fable が
+  doc 3 箇所修正済み（:343 系 / :504 系 / :631 の stale 行番号 value-input.ts:40→:70。
+  全て実物裏取り）。コード側 3 点は **B-FIX** として Codex へ委譲中（codex-b-fix/）:
+  ①util へ同名衝突注意コメント 1 行 ②builder の `80` リテラル →
+  `DISCORD_BUTTON_LABEL_MAX_LENGTH`（sheet-projection barrel 公開を実測確認）③CL-B3 =
+  server PALETTE_HARD_CAP と api-contract PALETTE_MAX_ENTRIES（非 export）の等値を
+  挙動 pin（512 通過/513 拒否）で突合 — 等値は repository parse が実行時強制するのに
+  突合 spec 0 件だった。
+  大粒度②の主な回答: 行走査の統合候補は materializer 内 2 本のみ（独立導出 8・guard 5対3。
+  **案 A** = 行文脈解決の private 1 本化で 10→7・S8 前判断 = followups 記録）・engine 側は
+  契約 3 点差で統合禁止・切り詰めはレーン全体で 5 種（純減は builder の 80 リテラルのみ）・
+  CL-L4 は宿題完了で**クローズ**・4,096 相互参照は十分・CL-B5（$truncated の front 消費者ゼロ =
+  createConflictPanel が scalar 以外を捨てる）は S7 必読として設計正本 S7 行へ焼き込み済み。
+  → B-FIX = Codex 納品（初回は指示書の負の対照証明「git diff -- packages/ 空」が S5 由来の
+  正常差分と矛盾し正しく停止 → sha 前後一致方式へ修正して再委譲・メモリ
+  delegation-scope-must-cover-item-files へ変種を追記）。内容 = ①util 同名衝突注意 1 行
+  ②builder `80` → `DISCORD_BUTTON_LABEL_MAX_LENGTH` ③512 受理/513 拒否の挙動 pin
+  （character-wire.contract.spec.ts・Why つき）。3298→3299。Codex 負の対照 =
+  `.max(513)` 化で 513 pin 赤（workspace dist 再 build 経路で再測定する自己修正あり）・
+  sha 前後一致で復元証明。Fable 検収: delta 3 面精読適合・最終ゲート再実行（実行中）。
+  Fable 最終ゲート全緑（build 0・循環ゼロ・226 suites/3299 tests）で **B-FIX 受入確定 =
+  フェーズ B（S4 保存開通 / S5 palette 行対応 / S6 投影新規経路）完了（2026-08-26）**。
+  機械検証の累計（フェーズ B）= Codex 負の対照 13 点＋Fable 変異 12 点（全検出・復元 sha 一致）。
+  未コミット = TRPG-SERVER src 10 面（operation service＋spec / sheet-values.util＋spec /
+  track-range.policy / materializer＋spec / hub builder＋spec / character-wire.contract.spec）＋
+  api-contract character.zod.ts（コメント 2 行）＋doc 3 面（本 doc / AI.character.md /
+  design doc S5・S7 行）。**コミット許可をユーザーへ確認中** → 許可後フェーズ C
+  （S7 front UI / S8 v4 seed。S7 必読 = 設計正本 S7 行の大粒度②焼き込み 3 点）
 
 ## 【アイデア出し完了 2026-08-24】シナリオ×マップ機能の発散（コード変更なし）
 

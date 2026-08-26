@@ -282,7 +282,7 @@ server 全 suite の順で検収する（dist 経由解決のため。メモリ 
 | # | 責務 | 主対象 | 拘束条件 | 受入の骨子 |
 |---|---|---|---|---|
 | S4 | 保存経路の開通（list 全体 1 path） | `character-sheet-operation.service.ts`＋DTO | Q-B: `assertWritablePath` が list uid を許可・丸ごと差し替えのみ（C-09: in-place 変更禁止）・競合封筒のサイズ上限＋切詰め明示（C-10）。**追記（大粒度①）**: `sheet-values.util.ts` の parts 厳格形判定を A-FIX で engine `parts-value.ts` へ 1 本化した述語の import に畳む（followups の「parts-判定 3 定義統合」の server 分） | server integration。行追加保存 → revision 前進・512 行競合の封筒サイズ |
-| S5 | palette の行対応 | `sheet-materializer.service.ts` | C-01/C-05/C-08: `fieldRef{uid,rowId}`・`allocatePaletteKey` の再利用判定を uid+rowId へ・label は S3 の宣言から・`interpolateNotation` に `row`＋`parentListUid`（C-16）・実効行数上限「512−宣言 rollable 本数」の事前 422（原因を指す文言）・生成 notation の妥当性検査。**必読（大粒度① CL-L4）**: `rowId` はリテラル散在（定数なし）かつ wire の `fieldRef.rowId` は `z.string().min(1)` で engine の `LIST_ROW_ID_PATTERN` より弱い。行が palette に出た瞬間に読取側の契約になるので、S5 で wire 側を pattern へ強化するか意図的に弱いままにするかを決めて記録する | T-01/02/06/11/17 相当。並べ替え/削除で key 不変・cap 超の診断・`1e21` 拒否 |
+| S5 | palette の行対応 | `sheet-materializer.service.ts` | C-01/C-05/C-08: `fieldRef{uid,rowId}`・`allocatePaletteKey` の再利用判定を uid+rowId へ・label は S3 の宣言から・`interpolateNotation` に `row`＋`parentListUid`（C-16）・実効行数上限「512−宣言 rollable 本数」の事前 422（原因を指す文言）・生成 notation の妥当性検査。**必読（大粒度① CL-L4）**: `rowId` はリテラル散在（定数なし）かつ wire の `fieldRef.rowId` は `z.string().min(1)` で engine の `LIST_ROW_ID_PATTERN` より弱い。行が palette に出た瞬間に読取側の契約になるので、S5 で wire 側を pattern へ強化するか意図的に弱いままにするかを決めて記録する。**裁定（S5・2026-08-26）**: wire は**意図的に `min(1)` のまま**（rowId は server 発行 palette の echo・保存側は engine `LIST_ROW_ID_PATTERN` が正本・読取不一致は lookup 失敗で無害・強化は Q-B「契約変更ゼロ」に反する契約変更）。api-contract 側に Why コメントで固定。C-08 は S5-FIX で**原文どおり**（指数・小数・負数の拒否）行経路に実装 — `-` は減算つき dice fragment（`2d6-1`）も保守的に拒否する（新設経路で既存データ皆無・先頭 `-` 限定への緩和は widening で互換。followups 記録）。section 既存経路への遡及も followups | T-01/02/06/11/17 相当。並べ替え/削除で key 不変・cap 超の診断＋実効上限ちょうどの成功 pin・指数/小数/負数の拒否（C-08 原文） |
 | S6 | 投影の新規経路 | `sheet-materializer.service.ts`＋hub view builder | C-06/C-07: 投影キーは rowId 由来の別名前空間（宣言 field と衝突不能）・`AttributeValue` の label/index 採番規則を実測して決定（R-3 U-3）・hub 側 label 80 字切詰め backstop | T-12/13/14/15 相当。行名 `dodge` で既存回避が生存・同名 3 行が 3 件残る |
 
 → **大粒度認知負荷レビュー②**（server 3 スライス横断）
@@ -291,7 +291,7 @@ server 全 suite の順で検収する（dist 経由解決のため。メモリ 
 
 | # | 責務 | 主対象 | 拘束条件 | 受入の骨子 |
 |---|---|---|---|---|
-| S7 | front の行 UI | `TemplateFormRenderer` ほか | Q-A: 行追加時に nanoid で rowId 採番・行削除/編集・内訳エディタ・pool 残り表示が行込みで動くことの実ブラウザ受入（メモリ `css-responsive-blind-to-all-green-gates`） | front jest＋scratchpad 実ブラウザ実測 |
+| S7 | front の行 UI | `TemplateFormRenderer` ほか | Q-A: 行追加時に nanoid で rowId 採番・行削除/編集・内訳エディタ・pool 残り表示が行込みで動くことの実ブラウザ受入（メモリ `css-responsive-blind-to-all-green-gates`）。**必読（大粒度②）**: ①CL-B5 = `$truncated`/list 競合の front 消費者ゼロ（`createConflictPanel` が scalar 以外を捨て list 競合は汎用メッセージへ落ちる）— S7 で list 競合 UI の扱いを決める ②`LIST_ROW_ID_PATTERN` の front 参照は現状 0 件 — nanoid 採番が pattern（`[A-Za-z0-9_-]{1,32}`）適合かを front spec で pin する ③実効行数上限（512−宣言分）の再計算を front に複製しない（server 422 の文言表示に留める） | front jest＋scratchpad 実ブラウザ実測 |
 | S8 | v4 seed | `legacy-coc.template.ts` v4＋seeder＋spec | C-34/C-35/C-12: 62 技能＋カスタム欄 2 本・v3 の全数 pin（roster/default 禁止/role/annotation runtime）を v4 へ移植＋行系 pin 追加・seeder は v3 を deprecate・**実データ生成までの受入**（メモリ `seed-template-needs-runtime-acceptance`） | seed spec 全数＋dry-run → execute → 冪等確認 |
 
 → feature 完了ゲート: 大粒度レビュー③＋`document/SESSION_HANDOFF.md` 全面更新
