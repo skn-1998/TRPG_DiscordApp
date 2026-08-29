@@ -258,6 +258,27 @@ describe('characterTemplate actions', () => {
     expect(mockedRedirect).toHaveBeenCalledWith('/user/character')
   })
 
+  it('createCharacter はシート入力値と trim 済み characterName を作成 API へ渡す', async () => {
+    mockedCreateCharacterFromTemplate.mockResolvedValue({
+      characterId: 'character-1',
+      rollOnCreateResults: []
+    })
+
+    await createCharacter({
+      templateId: 'template-1',
+      templateVersion: '1.0.0',
+      characterName: ' 探索者 ',
+      values: { 'uid-occupation': '探偵', 'uid-age': 24 }
+    })
+
+    expect(mockedCreateCharacterFromTemplate).toHaveBeenCalledWith({
+      templateId: 'template-1',
+      templateVersion: '1.0.0',
+      characterName: '探索者',
+      values: { 'uid-occupation': '探偵', 'uid-age': 24 }
+    })
+  })
+
   it('createCharacter は作成時の出目が非空なら redirect せず結果を返す', async () => {
     const rollOnCreateResults = [
       {

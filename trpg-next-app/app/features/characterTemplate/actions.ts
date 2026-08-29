@@ -137,6 +137,7 @@ export async function createCharacter(input: {
   templateId: string
   templateVersion: string
   characterName: string
+  values?: Record<string, unknown>
 }): Promise<CreateCharacterActionResult> {
   await requireJwt()
 

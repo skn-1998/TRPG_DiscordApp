@@ -29,17 +29,13 @@ RUN pnpm install --frozen-lockfile --filter trpg-next-app...
 # アプリケーションコードをコピー
 COPY . .
 
-# スタートアップスクリプトを作成
+# bind mount より古い named volume が残っていても、現在の lockfile へ同期してから起動する。
 RUN echo '#!/bin/sh' > /start-next.sh && \
+    echo 'set -e' >> /start-next.sh && \
     echo 'echo "=== Next 開発環境起動開始 ==="' >> /start-next.sh && \
     echo '' >> /start-next.sh && \
-    echo '# node_modulesが空の場合のみインストール' >> /start-next.sh && \
-    echo 'if [ ! -d "trpg-next-app/node_modules/next" ] || [ ! -d "packages/sheet-engine/node_modules/zod" ]; then' >> /start-next.sh && \
-    echo '  echo "依存関係をインストール中..."' >> /start-next.sh && \
-    echo '  pnpm install --frozen-lockfile --filter trpg-next-app...' >> /start-next.sh && \
-    echo 'else' >> /start-next.sh && \
-    echo '  echo "依存関係は既にインストール済みです"' >> /start-next.sh && \
-    echo 'fi' >> /start-next.sh && \
+    echo 'echo "依存関係を同期中..."' >> /start-next.sh && \
+    echo 'CI=true pnpm install --frozen-lockfile --filter trpg-next-app...' >> /start-next.sh && \
     echo '' >> /start-next.sh && \
     echo 'echo "Workspace dependencies をビルド中..."' >> /start-next.sh && \
     echo 'pnpm --filter "trpg-next-app^..." build' >> /start-next.sh && \
