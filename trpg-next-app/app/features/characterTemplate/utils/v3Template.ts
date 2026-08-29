@@ -9,25 +9,14 @@ import type {
   SheetTemplate,
   V3EditorFieldType
 } from '../types/v3'
+import { createStableUid } from '../../../lib/stable-uid'
+
+// NOTE: 既存呼び出し元と v3Template.spec の互換維持用 re-export。実装と pin の正本は app/lib/stable-uid.(spec.)ts。
+export { createStableUid }
 
 // ID 規則の正本は engine（SHEET_ID_PATTERN / SHEET_RESERVED_ID_VALUES）に置き、保存前のローカル UX 検証も同じ規則を参照する。
 // ここでは top-level の section/field id だけを検査し、list.itemFields / relation.attrs のネスト id は engine の publish 検証に委ねる。
 const RESERVED_IDS: ReadonlySet<string> = new Set(SHEET_RESERVED_ID_VALUES)
-
-export function createStableUid(existingUids: Set<string>, prefix = 'uid'): string {
-  const randomPart = () => {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return crypto.randomUUID().replace(/-/g, '').slice(0, 12)
-    }
-    return Math.random().toString(36).slice(2, 14)
-  }
-
-  let uid = `${prefix}_${randomPart()}`
-  while (existingUids.has(uid)) {
-    uid = `${prefix}_${randomPart()}`
-  }
-  return uid
-}
 
 export function slugifyId(label: string, fallback: string): string {
   const base = label

@@ -15,6 +15,7 @@ import { GENERIC_NETWORK_ERROR_MESSAGE } from '../../../lib/api-response.util'
 import { rerollSheetField, saveSheet, type RerollSheetFieldResult } from '../actions'
 import {
   deriveSheetChanges,
+  editableListFields,
   editableScalarFields,
   GENERIC_SHEET_CONFLICT_MESSAGE,
   listEditablePartsKeys,
@@ -22,6 +23,7 @@ import {
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
+  type EditableListField,
   type EditableScalarField,
   type EditorValue
 } from '../sheet-edit'
@@ -50,8 +52,13 @@ interface ConflictPanelState {
 
 function createConflictPanel(
   payload: SheetMergeConflictWire,
-  fields: EditableScalarField[]
+  fields: EditableScalarField[],
+  listFieldsByUid: ReadonlyMap<string, EditableListField>
 ): ConflictPanelState | null {
+  // list の current は server の boundMergeConflictValue により 4KB 境界で $truncated になりうるため、相手の値として忠実に提示できない。
+  // 1 path でも含めば混在時も応答全体を汎用競合へ落とし、front で $truncated を解釈せず再読み込みを促す。
+  if (payload.conflicts.some((conflict) => listFieldsByUid.has(conflict.path.fieldUid))) return null
+
   const fieldsByUid = new Map(fields.map((field) => [field.uid, field]))
   const conflicts = payload.conflicts.flatMap<EditorConflict>((conflict, index) => {
     const field = fieldsByUid.get(conflict.path.fieldUid)
@@ -84,6 +91,7 @@ function formatConflictPathLabel(field: EditableScalarField, partsKey: string | 
 
 export function CharacterSheetEditClient({ character, template }: CharacterSheetEditClientProps) {
   const fields = useMemo(() => editableScalarFields(template), [template])
+  const listFields = useMemo(() => editableListFields(template), [template])
   const initialBaseValues = character.sheet!.values
   const [baseline, setBaseline] = useState<Record<string, unknown>>(() => ({ ...initialBaseValues }))
   const [baseRevision, setBaseRevision] = useState(character.sheet!.revision)
@@ -95,6 +103,10 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   const [rerollingFieldUid, setRerollingFieldUid] = useState<string>()
   const [rerollFeedback, setRerollFeedback] = useState<RerollSheetFieldResult | null>(null)
   const fieldsByUid = useMemo(() => new Map(fields.map((field) => [field.uid, field])), [fields])
+  const listFieldsByUid = useMemo(
+    () => new Map(listFields.map((field) => [field.uid, field])),
+    [listFields]
+  )
   const templateFields = useMemo(() => template.sections.flatMap((section) => section.fields), [template])
   // 振り直しの対象には track / roll も含まれ、これらは editableScalarFields の外なので、全 field から label を引く。
   const fieldLabels = useMemo(
@@ -143,7 +155,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     return buildFormValues({ evaluated, fields: templateFields, values: editorOwned })
   }, [evaluated, templateFields, values])
 
-  const changes = deriveSheetChanges(fields, baseline, values)
+  const changes = deriveSheetChanges(fields, baseline, values, listFields)
   const savableChanges = conflictPanel
     ? changes.filter((change) => !conflictPanel.conflicts.some((conflict) =>
       conflict.field.uid === change.path.fieldUid && conflict.partsKey === change.path.partsKey
@@ -154,7 +166,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
 
   const presentSaveResult = (result: SheetActionData) => {
     if (result.mergeConflict) {
-      const nextPanel = createConflictPanel(result.mergeConflict, fields)
+      const nextPanel = createConflictPanel(result.mergeConflict, fields, listFieldsByUid)
       if (nextPanel) {
         setConflictPanel(nextPanel)
         setActionData(null)
@@ -192,6 +204,14 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
   }
 
   const handleRendererChange = (fieldUid: string, value: unknown) => {
+    const listField = listFieldsByUid.get(fieldUid)
+    if (listField) {
+      // TFR の現在実装では配列を通知するが、unknown callback 境界の契約として list 全体だけを受理する。
+      if (!Array.isArray(value)) return
+      setValues((current) => ({ ...current, [listField.uid]: value }))
+      return
+    }
+
     const field = fieldsByUid.get(fieldUid)
     // TFR は unknown を運ぶ契約なので、保存境界では編集可能な非 parts scalar とその値型だけを state に入れる。
     if (!field || usesPartsEditor(field)) return
@@ -223,8 +243,8 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
     // （server の creationRollValue）が front にも分裂する。応答に value が載っているのはこのため。
     //
     // baseline も進めるのは、振り直し直後の値が偽の未保存差分として保存対象に入るのを防ぐため。
-    // deriveSheetChanges が baseline と突き合わせるのは editableScalarFields（= 契約内 valueType の
-    // scalar）だけなので、差分が出るのは scalar を振り直したとき。作成時ロールは scalar でも宣言でき、
+    // deriveSheetChanges は editableScalarFields の scalar（per-path）と editableListFields の list（whole-field）を
+    // baseline と突き合わせる。作成時ロールは scalar でも宣言でき、
     // 振り直しの対象になるため、この経路には観測者がいる。
     // この行を落とすと本 component の spec の「scalar の振り直しは baseline も進め、振り直した値を
     // 保存差分にしない」が赤になる（実測。62 tests 中その 1 本だけが落ちる）。
@@ -239,6 +259,9 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
    * revision を比較して 409 にするため、この状態の振り直しは失敗しかしない。
    * 失敗時の案内（GENERIC_SHEET_CONFLICT_MESSAGE）は再読み込みを促すので、従うと未保存編集と
    * パネルの選択の両方を失う。導線を出さないことでその袋小路を作らない。
+   * Scope: この導線抑止はパネル経路だけを覆う。汎用競合（result.conflict / list degrade）でも
+   * baseRevision は同様に stale だが導線は残り、押すと 409 → 振り直し競合 alert になる。
+   * generic 競合経路へ波及する実装判断は別スライス。
    */
   const canReroll = conflictPanel === null
 
@@ -274,7 +297,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
       }
     }
     const nextRevision = conflictPanel.currentRevision
-    const nextChanges = deriveSheetChanges(fields, nextBaseline, nextValues)
+    const nextChanges = deriveSheetChanges(fields, nextBaseline, nextValues, listFields)
     setBaseline(nextBaseline)
     setBaseRevision(nextRevision)
     setValues(nextValues)
@@ -406,7 +429,7 @@ export function CharacterSheetEditClient({ character, template }: CharacterSheet
         <Card withBorder radius="md" p="lg">
           <form onSubmit={handleSubmit}>
             <Stack gap="md">
-              {fields.length === 0 ? (
+              {fields.length === 0 && listFields.length === 0 ? (
                 <Alert color="blue">このテンプレートには編集対象の scalar がありません。</Alert>
               ) : null}
               {/* design-v1-ui :117: 編集対象がなくても computed/roll と U14/U15 annotation を同一 TFR 経路で描画する。 */}

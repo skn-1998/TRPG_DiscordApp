@@ -8,6 +8,8 @@ export type EditableScalarField = Extract<SheetField, { type: 'scalar' }> & {
   valueType: 'number' | 'text' | 'boolean' | 'select'
 }
 
+export type EditableListField = Extract<SheetField, { type: 'list' }>
+
 export type EditorValue = string | number | boolean | undefined
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,11 +40,44 @@ export function editableScalarFields(template: CharacterSheetTemplateEntity): Ed
   )
 }
 
+/** listEditablePartsKeys が scalar 内の parts path を列挙するのに対し、こちらは list 全体の保存 field を列挙する。 */
+export function editableListFields(template: CharacterSheetTemplateEntity): EditableListField[] {
+  return template.sections.flatMap((section) =>
+    section.fields.filter((field): field is EditableListField => field.type === 'list')
+  )
+}
+
+export function isJsonValueEqual(left: unknown, right: unknown): boolean {
+  // wire 化点は saveCharacterSheet の axios PUT（character.service.server.ts）。undefined 値の property はキー不在になる。
+  // server の CAS 正本 sheet-values.util.ts の sheetValuesEqual は undefined property を除去しない点だけ意図的に異なるが、
+  // undefined property は wire に乗らないため、wire 上では一致する。
+  // この等価判定をその wire 上の値等価へ合わせ、object のキー順だけを意味から外す。
+  if (left === right) return true
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
+    for (let index = 0; index < left.length; index += 1) {
+      if (!isJsonValueEqual(left[index], right[index])) return false
+    }
+    return true
+  }
+
+  if (!isRecord(left) || !isRecord(right)) return false
+  const leftKeys = Object.keys(left).filter((key) => left[key] !== undefined)
+  const rightKeys = Object.keys(right).filter((key) => right[key] !== undefined)
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every((key) =>
+    Object.prototype.hasOwnProperty.call(right, key) && isJsonValueEqual(left[key], right[key])
+  )
+}
+
 /**
- * payload/CAS 健全性の防壁を 1 定義に保ち、読み取り経路の片方だけ直る drift を防ぐ。
+ * payload/CAS 健全性の scalar path 防壁を 1 定義に保ち、読み取り経路の片方だけ直る drift を防ぐ。
  *
  * Invariant: server の非 parts readPathValue は raw を素通しするため同値ではない。
- * baseValue: unknown に型防壁はなく、この正規化が payload 健全性の front 側唯一の防壁となる。
+ * baseValue: unknown に型防壁はなく、この正規化が scalar payload 健全性の front 側唯一の防壁となる。
+ * list path は deriveSheetChanges が raw 値をそのまま載せ、配列性は handleRendererChange、
+ * セル値は TFR の commit 経路、行の形は server の 422 が担う。
  * number の有限性だけは EditClient の入力ガードが担う。
  */
 export function normalizeEditorValue(field: EditableScalarField, value: unknown): EditorValue {
@@ -52,6 +87,7 @@ export function normalizeEditorValue(field: EditableScalarField, value: unknown)
   return typeof value === 'string' ? value : undefined
 }
 
+/** editableListFields が list 全体の field を列挙するのに対し、こちらは scalar 内の保存可能な parts path を列挙する。 */
 export function listEditablePartsKeys(
   field: EditableScalarField,
   baseline: Record<string, unknown>,
@@ -120,9 +156,11 @@ export function writeSheetPathValue(
 export function deriveSheetChanges(
   fields: EditableScalarField[],
   baseline: Record<string, unknown>,
-  values: Record<string, unknown>
+  values: Record<string, unknown>,
+  // 既定 [] は「list を突き合わせない」の意味。保存経路から呼ぶときは必ず editableListFields(template) を渡す。
+  listFields: EditableListField[] = []
 ): CharacterSheetChange[] {
-  return fields.flatMap((field) => {
+  const scalarChanges = fields.flatMap((field) => {
     const partsKeys: Array<string | undefined> = usesPartsEditor(field)
       ? listEditablePartsKeys(field, baseline, values)
       : [undefined]
@@ -139,4 +177,13 @@ export function deriveSheetChanges(
       ]
     })
   })
+
+  const listChanges = listFields.flatMap((field) => {
+    const baseValue = baseline[field.uid]
+    const newValue = values[field.uid]
+    if (isJsonValueEqual(baseValue, newValue)) return []
+    return [{ path: { fieldUid: field.uid }, baseValue, newValue }]
+  })
+
+  return [...scalarChanges, ...listChanges]
 }

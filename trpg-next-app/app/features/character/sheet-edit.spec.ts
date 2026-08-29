@@ -2,12 +2,15 @@ import type { SheetField } from '../characterTemplate/types/v3'
 import type { CharacterSheetTemplateEntity } from '../characterTemplate/types/v3'
 import {
   deriveSheetChanges,
+  editableListFields,
   editableScalarFields,
+  isJsonValueEqual,
   listEditablePartsKeys,
   normalizeEditorValue,
   readSheetPathValue,
   usesPartsEditor,
   writeSheetPathValue,
+  type EditableListField,
   type EditableScalarField
 } from './sheet-edit'
 
@@ -84,6 +87,20 @@ const selectField: EditableScalarField = {
   options: [{ label: '探偵', value: 'detective' }]
 }
 
+const listField: EditableListField = {
+  type: 'list',
+  id: 'skills',
+  uid: 'main.skills',
+  label: '技能',
+  itemFields: [{
+    type: 'scalar',
+    id: 'name',
+    uid: 'main.skills.name',
+    label: '技能名',
+    valueType: 'text'
+  }]
+}
+
 describe('editableScalarFields', () => {
   it('engine の4 scalar valueType だけを残し、非 scalar と editor 専用 checkbox を除外する', () => {
     const checkboxField = {
@@ -128,6 +145,37 @@ describe('editableScalarFields', () => {
       rollField,
       trackField
     ]))).toEqual([numberField, textField, booleanField, selectField])
+  })
+})
+
+describe('editableListFields', () => {
+  it('rowRole の有無にかかわらず list field だけを列挙する', () => {
+    const listWithRowRole: EditableListField = {
+      ...listField,
+      id: 'rollable-skills',
+      uid: 'main.rollable-skills',
+      rowRole: { kind: 'rollable', notation: '1d100', labelSubFieldId: 'name' }
+    }
+
+    expect(editableListFields(createTemplate([numberField, listField, listWithRowRole])))
+      .toEqual([listField, listWithRowRole])
+  })
+})
+
+describe('isJsonValueEqual', () => {
+  it.each([
+    ['object のキー順違い', { rowId: 'row-1', score: 10 }, { score: 10, rowId: 'row-1' }, true],
+    ['undefined property とキー不在', { rowId: 'row-1', score: undefined }, { rowId: 'row-1' }, true],
+    ['配列の順序違い', ['first', 'second'], ['second', 'first'], false],
+    [
+      'ネストした行 object',
+      [{ rowId: 'row-1', detail: { label: '目星', note: undefined } }],
+      [{ detail: { label: '目星' }, rowId: 'row-1' }],
+      true
+    ],
+    ['primitive の型違い', '1', 1, false]
+  ] as const)('%s を wire 上の値として比較する', (_caseName, left, right, expected) => {
+    expect(isJsonValueEqual(left, right)).toBe(expected)
   })
 })
 
@@ -363,5 +411,35 @@ describe('deriveSheetChanges', () => {
     ))
 
     expect(serialized).toBe('[{"path":{"fieldUid":"main.alive"},"newValue":false},{"path":{"fieldUid":"main.job"},"newValue":"detective"}]')
+  })
+
+  it('list の行値変更を partsKey のない whole-field change にする', () => {
+    const baselineRows = [{ rowId: 'row-1', 'main.skills.name': '目星' }]
+    const nextRows = [{ rowId: 'row-1', 'main.skills.name': '聞き耳' }]
+
+    expect(deriveSheetChanges([], { 'main.skills': baselineRows }, { 'main.skills': nextRows }, [listField]))
+      .toEqual([{
+        path: { fieldUid: 'main.skills' },
+        baseValue: baselineRows,
+        newValue: nextRows
+      }])
+  })
+
+  it('list を新参照の元 JSON 値へ戻した場合は change を作らない', () => {
+    const baselineRows = [{ rowId: 'row-1', 'main.skills.name': '目星' }]
+    const restoredRows = [{ 'main.skills.name': '目星', rowId: 'row-1' }]
+
+    expect(deriveSheetChanges([], { 'main.skills': baselineRows }, { 'main.skills': restoredRows }, [listField]))
+      .toEqual([])
+  })
+
+  it('baseline にキーがない list へ行を足すと baseValue を undefined にする', () => {
+    const nextRows = [{ rowId: 'row-1', 'main.skills.name': '目星' }]
+
+    expect(deriveSheetChanges([], {}, { 'main.skills': nextRows }, [listField])).toStrictEqual([{
+      path: { fieldUid: 'main.skills' },
+      baseValue: undefined,
+      newValue: nextRows
+    }])
   })
 })

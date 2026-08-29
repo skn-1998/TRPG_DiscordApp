@@ -8,6 +8,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
   DEFAULT_SHEET_FIELD_LAYOUT_SPAN,
   DEFAULT_SHEET_SECTION_GRID_COLUMNS,
+  LIST_ROW_ID_PATTERN,
+  LIST_ROW_LIMIT,
+  LIST_ROW_TEXT_MAX_LENGTH,
   SHEET_FIELD_LAYOUT_SPANS,
   SHEET_SECTION_GRID_COLUMNS,
   allowsParts,
@@ -179,6 +182,43 @@ function createTrackTemplate(
   return {
     ...template,
     sections: [{ id: 'tracks', label: 'トラック', layout: { preset: 'stack' }, fields: [track, ...extraFields] }]
+  }
+}
+
+const listItemFields: SheetField[] = [
+  { id: 'name', uid: 'uid_row_name', label: '技能名', type: 'scalar', valueType: 'text' },
+  {
+    id: 'score', uid: 'uid_row_score', label: '技能値', type: 'scalar', valueType: 'number',
+    partsKeys: [{ id: 'career', label: '職業' }, { id: 'hobby', label: '興味' }]
+  },
+  {
+    id: 'category', uid: 'uid_row_category', label: '分類', type: 'scalar', valueType: 'select',
+    options: [{ label: '探索', value: 'investigation' }, { label: '戦闘', value: 'combat' }]
+  },
+  { id: 'trained', uid: 'uid_row_trained', label: '訓練済み', type: 'scalar', valueType: 'boolean' },
+  { id: 'resource', uid: 'uid_row_resource', label: '耐久', type: 'track', max: 20, style: 'gauge' },
+  {
+    id: 'bonus', uid: 'uid_row_bonus', label: '算出値', type: 'computed', resultType: 'number',
+    formula: '{row.score} + 1'
+  }
+]
+
+function createListTemplate(itemFields: SheetField[] = listItemFields): SheetTemplate {
+  return {
+    ...template,
+    sections: [{
+      id: 'custom-skills',
+      label: 'カスタム欄',
+      layout: { preset: 'stack' },
+      fields: [{
+        id: 'custom-skills',
+        uid: 'uid_list',
+        label: 'カスタム技能',
+        type: 'list',
+        itemFields,
+        rowRole: { kind: 'rollable', notation: '1d100', labelSubFieldId: 'name' }
+      }]
+    }]
   }
 }
 
@@ -772,7 +812,7 @@ describe('TemplateFormRenderer', () => {
       sections: blocklessTemplate.sections.map((section) => ({ ...section, blocks: [] }))
     }
 
-    expect(before).toMatchInlineSnapshot(`"<section style="--stack-gap: var(--mantine-spacing-sm); --stack-align: stretch; --stack-justify: flex-start;" class="m_6d731127 mantine-Stack-root"><h2 style="--title-fw: var(--mantine-h2-font-weight); --title-lh: var(--mantine-h2-line-height); --title-fz: var(--mantine-h2-font-size);" class="m_8a5d1357 mantine-Title-root" data-order="2">プロフィール</h2><div class="fieldContainer" data-layout-mode="stack"><div data-field-uid="uid_items"><div style="width: 100%;" class="m_1b7284a3 mantine-Paper-root" data-with-border="true" data-field-placeholder="list"><p style="font-weight: 600;" class="mantine-focus-auto m_b6d8b162 mantine-Text-root">所持品</p><p style="--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm);" class="mantine-focus-auto m_b6d8b162 mantine-Text-root" data-size="sm">list</p></div></div></div></section>"`)
+    expect(before).toMatchInlineSnapshot(`"<section style="--stack-gap: var(--mantine-spacing-sm); --stack-align: stretch; --stack-justify: flex-start;" class="m_6d731127 mantine-Stack-root"><h2 style="--title-fw: var(--mantine-h2-font-weight); --title-lh: var(--mantine-h2-line-height); --title-fz: var(--mantine-h2-font-size);" class="m_8a5d1357 mantine-Title-root" data-order="2">プロフィール</h2><div class="fieldContainer" data-layout-mode="stack"><div data-field-uid="uid_items"><div style="width: 100%;" class="m_1b7284a3 mantine-Paper-root" data-with-border="true" data-list-field="uid_items"><div style="--stack-gap: var(--mantine-spacing-sm); --stack-align: stretch; --stack-justify: flex-start;" class="m_6d731127 mantine-Stack-root"><div><p style="font-weight: 600;" class="mantine-focus-auto m_b6d8b162 mantine-Text-root">所持品</p></div><div class="tableScroll"><table style="--table-vertical-spacing: var(--mantine-spacing-xs);" class="m_b23fa0ef mantine-Table-table" data-with-table-border="true"><thead class="m_b242d975 mantine-Table-thead"><tr class="m_4e7aa4fd mantine-Table-tr" data-with-row-border="true"><th class="m_4e7aa4f3 mantine-Table-th" data-with-column-border="true" scope="col">行</th><th class="m_4e7aa4f3 mantine-Table-th" data-with-column-border="true" scope="col">操作</th></tr></thead><tbody class="m_b2404537 mantine-Table-tbody"></tbody></table></div><p style="--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm);" class="mantine-focus-auto m_b6d8b162 mantine-Text-root" data-size="sm" data-list-empty="uid_items">行がありません</p><button style="--button-bg: var(--mantine-color-blue-light); --button-hover: var(--mantine-color-blue-light-hover); --button-color: var(--mantine-color-blue-light-color); --button-bd: calc(0.0625rem * var(--mantine-scale)) solid transparent;" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" data-variant="light" type="button" aria-label="所持品: 行を追加"><span class="m_80f1301b mantine-Button-inner"><span class="m_811560b9 mantine-Button-label">行を追加</span></span></button></div></div></div></div></section>"`)
 
     rerender(
       <MantineProvider>
@@ -1456,8 +1496,22 @@ describe('TemplateFormRenderer', () => {
     expect(cell.querySelector('[data-field-placeholder="track"]')).toBeNull()
   })
 
+  it('list を table の全幅行に行 UI として描画する', () => {
+    renderForm({}, undefined, createTableTemplate())
+
+    const row = getFieldCell('uid_items') as HTMLTableRowElement
+    const cell = row.cells[0]
+    expect(row.tagName).toBe('TR')
+    expect(row.dataset.tableRowMode).toBe('full-width')
+    expect(row.cells).toHaveLength(1)
+    expect(cell.tagName).toBe('TD')
+    expect(cell.colSpan).toBe(2)
+    expect(cell.querySelector('[data-list-field="uid_items"]')).toBeTruthy()
+    expect(cell.querySelector('[data-field-placeholder="list"]')).toBeNull()
+    expect(screen.getByRole('button', { name: '所持品: 行を追加' })).toBeTruthy()
+  })
+
   it.each([
-    ['list', 'uid_items'],
     ['relation', 'uid_bond'],
     ['tag', 'uid_tags']
   ])('%s を table の全幅行 placeholder として描画する', (fieldType, fieldUid) => {
@@ -1994,8 +2048,19 @@ describe('TemplateFormRenderer', () => {
     expect(fieldCell.classList.contains(styles.gridField)).toBe(true)
   })
 
+  it('list を grid の全幅領域に行 UI として描画する', () => {
+    renderForm({})
+
+    const fieldCell = getFieldCell('uid_items')
+    const editor = fieldCell.querySelector('[data-list-field="uid_items"]') as HTMLElement
+    expect(editor).toBeTruthy()
+    expect(editor.style.width).toBe('100%')
+    expect(fieldCell.dataset.gridSpan).toBe('full')
+    expect(fieldCell.classList.contains(styles.gridField)).toBe(true)
+    expect(fieldCell.querySelector('[data-field-placeholder="list"]')).toBeNull()
+  })
+
   it.each([
-    ['list', '所持品'],
     ['relation', '関係'],
     ['tag', 'タグ']
   ])('%s を grid の全幅 placeholder として描画する', (fieldType, label) => {
@@ -2201,5 +2266,318 @@ describe('TemplateFormRenderer', () => {
     expect(checkboxes.getAttribute('aria-hidden')).toBe('true')
     expect(Array.from(potentiallyFocusable).filter((element) => element.tabIndex >= 0)).toHaveLength(0)
     expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  it('list の 3 行を labelSubFieldId 以外も含む全編集列で描画し、computed 列だけを隠す', () => {
+    const rows = [
+      {
+        rowId: 'row_first', uid_row_name: '目星', uid_row_score: 70,
+        uid_row_category: 'investigation', uid_row_trained: true, uid_row_resource: 12
+      },
+      { rowId: 'row_second', uid_row_name: '回避', uid_row_score: 45 },
+      { rowId: 'row_third', uid_row_name: '図書館', uid_row_score: 60 }
+    ]
+    renderForm({ uid_list: rows }, jest.fn(), createListTemplate())
+
+    const editor = document.querySelector('[data-list-field="uid_list"]') as HTMLElement
+    const renderedRows = Array.from(editor.querySelectorAll<HTMLElement>('[data-list-row-id]'))
+    const renderedColumns = Array.from(editor.querySelectorAll<HTMLElement>('thead [data-list-item-field-uid]'))
+      .map((header) => header.dataset.listItemFieldUid)
+
+    expect(renderedRows.map((row) => row.dataset.listRowId)).toEqual(['row_first', 'row_second', 'row_third'])
+    expect(renderedColumns).toEqual([
+      'uid_row_name', 'uid_row_score', 'uid_row_category', 'uid_row_trained', 'uid_row_resource'
+    ])
+    expect(renderedRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td[data-list-item-field-uid]'))
+      .map((cell) => cell.dataset.listItemFieldUid))).toEqual(Array.from({ length: 3 }, () => [
+      'uid_row_name', 'uid_row_score', 'uid_row_category', 'uid_row_trained', 'uid_row_resource'
+    ]))
+    expect(editor.querySelector('[data-list-item-field-uid="uid_row_bonus"]')).toBeNull()
+    expect((screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }) as HTMLInputElement).value)
+      .toBe('目星')
+    expect((screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能値' }) as HTMLInputElement).value)
+      .toBe('70')
+    expect((screen.getByRole('checkbox', { name: 'カスタム技能 1 行目: 訓練済み' }) as HTMLInputElement).checked)
+      .toBe(true)
+    expect((screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 耐久' }) as HTMLInputElement).value)
+      .toBe('12')
+    expect(editor.textContent).toContain('上限 20（目安）')
+  })
+
+  it('list 行追加は末尾へ rowId だけの行を足し、engine の rowId pattern に適合させる', () => {
+    const onChange = jest.fn()
+    const rows = [{ rowId: 'row_existing', uid_row_name: '目星' }]
+    renderForm({ uid_list: rows }, onChange, createListTemplate())
+
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能: 行を追加' }))
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.calls[0][0]).toBe('uid_list')
+    const nextRows = onChange.mock.calls[0][1] as Array<Record<string, unknown>>
+    expect(nextRows.slice(0, -1)).toEqual(rows)
+    expect(Object.keys(nextRows.at(-1) ?? {})).toEqual(['rowId'])
+    expect(LIST_ROW_ID_PATTERN.test(String(nextRows.at(-1)?.rowId))).toBe(true)
+  })
+
+  it('list 行削除は対象行だけを除き、他行の rowId と値を保つ', () => {
+    const onChange = jest.fn()
+    const rows = [
+      { rowId: 'row_first', uid_row_name: '目星' },
+      { rowId: 'row_second', uid_row_name: '回避' },
+      { rowId: 'row_third', uid_row_name: '図書館' }
+    ]
+    renderForm({ uid_list: rows }, onChange, createListTemplate())
+
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能 2 行目を削除' }))
+
+    expect(onChange).toHaveBeenCalledWith('uid_list', [rows[0], rows[2]])
+    expect(rows.map(({ rowId }) => rowId)).toEqual(['row_first', 'row_second', 'row_third'])
+  })
+
+  it('list セル編集は itemField uid の新配列を通知し、空入力ではそのキーを落とす', () => {
+    const onChange = jest.fn()
+    const rows = [{ rowId: 'row_first', uid_row_name: '目星' }]
+    renderForm({ uid_list: rows }, onChange, createListTemplate())
+    const input = screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' })
+
+    fireEvent.change(input, { target: { value: '聞き耳' } })
+    fireEvent.change(input, { target: { value: '' } })
+
+    expect(onChange).toHaveBeenNthCalledWith(1, 'uid_list', [{ rowId: 'row_first', uid_row_name: '聞き耳' }])
+    expect(onChange).toHaveBeenNthCalledWith(2, 'uid_list', [{ rowId: 'row_first' }])
+    const clearedRows = onChange.mock.calls[1]?.[1] as Array<Record<string, unknown>>
+    expect(Object.keys(clearedRows[0] ?? {})).toEqual(['rowId'])
+    expect(rows).toEqual([{ rowId: 'row_first', uid_row_name: '目星' }])
+  })
+
+  it('list text セルは engine と共有する文字数上限を input に設定する', () => {
+    renderForm({ uid_list: [{ rowId: 'row_first' }] }, jest.fn(), createListTemplate())
+
+    const input = screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }) as HTMLInputElement
+    expect(input.maxLength).toBe(LIST_ROW_TEXT_MAX_LENGTH)
+  })
+
+  it('LIST_ROW_LIMIT 行では追加を理由付きで disabled にする', () => {
+    const rows = Array.from({ length: LIST_ROW_LIMIT }, (_, index) => ({ rowId: `row_${index}` }))
+    renderForm({ uid_list: rows }, jest.fn(), createListTemplate([]))
+
+    const button = screen.getByRole('button', {
+      name: `カスタム技能: 行を追加（${LIST_ROW_LIMIT} 行の上限に達しています）`
+    }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.title).toBe(`${LIST_ROW_LIMIT} 行の上限に達しています`)
+  })
+
+  it('list 行 parts は宣言キーだけを表示し、base / other と負数を保存値へ入れない', async () => {
+    const onChange = jest.fn()
+    const scoreField: SheetField = {
+      id: 'score', uid: 'uid_row_score', label: '技能値', type: 'scalar', valueType: 'number',
+      partsKeys: [
+        { id: 'base', label: '基礎' },
+        { id: 'other', label: 'その他' },
+        { id: 'career', label: '職業' },
+        { id: 'hobby', label: '興味' }
+      ]
+    }
+    renderForm({
+      uid_list: [{
+        rowId: 'row_first',
+        uid_row_score: { parts: { base: 5, other: 3, career: 20, hobby: 2 } }
+      }]
+    }, onChange, createListTemplate([scoreField]))
+
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能 1 行目: 技能値 の内訳を編集' }))
+
+    const careerInput = await screen.findByRole('textbox', {
+      name: 'カスタム技能 1 行目: 技能値: 職業'
+    }) as HTMLInputElement
+    const editor = careerInput.closest('[data-row-parts-editor="uid_row_score"]') as HTMLElement
+    expect(Array.from(editor.querySelectorAll<HTMLElement>('[data-parts-key]')).map((input) => input.dataset.partsKey))
+      .toEqual(['career', 'hobby'])
+    expect(editor.querySelector('[data-parts-key="base"]')).toBeNull()
+    expect(editor.querySelector('[data-parts-key="other"]')).toBeNull()
+
+    fireEvent.change(careerInput, { target: { value: '-1' } })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(careerInput, { target: { value: '4' } })
+    expect(onChange).toHaveBeenCalledWith('uid_list', [{
+      rowId: 'row_first',
+      uid_row_score: { parts: { career: 4, hobby: 2 } }
+    }])
+  })
+
+  it('list number の parts 形は合計を readOnly 表示し、直接 change では通知しない', () => {
+    const onChange = jest.fn()
+    renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_score: { parts: { career: 20, hobby: 2 } } }]
+    }, onChange, createListTemplate())
+
+    const row = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    const input = row.querySelector('input[aria-label="カスタム技能 1 行目: 技能値"]') as HTMLInputElement
+    expect(input.value).toBe('22')
+    expect(input.readOnly).toBe(true)
+
+    fireEvent.change(input, { target: { value: '99' } })
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('list number の内訳変更後は更新済み parts の合計をセルへ表示する', async () => {
+    const onChange = jest.fn()
+    const targetTemplate = createListTemplate()
+    const view = renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_score: { parts: { career: 20, hobby: 2 } } }]
+    }, onChange, targetTemplate)
+    const row = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    const trigger = row.querySelector('[data-row-parts-trigger="uid_row_score"]') as HTMLButtonElement
+
+    fireEvent.click(trigger)
+    const careerInput = await screen.findByRole('textbox', {
+      name: 'カスタム技能 1 行目: 技能値: 職業'
+    })
+    fireEvent.change(careerInput, { target: { value: '30' } })
+
+    const nextRows = onChange.mock.calls[0][1] as unknown[]
+    view.rerender(
+      <MantineProvider>
+        <TemplateFormRenderer template={targetTemplate} values={{ uid_list: nextRows }} onChange={onChange} />
+      </MantineProvider>
+    )
+    const updatedRow = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    const input = updatedRow.querySelector(
+      'input[aria-label="カスタム技能 1 行目: 技能値"]'
+    ) as HTMLInputElement
+    expect(input.value).toBe('32')
+    expect(input.readOnly).toBe(true)
+  })
+
+  it('list 行 parts trigger は focus で開き、Enter・Space でトグルして Escape で閉じる', () => {
+    renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_score: { parts: { career: 20, hobby: 2 } } }]
+    }, jest.fn(), createListTemplate())
+    const row = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    const trigger = row.querySelector('[data-row-parts-trigger="uid_row_score"]') as HTMLButtonElement
+
+    act(() => trigger.focus())
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    for (const key of ['Enter', ' ']) {
+      fireEvent.keyDown(trigger, { key })
+      expect(trigger.getAttribute('aria-expanded')).toBe('true')
+      fireEvent.keyDown(trigger, { key })
+      expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    }
+  })
+
+  it('list itemField の relation は未対応列として描画しない', () => {
+    const relationField: SheetField = {
+      id: 'owner', uid: 'uid_row_owner', label: '関係', type: 'relation'
+    }
+    renderForm(
+      { uid_list: [{ rowId: 'row_first' }] },
+      jest.fn(),
+      createListTemplate([...listItemFields, relationField])
+    )
+
+    const editor = document.querySelector('[data-list-field="uid_list"]') as HTMLElement
+    expect(editor.querySelector('[data-list-item-field-uid="uid_row_owner"]')).toBeNull()
+    expect(editor.textContent).not.toContain('関係')
+  })
+
+  it('list number の partsKeys がすべて reserved なら内訳 trigger を描画しない', () => {
+    const reservedPartsField: SheetField = {
+      id: 'score', uid: 'uid_row_score', label: '技能値', type: 'scalar', valueType: 'number',
+      partsKeys: [{ id: 'base', label: '基礎' }, { id: 'other', label: 'その他' }]
+    }
+    renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_score: { parts: { base: 5, other: 3 } } }]
+    }, jest.fn(), createListTemplate([reservedPartsField]))
+
+    const row = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    expect(row.querySelector('[data-row-parts-trigger="uid_row_score"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'カスタム技能 1 行目: 技能値 の内訳を編集' })).toBeNull()
+  })
+
+  it('list number セルは数値を通知し、空入力では対象キーを落とす', () => {
+    const onChange = jest.fn()
+    renderForm({ uid_list: [{ rowId: 'row_first' }] }, onChange, createListTemplate())
+    const input = screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能値' })
+
+    fireEvent.change(input, { target: { value: '42' } })
+    fireEvent.change(input, { target: { value: '' } })
+
+    expect(onChange).toHaveBeenNthCalledWith(1, 'uid_list', [{ rowId: 'row_first', uid_row_score: 42 }])
+    expect(onChange).toHaveBeenNthCalledWith(2, 'uid_list', [{ rowId: 'row_first' }])
+  })
+
+  it('list track セルは数値を通知し、空入力では対象キーを落とす', () => {
+    const onChange = jest.fn()
+    renderForm({ uid_list: [{ rowId: 'row_first' }] }, onChange, createListTemplate())
+    const input = screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 耐久' })
+
+    fireEvent.change(input, { target: { value: '12' } })
+    fireEvent.change(input, { target: { value: '' } })
+
+    expect(onChange).toHaveBeenNthCalledWith(1, 'uid_list', [{ rowId: 'row_first', uid_row_resource: 12 }])
+    expect(onChange).toHaveBeenNthCalledWith(2, 'uid_list', [{ rowId: 'row_first' }])
+  })
+
+  it('list select セルは選択済み値を表示し、clear では対象キーを落とす', () => {
+    const onChange = jest.fn()
+    renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_category: 'investigation' }]
+    }, onChange, createListTemplate())
+    const row = document.querySelector('[data-list-row-id="row_first"]') as HTMLElement
+    const input = row.querySelector('input[aria-label="カスタム技能 1 行目: 分類"]') as HTMLInputElement
+    const clearButton = input.closest('td')?.querySelector('button[aria-hidden="true"]') as HTMLButtonElement
+    expect(input.value).toBe('探索')
+
+    fireEvent.click(clearButton)
+
+    expect(onChange).toHaveBeenCalledWith('uid_list', [{ rowId: 'row_first' }])
+  })
+
+  it('list boolean セルのチェック解除は false を対象キーとして残す', () => {
+    const onChange = jest.fn()
+    renderForm({
+      uid_list: [{ rowId: 'row_first', uid_row_trained: true }]
+    }, onChange, createListTemplate())
+    const checkbox = screen.getByRole('checkbox', { name: 'カスタム技能 1 行目: 訓練済み' })
+
+    fireEvent.click(checkbox)
+
+    const nextRows = onChange.mock.calls[0][1] as Array<Record<string, unknown>>
+    expect(nextRows).toEqual([{ rowId: 'row_first', uid_row_trained: false }])
+    expect(Object.prototype.hasOwnProperty.call(nextRows[0], 'uid_row_trained')).toBe(true)
+  })
+
+  it('onChange 未指定でも list の入力・追加・削除を描画し、操作では行値を変えない', () => {
+    const targetTemplate = createListTemplate([listItemFields[0]])
+    const values = { uid_list: [{ rowId: 'row_first', uid_row_name: '目星' }] }
+    const view = renderForm(values, undefined, targetTemplate)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }), {
+      target: { value: '聞き耳' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能 1 行目を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能: 行を追加' }))
+    view.rerender(
+      <MantineProvider>
+        <TemplateFormRenderer template={targetTemplate} values={values} />
+      </MantineProvider>
+    )
+
+    expect(document.querySelectorAll('[data-list-row-id]')).toHaveLength(1)
+    expect((screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }) as HTMLInputElement).value)
+      .toBe('目星')
+  })
+
+  it('list の値が非配列なら throw せず空行表示へ退化する', () => {
+    expect(() => renderForm({ uid_list: { rowId: 'not-an-array' } }, jest.fn(), createListTemplate()))
+      .not.toThrow()
+
+    expect(document.querySelectorAll('[data-list-row-id]')).toHaveLength(0)
+    expect(document.querySelector('[data-list-empty="uid_list"]')?.textContent).toBe('行がありません')
   })
 })

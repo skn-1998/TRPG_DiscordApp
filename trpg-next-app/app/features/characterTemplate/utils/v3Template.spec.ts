@@ -40,6 +40,7 @@ describe('v3Template id and uid helpers', () => {
     jest.restoreAllMocks()
   })
 
+  // NOTE: 正本 pin は app/lib/stable-uid.spec.ts。ここは re-export の疎通維持。
   it('createStableUid は crypto.randomUUID の衝突を避けて同一 prefix で再発行する', () => {
     const randomUUID = jest
       .fn()
@@ -57,6 +58,7 @@ describe('v3Template id and uid helpers', () => {
     expect(randomUUID).toHaveBeenCalledTimes(2)
   })
 
+  // NOTE: 正本 pin は app/lib/stable-uid.spec.ts。ここは re-export の疎通維持。
   it('createStableUid は crypto がない環境では Math.random 由来の uid を発行する', () => {
     Object.defineProperty(globalThis, 'crypto', {
       configurable: true,

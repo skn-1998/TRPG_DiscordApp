@@ -261,7 +261,7 @@ describe('TemplatePreviewV3 characterization', () => {
     expect(fetchMock).toHaveBeenCalledWith('/templates/dice-preview', expect.objectContaining({ method: 'POST' }))
   })
 
-  it('評価済み track を読み取り専用で表示し、list・relation・tag は placeholder として描画する', () => {
+  it('評価済み track と list 行 UI を描画し、relation・tag は placeholder として描画する', () => {
     evaluateTemplateMock.mockReturnValue({
       values: { uid_track: { type: 'number', value: 7 } },
       rows: {},
@@ -270,13 +270,21 @@ describe('TemplatePreviewV3 characterization', () => {
     })
     renderPreview(createPreviewTemplate([
       { id: 'track', uid: 'uid_track', label: '耐久力', type: 'track', max: 10, style: 'gauge' },
-      { id: 'list', uid: 'uid_list', label: '所持品', type: 'list', itemFields: [] },
+      {
+        id: 'list', uid: 'uid_list', label: '所持品', type: 'list',
+        itemFields: [{ id: 'name', uid: 'uid_item_name', label: '品名', type: 'scalar', valueType: 'text' }]
+      },
       { id: 'relation', uid: 'uid_relation', label: '関係', type: 'relation' },
       { id: 'tag', uid: 'uid_tag', label: 'タグ', type: 'tag' }
     ]))
 
+    const listEditor = document.querySelector('[data-list-field="uid_list"]') as HTMLElement
+    expect(listEditor).toBeTruthy()
+    expect(listEditor.querySelector('[data-list-item-field-uid="uid_item_name"]')?.textContent).toBe('品名')
+    expect(screen.getByRole('button', { name: '所持品: 行を追加' })).toBeTruthy()
+    expect(document.querySelector('[data-field-placeholder="list"]')).toBeNull()
+
     for (const [fieldType, label] of [
-      ['list', '所持品'],
       ['relation', '関係'],
       ['tag', 'タグ']
     ]) {

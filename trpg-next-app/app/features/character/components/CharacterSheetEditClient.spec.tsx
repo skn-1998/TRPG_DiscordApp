@@ -102,6 +102,36 @@ const selectCharacter: CharacterWire = {
     values: { ...character.sheet!.values, 'main.job': 'detective' }
   }
 }
+const listRows = [{ rowId: 'row-first', 'main.skills.name': '目星' }]
+const listTemplate: CharacterSheetTemplateEntity = {
+  ...template,
+  sections: [{
+    ...template.sections[0]!,
+    fields: [
+      ...template.sections[0]!.fields,
+      {
+        id: 'skills',
+        uid: 'main.skills',
+        label: 'カスタム技能',
+        type: 'list',
+        itemFields: [{
+          id: 'name',
+          uid: 'main.skills.name',
+          label: '技能名',
+          type: 'scalar',
+          valueType: 'text'
+        }]
+      }
+    ]
+  }]
+}
+const listCharacter: CharacterWire = {
+  ...character,
+  sheet: {
+    ...character.sheet!,
+    values: { ...character.sheet!.values, 'main.skills': listRows }
+  }
+}
 const editorContractDriftTemplate: CharacterSheetTemplateEntity = {
   ...template,
   sections: [{
@@ -295,6 +325,28 @@ function mergeConflict(fieldUid = 'main.hp', current: unknown = 8, currentRevisi
       characterId: 'character-1',
       conflicts: [{ path: { fieldUid }, current, base: 10, yours: 9 }],
       currentRevision
+    }
+  }
+}
+
+function mergeListConflict(includeScalar = false) {
+  return {
+    error: '他の操作と同じ項目が更新されました。競合内容を確認してください。',
+    conflict: true,
+    mergeConflict: {
+      characterId: 'character-1',
+      conflicts: [
+        ...(includeScalar
+          ? [{ path: { fieldUid: 'main.hp' }, current: 8, base: 10, yours: 9 }]
+          : []),
+        {
+          path: { fieldUid: 'main.skills' },
+          current: { $truncated: true },
+          base: listRows,
+          yours: [{ rowId: 'row-first', 'main.skills.name': '聞き耳' }]
+        }
+      ],
+      currentRevision: 4
     }
   }
 }
@@ -548,6 +600,140 @@ describe('CharacterSheetEditClient の作成時ロール振り直し', () => {
 })
 
 describe('CharacterSheetEditClient', () => {
+  it('TFR の list 行編集を whole-field change として保存する', async () => {
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }), {
+      target: { value: '聞き耳' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{
+        path: { fieldUid: 'main.skills' },
+        baseValue: listRows,
+        newValue: [{ rowId: 'row-first', 'main.skills.name': '聞き耳' }]
+      }]
+    }))
+  })
+
+  it('TFR の list 全行削除を空配列の whole-field change として保存する', async () => {
+    mockedSaveSheet.mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'カスタム技能 1 行目を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledWith('character-1', {
+      baseRevision: 1,
+      changes: [{
+        path: { fieldUid: 'main.skills' },
+        baseValue: listRows,
+        newValue: []
+      }]
+    }))
+  })
+
+  it('scalar 競合 panel の選択適用後も list 編集を自動再送する', async () => {
+    mockedSaveSheet
+      .mockResolvedValueOnce(mergeConflict())
+      .mockResolvedValueOnce({ error: null })
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }), {
+      target: { value: '聞き耳' }
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await screen.findByRole('region', { name: '保存競合' })
+    fireEvent.click(screen.getByRole('radio', { name: '相手の値を採用 (theirs)' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択を適用' }))
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    expect(mockedSaveSheet).toHaveBeenNthCalledWith(2, 'character-1', {
+      baseRevision: 4,
+      changes: [{
+        path: { fieldUid: 'main.skills' },
+        baseValue: listRows,
+        newValue: [{ rowId: 'row-first', 'main.skills.name': '聞き耳' }]
+      }]
+    })
+  })
+
+  it('未編集の list は保存 change に含めず保存操作を disabled にする', () => {
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(true)
+    fireEvent.click(saveButton)
+    expect(mockedSaveSheet).not.toHaveBeenCalled()
+  })
+
+  it('list 競合は panel を開かず汎用競合へ落とし、再送はユーザー操作ごとに 1 回だけ行う', async () => {
+    mockedSaveSheet.mockResolvedValue(mergeListConflict())
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+    const saveButton = screen.getByRole('button', { name: '変更を保存' }) as HTMLButtonElement
+    fireEvent.change(screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }), {
+      target: { value: '聞き耳' }
+    })
+
+    fireEvent.click(saveButton)
+
+    expect(await screen.findByText(GENERIC_SHEET_CONFLICT_MESSAGE)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+    await waitFor(() => expect(saveButton.disabled).toBe(false))
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(mockedSaveSheet).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mockedSaveSheet).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+  })
+
+  it('scalar と list の混在競合も panel を開かず応答全体を汎用競合へ落とす', async () => {
+    mockedSaveSheet.mockResolvedValueOnce(mergeListConflict(true))
+    render(
+      <MantineProvider>
+        <CharacterSheetEditClient character={listCharacter} template={listTemplate} />
+      </MantineProvider>
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: /^HP/ }), { target: { value: '9' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'カスタム技能 1 行目: 技能名' }), {
+      target: { value: '聞き耳' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    expect(await screen.findByText(GENERIC_SHEET_CONFLICT_MESSAGE)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: '保存競合' })).toBeNull()
+  })
+
   it('初期状態と保存成功時は未保存バナーを表示しない', async () => {
     renderEditor()
     expect(screen.queryByText('保存されていません')).toBeNull()
