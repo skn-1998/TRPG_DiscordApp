@@ -43,7 +43,7 @@ Result: Partial（候補は確定的だが、どれを採るかは製品判断�
 | E-4 | code | `character-modal-handler.service.ts:151-153` | materialized（テンプレート pin）キャラは Discord 編集を拒否し**「このキャラクターは新しいキャラクターシート側から編集してください」**と Web へ誘導する |
 | E-5 | code | `attribute.types.ts:37` | `AttributeSection = Record<string, AttributeValue>`（投影は自由キー） |
 | E-6 | code | `TemplateFormRenderer.tsx:756-781` | Web のシート画面はテンプレート宣言 field のみ描画。追加 UI なし。`list` 型はプレースホルダ |
-| E-7 | code | `annotation-runtime.ts:134-135` | プール集計は section 直下の field のみ走査（list の行は予算に参加できない） |
+| E-7 | code | `annotation-runtime.ts:134-135` | プール集計は section 直下の field のみ走査（list の行は予算に参加できない）（当時の実測。その後 S1〜S3 で行の itemField partsKeys もプール source へ拡張済み） |
 | E-8 | code | `resolveReadableRevision` / `update` | published テンプレートは構造不変・キャラは templateId+version へ pin |
 | E-9 | statement | 2026-08-22 の発言 | 「他の言語は、ユーザーが後から好きな欄を増やせるようにしようかな」（同根の要望が既出） |
 | E-10 | code | `legacy-coc.template.ts`（v1 時代の末尾コメント・4f0d3a0 で書き換え済み） | 「Skills use arbitrary legacy keys … **until Phase 3 introduces list fields**」= 自由キー技能を list 欄へ移す構想が元設計に存在した |
@@ -236,7 +236,9 @@ Fable 検収: 訂正 3 件（保存境界の正体・`{row.x}` 実装済み・�
 
 Fable 検収: R-3 が予告した破壊面 6 件が R-4 の実測で全件確認され、相互検証が収束。
 「consumed -9999」は section 直下 field での実測（E-D31）で、R-3 の「行は consumed に入らない」
-（E-24）と両立する。`LIST_ROW_LIMIT` の barrel 未 export（E-D38）は Fable が実物で裏取り済み。
+（E-24）と両立する。`LIST_ROW_LIMIT` の barrel 未 export（E-D38）は Fable が実物で裏取り済み
+（当時の実測。その後フェーズ A で `LIST_ROW_LIMIT` / `LIST_ROW_ID_PATTERN` /
+`LIST_ROW_TEXT_MAX_LENGTH` は barrel export 済みになり、S7a が front から import している）。
 
 **設計へ昇格する制約（実装スライスの拘束条件）**:
 
@@ -291,8 +293,20 @@ server 全 suite の順で検収する（dist 経由解決のため。メモリ 
 
 | # | 責務 | 主対象 | 拘束条件 | 受入の骨子 |
 |---|---|---|---|---|
-| S7 | front の行 UI | `TemplateFormRenderer` ほか | Q-A: 行追加時に nanoid で rowId 採番・行削除/編集・内訳エディタ・pool 残り表示が行込みで動くことの実ブラウザ受入（メモリ `css-responsive-blind-to-all-green-gates`）。**必読（大粒度②）**: ①CL-B5 = `$truncated`/list 競合の front 消費者ゼロ（`createConflictPanel` が scalar 以外を捨て list 競合は汎用メッセージへ落ちる）— S7 で list 競合 UI の扱いを決める ②`LIST_ROW_ID_PATTERN` の front 参照は現状 0 件 — nanoid 採番が pattern（`[A-Za-z0-9_-]{1,32}`）適合かを front spec で pin する ③実効行数上限（512−宣言分）の再計算を front に複製しない（server 422 の文言表示に留める） | front jest＋scratchpad 実ブラウザ実測 |
+| S7 | front の行 UI | `TemplateFormRenderer` ほか | Q-A: 行追加時に nanoid で rowId 採番・行削除/編集・内訳エディタ・pool 残り表示が行込みで動くことの実ブラウザ受入（メモリ `css-responsive-blind-to-all-green-gates`）。**必読（大粒度②）**: ①CL-B5 = `$truncated`/list 競合の front 消費者ゼロ（`createConflictPanel` が scalar 以外を捨て list 競合は汎用メッセージへ落ちる）— S7 で list 競合 UI の扱いを決める ②`LIST_ROW_ID_PATTERN` の front 参照は現状 0 件 — nanoid 採番が pattern（`[A-Za-z0-9_-]{1,32}`）適合かを front spec で pin する ③実効行数上限（512−宣言分）の再計算を front に複製しない（server 422 の文言表示に留める）。**実施記録（2026-08-27）**: S7a（TFR 行 UI）→ S7a-R（レビュー回収）→ S7b（EditClient 配線）→ S7b-FIX で jest 面は完了（35 suites / 663 tests）。Q-A の「nanoid」は新依存を足さず既存 `createStableUid` で充足（`app/lib/stable-uid.ts` へ移動・`row` prefix が pattern 適合 = 逸脱裁定）。必読①の裁定 = **list 競合は panel に出さず応答全体を汎用競合へ degrade**（scalar 混在時も同様・`$truncated` は front 非解釈。`createConflictPanel` 冒頭の早期 return・server `boundMergeConflictValue` と相互名指し）。必読② = `LIST_ROW_ID_PATTERN` を engine から import して pin 済み。必読③ = 遵守（cap は `LIST_ROW_LIMIT` のみ）。保存は list 全体 1 path・差分判定は wire 等価（`isJsonValueEqual` = undefined プロパティ不在扱い・server `sheetValuesEqual` との差は全ケース wire 到達不能を突合済み）。**実ブラウザ受入も消化済み（2026-08-27・scratchpad 実物バンドル esbuild＋rAF polyfill）**: table/grid/stack × 30 行 × parts dropdown で、デスクトップ/モバイル 375px ともページ横スクロールなし・横スクロールは `.tableScroll` 容器内（table layout は外側 section 容器が受ける）・内訳 dropdown は容器の幾何学的外側でも containing block が容器外のため**クリップされず正しく重なる**（elementFromPoint で実証。S7a-R4 の overflow-y クリップ懸念は現構造では成立しない）・行追加 rowId 実物生成 `row_`+12 hex（pattern 適合）・セル編集/削除/内訳編集→合計 readOnly 更新の state 往復すべて実挙動確認 | front jest＋scratchpad 実ブラウザ実測 |
 | S8 | v4 seed | `legacy-coc.template.ts` v4＋seeder＋spec | C-34/C-35/C-12: 62 技能＋カスタム欄 2 本・v3 の全数 pin（roster/default 禁止/role/annotation runtime）を v4 へ移植＋行系 pin 追加・seeder は v3 を deprecate・**実データ生成までの受入**（メモリ `seed-template-needs-runtime-acceptance`） | seed spec 全数＋dry-run → execute → 冪等確認 |
+
+**S8 実施記録（2026-08-27・コード完了・seed 未 execute）**: 4 ラウンド
+（a 停止 = 指示書の `id:'max'` が engine 予約 ID → `limit` へ裁定 / b 完走 / c = 変異 MS8-1
+生存→custom_status 宣言 pin の whole-field 化 / d = Opus レビュー 7 findings 回収）。
+確定形 = カスタム技能 list（rowRole `1d100<={row.value}`・parts initial/occupation/interest
+default なし・行 parts は両プールへ実値 pin）＋カスタムステータス list（name/value/limit・
+rowRole なし = web 専用 advisory）。E2E は保存境界検査経由の parts 形行で palette 71・
+`1d100<=45`（**内訳合計展開の実証**）。ゲート = 226 suites/3305 tests・変異 6/6 クローズ。
+blocking CL-1 = 「プール集計は section 直下のみ」失効コメント（正 = section 直下が必要なのは
+**プールの publish 資格と applyPartsDefaults**）を template/spec/doc 3 面で修正。
+**seed --execute は未実施**（`.env` が本番 Atlas 直結のためユーザー裁定待ち。
+dry-run→execute→冪等＋実画面はその時に実施し、AI.character.md:1139 を同時更新 = CL-7）。
 
 → feature 完了ゲート: 大粒度レビュー③＋`document/SESSION_HANDOFF.md` 全面更新
 

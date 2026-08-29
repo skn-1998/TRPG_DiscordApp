@@ -197,6 +197,11 @@ front に list を描くだけでは要望を満たさない。list にした「
 プール参加まで通すには engine の集計範囲と publish の宣言探索まで変更が要り、3〜4 スライスになる。
 **先に v3 を出して振り分けを使える状態にし、list 対応は別 feature とする**（2026-08-22 ユーザー裁定）。
 
+**追記（2026-08-27）**: 上表のプール行と「ポイントを振れない」は当時の実測。その後
+web-free-add S1〜S3（2026-08-26）で annotation-runtime が list 行の itemField partsKeys も
+プール source に積むようになり、v4（legacy-coc-v4）のカスタム技能 list は職業・興味プールへ
+参加する（pool の publish 資格＝partsKey 宣言の充足は引き続き section 直下 field のみ）。
+
 なお v3 へ list 欄を後から足すには v4 が要る（構造不変のため）。
 ## スライスの分け方
 

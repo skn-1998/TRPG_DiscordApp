@@ -27,7 +27,10 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   character → characterSheet（D-R2 裁定、2026-08-12 ユーザー — シート編集面の入力描画正本を
   `TemplateFormRenderer` に一本化し、第三の描画実装を作らないため）。
   新しい辺が必要になったら「lib へ移す」を先に検討し、辺の追加はここへ理由つきで記録してから
-  eslint の except に足す（無断で except を増やさない）
+  eslint の except に足す（無断で except を増やさない）。
+  適用実例: characterSheet → characterTemplate が必要になった `createStableUid` は、
+  辺を足さず `app/lib/stable-uid.ts` へ実装ごと移して解消（2026-08-27 S7a-FIX。
+  `v3Template.ts` は互換 re-export のみ・実装と pin の正本は lib 側）
 
 ## JWT / 認証
 
@@ -124,14 +127,29 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
 - **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
   （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
   使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない
-- **保存は per-path CAS**（`character/sheet-edit.ts`）: path = (fieldUid, partsKey?)。
-  normalizeEditorValue の valueType 正規化が **payload 健全性の front 側唯一の防壁**
-  （server readPathValue は非 parts で raw 素通し・DTO baseValue は unknown で型防壁なし）。
+- **scalar の保存は per-path CAS**（`character/sheet-edit.ts`）: path = (fieldUid, partsKey?)。
+  normalizeEditorValue の valueType 正規化が **scalar payload 健全性の front 側唯一の防壁**
+  （server readPathValue は非 parts で raw 素通し・DTO baseValue は unknown で型防壁なし。
+  list path はこの正規化を通らず、配列性= handleRendererChange・セル値= TFR commit 経路・
+  行の形= server 422 に分散 — 下の list 項参照）。
   undefined 書込 = キー削除（server の path 不在と同型）・競合 echo の current/base: null は
   undefined へ復号し、mine 再送は baseValue own キー欠落（= 不存在期待 CAS）で通る
   （server 側は current/base とも null sentinel へ正規化 — wire nonoptional 契約・大粒度 #17 FIX-B）。
   usesPartsEditor（parts 対応 = number 専用）は TFR isPartsScalarField・engine allowsParts と
   三者同期 — 変更時は 3 箇所を同時に見る
+- **list（カスタム行）の編集は S7 で開通（2026-08-27・web-free-add フェーズ C）**:
+  TFR が行 UI を持つ（行追加 = `app/lib/stable-uid` の `createStableUid('row')` 採番・
+  行削除・セル編集は itemField **uid** キーで行配列を丸ごと差し替え・空セルはキー削除
+  （spec は `Object.keys` で pin — toEqual は undefined プロパティを見ない）・
+  行 parts は宣言済み提示可能キーのみで base/other 非表示・parts 形セルは合計を
+  readOnly 表示し編集は内訳経由・computed 列は evaluated.rows 未配線のため非描画）。
+  EditClient は **list 全体 1 path**（`{fieldUid}`・partsKey なし）の whole-field change で
+  保存し、差分判定は wire 等価 `isJsonValueEqual`（undefined プロパティ=キー不在・
+  キー順不問・配列順序区別。server `sheetValuesEqual` との差分全ケースが wire 到達不能で
+  あることを S7b レビューで全数突合済み）。**list 競合は panel に出さず応答全体を
+  汎用競合へ degrade**（scalar 混在時も同様。`$truncated` は front で解釈しない —
+  server `boundMergeConflictValue` と相互名指しのコメント対）。cap は `LIST_ROW_LIMIT`
+  のみを import で参照（実効上限 512−宣言分の再計算は server 422 の所掌・front に複製しない）
 - **annotation（cap/pool/limit）の表示は status 3 値で確定**（design-v1-ui の「制約評価 API」節・SM-9(b)・
   大粒度 #17 FIX-A）: ok = 値表示・indeterminate = 「—」表示で警告抑制・error = 該当箇所の
   インライン警告のみ（隠さない）。TFR の 3 表示経路（cap バッジ・pool 行・field 近傍警告）が

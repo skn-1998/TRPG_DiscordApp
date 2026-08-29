@@ -1164,3 +1164,45 @@ initial / occupation / interest）、プール 2 本（職業 = `{parameter.edu}
 **到達しない**（materialized 分岐が旧表示投稿群をスキップ。既存 spec が pin 済み）。
 `character-display.service.ts` の旧契約（単数 `value`）も同様に到達不能の潜在欠陥。
 別スライス項目は `review-results/roll-lane/followups.md`。
+
+## 2026-08-27: legacy-coc-v4 実装（カスタム技能・カスタムステータス欄。**seed 未 execute**）
+
+web-free-add（M-D）フェーズ C の最終スライス S8。コード変更 5 面
+（seeds/legacy-coc.template.{ts,spec.ts}・scripts/seed-legacy-coc-template.{ts,spec.ts}・
+character-instantiation.legacy-coc.reproduction.spec.ts）・**未コミット**。
+
+**重要: seed は未 execute**。`.env` の `MONGODB_URI` は本番 Atlas を指すため、
+`--execute`（および本番接続を伴う dry-run）は実施していない。実行はユーザー裁定待ち。
+**上節の「実 DB の published = legacy-coc-v3 の 1 件のみ」は execute の瞬間まで真のまま**で、
+execute 後は本節と上節:1138-1139 を実測とセットで更新すること
+（followups の CL-7 チェック項目）。
+
+**内容**: v2→v3 と同じ in-place 出し直しで `templateId: 'legacy-coc-v4'`。62 技能・pools・
+rollOnCreate・description は 1 フィールドも不変（roster 全数 pin が v4 でも緑）。追加は 2 本:
+
+- **カスタム技能**（section skill 末尾の list `lgc_custom_skills`）: name(text) /
+  value(number・partsKeys initial/occupation/interest・default なし)。
+  rowRole = `{ kind:'rollable', notation:'1d100<={row.value}', group:'skill',
+labelSubFieldId:'name' }`。行の職業/興味 parts は既存プールの consumed へ自動加算
+  （annotation-runtime の行 source・spec で occupation/interest 両方を実値 pin）
+- **カスタムステータス**（section status 末尾の list `lgc_custom_status`）: name / value /
+  **limit**（`max` は engine 予約 ID = KNOWN_FUNCTIONS のため不可）。**rowRole なし** =
+  行は palette にも projection にも出ない web 専用 advisory 欄（行内 track の max は
+  固定値宣言のみで行ごと上限を表せないため。TrackRangePolicy 行統合は Q-F 将来スライス）
+
+seed は行データ（values）を一切配らない。作成直後の values に list キーが無いことも pin 済み
+（C-12「seed/作成が行を直接組まない」）。seeder は `PREVIOUS_TEMPLATE_ID='legacy-coc-v3'` へ
+繰り上げのみ（dry-run 既定・v4 published 成立後にのみ v3 deprecate・直前 1 段のみ、全機構不変）。
+
+**受入の核**（reproduction spec）: v4 実物で instantiate → 保存境界と同じ検査
+（`validateInputValues` = buildValueInputSchema 経由）で parts 形の行
+`{parts:{initial:20, occupation:25}}` を 1 本追加 → palette 71 件・notation `1d100<=45`
+（**内訳合計への展開を実証**）・`projection.skill['custom_skills:<rowId>']`。HP≠0 等の
+v3 由来 pin 全数維持。
+
+**検収**: build 緑・循環ゼロ・**226 suites / 3305 tests**（基準 3299 から +6）。
+Codex 負の対照 3（固定 notation / occupation 除去 / 技能 1 本削除 = 全検出）＋
+Fable 変異 3（MS8-1 uid 改変は生存→pin 追加で検出転化・MS8-2/3 検出）。
+Opus 小粒度 3 軸レビュー findings 7 → S8d で回収（blocking CL-1 = 「プール集計は section
+直下のみ」の失効コメント。正 = 集計は行も含む・**section 直下が必要なのはプールの
+publish 資格と applyPartsDefaults**）。証跡 = `review-results/web-free-add/`。

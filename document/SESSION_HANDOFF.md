@@ -5,8 +5,12 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-26（**web-free-add（M-D）設計フェーズ完了・実装未着手**・直下の
-  【設計完了 2026-08-26】節参照。正本 = `document/character-sheet-proposals/web-free-add-design-route.md`）
+- 最終更新: 2026-08-27（**web-free-add（M-D）フェーズ A〜C 全スライス完了・検収済み**。
+  残 = ①全差分未コミット（ユーザー明示許可待ち）②v4 seed の execute
+  （**`TRPG-SERVER/.env` は本番 Atlas 直結**のためユーザー裁定待ち。dry-run→execute→冪等＋
+  実画面受入＋AI.character.md:1139 更新をセットで）。直下の【設計完了 2026-08-26】節の
+  実装記録と、その末尾の**【feature 完了サマリ 2026-08-27】**参照。
+  正本 = `document/character-sheet-proposals/web-free-add-design-route.md`）
 - それ以前: 2026-08-24（**シナリオ×マップ機能のアイデア出し完了**・コード変更なし・
   【アイデア出し完了 2026-08-24】節参照。正本 = `document/scenario-map-ideation-2026-08-24.md`）
 - それ以前: 2026-08-20（**J2 feature 完了** = 生成用プロンプトのコピー導線・J2 節が正本・
@@ -18,7 +22,7 @@
   正本は末尾の「## 技能ポイントの振り分け」節。PV-2b = 95c707c・v3 = 4f0d3a0・seed 実行済み。
   上の J2 とはファイルが重ならないが、**本 doc だけは両レーンの未コミット変更が同居している**
 
-## 【設計完了 2026-08-26】web-free-add（M-D）: Web で HP・技能を自由に追加（実装未着手）
+## 【設計完了 2026-08-26 → 実装完了 2026-08-27】web-free-add（M-D）: Web で HP・技能を自由に追加
 
 ユーザー依頼「キャラクター編集について、WebでもHPやskillを自由に追加できるようにしたい」。
 `/route-design-work` → interpret-design-context ＋ frame-purpose-goal-means（上流 2 段）→
@@ -235,11 +239,191 @@
   Fable 最終ゲート全緑（build 0・循環ゼロ・226 suites/3299 tests）で **B-FIX 受入確定 =
   フェーズ B（S4 保存開通 / S5 palette 行対応 / S6 投影新規経路）完了（2026-08-26）**。
   機械検証の累計（フェーズ B）= Codex 負の対照 13 点＋Fable 変異 12 点（全検出・復元 sha 一致）。
-  未コミット = TRPG-SERVER src 10 面（operation service＋spec / sheet-values.util＋spec /
-  track-range.policy / materializer＋spec / hub builder＋spec / character-wire.contract.spec）＋
-  api-contract character.zod.ts（コメント 2 行）＋doc 3 面（本 doc / AI.character.md /
-  design doc S5・S7 行）。**コミット許可をユーザーへ確認中** → 許可後フェーズ C
-  （S7 front UI / S8 v4 seed。S7 必読 = 設計正本 S7 行の大粒度②焼き込み 3 点）
+  **コミット済み（ユーザー裁定 2026-08-27・2 コミット構成）**: feat=`85ba17d7`
+  （server 10 面＋api-contract コメント）・docs=`b0b44e03`（本 doc / AI.character.md /
+  design doc）。push 済み `e0543346..b0b44e03` → origin/develop。
+  コミット時の教訓: pre-commit フックの Prettier が 4 面の折返しを畳み、
+  **HEAD が検収 bytes と整形差分だけ違う状態**＋index に検収版の残渣が発生
+  （メモリ trpg-server-crlf-pathspec-commit の formatter churn の新形態）。
+  対処 = 残渣 4 面を実読して整形のみ（トークン変更ゼロ）と確認 → `git reset` で index 破棄 →
+  **コミット済み bytes で全ゲート再実行**（build 0・循環ゼロ・226/3299 緑）→ push。
+  作業ツリーはクリーン。次 = フェーズ C（S7 front 行 UI → S8 v4 seed → 大粒度③＋本 doc 全面更新。
+  S7 必読 = 設計正本 S7 行の大粒度②焼き込み 3 点・S8 前判断 = followups の案 A）。
+  → フェーズ C 開始（2026-08-27）。Explore 偵察で front 現状を実測: list は sheet-edit.ts が
+  型レベル排除・TFR は placeholder のみ（**placeholder pin 3 本が S7 で必ず赤 =
+  TFR.spec:1459/1997・TemplatePreviewV3.spec:273。指示書で置換許可を明示**）・
+  pool 表示は evaluateAnnotationRuntime が values から再計算するため行対応は自動追従・
+  払 payload は wire 変更不要（changes.baseValue: unknown・server 受理済み）・
+  deriveSheetChanges の Object.is は配列で常時差分（S7b で deep compare 必須）・
+  createConflictPanel は非 scalar 競合を無言破棄しつつ再送する穴あり（S7b で規則化）・
+  nanoid 不在 → 既存 createStableUid('row') が LIST_ROW_ID_PATTERN 適合（新依存なし裁定）・
+  LIST_ROW_* 3 定数は barrel export 済み・front 参照 0 件。
+  **S7 は観測可能性で 2 分割**: S7a = TFR 行 UI（表示/追加/削除/編集/行内訳・単体 spec で
+  観測可能）→ S7b = EditClient 配線（list change 導出 deep compare・保存・list 競合は
+  汎用競合へ落とす規則・$truncated は解釈不要化）。
+  S7a = prompt-s7a.txt で Codex へ委譲中（codex-s7a/。行 parts は base/other 非表示・
+  computed 列非描画（evaluated.rows 未配線）・cap は LIST_ROW_LIMIT import のみ）。
+  設計逸脱の記録: Q-A「nanoid で採番」は front ランダム採番の意図と解し、
+  既存 createStableUid 流用で充足（新依存を足さない）— 設計正本へは S7 受入時に追記
+  → S7a 納品は lint 1 error で停止（TFR→characterTemplate が eslint 禁止辺。指示書が
+  import 元を依存規則と突合していなかった＝委譲スコープ突合メモリの第 3 変種として記録）。
+  S7a-FIX（prompt-s7a-fix.txt / codex-s7a-fix/）= createStableUid を app/lib/stable-uid.ts へ
+  無改変移動・v3Template.ts は re-export で export 面維持（v3Template.spec 無改変緑）・
+  TFR は lib 参照・eslint.config.mjs 変更不要（features→app/lib は許可済み）。
+  **S7a+FIX の Fable 独立検収（2026-08-27）**: diff スコープ = 期待 5 変更＋新規 2 のみ・
+  移動は 1 文字一致・ゲート再実行 = typecheck 0 / lint 0 error / **35 suites・639 tests 緑**・
+  変異 5 本（Codex 負の対照 3 本と非重複）= MS7-2 uid→id キー / MS7-3 非配列防御除去 /
+  MS7-4 負数ガード除去 / MS7-5 衝突再発行ループ除去は**検出**・
+  **MS7-1（空セルで delete→undefined 残し）は生存** = pin 漏れ（toHaveBeenNthCalledWith の
+  toEqual 相当が undefined プロパティを無視）。wire 上は JSON.stringify が undefined を
+  消すため現時点は準等価・S7b の deep compare 導入で観測可能化 →
+  **S7b 指示書に pin 強化（行オブジェクトの Object.keys 照合 or toStrictEqual）を必須項目化**。
+  Opus 小粒度レビュー（prompt-s7a-review.txt・3 軸・read-only）= **Blocking 0 /
+  Non-blocking 7 / Info 3 → S7a 受入確定（2026-08-27）**。契約整合 12 項目は全て engine
+  実読で一致（証跡 s7a-review-opus.md）。回収事項は S7a-R（磨きラウンド・
+  prompt-s7a-r.txt / codex-s7a-r/ 委譲中）へ束ねた: R1 parts セル可視化
+  （裁定 = 状態依存 readOnly＋handler 非配線。jsdom fireEvent は readOnly を貫通するため）・
+  R2 行 trigger キーボード契約の共有化・R3 allowlist 化＋空内訳 trigger 非表示・
+  R4 tableScroll 正本 CSS へ復帰・R5 onCellChange 改名・R6 セル commit pin 4 型追加・
+  R7/R8 コメント整備。R9（list 競合裁定）は prompt-s7b.txt へ転記済み・
+  R10（S8 seed 行キーは uid）は followups へ。
+  **残ゲート**: 実ブラウザ受入（R4 指摘どおり未実施。設計正本 S7 行の受入条件 =
+  table/grid/stack × 行数多め × 内訳 dropdown を scratchpad 実物バンドルで確認）は
+  S7b 後・フェーズ C 完了までに Fable が実施。
+  S7b 指示書は作成済み（prompt-s7b.txt。editableListFields・JSON 値等価 deep compare・
+  list 競合は panel に出さず汎用競合へ degrade・MS7-1 の pin 強化。ゲート基準値は
+  S7a-R 受入後に更新してから送信）→ S7a-R 受入後に委譲。
+  → **S7a-R 受入確定（2026-08-27）**。委譲は R7 事実矛盾（「12 字固定」が fallback 可変長
+  spec と矛盾 → verify-claims 30例目）と R4 snapshot 副作用（更新許可の書き漏れ →
+  委譲スコープ突合メモリ第 4 変種）で 2 回停止し、3 回目 codex-s7a-r-c で完了。
+  Fable 独立検収 = ゲート再実行 typecheck 0 / lint 0 / **35 suites・648 tests 緑**・
+  変異 4 本（負の対照 3 本と非重複）= MR-1 合計累積破壊 / MR-2 空内訳 trigger ガード除去 /
+  MR-3 boolean false キー削除化 / MR-4 Escape 反転、**全検出**・sha 復元済み。
+  検収での発見 1 件: R3 の allowlist 化で S7a 必須 Why（行 computed 非描画 =
+  evaluated.rows 未配線）が消失 → S7b 修正 6（コメント復元のみ）として指示書へ搭載済み。
+  → S7b 委譲（codex-s7b/）→ 納品（1 回で契約通過・停止なし）: sheet-edit.ts に
+  editableListFields / isJsonValueEqual（wire 等価 = undefined プロパティ不在扱い・
+  キー順不問・配列順序区別）/ deriveSheetChanges 第 4 引数（list は whole-field・
+  既定 [] で後方互換）、EditClient は createConflictPanel 冒頭で list path 含有時に
+  null 返し（混在も全体 degrade・$truncated 非解釈）＋ handleRendererChange の
+  Array.isArray ガード付き list 受理。TFR 空セル pin へ Object.keys 追加・
+  computed Why 復元。+13 tests = 35 suites / **661 tests**。
+  **Fable 独立検収（S7b）**: ゲート再実行 typecheck 0 / lint 0 / 35・661 緑・
+  変異 4 本（負の対照 2 本と非重複）= MB-1 空セル delete→undefined（**検出 =
+  S7a の MS7-1 pin 漏れの閉塞を実証**）/ MB-2 list baseValue 自壊（検出）/
+  MB-3 等価判定の undefined フィルタ除去（検出）/
+  **MB-4 空配列通知の無視 = 生存**（「全行削除で空配列が保存 change になる」pin 不在。
+  変異下では最後の行の削除が無反応でも全 spec 緑 = 実到達可能な pin 漏れ）。
+  → S7b Opus 小粒度レビュー = **Blocking 0 / Non-blocking 7 / Info 3 → S7b 受入確定
+  （2026-08-27・証跡 s7b-review-opus.md）**。軸 2 の白眉: front `isJsonValueEqual` と
+  server `sheetValuesEqual` の差分全 3 ケース（undefined プロパティ / -0 / NaN）が
+  **wire 到達不能**であることの全数突合・`$truncated` は wire schema が素通しした上で
+  createConflictPanel 冒頭の早期 return により**参照 0 件**・自動再送は saveChanges
+  呼び出し 3 本の全数で不在確認。最重要 finding **S7b-R1**（handleConflictApply の
+  list 合流に検出器 0 本 = 第 4 引数を落としても全緑・scalar 競合解決で list 編集が
+  黙って消える）は **Fable が変異 MF-1 で生存を実測確認**（71/71 緑）。
+  → **S7b-FIX 委譲中（codex-s7b-fix/）**: 実装変更ゼロ・(1) MB-4 pin（全行削除=空配列の
+  保存）(2) S7b-R1 pin（panel 適用の再送に list change 含有）(3) R10 再送 pin 強化
+  （microtask flush 後の厳密 2 回）(4) コメント回収 R2(a)/R3/R4/R5/R6/R7＋裁定 1 の
+  boundMergeConflictValue 名指し。負の対照は Fable 側実施と明記（コメントのみスコープとの
+  矛盾を予防）。受入時に MB-4/MF-1 変異を新 pin に対して再測する。
+  残 followups: R8（listFieldsByUid→Set）/ R9（空テンプレ文言）/ R10 前半（degrade 後の
+  相反 alert 2 枚 = 裁定 1 の残存コスト）/ R6 本筋（listEditablePartsKeys 改名）は後続スライス
+  → **S7b-FIX 受入確定（2026-08-27）**: 納品は実装変更ゼロ（diff で確認・R6 は本文行の
+  除去まで正しく移動）＋ 新 pin 2 本＋再送 pin 強化＋コメント 7 件。Fable 検収 =
+  **MB-4 / MF-1 の両生存変異が新 pin で検出へ転化**（各 1 failed・sha 復元済み）・
+  ゲート再実行 typecheck 0 / lint 0 / **35 suites・663 tests 緑**。
+  **S7（jest 面）完了**。doc 反映済み: 設計正本 S7 行に実施記録（Q-A 逸脱・必読①②③の
+  裁定・wire 等価）＋ :237 E-D38 に barrel export 済み注記・trpg-next-app/AI.md に
+  許可辺の適用実例（stable-uid の lib 移動）・scalar 防壁のスコープ修正・list 編集規約項。
+  残 = **実ブラウザ受入**（table/grid/stack × 行数多め × 内訳 dropdown・tableScroll の
+  横スクロール・popover クリップ確認）→ S8 前判断（followups 案 A）→ S8
+  → **実ブラウザ受入完了（2026-08-27）= S7 全受入確定**。ハーネス = scratchpad/s7-browser
+  （esbuild は workspace に無く pnpm dlx 実体を build.mjs の JS API で呼ぶ・nodePaths で
+  bare import 解決・rAF polyfill は bundle 前）。結果: ページ横スクロールなし
+  （desktop 1265 / mobile 375 とも）・横スクロールは容器内（table layout は外側 section
+  容器が受ける・grid は list 容器が受ける）・**内訳 dropdown のクリップ懸念（S7a-R4）は
+  実証で棄却**（幾何学上は容器外へ 148px 伸びるが containing block が容器外のため
+  クリップされず重なって描画 — 素朴な rect 比較では「clipped」に見える偽陽性だった。
+  elementFromPoint で判定）・行追加 rowId= `row_`+12hex 実物生成・セル編集/行削除/
+  内訳編集→合計 readOnly 更新の state 往復すべて実挙動確認。設計正本 S7 行へ焼き込み済み。
+  **S8 前判断: 案 A は挟まない**（S8 の対象= seed/template は materializer と交差しない。
+  案 A の便益は次に materializer を触るスライス（P-1 valueSubFieldId 宣言化等）で回収する
+  ほうが変更局所性に合う。followups に残置）。
+- **S8 委譲済み（2026-08-27・codex-s8 実行中）**: 指示書 = prompt-s8.txt。v4 の形は
+  Fable 裁定済み: in-place 更新（v2→v3 方式・templateId 'legacy-coc-v4'）・62 技能無改変・
+  カスタム技能 = skill 末尾 list（name text / value number parts=initial/occupation/interest
+  default なし・rowRole `1d100<={row.value}` group skill labelSubFieldId name）・
+  カスタムステータス = status 末尾 list（name/value/max の number advisory・**rowRole なし**。
+  行内 track max は固定宣言のみで行ごと上限を表せないため = Q-F）・seed は行データを配らない
+  （C-12 は「組まない」で充足・組む必要が出たら停止条項）。スコープ 5 面
+  （template/template.spec/seeder/seeder.spec/reproduction.spec）。送信前スコープ突合 4 変種
+  実測済み: v3 文字列はスコープ 4 ファイルのみ・スコープ外 consumer 2 面
+  （sheet-materializer.spec:836 の description 投影・characterization golden）は動的参照＋
+  空 list 中立で無改変緑の見込み（赤なら停止条項あり）・buildValueInputSchema は engine
+  実在 export（value-input.ts:46）・evaluateAnnotationRuntime は template spec import 済み。
+  受入 = 行 end-to-end pin（保存境界検査経由で行 1 本→palette 71・投影 custom_skills:rowId）＋
+  負の対照 3（固定 notation/occupation 除去/技能 1 本削除）。**seed --execute は禁止**
+  （検収側がユーザー環境で実施）。
+- **S8 ラウンド a→b→検収（2026-08-27）**: ラウンド a は指示どおり停止
+  （指示書の `id: 'max'` が engine 予約 ID = KNOWN_FUNCTIONS 由来・publish.ts:51-62。
+  Fable の指示書事故 = exact shape を検証規則と未突合。メモリ第 5 変種として記録済み）。
+  裁定 = engine 変更不許可・`limit`/`lgc_custom_status_limit` へ改名（label 不変）。
+  ラウンド b（codex-s8b）完走: 5 ファイル 277+/52-・Codex 負の対照 3 件検出＋復元 sha 一致。
+  **Fable 独立検収**: delta 精読適合（「他の言語 3 枠」旧コメントの v4 で嘘になる箇所も
+  正しく更新済み）・独立ゲート再実行 = build 緑・循環ゼロ・**226 suites / 3304 tests 全緑**
+  （基準 +5）・characterization/materializer spec 無改変緑。非重複変異 3 件:
+  MS8-2（PREVIOUS を v2 戻し）= 検出 3 failed・MS8-3（deprecate ガード
+  `canDeprecatePrevious=true` 化）= 検出 1 failed・**MS8-1（custom_status list 自体の
+  uid 改変）= 生存（77 tests 全緑）** — 宣言 pin が itemFields/rowRole 不在/位置のみで
+  list 本体の uid/label 無 pin（custom_skills は whole-field toEqual で対称に pin 済み）。
+  → S8c（pin whole-field 化）納品・検収済み: **MS8-1 検出転化を実測**（変異で 1 failed→
+  復元 sha 一致→77/77 緑）・S8c 後ツリーで全 suite 226/3304 緑。
+- **S8 Opus 小粒度 3 軸レビュー→S8d 回収（2026-08-27）**: findings 7（blocking 1）。
+  全主張を現物突合してから処方箋化。CL-1[High] = template.ts:146「プール集計は section
+  直下のみ走査」が S1〜S3 以降偽（同差分の pool 参加 pin 自身が反証・旧 110-113 の同型は
+  修正済みで 1 箇所直し漏れ）→ 正しい 2 条件（**プールの publish 資格**＋applyPartsDefaults）
+  へ書換。CL-2 = spec:200 の版取り残し 1/22（散文 22 箇所の広域 de-versioning は followups）。
+  CL-3 = **本スライス主目的の経路「parts 配分行→palette 合計展開」が全 spec 無 pin**
+  （materializer spec :396-430 は projection のみ実測確認）→ E2E 行を parts 形
+  `{initial:20, occupation:25}`→`1d100<=45` へ差替＋interest プール参加 pin 追加
+  （**実装開通も同時に実証**）。CL-4 = custom_status の Why に「rowRole 無し ⇒ palette/
+  projection に出ない」追記。CL-5 = sectionById 1 本化（検索 3 複製・`!` 除去）。
+  CL-6 = seeder に本番 deprecate 到達点の日付つき記録復元（AI.character.md 導線付き）。
+  CL-7 = AI.character.md:1139 は v4 execute で偽になる → execute 実測とセット更新
+  （followups にチェック項目化）。nit = 版 pin を独立 it へ。
+  **Fable 担当分完了**: doc 偽主張複製 2 件（legacy-coc-v3-skills.md 末尾追記・
+  design-route E-7 セル注記）修正。S8d 納品 = 4 ファイル（template/seeder はコメントのみ）・
+  focused 5 suites **78 tests** 緑 → S8d 最終ゲート = build 緑・循環ゼロ・
+  **226 suites / 3305 tests 全緑**（基準 3299 から +6）。**S8 受入確定（jest 面）**。
+
+### 【feature 完了サマリ 2026-08-27】web-free-add フェーズ A〜C
+
+- **結果**: 全 8 スライス＋FIX ラウンド完了。engine（S1-S3）= list 保存境界受理・行プール
+  参加・publish 閉じ込め / server（S4-S6・**コミット済み 85ba17d7/b0b44e03・push 済み**）=
+  保存開通・palette・投影 / front（S7a/S7a-R/S7b）= 行 UI・EditClient 配線・実ブラウザ受入 /
+  seed（S8a-d）= legacy-coc-v4（カスタム技能 rollable list＋カスタムステータス advisory list・
+  62 技能不変・行 parts→プール・E2E で palette 71 と内訳合計展開を実証）
+- **大粒度③（2026-08-27）**: blocking 0。**フェーズ C が新たに作った複製 0**（行 UI・rowId
+  採番・list whole-field change・wire 等価・v4 list 2 本のいずれにも第 2 実装なし・仮説 4 件
+  反証済み）。非 blocking 2 = フェーズ C 以前からの未回収分（CL-C1 front の
+  `isPartsRecordValue` インライン 7+1 箇所 / CL-C2 base フォールバック読取 2 実装）→
+  followups へ記録済み・既知「parts 適用述語 3 定義」と同一スライスで一括回収する方針。
+  証跡 = `review-results/web-free-add/c-macro-review-opus.md`
+- **ゲート最終値**: TRPG-SERVER = build 緑・循環ゼロ・226 suites/3305 tests。
+  trpg-next-app = typecheck 0・lint 0・35 suites/663 tests。engine = 605/605（S1-FIX 時点、
+  以降 engine 無変更）。機械検証 = Codex 負の対照＋Fable 変異あわせて全フェーズで生存 0
+  （生存→pin→検出転化サイクル 4 回転: MS7-1/MB-4/MF-1/MS8-1）
+- **記録完了**: AI.character.md（v4 節・未 execute 明示）・trpg-next-app/AI.md（S7 時）・
+  design-route（S7/S8 実施記録焼き込み）・followups（CL-2/CL-7/CL-C1/CL-C2 ほか）・
+  メモリ（delegation-scope 第 5 変種 = exact shape×予約語照合・.env 本番 Atlas 直結）
+- **残タスク（ユーザー裁定待ち・feature の外側）**:
+  1. **コミット**: engine＋front＋seed＋doc の全差分が未コミット（S4-S6 のみコミット済み）。
+     pathspec --only・TRPG-SERVER は CRLF churn 注意
+  2. **v4 seed 配布**: `.env` が本番 Atlas 直結のため dry-run/execute とも未実施。
+     実施時 = dry-run → execute → 冪等確認 → 実画面（キャラ作成→シート編集で
+     カスタム技能行の追加→保存→palette/ロール）→ AI.character.md:1139 と本 doc を実測更新
+     （followups CL-7）
 
 ## 【アイデア出し完了 2026-08-24】シナリオ×マップ機能の発散（コード変更なし）
 
