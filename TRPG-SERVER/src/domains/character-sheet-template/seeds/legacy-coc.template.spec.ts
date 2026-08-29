@@ -75,16 +75,52 @@ const EXPECTED_LEGACY_COC_SKILL_ROSTER = [
   { id: 'history', label: '歴史', initial: 20 }
 ] as const
 
-/** 技能セクション。存在しなければ以降の技能 it はすべて意味を失うので、取得できない時点で落とす。 */
-function skillSection() {
-  const section = LEGACY_COC_TEMPLATE.sections.find((candidate) => candidate.id === 'skill')
+/** section を id で取得する。存在しなければ呼び出し元の宣言形 pin が意味を失うので、取得時点で落とす。 */
+function sectionById(sectionId: string) {
+  const section = LEGACY_COC_TEMPLATE.sections.find((candidate) => candidate.id === sectionId)
   if (section === undefined) {
-    throw new Error('legacy-coc template does not contain the skill section')
+    throw new Error(`legacy-coc template does not contain section ${sectionId}`)
   }
   return section
 }
 
+/** 技能セクション。存在しなければ以降の技能 it はすべて意味を失うので、取得できない時点で落とす。 */
+function skillSection() {
+  return sectionById('skill')
+}
+
+/** v3 から形を変えずに引き継ぐ標準 62 技能。v4 で追加した custom_skills だけを除外する。 */
+function standardSkillFields() {
+  return skillSection().fields.filter((field) => field.id !== 'custom_skills')
+}
+
+/** section 末尾へ標準搭載するカスタム欄。list でなければ宣言形 pin の前提が崩れているので即座に落とす。 */
+function listField(sectionId: string, fieldId: string) {
+  const field = sectionById(sectionId).fields.find((candidate) => candidate.id === fieldId)
+  if (field?.type !== 'list') {
+    throw new Error(`legacy-coc template does not contain list field ${sectionId}.${fieldId}`)
+  }
+  return field
+}
+
+function poolById(poolId: string, values: Record<string, unknown>) {
+  const runtime = evaluateAnnotationRuntime(LEGACY_COC_TEMPLATE, values)
+  const pool = runtime.sections
+    .find((section) => section.sectionId === 'skill')
+    ?.pools.find((candidate) => candidate.poolId === poolId)
+  if (pool === undefined) {
+    throw new Error(`legacy-coc template does not contain pool runtime skill.${poolId}`)
+  }
+  return { pool, warnings: runtime.warnings }
+}
+
 describe('LEGACY_COC_TEMPLATE', () => {
+  it('配布 id・版・schemaVersion を固定する', () => {
+    expect(LEGACY_COC_TEMPLATE.templateId).toBe('legacy-coc-v4')
+    expect(LEGACY_COC_TEMPLATE.version).toBe('1.0.0')
+    expect(LEGACY_COC_TEMPLATE.schemaVersion).toBe(3)
+  })
+
   it('uses the domain-pinned system template author', () => {
     expect(SYSTEM_TEMPLATE_AUTHOR).toBe('system')
     expect(LEGACY_COC_TEMPLATE.authorDiscordUserId).toBe(SYSTEM_TEMPLATE_AUTHOR)
@@ -164,17 +200,15 @@ describe('LEGACY_COC_TEMPLATE', () => {
    * 本数が変わるのは正本（document/character-sheet-proposals/legacy-coc-v3-skills.md）からの逸脱。
    */
   it('技能セクションが id skill で存在し 62 技能を持つ', () => {
-    const section = skillSection()
-
-    expect(section.fields).toHaveLength(62)
+    expect(standardSkillFields()).toHaveLength(62)
   })
 
   /**
-   * Test intent: published 後のテンプレート構造は不変で、技能 roster の誤りは v4 でしか直せない。
+   * Test intent: published 後のテンプレート構造は不変で、技能 roster の誤りは次の id での出し直しでしか直せない。
    * そのため配布前に、id・label・初期値・宣言順が正本の表と一致することを単一配列で固定する。
    */
   it('技能 roster の id・label・初期値・宣言順が配布前の正本と一致する', () => {
-    const roster = skillSection().fields.map((field) => {
+    const roster = standardSkillFields().map((field) => {
       if (field.type !== 'scalar') {
         throw new Error(`skill ${field.id} is not a scalar field`)
       }
@@ -190,11 +224,12 @@ describe('LEGACY_COC_TEMPLATE', () => {
 
   /**
    * Test intent: 全技能が「section 直下の number scalar ＋ 内訳キー 3 種」であることを固定する。
-   * これは作成時の既定値の焼き込み（applyPartsDefaults）とプール集計の適用条件そのもので、
+   * これは作成時の既定値の焼き込み（applyPartsDefaults）と、partsKey を section 直下 field の宣言で充足する
+   * プールの publish 資格の適用条件そのもので、
    * 崩れると回避・母国語の初期値が焼き込まれず 0 になり、職業・興味ポイントの振り先も消える。
    */
   it('全技能が section 直下の number scalar で内訳キー initial/occupation/interest を持つ', () => {
-    for (const field of skillSection().fields) {
+    for (const field of standardSkillFields()) {
       expect(field.type).toBe('scalar')
       if (field.type !== 'scalar') continue
       expect(field.valueType).toBe('number')
@@ -208,7 +243,7 @@ describe('LEGACY_COC_TEMPLATE', () => {
    * 全 62 技能の allocation key が default プロパティ自体を持たないことを固定する。
    */
   it('全技能の職業・興味キーは default を持たない', () => {
-    const allocationKeyStates = skillSection().fields.flatMap((field) => {
+    const allocationKeyStates = standardSkillFields().flatMap((field) => {
       if (field.type !== 'scalar') {
         throw new Error(`skill ${field.id} is not a scalar field`)
       }
@@ -220,7 +255,7 @@ describe('LEGACY_COC_TEMPLATE', () => {
           hasDefault: Object.prototype.hasOwnProperty.call(partsKey, 'default')
         }))
     })
-    const expectedStates = skillSection().fields.flatMap((field) => [
+    const expectedStates = standardSkillFields().flatMap((field) => [
       { fieldId: field.id, partsKey: 'occupation', hasDefault: false },
       { fieldId: field.id, partsKey: 'interest', hasDefault: false }
     ])
@@ -233,9 +268,89 @@ describe('LEGACY_COC_TEMPLATE', () => {
    * 同じ rollable role を持つことを固定する。`{value}` は初期・職業・興味・other の内訳合計へ解決される。
    */
   it('全技能が技能判定用の rollable role を持つ', () => {
-    for (const field of skillSection().fields) {
+    for (const field of standardSkillFields()) {
       expect(field.role).toEqual({ kind: 'rollable', notation: '1d100<={value}', group: 'skill' })
     }
+  })
+
+  /**
+   * Test intent: 行投影の値出所と pool 集計を同じ value item に固定する。
+   * partsKeys の default はプロパティ不在まで検査し、行追加前から予算が消費される宣言を許さない。
+   */
+  it('カスタム技能 list が itemFields・partsKeys・rowRole の v4 契約を宣言する', () => {
+    const field = listField('skill', 'custom_skills')
+
+    expect(skillSection().fields[skillSection().fields.length - 1]).toBe(field)
+    expect(field).toEqual({
+      type: 'list',
+      id: 'custom_skills',
+      uid: 'lgc_custom_skills',
+      label: 'カスタム技能',
+      itemFields: [
+        {
+          type: 'scalar',
+          id: 'name',
+          uid: 'lgc_custom_skill_name',
+          label: '技能名',
+          valueType: 'text'
+        },
+        {
+          type: 'scalar',
+          id: 'value',
+          uid: 'lgc_custom_skill_value',
+          label: '技能値',
+          valueType: 'number',
+          partsKeys: [
+            { id: 'initial', label: '初期値' },
+            { id: 'occupation', label: '職業' },
+            { id: 'interest', label: '興味' }
+          ]
+        }
+      ],
+      rowRole: {
+        kind: 'rollable',
+        notation: '1d100<={row.value}',
+        group: 'skill',
+        labelSubFieldId: 'name'
+      }
+    })
+
+    const valueField = field.itemFields.find((itemField) => itemField.id === 'value')
+    if (valueField?.type !== 'scalar') {
+      throw new Error('custom skill value is not a scalar item field')
+    }
+    for (const partsKey of valueField.partsKeys ?? []) {
+      expect(Object.prototype.hasOwnProperty.call(partsKey, 'default')).toBe(false)
+    }
+  })
+
+  /**
+   * Test intent: カスタムステータスは advisory な現在値・上限の列だけを持ち、
+   * palette / 投影へ参加させる rowRole を宣言しないことを固定する。
+   */
+  it('カスタムステータス list が 3 itemFields を持ち rowRole を宣言しない', () => {
+    const field = listField('status', 'custom_status')
+    const statusSection = sectionById('status')
+
+    expect(statusSection.fields[statusSection.fields.length - 1]).toBe(field)
+    expect(field).toEqual({
+      type: 'list',
+      id: 'custom_status',
+      uid: 'lgc_custom_status',
+      label: 'カスタムステータス',
+      itemFields: [
+        { type: 'scalar', id: 'name', uid: 'lgc_custom_status_name', label: '名称', valueType: 'text' },
+        { type: 'scalar', id: 'value', uid: 'lgc_custom_status_value', label: '現在値', valueType: 'number' },
+        {
+          type: 'scalar',
+          id: 'limit',
+          uid: 'lgc_custom_status_limit',
+          label: '上限（目安）',
+          valueType: 'number'
+        }
+      ]
+    })
+    expect(Object.prototype.hasOwnProperty.call(field, 'rowRole')).toBe(false)
   })
 
   /**
@@ -295,18 +410,7 @@ describe('LEGACY_COC_TEMPLATE', () => {
       lgc_edu: { parts: { base: 65 } },
       lgc_skill_spot_hidden: { parts: { initial: 25 } }
     }
-    const occupationPool = (values: Record<string, unknown>) => {
-      const runtime = evaluateAnnotationRuntime(LEGACY_COC_TEMPLATE, values)
-      const pool = runtime.sections
-        .find((section) => section.sectionId === 'skill')
-        ?.pools.find((candidate) => candidate.poolId === 'occupation')
-      if (pool === undefined) {
-        throw new Error('legacy-coc template does not contain the occupation pool runtime')
-      }
-      return { pool, warnings: runtime.warnings }
-    }
-
-    expect(occupationPool(creationValues).pool).toEqual({
+    expect(poolById('occupation', creationValues).pool).toEqual({
       sectionId: 'skill',
       poolId: 'occupation',
       consumed: 0,
@@ -316,7 +420,7 @@ describe('LEGACY_COC_TEMPLATE', () => {
       over: false
     })
 
-    const allocated = occupationPool({
+    const allocated = poolById('occupation', {
       ...creationValues,
       lgc_skill_spot_hidden: { parts: { initial: 25, occupation: 40 } },
       lgc_skill_library: { parts: { initial: 25, occupation: 20 } }
@@ -331,7 +435,7 @@ describe('LEGACY_COC_TEMPLATE', () => {
       over: false
     })
 
-    const over = occupationPool({
+    const over = poolById('occupation', {
       ...creationValues,
       lgc_skill_spot_hidden: { parts: { initial: 25, occupation: 261 } }
     })
@@ -345,5 +449,53 @@ describe('LEGACY_COC_TEMPLATE', () => {
       over: true
     })
     expect(over.warnings).toContainEqual({ code: 'pool-over', sectionId: 'skill', poolId: 'occupation' })
+  })
+
+  /**
+   * Test intent: list 行の number parts が section 直下技能と同じ occupation / interest pool へ参加することを、
+   * itemField uid キーの実値で固定する。id キーは保存境界が拒否するため期待値には使わない。
+   */
+  it('カスタム技能行の occupation / interest 配分を各プールの consumed に加算する', () => {
+    const occupationValues = {
+      lgc_edu: { parts: { base: 65 } },
+      lgc_custom_skills: [
+        {
+          rowId: 'row_test1',
+          lgc_custom_skill_name: '古文書解読',
+          lgc_custom_skill_value: { parts: { occupation: 30 } }
+        }
+      ]
+    }
+
+    expect(poolById('occupation', occupationValues).pool).toEqual({
+      sectionId: 'skill',
+      poolId: 'occupation',
+      consumed: 30,
+      status: 'ok',
+      total: 260,
+      remaining: 230,
+      over: false
+    })
+
+    const interestValues = {
+      lgc_int: { parts: { base: 60 } },
+      lgc_custom_skills: [
+        {
+          rowId: 'row_test2',
+          lgc_custom_skill_name: '夢見',
+          lgc_custom_skill_value: { parts: { interest: 15 } }
+        }
+      ]
+    }
+
+    expect(poolById('interest', interestValues).pool).toEqual({
+      sectionId: 'skill',
+      poolId: 'interest',
+      consumed: 15,
+      status: 'ok',
+      total: 120,
+      remaining: 105,
+      over: false
+    })
   })
 })

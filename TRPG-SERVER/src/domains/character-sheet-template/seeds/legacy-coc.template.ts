@@ -110,10 +110,8 @@ const LEGACY_COC_SKILLS: LegacySkillDefinition[] = [
   { id: 'persuade', label: '説得', initial: 15 },
   { id: 'bargain', label: '値切り', initial: 5 },
   { id: 'own_language', label: '母国語', initial: { formula: '{parameter.edu}' } },
-  // 「他の言語」を固定 3 枠にしているのは、行をユーザーが増やす機構（list 型）の行には
-  // 職業・興味ポイントを振れないため。プールの集計は packages/sheet-engine/src/annotation-runtime.ts が
-  // section 直下の field しか走査しないので、list の行は予算の対象にならない。
-  // 使わない枠は初期値 1 のまま残る。
+  // 「他の言語」固定 3 枠は v3 で配布済みの 62 技能 roster の一部なので、v4 でも形を変えない。
+  // 任意の言語を増やす用途は後段のカスタム技能 list が担い、使わない固定枠は初期値 1 のまま残る。
   { id: 'other_language_1', label: '他の言語 1', initial: 1 },
   { id: 'other_language_2', label: '他の言語 2', initial: 1 },
   { id: 'other_language_3', label: '他の言語 3', initial: 1 },
@@ -144,8 +142,8 @@ const LEGACY_COC_SKILLS: LegacySkillDefinition[] = [
 /**
  * 技能 1 つにつき section 直下の number scalar を 1 本作り、内訳キーを 3 種に固定する。
  *
- * この「section 直下の number scalar」という形は 2 つの機構の適用条件そのものなので崩せない。
- * 1 つはプールの集計（annotation-runtime.ts）で section 直下の field しか走査しない。
+ * この「section 直下の number scalar」という形は 2 つの条件を同時に満たすため崩せない。
+ * 1 つはプールの publish 資格で、pool の partsKey は section 直下 field の宣言でしか充足できない。
  * もう 1 つは作成時の既定値の焼き込み（character-instantiation.service.ts の applyPartsDefaults）で、
  * section 直下 number scalar かつ内訳を持てる field にしか効かない。後者を外すと、初期値が式である
  * 回避と母国語だけが焼き込まれず、例外も警告も無いまま 0 のキャラが配布される。
@@ -174,7 +172,7 @@ function buildLegacySkillFields(): SheetField[] {
 }
 
 export const LEGACY_COC_TEMPLATE: SheetTemplate = {
-  // 技能セクションを足すために、旧 `legacy-coc-v2` の行は残したまま別 id で出し直す。
+  // カスタム技能・ステータス欄を足すために、旧 `legacy-coc-v3` の行は残したまま別 id で出し直す。
   // 版だけを上げる形は採れない。resolveReadableRevision に「Phase 2 は templateId ごとに単一バージョンのみを
   // 保持する」と明記があり、版を上げると既存キャラの pin（templateId + templateVersion）が解決できず 409 になる。
   // update 経路も published/deprecated の構造変更を
@@ -183,8 +181,8 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
   // 同 templateId の既存行に対しては skip / conflict を報告するだけで上書きしない。
   // さらに作成済みキャラは templateId と templateVersion を sheet へ固定保存する
   // （character-instantiation.service.ts）ため、旧行を消すと既存キャラの template 解決が壊れる。
-  // 帰結として、この技能リストを後から直すにも版上げではなく次の id（v4）が要る。
-  templateId: 'legacy-coc-v3',
+  // 帰結として、この配布テンプレートを後から直すにも版上げではなく次の id が要る。
+  templateId: 'legacy-coc-v4',
   name: 'Legacy Call of Cthulhu（能力値ロール修正版）',
   version: '1.0.0',
   schemaVersion: 3,
@@ -235,6 +233,26 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
           label: 'DB',
           resultType: 'dice',
           formula: 'lookup({parameter.str} + {parameter.siz}, damage_bonus)'
+        },
+        {
+          type: 'list',
+          id: 'custom_status',
+          uid: 'lgc_custom_status',
+          label: 'カスタムステータス',
+          // 行内 track の max は固定値しか宣言できず、行ごとに異なる上限を表せない。
+          // 現在値と上限（目安）を number 列で持ち、TrackRangePolicy との行統合は Q-F の将来スライスに委ねる。
+          // rowRole を宣言しないので行は palette にも projection にも出ず、advisory 欄の表示は Web のシート画面だけが担う。
+          itemFields: [
+            { type: 'scalar', id: 'name', uid: 'lgc_custom_status_name', label: '名称', valueType: 'text' },
+            { type: 'scalar', id: 'value', uid: 'lgc_custom_status_value', label: '現在値', valueType: 'number' },
+            {
+              type: 'scalar',
+              id: 'limit',
+              uid: 'lgc_custom_status_limit',
+              label: '上限（目安）',
+              valueType: 'number'
+            }
+          ]
         }
       ]
     },
@@ -254,7 +272,40 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
         { id: 'occupation', label: '職業ポイント', total: { formula: '{parameter.edu} * 4' }, partsKey: 'occupation' },
         { id: 'interest', label: '興味ポイント', total: { formula: '{parameter.int} * 2' }, partsKey: 'interest' }
       ],
-      fields: buildLegacySkillFields()
+      fields: [
+        ...buildLegacySkillFields(),
+        {
+          type: 'list',
+          id: 'custom_skills',
+          uid: 'lgc_custom_skills',
+          label: 'カスタム技能',
+          itemFields: [
+            { type: 'scalar', id: 'name', uid: 'lgc_custom_skill_name', label: '技能名', valueType: 'text' },
+            {
+              type: 'scalar',
+              id: 'value',
+              uid: 'lgc_custom_skill_value',
+              label: '技能値',
+              valueType: 'number',
+              // 行の partsKey に default を書くと、行追加時点からプールを消費済みとして扱ってしまう。
+              // engine publish も list item の default を拒否するため、配分値は保存された行だけから集計する。
+              partsKeys: [
+                { id: 'initial', label: '初期値' },
+                { id: 'occupation', label: '職業' },
+                { id: 'interest', label: '興味' }
+              ]
+            }
+          ],
+          // 行投影は notation の最初の row 参照を値出所にするため、`{row.value}` を唯一かつ先頭に置く。
+          // 固定値 notation の行が palette には出ても投影には出ない非対称を避けるため、この順序を崩さない。
+          rowRole: {
+            kind: 'rollable',
+            notation: '1d100<={row.value}',
+            group: 'skill',
+            labelSubFieldId: 'name'
+          }
+        }
+      ]
     },
     {
       id: 'description',
@@ -286,7 +337,8 @@ export const LEGACY_COC_TEMPLATE: SheetTemplate = {
   ]
 }
 
-// 技能は v3 で CoC6 標準 62 本の固定枠として載せた（section skill）。技能ごとの上限（scalar.max）は
+// 技能は v3 で CoC6 標準 62 本の固定枠として載せ、v4 で行追加用のカスタム技能欄を併設した（section skill）。
+// 固定 62 技能の上限（scalar.max）は
 // 置かない。要望の「最大値」は職業・興味ポイントというプールの予算のことで、技能個別の上限は CoC6 に無く、
 // 置くと正当な高技能値へ警告が出るだけになる。
 // 旧 `legacy-coc` から取り込んだキャラの技能は、引き続き design-v1 section 3 の互換投影が正本。

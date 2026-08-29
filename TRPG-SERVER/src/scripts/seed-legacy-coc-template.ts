@@ -13,11 +13,11 @@ import { LEGACY_COC_TEMPLATE } from '../domains/character-sheet-template/seeds/l
 import { collectTemplatePublishValidationIssues } from '../domains/character-sheet-template/validation/template-publish-validation-issue.collector'
 
 /**
- * 配布中の system テンプレートを `legacy-coc-v3`（LEGACY_COC_TEMPLATE）へ入れ替える seeder。
- * v3 の published 行を 1 件投入し、置き換えられた旧 `legacy-coc-v2` の行を deprecated へ落とす。
+ * 配布中の system テンプレートを `legacy-coc-v4`（LEGACY_COC_TEMPLATE）へ入れ替える seeder。
+ * v4 の published 行を 1 件投入し、置き換えられた旧 `legacy-coc-v3` の行を deprecated へ落とす。
  *
- * Why: v2 は技能セクションを持たず、職業・興味ポイントの振り分けが使えない
- * （seeds/legacy-coc.template.ts の Why）。v3 の行を足すだけでは足りない。一覧は requester を問わず
+ * Why: v3 はカスタム技能・ステータス欄を持たず、キャラ固有の行を追加できない
+ * （seeds/legacy-coc.template.ts の Why）。v4 の行を足すだけでは足りない。一覧は requester を問わず
  * system 所有の published 行を配る
  * （repositories/character-sheet-template.repository.ts の findListedSummariesForRequester）ため、
  * 旧行が published のままだと技能の無い側が選択肢に残る。
@@ -30,17 +30,18 @@ import { collectTemplatePublishValidationIssues } from '../domains/character-she
  */
 
 /**
- * v3 に置き換えられた旧テンプレートの id。
+ * v4 に置き換えられた旧テンプレートの id。
  *
- * この行は DB から消さず deprecated にするだけにする。旧 `legacy-coc-v2` に pin された既存キャラが
+ * この行は DB から消さず deprecated にするだけにする。旧 `legacy-coc-v3` に pin された既存キャラが
  * 残っている前提で、pin 解決（CharacterSheetTemplateService.resolvePinnedRevision）は deprecated を
  * 受理する一方、新規作成の解決（resolveForCreate）と上記の一覧は published しか通さない。
  * つまり deprecate だけで「新しく選べない・既存キャラは解決できる」になる。
  *
- * 本番 DB では 2026-08-19 の v2 seeder 実行で、さらに前の世代（`legacy-coc`）は deprecate 済み。
- * v2 seeder を通していない環境では v1 が published のまま残る。この seeder は直前の 1 段しか落とさない。
+ * 本番は 2026-08-22 の v3 seeder 実行で v1 / v2 とも deprecate 済み（実測記録は TRPG-SERVER/AI.character.md）。
+ * 以前の seeder を通していない環境ではさらに古い世代が published のまま残り得るが、
+ * この seeder は直前の 1 段しか落とさない。
  */
-const PREVIOUS_TEMPLATE_ID = 'legacy-coc-v2'
+const PREVIOUS_TEMPLATE_ID = 'legacy-coc-v3'
 
 export type SeedMode = 'dry-run' | 'execute'
 
@@ -175,7 +176,7 @@ export async function runLegacyCocTemplateSeed(options: {
   }
   logger.log(`inserted=${inserted}`)
 
-  // 旧行を落としてよいのは v3 が published として在るときだけ。insert に失敗したまま
+  // 旧行を落としてよいのは v4 が published として在るときだけ。insert に失敗したまま
   // 旧行を deprecate すると、一覧に出る system テンプレートが 1 つも無くなる。
   // skip-existing は同版の published 行が既にあるので insert 無しでも成立する。
   // dry-run は書き込まないので、insert 予定（decision='insert' かつ失敗なし）を成立扱いにして

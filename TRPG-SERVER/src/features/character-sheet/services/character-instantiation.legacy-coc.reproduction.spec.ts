@@ -20,6 +20,7 @@
  *
  * v3 で技能セクションが入ったのに伴い、内訳の既定値の焼き込み（applyPartsDefaults）も同じ作成経路で
  * 実測する。既定値の式は作成時ロールで決まった能力値を参照するため、ロールと同じ経路でしか測れない。
+ * v4 のカスタム欄は空行を seed せず、保存境界を通った行だけが palette / 投影へ参加することも固定する。
  */
 import type { CharacterEntity, MaterializedCharacterEntity } from '../../../domains/character/models/character.entity'
 import type { CharacterSheetTemplateEntity } from '../../../domains/character-sheet-template/models/character-sheet-template.entity'
@@ -174,8 +175,9 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（作成時ロー
       throw new Error('legacy-coc template does not contain the skill section')
     }
 
-    expect(skillSection.fields).toHaveLength(62)
-    for (const field of skillSection.fields) {
+    const standardSkillFields = skillSection.fields.filter((field) => field.id !== 'custom_skills')
+    expect(standardSkillFields).toHaveLength(62)
+    for (const field of standardSkillFields) {
       expect(result.materialized.sheet.values[field.uid]).toEqual({
         parts: { initial: expect.any(Number) }
       })
@@ -188,6 +190,20 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（作成時ロー
       dodge: { name: '回避', values: { initial: 22 } },
       own_language: { name: '母国語', values: { initial: 65 } }
     })
+  })
+
+  /**
+   * Test intent: seed と instantiate が list 行を推測して作らず、保存境界と同じ行スキーマを
+   * 通っていない values を作成結果へ混ぜないことを、プロパティ不在まで固定する。
+   */
+  it('作成直後の values にカスタム技能・ステータスの空 list を焼き込まない', async () => {
+    const { service } = createService()
+
+    const result = await service.instantiate(instantiateInput)
+    const values = result.materialized.sheet.values
+
+    expect(Object.prototype.hasOwnProperty.call(values, 'lgc_custom_skills')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(values, 'lgc_custom_status')).toBe(false)
   })
 
   /**
@@ -209,5 +225,47 @@ describe('CharacterInstantiationService × LEGACY_COC_TEMPLATE（作成時ロー
         group: 'skill'
       })
     )
+  })
+
+  /**
+   * Test intent: v4 の実物で、uid キーの list 行が engine の入力スキーマを通過した後にだけ保存値へ入り、
+   * S5 の palette と S6 の skill 投影へ同じ行名・行値で到達することを end-to-end で固定する。
+   * ユーザーの実使用形（プール配分した行）が palette へ内訳合計で載ることも固定する。
+   * validateInputValues は buildValueInputSchema を使う実保存境界であり、生の行配列を materialize へ直送しない。
+   */
+  it('検査済みのカスタム技能行を再 materialize すると palette 71 件と skill 行投影になる', async () => {
+    const { service } = createService()
+    const creation = await service.instantiate(instantiateInput)
+    const materializer = new SheetMaterializerService()
+    const customSkillRow = {
+      rowId: 'row_test1',
+      lgc_custom_skill_name: '古文書解読',
+      lgc_custom_skill_value: { parts: { initial: 20, occupation: 25 } }
+    }
+    const validatedValues = materializer.validateInputValues(publishedLegacyCocTemplate, {
+      ...creation.materialized.sheet.values,
+      lgc_custom_skills: [customSkillRow]
+    })
+
+    expect(validatedValues.lgc_custom_skills).toEqual([customSkillRow])
+
+    const rematerialized = materializer.materialize({
+      template: publishedLegacyCocTemplate,
+      sheet: { ...creation.materialized.sheet, values: validatedValues }
+    })
+
+    expect(rematerialized.palette).toHaveLength(71)
+    expect(rematerialized.palette).toContainEqual(
+      expect.objectContaining({
+        fieldRef: { uid: 'lgc_custom_skills', rowId: 'row_test1' },
+        label: '古文書解読',
+        notation: '1d100<=45',
+        group: 'skill'
+      })
+    )
+    expect(rematerialized.projection.skill['custom_skills:row_test1']).toMatchObject({
+      name: '古文書解読',
+      values: { initial: 20, occupation: 25 }
+    })
   })
 })
