@@ -20,10 +20,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="ja" {...mantineHtmlProps}>
       <head>
-        <ColorSchemeScript forceColorScheme="dark" defaultColorScheme="dark" />
+        <ColorSchemeScript forceColorScheme="dark" />
       </head>
       <body>
-        <MantineProvider theme={theme} forceColorScheme="dark" defaultColorScheme="dark">
+        <MantineProvider theme={theme} forceColorScheme="dark">
           <AppLayout authState={authState}>{children}</AppLayout>
         </MantineProvider>
       </body>

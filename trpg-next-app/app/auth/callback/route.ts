@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { isProduction } from '../../config/env.server'
+import { getHostDomain, isProduction } from '../../config/env.server'
 import {
   buildJwtCookieOptions,
   loginOrRegisterUser,
@@ -25,7 +25,7 @@ export async function GET(request: Request): Promise<NextResponse> {
           ? 'missing state cookie'
           : 'state mismatch'
     console.warn(`OAuth callback rejected: ${rejectionReason}`)
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', getHostDomain()))
   }
 
   try {
@@ -35,8 +35,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     cookieStore.set(JWT_COOKIE_NAME, loginData.token, buildJwtCookieOptions(isProduction()))
-    return NextResponse.redirect(new URL('/user', request.url))
+    return NextResponse.redirect(new URL('/user', getHostDomain()))
   } catch {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', getHostDomain()))
   }
 }
