@@ -5,11 +5,16 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-27（**web-free-add（M-D）フェーズ A〜C 全スライス完了・検収済み**。
-  残 = ①全差分未コミット（ユーザー明示許可待ち）②v4 seed の execute
-  （**`TRPG-SERVER/.env` は本番 Atlas 直結**のためユーザー裁定待ち。dry-run→execute→冪等＋
-  実画面受入＋AI.character.md:1139 更新をセットで）。直下の【設計完了 2026-08-26】節の
-  実装記録と、その末尾の**【feature 完了サマリ 2026-08-27】**参照。
+- 最終更新: 2026-08-29（**web-free-add（M-D）feature 完全完了**。ユーザー許可
+  （「やってOK」）に基づき: コミット 3 本 = `a5cafc8a` front S7 / `3cd7d37e` seed S8 /
+  `2a9e033f` docs → push 済み。v4 seed = dry-run→execute
+  （`inserted=true`→`deprecated legacy-coc-v3`）→再 execute で冪等確認。
+  **実 DB の published = legacy-coc-v4 のみ**。**実画面受入も全項目通過**
+  （ユーザーログイン後に Fable が操作: 一覧 v4 のみ・作成ロール 8 件・HP=12≠0・
+  カスタム技能行追加→職業プール 200→170 ライブ減算・カスタムステータス行・保存 200・
+  リロード復元。実測詳細 = TRPG-SERVER/AI.character.md の v4 節）。受入キャラ
+  「v4受入テスト」`char_dhrcgzxg` は残置（削除はユーザー判断）。この doc 更新分のみ未コミット。
+  直下の【設計完了 2026-08-26】節の実装記録と**【feature 完了サマリ 2026-08-27】**参照。
   正本 = `document/character-sheet-proposals/web-free-add-design-route.md`）
 - それ以前: 2026-08-24（**シナリオ×マップ機能のアイデア出し完了**・コード変更なし・
   【アイデア出し完了 2026-08-24】節参照。正本 = `document/scenario-map-ideation-2026-08-24.md`）
@@ -417,13 +422,9 @@
 - **記録完了**: AI.character.md（v4 節・未 execute 明示）・trpg-next-app/AI.md（S7 時）・
   design-route（S7/S8 実施記録焼き込み）・followups（CL-2/CL-7/CL-C1/CL-C2 ほか）・
   メモリ（delegation-scope 第 5 変種 = exact shape×予約語照合・.env 本番 Atlas 直結）
-- **残タスク（ユーザー裁定待ち・feature の外側）**:
-  1. **コミット**: engine＋front＋seed＋doc の全差分が未コミット（S4-S6 のみコミット済み）。
-     pathspec --only・TRPG-SERVER は CRLF churn 注意
-  2. **v4 seed 配布**: `.env` が本番 Atlas 直結のため dry-run/execute とも未実施。
-     実施時 = dry-run → execute → 冪等確認 → 実画面（キャラ作成→シート編集で
-     カスタム技能行の追加→保存→palette/ロール）→ AI.character.md:1139 と本 doc を実測更新
-     （followups CL-7）
+- **残タスク**: なし（2026-08-29 に全回収）。コミット 3 本＋push・v4 seed 配布
+  （dry-run→execute→冪等）・実画面受入・CL-7 の doc 実測更新まで完了。
+  経緯と実測はヘッダの最終更新行と TRPG-SERVER/AI.character.md v4 節を参照
 
 ## 【アイデア出し完了 2026-08-24】シナリオ×マップ機能の発散（コード変更なし）
 

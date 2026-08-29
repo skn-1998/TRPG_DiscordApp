@@ -305,8 +305,11 @@ rowRole なし = web 専用 advisory）。E2E は保存境界検査経由の par
 `1d100<=45`（**内訳合計展開の実証**）。ゲート = 226 suites/3305 tests・変異 6/6 クローズ。
 blocking CL-1 = 「プール集計は section 直下のみ」失効コメント（正 = section 直下が必要なのは
 **プールの publish 資格と applyPartsDefaults**）を template/spec/doc 3 面で修正。
-**seed --execute は未実施**（`.env` が本番 Atlas 直結のためユーザー裁定待ち。
-dry-run→execute→冪等＋実画面はその時に実施し、AI.character.md:1139 を同時更新 = CL-7）。
+**seed 配布・実画面受入とも完了（2026-08-29・ユーザー許可「やってOK」）**:
+dry-run→execute（`inserted=true`→v3 deprecate）→再 execute 冪等確認。実画面 =
+一覧 v4 のみ・作成ロール 8 件・HP=12≠0・カスタム技能行→職業プール 200→170 ライブ減算・
+カスタムステータス行・保存 200・リロード復元（実測正本 = TRPG-SERVER/AI.character.md v4 節。
+CL-7 も同時回収済み）。**M-D feature 完全完了**。
 
 → feature 完了ゲート: 大粒度レビュー③＋`document/SESSION_HANDOFF.md` 全面更新
 

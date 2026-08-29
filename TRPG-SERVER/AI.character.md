@@ -1137,6 +1137,7 @@ front 側の PV-C1 で実際に出た退行と同型である。
 
 コミット `4f0d3a0`（コード 6＋正本文書）。seed は同日 execute 済みで、実 DB の最終状態は
 **system の published = `legacy-coc-v3` の 1 件のみ**（v1 / v2 は deprecated。読み取り probe で確認）。
+（その後 2026-08-29 の v4 seeder execute で v3 も deprecated へ。現況は下の v4 節）
 
 **内容**: section `skill` に CoC6 標準 62 本（section 直下 number scalar・内訳キー
 initial / occupation / interest）、プール 2 本（職業 = `{parameter.edu} * 4`・
@@ -1165,17 +1166,31 @@ initial / occupation / interest）、プール 2 本（職業 = `{parameter.edu}
 `character-display.service.ts` の旧契約（単数 `value`）も同様に到達不能の潜在欠陥。
 別スライス項目は `review-results/roll-lane/followups.md`。
 
-## 2026-08-27: legacy-coc-v4 実装（カスタム技能・カスタムステータス欄。**seed 未 execute**）
+## 2026-08-27: legacy-coc-v4 実装（カスタム技能・カスタムステータス欄）→ 2026-08-29 配布済み
 
 web-free-add（M-D）フェーズ C の最終スライス S8。コード変更 5 面
 （seeds/legacy-coc.template.{ts,spec.ts}・scripts/seed-legacy-coc-template.{ts,spec.ts}・
-character-instantiation.legacy-coc.reproduction.spec.ts）・**未コミット**。
+character-instantiation.legacy-coc.reproduction.spec.ts）。
+コミット = `a5cafc8a`（front S7）/ `3cd7d37e`（seed S8）/ `2a9e033f`(docs)・push 済み。
 
-**重要: seed は未 execute**。`.env` の `MONGODB_URI` は本番 Atlas を指すため、
-`--execute`（および本番接続を伴う dry-run）は実施していない。実行はユーザー裁定待ち。
-**上節の「実 DB の published = legacy-coc-v3 の 1 件のみ」は execute の瞬間まで真のまま**で、
-execute 後は本節と上節:1138-1139 を実測とセットで更新すること
-（followups の CL-7 チェック項目）。
+**seed execute 実測（2026-08-29・ユーザー許可済み）**: dry-run =
+`decision=insert / inserted=false / would deprecate legacy-coc-v3`（書き込みなし確認）→
+execute = `inserted=true` → `deprecated templateId=legacy-coc-v3`（v4 成立後 deprecate の
+順序どおり）→ 再 execute = `decision=skip-existing / inserted=false /
+no published legacy-coc-v3 row to deprecate`（冪等・v3 の非 published を読み返しで確認）。
+**実 DB の最終状態 = system の published は `legacy-coc-v4` の 1 件のみ**
+（v1 / v2 / v3 は deprecated）。`.env` の `MONGODB_URI` は本番 Atlas 直結なので、
+DB 接続 script は今後も実行前に接続先確認＋ユーザー裁定を必須とする。
+
+**実画面受入（2026-08-29・シートテンプレート一覧→キャラ作成→シート編集画面）**:
+①テンプレート一覧に配布版が 1 件のみ（旧 v3 の残留なし）②「このテンプレートで作成」で
+作成時ロール 8 件表示・HP=12 / MP=9 / SAN=45（**HP≠0**・CON70/SIZ50/POW45 と整合）
+③カスタム技能へ行追加 = 技能名「古文書解読」＋内訳 職業 30 → 合計セルが readOnly「30」へ
+ライブ更新・**職業ポイント残りが 200→170 へライブ減算**（行のプール参加の実画面実証）
+④カスタムステータスへ行追加（負傷 / 現在値 3 / 上限 10）⑤「変更を保存」= POST 200・
+エラーなし ⑥リロード後も全行・全値・プール残 170/200 が復元（保存境界→DB→再構築の
+round-trip 実証）。受入キャラ = 「v4受入テスト」`char_dhrcgzxg`（テストデータとして残置。
+削除はユーザー判断）。palette 71 件・行 notation 補間は reproduction spec の実 service E2E が正本。
 
 **内容**: v2→v3 と同じ in-place 出し直しで `templateId: 'legacy-coc-v4'`。62 技能・pools・
 rollOnCreate・description は 1 フィールドも不変（roster 全数 pin が v4 でも緑）。追加は 2 本:
