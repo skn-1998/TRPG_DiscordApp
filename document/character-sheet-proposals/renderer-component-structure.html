@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>renderer-component-structure.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="認知負荷レビュー-キャラクターシート描画コンポーネントの構成方針">認知負荷レビュー: キャラクターシート描画コンポーネントの構成方針</h1>
+<blockquote>
+<p><strong>分類</strong>：設計判断、段階的リファクタ方針</p>
+<p><strong>対象</strong>：<code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx</code></p>
+<p><strong>ステータス</strong>：推奨案、実装未着手</p>
+<p><strong>最終更新</strong>：2026-10-12</p>
+</blockquote>
+<h2 id="結論">結論</h2>
+<p><code>character-sheet-data-patterns.md</code> の D01 から D19 を、そのまま実行時のコンポーネント種別にはしない。</p>
+<p>D01 から D19 は、要件の整理、対応状況の確認、表示例、回帰テストの分類に使う。</p>
+<p>実行時の描画は、既存 schema v3 の <code>field.type</code> と <code>section.layout.preset</code> を分岐軸にする。</p>
+<p><code>TemplateFormRenderer</code> は作成フォーム、編集画面、テンプレートプレビューが共有する唯一の公開入口として残す。</p>
+<p>内部を分割するときは、フィールド型、レイアウト構造、独立した編集状態という実際の変更理由に沿って段階的に切り出す。</p>
+<p>判定は <strong>縮小</strong> とする。</p>
+<p>D01 から D19 の19コンポーネントを新設する案は採用せず、現在の描画正本を保った内部分割だけを進める。</p>
+<h2 id="対象の理解レビュアの前提">対象の理解（レビュアの前提）</h2>
+<p><a href="../character-sheet-data-patterns.md">キャラクターシートのデータ保持パターン</a>は、紙面の見た目ではなく「何をどう保存するか」を分類した資料である。</p>
+<p>同資料も、通常の二列表示やカード表示を値の意味から分離し、座標自体がルールへ影響する D13 だけを別扱いにしている。</p>
+<p>現行 schema v3 は、フィールドを <code>scalar</code>、<code>computed</code>、<code>roll</code>、<code>track</code>、<code>list</code>、<code>relation</code>、<code>tag</code> の直和で表現する。</p>
+<p>現行の表示用レイアウト語彙は、<code>stack</code>、<code>grid</code>、<code>table</code> の3種である。</p>
+<p><a href="design-v1-ui.md">UI 設計 v1</a>は、<code>TemplateFormRenderer</code>を <code>template</code>、<code>values</code>、<code>onChange</code> を受け取る controlled renderer と定義している。</p>
+<p><code>trpg-next-app/AI.md</code>は、field描画の正本を<code>TemplateFormRenderer</code>とし、第三の描画実装を作らないよう定めている。</p>
+<ul>
+<li><strong>実行経路</strong>：<code>CharacterCreationForm</code>、<code>CharacterSheetEditClient</code>、<code>TemplatePreviewV3</code>の3箇所から<code>TemplateFormRenderer</code>を呼び、<code>@trpg/sheet-engine</code>のレイアウト解決と注釈評価を利用する。</li>
+<li><strong>運用上の役割</strong>：テンプレート作成時のプレビュー、キャラクター作成、保存済みシートの編集で、同じフィールド定義を同じ表示規則へ変換する。</li>
+<li><strong>実測規模</strong>：<code>TemplateFormRenderer.tsx</code>は1,232行、対応specは2,583行である。</li>
+<li><strong>変更頻度</strong>：2026-08-12から2026-08-29までに12コミットあり、直近6か月の変更回数も12回である。</li>
+</ul>
+<h2 id="代表変更タスク">代表変更タスク</h2>
+<p>代表変更タスクは、チェック箱形式のtrack表示を変更する作業と、listへ新しいセル入力を追加する作業とする。</p>
+<p>どちらも2026年8月の実装履歴に同種の変更があり、空想上の拡張ではない。</p>
+<h2 id="findings">Findings</h2>
+<h3 id="cl-1-medium-d01からd19は排他的な描画キーにならない">CL-1 [Medium] D01からD19は排他的な描画キーにならない</h3>
+<ul>
+<li><strong>場所</strong>：<code>document/character-sheet-data-patterns.md:88-396</code>、<code>packages/sheet-engine/src/types.ts:75-148</code></li>
+<li><strong>類型</strong>：extraneous / 概念過多、語彙の不一致</li>
+<li><strong>読者シミュレーション</strong>：チェック箱形式のリソース表示を安全に変更するには、D番号別構成では次の7項目を同時に把握する必要がある。
+<ol>
+<li>D07が表す現在値と上限の意味（<code>character-sheet-data-patterns.md:192</code>）</li>
+<li>D08が表すチェック箱の意味（<code>character-sheet-data-patterns.md:211</code>）</li>
+<li>D09が表すリセット契機の意味（<code>character-sheet-data-patterns.md:221</code>）</li>
+<li><code>TrackField.style</code>の値（<code>packages/sheet-engine/src/types.ts:107</code>）</li>
+<li><code>TrackField.resetOn</code>の値（<code>packages/sheet-engine/src/types.ts:120</code>）</li>
+<li>一つのfieldをD07、D08、D09のどれへdispatchするかという新しい分類規則</li>
+<li>外側の<code>stack</code>、<code>grid</code>、<code>table</code>レイアウト（<code>packages/sheet-engine/src/types.ts:33</code>）</li>
+</ol>
+</li>
+<li><strong>実測</strong>：一つの<code>TrackField</code>が<code>style</code>と<code>resetOn</code>の組み合わせによってD07、D08、D09を同時に表しうる。D番号はschemaに保存されておらず、runtimeの呼び出し元も存在しない。</li>
+<li><strong>推奨</strong>：<code>field.type</code>でfield rendererを選び、<code>TrackFieldView</code>の中で<code>style</code>を解釈する。D番号への変換規則とdispatchを追加しないことで、同時保持数を7から4へ減らし、追加のdispatchホップを0に保つ。</li>
+</ul>
+<h3 id="cl-2-medium-現行レンダラには独立して変わる責務が同居している">CL-2 [Medium] 現行レンダラには独立して変わる責務が同居している</h3>
+<ul>
+<li><strong>場所</strong>：<code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx:92-1231</code></li>
+<li><strong>類型</strong>：extraneous / 非局所、概念過多</li>
+<li><strong>読者シミュレーション</strong>：track表示を安全に変更するには、現行ファイル内で次の6項目を同時に追う必要がある。
+<ol>
+<li>field型のdispatch（<code>TemplateFormRenderer.tsx:1056</code>）</li>
+<li>現在値と最大値の表示規則（<code>TemplateFormRenderer.tsx:1093</code>）</li>
+<li><code>gauge</code>と<code>checkboxes</code>の分岐（<code>TemplateFormRenderer.tsx:1119</code>）</li>
+<li>checkbox表示上限30の退化規則（<code>TemplateFormRenderer.tsx:1136</code>）</li>
+<li>field制約警告のラップ（<code>TemplateFormRenderer.tsx:967</code>）</li>
+<li>作成時ロールの振り直し導線（<code>TemplateFormRenderer.tsx:1024</code>）</li>
+</ol>
+</li>
+<li><strong>実測</strong>：同じファイルにはsectionとblockの構成、table固有の行構造、parts編集、list行編集、field型dispatch、trackとscalarの具体描画がある。runtimeの直接利用者は3箇所であり、描画正本として変更が集中する。</li>
+<li><strong>推奨</strong>：<code>TrackFieldView</code>へtrack固有の4項目を局所化し、警告と振り直しは<code>FieldRenderer</code>側に残す。trackを変更する読者の同時保持数を6から4へ減らす。公開入口は増やさず、消費者からのホップ数は変えない。</li>
+</ul>
+<h3 id="cl-3-low-データパターン資料だけではui仕様を確定できない">CL-3 [Low] データパターン資料だけではUI仕様を確定できない</h3>
+<ul>
+<li><strong>場所</strong>：<code>document/character-sheet-data-patterns.md:8</code>、<code>document/character-sheet-proposals/design-v1-ui.md:129-149</code></li>
+<li><strong>類型</strong>：extraneous / 暗黙知</li>
+<li><strong>読者シミュレーション</strong>：D番号からレイアウトを設計するには、次の3項目を別資料または実装から推測する必要がある。
+<ol>
+<li>patternが固有UIを必要とするか</li>
+<li>既存の<code>stack</code>、<code>grid</code>、<code>table</code>のどれを使うか</li>
+<li>モバイル時の退化規則をどうするか</li>
+</ol>
+</li>
+<li><strong>実測</strong>：同資料からリンクされている<code>character-sheet-data-pattern-wireframes.md</code>は、2026-10-12時点のリポジトリに存在しない。確定済みのレイアウト契約は<code>design-v1-ui.md</code>にある。</li>
+<li><strong>推奨</strong>：runtime設計の正本は<code>design-v1-ui.md</code>と実装に置く。D01からD19については、本資料の対応表とfixtureでUI充足性を確認する。</li>
+</ul>
+<h2 id="intrinsic-として除外したもの">intrinsic として除外したもの</h2>
+<ul>
+<li><strong>list編集</strong>：安定した行ID、行全体の保存、セル型、parts制約を扱う必要がある。これらはD11のデータ意味論と保存契約に由来するため、分割しても消えない。</li>
+<li><strong>parts編集</strong>：<code>base</code>、<code>other</code>、宣言済みキーの表示と書き込み可否が異なる。既存データとの互換性を守るための本質的な条件である。</li>
+<li><strong>tableレイアウト</strong>：parts列、行ラベル、複雑fieldの全幅降格が必要であり、<code>stack</code>と<code>grid</code>とはDOM構造が異なる。</li>
+<li><strong>D13の二次元配置</strong>：座標がルールへ影響するため、CSS Gridによる表示用<code>grid</code>へ統合できない。schemaに明示的な型を追加するときに別設計する。</li>
+<li><strong>D16からD18</strong>：権限、履歴、別実体参照は、fieldの配置だけでは完結しない。サーバー境界または別featureの責務として扱う。</li>
+</ul>
+<h2 id="判定モード-b-のみ">判定（モード B のみ）</h2>
+<p><strong>縮小</strong></p>
+<table>
+<thead>
+<tr>
+<th>観点</th>
+<th style="text-align:right">現行のschema軸</th>
+<th style="text-align:right">D01からD19別の構成</th>
+<th style="text-align:right">推奨構成</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>track変更時の同時保持数</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">7以上</td>
+<td style="text-align:right">4</td>
+</tr>
+<tr>
+<td>runtimeの分類語彙</td>
+<td style="text-align:right">field 7種、layout 3種</td>
+<td style="text-align:right">既存語彙にpattern 19種と対応規則を追加</td>
+<td style="text-align:right">field 7種、layout 3種</td>
+</tr>
+<tr>
+<td>消費者から描画正本までのホップ数</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">2以上になりうる</td>
+<td style="text-align:right">1</td>
+</tr>
+<tr>
+<td>描画の公開入口</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">pattern別入口へ分裂しうる</td>
+<td style="text-align:right">1</td>
+</tr>
+<tr>
+<td>実害記録</td>
+<td style="text-align:right">pattern別構成に起因する実害は未実装のため0件</td>
+<td style="text-align:right">なし</td>
+<td style="text-align:right">既存正本を維持</td>
+</tr>
+<tr>
+<td>変更頻度実測</td>
+<td style="text-align:right">直近6か月で12コミット</td>
+<td style="text-align:right">なし</td>
+<td style="text-align:right">高頻度部分だけを局所化</td>
+</tr>
+</tbody>
+</table>
+<p>D番号別コンポーネントには、要件名とUI名が一致し、表示例を探しやすくなる利点がある。</p>
+<p>その利点は、D番号をfixture名と対応状況表に使えば得られる。</p>
+<p>runtimeへ19種の新しい分類と対応規則を持ち込む必要はない。</p>
+<h2 id="分割に使う二つの軸">分割に使う二つの軸</h2>
+<h3 id="フィールドの意味と操作">フィールドの意味と操作</h3>
+<p>入力または表示の意味は、<code>SheetField</code>の判別unionを正本にする。</p>
+<p><code>FieldRenderer</code>は<code>field.type</code>をexhaustiveな<code>switch</code>で分岐する。</p>
+<p>registry、DI、文字列キーによる動的dispatchは導入しない。</p>
+<p><code>scalar</code>の<code>valueType</code>や<code>track</code>の<code>style</code>は、各field rendererの内部で解釈する。</p>
+<h3 id="フィールドの配置">フィールドの配置</h3>
+<p>配置は、<code>resolveSectionLayout</code>が返す<code>stack</code>、<code>grid</code>、<code>table</code>を正本にする。</p>
+<p><code>stack</code>と<code>grid</code>は同じfield列を描き、CSSとspanだけが異なるため、一つの共通経路に置く。</p>
+<p><code>table</code>はtable要素、parts列、行ラベル、全幅降格を持つため、独立したlayout componentへ切り出す。</p>
+<p>D13の意味付き二次元配置はこの<code>grid</code>に含めない。</p>
+<h2 id="推奨ディレクトリ構成">推奨ディレクトリ構成</h2>
+<p>次の構成は最終的な目安であり、空のファイルや委譲だけのcomponentを先に作らない。</p>
+<pre class="hljs"><code><div>trpg-next-app/app/features/characterSheet/
+├─ TemplateFormRenderer.tsx
+│  └─ 唯一の公開入口。section、block、poolの組み立てを所有する
+│
+├─ layouts/
+│  ├─ FieldLayout.tsx
+│  │  └─ stackとgridの共通経路、tableへの分岐、grid spanを所有する
+│  └─ TableFieldLayout.tsx
+│     └─ table、parts列、行ラベル、複雑fieldの全幅降格を所有する
+│
+├─ fields/
+│  ├─ FieldRenderer.tsx
+│  │  └─ field.typeのexhaustive switch、警告、振り直し導線を所有する
+│  ├─ ListFieldEditor.tsx
+│  │  └─ 行追加、行削除、セル編集、安定rowIdを所有する
+│  ├─ TrackFieldView.tsx
+│  │  └─ gauge、checkboxes、最大値の評価状態を所有する
+│  ├─ PartsEditorPopover.tsx
+│  │  └─ section直下scalarの内訳編集を所有する
+│  ├─ RelationFieldEditor.tsx        # relationの操作仕様を実装するときに追加
+│  └─ TagFieldEditor.tsx             # tagの操作仕様を実装するときに追加
+│
+├─ annotations/                      # 抽出対象が増えた段階で追加
+│  ├─ SectionPools.tsx
+│  └─ FieldConstraintMessage.tsx
+│
+└─ testing/
+   └─ data-pattern-fixtures.ts
+      └─ D01からD19をschema v3へ写像した表示確認用fixture
+</div></code></pre>
+<p><code>TemplateFormRenderer</code>以外のcomponentは、既存3消費者から直接importしない。</p>
+<p>内部componentを外部公開しないことで、作成、編集、プレビューが別々の描画経路へ分かれるのを防ぐ。</p>
+<h2 id="d01からd19の配置先">D01からD19の配置先</h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>runtimeでの主な受け皿</th>
+<th>component上の扱い</th>
+<th>現行の成熟度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D01 単一入力値</td>
+<td><code>ScalarField</code></td>
+<td><code>FieldRenderer</code>内のscalar control</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D02 選択とフラグ</td>
+<td><code>ScalarField(select/boolean)</code></td>
+<td>scalar control</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D03 内訳を持つ数値</td>
+<td><code>ScalarField.parts/partsKeys</code></td>
+<td><code>PartsEditorPopover</code>、tableのparts列</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D04 導出値</td>
+<td><code>ComputedField</code></td>
+<td>読み取り専用field表示</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D05 参照表と条件分岐</td>
+<td>engine評価と<code>ComputedField</code></td>
+<td>専用layoutを作らず評価結果を表示</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D06 ダイス記法とロール操作</td>
+<td><code>RollField</code>または<code>role</code></td>
+<td>field表示へ操作を付加</td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D07 上下するリソース</td>
+<td><code>TrackField</code></td>
+<td><code>TrackFieldView</code></td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D08 同種のチェック箱</td>
+<td><code>TrackField(style='checkboxes')</code></td>
+<td><code>TrackFieldView</code>の表示変種</td>
+<td>規約との組み合わせ</td>
+</tr>
+<tr>
+<td>D09 リセットされる使用回数</td>
+<td><code>TrackField.resetOn/resetTo</code></td>
+<td>リセット操作のfeature。layoutではない</td>
+<td>規約との組み合わせ</td>
+</tr>
+<tr>
+<td>D10 状態とタグの集合</td>
+<td><code>TagField</code></td>
+<td><code>TagFieldEditor</code></td>
+<td>型は存在するがUI成熟度を別途確認</td>
+</tr>
+<tr>
+<td>D11 複合行の反復リスト</td>
+<td><code>ListField</code></td>
+<td><code>ListFieldEditor</code></td>
+<td>直接表現可能</td>
+</tr>
+<tr>
+<td>D12 意味の異なる固定枠</td>
+<td>既存fieldの組み合わせ、将来の専用型</td>
+<td>D番号だけを理由にcomponentを作らない</td>
+<td>規約との組み合わせ</td>
+</tr>
+<tr>
+<td>D13 意味を持つ二次元配置</td>
+<td>将来の専用型</td>
+<td>現行<code>grid</code>とは別設計</td>
+<td>基盤外または将来拡張</td>
+</tr>
+<tr>
+<td>D14 対象との関係</td>
+<td><code>RelationField</code></td>
+<td><code>RelationFieldEditor</code></td>
+<td>型は存在するがUI成熟度を別途確認</td>
+</tr>
+<tr>
+<td>D15 選択に応じた構成</td>
+<td>将来の条件付き構成</td>
+<td>renderer wrapperとengineの設計対象</td>
+<td>基盤外または将来拡張</td>
+</tr>
+<tr>
+<td>D16 秘匿と公開遷移</td>
+<td>権限とAPI投影</td>
+<td>field layoutの外</td>
+<td>基盤外または将来拡張</td>
+</tr>
+<tr>
+<td>D17 成長と変更履歴</td>
+<td>event履歴</td>
+<td>別featureの履歴表示</td>
+<td>基盤外または将来拡張</td>
+</tr>
+<tr>
+<td>D18 下位シートと共有シート</td>
+<td>別実体への参照</td>
+<td>character domainと共有権限の設計対象</td>
+<td>基盤外または将来拡張</td>
+</tr>
+<tr>
+<td>D19 配分プールと制約</td>
+<td><code>section.pools</code>と<code>partsKey</code></td>
+<td>section注釈として表示</td>
+<td>直接表現可能</td>
+</tr>
+</tbody>
+</table>
+<h2 id="実装規則">実装規則</h2>
+<h3 id="must">Must</h3>
+<ul>
+<li><code>TemplateFormRenderer</code>を唯一の公開描画入口として維持する。</li>
+<li>fieldの分岐は<code>SheetField['type']</code>を使い、D番号をruntimeデータへ追加しない。</li>
+<li>layoutの分岐は<code>resolveSectionLayout</code>の結果を使い、解決規則をfront側で再実装しない。</li>
+<li>parts keyの提示可否は既存の<code>parts-key-visibility.ts</code>を使う。</li>
+<li>listの保存はlist全体1 path、scalarの保存はper-path CASという既存境界を変えない。</li>
+<li>各抽出フェーズで既存specの期待値を維持し、挙動変更を混ぜない。</li>
+</ul>
+<h3 id="should">Should</h3>
+<ul>
+<li>一つのcomponentには、同じ理由で変わる描画と操作をまとめる。</li>
+<li>field rendererは、該当field型の値解釈を隠し、呼び出し側へ細かな状態を漏らさない。</li>
+<li><code>stack</code>と<code>grid</code>は構造を共有し、見た目だけの差をCSSへ残す。</li>
+<li>D01からD19はfixture名、テスト名、対応状況表で利用する。</li>
+</ul>
+<h3 id="avoid">Avoid</h3>
+<ul>
+<li><code>DataPatternRendererRegistry</code>のようなD番号別registryを追加しない。</li>
+<li>D01からD19をschemaへ保存しない。</li>
+<li><code>StackLayout</code>と<code>GridLayout</code>を委譲だけの別componentにしない。</li>
+<li>将来利用を理由に、未接続の<code>RelationFieldEditor</code>や<code>TagFieldEditor</code>を先に作らない。</li>
+<li>D13をCSS Gridの設定追加だけで表現しない。</li>
+<li>component分割とfield挙動の追加を同じ変更に混ぜない。</li>
+</ul>
+<h2 id="段階的な抽出順序">段階的な抽出順序</h2>
+<h3 id="phase-1-listfieldeditor">Phase 1 ListFieldEditor</h3>
+<p><code>ListFieldEditor</code>、行セル描画、<code>RowPartsEditor</code>、list専用の値更新関数を一つのモジュールへ移す。</p>
+<p>行ID、行上限、空セルのキー削除、parts形セルの読み取り専用合計という既存契約を維持する。</p>
+<p>完了条件は、既存のlist関連specが期待値変更なしで通ることである。</p>
+<h3 id="phase-2-tablefieldlayout">Phase 2 TableFieldLayout</h3>
+<p>table本体、<code>TableFieldRow</code>、parts列の構築をlayout moduleへ移す。</p>
+<p>単純fieldの列表示、複雑fieldの全幅降格、parts列のラベルと編集可否を維持する。</p>
+<p>完了条件は、table、grid、stackの全fixtureでDOM契約が変わらないことである。</p>
+<h3 id="phase-3-partseditorpopover">Phase 3 PartsEditorPopover</h3>
+<p>section直下scalar用のparts editorと、その値読み取り関数を移す。</p>
+<p>list行用parts editorとは保存境界が異なるため、無理に一つのcomponentへ統合しない。</p>
+<p>完了条件は、<code>base</code>、<code>other</code>、宣言済みキー、予約キーの既存specが通ることである。</p>
+<h3 id="phase-4-trackfieldview">Phase 4 TrackFieldView</h3>
+<p>trackの値表示、gauge、checkboxes、最大値の評価状態を移す。</p>
+<p>field警告と作成時ロールの振り直しはfield共通の付加要素として外側に残す。</p>
+<p>完了条件は、未入力、範囲外、不正raw、max未確定、max評価失敗、checkbox上限30の既存specが通ることである。</p>
+<h3 id="phase-5-fieldrendererとfieldlayout">Phase 5 FieldRendererとFieldLayout</h3>
+<p>前段の抽出後に、field型dispatchとlayout dispatchをそれぞれ一箇所へまとめる。</p>
+<p>この段階までは、新しいregistry、context、view modelを追加しない。</p>
+<p>完了条件は、3つのruntime消費者が引き続き<code>TemplateFormRenderer</code>だけをimportしていることである。</p>
+<h2 id="検証">検証</h2>
+<p>各フェーズでは、少なくとも次を実行する。</p>
+<pre class="hljs"><code><div>pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> test <span class="hljs-literal">--</span> app/features/characterSheet/TemplateFormRenderer.spec.tsx <span class="hljs-literal">--runInBand</span>
+pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> run typecheck
+pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> run lint
+</div></code></pre>
+<p>schema、layout resolver、annotation runtimeを変更した場合は、sheet-engineも検証する。</p>
+<pre class="hljs"><code><div>pnpm <span class="hljs-literal">--filter</span> @trpg/sheet<span class="hljs-literal">-engine</span> test
+pnpm <span class="hljs-literal">--filter</span> @trpg/sheet<span class="hljs-literal">-engine</span> build
+</div></code></pre>
+<p>最終フェーズでは、作成、編集、プレビューの3消費者を含むfront全体のtestとbuildを実行する。</p>
+<h2 id="再評価条件">再評価条件</h2>
+<p>次のいずれかが成立した場合だけ、D番号に対応する専用componentを再検討する。</p>
+<ul>
+<li>schemaへ<code>fixedSlot</code>や意味付き<code>grid</code>などの排他的なfield型が追加された。</li>
+<li>一つのpatternに固有の操作状態と保存契約が生まれ、既存field renderer内では隠蔽できなくなった。</li>
+<li>同じpattern固有UIが3箇所以上へ実際に重複し、共有によって同時保持数または変更箇所数が減ることを実測できた。</li>
+</ul>
+<p>再評価しても、D番号そのものをdispatchキーにするとは限らない。</p>
+<p>新しいschema型または明示的な操作契約をcomponent境界にする。</p>
+<h2 id="参照">参照</h2>
+<ul>
+<li><a href="../character-sheet-data-patterns.md">キャラクターシートのデータ保持パターン</a></li>
+<li><a href="design-v1-ui.md">UI 設計 v1</a></li>
+<li><a href="design-v1.md">具体設計 v1</a></li>
+<li><a href="field-sufficiency-audit.md">フィールド型充足性監査</a></li>
+<li><a href="../../trpg-next-app/AI.md"><code>trpg-next-app/AI.md</code></a></li>
+<li><a href="../../packages/sheet-engine/src/types.ts"><code>packages/sheet-engine/src/types.ts</code></a></li>
+<li><a href="../../trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx"><code>TemplateFormRenderer.tsx</code></a></li>
+</ul>
+
+</body>
+</html>
