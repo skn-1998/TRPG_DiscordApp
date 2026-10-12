@@ -119,6 +119,7 @@
 
 ## 関連する既存資産
 
+- [document/character-sheet-data-patterns.md](../character-sheet-data-patterns.md) … キャラクターシートで頻出するデータの持ち方を 19 パターンに整理した設計リファレンス
 - [document/phase0-character-sheet.md](../phase0-character-sheet.md) … Phase 0 設計（`CharacterSheetTemplate` 型の初案 §4.1.3、description/式の二重用リスク §5）
 - 旧 `trpg-remix-app/.../characterTemplate/AI.{feature,types}.md`（B4 で V3 向けに全面改稿した V3 現況の正本）は N6b の trpg-remix-app 撤去（`e179640`・2026-08-07）で**移設されずに削除済み** — 参照は git 履歴 `e179640^` 以前。旧 V2 DSL 資料の AI.{ui,api,security}.md は B4（`32be7b4`）で削除済み — 参照は git 履歴 `dbd45e5` 以前。現行の front 正本 doc は `trpg-next-app/AI.md`（実装規約）、V3 型定義の実体は `trpg-next-app/app/features/characterTemplate/types/v3.ts`
 - mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は Next 移行後 `trpg-next-app/app/templates/page.tsx`（一覧）/ `app/templates/[id]/edit/page.tsx`（エディタ）

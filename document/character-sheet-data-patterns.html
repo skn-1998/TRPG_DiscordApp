@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>character-sheet-data-patterns.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="trpg-キャラクターシートのデータ保持パターン">TRPG キャラクターシートのデータ保持パターン</h1>
+<blockquote>
+<p><strong>分類</strong>：調査、設計リファレンス
+<strong>対象</strong>：キャラクターシート基盤、テンプレート設計、API と DB のデータ設計
+<strong>ステータス</strong>：初版
+<strong>最終更新</strong>：2026-09-27</p>
+</blockquote>
+<p>対応する UI 表示案は <a href="character-sheet-data-pattern-wireframes.md">キャラクターシートのデータパターン UI ワイヤーフレーム</a> にまとめている。</p>
+<h2 id="1-この資料の対象">1. この資料の対象</h2>
+<p>TRPG のキャラクターシートには、名前や能力値のような単純な値だけでなく、計算値、残量、使用回数、装備行、人物関係、秘匿情報、成長履歴が混在する。</p>
+<p>この資料は、それらをゲーム固有の項目名から切り離し、再利用できる<strong>データ保持パターン</strong>として整理する。</p>
+<p>対象は「何をどう保存するか」であり、紙面の見た目や特定ゲームのルール解説ではない。</p>
+<p>個別ルールの数値や裁定は各ルールブックを正本とする。</p>
+<h2 id="2-先に押さえる設計原則">2. 先に押さえる設計原則</h2>
+<p>キャラクターシート全体を一つの JSON として保存できても、すべてを同じ種類の値として扱えるわけではない。</p>
+<p>データ設計では、少なくとも次の違いを保つ必要がある。</p>
+<ul>
+<li>プレイヤーが入力した値と、式から求めた値</li>
+<li>現在値と、上限や初期値</li>
+<li>順序がある行と、順序に意味がない集合</li>
+<li>同じ種類の箱と、それぞれ役割が異なる固定枠</li>
+<li>現在の状態と、そこへ至った操作履歴</li>
+<li>表示されない値と、権限がなく読み取れない値</li>
+<li>キャラクター自身の値と、別のキャラクターや共有シートへの参照</li>
+</ul>
+<p>これらを区別しないモデルは、初期に扱う少数のシステムには適合しても、対象ゲームを増やした時点で自由記述欄や例外フラグへ情報が集中する。</p>
+<h2 id="3-三層に分けて持つ">3. 三層に分けて持つ</h2>
+<p>同じ「シート」に見える情報でも、変更理由と寿命が異なる。</p>
+<p>テンプレート、キャラクター値、イベント履歴を分けると、公開済みテンプレートの改版、同時編集、ロールバック、監査を扱いやすい。</p>
+<table>
+<thead>
+<tr>
+<th>層</th>
+<th>保持するもの</th>
+<th>代表例</th>
+<th>更新の契機</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>テンプレート定義</strong></td>
+<td>項目の型、式、選択肢、並び、表示条件、権限</td>
+<td>HP の上限式、技能の一覧、装備行の列定義</td>
+<td>テンプレート編集と改版</td>
+</tr>
+<tr>
+<td><strong>キャラクター値</strong></td>
+<td>キャラクターごとの入力値と現在状態</td>
+<td>STR、現在 HP、所持品の各行、取得済みタグ</td>
+<td>作成、編集、セッション中の操作</td>
+</tr>
+<tr>
+<td><strong>イベント履歴</strong></td>
+<td>値を変えた事実と、その文脈</td>
+<td>ダメージ適用、回数消費、公開、成長、ロール結果</td>
+<td>コマンドやユーザー操作</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-mermaid"><div class="mermaid">flowchart LR
+  T["テンプレート定義 vN"] --> I["キャラクター値"]
+  E["イベント履歴"] --> I
+  T --> V["表示と操作の投影"]
+  I --> V
+</div></code></pre>
+<p>キャラクターは作成時に使ったテンプレートの ID と版を保持する。</p>
+<p>公開後のテンプレートを直接書き換えると、既存キャラクターの式やフィールド参照が同じデータのまま別の意味になるため、公開版は不変にして改版するほうが安全である。</p>
+<h2 id="4-パターン一覧">4. パターン一覧</h2>
+<p>以下の 19 パターンを組み合わせると、多くのキャラクターシートを記述できる。</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>パターン</th>
+<th>代表的な用途</th>
+<th>中心となるデータ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D01</td>
+<td>単一入力値</td>
+<td>名前、年齢、能力値、設定文</td>
+<td>型付きの単一値</td>
+</tr>
+<tr>
+<td>D02</td>
+<td>選択とフラグ</td>
+<td>種族、クラス、習熟、取得済み</td>
+<td>選択肢 ID または真偽値</td>
+</tr>
+<tr>
+<td>D03</td>
+<td>内訳を持つ数値</td>
+<td>基礎値、成長、装備補正、一時補正</td>
+<td>名前付き加算要素</td>
+</tr>
+<tr>
+<td>D04</td>
+<td>導出値</td>
+<td>能力修正、最大 HP、技能合計</td>
+<td>式と参照先</td>
+</tr>
+<tr>
+<td>D05</td>
+<td>参照表と条件分岐</td>
+<td>ダメージボーナス、ランク別効果</td>
+<td>表、条件、入力値</td>
+</tr>
+<tr>
+<td>D06</td>
+<td>ダイス記法とロール操作</td>
+<td>判定、攻撃、作成時ロール</td>
+<td>記法、参照、用途</td>
+</tr>
+<tr>
+<td>D07</td>
+<td>上下するリソース</td>
+<td>HP、MP、正気度、侵蝕率</td>
+<td>現在値、下限、上限、閾値</td>
+</tr>
+<tr>
+<td>D08</td>
+<td>同種のチェック箱</td>
+<td>ストレス、死亡判定の成功数</td>
+<td>箱数または各箱の状態</td>
+</tr>
+<tr>
+<td>D09</td>
+<td>リセットされる使用回数</td>
+<td>スペルスロット、特技回数、神業</td>
+<td>残数、上限、リセット契機</td>
+</tr>
+<tr>
+<td>D10</td>
+<td>状態とタグの集合</td>
+<td>変調、コンディション、アスペクト</td>
+<td>状態 ID の集合と付加情報</td>
+</tr>
+<tr>
+<td>D11</td>
+<td>複合行の反復リスト</td>
+<td>武器、呪文、装備、特技</td>
+<td>安定した行 ID と列値</td>
+</tr>
+<tr>
+<td>D12</td>
+<td>意味の異なる固定枠</td>
+<td>軽度、中度、重度の負傷枠</td>
+<td>固定枠 ID と内容</td>
+</tr>
+<tr>
+<td>D13</td>
+<td>意味を持つ二次元配置</td>
+<td>特技表、部位表、位置関係</td>
+<td>座標、セル状態、距離規則</td>
+</tr>
+<tr>
+<td>D14</td>
+<td>対象との関係</td>
+<td>絆、ロイス、感情、因縁</td>
+<td>対象参照と関係属性</td>
+</tr>
+<tr>
+<td>D15</td>
+<td>選択に応じた構成</td>
+<td>クラス、プレイブック、シンドローム</td>
+<td>選択と有効になる項目群</td>
+</tr>
+<tr>
+<td>D16</td>
+<td>秘匿と公開遷移</td>
+<td>秘密、奥義、非公開メモ</td>
+<td>閲覧範囲と公開状態</td>
+</tr>
+<tr>
+<td>D17</td>
+<td>成長と変更履歴</td>
+<td>経験点、能力上昇、負傷履歴</td>
+<td>追記型イベントと現在スナップショット</td>
+</tr>
+<tr>
+<td>D18</td>
+<td>下位シートと共有シート</td>
+<td>従者、車両、国、ギルド</td>
+<td>別実体への参照</td>
+</tr>
+<tr>
+<td>D19</td>
+<td>配分プールと制約</td>
+<td>技能ポイント、作成点、重量</td>
+<td>予算、消費先、残量式</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-基本値と計算のパターン">5. 基本値と計算のパターン</h2>
+<h3 id="d01-単一入力値">D01 単一入力値</h3>
+<p>最小単位は、数値、文字列、真偽値のいずれか一つを持つフィールドである。</p>
+<p>識別子、表示名、値型を分け、表示名を保存値のキーにしない。</p>
+<p>表示名は翻訳や表記変更で変わるが、識別子は式や履歴から参照され続けるためである。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;fieldId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;strength&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;label&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;STR&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;valueType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;number&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">55</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>長い経歴文や外見の説明も文字列値に含まれる。</p>
+<p>ただし、複数人物との関係や複数の負傷を一つの文章へ詰め込むと検索、更新、権限制御ができないため、反復する情報は D11 または D14 に分ける。</p>
+<h3 id="d02-選択とフラグ">D02 選択とフラグ</h3>
+<p>候補が決まっている値は自由記述ではなく、選択肢 ID を保存する。</p>
+<p>表示ラベルを変更しても保存済みデータの意味を維持できるよう、<code>&quot;fighter&quot;</code> のような安定 ID と「戦士」のようなラベルを分ける。</p>
+<p>複数選択は配列、オンかオフだけで十分な項目は真偽値を使う。</p>
+<p>選択によってシート構造が変わる場合は、値の保存だけでなく D15 も必要になる。</p>
+<h3 id="d03-内訳を持つ数値">D03 内訳を持つ数値</h3>
+<p>最終値だけでなく、基礎値、成長分、装備補正、一時補正を別々に編集したい数値がある。</p>
+<p>この場合は名前付きの内訳を保存し、合計を導出する。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;base&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;growth&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;equipment&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;temporary&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">-1</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>この例の表示値は <code>3 + 2 + 1 - 1 = 5</code> である。</p>
+<p>最終値の <code>5</code> だけを正本にすると、装備を外したときにどの <code>1</code> を戻すべきか判断できない。</p>
+<p>一方、内訳を利用者が個別に編集する必要がない能力値まで分解すると入力負荷が増えるため、D03 は補正の発生源を保つ必要がある項目へ限定する。</p>
+<h3 id="d04-導出値">D04 導出値</h3>
+<p>別の値から決まる項目は、利用者の入力値ではなく式として定義する。</p>
+<p>保存する中心は式と参照先であり、計算結果は表示用のキャッシュまたは投影として扱う。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;fieldId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;maxHp&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;resultType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;number&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;formula&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;floor(({abilities.con} + {abilities.siz}) / 10)&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>計算結果も保存する場合は、元の値や式が変わったときに再計算する契約と、どちらを正本とするかを明記する。</p>
+<p>式には循環参照、未解決参照、型の不一致、評価コストの上限を検査する必要がある。</p>
+<h3 id="d05-参照表と条件分岐">D05 参照表と条件分岐</h3>
+<p>算術式だけで決まらない値は、ルール上の表をデータとして持つ。</p>
+<p>入力範囲から結果を引く表、離散キーから値を引く表、複数条件による分岐が代表例である。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;tableId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;damageBonus&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;rows&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;min&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">64</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;result&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;-2&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;min&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">65</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">84</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;result&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;-1&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;min&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">85</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">124</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;result&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;0&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;min&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">125</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">164</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;result&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;+1d4&quot;</span> <span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>表の結果は数値とは限らず、文字列、真偽値、ダイス式になる場合がある。</p>
+<p>ルール表をアプリケーションコードの条件分岐へ埋め込むと、テンプレート改版とコードのリリースが結び付くため、表として検証可能な形に保つ。</p>
+<h3 id="d06-ダイス記法とロール操作">D06 ダイス記法とロール操作</h3>
+<p>ダイス記法は「保存された能力値」ではなく、その値を使う操作の定義である。</p>
+<p>判定ボタンなら記法、参照するフィールド、表示名、公開範囲をテンプレートに持たせる。</p>
+<p>ロール結果はキャラクターの恒久値へ上書きせず、原則としてイベント履歴へ記録する。</p>
+<p>ただし、能力値決定のような作成時ロールは、出目を D01、D03、D07 の初期値へ反映する操作として扱う。</p>
+<h2 id="6-残量と状態のパターン">6. 残量と状態のパターン</h2>
+<h3 id="d07-上下するリソース">D07 上下するリソース</h3>
+<p>HP のような値は、現在値と上限を別に持つ。</p>
+<p>上限は固定値にも D04 の式にもなり、下限、閾値、上限超過の可否はゲームごとに異なる。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;current&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">8</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;min&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">0</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;formula&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;{abilities.maxHp}&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;thresholds&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;at&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">4</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;label&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;重傷域&quot;</span> <span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>「範囲外を拒否する」「境界へ丸める」「警告だけ出して保存する」のいずれかを、入力経路ごとではなく項目の方針として統一する。</p>
+<h3 id="d08-同種のチェック箱">D08 同種のチェック箱</h3>
+<p>同じ意味の箱が並び、チェック数だけが意味を持つ場合は、現在数と箱数で表現できる。</p>
+<p>個々の箱を任意の順で消したり、箱ごとに別の値を持たせたりする場合は、各箱に ID と状態を持たせる。</p>
+<p><a href="https://evilhat.com/wp-content/uploads/2022/04/Fate-Core-Character-Sheet.pdf">Fate Core の公式シート</a>では、肉体と精神のストレスが番号付きの箱として表現されている。</p>
+<p>これは現在値と最大値だけのゲージに見えるが、ルールが箱の個別性を参照するなら配列として保存する必要がある。</p>
+<h3 id="d09-リセットされる使用回数">D09 リセットされる使用回数</h3>
+<p>使用回数は D07 と似ているが、「いつ、何へ戻るか」がデータの一部である。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;remaining&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;max&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;resetOn&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rest&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;resetTo&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;max&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>シーン終了、セッション終了、休息、日次などのリセット契機に加えて、誰がリセットを発火できるかを決める。</p>
+<p>レベル別スペルスロットのように複数のまとまりがある場合は、D09 を D11 の行として繰り返す。</p>
+<h3 id="d10-状態とタグの集合">D10 状態とタグの集合</h3>
+<p>取得順に意味がなく、重複を許さない状態は集合として持つ。</p>
+<p>単なる <code>string[]</code> で足りるのは、状態名だけで完結するときである。</p>
+<p>強度、付与者、期限、公開範囲を伴う状態は、次のようなオブジェクトの集合にする。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;statusId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;poisoned&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;level&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;source&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;trap-17&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;expiresOn&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;sceneEnd&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>アスペクトのような自由入力タグと、システムが定義した状態 ID は、入力制約と意味が異なるため区別する。</p>
+<h2 id="7-集合と関係のパターン">7. 集合と関係のパターン</h2>
+<h3 id="d11-複合行の反復リスト">D11 複合行の反復リスト</h3>
+<p>武器、呪文、装備、特技は、複数の列を持つ行が任意数並ぶ。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;rowId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;weapon_k7m2&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;リボルバー&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;skillRef&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;skills.handgun&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;damage&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1d10&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;ammo&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">6</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;notes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>配列の位置は並べ替えで変わるため、行の参照や更新には安定した <code>rowId</code> を使う。</p>
+<p>行の中からシート全体の能力値を参照する式と、シート全体からリストを集計する式は、参照方向を分けて定義する。</p>
+<p>無制限のリスト内リストは編集 UI、式参照、差分解決を複雑にするため、深い入れ子は D18 の別実体へ分ける。</p>
+<h3 id="d12-意味の異なる固定枠">D12 意味の異なる固定枠</h3>
+<p>枠が空でも存在し、枠ごとに容量や効果が異なる場合は、可変長リストではなく固定枠として持つ。</p>
+<p><a href="https://evilhat.com/wp-content/uploads/2022/04/Fate-Core-Character-Sheet.pdf">Fate Core のコンセクエンス欄</a>にある軽度、中度、重度の枠が代表例である。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">[</span>
+  <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;slotId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;mild&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;capacity&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;slotId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;moderate&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;capacity&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">4</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;腕の骨折&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;slotId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;severe&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;capacity&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">6</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span> <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">]</span>
+</div></code></pre>
+<p>D08 は同種の箱の個数を扱い、D12 は各枠の固有の意味を扱う。</p>
+<h3 id="d13-意味を持つ二次元配置">D13 意味を持つ二次元配置</h3>
+<p>行と列の位置、セル間の距離、空きマスがルールへ影響する表は、表示用グリッドではない。</p>
+<p>座標とセル ID を保存し、距離計算や隣接規則をテンプレート側に持たせる。</p>
+<p>通常のフィールドを CSS Grid で並べただけでは、配置を変更したときにルール上の意味まで変わってしまう。</p>
+<h3 id="d14-対象との関係">D14 対象との関係</h3>
+<p>絆、ロイス、感情、因縁は、「相手」と「相手に対する属性」の組である。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;relationId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rel_82f1&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;target&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;kind&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;character&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;characterId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;char_123&quot;</span> <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;attributes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;positive&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;信頼&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;negative&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;嫉妬&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;state&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;active&quot;</span>
+  <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>相手がシステム内に存在しない NPC なら自由記述も許せるが、参照と自由記述を同じ文字列へ押し込まない。</p>
+<p>参照先の名前が変わった場合、表示名は追従しても、関係そのものの同一性は <code>characterId</code> で維持する。</p>
+<h3 id="d15-選択に応じた構成">D15 選択に応じた構成</h3>
+<p>クラス、プレイブック、種族などの選択によって、入力項目や取得候補が変わるシートがある。</p>
+<p>これは D02 の値だけでは表せない。</p>
+<p>選択されたカタログ要素と、その要素が追加するフィールド群をテンプレート部品として分ける。</p>
+<p>表示条件だけで隠した項目にも値が残る可能性があるため、「非表示」「無効」「値を削除」のどれを意味するかを定める。</p>
+<h3 id="d16-秘匿と公開遷移">D16 秘匿と公開遷移</h3>
+<p>秘匿は表示設定ではなく、読み取り権限と状態遷移である。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;visibleTo&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">&quot;owner&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-string">&quot;gm&quot;</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;state&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;hidden&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;revealedAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;revealedBy&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>CSS で隠すだけでは API 応答やログから読めるため、サーバーが閲覧者ごとに値を除外する。</p>
+<p>公開後も再び隠せるか、公開が誰に伝播するか、公開時刻を履歴へ残すかもデータ契約に含まれる。</p>
+<h3 id="d17-成長と変更履歴">D17 成長と変更履歴</h3>
+<p>現在の経験点だけでは、獲得と消費の根拠を追えない。</p>
+<p>現在値のスナップショットに加えて、追記型の履歴を持つ。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;eventId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;evt_301&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;kind&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;advancement&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;delta&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">-10</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;reason&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;技能を成長&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;fieldRef&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;skills.libraryUse&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;occurredAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-09-27T12:00:00Z&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>毎回イベントを全件再生して画面を作る必要はない。</p>
+<p>現在値を高速な読み取り用に保存し、履歴を説明、監査、取り消しに使う構成が扱いやすい。</p>
+<h3 id="d18-下位シートと共有シート">D18 下位シートと共有シート</h3>
+<p>従者、車両、拠点、国、ギルドは、名前だけの付属品ではなく独自の能力値や装備を持つことがある。</p>
+<p>親キャラクターの JSON へ無制限に入れ子にせず、別のシート実体として保存して参照する。</p>
+<p>共有シートでは複数所有者、編集権限、同時更新が必要になるため、通常のキャラクター所有権を流用しない。</p>
+<h3 id="d19-配分プールと制約">D19 配分プールと制約</h3>
+<p>技能ポイントや作成点では、複数フィールドの合計が予算内に収まること自体がルールである。</p>
+<p>予算、集計対象、集計する内訳をテンプレートに持ち、残量を導出する。</p>
+<pre class="hljs"><code><div><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;poolId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;occupationPoints&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;total&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">240</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;targets&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">&quot;skills.accounting&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-string">&quot;skills.libraryUse&quot;</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;partsKey&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;occupation&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;remainingFormula&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;total - sum(targets.occupation)&quot;</span>
+<span class="hljs-punctuation">}</span>
+</div></code></pre>
+<p>各フィールドの上限と、複数フィールド全体の合計予算は別の制約である。</p>
+<h2 id="8-代表的なシステムをパターンへ写像する">8. 代表的なシステムをパターンへ写像する</h2>
+<p>この表は各ゲームを完全に再現するものではなく、公式シートで確認できる代表的な構造をパターンへ対応づけたものである。</p>
+<table>
+<thead>
+<tr>
+<th>システム</th>
+<th>公式シートに見られる構造</th>
+<th>対応するパターン</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://www.chaosium.com/cthulhu-character-sheets/">Call of Cthulhu 7th Edition</a></td>
+<td>能力値、技能値、半分値と 5 分の 1 値、HP と正気度、武器行、バックストーリー</td>
+<td>D01、D04、D05、D07、D11</td>
+</tr>
+<tr>
+<td><a href="https://media.dndbeyond.com/compendium-images/phb/downloads/DnD_2024_Character-Sheet.pdf">Dungeons &amp; Dragons 2024</a></td>
+<td>能力値と修正値、HP、ヒットダイス、死亡セーヴ、武器行、クラス特徴</td>
+<td>D01、D02、D04、D07、D08、D09、D11</td>
+</tr>
+<tr>
+<td><a href="https://downloads.paizo.com/RemasterPlayerCoreCharacterSheet.pdf">Pathfinder Second Edition Remaster</a></td>
+<td>基礎値と習熟やアイテム補正、現在 HP と一時 HP、状態、武器行、クラス特技</td>
+<td>D03、D04、D07、D10、D11</td>
+</tr>
+<tr>
+<td><a href="https://evilhat.com/wp-content/uploads/2022/04/Fate-Core-Character-Sheet.pdf">Fate Core</a></td>
+<td>アスペクト、技能段階、肉体と精神のストレス、固有容量を持つコンセクエンス枠</td>
+<td>D10、D08、D12</td>
+</tr>
+<tr>
+<td><a href="https://rtalsoriangames.com/wp-content/uploads/2020/11/RTG-CPR-CharacterSheet.pdf">Cyberpunk RED</a></td>
+<td>能力値と技能、武器と装備、サイバーウェア、ライフパス、友人、敵、出来事</td>
+<td>D01、D03、D11、D14、D17</td>
+</tr>
+</tbody>
+</table>
+<p>公式シートだけでは、セッション中のリセット、公開権限、履歴の保存方法まで確定しない。</p>
+<p>その部分はルール本文とアプリケーションの操作要件を別途確認する必要がある。</p>
+<h2 id="9-実装時の判断規則">9. 実装時の判断規則</h2>
+<h3 id="入力値と導出値を分ける">入力値と導出値を分ける</h3>
+<p>利用者が変更できる値だけをキャラクター値の正本にする。</p>
+<p>式で再現できる値を入力欄として重複保存すると、参照元だけを更新したときに値が食い違う。</p>
+<h3 id="id-と表示名を分ける">ID と表示名を分ける</h3>
+<p>テンプレート、セクション、フィールド、反復行、固定枠には安定 ID を与える。</p>
+<p>式、差分、履歴、Discord の操作 ID は表示名や配列位置ではなく安定 ID を参照する。</p>
+<h3 id="値の型と操作を分ける">値の型と操作を分ける</h3>
+<p>数値であることと、ダイスを振れることは別の性質である。</p>
+<p>同じ数値フィールドにロール操作、増減操作、プロフィール表示を注釈として付けると、保存形式を UI ごとに増やさずに済む。</p>
+<h3 id="リセットと公開をイベントとして扱う">リセットと公開をイベントとして扱う</h3>
+<p>「休息したら全回復する」「秘密を公開する」は単なる値更新ではない。</p>
+<p>発火者、対象範囲、適用前後の値を履歴へ残すと、誤操作の説明と取り消しが可能になる。</p>
+<h3 id="レイアウトをルールから分ける">レイアウトをルールから分ける</h3>
+<p>二列表示やカード表示はレイアウトであり、通常は値の意味を変えない。</p>
+<p>D13 のように座標自体がルールへ影響するときだけ、配置を値モデルへ昇格させる。</p>
+<h3 id="制約違反の扱いを統一する">制約違反の扱いを統一する</h3>
+<p>上限超過や予算超過を拒否するか、丸めるか、警告だけにするかを明記する。</p>
+<p>Web では警告、Discord では丸めるというように入力経路ごとに変えると、同じキャラクター値に異なる規則が適用される。</p>
+<h2 id="10-避けたい保持方法">10. 避けたい保持方法</h2>
+<table>
+<thead>
+<tr>
+<th>保持方法</th>
+<th>問題</th>
+<th>置き換え先</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>すべてを <code>Record&lt;string, number&gt;</code> に入れる</td>
+<td>文字列、関係、行、秘匿、履歴を表せない</td>
+<td>型付きフィールドの直和</td>
+</tr>
+<tr>
+<td>装備や関係を説明文へ連結する</td>
+<td>個別更新、検索、ロール参照ができない</td>
+<td>D11、D14</td>
+</tr>
+<tr>
+<td>配列位置を行 ID にする</td>
+<td>並べ替えと削除で参照先が変わる</td>
+<td>安定した <code>rowId</code></td>
+</tr>
+<tr>
+<td>導出結果だけを保存する</td>
+<td>元の値や式の変更に追従できない</td>
+<td>D04、D05</td>
+</tr>
+<tr>
+<td><code>isVisible</code> 一つで秘匿を表す</td>
+<td>誰に見えるか、公開済みかを区別できない</td>
+<td>D16</td>
+</tr>
+<tr>
+<td>現在値だけを保存して変更理由を捨てる</td>
+<td>成長、消費、取り消しを説明できない</td>
+<td>D17</td>
+</tr>
+<tr>
+<td>レイアウト座標を全フィールドの意味に使う</td>
+<td>見た目の変更がルール変更になる</td>
+<td>通常レイアウトと D13 の分離</td>
+</tr>
+<tr>
+<td>テンプレート更新を既存キャラクターへ暗黙適用する</td>
+<td>式とフィールドの意味が途中で変わる</td>
+<td>版固定と明示移行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="11-最小の汎用モデル">11. 最小の汎用モデル</h2>
+<p>すべてのパターンを一つの巨大なフィールド型へ詰め込む必要はない。</p>
+<p>基本フィールド、複合構造、ドメイン実体を分けた最小形は次のようになる。</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">interface</span> <span class="hljs-title class_">SheetTemplate</span> {
+  <span class="hljs-attr">templateId</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">version</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">sections</span>: <span class="hljs-title class_">SectionDefinition</span>[]
+  <span class="hljs-attr">lookupTables</span>: <span class="hljs-title class_">LookupTable</span>[]
+}
+
+<span class="hljs-keyword">interface</span> <span class="hljs-title class_">CharacterSheet</span> {
+  <span class="hljs-attr">characterId</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">templateRef</span>: { <span class="hljs-attr">templateId</span>: <span class="hljs-built_in">string</span>; <span class="hljs-attr">version</span>: <span class="hljs-built_in">string</span> }
+  <span class="hljs-attr">values</span>: <span class="hljs-title class_">Record</span>&lt;<span class="hljs-title class_">FieldUid</span>, <span class="hljs-built_in">unknown</span>&gt;
+  <span class="hljs-attr">revision</span>: <span class="hljs-built_in">number</span>
+}
+
+<span class="hljs-keyword">type</span> <span class="hljs-title class_">FieldDefinition</span> =
+  | <span class="hljs-title class_">ScalarField</span>
+  | <span class="hljs-title class_">ComputedField</span>
+  | <span class="hljs-title class_">RollField</span>
+  | <span class="hljs-title class_">TrackField</span>
+  | <span class="hljs-title class_">ListField</span>
+  | <span class="hljs-title class_">FixedSlotField</span>
+  | <span class="hljs-title class_">TagField</span>
+  | <span class="hljs-title class_">RelationField</span>
+  | <span class="hljs-title class_">GridField</span>
+
+<span class="hljs-keyword">interface</span> <span class="hljs-title class_">SheetEvent</span> {
+  <span class="hljs-attr">eventId</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">characterId</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">kind</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">actorId</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">occurredAt</span>: <span class="hljs-built_in">string</span>
+  <span class="hljs-attr">payload</span>: <span class="hljs-built_in">unknown</span>
+}
+</div></code></pre>
+<p><code>CharacterSheet.values</code> の <code>unknown</code> は無検証で保存してよいという意味ではない。</p>
+<p>実際の書き込みでは、対応する <code>FieldDefinition</code> に基づいて値を検証する。</p>
+<h2 id="12-このリポジトリの-schema-v3-との対応">12. このリポジトリの schema v3 との対応</h2>
+<p>現行 schema v3 は、頻出パターンを <code>scalar</code>、<code>computed</code>、<code>roll</code>、<code>track</code>、<code>list</code>、<code>relation</code>、<code>tag</code> の直和で表現する。</p>
+<p><code>parts</code>、参照表、ブロック、配分プール、Discord 用 role 注釈も定義されている。</p>
+<table>
+<thead>
+<tr>
+<th>分類</th>
+<th>現行の主な受け皿</th>
+<th>補足</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直接表現できる</td>
+<td>D01 から D07、D11、D14、D19</td>
+<td>複数の型や注釈を組み合わせる場合を含む</td>
+</tr>
+<tr>
+<td>規約または組み合わせが必要</td>
+<td>D08、D09、D10、D12</td>
+<td>箱の個別性や固定枠の意味を失わないエンコードが必要</td>
+</tr>
+<tr>
+<td>基盤外または将来拡張</td>
+<td>D13、D15 から D18</td>
+<td>特技表、条件付き構成、閲覧者別秘匿、履歴、共有シートは別設計が必要</td>
+</tr>
+</tbody>
+</table>
+<p>型が存在していても、エディタ、入力画面、publish 検証、Discord 投影のすべてが同じ成熟度とは限らない。</p>
+<p>実装可否は <a href="character-sheet-proposals/design-v1.md">具体設計 v1</a>、<a href="character-sheet-proposals/field-sufficiency-audit.md">フィールド型充足性監査</a>、<a href="character-sheet-proposals/encoding-cookbook.md">エンコード集</a> と実コードを合わせて確認する。</p>
+<p>既存の P1 から P14 との大まかな対応は次のとおりである。</p>
+<table>
+<thead>
+<tr>
+<th>既存調査</th>
+<th>この資料</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1 から P5</td>
+<td>D01 から D06</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>D13</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>D14</td>
+</tr>
+<tr>
+<td>P8、P11</td>
+<td>D07 から D09、D12</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>D10</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>D16</td>
+</tr>
+<tr>
+<td>P12</td>
+<td>D15</td>
+</tr>
+<tr>
+<td>P13</td>
+<td>D17</td>
+</tr>
+<tr>
+<td>P14</td>
+<td>D18</td>
+</tr>
+<tr>
+<td>既存設計の blocks、pools</td>
+<td>D03、D19</td>
+</tr>
+</tbody>
+</table>
+<h2 id="13-参照資料">13. 参照資料</h2>
+<h3 id="リポジトリ内">リポジトリ内</h3>
+<ul>
+<li><a href="character-sheet-proposals/trpg-system-survey.md">TRPG システム横断調査</a>：14 系統を P1 から P14 へ正規化した先行調査</li>
+<li><a href="character-sheet-proposals/design-v1.md">具体設計 v1</a>：schema v3 の型、式、参照、値の意味論</li>
+<li><a href="character-sheet-proposals/encoding-cookbook.md">エンコード集</a>：個別システムを schema v3 で表すレシピ</li>
+<li><a href="character-sheet-template-json-spec.md">キャラクターシートテンプレート JSON 仕様</a>：現在の入力 JSON 契約</li>
+</ul>
+<h3 id="公式シート">公式シート</h3>
+<ul>
+<li><a href="https://www.chaosium.com/cthulhu-character-sheets/">Call of Cthulhu Character Sheets</a>：Chaosium。能力値、技能、リソース、武器、バックストーリーの例</li>
+<li><a href="https://media.dndbeyond.com/compendium-images/phb/downloads/DnD_2024_Character-Sheet.pdf">D&amp;D 2024 Character Sheet</a>：D&amp;D Beyond。能力値と修正値、HP、死亡セーヴ、武器、特徴の例</li>
+<li><a href="https://downloads.paizo.com/RemasterPlayerCoreCharacterSheet.pdf">Pathfinder Second Edition Remaster Character Sheet</a>：Paizo。補正内訳、HP、状態、技能、攻撃行の例</li>
+<li><a href="https://evilhat.com/wp-content/uploads/2022/04/Fate-Core-Character-Sheet.pdf">Fate Core Character Sheet</a>：Evil Hat Productions。アスペクト、ストレス箱、コンセクエンス枠の例</li>
+<li><a href="https://rtalsoriangames.com/wp-content/uploads/2020/11/RTG-CPR-CharacterSheet.pdf">Cyberpunk RED Character Sheet</a>：R. Talsorian Games。装備、サイバーウェア、ライフパス、人物関係の例</li>
+</ul>
+<p>これらの公式シートはパターンの実例を確認するために参照した。</p>
+<p>「多くの TRPG に必ず同じ項目がある」ことを示す統計資料ではない。</p>
+
+</body>
+</html>
