@@ -6,7 +6,7 @@
 >
 > **設計方針**：[キャラクターシート描画コンポーネントの構成方針](renderer-component-structure.md)
 >
-> **ステータス**：計画確定、実装未着手
+> **ステータス**：実装中、P0・P1完了
 >
 > **最終更新**：2026-10-12
 
@@ -63,11 +63,13 @@ large-file解析の既定閾値（file 800行、function 200行）を手作業�
 
 一方、実装内で最大の関数は`ListFieldEditor`の112行と`TableFieldRow`の111行であり、200行以上の関数はない。
 
-専用解析コマンドは`ts-node`が見つからず起動できなかったため、この計画では行数、宣言位置、import元を手作業で確認した。
+P0では、欠損していたworkspace依存リンクをlockfile変更なしで復旧した。
 
-focused specはworkspace package 2件のbuildまでは成功したが、`jest`が見つからず実行開始前に停止した。
+focused specは1 suite、150 tests、1 snapshotが成功し、typecheckとlintも終了コード0で成功した。
 
-この失敗はコードのテスト結果ではないため、P0で依存環境を復旧して基線を取り直す。
+P1後の専用解析コマンドも成功し、`TemplateFormRenderer.tsx`は1,205行、`renderer-value.ts`は33行と記録された。
+
+既知の警告は、前者が800行のlarge-file閾値を超える1件だけである。
 
 計画作成へ着手した時点のworking treeはcleanである。
 
@@ -355,8 +357,8 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 
 | ID | 状態 | 変更概要 | 検証 | レビュー | 未解消H/M |
 |---|---|---|---|---|---:|
-| P0 | 未着手 | 現環境では`jest`欠落を確認 | 再取得待ち | 未実施 | 0 |
-| P1 | 未着手 | なし | 未実施 | 未実施 | 0 |
+| P0 | 完了 | workspace依存リンクをlockfile変更なしで復旧 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint成功 | 現行挙動を基線化 | 0 |
+| P1 | 完了 | 5つの保存値readerを`fields/renderer-value.ts`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、large-file解析成功 | 挙動差分・重複実装・逆向き依存なし | 0 |
 | P2 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P3 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P4 | 未着手 | なし | 未実施 | 未実施 | 0 |
@@ -369,6 +371,20 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 状態は`未着手`、`進行中`、`検証中`、`完了`、`停止`のいずれかで記録する。
 
 各フェーズの完了時に、変更ファイル、実行コマンド、結果、レビュー所見、rollback要否を同じ行または直下の補足へ追記する。
+
+### P0・P1 実施記録（2026-10-12）
+
+- P0では`pnpm install --force --offline --prod=false --frozen-lockfile --optimistic-repeat-install=false`で欠損リンクを再構築した。
+- `pnpm-lock.yaml`、package manifest、production codeにP0の差分はない。
+- P1では`TemplateFormRenderer.tsx`から`isRecord`、`isFiniteNumberInput`、`numberDisplayValue`、`readPartValue`、`hasPartKey`を移動した。
+- 5関数の定義は`fields/renderer-value.ts`の1箇所だけであり、同moduleは外部moduleへ依存しない。
+- 公開入口、3つのruntime消費者、props、DOM、ARIA、callback payload、spec期待値は変更していない。
+- `pnpm --filter trpg-next-app test -- app/features/characterSheet/TemplateFormRenderer.spec.tsx --runInBand`はP0とP1後の両方で成功した。
+- `pnpm --filter trpg-next-app run typecheck`と`pnpm --filter trpg-next-app run lint`もP0とP1後の両方で成功した。
+- large-file解析は2ファイルを解析し、既知のfile-size警告1件以外に新しい警告を検出しなかった。
+- 認知負荷レビューでは、1回の内部import hopを追加する一方、後続componentが親ファイルのlocal helperを参照する非局所依存を解消した。
+- 新しい概念は「表示境界の値reader」1件に限定され、5関数は同じ変更理由を持つため、HighまたはMediumの所見はない。
+- rollbackは不要であり、次の実装対象はP2である。
 
 ## GoとNo-Goの条件
 

@@ -124,6 +124,9 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   （`characterTemplate/components/TemplatePreviewV3`）も TFR を消費し、
   **第三の描画実装を作らない**（D-R2 裁定・2026-08-12 ユーザー）。見出し階層は
   headingLevel prop（既定 2・block は +1）で消費者が指定する（編集面/プレビューとも 3）
+- TFR内部で`unknown`の保存値を安全に読む純粋関数の正本は
+  `characterSheet/fields/renderer-value.ts`（段階的リファクタP1・2026-10-12）。
+  公開入口と3つのruntime消費者は変えず、内部componentはこのmoduleを直接importする
 - **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
   （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
   使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない
