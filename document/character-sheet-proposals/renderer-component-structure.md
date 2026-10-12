@@ -4,7 +4,7 @@
 >
 > **対象**：`trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx`
 >
-> **ステータス**：推奨案、実装未着手
+> **ステータス**：方針採用、実装未着手
 >
 > **最終更新**：2026-10-12
 
@@ -233,45 +233,15 @@ trpg-next-app/app/features/characterSheet/
 
 ## 段階的な抽出順序
 
-### Phase 1 ListFieldEditor
+実装は[TemplateFormRenderer 段階的リファクタ実装計画](renderer-component-refactor-plan.md)に従う。
 
-`ListFieldEditor`、行セル描画、`RowPartsEditor`、list専用の値更新関数を一つのモジュールへ移す。
+抽出順序は、依存される側から`renderer-value`、`PartsEditorPopover`、`ListRowPartsEditor`、`ListFieldEditor`、`TrackFieldView`、`FieldRenderer`、`TableFieldLayout`、`FieldLayout`とする。
 
-行ID、行上限、空セルのキー削除、parts形セルの読み取り専用合計という既存契約を維持する。
+tableを先に抽出すると、まだ親ファイルにあるfield描画を渡す一時的なcallback境界が必要になる。
 
-完了条件は、既存のlist関連specが期待値変更なしで通ることである。
+その中間構造を作らないため、parts編集とfield dispatchを先に分離してからtableを移す。
 
-### Phase 2 TableFieldLayout
-
-table本体、`TableFieldRow`、parts列の構築をlayout moduleへ移す。
-
-単純fieldの列表示、複雑fieldの全幅降格、parts列のラベルと編集可否を維持する。
-
-完了条件は、table、grid、stackの全fixtureでDOM契約が変わらないことである。
-
-### Phase 3 PartsEditorPopover
-
-section直下scalar用のparts editorと、その値読み取り関数を移す。
-
-list行用parts editorとは保存境界が異なるため、無理に一つのcomponentへ統合しない。
-
-完了条件は、`base`、`other`、宣言済みキー、予約キーの既存specが通ることである。
-
-### Phase 4 TrackFieldView
-
-trackの値表示、gauge、checkboxes、最大値の評価状態を移す。
-
-field警告と作成時ロールの振り直しはfield共通の付加要素として外側に残す。
-
-完了条件は、未入力、範囲外、不正raw、max未確定、max評価失敗、checkbox上限30の既存specが通ることである。
-
-### Phase 5 FieldRendererとFieldLayout
-
-前段の抽出後に、field型dispatchとlayout dispatchをそれぞれ一箇所へまとめる。
-
-この段階までは、新しいregistry、context、view modelを追加しない。
-
-完了条件は、3つのruntime消費者が引き続き`TemplateFormRenderer`だけをimportしていることである。
+各フェーズの許可ファイル、安全境界、停止条件、検証コマンド、進捗台帳は実装計画を正本とする。
 
 ## 検証
 
@@ -306,6 +276,7 @@ pnpm --filter @trpg/sheet-engine build
 
 ## 参照
 
+- [TemplateFormRenderer 段階的リファクタ実装計画](renderer-component-refactor-plan.md)
 - [キャラクターシートのデータ保持パターン](../character-sheet-data-patterns.md)
 - [UI 設計 v1](design-v1-ui.md)
 - [具体設計 v1](design-v1.md)
