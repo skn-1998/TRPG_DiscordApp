@@ -5,26 +5,21 @@ import {
   evaluateAnnotationRuntime,
   evaluateConstraint,
   isSimpleField,
-  LIST_ROW_LIMIT,
-  LIST_ROW_TEXT_MAX_LENGTH,
   resolveGridSpan,
   resolveSectionLayout,
   rollOnCreateSpec,
   type ConstraintEvaluationResult,
-  type ListField,
   type ScalarField,
   type SectionAnnotationRuntime,
   type SheetField,
-  type SheetTemplate,
-  type TrackField
+  type SheetTemplate
 } from '@trpg/sheet-engine'
 import {
   useId,
   useMemo,
   type ReactNode
 } from 'react'
-import { createStableUid } from '../../lib/stable-uid'
-import { ListRowPartsEditor } from './fields/ListRowPartsEditor'
+import { ListFieldEditor } from './fields/ListFieldEditor'
 import {
   isNumberScalar,
   isPartsScalarField,
@@ -32,10 +27,9 @@ import {
 } from './fields/PartsEditorPopover'
 import {
   isFiniteNumberInput,
-  isRecord,
-  numberDisplayValue,
   readPartValue
 } from './fields/renderer-value'
+import { TrackFieldView } from './fields/TrackFieldView'
 import { isPresentablePartsKey } from './parts-key-visibility'
 import styles from './TemplateFormRenderer.module.css'
 
@@ -92,10 +86,6 @@ type RenderFieldEntry = {
 }
 
 type PartDefinition = NonNullable<ScalarField['partsKeys']>[number]
-
-// 典型的な TRPG トラック規模だけをマーク列にし、DOM 肥大を防ぐため 30 超は数値表示へ退避する。
-// max <= 0 は style ごとの退避規則として、割合を描く gauge は 0% を保ち、個数を描く checkboxes は列ごと退避する。
-const MAX_TRACK_CHECKBOX_MARKS = 30
 
 export function TemplateFormRenderer({
   template,
@@ -542,219 +532,6 @@ function buildTablePartColumns(fields: RenderFieldEntry[]): PartDefinition[] {
   return [...columns.values()]
 }
 
-function ListFieldEditor({
-  field,
-  value,
-  onChange
-}: {
-  field: ListField
-  value: unknown
-  onChange: TemplateFormRendererProps['onChange']
-}) {
-  const rows = Array.isArray(value) ? value : []
-  // roll / 入れ子 list は publish が閉じる（publish.ts:689-694）。relation / tag は publish を通るが、
-  // v1 の行 UI では未対応で、保存境界も input field として拒否するため scalar / track だけを列にする。
-  // computed は evaluated.rows が TFR へ配線されておらず表示値を取得できないため非描画とし、
-  // 値経路を接続する将来スライスで編集不能な評価値として追加する。
-  const visibleItemFields = field.itemFields.filter(
-    (itemField) => itemField.type === 'track' || itemField.type === 'scalar'
-  )
-  // 実効上限は宣言済み rollable 数によって変わり server が原因付き 422 を返すため、front では共有の物理上限だけを扱う。
-  const hasReachedRowLimit = rows.length >= LIST_ROW_LIMIT
-  const rowLimitReason = `${LIST_ROW_LIMIT} 行の上限に達しています`
-
-  const replaceItemValue = (rowIndex: number, itemFieldUid: string, nextValue: unknown) => {
-    onChange?.(field.uid, replaceListRowValue(rows, rowIndex, itemFieldUid, nextValue))
-  }
-
-  return (
-    <Paper key={field.uid} p="sm" withBorder style={{ width: '100%' }} data-list-field={field.uid}>
-      <Stack gap="sm">
-        <div>
-          <Text fw={600}>{field.label}</Text>
-          {field.description === undefined ? null : <Text c="dimmed" size="xs">{field.description}</Text>}
-        </div>
-        <div className={styles.tableScroll}>
-          <Table withColumnBorders withTableBorder verticalSpacing="xs">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">行</Table.Th>
-                {visibleItemFields.map((itemField) => (
-                  <Table.Th
-                    key={itemField.uid}
-                    scope="col"
-                    data-list-item-field-uid={itemField.uid}
-                  >
-                    {itemField.label}
-                  </Table.Th>
-                ))}
-                <Table.Th scope="col">操作</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((row, rowIndex) => {
-                const rowRecord = isRecord(row) ? row : {}
-                const rowId = typeof rowRecord.rowId === 'string' ? rowRecord.rowId : undefined
-                const rowLabel = `${field.label} ${rowIndex + 1} 行目`
-
-                return (
-                  <Table.Tr
-                    key={rowId ?? `invalid-row:${rowIndex}`}
-                    data-list-row-id={rowId}
-                    data-list-row-index={rowIndex}
-                  >
-                    <Table.Th scope="row">{rowIndex + 1}</Table.Th>
-                    {visibleItemFields.map((itemField) => (
-                      <Table.Td key={itemField.uid} data-list-item-field-uid={itemField.uid}>
-                        {renderListItemField({
-                          field: itemField,
-                          value: rowRecord[itemField.uid],
-                          label: `${rowLabel}: ${itemField.label}`,
-                          onCellChange: (nextValue) => replaceItemValue(rowIndex, itemField.uid, nextValue)
-                        })}
-                      </Table.Td>
-                    ))}
-                    <Table.Td>
-                      <Button
-                        aria-label={`${rowLabel}を削除`}
-                        onClick={() => onChange?.(field.uid, rows.filter((_, index) => index !== rowIndex))}
-                        size="xs"
-                        type="button"
-                        variant="light"
-                      >
-                        削除
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                )
-              })}
-            </Table.Tbody>
-          </Table>
-        </div>
-        {rows.length === 0 ? <Text c="dimmed" data-list-empty={field.uid} size="sm">行がありません</Text> : null}
-        <Button
-          aria-label={hasReachedRowLimit ? `${field.label}: 行を追加（${rowLimitReason}）` : `${field.label}: 行を追加`}
-          disabled={hasReachedRowLimit}
-          onClick={() => {
-            const existingRowIds = new Set(
-              rows.flatMap((row) => {
-                if (!isRecord(row) || typeof row.rowId !== 'string') return []
-                return [row.rowId]
-              })
-            )
-            onChange?.(field.uid, [...rows, { rowId: createStableUid(existingRowIds, 'row') }])
-          }}
-          title={hasReachedRowLimit ? rowLimitReason : undefined}
-          type="button"
-          variant="light"
-        >
-          行を追加
-        </Button>
-      </Stack>
-    </Paper>
-  )
-}
-
-function renderListItemField({
-  field,
-  value,
-  label,
-  onCellChange
-}: {
-  field: SheetField
-  value: unknown
-  label: string
-  onCellChange: (value: unknown) => void
-}) {
-  if (field.type === 'track') {
-    return (
-      <NumberInput
-        aria-label={label}
-        description={typeof field.max === 'number' ? `上限 ${field.max}（目安）` : undefined}
-        value={typeof value === 'number' ? value : ''}
-        onChange={(nextValue) => commitListNumberInput(nextValue, onCellChange)}
-      />
-    )
-  }
-
-  if (field.type !== 'scalar') return null
-
-  if (field.valueType === 'number') {
-    const isPartsValue = isRecord(value) && isRecord(value.parts)
-    // parts 形は内訳経由だけで編集する。直接入力は内訳を無警告で置換し、readOnly だけでは jsdom の
-    // change 発火を防げないため handler も配線しない。数値から内訳へ切替後は commit 済み合計がセルに残る。
-    return (
-      <Stack gap="xs">
-        <NumberInput
-          aria-label={label}
-          value={isPartsValue ? (numberDisplayValue(value) ?? '') : (typeof value === 'number' ? value : '')}
-          readOnly={isPartsValue}
-          onChange={isPartsValue
-            ? undefined
-            : (nextValue) => commitListNumberInput(nextValue, onCellChange)}
-        />
-        {field.partsKeys === undefined ? null : (
-          <ListRowPartsEditor field={field} value={value} label={label} onCellChange={onCellChange} />
-        )}
-      </Stack>
-    )
-  }
-
-  if (field.valueType === 'boolean') {
-    return (
-      <Checkbox
-        aria-label={label}
-        checked={value === true}
-        onChange={(event) => onCellChange(event.currentTarget.checked)}
-      />
-    )
-  }
-
-  if (field.valueType === 'select') {
-    return (
-      <Select
-        aria-label={label}
-        clearable
-        data={field.options ?? []}
-        value={typeof value === 'string' ? value : null}
-        onChange={(nextValue) => onCellChange(nextValue === null || nextValue === '' ? undefined : nextValue)}
-      />
-    )
-  }
-
-  return (
-    <TextInput
-      aria-label={label}
-      maxLength={LIST_ROW_TEXT_MAX_LENGTH}
-      value={typeof value === 'string' ? value : ''}
-      onChange={(event) => onCellChange(event.currentTarget.value === '' ? undefined : event.currentTarget.value)}
-    />
-  )
-}
-
-function commitListNumberInput(nextValue: string | number, onCellChange: (value: unknown) => void) {
-  if (nextValue === '') {
-    onCellChange(undefined)
-  } else if (isFiniteNumberInput(nextValue)) {
-    onCellChange(nextValue)
-  }
-}
-
-function replaceListRowValue(
-  rows: unknown[],
-  rowIndex: number,
-  itemFieldUid: string,
-  nextValue: unknown
-) {
-  return rows.map((row, index) => {
-    if (index !== rowIndex) return row
-    const nextRow = { ...(isRecord(row) ? row : {}) }
-    if (nextValue === undefined) delete nextRow[itemFieldUid]
-    else nextRow[itemFieldUid] = nextValue
-    return nextRow
-  })
-}
-
 function renderFieldWithWarning({
   field,
   value,
@@ -856,7 +633,13 @@ function renderDefaultField(
   if (field.type === 'list') return <ListFieldEditor field={field} value={value} onChange={onChange} />
 
   if (field.type === 'track') {
-    return renderTrackField(field, value, trackMax ?? { status: 'indeterminate' })
+    return (
+      <TrackFieldView
+        field={field}
+        rawValue={value}
+        maxRuntime={trackMax ?? { status: 'indeterminate' }}
+      />
+    )
   }
 
   if (field.type === 'computed' || field.type === 'roll') {
@@ -879,85 +662,6 @@ function renderDefaultField(
       </Text>
     </Paper>
   )
-}
-
-function renderTrackField(
-  field: TrackField,
-  rawValue: unknown,
-  maxRuntime: ConstraintEvaluationResult
-) {
-  // design-v1-ui の「制約評価 API」節の numberOrZero 不変更契約により、未入力 track は engine が min 非依存で 0 評価するため、
-  // evaluated 基底の preview・hub/Discord 投影と
-  // 同じ表示へ揃える。定義済みだが壊れた raw は numberDisplayValue の「—」退化を維持する。
-  const displayValue = rawValue === undefined ? 0 : numberDisplayValue(rawValue)
-  const maxValue = maxRuntime.status === 'ok' ? maxRuntime.value : undefined
-  const valueText = maxRuntime.status === 'error'
-    ? String(displayValue ?? '—')
-    : `${displayValue ?? '—'} / ${maxValue ?? '—'}`
-
-  return (
-    <Paper
-      key={field.uid}
-      p="sm"
-      withBorder
-      style={{ width: '100%' }}
-      data-track-field={field.uid}
-      data-track-max-status={maxRuntime.status}
-    >
-      <Stack gap={4}>
-        <Text fw={600}>{field.label}</Text>
-        {field.description === undefined ? null : <Text c="dimmed" size="xs">{field.description}</Text>}
-        {field.style === 'gauge' ? (
-          <Progress
-            aria-label={`${field.label} のゲージ`}
-            value={toTrackProgress(displayValue, maxValue)}
-          />
-        ) : null}
-        {field.style === 'checkboxes' ? renderTrackCheckboxes(field, displayValue, maxValue) : null}
-        <Text data-track-display-value={field.uid} size="sm">{valueText}</Text>
-        {/* design-v1-ui の「制約評価 API」節 / SM-9(b): 未確定値は警告せず、評価失敗だけを制約単位で隠さず警告する。 */}
-        {maxRuntime.status === 'error' ? (
-          <Text c="red" data-track-max-error={field.uid} size="sm">最大値を評価できません</Text>
-        ) : null}
-      </Stack>
-    </Paper>
-  )
-}
-
-function renderTrackCheckboxes(
-  field: TrackField,
-  displayValue: number | undefined,
-  maxValue: number | undefined
-) {
-  if (displayValue === undefined || maxValue === undefined) return null
-  if (!Number.isInteger(maxValue) || maxValue <= 0 || maxValue > MAX_TRACK_CHECKBOX_MARKS) return null
-
-  const checkedCount = Math.max(0, Math.min(maxValue, Math.floor(displayValue)))
-
-  // Mantine Checkbox なら既存テーマの箱表現を保ちつつ、readOnly と tabIndex で編集用 Checkbox から分離できる。
-  return (
-    <Group
-      aria-hidden="true"
-      data-track-checkboxes={field.uid}
-      gap="xs"
-      wrap="wrap"
-    >
-      {Array.from({ length: maxValue }, (_, index) => (
-        <Checkbox
-          key={`${field.uid}:${index}`}
-          checked={index < checkedCount}
-          readOnly
-          size="xs"
-          tabIndex={-1}
-        />
-      ))}
-    </Group>
-  )
-}
-
-function toTrackProgress(value: number | undefined, max: number | undefined) {
-  if (value === undefined || max === undefined || max <= 0) return 0
-  return Math.max(0, Math.min(100, (value / max) * 100))
 }
 
 function renderScalarField(

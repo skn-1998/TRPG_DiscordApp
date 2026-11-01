@@ -132,6 +132,12 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
   `characterSheet/fields/ListRowPartsEditor.tsx`（段階的リファクタP2・P3・2026-11-01）。
   共通化するのはEnter/Space/Escapeのhandlerだけで、sectionのper-key callbackとlistの
   whole-cell commitは保存契約が異なるため統合しない。内部componentをruntime消費者から直接importしない
+- list全体の行追加・削除・セル編集・stable rowId・行上限の所有者は
+  `characterSheet/fields/ListFieldEditor.tsx`（段階的リファクタP4・2026-11-01）。
+  list全体1 path、itemField uidキー、空セルのキー削除を維持し、runtimeからはTFRだけが呼び出す
+- trackの保存値解釈、max評価3状態、gauge、checkboxes、上限30の表示退化の所有者は
+  `characterSheet/fields/TrackFieldView.tsx`（段階的リファクタP5・2026-11-01）。
+  外側のfield警告・振り直し・layoutはTFR側に残し、runtimeからはTFRだけが呼び出す
 - **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
   （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
   使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない

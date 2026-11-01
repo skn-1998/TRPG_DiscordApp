@@ -6,9 +6,9 @@
 >
 > **設計方針**：[キャラクターシート描画コンポーネントの構成方針](renderer-component-structure.md)
 >
-> **ステータス**：実装中、P0・P1完了
+> **ステータス**：実装中、P0からP5完了
 >
-> **最終更新**：2026-10-12
+> **最終更新**：2026-11-01
 
 ## 実施判断
 
@@ -361,8 +361,8 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 | P1 | 完了 | 5つの保存値readerを`fields/renderer-value.ts`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、large-file解析成功 | 挙動差分・重複実装・逆向き依存なし | 0 |
 | P2 | 完了 | section用parts editorと4 helperを`fields/PartsEditorPopover.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複実装・死蔵exportなし | 0 |
 | P3 | 完了 | list行用parts editorとwhole-cell commitを`fields/ListRowPartsEditor.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 差分・P1〜P3大粒度レビュー承認、挙動差分・重複責務なし | 0 |
-| P4 | 未着手 | なし | 未実施 | 未実施 | 0 |
-| P5 | 未着手 | なし | 未実施 | 未実施 | 0 |
+| P4 | 完了 | list editorと3 helperを`fields/ListFieldEditor.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
+| P5 | 完了 | track表示と3 helperを`fields/TrackFieldView.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
 | P6 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P7 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P8 | 未着手 | なし | 未実施 | 未実施 | 0 |
@@ -411,6 +411,30 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 - 認知負荷はlist行parts変更時の同時保持数が10から6へ減少した。追跡ホップは2から3へ増えるが、約80行の状態・DOM・保存契約を隠す判断を持つ境界であり、全体ではreducedと判定した。
 - Claude Code CLIが環境に存在せずFableモデルを選択・検証できなかったため、規約上のClaude/Fable二重レビューは未実施である。代わりに実装担当とは別のCodexレビュアー2系統でP3差分とP1〜P3大粒度を独立検収した。
 - rollbackは不要である。次の計画フェーズはP4だが、今回の依頼範囲はP2、P3までなので着手しない。
+
+### P4 実施記録（2026-11-01）
+
+- `ListFieldEditor`、`renderListItemField`、`commitListNumberInput`、`replaceListRowValue`を`fields/ListFieldEditor.tsx`へ移動した。
+- scalarとtrackだけを列へ出す規則、itemFieldのuidを保存キーにする規則、非配列と非record行の退化、stable rowId、list全体1 pathの通知、空セルのキー削除を維持した。
+- number、text、select、boolean、parts形numberの入力契約、DOM、ARIA、data属性、文言、既存CSS Module、spec期待値は変更していない。
+- 新規moduleは親の`TemplateFormRendererProps`をimportせず、callback型を局所定義した。barrel、第三のruntime入口、P5のtrack変更は追加していない。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- 独立レビューはapprovedで、High、Medium、Lowの未解消所見は0件だった。対象4定義は新規moduleに各1件、runtime利用は親のfield dispatch 1件だけである。
+- 認知負荷はlist変更時の同時保持数が10から9へ減少した。runtimeの追跡ホップは1増えるが、約212行の行編集と保存契約を一つの所有moduleへ局所化する判断を持ち、全体ではreducedと判定した。
+- rollbackは不要である。次の実装対象はP5である。
+
+### P5 実施記録（2026-11-01）
+
+- `MAX_TRACK_CHECKBOX_MARKS`、`renderTrackField`、`renderTrackCheckboxes`、`toTrackProgress`を`fields/TrackFieldView.tsx`へ移動し、公開component名を`TrackFieldView`とした。
+- 未入力rawだけを0へ退化させ、`null`、非有限flat値、壊れたpartsを`—`にする規則と、maxの`ok`、`indeterminate`、`error`の3状態表示を維持した。
+- gaugeの絶対比率と0〜100 clamp、checkboxesの整数max 1〜30、checked数のclamp、負値と超過値の数値表示、装飾Checkboxのtab除外を維持した。
+- DOM、ARIA、data属性、文言、既存コメント、spec期待値は変更していない。max未指定時のfallbackと外側のwarning、振り直し、layoutは親に残した。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- P5差分レビューとP4・P5大粒度レビューはいずれもコードapprovedで、High、Medium、Lowの未解消コード所見は0件だった。
+- 大粒度検索ではP4・P5のcomponent、helper、定数は各1定義、runtime利用は親のfield dispatch各1件である。barrel、第三の描画入口、親propsへの逆依存、死蔵export、P1からP3の責務複製は0件だった。
+- 認知負荷はtrack変更時の同時保持数が6から4へ減少した。親は1,023行から727行となり、listとtrackの所有moduleを合わせた境界導入コストは18行で、総合判定はreducedだった。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは実施できず、実装担当とは別のCodexレビュアー2系統によるP5差分レビューとP4・P5大粒度レビューで代替した。
+- rollbackは不要である。今回の依頼範囲P4、P5は完了し、P6以降へは進まない。
 
 ## GoとNo-Goの条件
 

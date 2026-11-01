@@ -5,6 +5,20 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P4・P5
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP4、P5を実装する。
+- P4は受入確定: `ListFieldEditor`と3 helperを`fields/ListFieldEditor.tsx`へ移動した。公開入口、DOM、ARIA、data属性、文言、list全体1 path、itemField uidキー、stable rowId、空セルのキー削除、行上限を維持した。
+- P4のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。独立レビューapproved、未解消H/M/L=0。
+- P4大粒度実測: 対象4定義は新規moduleに各1件、runtime利用はTFRのfield dispatch 1件。barrel、第三入口、親propsへの逆依存、P5混入は0件。
+- P4認知負荷: list変更時の同時保持数10→9。runtime hopは1増えるが、約212行の行編集と保存契約が224行の所有moduleへ局所化され、総合判定はreduced。
+- P5も受入確定: track固有定数、描画、checkboxes、progress計算を`fields/TrackFieldView.tsx`へ移動した。raw退化、max3状態、gauge、checkboxes 1〜30、DOM、ARIA、data属性、文言を維持した。
+- P5のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P5差分レビューapproved、未解消H/M/L=0。
+- P4・P5大粒度レビュー: 親1,023→727行、component/helper/定数は各1定義、runtime利用は親のfield dispatch各1件。barrel、第三入口、親propsへの逆依存、死蔵export、P1〜P3責務複製は0件。list同時保持10→9、track 6→4で総合reduced。
+- 横断レビューで検出した文書同期Medium 1件は、本計画、構成方針、`trpg-next-app/AI.md`、本handoffをP5完了へ揃えて解消した。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは未実施。実装担当とは別のCodexレビュアー2系統でP5差分とP4・P5大粒度を独立検収した。
+- 今回の依頼範囲P4・P5は完了。次の計画フェーズはP6だが未着手であり、別依頼まで進めない。
+
 ## 【完了 2026-11-01】TemplateFormRenderer component refactor P2・P3
 
 - ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP2、P3を実装する。
