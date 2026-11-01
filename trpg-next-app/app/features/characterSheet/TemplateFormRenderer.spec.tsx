@@ -346,9 +346,9 @@ function readPreviewSource() {
   )
 }
 
-function readRendererSource() {
+function readPartsEditorSource() {
   return readFileSync(
-    join(process.cwd(), 'app/features/characterSheet/TemplateFormRenderer.tsx'),
+    join(process.cwd(), 'app/features/characterSheet/fields/PartsEditorPopover.tsx'),
     'utf8'
   )
 }
@@ -570,7 +570,7 @@ describe('TemplateFormRenderer', () => {
   })
 
   it('PartsEditorPopover の幅を target prop に固定する', () => {
-    const source = readRendererSource()
+    const source = readPartsEditorSource()
     expect(source).toContain('width="target"')
     expect(source).not.toContain('width={280}')
   })

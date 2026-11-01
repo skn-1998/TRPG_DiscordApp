@@ -5,7 +5,22 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-29（**web-free-add（M-D）feature 完全完了**。ユーザー許可
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P2・P3
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP2、P3を実装する。
+- 正本: 上記計画書。P0、P1は既に完了していた。対象は`trpg-next-app`だけで、`TRPG-SERVER`、sheet-engine、runtime消費者3件、manifest、lockfileは変更禁止。
+- P2は受入確定: `PartsEditorPopover`、`buildPopoverPartRows`、`handleTriggerKeyDown`、`isNumberScalar`、`isPartsScalarField`を`fields/PartsEditorPopover.tsx`へ移動した。親に旧定義なし、公開入口・DOM・ARIA・callback payload・期待値は不変。
+- P2のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。独立レビューapproved、未解消H/M/L=0。
+- P3も受入確定: `RowPartsEditor`とwhole-cell commitを`fields/ListRowPartsEditor.tsx`へ移動した。宣言済み提示可能キーだけを保存し、`base`/`other`/unsafe key/負数を保存せず、空partsを`undefined`化する契約を維持した。
+- P3は`handleTriggerKeyDown`だけをP2 moduleから再利用し、sectionのper-key callbackとlistのwhole-cell保存を共通化していない。DOM、ARIA、data属性、focus/Enter/Space/Escape、spec期待値は不変。
+- P3のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P3差分レビューとP1〜P3大粒度レビューはapproved、未解消H/M/L=0。
+- 大粒度実測: 保存値reader、parts述語、提示可否、keyboard handler、list whole-cell commitは各1定義。内部componentのruntime直接import、第三の描画経路、barrel、死蔵export、逆向き依存は0件。
+- 認知負荷: section/table parts変更は同時保持7→5・追跡ホップ4→3、list行parts変更は同時保持10→6・追跡ホップ2→3。後者の1ホップ増は状態・DOM・保存契約を局所化する判断を持ち、総合判定はreduced。
+- Claude Code CLIが無くFableモデルを選択・検証できないためClaude/Fable二重レビューは未実施。代替として実装担当とは別のCodexレビュアー2系統でP3差分とP1〜P3大粒度を独立検収した。
+- 今回の依頼範囲P2・P3は完了。次の計画フェーズはP4だが未着手であり、別依頼まで進めない。
+- 証跡: `review-results/renderer-component-refactor/p2-p3-pre-implementation-review.md`（gitignore対象）。
+
+- それ以前の主要feature最終更新: 2026-08-29（**web-free-add（M-D）feature 完全完了**。ユーザー許可
   （「やってOK」）に基づき: コミット 3 本 = `a5cafc8a` front S7 / `3cd7d37e` seed S8 /
   `2a9e033f` docs → push 済み。v4 seed = dry-run→execute
   （`inserted=true`→`deprecated legacy-coc-v3`）→再 execute で冪等確認。

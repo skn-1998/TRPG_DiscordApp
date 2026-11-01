@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge, Button, Checkbox, Group, NumberInput, Paper, Popover, Progress, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import { Badge, Button, Checkbox, Group, NumberInput, Paper, Progress, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import {
   evaluateAnnotationRuntime,
   evaluateConstraint,
@@ -21,15 +21,16 @@ import {
 import {
   useId,
   useMemo,
-  useState,
-  type Dispatch,
-  type KeyboardEvent,
-  type ReactNode,
-  type SetStateAction
+  type ReactNode
 } from 'react'
 import { createStableUid } from '../../lib/stable-uid'
+import { ListRowPartsEditor } from './fields/ListRowPartsEditor'
 import {
-  hasPartKey,
+  isNumberScalar,
+  isPartsScalarField,
+  PartsEditorPopover
+} from './fields/PartsEditorPopover'
+import {
   isFiniteNumberInput,
   isRecord,
   numberDisplayValue,
@@ -541,101 +542,6 @@ function buildTablePartColumns(fields: RenderFieldEntry[]): PartDefinition[] {
   return [...columns.values()]
 }
 
-function isNumberScalar(field: SheetField): field is ScalarField {
-  // engine annotation-runtime.isNumberScalar と同値である必要がある。パッケージ境界を跨ぐため統合せず、変更時は両方を更新する。
-  return field.type === 'scalar' && field.valueType === 'number'
-}
-
-function isPartsScalarField(field: SheetField): field is ScalarField {
-  // engine value-input.allowsParts と同一規則だが、front は number scalar のみに絞る。変更時は両方を同期する。
-  return isNumberScalar(field) && (field.parts === true || field.partsKeys !== undefined)
-}
-
-function handleTriggerKeyDown(setOpened: Dispatch<SetStateAction<boolean>>) {
-  return (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      setOpened(false)
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      setOpened((current) => !current)
-    }
-  }
-}
-
-/** 行用 RowPartsEditor は保存境界が base / other を拒否するため、base を常設するこの section 用 editor とは分ける。 */
-function PartsEditorPopover({
-  field,
-  value,
-  displayValue,
-  onPartsChange,
-  excludedPartIds
-}: {
-  field: ScalarField
-  value: unknown
-  displayValue: number | undefined
-  onPartsChange: TemplateFormRendererProps['onPartsChange']
-  excludedPartIds?: ReadonlySet<string>
-}) {
-  const [opened, setOpened] = useState(false)
-  const editableParts = [
-    { id: 'base', label: 'base' },
-    ...buildPopoverPartRows(field, value).filter(({ id }) => !excludedPartIds?.has(id))
-  ]
-
-  return (
-    <Popover
-      opened={opened}
-      onChange={setOpened}
-      position="bottom-start"
-      shadow="md"
-      withinPortal={false}
-      width="target"
-    >
-      <Popover.Target>
-        <Button
-          aria-label={`${field.label}: 内訳を編集`}
-          data-parts-popover-trigger={field.uid}
-          fullWidth
-          onClick={() => setOpened(true)}
-          onFocus={() => setOpened(true)}
-          onKeyDown={handleTriggerKeyDown(setOpened)}
-          type="button"
-          variant="default"
-        >
-          <Text component="span" data-field-display-value={field.uid}>{displayValue ?? ''}</Text>
-        </Button>
-      </Popover.Target>
-      <Popover.Dropdown aria-label={`${field.label} の内訳`}>
-        <Stack gap="xs" data-parts-popover={field.uid}>
-          {editableParts.map((part, partIndex) => (
-            <NumberInput
-              key={`${part.id}:${partIndex}`}
-              aria-label={`${field.label}: ${part.label}`}
-              data-parts-key={part.id}
-              label={part.label}
-              value={readPartValue(value, part.id)}
-              onChange={(nextValue) => {
-                if (isFiniteNumberInput(nextValue)) onPartsChange?.(field.uid, part.id, nextValue)
-              }}
-            />
-          ))}
-          {hasPartKey(value, 'other') ? (
-            <Group data-parts-key="other" data-parts-readonly="true" justify="space-between">
-              <Text size="sm">other</Text>
-              <Text data-parts-value="other" size="sm">{readPartValue(value, 'other')}</Text>
-            </Group>
-          ) : null}
-          <Group data-parts-total="true" justify="space-between">
-            <Text fw={500} size="sm">合計</Text>
-            <Text size="sm">{displayValue ?? ''}</Text>
-          </Group>
-        </Stack>
-      </Popover.Dropdown>
-    </Popover>
-  )
-}
-
 function ListFieldEditor({
   field,
   value,
@@ -788,7 +694,7 @@ function renderListItemField({
             : (nextValue) => commitListNumberInput(nextValue, onCellChange)}
         />
         {field.partsKeys === undefined ? null : (
-          <RowPartsEditor field={field} value={value} label={label} onCellChange={onCellChange} />
+          <ListRowPartsEditor field={field} value={value} label={label} onCellChange={onCellChange} />
         )}
       </Stack>
     )
@@ -826,83 +732,6 @@ function renderListItemField({
   )
 }
 
-/**
- * section 用 PartsEditorPopover は base を常設するが、行用 editor は保存境界に合わせて提示可能キーだけを所有する。
- * commitPart は宣言済み提示可能キー以外を落とし、旧公開データの修復も兼ねる。
- */
-function RowPartsEditor({
-  field,
-  value,
-  label,
-  onCellChange
-}: {
-  field: ScalarField
-  value: unknown
-  label: string
-  onCellChange: (value: unknown) => void
-}) {
-  const [opened, setOpened] = useState(false)
-  const editableParts = (field.partsKeys ?? []).filter(({ id }) => isPresentablePartsKey(id))
-
-  const commitPart = (partsKey: string, nextValue: string | number) => {
-    if (nextValue !== '' && (!isFiniteNumberInput(nextValue) || nextValue < 0)) return
-
-    const nextParts: Record<string, number> = {}
-    for (const part of editableParts) {
-      if (part.id === partsKey) {
-        if (nextValue !== '') nextParts[part.id] = nextValue
-        continue
-      }
-      const currentValue = readPartValue(value, part.id)
-      if (currentValue !== '') nextParts[part.id] = currentValue
-    }
-    onCellChange(Object.keys(nextParts).length === 0 ? undefined : { parts: nextParts })
-  }
-
-  if (editableParts.length === 0) return null
-
-  return (
-    <Popover
-      opened={opened}
-      onChange={setOpened}
-      position="bottom-start"
-      shadow="md"
-      withinPortal={false}
-      width="target"
-    >
-      <Popover.Target>
-        <Button
-          aria-label={`${label} の内訳を編集`}
-          data-row-parts-trigger={field.uid}
-          onClick={() => setOpened(true)}
-          onFocus={() => setOpened(true)}
-          onKeyDown={handleTriggerKeyDown(setOpened)}
-          size="xs"
-          type="button"
-          variant="default"
-        >
-          内訳
-        </Button>
-      </Popover.Target>
-      <Popover.Dropdown aria-label={`${label} の内訳`}>
-        <Stack gap="xs" data-row-parts-editor={field.uid}>
-          {editableParts.map((part) => (
-            <NumberInput
-              key={part.id}
-              aria-label={`${label}: ${part.label}`}
-              data-parts-key={part.id}
-              label={part.label}
-              min={0}
-              value={readPartValue(value, part.id)}
-              onChange={(nextValue) => commitPart(part.id, nextValue)}
-            />
-          ))}
-        </Stack>
-      </Popover.Dropdown>
-    </Popover>
-  )
-}
-
 function commitListNumberInput(nextValue: string | number, onCellChange: (value: unknown) => void) {
   if (nextValue === '') {
     onCellChange(undefined)
@@ -924,17 +753,6 @@ function replaceListRowValue(
     else nextRow[itemFieldUid] = nextValue
     return nextRow
   })
-}
-
-function buildPopoverPartRows(field: ScalarField, value: unknown): PartDefinition[] {
-  if (field.parts !== true) {
-    return (field.partsKeys ?? []).filter(({ id }) => isPresentablePartsKey(id))
-  }
-  if (!isRecord(value) || !isRecord(value.parts)) return []
-
-  return Object.keys(value.parts)
-    .filter(isPresentablePartsKey)
-    .map((partsKey) => ({ id: partsKey, label: partsKey }))
 }
 
 function renderFieldWithWarning({

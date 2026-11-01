@@ -359,8 +359,8 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 |---|---|---|---|---|---:|
 | P0 | 完了 | workspace依存リンクをlockfile変更なしで復旧 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint成功 | 現行挙動を基線化 | 0 |
 | P1 | 完了 | 5つの保存値readerを`fields/renderer-value.ts`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、large-file解析成功 | 挙動差分・重複実装・逆向き依存なし | 0 |
-| P2 | 未着手 | なし | 未実施 | 未実施 | 0 |
-| P3 | 未着手 | なし | 未実施 | 未実施 | 0 |
+| P2 | 完了 | section用parts editorと4 helperを`fields/PartsEditorPopover.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複実装・死蔵exportなし | 0 |
+| P3 | 完了 | list行用parts editorとwhole-cell commitを`fields/ListRowPartsEditor.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 差分・P1〜P3大粒度レビュー承認、挙動差分・重複責務なし | 0 |
 | P4 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P5 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P6 | 未着手 | なし | 未実施 | 未実施 | 0 |
@@ -385,6 +385,32 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 - 認知負荷レビューでは、1回の内部import hopを追加する一方、後続componentが親ファイルのlocal helperを参照する非局所依存を解消した。
 - 新しい概念は「表示境界の値reader」1件に限定され、5関数は同じ変更理由を持つため、HighまたはMediumの所見はない。
 - rollbackは不要であり、次の実装対象はP2である。
+
+### P2 実施記録（2026-11-01）
+
+- `PartsEditorPopover`、`buildPopoverPartRows`、`handleTriggerKeyDown`、`isNumberScalar`、`isPartsScalarField`を`fields/PartsEditorPopover.tsx`へ移動した。
+- `TemplateFormRenderer`の公開props、3つのruntime消費者、DOM、ARIA、data属性、callback payload、spec期待値は変更していない。
+- `handleTriggerKeyDown`はP3で同一のEnter・Space・Escape契約を再利用する名前付きexportとし、保存処理やPopover全体は共通化していない。
+- sourceを直接確認する既存specは`width="target"`の所有fileだけを読み替えた。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- 独立レビューはapprovedで、High、Medium、Lowの未解消所見は0件だった。
+- 対象5定義は新規moduleの各1箇所だけであり、親fileに旧実装、barrel、第三の描画経路、死蔵exportを残していない。
+- 認知負荷は、section/table parts変更時の同時保持数が7から5、追跡ホップが4から3へ減少したと判定した。
+- rollbackは不要であり、次の実装対象はP3である。
+
+### P3 実施記録（2026-11-01）
+
+- `RowPartsEditor`と内側のwhole-cell `commitPart`を`fields/ListRowPartsEditor.tsx`へ移動し、component名を計画の目標構造に合わせて`ListRowPartsEditor`とした。
+- 宣言済み提示可能キーだけを保存し、`base`、`other`、unsafe key、負数を保存せず、空の内訳を`undefined`へ戻す契約を維持した。
+- DOM、ARIA、data属性、`width="target"`、`min={0}`、focus、Enter、Space、Escapeの挙動とspec期待値は変更していない。
+- P2の`handleTriggerKeyDown`だけを再利用し、section用per-key callback、Popover本体、commit処理は共通化していない。
+- `ListFieldEditor`、`renderListItemField`、`commitListNumberInput`、`replaceListRowValue`はP4対象として親fileに残した。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- P3差分レビューとP1〜P3大粒度レビューはいずれもapprovedで、High、Medium、Lowの未解消所見は0件だった。
+- 大粒度検索では保存値reader、parts述語、parts提示可否、keyboard handler、list whole-cell commitが各1定義で、内部componentのruntime直接import、barrel、第三の描画経路、死蔵export、逆向き依存は0件だった。
+- 認知負荷はlist行parts変更時の同時保持数が10から6へ減少した。追跡ホップは2から3へ増えるが、約80行の状態・DOM・保存契約を隠す判断を持つ境界であり、全体ではreducedと判定した。
+- Claude Code CLIが環境に存在せずFableモデルを選択・検証できなかったため、規約上のClaude/Fable二重レビューは未実施である。代わりに実装担当とは別のCodexレビュアー2系統でP3差分とP1〜P3大粒度を独立検収した。
+- rollbackは不要である。次の計画フェーズはP4だが、今回の依頼範囲はP2、P3までなので着手しない。
 
 ## GoとNo-Goの条件
 
