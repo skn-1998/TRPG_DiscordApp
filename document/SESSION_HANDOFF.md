@@ -5,6 +5,19 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P8・P9
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP8、P9を実装する。
+- P8は受入確定: layout dispatch、stack/grid共通経路、table分岐、grid span、field wrapperを`layouts/FieldLayout.tsx`へ移動した。公開入口、DOM、ARIA、data属性、callback payload、3つのruntime消費者を維持した。
+- P8のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。事前Mode Bと実装後Mode Aの独立レビューはいずれもapproved、未解消H/M/L=0。
+- P8全体実測: 親359→304行、FieldLayout 74行。layout dispatch、`resolveGridSpan`、layout container data属性は各1所有者。旧helper、feature外の内部component直接import、barrel、registry、親TS moduleへの逆向き依存は0件。
+- 認知負荷: grid wrapper変更時の同時保持数6→4。1 hop増はlayout分岐、span解決、DOM wrapperを隠す判断を持つ境界で、総合reduced。
+- P9のroot独立検証: 3消費者3 suites / 90 tests、front全体37 suites / 673 tests / 1 snapshot、typecheck、lint、Next production build、`git diff --check`成功。
+- P9大粒度実測: layout/field dispatch、parts述語・提示可否、保存値reader、keyboard操作、field警告、constraint message構築は各1所有者。runtime消費者は3件、feature外の内部component直接import、barrel、registry、第三入口、親TS moduleへの逆向き依存、死蔵exportは0件。
+- feature完了の独立Codexレビュー2系統はコードと構造をapprovedとした。初回の文書同期Medium 1件は、本計画、構成方針、`trpg-next-app/AI.md`、本handoffを最終実績へ揃えて解消した。
+- Claude/Opus環境がないため規約上のCodex＋Opus二重レビューは実施できず、独立Codexレビュアー2系統で認知負荷と挙動・契約・文書整合を分担して代替した。
+- 公開入口、3つのruntime消費者、props、DOM、ARIA、data属性、callback payload、spec期待値、schema、保存契約は変更していない。未解消H/M=0、rollback不要。P0〜P9の段階的リファクタを完了とする。
+
 ## 【完了 2026-11-01】TemplateFormRenderer component refactor P6・P7
 
 - ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP6、P7を実装する。

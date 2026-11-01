@@ -145,7 +145,13 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
 - table固有のparts列union、行見出し、parts/通常/全幅の行分岐の所有者は
   `characterSheet/layouts/TableFieldLayout.tsx`（段階的リファクタP7・2026-11-01）。
   parts専用行は既存どおり`renderField` overrideを経由させず、tableの外側のlayout containerは
-  P8までTFRが所有する。field描画callbackを注入せず、`FieldRenderer`を直接利用する
+  `characterSheet/layouts/FieldLayout.tsx`が所有する。field描画callbackを注入せず、`FieldRenderer`を直接利用する
+- stack/gridの共通経路、tableへのdispatch、grid span、field wrapperの所有者は
+  `characterSheet/layouts/FieldLayout.tsx`（段階的リファクタP8・2026-11-01）。
+  layoutは`resolveSectionLayout`の解決結果だけを解釈し、stack/grid専用の委譲componentは作らない
+- TemplateFormRenderer段階的リファクタP0〜P9は2026-11-01に完了した。
+  focused 150 tests、3消費者90 tests、front全体37 suites / 673 tests / 1 snapshot、typecheck、lint、
+  Next production buildが成功し、内部責務の重複、第三の描画入口、逆向き依存、未解消High/Mediumは0件
 - **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
   （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
   使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない

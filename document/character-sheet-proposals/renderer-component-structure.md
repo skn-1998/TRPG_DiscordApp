@@ -4,7 +4,7 @@
 >
 > **対象**：`trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx`
 >
-> **ステータス**：方針採用、P0からP7実装済み
+> **ステータス**：方針実装完了、P0からP9完了
 >
 > **最終更新**：2026-11-01
 
@@ -243,6 +243,10 @@ tableを先に抽出すると、まだ親ファイルにあるfield描画を渡�
 
 各フェーズの許可ファイル、安全境界、停止条件、検証コマンド、進捗台帳は実装計画を正本とする。
 
+P8では`FieldLayout`へstack/gridの共通経路、tableへの分岐、grid span、field wrapperを移動した。
+
+`TemplateFormRenderer`はsection、block、pool、annotation entry構築だけを所有し、内部layout componentを既存3消費者へ公開しない。
+
 ## 検証
 
 各フェーズでは、少なくとも次を実行する。
@@ -261,6 +265,10 @@ pnpm --filter @trpg/sheet-engine build
 ```
 
 最終フェーズでは、作成、編集、プレビューの3消費者を含むfront全体のtestとbuildを実行する。
+
+P9ではfocused 150 tests、3消費者90 tests、front全体37 suites / 673 tests / 1 snapshot、typecheck、lint、Next production buildが成功した。
+
+大粒度レビューでは内部責務の所有者一意性、3消費者、依存方向を確認し、HighまたはMediumの未解消所見0件で実装完了とした。
 
 ## 再評価条件
 

@@ -6,7 +6,7 @@
 >
 > **設計方針**：[キャラクターシート描画コンポーネントの構成方針](renderer-component-structure.md)
 >
-> **ステータス**：実装中、P0からP7完了
+> **ステータス**：実装完了、P0からP9完了
 >
 > **最終更新**：2026-11-01
 
@@ -70,6 +70,10 @@ focused specは1 suite、150 tests、1 snapshotが成功し、typecheckとlint�
 P1後の専用解析コマンドも成功し、`TemplateFormRenderer.tsx`は1,205行、`renderer-value.ts`は33行と記録された。
 
 既知の警告は、前者が800行のlarge-file閾値を超える1件だけである。
+
+P8後の`TemplateFormRenderer.tsx`は304行、`FieldLayout.tsx`は74行である。
+
+layout dispatch、grid span、field wrapperのproduction所有者は`FieldLayout.tsx`の1箇所になった。
 
 計画作成へ着手した時点のworking treeはcleanである。
 
@@ -365,8 +369,8 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 | P5 | 完了 | track表示と3 helperを`fields/TrackFieldView.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
 | P6 | 完了 | field dispatch、共通警告、振り直し、scalar controlを`fields/FieldRenderer.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 差分・P4〜P6大粒度レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
 | P7 | 完了 | table本体、行分岐、parts列構築を`layouts/TableFieldLayout.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・一時callbackなし | 0 |
-| P8 | 未着手 | なし | 未実施 | 未実施 | 0 |
-| P9 | 未着手 | なし | 未実施 | 未実施 | 0 |
+| P8 | 完了 | layout dispatch、grid span、field wrapperを`layouts/FieldLayout.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
+| P9 | 完了 | 全体検証、構造検索、正本文書とhandoffを最終実績へ同期 | focused 150 tests、3消費者90 tests、front全体37 suites / 673 tests / 1 snapshot、typecheck、lint、build、`git diff --check`成功 | 独立2系統の大粒度レビュー承認、文書同期Mを解消 | 0 |
 
 状態は`未着手`、`進行中`、`検証中`、`完了`、`停止`のいずれかで記録する。
 
@@ -463,6 +467,30 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 - 検索では`TableFieldLayout`、`TableFieldRow`、`buildTablePartColumns`は各1定義、親からのruntime importは1件、内部componentのfeature外直接import、親TS moduleへの逆向き依存、一時callback、競合するtable実装は0件だった。
 - 認知負荷はtable変更時の8つの本質的保持事項を1 moduleへ局所化し、親のsection、block、pool、stack、grid責務を同時に読む必要を除いた。runtimeの追跡hopは1増えるが、214行の列・行判断を隠す境界であり、総合判定はreducedだった。
 - rollbackは不要である。今回の依頼範囲P6、P7は完了し、次の計画フェーズP8は未着手である。
+
+### P8 実施記録（2026-11-01）
+
+- `renderFieldContainer`と`resolveGridSpan`を使うfield wrapperを`layouts/FieldLayout.tsx`へ移動した。
+- outer container、`data-layout-mode`、`data-grid-columns`、field key、`data-field-uid`、`data-grid-span`、既存CSS Module、table/fieldへのprops転送を維持した。
+- `stack`と`grid`を委譲だけの別componentへ分けず、`FieldLayout`が共通経路、table分岐、grid spanを所有する構成にした。
+- `TemplateFormRenderer`には公開props、section、block、pool、annotation entry構築を残し、3つのruntime消費者と`CreationRollReroll`の公開import pathは変更していない。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- P8差分の独立レビューはapprovedで、High、Medium、Lowの未解消所見は0件だった。
+- 検索ではlayout dispatch、`resolveGridSpan`、layout container data属性のproduction所有者は各1箇所で、旧helper、内部componentのfeature外直接import、barrel、registry、親TS moduleへの逆向き依存は0件だった。
+- 認知負荷はgrid wrapper変更時の同時保持数が6から4へ減少した。runtimeの追跡hopは1増えるが、layout分岐、span解決、DOM wrapperを隠す判断を持つ境界であり、総合判定はreducedだった。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは未実施である。実装担当とは別のCodexレビュアーで事前Mode Bと実装後Mode Aを検収した。
+- rollbackは不要である。次の実装対象はP9の全体検証と文書完了である。
+
+### P9 実施記録（2026-11-01）
+
+- focused specは1 suite、150 tests、1 snapshot、3つのruntime消費者specは3 suites、90 testsが成功した。
+- front全体は37 suites、673 tests、1 snapshot、typecheck、lint、Next production buildが成功した。
+- 構造検索ではlayout dispatch、field dispatch、parts述語、parts提示可否、保存値reader、keyboard操作、field警告、constraint message構築の所有者が各1箇所だった。
+- `TemplateFormRenderer`のruntime直接importは既存3件、feature外から内部field/layout componentへの直接importは0件、barrel、registry、第三の描画入口、親TS moduleへの逆向き依存、死蔵exportは0件だった。
+- 小粒度・大粒度の独立Codexレビュー2系統はコードと構造をapprovedとした。初回レビューで検出した文書同期Medium 1件は、本計画、構成方針、`trpg-next-app/AI.md`、`document/SESSION_HANDOFF.md`を最終実績へ更新して解消した。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは実施できず、独立Codexレビュアー2系統で認知負荷と挙動・契約・文書整合を分担して代替した。
+- 公開入口、3つのruntime消費者、props、DOM、ARIA、data属性、callback payload、spec期待値、schema、保存契約は変更していない。
+- HighまたはMediumの未解消所見は0件であり、rollbackは不要である。P0からP9の段階的リファクタを完了とする。
 
 ## GoとNo-Goの条件
 

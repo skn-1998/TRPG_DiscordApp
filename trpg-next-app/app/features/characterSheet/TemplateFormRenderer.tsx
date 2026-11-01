@@ -4,7 +4,6 @@ import { Badge, Group, Progress, Stack, Text, Title } from '@mantine/core'
 import {
   evaluateAnnotationRuntime,
   evaluateConstraint,
-  resolveGridSpan,
   resolveSectionLayout,
   type ConstraintEvaluationResult,
   type SectionAnnotationRuntime,
@@ -12,12 +11,8 @@ import {
   type SheetTemplate
 } from '@trpg/sheet-engine'
 import { useMemo, type ReactNode } from 'react'
-import {
-  FieldRenderer,
-  type CreationRollReroll as CreationRollRerollOptions
-} from './fields/FieldRenderer'
-import { TableFieldLayout } from './layouts/TableFieldLayout'
-import styles from './TemplateFormRenderer.module.css'
+import type { CreationRollReroll as CreationRollRerollOptions } from './fields/FieldRenderer'
+import { FieldLayout } from './layouts/FieldLayout'
 
 export type { CreationRollReroll } from './fields/FieldRenderer'
 
@@ -106,15 +101,17 @@ export function TemplateFormRenderer({
                 blockHeadingLevel,
                 creationRollReroll
               )
-              : renderFieldContainer(
-                fields,
-                layout,
-                values,
-                onChange,
-                onPartsChange,
-                renderField,
-                fieldConstraintMessages,
-                creationRollReroll
+              : (
+                <FieldLayout
+                  fields={fields}
+                  layout={layout}
+                  values={values}
+                  onChange={onChange}
+                  onPartsChange={onPartsChange}
+                  renderField={renderField}
+                  fieldConstraintMessages={fieldConstraintMessages}
+                  creationRollReroll={creationRollReroll}
+                />
               )}
           </Stack>
         )
@@ -154,15 +151,17 @@ function renderBlockGroups(
   return (
     <>
       {defaultFields.length > 0
-        ? renderFieldContainer(
-          defaultFields,
-          layout,
-          values,
-          onChange,
-          onPartsChange,
-          renderFieldOverride,
-          fieldConstraintMessages,
-          creationRollReroll
+        ? (
+          <FieldLayout
+            fields={defaultFields}
+            layout={layout}
+            values={values}
+            onChange={onChange}
+            onPartsChange={onPartsChange}
+            renderField={renderFieldOverride}
+            fieldConstraintMessages={fieldConstraintMessages}
+            creationRollReroll={creationRollReroll}
+          />
         )
         : null}
       {[...blockGroups]
@@ -187,16 +186,16 @@ function renderBlockGroups(
                   )}
                 </Group>
               )}
-              {renderFieldContainer(
-                fields,
-                layout,
-                values,
-                onChange,
-                onPartsChange,
-                renderFieldOverride,
-                fieldConstraintMessages,
-                creationRollReroll
-              )}
+              <FieldLayout
+                fields={fields}
+                layout={layout}
+                values={values}
+                onChange={onChange}
+                onPartsChange={onPartsChange}
+                renderField={renderFieldOverride}
+                fieldConstraintMessages={fieldConstraintMessages}
+                creationRollReroll={creationRollReroll}
+              />
             </Stack>
           )
         })}
@@ -302,58 +301,4 @@ function buildFieldConstraintMessages(annotations: SectionAnnotationRuntime) {
   }
 
   return messages
-}
-
-function renderFieldContainer(
-  fields: RenderFieldEntry[],
-  layout: ReturnType<typeof resolveSectionLayout>,
-  values: Record<string, unknown>,
-  onChange: TemplateFormRendererProps['onChange'],
-  onPartsChange: TemplateFormRendererProps['onPartsChange'],
-  renderFieldOverride: TemplateFormRendererProps['renderField'],
-  fieldConstraintMessages: ReadonlyMap<string, string>,
-  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
-) {
-  return (
-    <div
-      className={styles.fieldContainer}
-      data-layout-mode={layout.mode}
-      data-grid-columns={layout.columns ?? undefined}
-    >
-      {layout.mode === 'table' ? (
-        <TableFieldLayout
-          fields={fields}
-          values={values}
-          onChange={onChange}
-          onPartsChange={onPartsChange}
-          renderField={renderFieldOverride}
-          fieldConstraintMessages={fieldConstraintMessages}
-          creationRollReroll={creationRollReroll}
-        />
-      ) : fields.map(({ field, fieldIndex, displayValue, trackMax }) => {
-        const span = layout.mode === 'grid' ? resolveGridSpan(field, layout.columns) : null
-
-        return (
-          <div
-            key={`${field.uid}:${fieldIndex}`}
-            className={span === null ? undefined : styles.gridField}
-            data-field-uid={field.uid}
-            data-grid-span={span ?? undefined}
-          >
-            <FieldRenderer
-              field={field}
-              value={values[field.uid]}
-              displayValue={displayValue}
-              trackMax={trackMax}
-              onChange={onChange}
-              onPartsChange={onPartsChange}
-              renderField={renderFieldOverride}
-              warning={fieldConstraintMessages.get(field.uid)}
-              creationRollReroll={creationRollReroll}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
 }
