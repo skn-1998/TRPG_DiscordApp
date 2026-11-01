@@ -10,6 +10,7 @@
  - `NEXT_MIGRATION_PLAN.md` - Remix → Next.js 移行計画と完了記録（2026-08 完了）
  - `interaction-registry.md` - インタラクションRegistry移行の整理
  - `dice-roll-flow.md` - ダイスロール関連のUI/処理フロー整理
+ - `character-sheet-data-patterns.md` - TRPG キャラクターシートで頻出する 19 のデータ保持パターン
  - `open-issues-next.md` - 次にやるべきこと・未完了事項
  
  ## 補足

@@ -26,7 +26,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 90s  # 初回起動時間を考慮
+      start_period: 15m  # cold named volume 同期（実測約14分）と workspace build を待つ
     networks:
       - app-network
     restart: unless-stopped
@@ -57,7 +57,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 15m  # cold named volume 同期（実測約14分）と workspace build を待つ
     networks:
       - app-network
     restart: unless-stopped
@@ -81,8 +81,10 @@ services:
     depends_on:
       app:
         condition: service_healthy
+        restart: true
       nestjs:
         condition: service_healthy
+        restart: true
     restart: unless-stopped
 
 networks:

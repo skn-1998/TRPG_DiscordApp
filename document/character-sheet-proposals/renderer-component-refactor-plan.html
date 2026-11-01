@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>renderer-component-refactor-plan.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="templateformrenderer-段階的リファクタ実装計画">TemplateFormRenderer 段階的リファクタ実装計画</h1>
+<blockquote>
+<p><strong>分類</strong>：挙動維持リファクタの実行計画</p>
+<p><strong>対象</strong>：<code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx</code></p>
+<p><strong>設計方針</strong>：<a href="renderer-component-structure.md">キャラクターシート描画コンポーネントの構成方針</a></p>
+<p><strong>ステータス</strong>：計画確定、実装未着手</p>
+<p><strong>最終更新</strong>：2026-10-12</p>
+</blockquote>
+<h2 id="実施判断">実施判断</h2>
+<p>実装は一括で行わず、事前条件1件、コード抽出8件、完了処理1件へ分割する。</p>
+<p>一括変更では、1,232行の実装と2,583行のspecを同時に読みながら、list、parts、track、table、field dispatch、layout dispatchの境界を検証する必要がある。</p>
+<p>段階的な抽出では、各フェーズで変更理由を一つに限定し、公開入口を通る既存specを毎回再実行できる。</p>
+<p>実装開始の判定は<strong>条件付きGo</strong>とする。</p>
+<p>P0で現行のfocused specを緑にできない場合は、P1以降へ進まない。</p>
+<h2 id="目的と非目的">目的と非目的</h2>
+<h3 id="目的">目的</h3>
+<ul>
+<li><code>TemplateFormRenderer</code>を、section、block、poolを組み立てる公開入口へ縮小する。</li>
+<li>field型、layout構造、独立した編集状態という変更理由に沿って、内部componentを分離する。</li>
+<li>list、parts、track、tableの変更時に読む範囲を局所化する。</li>
+<li>作成、編集、プレビューの3画面が、引き続き同じ描画正本を利用する状態を保つ。</li>
+</ul>
+<h3 id="非目的">非目的</h3>
+<ul>
+<li>D01からD19をruntimeのdispatchキーまたはcomponent名へ変換しない。</li>
+<li>schema、engine評価、保存API、CAS、list全体保存の契約を変更しない。</li>
+<li>UI、文言、DOM順、ARIA、data属性、レスポンシブ挙動を変更しない。</li>
+<li><code>relation</code>または<code>tag</code>の編集UIを追加しない。</li>
+<li><code>TemplateFormRenderer.spec.tsx</code>自体の分割を同時に行わない。</li>
+<li>新しいregistry、context、view model、barrel、依存パッケージを追加しない。</li>
+<li>CSS Moduleをcomponentごとに分割しない。</li>
+</ul>
+<h2 id="現行基線">現行基線</h2>
+<p>2026-10-12時点の実測値は次のとおりである。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th style="text-align:right">実測</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TemplateFormRenderer.tsx</code></td>
+<td style="text-align:right">1,232行</td>
+</tr>
+<tr>
+<td><code>TemplateFormRenderer.spec.tsx</code></td>
+<td style="text-align:right">2,583行</td>
+</tr>
+<tr>
+<td>spec内の<code>it</code>または<code>test</code>宣言</td>
+<td style="text-align:right">112件</td>
+</tr>
+<tr>
+<td>runtimeからの直接import</td>
+<td style="text-align:right">3箇所</td>
+</tr>
+<tr>
+<td>公開描画入口</td>
+<td style="text-align:right">1件</td>
+</tr>
+</tbody>
+</table>
+<p>runtimeの直接利用者は次の3箇所である。</p>
+<ul>
+<li><code>CharacterCreationForm.tsx</code></li>
+<li><code>TemplatePreviewV3.tsx</code></li>
+<li><code>CharacterSheetEditClient.tsx</code></li>
+</ul>
+<p>large-file解析の既定閾値（file 800行、function 200行）を手作業で照合すると、実装とspecはfile警告の対象になる。</p>
+<p>一方、実装内で最大の関数は<code>ListFieldEditor</code>の112行と<code>TableFieldRow</code>の111行であり、200行以上の関数はない。</p>
+<p>専用解析コマンドは<code>ts-node</code>が見つからず起動できなかったため、この計画では行数、宣言位置、import元を手作業で確認した。</p>
+<p>focused specはworkspace package 2件のbuildまでは成功したが、<code>jest</code>が見つからず実行開始前に停止した。</p>
+<p>この失敗はコードのテスト結果ではないため、P0で依存環境を復旧して基線を取り直す。</p>
+<p>計画作成へ着手した時点のworking treeはcleanである。</p>
+<h2 id="維持する外部挙動">維持する外部挙動</h2>
+<p>次の項目を各フェーズの<strong>安全境界</strong>とする。</p>
+<ul>
+<li><code>TemplateFormRenderer</code>のimport pathとpropsを維持する。</li>
+<li><code>CreationRollReroll</code>のexport pathを維持する。</li>
+<li>section、block、fieldの宣言順と見出し階層を維持する。</li>
+<li><code>stack</code>、<code>grid</code>、<code>table</code>のDOM構造、data属性、grid span、mobile collapseを維持する。</li>
+<li>tableのparts列、first-seen union、全幅降格、行ラベルを維持する。</li>
+<li>partsの<code>base</code>、<code>other</code>、宣言済みキー、予約キー、unsafe keyの扱いを維持する。</li>
+<li>listのrowId、行上限、空セルのキー削除、whole-field changeを維持する。</li>
+<li>trackの未入力値、不正raw、max評価状態、gauge、checkbox上限30を維持する。</li>
+<li>field constraint、pool、block capの<code>ok</code>、<code>indeterminate</code>、<code>error</code>表示を維持する。</li>
+<li>作成時ロールの対象判定を<code>rollOnCreateSpec</code>へ一本化した状態を維持する。</li>
+<li><code>renderField</code> overrideがtableのparts専用行を経由しない既存例外を維持する。</li>
+</ul>
+<h2 id="目標依存構造">目標依存構造</h2>
+<p>依存は公開入口から具体描画へ一方向にする。</p>
+<pre class="hljs"><code><div>TemplateFormRenderer
+└─ FieldLayout
+   ├─ TableFieldLayout
+   │  ├─ FieldRenderer
+   │  └─ PartsEditorPopover
+   └─ FieldRenderer
+      ├─ PartsEditorPopover
+      ├─ ListFieldEditor
+      │  └─ ListRowPartsEditor
+      └─ TrackFieldView
+
+PartsEditorPopover ───┐
+ListRowPartsEditor ───┤
+ListFieldEditor ──────┤
+TrackFieldView ───────┼─&gt; renderer-value
+FieldRenderer ────────┘
+</div></code></pre>
+<p><code>renderer-value.ts</code>は、<code>unknown</code>で届く保存値を表示境界で安全に読む純粋関数だけを所有する。</p>
+<p>componentの再export用barrelは作らず、所有者を直接importする。</p>
+<p><code>TemplateFormRenderer.module.css</code>は既存の1ファイルを共有する。</p>
+<p>CSS Moduleを増やすと、推移importする複数specのmock更新が抽出と同時に必要になるためである。</p>
+<h2 id="フェーズ共通ルール">フェーズ共通ルール</h2>
+<h3 id="変更してよい範囲">変更してよい範囲</h3>
+<ul>
+<li><code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx</code></li>
+<li><code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.spec.tsx</code></li>
+<li><code>trpg-next-app/app/features/characterSheet/TemplateFormRenderer.module.css</code></li>
+<li><code>trpg-next-app/app/features/characterSheet/fields/</code>配下の新規内部module</li>
+<li><code>trpg-next-app/app/features/characterSheet/layouts/</code>配下の新規内部module</li>
+<li>本計画、構成方針、<code>trpg-next-app/AI.md</code>、完了時の状況文書</li>
+</ul>
+<p><code>TemplateFormRenderer.module.css</code>はimport先として利用してよいが、視覚仕様の変更は許可しない。</p>
+<h3 id="変更しない範囲">変更しない範囲</h3>
+<ul>
+<li><code>packages/sheet-engine/</code></li>
+<li><code>TRPG-SERVER/</code></li>
+<li>3つのruntime消費者</li>
+<li><code>parts-key-visibility.ts</code></li>
+<li><code>form-values.ts</code></li>
+<li>package manifest、lockfile、依存バージョン</li>
+<li>schema、fixtureの意味、保存payload、ユーザー向け文言</li>
+</ul>
+<p>範囲外の変更が必要になった場合は、現在のフェーズを停止し、別タスクとして理由と影響を整理する。</p>
+<h3 id="実装規律">実装規律</h3>
+<ul>
+<li>一度に進めるのは1フェーズだけとする。</li>
+<li>既存ロジックを移動してからimportを切り替え、同じ責務の二重実装を残さない。</li>
+<li>新しい内部componentを3つのruntime消費者から直接importしない。</li>
+<li>関数の移動と挙動変更を同じフェーズへ混ぜない。</li>
+<li>1フェーズの目安は、移動による削除を除く実質差分300行以下とする。</li>
+<li>テスト期待値の変更が必要になった場合は、挙動変更の可能性があるため停止する。</li>
+<li>rollbackは現在フェーズの差分だけを手作業で戻し、<code>git reset --hard</code>または<code>git checkout --</code>を使わない。</li>
+</ul>
+<h2 id="タスク一覧">タスク一覧</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>タスク</th>
+<th>主な成果物</th>
+<th>依存</th>
+<th>完了判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>基線を再取得する</td>
+<td>テスト結果、環境メモ</td>
+<td>なし</td>
+<td>focused specが緑</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>保存値の読み取りを分離する</td>
+<td><code>fields/renderer-value.ts</code></td>
+<td>P0</td>
+<td>DOM差分なし</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>section用parts editorを抽出する</td>
+<td><code>fields/PartsEditorPopover.tsx</code></td>
+<td>P1</td>
+<td>parts関連specが緑</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>list行用parts editorを抽出する</td>
+<td><code>fields/ListRowPartsEditor.tsx</code></td>
+<td>P2</td>
+<td>list parts関連specが緑</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>list editorを抽出する</td>
+<td><code>fields/ListFieldEditor.tsx</code></td>
+<td>P3</td>
+<td>list関連specが緑</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>track表示を抽出する</td>
+<td><code>fields/TrackFieldView.tsx</code></td>
+<td>P1</td>
+<td>track関連specが緑</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>field dispatchを抽出する</td>
+<td><code>fields/FieldRenderer.tsx</code></td>
+<td>P2、P4、P5</td>
+<td>field関連specが緑</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>table layoutを抽出する</td>
+<td><code>layouts/TableFieldLayout.tsx</code></td>
+<td>P6</td>
+<td>table関連specが緑</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>layout dispatchを抽出する</td>
+<td><code>layouts/FieldLayout.tsx</code></td>
+<td>P7</td>
+<td>runtime importが3箇所のまま</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>全体検証と文書を閉じる</td>
+<td>検証記録、AI文書更新</td>
+<td>P8</td>
+<td>全ゲートが緑、H/M所見0件</td>
+</tr>
+</tbody>
+</table>
+<h2 id="フェーズ詳細">フェーズ詳細</h2>
+<h3 id="p0-基線を再取得する">P0 基線を再取得する</h3>
+<p><strong>目的</strong>：リファクタ前の挙動を、実行可能なテスト結果として固定する。</p>
+<p><strong>変更範囲</strong>：production codeは変更しない。</p>
+<p><strong>作業</strong>：必要ならリポジトリルートで<code>pnpm install --frozen-lockfile</code>を実行し、既存lockfileを変えずに依存環境を復旧する。</p>
+<p>復旧後にfocused spec、typecheck、lintを実行する。</p>
+<p><strong>証跡</strong>：suite数、test数、終了コード、既存失敗の有無を本計画の台帳へ記録する。</p>
+<p><strong>停止条件</strong>：focused specが赤い、lockfile変更が必要になる、または現行コード由来の型エラーを検出した場合はP1へ進まない。</p>
+<h3 id="p1-保存値の読み取りを分離する">P1 保存値の読み取りを分離する</h3>
+<p><strong>目的</strong>：後続componentが親ファイルのlocal helperへ依存しないようにする。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、新規<code>fields/renderer-value.ts</code>、必要な場合だけ既存spec。</p>
+<p><strong>移動対象</strong>：<code>isRecord</code>、<code>isFiniteNumberInput</code>、<code>numberDisplayValue</code>、<code>readPartValue</code>、<code>hasPartKey</code>。</p>
+<p><strong>不変条件</strong>：非有限値、配列、<code>null</code>、parts形、flat numberの退化規則を変えない。</p>
+<p><strong>完了条件</strong>：helperの実装が1箇所だけになり、focused specが期待値変更なしで通る。</p>
+<h3 id="p2-section用parts-editorを抽出する">P2 section用parts editorを抽出する</h3>
+<p><strong>目的</strong>：section直下scalarのPopover状態、提示キー、per-key callbackを局所化する。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>renderer-value.ts</code>、新規<code>fields/PartsEditorPopover.tsx</code>、既存spec。</p>
+<p><strong>移動対象</strong>：<code>PartsEditorPopover</code>、<code>buildPopoverPartRows</code>、<code>handleTriggerKeyDown</code>、<code>isNumberScalar</code>、<code>isPartsScalarField</code>。</p>
+<p><strong>不変条件</strong>：<code>base</code>常設、<code>other</code>読み取り専用、宣言モードとfreeformモード、<code>width=&quot;target&quot;</code>、キーボード操作を維持する。</p>
+<p><strong>テスト補正</strong>：Popoverのsourceを直接読む既存テストは、新しい所有ファイルを読むようにpathだけを変更する。</p>
+<p><strong>完了条件</strong>：parts関連specが通り、tableとfield rendererは同じ<code>isPartsScalarField</code>を利用する。</p>
+<h3 id="p3-list行用parts-editorを抽出する">P3 list行用parts editorを抽出する</h3>
+<p><strong>目的</strong>：list行だけが持つwhole-cell保存境界を、section用parts editorから分離したまま局所化する。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>renderer-value.ts</code>、<code>PartsEditorPopover.tsx</code>、新規<code>fields/ListRowPartsEditor.tsx</code>、既存spec。</p>
+<p><strong>移動対象</strong>：<code>RowPartsEditor</code>と、そのcommit処理。</p>
+<p><strong>不変条件</strong>：宣言済み提示可能キーだけを保存し、<code>base</code>と<code>other</code>を保存せず、空の内訳を<code>undefined</code>へ戻す。</p>
+<p><strong>完了条件</strong>：list parts、focus、Enter、Space、Escapeの既存specが通る。</p>
+<h3 id="p4-list-editorを抽出する">P4 list editorを抽出する</h3>
+<p><strong>目的</strong>：行追加、行削除、セル編集、rowId、行上限を一つのcomponentへ閉じ込める。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>renderer-value.ts</code>、<code>ListRowPartsEditor.tsx</code>、新規<code>fields/ListFieldEditor.tsx</code>、既存spec。</p>
+<p><strong>移動対象</strong>：<code>ListFieldEditor</code>、<code>renderListItemField</code>、<code>commitListNumberInput</code>、<code>replaceListRowValue</code>。</p>
+<p><strong>不変条件</strong>：list全体1 path、itemFieldのuidキー、空セルのキー削除、stable rowId、<code>LIST_ROW_LIMIT</code>、非配列の空表示を維持する。</p>
+<p><strong>完了条件</strong>：list関連specが通り、<code>TemplateFormRenderer.tsx</code>からlist編集ロジックがなくなる。</p>
+<h3 id="p5-track表示を抽出する">P5 track表示を抽出する</h3>
+<p><strong>目的</strong>：trackの値解釈と表示退化を一つのcomponentへ局所化する。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>renderer-value.ts</code>、新規<code>fields/TrackFieldView.tsx</code>、既存spec。</p>
+<p><strong>移動対象</strong>：<code>MAX_TRACK_CHECKBOX_MARKS</code>、<code>renderTrackField</code>、<code>renderTrackCheckboxes</code>、<code>toTrackProgress</code>。</p>
+<p><strong>不変条件</strong>：未入力は0、不正rawは<code>—</code>、maxの3状態、絶対比率、checkbox上限30、装飾Checkboxのtab除外を維持する。</p>
+<p><strong>完了条件</strong>：track関連specが期待値変更なしで通る。</p>
+<h3 id="p6-field-dispatchを抽出する">P6 field dispatchを抽出する</h3>
+<p><strong>目的</strong>：field型の分岐、共通警告、振り直し導線、scalar controlを一箇所へ集約する。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、P1からP5の成果物、新規<code>fields/FieldRenderer.tsx</code>、既存spec。</p>
+<p><strong>移動対象</strong>：<code>renderFieldWithWarning</code>、<code>renderCreationRollReroll</code>、<code>renderFieldWarning</code>、<code>renderDefaultField</code>、<code>renderScalarField</code>、<code>getFieldLabelProps</code>。</p>
+<p><strong>不変条件</strong>：<code>CreationRollReroll</code>の公開exportは元ファイルに残し、<code>renderField</code> override、read-only field、placeholderを維持する。</p>
+<p><strong>分岐規則</strong>：<code>field.type</code>を正本にし、registryまたは文字列keyを追加しない。</p>
+<p><strong>完了条件</strong>：field関連specが通り、field固有componentへの依存が<code>FieldRenderer</code>から下向きになる。</p>
+<h3 id="p7-table-layoutを抽出する">P7 table layoutを抽出する</h3>
+<p><strong>目的</strong>：通常field列とはDOM構造が異なるtable描画を独立させる。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>FieldRenderer.tsx</code>、<code>PartsEditorPopover.tsx</code>、新規<code>layouts/TableFieldLayout.tsx</code>、既存spec、既存CSS Moduleのimport。</p>
+<p><strong>移動対象</strong>：table本体、<code>TableFieldRow</code>、<code>buildTablePartColumns</code>。</p>
+<p><strong>不変条件</strong>：first-seen union、parts:trueの列除外、複雑fieldの全幅降格、行見出し、<code>labelledBy</code>、table parts行のoverride例外を維持する。</p>
+<p><strong>完了条件</strong>：table関連specが通り、table描画に一時的なrender callback境界を追加していない。</p>
+<h3 id="p8-layout-dispatchを抽出する">P8 layout dispatchを抽出する</h3>
+<p><strong>目的</strong>：<code>stack</code>と<code>grid</code>の共通構造、および<code>table</code>への分岐を一箇所へ置く。</p>
+<p><strong>許可ファイル</strong>：<code>TemplateFormRenderer.tsx</code>、<code>TableFieldLayout.tsx</code>、<code>FieldRenderer.tsx</code>、新規<code>layouts/FieldLayout.tsx</code>、既存spec、既存CSS Moduleのimport。</p>
+<p><strong>移動対象</strong>：<code>renderFieldContainer</code>と、<code>resolveGridSpan</code>を使うfield wrapper。</p>
+<p><strong>不変条件</strong>：layoutは<code>resolveSectionLayout</code>の結果だけを解釈し、stackとgridを委譲だけの別componentへ分けない。</p>
+<p><strong>完了条件</strong>：<code>TemplateFormRenderer.tsx</code>には公開props、section、block、pool、annotation entry構築が残り、runtime importは既存3箇所だけである。</p>
+<h3 id="p9-全体検証と文書を閉じる">P9 全体検証と文書を閉じる</h3>
+<p><strong>目的</strong>：局所テストだけでは見つからない消費者回帰、重複責務、依存逆転を確認する。</p>
+<p><strong>許可ファイル</strong>：検証で必要と判明した現在フェーズの内部module、本計画、構成方針、<code>trpg-next-app/AI.md</code>、状況文書。</p>
+<p><strong>作業</strong>：focused spec、3消費者のspec、front全体のtest、typecheck、lint、buildを実行する。</p>
+<p><strong>構造確認</strong>：同じ述語、値解釈、警告生成、Popover操作が複数moduleへ複製されていないかを検索する。</p>
+<p><strong>完了条件</strong>：HighまたはMediumの未解消所見が0件で、全ゲートが緑になり、台帳とAI文書が実績へ更新される。</p>
+<h2 id="検証コマンド">検証コマンド</h2>
+<p>各コードフェーズの完了前に次を実行する。</p>
+<pre class="hljs"><code><div>pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> test <span class="hljs-literal">--</span> app/features/characterSheet/TemplateFormRenderer.spec.tsx <span class="hljs-literal">--runInBand</span>
+pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> run typecheck
+pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> run lint
+</div></code></pre>
+<p>P9では3消費者のspecを追加で実行する。</p>
+<pre class="hljs"><code><div>pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> test <span class="hljs-literal">--</span> app/features/characterTemplate/components/CharacterCreationForm.spec.tsx app/features/characterTemplate/components/TemplatePreviewV3.spec.tsx app/features/character/components/CharacterSheetEditClient.spec.tsx <span class="hljs-literal">--runInBand</span>
+</div></code></pre>
+<p>最後にfront全体を検証する。</p>
+<pre class="hljs"><code><div>pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> test <span class="hljs-literal">--</span> <span class="hljs-literal">--runInBand</span>
+pnpm <span class="hljs-literal">--filter</span> trpg<span class="hljs-literal">-next-app</span> run build
+</div></code></pre>
+<p>schema、engine、保存境界は変更禁止範囲である。</p>
+<p>それらの変更が必要になった場合は本計画を停止し、sheet-engineのtestとbuildを含む別計画へ切り替える。</p>
+<h2 id="レビューゲート">レビューゲート</h2>
+<p>各フェーズでは、テスト後に次の順で差分を確認する。</p>
+<ol>
+<li><strong>挙動維持</strong>：期待値変更、DOM変更、callback payload変更がないか。</li>
+<li><strong>認知負荷</strong>：新しい概念、別名、indirection、非局所依存が増えていないか。</li>
+<li><strong>局所可読性</strong>：新しいcomponentが一つの変更理由を隠蔽できているか。</li>
+<li><strong>変更容易性</strong>：list、parts、track、tableの代表変更が所有module内で完結するか。</li>
+<li><strong>リポジトリ整合性</strong>：第三の描画実装、barrel、重複helper、逆向きfeature依存がないか。</li>
+</ol>
+<p>P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビューを行う。</p>
+<p>大粒度レビューでは、同じ述語と同じ値解釈の実装数を<code>rg</code>で数え、意図しない複製があれば次フェーズへ進まない。</p>
+<h2 id="計画レビュー記録">計画レビュー記録</h2>
+<p>計画の自己レビューで見つかったMedium所見は3件あり、すべて本文へ反映した。</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>所見</th>
+<th>対応</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-PLAN-1</td>
+<td>tableをpartsとfield dispatchより先に抽出すると、一時的なrender callback境界が必要になる</td>
+<td>P2、P6の後へP7を移動した</td>
+</tr>
+<tr>
+<td>M-PLAN-2</td>
+<td>CSS Moduleを分割すると、複数featureのspec mock変更が抽出へ混ざる</td>
+<td>既存CSS Moduleの共有を明記した</td>
+</tr>
+<tr>
+<td>M-PLAN-3</td>
+<td>list全体の一括移動はレビュー対象が大きい</td>
+<td>行用parts editorをP3として先に分けた</td>
+</tr>
+</tbody>
+</table>
+<p>残存するHigh所見は0件、Medium所見は0件である。</p>
+<p>現セッションでは独立レビュアーを使用していないため、実装時は各フェーズの差分を新しい証跡として再レビューする。</p>
+<h2 id="進捗台帳">進捗台帳</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>状態</th>
+<th>変更概要</th>
+<th>検証</th>
+<th>レビュー</th>
+<th style="text-align:right">未解消H/M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>未着手</td>
+<td>現環境では<code>jest</code>欠落を確認</td>
+<td>再取得待ち</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>P9</td>
+<td>未着手</td>
+<td>なし</td>
+<td>未実施</td>
+<td>未実施</td>
+<td style="text-align:right">0</td>
+</tr>
+</tbody>
+</table>
+<p>状態は<code>未着手</code>、<code>進行中</code>、<code>検証中</code>、<code>完了</code>、<code>停止</code>のいずれかで記録する。</p>
+<p>各フェーズの完了時に、変更ファイル、実行コマンド、結果、レビュー所見、rollback要否を同じ行または直下の補足へ追記する。</p>
+<h2 id="goとno-goの条件">GoとNo-Goの条件</h2>
+<p>次の条件をすべて満たした場合だけ、次フェーズへ進む。</p>
+<ul>
+<li>current phaseのfocused spec、typecheck、lintが緑である。</li>
+<li>テスト期待値を変更していない。</li>
+<li>許可ファイル以外に差分がない。</li>
+<li>同じ責務の旧実装が残っていない。</li>
+<li>HighまたはMediumの未解消所見が0件である。</li>
+</ul>
+<p>次のいずれかに該当した場合はNo-Goとして停止する。</p>
+<ul>
+<li>公開propsまたは3消費者の変更が必要になる。</li>
+<li>schemaまたは保存契約の変更が必要になる。</li>
+<li>DOM、ARIA、data属性、文言の変更なしにテストを通せない。</li>
+<li>新しい循環依存または第三の描画経路が生じる。</li>
+<li>前フェーズの回帰原因を説明できない。</li>
+</ul>
+<h2 id="完了の定義">完了の定義</h2>
+<p>完了は、ファイルが分かれたことだけでは判定しない。</p>
+<p>次の状態をすべて満たしたときに、このリファクタを完了とする。</p>
+<ul>
+<li><code>TemplateFormRenderer</code>が唯一の公開描画入口である。</li>
+<li>3つのruntime消費者に変更がない。</li>
+<li>list、parts、track、table、field dispatch、layout dispatchの所有者が一意である。</li>
+<li>既存の112テスト宣言を含むfocused specが期待値変更なしで通る。</li>
+<li>front全体のtest、typecheck、lint、buildが通る。</li>
+<li>HighまたはMediumの認知負荷所見が0件である。</li>
+<li><code>trpg-next-app/AI.md</code>と本台帳が実装結果へ更新されている。</li>
+</ul>
+
+</body>
+</html>

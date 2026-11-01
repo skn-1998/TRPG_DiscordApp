@@ -5,7 +5,65 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
-- 最終更新: 2026-08-29（**web-free-add（M-D）feature 完全完了**。ユーザー許可
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P8・P9
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP8、P9を実装する。
+- P8は受入確定: layout dispatch、stack/grid共通経路、table分岐、grid span、field wrapperを`layouts/FieldLayout.tsx`へ移動した。公開入口、DOM、ARIA、data属性、callback payload、3つのruntime消費者を維持した。
+- P8のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。事前Mode Bと実装後Mode Aの独立レビューはいずれもapproved、未解消H/M/L=0。
+- P8全体実測: 親359→304行、FieldLayout 74行。layout dispatch、`resolveGridSpan`、layout container data属性は各1所有者。旧helper、feature外の内部component直接import、barrel、registry、親TS moduleへの逆向き依存は0件。
+- 認知負荷: grid wrapper変更時の同時保持数6→4。1 hop増はlayout分岐、span解決、DOM wrapperを隠す判断を持つ境界で、総合reduced。
+- P9のroot独立検証: 3消費者3 suites / 90 tests、front全体37 suites / 673 tests / 1 snapshot、typecheck、lint、Next production build、`git diff --check`成功。
+- P9大粒度実測: layout/field dispatch、parts述語・提示可否、保存値reader、keyboard操作、field警告、constraint message構築は各1所有者。runtime消費者は3件、feature外の内部component直接import、barrel、registry、第三入口、親TS moduleへの逆向き依存、死蔵exportは0件。
+- feature完了の独立Codexレビュー2系統はコードと構造をapprovedとした。初回の文書同期Medium 1件は、本計画、構成方針、`trpg-next-app/AI.md`、本handoffを最終実績へ揃えて解消した。
+- Claude/Opus環境がないため規約上のCodex＋Opus二重レビューは実施できず、独立Codexレビュアー2系統で認知負荷と挙動・契約・文書整合を分担して代替した。
+- 公開入口、3つのruntime消費者、props、DOM、ARIA、data属性、callback payload、spec期待値、schema、保存契約は変更していない。未解消H/M=0、rollback不要。P0〜P9の段階的リファクタを完了とする。
+
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P6・P7
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP6、P7を実装する。
+- P6は受入確定: field dispatch、parts、警告、振り直し、scalar controlを`fields/FieldRenderer.tsx`へ移動した。`field.type`は7種のexhaustive switchとし、公開入口、DOM、ARIA、data属性、callback payload、override、read-only field、placeholderを維持した。
+- `CreationRollReroll`は`TemplateFormRenderer.tsx`から同名でtype re-exportし、公開import pathを維持した。
+- P6のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P6差分レビューとP4〜P6大粒度レビューはapproved、未解消H/M=0。
+- 大粒度実測: field dispatch、警告DOM、parts判定、保存値reader、list、track、振り直し表示は各1所有者。内部componentのfeature外直接import、barrel、第三入口、親TS moduleへの逆向き依存は0件。親は727→528行。
+- 認知負荷: field描画の6項目を1 moduleへ局所化し、親のsection/block/pool/table/layoutを同時に読む負荷を除いた。1 hop増は約200行の判断を隠す境界で、総合reduced。
+- P7も受入確定: table本体、`TableFieldRow`、`buildTablePartColumns`を`layouts/TableFieldLayout.tsx`へ移動した。first-seen union、parts:true除外、4種の行構造、全幅降格、行見出し、`labelledBy`、parts行のoverride例外を維持した。
+- P7のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P7差分レビューとP6・P7全体レビューはapproved、未解消H/M/L=0。
+- P6のLow確認事項だった`FieldRendererProps`はP7の`TableFieldLayout`で型契約として利用し、死蔵exportを解消した。
+- P6・P7全体実測: 親727→359行、FieldRenderer 221行、TableFieldLayout 214行。table責務3件は各1定義、内部componentのfeature外直接import、親TS moduleへの逆向き依存、barrel、第三入口、一時callbackは0件。境界導入の純増は67行だが、両moduleとも判断を持つ境界で総合認知負荷はreduced。
+- Claude/Opus環境がないため、独立Codex系レビュアー2本でP6差分・P4〜P6大粒度と、P7差分・P6/P7全体を検収した。
+- 本計画、構成方針、`trpg-next-app/AI.md`、本handoffをP7完了へ同期した。
+- 今回の依頼範囲P6・P7は完了。次の計画フェーズはP8だが未着手であり、別依頼まで進めない。
+
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P4・P5
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP4、P5を実装する。
+- P4は受入確定: `ListFieldEditor`と3 helperを`fields/ListFieldEditor.tsx`へ移動した。公開入口、DOM、ARIA、data属性、文言、list全体1 path、itemField uidキー、stable rowId、空セルのキー削除、行上限を維持した。
+- P4のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。独立レビューapproved、未解消H/M/L=0。
+- P4大粒度実測: 対象4定義は新規moduleに各1件、runtime利用はTFRのfield dispatch 1件。barrel、第三入口、親propsへの逆依存、P5混入は0件。
+- P4認知負荷: list変更時の同時保持数10→9。runtime hopは1増えるが、約212行の行編集と保存契約が224行の所有moduleへ局所化され、総合判定はreduced。
+- P5も受入確定: track固有定数、描画、checkboxes、progress計算を`fields/TrackFieldView.tsx`へ移動した。raw退化、max3状態、gauge、checkboxes 1〜30、DOM、ARIA、data属性、文言を維持した。
+- P5のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P5差分レビューapproved、未解消H/M/L=0。
+- P4・P5大粒度レビュー: 親1,023→727行、component/helper/定数は各1定義、runtime利用は親のfield dispatch各1件。barrel、第三入口、親propsへの逆依存、死蔵export、P1〜P3責務複製は0件。list同時保持10→9、track 6→4で総合reduced。
+- 横断レビューで検出した文書同期Medium 1件は、本計画、構成方針、`trpg-next-app/AI.md`、本handoffをP5完了へ揃えて解消した。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは未実施。実装担当とは別のCodexレビュアー2系統でP5差分とP4・P5大粒度を独立検収した。
+- 今回の依頼範囲P4・P5は完了。次の計画フェーズはP6だが未着手であり、別依頼まで進めない。
+
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P2・P3
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP2、P3を実装する。
+- 正本: 上記計画書。P0、P1は既に完了していた。対象は`trpg-next-app`だけで、`TRPG-SERVER`、sheet-engine、runtime消費者3件、manifest、lockfileは変更禁止。
+- P2は受入確定: `PartsEditorPopover`、`buildPopoverPartRows`、`handleTriggerKeyDown`、`isNumberScalar`、`isPartsScalarField`を`fields/PartsEditorPopover.tsx`へ移動した。親に旧定義なし、公開入口・DOM・ARIA・callback payload・期待値は不変。
+- P2のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。独立レビューapproved、未解消H/M/L=0。
+- P3も受入確定: `RowPartsEditor`とwhole-cell commitを`fields/ListRowPartsEditor.tsx`へ移動した。宣言済み提示可能キーだけを保存し、`base`/`other`/unsafe key/負数を保存せず、空partsを`undefined`化する契約を維持した。
+- P3は`handleTriggerKeyDown`だけをP2 moduleから再利用し、sectionのper-key callbackとlistのwhole-cell保存を共通化していない。DOM、ARIA、data属性、focus/Enter/Space/Escape、spec期待値は不変。
+- P3のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P3差分レビューとP1〜P3大粒度レビューはapproved、未解消H/M/L=0。
+- 大粒度実測: 保存値reader、parts述語、提示可否、keyboard handler、list whole-cell commitは各1定義。内部componentのruntime直接import、第三の描画経路、barrel、死蔵export、逆向き依存は0件。
+- 認知負荷: section/table parts変更は同時保持7→5・追跡ホップ4→3、list行parts変更は同時保持10→6・追跡ホップ2→3。後者の1ホップ増は状態・DOM・保存契約を局所化する判断を持ち、総合判定はreduced。
+- Claude Code CLIが無くFableモデルを選択・検証できないためClaude/Fable二重レビューは未実施。代替として実装担当とは別のCodexレビュアー2系統でP3差分とP1〜P3大粒度を独立検収した。
+- 今回の依頼範囲P2・P3は完了。次の計画フェーズはP4だが未着手であり、別依頼まで進めない。
+- 証跡: `review-results/renderer-component-refactor/p2-p3-pre-implementation-review.md`（gitignore対象）。
+
+- それ以前の主要feature最終更新: 2026-08-29（**web-free-add（M-D）feature 完全完了**。ユーザー許可
   （「やってOK」）に基づき: コミット 3 本 = `a5cafc8a` front S7 / `3cd7d37e` seed S8 /
   `2a9e033f` docs → push 済み。v4 seed = dry-run→execute
   （`inserted=true`→`deprecated legacy-coc-v3`）→再 execute で冪等確認。

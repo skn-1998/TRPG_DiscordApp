@@ -2,8 +2,8 @@
 
 > **目的**: 「ユーザーが Web 上で Excel のように自由にキャラクターシートのベース（テンプレート）を作成・配布でき、
 > CoC のダメージボーナスのような複雑な導出ステータスも表現できる」ようにするための設計案を比較検討する。
-> **ここにあるのは実装計画ではなく案出し**。1 ファイル 1 案で、概要レベルに留める。
-> **最終更新**: 2026-07-06
+> **このディレクトリは案出しに加え、採用済みの設計判断と実装計画も扱う**。索引の分類と各文書のステータスで段階を区別する。
+> **最終更新**: 2026-10-12
 
 ---
 
@@ -32,6 +32,8 @@
 | 調査 | [trpg-system-survey.md](trpg-system-survey.md) | **14 系統の TRPG を棚卸しし、5 セクションと AttributeValue の充足性を検証**（結論: どちらも汎用正本としては不足。構造パターン P1〜P14 を定義） |
 | **設計** | [design-v1.md](design-v1.md) | **Codex との討論 2 ラウンドを経て確定した具体設計 v1**（schema v3・式エンジン・ドメイン境界・palette・Phase 分割・争点決着表・討論記録） |
 | **設計** | [design-v1-ui.md](design-v1-ui.md) | **UI 三面設計（エディタ／作成フォーム／Discord hub）を同討論プロトコルで確定**（DiscordProjectionViewModel 正本化・署名付き roll proof・ephemeral パネル・決着表 U1〜U16。v1.1/v1.2 = U14 レイアウトヒント・U15 ブロック/上限/ポイントプール＋追補 H-1〜H-18・v1.3 = SM-1〜17 共通契約・v1.4 = U16 シート公開設定） |
+| **設計判断** | [renderer-component-structure.md](renderer-component-structure.md) | **キャラクターシート描画コンポーネントの構成方針**。D01〜D19 は要件・fixture の分類に使い、runtime は field 7 種と layout 3 種で分岐する。`TemplateFormRenderer` を唯一の公開入口として段階的に内部抽出する |
+| **実装計画** | [renderer-component-refactor-plan.md](renderer-component-refactor-plan.md) | **`TemplateFormRenderer` の段階的リファクタ計画**。基線取得、依存順の8抽出、全体検証を小フェーズ化し、各フェーズの許可範囲、安全境界、停止条件、進捗台帳を定義する |
 | 検証 | [u14-u15-verification-matrix.md](u14-u15-verification-matrix.md) | **U14/U15 の検証観点マトリクス（2026-08-09）** — 観点 V1〜V9 × 要素の全セル走査で穴 H-1〜H-18 を検出・裁定。**Codex adversarial 監査 round1〜3 収束済み（round3 pass・証跡 = `review-results/u14-u15-design-review/`）** |
 | 検証 | [screen-state-matrix.md](screen-state-matrix.md) | **画面×状態マトリクス（2026-08-09）** — 三面 UI の画面 S0〜S8 × 状態 G1〜G9 を走査し未定義状態 SM-1〜SM-17 を裁定（design-v1-ui v1.3 追補に固定・未決なし。SM-7 は 2026-08-09 ユーザー裁定で v1 非実装に確定）。**Codex adversarial 監査 round1〜4 収束済み（round4 pass・証跡 = `review-results/screen-state-review/`）** |
 | **監査** | [field-sufficiency-audit.md](field-sufficiency-audit.md) | **schema v3 の充足性再精査**（52 エージェント×約40システム＋Codex レッドチーム）。真ギャップ 4＋復活 4 を確定し design-v1 **v1.2** へ反映（TrackField min/resetTo・notation 文法 §2.1・明文化 §2.2・when/declare 予約） |
@@ -119,6 +121,7 @@
 
 ## 関連する既存資産
 
+- [document/character-sheet-data-patterns.md](../character-sheet-data-patterns.md) … キャラクターシートで頻出するデータの持ち方を 19 パターンに整理した設計リファレンス
 - [document/phase0-character-sheet.md](../phase0-character-sheet.md) … Phase 0 設計（`CharacterSheetTemplate` 型の初案 §4.1.3、description/式の二重用リスク §5）
 - 旧 `trpg-remix-app/.../characterTemplate/AI.{feature,types}.md`（B4 で V3 向けに全面改稿した V3 現況の正本）は N6b の trpg-remix-app 撤去（`e179640`・2026-08-07）で**移設されずに削除済み** — 参照は git 履歴 `e179640^` 以前。旧 V2 DSL 資料の AI.{ui,api,security}.md は B4（`32be7b4`）で削除済み — 参照は git 履歴 `dbd45e5` 以前。現行の front 正本 doc は `trpg-next-app/AI.md`（実装規約）、V3 型定義の実体は `trpg-next-app/app/features/characterTemplate/types/v3.ts`
 - mock エディタ / ギャラリーの2ルートは #62 裁定で削除済み（2026-08-04）。エディタ / 一覧の正本は Next 移行後 `trpg-next-app/app/templates/page.tsx`（一覧）/ `app/templates/[id]/edit/page.tsx`（エディタ）

@@ -24,6 +24,8 @@ COPY tools/static-analysis/package.json ./tools/static-analysis/package.json
 
 # 開発ステージ
 FROM base AS development
+# optional native binding の node-gyp build に必要。本番 runtime には持ち込まない。
+RUN apk add --no-cache python3 make g++
 # 開発用の依存関係をインストール
 RUN pnpm install --frozen-lockfile --filter trpg-server...
 
@@ -37,11 +39,13 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# workspace 依存をビルドしてから開発モードで起動
-CMD ["sh", "-c", "pnpm --filter \"trpg-server^...\" run build && pnpm --filter trpg-server run start:dev"]
+# bind mount より古い named volume を現在の lockfile へ同期してから起動する。
+CMD ["sh", "-c", "CI=true pnpm install --frozen-lockfile --filter trpg-server... && pnpm --filter \"trpg-server^...\" run build && pnpm --filter trpg-server run start:dev"]
 
 # 本番ビルドステージ
 FROM base AS build
+# optional native binding の node-gyp build に必要。本番 runtime には持ち込まない。
+RUN apk add --no-cache python3 make g++
 # 全ての依存関係をインストール
 RUN pnpm install --frozen-lockfile --filter trpg-server...
 

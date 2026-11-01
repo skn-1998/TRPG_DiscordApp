@@ -217,19 +217,32 @@ export function TemplateListV3({ summaries }: TemplateListV3Props) {
                         </Button>
                       </form>
                       {summary.status === 'published' && (
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="light"
-                          leftSection={<IconUserPlus size={14} />}
-                          onClick={() => {
-                            setCharacterName('')
-                            setCreationOutcome({ status: 'idle' })
-                            setCreationTemplate(summary)
-                          }}
-                        >
-                          このテンプレートで作成
-                        </Button>
+                        <>
+                          <Button
+                            component={Link}
+                            href={{
+                              pathname: `/templates/${summary.templateId}/create`,
+                              query: { version: summary.version }
+                            }}
+                            size="xs"
+                            variant="filled"
+                            leftSection={<IconUserPlus size={14} />}
+                          >
+                            シートを入力して作成
+                          </Button>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              setCharacterName('')
+                              setCreationOutcome({ status: 'idle' })
+                              setCreationTemplate(summary)
+                            }}
+                          >
+                            名前だけで作成
+                          </Button>
+                        </>
                       )}
                       {!isSystemTemplate && (
                         <form

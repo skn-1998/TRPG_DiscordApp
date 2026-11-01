@@ -78,7 +78,7 @@ function deferredCharacterCreation() {
 }
 
 async function openCharacterCreation(templateButtonIndex = 0): Promise<void> {
-  const openButton = screen.getAllByRole('button', { name: 'このテンプレートで作成' })[templateButtonIndex]
+  const openButton = screen.getAllByRole('button', { name: '名前だけで作成' })[templateButtonIndex]
   if (!openButton) throw new Error('キャラクター作成ボタンが見つかりません')
   fireEvent.click(openButton)
   await screen.findByRole('textbox', { name: 'キャラクター名' })
@@ -229,7 +229,10 @@ describe('TemplateListV3', () => {
     )
 
     expect(screen.getByText('配布')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'このテンプレートで作成' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '名前だけで作成' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'シートを入力して作成' }).getAttribute('href')).toBe(
+      '/templates/system-template-1/create?version=1.0.0'
+    )
     expect(screen.getByRole('button', { name: '複製して編集' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: '編集' })).toBeNull()
     expect(screen.queryByRole('button', { name: '削除' })).toBeNull()
