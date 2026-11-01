@@ -6,7 +6,7 @@
 >
 > **設計方針**：[キャラクターシート描画コンポーネントの構成方針](renderer-component-structure.md)
 >
-> **ステータス**：実装中、P0からP5完了
+> **ステータス**：実装中、P0からP7完了
 >
 > **最終更新**：2026-11-01
 
@@ -363,8 +363,8 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 | P3 | 完了 | list行用parts editorとwhole-cell commitを`fields/ListRowPartsEditor.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 差分・P1〜P3大粒度レビュー承認、挙動差分・重複責務なし | 0 |
 | P4 | 完了 | list editorと3 helperを`fields/ListFieldEditor.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
 | P5 | 完了 | track表示と3 helperを`fields/TrackFieldView.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
-| P6 | 未着手 | なし | 未実施 | 未実施 | 0 |
-| P7 | 未着手 | なし | 未実施 | 未実施 | 0 |
+| P6 | 完了 | field dispatch、共通警告、振り直し、scalar controlを`fields/FieldRenderer.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 差分・P4〜P6大粒度レビュー承認、挙動差分・重複責務・逆向き依存なし | 0 |
+| P7 | 完了 | table本体、行分岐、parts列構築を`layouts/TableFieldLayout.tsx`へ移動 | focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功 | 独立レビュー承認、挙動差分・重複責務・一時callbackなし | 0 |
 | P8 | 未着手 | なし | 未実施 | 未実施 | 0 |
 | P9 | 未着手 | なし | 未実施 | 未実施 | 0 |
 
@@ -435,6 +435,34 @@ P3、P6、P9では、直近の複数フェーズをまとめた大粒度レビ�
 - 認知負荷はtrack変更時の同時保持数が6から4へ減少した。親は1,023行から727行となり、listとtrackの所有moduleを合わせた境界導入コストは18行で、総合判定はreducedだった。
 - Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは実施できず、実装担当とは別のCodexレビュアー2系統によるP5差分レビューとP4・P5大粒度レビューで代替した。
 - rollbackは不要である。今回の依頼範囲P4、P5は完了し、P6以降へは進まない。
+
+### P6 実施記録（2026-11-01）
+
+- `renderFieldWithWarning`、`renderCreationRollReroll`、`renderFieldWarning`、`renderDefaultField`、`renderScalarField`、`getFieldLabelProps`を`fields/FieldRenderer.tsx`へ移動し、公開component名を`FieldRenderer`とした。
+- `field.type`の7種を明示したexhaustive switchへ整理し、parts editor、既定control、`renderField` override、振り直し、field警告の合成順を維持した。
+- `CreationRollReroll`の宣言は新規moduleへ移したが、`TemplateFormRenderer.tsx`から同名でtype re-exportし、既存の公開import pathを維持した。
+- DOM、ARIA、data属性、callback payload、read-only field、placeholder、spec期待値は変更していない。内部componentのruntime直接import、registry、barrel、第三の描画入口も追加していない。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- P6差分レビューとP4〜P6大粒度レビューはいずれもapprovedで、High、Mediumの未解消所見は0件だった。
+- 大粒度検索ではfield dispatch、警告DOM、parts判定、保存値reader、list、track、振り直し表示の所有者は各1箇所で、内部componentのfeature外直接import、barrel、第三の描画入口、親TS moduleへの逆向き依存は0件だった。
+- 認知負荷はfield描画の本質的な6項目を`FieldRenderer`へ局所化し、親のsection、block、pool、table、layout責務を同時に読む必要を除いた。runtimeの追跡hopは1増えるが、約200行の判断を隠す境界であり、総合判定はreducedだった。
+- Low所見としてP6時点では`FieldRendererProps`の外部参照が0件だったため、P7で`TableFieldLayout`の型契約として利用し、死蔵exportにしないことを確認する。
+- Claude/Opus実行環境がないため規約上のCodex＋Opus二重レビューは実施できず、実装担当とは別のCodexレビュアー2系統によるP6差分レビューとP4〜P6大粒度レビューで代替した。
+- rollbackは不要であり、次の実装対象はP7である。
+
+### P7 実施記録（2026-11-01）
+
+- table本体、`TableFieldRow`、`buildTablePartColumns`を`layouts/TableFieldLayout.tsx`へ移動した。
+- first-seen union、`parts:true`の列除外、提示不可キー除外、最初の宣言ラベル、parts、parts-total、columns、full-widthの行分岐を維持した。
+- 行見出しの`useId`、`scope="row"`、単純fieldだけに渡す`labelledBy`、複雑fieldの全幅降格、parts専用行が`renderField` overrideを経由しない例外を維持した。
+- tableの外側にある`fieldContainer`、`data-layout-mode`、`data-grid-columns`はP8対象として親に残し、既存CSS Moduleを共有した。新規CSS Module、registry、barrel、一時的なfield描画callback、第三の描画入口は追加していない。
+- P6のLow確認事項だった`FieldRendererProps`は`TableFieldLayout`のcallback型契約として利用し、死蔵exportを解消した。
+- DOM、ARIA、data属性、callback payload、spec期待値、3つのruntime消費者は変更していない。
+- root独立実行のfocused specは1 suite、150 tests、1 snapshotが成功し、typecheck、lint、`git diff --check`も成功した。
+- P7差分レビューとP6・P7全体レビューはいずれもapprovedで、High、Medium、Lowの未解消コード所見は0件だった。
+- 検索では`TableFieldLayout`、`TableFieldRow`、`buildTablePartColumns`は各1定義、親からのruntime importは1件、内部componentのfeature外直接import、親TS moduleへの逆向き依存、一時callback、競合するtable実装は0件だった。
+- 認知負荷はtable変更時の8つの本質的保持事項を1 moduleへ局所化し、親のsection、block、pool、stack、grid責務を同時に読む必要を除いた。runtimeの追跡hopは1増えるが、214行の列・行判断を隠す境界であり、総合判定はreducedだった。
+- rollbackは不要である。今回の依頼範囲P6、P7は完了し、次の計画フェーズP8は未着手である。
 
 ## GoとNo-Goの条件
 

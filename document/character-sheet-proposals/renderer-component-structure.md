@@ -4,7 +4,7 @@
 >
 > **対象**：`trpg-next-app/app/features/characterSheet/TemplateFormRenderer.tsx`
 >
-> **ステータス**：方針採用、P0からP5実装済み
+> **ステータス**：方針採用、P0からP7実装済み
 >
 > **最終更新**：2026-11-01
 

@@ -1,37 +1,25 @@
 'use client'
 
-import { Badge, Button, Checkbox, Group, NumberInput, Paper, Progress, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import { Badge, Group, Progress, Stack, Text, Title } from '@mantine/core'
 import {
   evaluateAnnotationRuntime,
   evaluateConstraint,
-  isSimpleField,
   resolveGridSpan,
   resolveSectionLayout,
-  rollOnCreateSpec,
   type ConstraintEvaluationResult,
-  type ScalarField,
   type SectionAnnotationRuntime,
   type SheetField,
   type SheetTemplate
 } from '@trpg/sheet-engine'
+import { useMemo, type ReactNode } from 'react'
 import {
-  useId,
-  useMemo,
-  type ReactNode
-} from 'react'
-import { ListFieldEditor } from './fields/ListFieldEditor'
-import {
-  isNumberScalar,
-  isPartsScalarField,
-  PartsEditorPopover
-} from './fields/PartsEditorPopover'
-import {
-  isFiniteNumberInput,
-  readPartValue
-} from './fields/renderer-value'
-import { TrackFieldView } from './fields/TrackFieldView'
-import { isPresentablePartsKey } from './parts-key-visibility'
+  FieldRenderer,
+  type CreationRollReroll as CreationRollRerollOptions
+} from './fields/FieldRenderer'
+import { TableFieldLayout } from './layouts/TableFieldLayout'
 import styles from './TemplateFormRenderer.module.css'
+
+export type { CreationRollReroll } from './fields/FieldRenderer'
 
 interface TemplateFormRendererProps {
   template: SheetTemplate
@@ -58,23 +46,14 @@ interface TemplateFormRendererProps {
    *
    * この「未指定なら描かない」は TFR で初めての形。他の optional prop（onChange・onPartsChange）は
    * 未指定でも UI を描き続け、`?.()` で編集だけが無効になる。よって既存 prop の読み方をこの prop へ
-   * 持ち込まないこと。保証を与えているのは renderCreationRollReroll の未指定 early return 1 行だけで、
+   * 持ち込まないこと。保証を与えているのは FieldRenderer 内の未指定 early return 1 行だけで、
    * spec の「creationRollReroll 未指定なら宣言済み field にも導線を描かない」と
    * 「TemplatePreviewV3 は creationRollReroll を渡さない」の 2 本がその不変条件を固定している。
    *
    * callback と実行中 uid を 1 つの prop にまとめているのは、片方だけを渡しても意味を成さない対であり、
    * かつ内部の描画関数群へ 2 本ではなく 1 本の引数として通せるため。
    */
-  creationRollReroll?: CreationRollReroll
-}
-
-export interface CreationRollReroll {
-  onRequest: (fieldUid: string) => void
-  /**
-   * 振り直し実行中の field uid。実行中は対象を問わず全導線を disabled にして多重送信を防ぐ
-   * （TemplatePreviewV3 の rollingFieldUid と同じ扱い）。
-   */
-  pendingFieldUid?: string
+  creationRollReroll?: CreationRollRerollOptions
 }
 
 type RenderFieldEntry = {
@@ -84,8 +63,6 @@ type RenderFieldEntry = {
   displayValue: number | undefined
   trackMax: ConstraintEvaluationResult | undefined
 }
-
-type PartDefinition = NonNullable<ScalarField['partsKeys']>[number]
 
 export function TemplateFormRenderer({
   template,
@@ -337,8 +314,6 @@ function renderFieldContainer(
   fieldConstraintMessages: ReadonlyMap<string, string>,
   creationRollReroll: TemplateFormRendererProps['creationRollReroll']
 ) {
-  const partColumns = layout.mode === 'table' ? buildTablePartColumns(fields) : []
-
   return (
     <div
       className={styles.fieldContainer}
@@ -346,40 +321,15 @@ function renderFieldContainer(
       data-grid-columns={layout.columns ?? undefined}
     >
       {layout.mode === 'table' ? (
-        <div className={styles.tableScroll}>
-          <Table withColumnBorders withTableBorder verticalSpacing="sm">
-            {partColumns.length > 0 ? (
-              <Table.Thead>
-                <Table.Tr data-table-header-mode="parts">
-                  <Table.Th scope="col" data-table-column="label">項目</Table.Th>
-                  {partColumns.map((column) => (
-                    <Table.Th key={column.id} scope="col" data-table-column="part" data-parts-key={column.id}>
-                      {column.label}
-                    </Table.Th>
-                  ))}
-                  <Table.Th scope="col" data-table-column="total">合計</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-            ) : null}
-            <Table.Tbody>
-              {fields.map(({ field, fieldIndex, displayValue, trackMax }) => (
-                <TableFieldRow
-                  key={`${field.uid}:${fieldIndex}`}
-                  field={field}
-                  value={values[field.uid]}
-                  displayValue={displayValue}
-                  trackMax={trackMax}
-                  partColumns={partColumns}
-                  onChange={onChange}
-                  onPartsChange={onPartsChange}
-                  renderField={renderFieldOverride}
-                  warning={fieldConstraintMessages.get(field.uid)}
-                  creationRollReroll={creationRollReroll}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <TableFieldLayout
+          fields={fields}
+          values={values}
+          onChange={onChange}
+          onPartsChange={onPartsChange}
+          renderField={renderFieldOverride}
+          fieldConstraintMessages={fieldConstraintMessages}
+          creationRollReroll={creationRollReroll}
+        />
       ) : fields.map(({ field, fieldIndex, displayValue, trackMax }) => {
         const span = layout.mode === 'grid' ? resolveGridSpan(field, layout.columns) : null
 
@@ -390,338 +340,20 @@ function renderFieldContainer(
             data-field-uid={field.uid}
             data-grid-span={span ?? undefined}
           >
-            {renderFieldWithWarning({
-              field,
-              value: values[field.uid],
-              displayValue,
-              trackMax,
-              onChange,
-              onPartsChange,
-              renderField: renderFieldOverride,
-              warning: fieldConstraintMessages.get(field.uid),
-              creationRollReroll
-            })}
+            <FieldRenderer
+              field={field}
+              value={values[field.uid]}
+              displayValue={displayValue}
+              trackMax={trackMax}
+              onChange={onChange}
+              onPartsChange={onPartsChange}
+              renderField={renderFieldOverride}
+              warning={fieldConstraintMessages.get(field.uid)}
+              creationRollReroll={creationRollReroll}
+            />
           </div>
         )
       })}
     </div>
   )
-}
-
-function TableFieldRow({
-  field,
-  value,
-  displayValue,
-  trackMax,
-  partColumns,
-  onChange,
-  onPartsChange,
-  renderField,
-  warning,
-  creationRollReroll
-}: {
-  field: SheetField
-  value: unknown
-  displayValue: number | undefined
-  trackMax: ConstraintEvaluationResult | undefined
-  partColumns: PartDefinition[]
-  onChange: TemplateFormRendererProps['onChange']
-  onPartsChange: TemplateFormRendererProps['onPartsChange']
-  renderField: TemplateFormRendererProps['renderField']
-  warning: string | undefined
-  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
-}) {
-  const labelId = useId()
-
-  if (isPartsScalarField(field)) {
-    const usesFreeformParts = field.parts === true
-    const declaredPartIds = new Set(usesFreeformParts ? [] : (field.partsKeys ?? []).map(({ id }) => id))
-
-    return (
-      <Table.Tr data-field-uid={field.uid} data-table-row-mode={usesFreeformParts ? 'parts-total' : 'parts'}>
-        <Table.Th id={labelId} scope="row" data-table-column="label">{field.label}</Table.Th>
-        {partColumns.map((column) => {
-          const isDeclared = declaredPartIds.has(column.id)
-          return (
-            <Table.Td
-              key={column.id}
-              data-table-column="part"
-              data-parts-key={column.id}
-              data-parts-declared={String(isDeclared)}
-            >
-              {isDeclared ? (
-                <NumberInput
-                  aria-label={`${field.label}: ${column.label}`}
-                  value={readPartValue(value, column.id)}
-                  onChange={(nextValue) => {
-                    if (isFiniteNumberInput(nextValue)) onPartsChange?.(field.uid, column.id, nextValue)
-                  }}
-                />
-              ) : null}
-            </Table.Td>
-          )
-        })}
-        <Table.Td data-table-column="total">
-          {/* table の宣言キーは canonical 列が編集責任を持つため、Popover は base だけを補完して重複提示を避ける。 */}
-          <PartsEditorPopover
-            field={field}
-            value={value}
-            displayValue={displayValue}
-            onPartsChange={onPartsChange}
-            excludedPartIds={declaredPartIds}
-          />
-          {renderFieldWarning(field.uid, warning)}
-        </Table.Td>
-      </Table.Tr>
-    )
-  }
-
-  if (!isSimpleField(field)) {
-    return (
-      <Table.Tr data-field-uid={field.uid} data-table-row-mode="full-width">
-        <Table.Td colSpan={partColumns.length + 2}>
-          {renderFieldWithWarning({
-            field,
-            value,
-            displayValue,
-            trackMax,
-            onChange,
-            onPartsChange,
-            renderField,
-            warning,
-            creationRollReroll
-          })}
-        </Table.Td>
-      </Table.Tr>
-    )
-  }
-
-  return (
-    <Table.Tr data-field-uid={field.uid} data-table-row-mode="columns">
-      <Table.Th id={labelId} scope="row" data-table-column="label">{field.label}</Table.Th>
-      <Table.Td
-        colSpan={partColumns.length > 0 ? partColumns.length + 1 : undefined}
-        data-table-column="value"
-      >
-        {renderFieldWithWarning({
-          field,
-          value,
-          displayValue,
-          trackMax,
-          onChange,
-          onPartsChange,
-          renderField,
-          warning,
-          creationRollReroll,
-          labelledBy: labelId
-        })}
-      </Table.Td>
-    </Table.Tr>
-  )
-}
-
-function buildTablePartColumns(fields: RenderFieldEntry[]): PartDefinition[] {
-  const columns = new Map<string, PartDefinition>()
-  for (const { field } of fields) {
-    if (!isNumberScalar(field) || field.parts === true) continue
-    for (const part of field.partsKeys ?? []) {
-      if (!isPresentablePartsKey(part.id)) continue
-      if (!columns.has(part.id)) columns.set(part.id, part)
-    }
-  }
-  return [...columns.values()]
-}
-
-function renderFieldWithWarning({
-  field,
-  value,
-  displayValue,
-  trackMax,
-  onChange,
-  onPartsChange,
-  renderField: renderFieldOverride,
-  warning,
-  creationRollReroll,
-  labelledBy
-}: {
-  field: SheetField
-  value: unknown
-  displayValue: number | undefined
-  trackMax: ConstraintEvaluationResult | undefined
-  onChange: TemplateFormRendererProps['onChange']
-  onPartsChange: TemplateFormRendererProps['onPartsChange']
-  renderField: TemplateFormRendererProps['renderField']
-  warning: string | undefined
-  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
-  labelledBy?: string
-}) {
-  const hasPartsEditor = isPartsScalarField(field)
-  const defaultNode = hasPartsEditor ? (
-    <>
-      <Text fw={500} size="sm">{field.label}</Text>
-      {field.description === undefined ? null : <Text c="dimmed" size="xs">{field.description}</Text>}
-      <PartsEditorPopover
-        field={field}
-        value={value}
-        displayValue={displayValue}
-        onPartsChange={onPartsChange}
-      />
-    </>
-  ) : renderDefaultField(field, value, trackMax, onChange, labelledBy)
-  const control = renderFieldOverride === undefined ? defaultNode : renderFieldOverride(field, defaultNode)
-  const rerollControl = renderCreationRollReroll(field, creationRollReroll)
-  if (!hasPartsEditor && warning === undefined && rerollControl === null) return control
-
-  return (
-    <Stack gap={4}>
-      {control}
-      {rerollControl}
-      {renderFieldWarning(field.uid, warning)}
-    </Stack>
-  )
-}
-
-/**
- * 作成時ロールを宣言している field にだけ振り直しボタンを描く。
- *
- * 対象かどうかの判定は engine の rollOnCreateSpec だけを使う。同じ判定を front で書き直すと、
- * 作成時の適用・server の振り直し・この表示が別々の対象集合を持ちうるため
- * （engine 側 roll-on-create.ts の「対象集合を決める述語は 1 本」）。
- * 記法も戻り値から採る（field.rollOnCreate を読み直すと 1 本化した述語がその場で分裂する）。
- */
-function renderCreationRollReroll(
-  field: SheetField,
-  creationRollReroll: TemplateFormRendererProps['creationRollReroll']
-) {
-  if (creationRollReroll === undefined) return null
-  const spec = rollOnCreateSpec(field)
-  if (spec === undefined) return null
-
-  const { onRequest, pendingFieldUid } = creationRollReroll
-  return (
-    <Group gap="xs" data-creation-roll-reroll={field.uid}>
-      <Button
-        aria-label={`${field.label}: 作成時ロールを振り直す`}
-        disabled={pendingFieldUid !== undefined}
-        loading={pendingFieldUid === field.uid}
-        onClick={() => onRequest(field.uid)}
-        size="xs"
-        type="button"
-        variant="light"
-      >
-        振り直す
-      </Button>
-      <Text c="dimmed" data-creation-roll-notation={field.uid} size="xs">{spec.notation}</Text>
-    </Group>
-  )
-}
-
-function renderFieldWarning(fieldUid: string, warning: string | undefined) {
-  if (warning === undefined) return null
-  return <Text c="red" size="sm" data-field-constraint-warning={fieldUid}>{warning}</Text>
-}
-
-function renderDefaultField(
-  field: SheetField,
-  value: unknown,
-  trackMax: ConstraintEvaluationResult | undefined,
-  onChange: TemplateFormRendererProps['onChange'],
-  labelledBy?: string
-) {
-  if (field.type === 'scalar') return renderScalarField(field, value, onChange, labelledBy)
-
-  if (field.type === 'list') return <ListFieldEditor field={field} value={value} onChange={onChange} />
-
-  if (field.type === 'track') {
-    return (
-      <TrackFieldView
-        field={field}
-        rawValue={value}
-        maxRuntime={trackMax ?? { status: 'indeterminate' }}
-      />
-    )
-  }
-
-  if (field.type === 'computed' || field.type === 'roll') {
-    return (
-      <TextInput
-        key={field.uid}
-        {...getFieldLabelProps(field.label, labelledBy)}
-        description={field.description}
-        value={value === undefined ? '—' : String(value)}
-        readOnly
-      />
-    )
-  }
-
-  return (
-    <Paper key={field.uid} p="sm" withBorder style={{ width: '100%' }} data-field-placeholder={field.type}>
-      <Text fw={600}>{field.label}</Text>
-      <Text size="sm" c="dimmed">
-        {field.type}
-      </Text>
-    </Paper>
-  )
-}
-
-function renderScalarField(
-  field: ScalarField,
-  value: unknown,
-  onChange: TemplateFormRendererProps['onChange'],
-  labelledBy?: string
-) {
-  if (field.valueType === 'number') {
-    return (
-      <NumberInput
-        key={field.uid}
-        {...getFieldLabelProps(field.label, labelledBy)}
-        description={field.description}
-        value={typeof value === 'number' ? value : ''}
-        onChange={(nextValue) => {
-          if (isFiniteNumberInput(nextValue)) onChange?.(field.uid, nextValue)
-        }}
-      />
-    )
-  }
-
-  if (field.valueType === 'boolean') {
-    return (
-      <Checkbox
-        key={field.uid}
-        {...getFieldLabelProps(field.label, labelledBy)}
-        description={field.description}
-        checked={value === true}
-        onChange={(event) => onChange?.(field.uid, event.currentTarget.checked)}
-      />
-    )
-  }
-
-  if (field.valueType === 'select') {
-    return (
-      <Select
-        key={field.uid}
-        {...getFieldLabelProps(field.label, labelledBy)}
-        description={field.description}
-        data={field.options ?? []}
-        value={typeof value === 'string' ? value : null}
-        onChange={(nextValue) => {
-          if (nextValue !== null) onChange?.(field.uid, nextValue)
-        }}
-      />
-    )
-  }
-
-  return (
-    <TextInput
-      key={field.uid}
-      {...getFieldLabelProps(field.label, labelledBy)}
-      description={field.description}
-      value={typeof value === 'string' ? value : ''}
-      onChange={(event) => onChange?.(field.uid, event.currentTarget.value)}
-    />
-  )
-}
-
-function getFieldLabelProps(label: string, labelledBy?: string) {
-  return labelledBy === undefined ? { label } : { 'aria-labelledby': labelledBy }
 }

@@ -138,6 +138,14 @@ Next 16 App Router 版フロントエンド。trpg-remix-app からの移行は 
 - trackの保存値解釈、max評価3状態、gauge、checkboxes、上限30の表示退化の所有者は
   `characterSheet/fields/TrackFieldView.tsx`（段階的リファクタP5・2026-11-01）。
   外側のfield警告・振り直し・layoutはTFR側に残し、runtimeからはTFRだけが呼び出す
+- field型dispatch、scalar control、parts、共通警告、作成時ロールの振り直し、`renderField` overrideの
+  所有者は`characterSheet/fields/FieldRenderer.tsx`（段階的リファクタP6・2026-11-01）。
+  `field.type`の7種をexhaustive switchで分岐し、`CreationRollReroll`の公開import pathはTFRからの
+  type re-exportで維持する。内部componentをruntime消費者から直接importしない
+- table固有のparts列union、行見出し、parts/通常/全幅の行分岐の所有者は
+  `characterSheet/layouts/TableFieldLayout.tsx`（段階的リファクタP7・2026-11-01）。
+  parts専用行は既存どおり`renderField` overrideを経由させず、tableの外側のlayout containerは
+  P8までTFRが所有する。field描画callbackを注入せず、`FieldRenderer`を直接利用する
 - **parts key の提示/書込可否は `characterSheet/parts-key-visibility.ts` の 1 定義**
   （reserved base/other＋UNSAFE 除外）。TFR の表示列挙と sheet-edit の書込列挙が同じ述語を
   使う。B12-FIX 以前に公開されたデータの防御なので「publish が拒否するから不要」と消さない

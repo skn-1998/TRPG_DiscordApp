@@ -5,6 +5,22 @@
      - フェーズ検収ごとに該当節を差分更新する（auto-compact はフェーズ途中にも来る）
      - compact 後の最初の応答は必ずこのファイルから読み、AI.*.md・メモリ・.claude/compact-log/ で補完する -->
 
+## 【完了 2026-11-01】TemplateFormRenderer component refactor P6・P7
+
+- ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP6、P7を実装する。
+- P6は受入確定: field dispatch、parts、警告、振り直し、scalar controlを`fields/FieldRenderer.tsx`へ移動した。`field.type`は7種のexhaustive switchとし、公開入口、DOM、ARIA、data属性、callback payload、override、read-only field、placeholderを維持した。
+- `CreationRollReroll`は`TemplateFormRenderer.tsx`から同名でtype re-exportし、公開import pathを維持した。
+- P6のroot独立検証: focused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P6差分レビューとP4〜P6大粒度レビューはapproved、未解消H/M=0。
+- 大粒度実測: field dispatch、警告DOM、parts判定、保存値reader、list、track、振り直し表示は各1所有者。内部componentのfeature外直接import、barrel、第三入口、親TS moduleへの逆向き依存は0件。親は727→528行。
+- 認知負荷: field描画の6項目を1 moduleへ局所化し、親のsection/block/pool/table/layoutを同時に読む負荷を除いた。1 hop増は約200行の判断を隠す境界で、総合reduced。
+- P7も受入確定: table本体、`TableFieldRow`、`buildTablePartColumns`を`layouts/TableFieldLayout.tsx`へ移動した。first-seen union、parts:true除外、4種の行構造、全幅降格、行見出し、`labelledBy`、parts行のoverride例外を維持した。
+- P7のroot独立検証もfocused 1 suite / 150 tests / 1 snapshot、typecheck、lint、`git diff --check`成功。P7差分レビューとP6・P7全体レビューはapproved、未解消H/M/L=0。
+- P6のLow確認事項だった`FieldRendererProps`はP7の`TableFieldLayout`で型契約として利用し、死蔵exportを解消した。
+- P6・P7全体実測: 親727→359行、FieldRenderer 221行、TableFieldLayout 214行。table責務3件は各1定義、内部componentのfeature外直接import、親TS moduleへの逆向き依存、barrel、第三入口、一時callbackは0件。境界導入の純増は67行だが、両moduleとも判断を持つ境界で総合認知負荷はreduced。
+- Claude/Opus環境がないため、独立Codex系レビュアー2本でP6差分・P4〜P6大粒度と、P7差分・P6/P7全体を検収した。
+- 本計画、構成方針、`trpg-next-app/AI.md`、本handoffをP7完了へ同期した。
+- 今回の依頼範囲P6・P7は完了。次の計画フェーズはP8だが未着手であり、別依頼まで進めない。
+
 ## 【完了 2026-11-01】TemplateFormRenderer component refactor P4・P5
 
 - ユーザー依頼: `document/character-sheet-proposals/renderer-component-refactor-plan.md`のP4、P5を実装する。
